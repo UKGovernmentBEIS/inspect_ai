@@ -21,6 +21,8 @@ from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
     clear_eval_retry_pending,
+    get_eval_state,
+    latest_eval_for_task,
     mark_eval_retry_pending,
     task_retry_abandoned,
 )
@@ -1129,8 +1131,17 @@ async def run_task_retry_attempts(
                         # superseded (a retry abandoned before the pre-mark was
                         # never marked, and one abandoned during the log write
                         # was already cleared by the directive; this is a no-op
-                        # then)
-                        clear_eval_retry_pending(result.eval.eval_id)
+                        # then). An attempt that ended before it registered
+                        # (its prior-log seed or log_start failed) has no
+                        # flag of its own: the flag stands on the task's
+                        # latest registered attempt.
+                        registered = get_eval_state(result.eval.eval_id)
+                        if registered is None:
+                            registered = latest_eval_for_task(
+                                options.logger.eval.task_id
+                            )
+                        if registered is not None:
+                            clear_eval_retry_pending(registered.eval_id)
 
                     # Retry source selection needs the recorder's write state.
                     # Once no retry follows, release any unfinished entry even

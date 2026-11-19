@@ -68,7 +68,15 @@ class LogDisplay(Display):
         # Create and yield task display
         task = TaskWithResult(profile, None)
         self.tasks.append(task)
-        yield LogTaskDisplay(task)
+        try:
+            yield LogTaskDisplay(task)
+        except BaseException:
+            # a row completed before the exception (e.g. an abandoned retry)
+            # still reports its result
+            if task.result is not None:
+                self._log_result(task)
+                self._log_status()
+            raise
         self._log_result(task)
         self._log_status()
 
