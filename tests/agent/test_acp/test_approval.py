@@ -1420,7 +1420,7 @@ def _markdown_token_types(text: str) -> set[str]:
 def test_format_view_content_escapes_the_title() -> None:
     # a title is plain text, and can hold an argument (agent_status: <id>)
     view_content = ToolCallContent(
-        title="agent_status: <!-- x", format="text", content="ok"
+        title="agent_status: a <!-- b --> c", format="text", content="ok"
     )
     formatted = _format_view_content_as_markdown(view_content)
     assert not {"html_block", "html_inline"} & _markdown_token_types(formatted.content)
