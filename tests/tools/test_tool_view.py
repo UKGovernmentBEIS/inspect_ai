@@ -306,7 +306,8 @@ def test_default_view_shows_argument_names_literally() -> None:
     "name",
     [
         "path",
-        "café",  # a name normalization leaves as it is
+        "café",  # a non-ASCII name normalization leaves as it is
+        "dry_run\u034f",  # an invisible combining grapheme joiner
         "dry_run=True, unused",
         "class",
         "\U0001d68d\U0001d69b\U0001d6a2_run",  # mathematical monospace "dry"
@@ -332,6 +333,45 @@ def test_default_view_reads_as_the_call_it_shows(name: str) -> None:
         else:
             read[keyword.arg] = value
     assert read == arguments
+
+
+def test_default_view_escapes_names_other_than_ascii_identifiers() -> None:
+    # a name with an invisible mark reads as the name without it
+    arguments = {"dry_run\u034f": True, "path": "/data"}
+    call = ToolCall(id="1", function="remove", arguments=arguments)
+    rendered = _render_approval(default_tool_call_viewer(call), arguments)
+    assert "remove(path='/data', **{'dry_run\\u034f': True})" in rendered
+    assert "\u034f" not in rendered
+
+
+@pytest.mark.parametrize(
+    "invisible",
+    ["\u034f", "\ufe0f", "\U000e0100", "\u115f", "\u1160", "\u3164", "\uffa0"],
+)
+def test_default_view_escapes_invisible_characters_in_strings(
+    invisible: str,
+) -> None:
+    import ast
+
+    value = f"rm{invisible} -rf /data"
+    arguments = {"cmd": value, "options": [{"name": f"a{invisible}"}]}
+    call = ToolCall(id="1", function="run", arguments=arguments)
+    view = default_tool_call_viewer(call).call
+    assert view is not None
+    assert invisible not in view.content
+    code = "\n".join(view.content.strip().split("\n")[1:-1])
+    shown = ast.parse(code, mode="eval").body
+    assert isinstance(shown, ast.Call)
+    read = {k.arg: ast.literal_eval(k.value) for k in shown.keywords}
+    assert read == arguments
+
+
+def test_default_view_leaves_visible_combining_marks() -> None:
+    # e + combining acute accent renders as é
+    call = ToolCall(id="1", function="f", arguments={"x": "cafe\u0301"})
+    view = default_tool_call_viewer(call).call
+    assert view is not None
+    assert "x='cafe\u0301'" in view.content
 
 
 def test_approval_shows_arguments_beneath_a_custom_view() -> None:

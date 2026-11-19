@@ -14,30 +14,33 @@ def format_function_call(
     width: int = 80,
     literal_strings: bool = False,
 ) -> str:
-    """Format a function call for display.
+    r"""Format a function call for display.
 
     Args:
         func_name: The function's name.
         args_dict: The call's arguments.
         indent_spaces: Indentation of arguments when the call spans lines.
         width: Line width to wrap the arguments at.
-        literal_strings: Show strings as Python literals, with quotes and
-            newlines escaped, so a string cannot read as other arguments.
-            Argument names that are not identifiers as written (keywords,
-            or names Python would normalize) are then shown in an
-            unpacked dictionary (`**{'a b': 1}`), so a name cannot read as
-            other arguments either.
+        literal_strings: Show strings as Python literals, with quotes,
+            newlines and invisible characters escaped, so a string cannot
+            read as other arguments or as another string. Argument names
+            other than plain ASCII identifiers are then shown in an
+            unpacked dictionary with non-ASCII characters escaped
+            (`**{'a b': 1, 'caf\xe9': 2}`), so a name cannot read as
+            other arguments or as another name either.
     """
     formatted_args = []
-    unnamed: dict[str, Any] = {}
+    unnamed: list[str] = []
     for key, value in args_dict.items():
-        if literal_strings and not _is_keyword_argument(key):
-            unnamed[key] = value
-            continue
         formatted_value = format_value(value, width, literal_strings)
+        if literal_strings:
+            formatted_value = _escape_invisible(formatted_value)
+            if not _is_keyword_argument(key):
+                unnamed.append(f"{ascii(key)}: {formatted_value}")
+                continue
         formatted_args.append(f"{key}={formatted_value}")
     if unnamed:
-        formatted_args.append(f"**{pprint.pformat(unnamed, width=width)}")
+        formatted_args.append("**{" + ", ".join(unnamed) + "}")
 
     args_str = ", ".join(formatted_args)
 
@@ -49,14 +52,51 @@ def format_function_call(
 
 
 def _is_keyword_argument(name: object) -> bool:
-    # Python reads identifiers in NFKC form, so a name that normalization
-    # changes would read as another name (e.g. full-width letters)
+    # only plain ASCII names: other identifiers can read as another name
+    # (full-width letters, invisible combining marks)
     return (
         isinstance(name, str)
+        and name.isascii()
         and name.isidentifier()
         and not iskeyword(name)
-        and unicodedata.normalize("NFKC", name) == name
     )
+
+
+# Unicode default-ignorable code points (DerivedCoreProperties.txt), which
+# render as nothing; this includes the Hangul fillers, which render blank
+_INVISIBLE_RANGES = [
+    (0x00AD, 0x00AD),
+    (0x034F, 0x034F),
+    (0x061C, 0x061C),
+    (0x115F, 0x1160),
+    (0x17B4, 0x17B5),
+    (0x180B, 0x180F),
+    (0x200B, 0x200F),
+    (0x202A, 0x202E),
+    (0x2060, 0x206F),
+    (0x3164, 0x3164),
+    (0xFE00, 0xFE0F),
+    (0xFEFF, 0xFEFF),
+    (0xFFA0, 0xFFA0),
+    (0xFFF0, 0xFFF8),
+    (0x1BCA0, 0x1BCA3),
+    (0x1D173, 0x1D17A),
+    (0xE0000, 0xE0FFF),
+]
+_INVISIBLE = re.compile(
+    "[" + "".join(f"{chr(a)}-{chr(b)}" for a, b in _INVISIBLE_RANGES) + "]"
+)
+
+
+def _escape_invisible(literal: str) -> str:
+    """A Python literal with its invisible characters written as escapes.
+
+    `repr()` escapes characters that are not printable, but leaves some that
+    render as nothing (a combining grapheme joiner, variation selectors,
+    Hangul fillers). In a literal these can only occur inside a string, where
+    the escape denotes the same character.
+    """
+    return _INVISIBLE.sub(lambda m: ascii(m.group(0))[1:-1], literal)
 
 
 def format_value(value: object, width: int, literal_strings: bool = False) -> str:
