@@ -2175,12 +2175,17 @@ eager controller for added tasks.
   for the run, with its model filter, including one that reaches no
   controller when it is made, and controller creation
   (`ensure_model_controller`, and the lazy creation in a model's first
-  `generate`) applies the latest retune that matches the new controller's
-  model. Controllers stay lazy; nothing is created eagerly. The follow-up
-  specifies which retune matches when several filters name the model, for
-  example an exact model name beating a prefix match, as the model filter
-  does for a live retune (`_control/limits.py`), and what the retune's
-  answer and the logs record when it reaches no controller yet.
+  `generate`) replays the kept retunes in the order they were made,
+  applying each whose model filter matches the new controller, so the
+  latest matching retune decides its ceiling, as later retunes overwrite
+  earlier ones on a live controller. Whether one retune's filter matches a
+  controller follows the per-request name rule a live retune uses
+  (`_match_controllers`, `_control/limits.py`: a prefix at the name start
+  or after a `/`, an exact name winning among the controllers one request
+  names); an older exact-name retune does not outrank a newer prefix one.
+  Controllers stay lazy; nothing is created eagerly. The follow-up also
+  specifies what the retune's answer and the logs record when it reaches
+  no controller yet.
 - A provider's own lookups in `sample_init` (a missing config's compose-file
   search) seeing the task directory.
 - A caller's own cancellation of `eval_async()` (for example

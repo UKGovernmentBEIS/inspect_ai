@@ -784,6 +784,28 @@ the 2026-11-12 rule for fed tasks to every task added inside an attempt):
   cleared instead ("Tasks fed through a handle"). `epochs` is not an
   oversight control; it is a run-level override of the task's own
   declaration, like the sample limits.
+
+  **`eval_retry()` replays the recorded pair.** Today `eval_retry_async`
+  passes the log's pair as an eval-level override,
+  `Epochs(config.epochs, config.epochs_reducer)`, and the rebuilt task keeps
+  its own reducer when the recorded reducer is `None`
+  (`resolve_task_epochs`, and the same merge in today's `prepare_options`).
+  A recorded `None` means the default reducer applied, not that none was
+  chosen, so a log whose task's own pair applied with the default reducer
+  is retried with the factory's reducer: a factory declaring
+  `Epochs(2, "at_least_2")`, added as `task_with(factory(), epochs=1)`
+  under a three-epoch run, records one epoch and no reducer, and its retry
+  pairs one epoch with `at_least_2`, which `validate_reducer` refuses. So
+  `eval_retry_async` applies the recorded pair to the rebuilt task itself,
+  `task_with(task, epochs=Epochs(config.epochs, config.epochs_reducer))`
+  (which sets the task's reducer to the recorded names, or to the default
+  for `None`), and passes no eval-level `epochs`, so the retry runs the
+  pair the attempt ran. For a seed task's log nothing else changes: its
+  recorded pair is the one the run's precedence produced, and the retry has
+  no run-level epochs to apply over it. The one case that changes is the
+  same mismatch reached without an added task (a seed run of
+  `task_with(factory(), epochs=1)` whose factory declares a reducer), which
+  is retried with the default reducer it ran with instead of the factory's.
 - Tags stay merged; generate config and the run-wide limits (`max_tasks`,
   `max_sandboxes`, `max_connections`) are unchanged.
 
@@ -801,10 +823,27 @@ wants shared when it builds the rollout task. The cost is that a
 run-level cap, such as `--token-limit` or `--time-limit`, no longer binds
 an added task that sets its own value; the oversight controls still bind
 every task, and a run-level `--epochs` no longer changes an added task
-that declares its own `epochs`. `task_identifier()`'s `ResolvedTask` branch, which applies the
-run's limits over the task's, is computed only for an eval set's requested
-tasks, which have no creator, so it never disagrees with an added task's
-log.
+that declares its own `epochs`.
+
+**Identifiers.** `task_identifier()` promises the same identifier from a
+`ResolvedTask` and from the log that running it produces, and its
+`ResolvedTask` branch hashes the sample limits of the `eval_set_args` it
+is given over the task's own (`message_limit`, `token_limit` with its
+metering type, `turn_limit`, `time_limit`, `working_limit`, `cost_limit`;
+error tolerance, `max_samples` and `epochs` are not hashed). That is the
+precedence of a requested or seed task, which is unchanged, so every
+requested task's identifier and every stored identifier stay as they are.
+A task added from inside a running task resolves those limits task-first,
+so its log hashes the values that applied, and a caller that computes the
+identifier of such a task (it can pass a `ResolvedTask` to
+`enqueue_task()`) gets the matching one by passing `eval_set_args` whose
+limits are those values: the task's own where it sets one, else the
+run's. No eval-set path computes it (requested tasks have no creator,
+and inspect_flow and inspect_steward compute identifiers only for
+requested tasks and from log headers). `task_identifier()` gains no
+creator argument; its docstring and the reference docs state the
+precedence its `ResolvedTask` branch assumes and the values to pass for a
+task added from inside a running task.
 
 ### Waits and limits
 
@@ -998,6 +1037,16 @@ tasks a `TaskSource` returns, and tasks added from a `TaskSource` callback
 are unchanged. No migration is needed for an added task that sets none of
 these settings.
 
+`eval_retry()` applies a log's recorded epoch count and reducer to the
+rebuilt task, so a retry runs the pair its attempt ran. A log that recorded
+the default reducer for a task whose factory declares another (a
+`task_with(factory(), epochs=N)` run) is now retried with the default
+reducer it ran with, where today the retry takes the factory's reducer, or
+is refused when that reducer needs more epochs than N. `task_identifier()`
+is unchanged: requested tasks' and stored identifiers stay the same, and
+its docstring says which limits to pass for a task added from inside a
+running task ("Identifiers").
+
 inspect_flow's Delta store and inspect_steward's log observation and
 directory store key logs on `task_identifier()` from the log header, so a
 fed log can be observed, published and copied like any log, but its
@@ -1181,7 +1230,22 @@ test touched), with mockllm models; every test that waits is bounded with
   the fed log; two fed logs that share a `task_id` and differ in
   `eval_id`, as attempts of one record would, give one identifier; an
   ordinary task's identifier is the same as before the change for a stored
-  log.
+  log; an ordinary task added from inside a running task with its own
+  `message_limit=100` under a run limit of 5 has a log identifier equal to
+  its `ResolvedTask` identifier computed with `eval_set_args` holding
+  `message_limit=100` (and different from one computed with the run's 5),
+  and a requested task with the same settings keeps the identifier it had
+  before the change.
+- `tests/test_retry.py` (epoch pairs): a registered factory declaring
+  `Epochs(2, "at_least_2")`, added from a solver as
+  `task_with(factory(), epochs=1)` under a three-epoch run and failing
+  once, records one epoch and no reducer, and `eval_retry()` of its log
+  runs one epoch with the default reducer, with no `PrerequisiteError`;
+  the same for a seed run of `task_with(factory(), epochs=1)`; a log
+  recording a named reducer (`pass_at_2` with two epochs) and one recording
+  an empty reducer list are retried with exactly that pair; a seed run
+  under `--epochs 3` of a factory with its own reducer is retried with
+  three epochs and that reducer, as today.
 - `tests/test_sample_source.py` (tasks fed through a handle):
   - a fed task's log records `eval.dataset.name == "samples_from_handle"`;
     a `Task` whose dataset is a `MemoryDataset` named `samples_from_handle`,
@@ -1304,12 +1368,17 @@ a running worker's fed logs from archival ("Compatibility and migration").
   attempt's `TaskCancel.apply` that `start_attempt` creates, for every
   action, `abort` included), `_eval/task/task.py` (`resolve_dataset_or_source`
   naming a `HandleChannel`'s dataset and refusing the reserved name for any
-  other), `_eval/eval.py` (`_resolve_enqueued_tasks` resolving a fed task
+  other; the `max_samples` parameter docs of `Task` and `task_with`, which
+  say a run's value overrides the task's, adding that a task added from
+  inside a running task keeps its own), `_eval/eval.py` (`_resolve_enqueued_tasks` resolving a fed task
   for its creator's model; the `eval_resolve_tasks` refusal;
-  `eval_retry_async` refusing a log by its dataset name; `max_tasks`,
+  `eval_retry_async` refusing a log by its dataset name and applying a
+  log's recorded epoch pair to the rebuilt task instead of passing it as
+  an eval-level override; `max_tasks`,
   `max_samples` and `max_sandboxes` docstrings), `_eval/evalset.py`
   (`all_evals_succeeded` and `validate_eval_set_prerequisites` skipping
-  logs with the reserved dataset name; `task_identifier` building a fed
+  logs with the reserved dataset name; `task_identifier`'s docstring
+  stating the precedence its `ResolvedTask` branch assumes; `task_identifier` building a fed
   task's identifier from its task id),
   `__init__.py` (exports), `docs/task-source.qmd` (handles; stopping
   rollouts with `cancel()` in an `except BaseException:` that re-raises,
