@@ -334,6 +334,12 @@ async def eval_run(
                     for reducer in task.epochs_reducer:
                         validate_reducer(task.epochs, reducer)
 
+                # sample concurrency
+                if task_eval_config.max_samples is None:
+                    task_eval_config.max_samples = task.max_samples
+                else:
+                    task.max_samples = task_eval_config.max_samples
+
                 # sample message limit
                 if task_eval_config.message_limit is None:
                     task_eval_config.message_limit = task.message_limit

@@ -1332,6 +1332,197 @@ def test_eval_level_message_limit_not_reused_by_task_object():
     assert followup.samples[0].limit is None
 
 
+class _SampleConcurrency:
+    """Peak number of one task's samples running at once.
+
+    Each sample waits until `expected` samples run together (so the peak
+    reaches the task's limit), then yields so that a sample the limit should
+    have held back would start too and raise the peak.
+    """
+
+    def __init__(self, expected: int) -> None:
+        self.expected = expected
+        self.running = 0
+        self.peak = 0
+        self._full: anyio.Event | None = None
+
+    async def enter(self) -> None:
+        if self._full is None:
+            self._full = anyio.Event()
+        self.running += 1
+        self.peak = max(self.peak, self.running)
+        if self.running >= self.expected:
+            self._full.set()
+
+    async def wait_and_exit(self) -> None:
+        assert self._full is not None
+        try:
+            with anyio.fail_after(10):
+                await self._full.wait()
+            for _ in range(10):
+                await anyio.sleep(0)
+        finally:
+            self.running -= 1
+
+    def task(self, name: str, samples: int = 6, **task_args: Any) -> Task:
+        @solver
+        def record_concurrency() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                await self.enter()
+                await self.wait_and_exit()
+                return state
+
+            return solve
+
+        return Task(
+            dataset=[Sample(input=str(i)) for i in range(samples)],
+            solver=record_concurrency(),
+            name=name,
+            **task_args,
+        )
+
+
+def test_task_max_samples_limits_its_concurrency() -> None:
+    concurrency = _SampleConcurrency(expected=2)
+    log = eval(
+        concurrency.task("t", max_samples=2), model="mockllm/model", display="none"
+    )[0]
+    assert log.status == "success"
+    assert log.eval.config.max_samples == 2
+    assert concurrency.peak == 2
+
+
+def test_tasks_in_one_run_keep_their_own_max_samples() -> None:
+    one = _SampleConcurrency(expected=1)
+    three = _SampleConcurrency(expected=3)
+    logs = eval(
+        [one.task("one", max_samples=1), three.task("three", max_samples=3)],
+        model="mockllm/model",
+        max_tasks=2,
+        display="none",
+    )
+    by_task = {log.eval.task: log for log in logs}
+    assert by_task["one"].status == "success"
+    assert by_task["three"].status == "success"
+    assert by_task["one"].eval.config.max_samples == 1
+    assert by_task["three"].eval.config.max_samples == 3
+    assert one.peak == 1
+    assert three.peak == 3
+
+
+def test_eval_max_samples_overrides_task_max_samples() -> None:
+    concurrency = _SampleConcurrency(expected=1)
+    task = concurrency.task("t", max_samples=3)
+    log = eval(task, model="mockllm/model", max_samples=1, display="none")[0]
+    assert log.status == "success"
+    assert log.eval.config.max_samples == 1
+    assert concurrency.peak == 1
+    # the run's value applies to this run only
+    assert task.max_samples == 3
+
+
+def test_task_max_samples_rejects_non_positive() -> None:
+    with pytest.raises(ValueError, match="max_samples must be a positive integer"):
+        Task(dataset=[Sample(input="x")], max_samples=0)
+
+
+def test_ctl_retunes_task_max_samples() -> None:
+    from inspect_ai._control.eval_state import get_eval_state
+    from inspect_ai._control.limits import task_limits
+    from inspect_ai.log._samples import sample_active
+    from inspect_ai.util._concurrency import ResizableLimiter, task_sample_semaphore
+
+    concurrency = _SampleConcurrency(expected=2)
+    retuned = False
+
+    @solver
+    def retune_then_record() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal retuned
+            await concurrency.enter()
+            if not retuned:
+                retuned = True
+                active = sample_active()
+                assert active is not None
+                eval_state = get_eval_state(active.eval_id)
+                assert eval_state is not None
+                result = await task_limits(eval_state.task_id, max_samples=2)
+                assert result is not None
+                assert result["requested"] == {"max_samples": 2}
+                semaphore = task_sample_semaphore(eval_state.task_id)
+                assert isinstance(semaphore, ResizableLimiter)
+                assert semaphore.limit == 2
+            await concurrency.wait_and_exit()
+            return state
+
+        return solve
+
+    task = Task(
+        dataset=[Sample(input=str(i)) for i in range(4)],
+        solver=retune_then_record(),
+        max_samples=1,
+    )
+    log = eval(task, model="mockllm/model", display="none")[0]
+    assert log.status == "success", log.error
+    assert concurrency.peak == 2
+
+
+@task
+def max_samples_retry_task(failed_marker: str, max_samples: int | None) -> Task:
+    @solver
+    def fail_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            # a file, not a module global: eval_retry() reloads this module
+            marker = Path(failed_marker)
+            if not marker.exists():
+                marker.touch()
+                raise RuntimeError("first attempt fails")
+            return state
+
+        return solve
+
+    return Task(
+        dataset=[Sample(input="x")], solver=fail_once(), max_samples=max_samples
+    )
+
+
+@pytest.mark.parametrize(
+    "task_values,override,expected",
+    [
+        ([2], None, [2]),
+        ([5, 2], None, [5, 2]),
+        ([2, 5], None, [2, 5]),
+        ([5, None], None, [5, None]),
+        ([5, 2], 7, [7, 7]),
+    ],
+)
+def test_eval_retry_keeps_each_task_max_samples(
+    tmp_path: Path,
+    task_values: list[int | None],
+    override: int | None,
+    expected: list[int | None],
+) -> None:
+    log_dir = str(tmp_path / "logs")
+    logs = eval(
+        [
+            max_samples_retry_task(str(tmp_path / f"failed-{i}"), value)
+            for i, value in enumerate(task_values)
+        ],
+        model="mockllm/model",
+        log_dir=log_dir,
+        max_tasks=len(task_values),
+        display="none",
+    )
+    # retry in the order the tasks were given
+    logs = sorted(logs, key=lambda log: log.eval.task_args["failed_marker"])
+    assert [log.status for log in logs] == ["error"] * len(task_values)
+    assert [log.eval.config.max_samples for log in logs] == task_values
+
+    retried = eval_retry(logs, log_dir=log_dir, max_samples=override, display="none")
+    assert [log.status for log in retried] == ["success"] * len(task_values)
+    assert [log.eval.config.max_samples for log in retried] == expected
+
+
 def test_eval_approval_override():
     eval_approval = ApprovalPolicyConfig(
         approvers=[

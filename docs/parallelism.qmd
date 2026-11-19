@@ -85,6 +85,27 @@ eval(
 
 This code will evaluate a total of 6 tasks (3 reasoning effort variations against 2 models each) with up to 5 tasks run in parallel.
 
+## Samples per Task {#sec-max-samples}
+
+Inspect runs a task's samples in parallel. By default, the number of samples running at once follows the model's connection limit (see [Model Concurrency](models-concurrency.qmd)). Use `max_samples` to set it for every task in a run:
+
+``` bash
+$ inspect eval . --max-samples=10
+```
+
+A task can also set its own:
+
+``` python
+Task(
+    dataset=csv_dataset("dataset.csv"),
+    solver=[system_message(SYSTEM_MESSAGE), generate()],
+    scorer=match(),
+    max_samples=4,
+)
+```
+
+A `max_samples` passed to `eval()`, `eval_set()` or the CLI overrides a task's own. You can change it while a task runs with [`inspect ctl config`](control-channel.qmd#configuration).
+
 ## Sharding {#sec-sharding}
 
 To spread one task's samples over several processes or machines, run each part as its own worker that writes its own log (a *shard*), then merge the shards into one log. See [Sharding](sharding.qmd) for the log layout, merging and limitations.
