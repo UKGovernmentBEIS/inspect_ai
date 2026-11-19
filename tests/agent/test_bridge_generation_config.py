@@ -1544,6 +1544,64 @@ async def test_google_mistyped_tool_config_rejected_on_request_path():
     assert called == [], "request must be rejected before the model is called"
 
 
+async def _google_request_config(generation_config: dict[str, Any]) -> GenerateConfig:
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.google_api_impl import (
+        inspect_google_api_request_impl,
+    )
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_output import ModelOutput
+
+    configs: list[GenerateConfig] = []
+
+    def _capture(input, tools, tool_choice, config):
+        configs.append(config)
+        return ModelOutput.from_content(model="mockllm/model", content="ok")
+
+    model = get_model("mockllm/model", custom_outputs=_capture)
+    bridge = AgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="hi")]),
+        model=str(model),
+    )
+    bridge.model_aliases = {"gemini-3-pro": model}
+
+    await inspect_google_api_request_impl(
+        json_data={
+            "model": "gemini-3-pro",
+            "contents": [{"role": "user", "parts": [{"text": "hi"}]}],
+            "generationConfig": generation_config,
+        },
+        web_search_providers=None,
+        code_execution_providers=None,
+        bridge=bridge,
+    )
+    assert len(configs) == 1
+    return configs[0]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "generation_config,seed",
+    [({"temperature": 0.8, "seed": 42}, 42), ({"temperature": 0.8}, None)],
+)
+async def test_google_seed_forwarded_on_request_path(
+    generation_config: dict[str, Any], seed: int | None
+):
+    """`seed` is structural, so it reaches the model even when generation params are dropped."""
+    config = await _google_request_config(generation_config)
+    assert config.seed == seed
+    assert config.temperature is None
+
+
+@pytest.mark.anyio
+async def test_google_invalid_seed_rejected_on_request_path():
+    with pytest.raises(BridgePolicyError, match="seed") as ex:
+        await _google_request_config({"seed": "not-an-int"})
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
 def test_google_generation_config_fields_the_provider_sends_are_all_read():
     """Every `generationConfig` field the Google provider sends must be read.
 
