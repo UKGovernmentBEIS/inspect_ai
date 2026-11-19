@@ -898,7 +898,6 @@ async def dispatch_tasks(
                     task_scope: anyio.CancelScope,
                     counted: bool,
                 ) -> None:
-                    nonlocal in_flight, attempts, cancelled
                     options = record_options(record)
 
                     def release() -> None:
@@ -908,8 +907,215 @@ async def dispatch_tasks(
                             in_flight -= 1
                             model_counts[options.model] -= 1
 
+                    async def settle(run: TaskRunResult) -> None:
+                        """Decide on a retry and publish it, or end the record."""
+                        nonlocal cancelled
+                        result = run.log
+
+                        # a drain/cancel abandoned this queued retry between the
+                        # dispatcher's pick and the attempt registering its
+                        # EvalState: side-effect-free finalize — discard the
+                        # attempt's never-started log entry (including a header
+                        # log_start already flushed), release the slot, end the
+                        # record with the errored attempt's log it already holds,
+                        # and never set the run-level cancelled flag. Checked
+                        # before the external-cancellation branch below (run.log
+                        # is None here, which would otherwise end the whole run).
+                        if run.abandoned:
+                            await options.logger.discard()
+                            release()
+                            queue.end(record, record.log)
+                            return
+
+                        # decide whether to retry: on an error or an explicit retry
+                        # request, but never on an abort or external (ctrl+c)
+                        # cancellation (which ends the whole run). Contract: an
+                        # attempt that ends with no log, or a `cancelled` log, was
+                        # ended by a run-level cancellation. A task's own abort or
+                        # retry request always leaves an `error` (or, landing after
+                        # a successful write, a `success`) log (see _run_task), so
+                        # it ends or retries only this task.
+                        retry = False
+                        if result is None or result.status == "cancelled":
+                            cancelled = True
+                        elif run.cancel_type == "retry":
+                            log.info(
+                                f"Task '{options.task.name}' was cancelled with retry "
+                                f"requested — {record.retries_remaining} retries remaining"
+                            )
+                            retry = True
+                        elif run.cancel_type == "abort":
+                            log.info(
+                                f"Task '{options.task.name}' was cancelled with abort requested"
+                            )
+                        elif run.cancel_type == "drain":
+                            # drain interrupts nothing (in-flight samples finished
+                            # naturally, queued ones were abandoned) — a user
+                            # cancel like abort, so never retried
+                            log.info(
+                                f"Task '{options.task.name}' was drained — in-flight "
+                                "samples finished naturally, queued samples abandoned"
+                            )
+                        elif run.cancel_type is not None:
+                            # a graceful cancel resolution (score/error) — a user
+                            # cancel like abort, so never retried even when the
+                            # resolved log carries an error status
+                            log.info(
+                                f"Task '{options.task.name}' was cancelled with "
+                                f"sample resolution '{run.cancel_type}'"
+                            )
+                        elif result.status == "error":
+                            retry = True
+                        retry = retry and record.retries_remaining > 0
+
+                        # a drain/plain cancel issued while this attempt was
+                        # tearing down (or between run_one iterations) stamped
+                        # the retry-abandoned registry: skip constructing the
+                        # retry entirely — no retry_pending flag, no reinit,
+                        # nothing to discard; the attempt's error log is the
+                        # record's final log
+                        if retry and task_retry_abandoned(options.logger.eval.task_id):
+                            log.info(
+                                f"Task '{options.task.name}' retry abandoned by "
+                                "operator — task ends with this attempt's error log"
+                            )
+                            retry = False
+
+                        # no retry once dispatch has ended, or once this attempt
+                        # (which never registered) was aborted after it returned
+                        if retry and (
+                            queue.closed or task_cancel.cancel_type == "abort"
+                        ):
+                            retry = False
+
+                        # build the requeued task before releasing the in-flight slot:
+                        # reinit is async, and were the slot freed first the dispatcher
+                        # could observe an idle run mid-reinit and finish early
+                        retry_options: TaskRunOptions | None = None
+                        if retry and result is not None:
+                            # from here until the retry attempt registers its own
+                            # EvalState, this errored attempt is the task's latest —
+                            # flag it so task-keyed directives don't read its
+                            # completed_at as "task finished" (see EvalState
+                            # .retry_pending). The task runner already flagged it
+                            # when it decided the error status (ahead of its log
+                            # write); this is the confirming re-mark.
+                            mark_eval_retry_pending(result.eval.eval_id)
+
+                            # build sample_source from the failed log so completed
+                            # samples are reused on retry (mirrors legacy eval_set
+                            # retry). The attempt's destination is the newest
+                            # record on disk whenever a flush reached it, finished
+                            # or not: it holds the seeded prior set plus every
+                            # live completion flushed since. An unfinished one
+                            # (log_finish failed) sits under a `started` header,
+                            # which reinit() below leaves in place — sample
+                            # progress outranks the header it lacks. An attempt
+                            # that wrote nothing (its log init, prior-log seed or
+                            # log_start flush failed) has nothing newer to offer:
+                            # the retry keeps the source this attempt ran with
+                            # (the same prior log). Decided from recorder state,
+                            # with no filesystem probe on the dispatcher's loop.
+                            failed_location = options.logger.location
+                            sample_source: EvalSampleSource | None
+                            if (
+                                options.logger.destination_written
+                                and failed_location is not None
+                            ):
+                                failed_log_info = EvalLogInfo(
+                                    name=failed_location,
+                                    type="file",
+                                    size=0,
+                                    mtime=None,
+                                    task=options.task.name,
+                                    task_id=options.logger.eval.task_id,
+                                    suffix=None,
+                                )
+                                sample_source = eval_log_sample_source(
+                                    result,
+                                    failed_log_info,
+                                    options.task.dataset,
+                                    eval_checkpoints_dir_from_config(
+                                        failed_location,
+                                        options.checkpoint,
+                                        options.eval_checkpoint,
+                                    ),
+                                )
+                            else:
+                                log.info(
+                                    f"Task '{options.task.name}' wrote no log for this "
+                                    "attempt; retrying with the prior attempt's sample "
+                                    "source"
+                                )
+                                sample_source = options.sample_source
+
+                            # release the failed attempt's log entry; the retry's
+                            # own attempt starts a fresh one
+                            await options.logger.reinit()
+
+                            if queue.closed or task_cancel.cancel_type == "abort":
+                                # dispatch ended, or the attempt was aborted,
+                                # while reinit() ran: no retry, and the re-mark
+                                # above is unwound
+                                clear_eval_retry_pending(result.eval.eval_id)
+                            else:
+                                retry_attempt = (
+                                    queue.task_retry_attempts
+                                    - record.retries_remaining
+                                    + 1
+                                )
+                                retry_display_name = (
+                                    f"{options.task.name} "
+                                    f"(retry {retry_attempt} of "
+                                    f"{queue.task_retry_attempts})"
+                                )
+                                retry_options = replace(
+                                    options,
+                                    sample_source=sample_source,
+                                    display_name=retry_display_name,
+                                )
+                        elif result is not None:
+                            # no retry follows — unwind the runner's pre-mark, which
+                            # a cancel stamp landing during the log write may have
+                            # superseded (a retry abandoned before the pre-mark was
+                            # never marked, and one abandoned during the log write
+                            # was already cleared by the directive; this is a no-op
+                            # then)
+                            clear_eval_retry_pending(result.eval.eval_id)
+
+                        # Retry source selection needs the recorder's write state.
+                        # Once no retry follows, release any unfinished entry even
+                        # if startup failed after seeding an entire prior log.
+                        if retry_options is None and not options.logger.finished:
+                            with anyio.CancelScope(shield=True):
+                                await options.logger.discard(
+                                    keep_destination=True, keep_buffer=True
+                                )
+
+                        # finalize atomically (no awaits below) so the dispatcher sees
+                        # a consistent (in_flight, pending) snapshot
+                        release()
+                        if result is not None:
+                            record.log = result
+                        if retry_options is not None:
+                            record.options = retry_options
+                            record.retries_remaining -= 1
+                            queue.requeue(record)
+                            log.info(
+                                f"Retrying task '{options.task.name}' ({options.model}) "
+                                f"— {record.retries_remaining} retries remaining"
+                            )
+                        else:
+                            queue.end(record, record.log)
+
+                    # the attempt owns its logger until the record is requeued or
+                    # ends: an exception anywhere in the attempt, retry
+                    # preparation included, releases an unfinished entry
+                    # (keeping its destination and buffer for recovery) and
+                    # ends the record before it propagates
                     try:
                         run = await _run_task(options, task_cancel, task_scope)
+                        await settle(run)
                     except BaseException:
                         with anyio.CancelScope(shield=True):
                             if not options.logger.finished:
@@ -918,199 +1124,6 @@ async def dispatch_tasks(
                                 )
                         queue.end(record, record.log)
                         raise
-                    result = run.log
-
-                    # a drain/cancel abandoned this queued retry between the
-                    # dispatcher's pick and the attempt registering its
-                    # EvalState: side-effect-free finalize — discard the
-                    # attempt's never-started log entry (including a header
-                    # log_start already flushed), release the slot, end the
-                    # record with the errored attempt's log it already holds,
-                    # and never set the run-level cancelled flag. Checked
-                    # before the external-cancellation branch below (run.log
-                    # is None here, which would otherwise end the whole run).
-                    if run.abandoned:
-                        await options.logger.discard()
-                        release()
-                        queue.end(record, record.log)
-                        return
-
-                    # decide whether to retry: on an error or an explicit retry
-                    # request, but never on an abort or external (ctrl+c)
-                    # cancellation (which ends the whole run). Contract: an
-                    # attempt that ends with no log, or a `cancelled` log, was
-                    # ended by a run-level cancellation. A task's own abort or
-                    # retry request always leaves an `error` (or, landing after
-                    # a successful write, a `success`) log (see _run_task), so
-                    # it ends or retries only this task.
-                    retry = False
-                    if result is None or result.status == "cancelled":
-                        cancelled = True
-                    elif run.cancel_type == "retry":
-                        log.info(
-                            f"Task '{options.task.name}' was cancelled with retry "
-                            f"requested — {record.retries_remaining} retries remaining"
-                        )
-                        retry = True
-                    elif run.cancel_type == "abort":
-                        log.info(
-                            f"Task '{options.task.name}' was cancelled with abort requested"
-                        )
-                    elif run.cancel_type == "drain":
-                        # drain interrupts nothing (in-flight samples finished
-                        # naturally, queued ones were abandoned) — a user
-                        # cancel like abort, so never retried
-                        log.info(
-                            f"Task '{options.task.name}' was drained — in-flight "
-                            "samples finished naturally, queued samples abandoned"
-                        )
-                    elif run.cancel_type is not None:
-                        # a graceful cancel resolution (score/error) — a user
-                        # cancel like abort, so never retried even when the
-                        # resolved log carries an error status
-                        log.info(
-                            f"Task '{options.task.name}' was cancelled with "
-                            f"sample resolution '{run.cancel_type}'"
-                        )
-                    elif result.status == "error":
-                        retry = True
-                    retry = retry and record.retries_remaining > 0
-
-                    # a drain/plain cancel issued while this attempt was
-                    # tearing down (or between run_one iterations) stamped
-                    # the retry-abandoned registry: skip constructing the
-                    # retry entirely — no retry_pending flag, no reinit,
-                    # nothing to discard; the attempt's error log is the
-                    # record's final log
-                    if retry and task_retry_abandoned(options.logger.eval.task_id):
-                        log.info(
-                            f"Task '{options.task.name}' retry abandoned by "
-                            "operator — task ends with this attempt's error log"
-                        )
-                        retry = False
-
-                    # no retry once dispatch has ended, or once this attempt
-                    # (which never registered) was aborted after it returned
-                    if retry and (queue.closed or task_cancel.cancel_type == "abort"):
-                        retry = False
-
-                    # build the requeued task before releasing the in-flight slot:
-                    # reinit is async, and were the slot freed first the dispatcher
-                    # could observe an idle run mid-reinit and finish early
-                    retry_options: TaskRunOptions | None = None
-                    if retry and result is not None:
-                        # from here until the retry attempt registers its own
-                        # EvalState, this errored attempt is the task's latest —
-                        # flag it so task-keyed directives don't read its
-                        # completed_at as "task finished" (see EvalState
-                        # .retry_pending). The task runner already flagged it
-                        # when it decided the error status (ahead of its log
-                        # write); this is the confirming re-mark.
-                        mark_eval_retry_pending(result.eval.eval_id)
-
-                        # build sample_source from the failed log so completed
-                        # samples are reused on retry (mirrors legacy eval_set
-                        # retry). The attempt's destination is the newest
-                        # record on disk whenever a flush reached it, finished
-                        # or not: it holds the seeded prior set plus every
-                        # live completion flushed since. An unfinished one
-                        # (log_finish failed) sits under a `started` header,
-                        # which reinit() below leaves in place — sample
-                        # progress outranks the header it lacks. An attempt
-                        # that wrote nothing (its log init, prior-log seed or
-                        # log_start flush failed) has nothing newer to offer:
-                        # the retry keeps the source this attempt ran with
-                        # (the same prior log). Decided from recorder state,
-                        # with no filesystem probe on the dispatcher's loop.
-                        failed_location = options.logger.location
-                        sample_source: EvalSampleSource | None
-                        if (
-                            options.logger.destination_written
-                            and failed_location is not None
-                        ):
-                            failed_log_info = EvalLogInfo(
-                                name=failed_location,
-                                type="file",
-                                size=0,
-                                mtime=None,
-                                task=options.task.name,
-                                task_id=options.logger.eval.task_id,
-                                suffix=None,
-                            )
-                            sample_source = eval_log_sample_source(
-                                result,
-                                failed_log_info,
-                                options.task.dataset,
-                                eval_checkpoints_dir_from_config(
-                                    failed_location,
-                                    options.checkpoint,
-                                    options.eval_checkpoint,
-                                ),
-                            )
-                        else:
-                            log.info(
-                                f"Task '{options.task.name}' wrote no log for this "
-                                "attempt; retrying with the prior attempt's sample "
-                                "source"
-                            )
-                            sample_source = options.sample_source
-
-                        # release the failed attempt's log entry; the retry's
-                        # own attempt starts a fresh one
-                        await options.logger.reinit()
-
-                        if queue.closed or task_cancel.cancel_type == "abort":
-                            # dispatch ended, or the attempt was aborted,
-                            # while reinit() ran: no retry, and the re-mark
-                            # above is unwound
-                            clear_eval_retry_pending(result.eval.eval_id)
-                        else:
-                            retry_attempt = (
-                                queue.task_retry_attempts - record.retries_remaining + 1
-                            )
-                            retry_display_name = (
-                                f"{options.task.name} "
-                                f"(retry {retry_attempt} of "
-                                f"{queue.task_retry_attempts})"
-                            )
-                            retry_options = replace(
-                                options,
-                                sample_source=sample_source,
-                                display_name=retry_display_name,
-                            )
-                    elif result is not None:
-                        # no retry follows — unwind the runner's pre-mark, which
-                        # a cancel stamp landing during the log write may have
-                        # superseded (a retry abandoned before the pre-mark was
-                        # never marked, and one abandoned during the log write
-                        # was already cleared by the directive; this is a no-op
-                        # then)
-                        clear_eval_retry_pending(result.eval.eval_id)
-
-                    # Retry source selection needs the recorder's write state.
-                    # Once no retry follows, release any unfinished entry even
-                    # if startup failed after seeding an entire prior log.
-                    if retry_options is None and not options.logger.finished:
-                        with anyio.CancelScope(shield=True):
-                            await options.logger.discard(
-                                keep_destination=True, keep_buffer=True
-                            )
-
-                    # finalize atomically (no awaits below) so the dispatcher sees
-                    # a consistent (in_flight, pending) snapshot
-                    release()
-                    if result is not None:
-                        record.log = result
-                    if retry_options is not None:
-                        record.options = retry_options
-                        record.retries_remaining -= 1
-                        queue.requeue(record)
-                        log.info(
-                            f"Retrying task '{options.task.name}' ({options.model}) "
-                            f"— {record.retries_remaining} retries remaining"
-                        )
-                    else:
-                        queue.end(record, record.log)
 
                 try:
                     while True:

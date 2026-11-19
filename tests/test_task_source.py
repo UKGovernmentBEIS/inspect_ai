@@ -1156,3 +1156,49 @@ async def test_attempt_report_runs_under_its_own_model(
     [(_, model, active)] = [r for r in seen if r[0] == "B" and r[1] == "mockllm/first"]
     assert active == model
     assert all(r[1] == r[2] for r in seen), seen
+
+
+async def test_interrupted_retry_preparation_releases_the_attempts_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # the attempt owns its logger until its retry is published: a
+    # cancellation while the retry is prepared still closes the buffer of an
+    # attempt whose final write failed and releases its recorder entry
+    reinit_entered = anyio.Event()
+    loggers: list[TaskLogger] = []
+
+    async def failing_log_finish(self: TaskLogger, *args: Any, **kwargs: Any) -> Any:
+        raise OSError("final write failed")
+
+    async def held_reinit(self: TaskLogger) -> None:
+        loggers.append(self)
+        reinit_entered.set()
+        await anyio.sleep_forever()
+
+    monkeypatch.setattr(TaskLogger, "log_finish", failing_log_finish)
+    monkeypatch.setattr(TaskLogger, "reinit", held_reinit)
+    init_display_type("none")
+    with anyio.fail_after(30):
+        with anyio.CancelScope() as scope:
+
+            async def cancel_when_preparing_retry() -> None:
+                await reinit_entered.wait()
+                [logger] = loggers
+                # held by the failed attempt until reinit releases it
+                assert logger.buffer_db is not None
+                assert not logger.finished
+                scope.cancel()
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(cancel_when_preparing_retry)
+                await eval_async(
+                    _task("A"),
+                    model="mockllm/model",
+                    log_dir=str(tmp_path),
+                    task_retry_attempts=1,
+                )
+
+    [logger] = loggers
+    assert logger.buffer_db is None
+    with pytest.raises(RuntimeError, match="No log in progress"):
+        logger.recorder.destination_written(logger.eval)
