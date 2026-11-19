@@ -1,6 +1,7 @@
 import pprint
 import re
 import unicodedata
+from keyword import iskeyword
 from string import Formatter
 from textwrap import indent
 from typing import Any, NamedTuple
@@ -22,11 +23,20 @@ def format_function_call(
         width: Line width to wrap the arguments at.
         literal_strings: Show strings as Python literals, with quotes and
             newlines escaped, so a string cannot read as other arguments.
+            Argument names that are not identifiers are then shown in an
+            unpacked dictionary (`**{'a b': 1}`), so a name cannot read as
+            other arguments either.
     """
     formatted_args = []
+    unnamed: dict[str, Any] = {}
     for key, value in args_dict.items():
+        if literal_strings and not _is_keyword_argument(key):
+            unnamed[key] = value
+            continue
         formatted_value = format_value(value, width, literal_strings)
         formatted_args.append(f"{key}={formatted_value}")
+    if unnamed:
+        formatted_args.append(f"**{pprint.pformat(unnamed, width=width)}")
 
     args_str = ", ".join(formatted_args)
 
@@ -35,6 +45,10 @@ def format_function_call(
     else:
         indented_args = indent(",\n".join(formatted_args), " " * indent_spaces)
         return f"{func_name}(\n{indented_args}\n)"
+
+
+def _is_keyword_argument(name: object) -> bool:
+    return isinstance(name, str) and name.isidentifier() and not iskeyword(name)
 
 
 def format_value(value: object, width: int, literal_strings: bool = False) -> str:

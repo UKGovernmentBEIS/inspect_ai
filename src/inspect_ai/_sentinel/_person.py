@@ -25,6 +25,7 @@ from inspect_ai._util.format import (
 )
 from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._approver import Approver
+from inspect_ai.approval._human.util import arguments_view
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -716,16 +717,20 @@ def _call_markdown(
     The content is what the transcript shows (`ToolCall.view`, which
     `Model.generate` sets from the tool's viewer, or the default rendering),
     with the call's placeholders filled in (see `_contained`). `text_label`
-    labels the block of content that has no language of its own.
+    labels the block of content that has no language of its own. A view not
+    marked as showing every argument is followed by the call's arguments, as
+    a call's own approval shows them (see `arguments_view`).
     """
-    content = substitute_tool_call_content(
-        call.view or cast(ToolCallContent, default_tool_call_viewer(call).call),
-        call.arguments,
-    )
+    view = call.view or cast(ToolCallContent, default_tool_call_viewer(call).call)
+    content = substitute_tool_call_content(view, call.arguments)
     header = f"**Call {index} of {count}:** {_markdown_text(call.function, safe)}"
     if content.title and content.title != call.function:
         header = f"{header} ({_markdown_text(content.title, safe)})"
-    return f"{header}\n\n{_contained(content, safe, text_label)}"
+    shown = f"{header}\n\n{_contained(content, safe, text_label)}"
+    arguments = arguments_view(call, ToolCallView(call=view))
+    if arguments is not None:
+        shown = f"{shown}\n\n**Arguments**\n\n{_contained(arguments, safe)}"
+    return shown
 
 
 def _contained(

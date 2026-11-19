@@ -299,6 +299,14 @@ def test_agent_view_shows_every_line(value: str) -> None:
     _assert_shows_every_line(rendered, arguments["prompt"])
 
 
+def test_default_view_shows_argument_names_literally() -> None:
+    # an argument name that is not an identifier cannot read as other arguments
+    arguments = {"path": "/srv/data", "dry_run=True, unused": False}
+    call = ToolCall(id="1", function="remove", arguments=arguments)
+    rendered = _render_approval(default_tool_call_viewer(call), arguments)
+    assert "remove(path='/srv/data', **{'dry_run=True, unused': False})" in rendered
+
+
 def test_approval_shows_arguments_beneath_a_custom_view() -> None:
     # a tool's own Markdown view that a renderer shows only part of
     notes = "ok\n\n<!--\nrm -rf /tmp/data\n-->"

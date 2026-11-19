@@ -1993,3 +1993,44 @@ def test_an_acp_cancellation_is_seen_later_by_its_explanation(
     [record] = last.decisions
     assert record.decided.report.action == "reject"
     assert record.decided.report.explanation == explanation
+
+
+def _turn_with_a_custom_view() -> ChatMessageAssistant:
+    """A turn with a call whose own view omits an argument, and a bash call."""
+    from inspect_ai.tool._tool_call import ToolCall, ToolCallContent
+
+    hiding = ToolCall(
+        id="c1",
+        function="shell",
+        arguments={"command": "ls", "cwd": "/srv/data"},
+        view=ToolCallContent(format="markdown", content="Runs `ls`."),
+    )
+    bash_call = ToolCall(id="c2", function="bash", arguments={"command": "pwd"})
+    bash_call.view = code_viewer("bash", "command")(bash_call).call
+    return ChatMessageAssistant(content="Listing.", tool_calls=[hiding, bash_call])
+
+
+@pytest.mark.parametrize("content_in_view", [False, True])
+def test_a_turn_shows_the_arguments_a_calls_own_view_omits(
+    content_in_view: bool,
+) -> None:
+    from inspect_ai._sentinel._person import turn_prompt
+
+    prompt = turn_prompt(_turn_with_a_custom_view(), [], content_in_view)
+    assert prompt.view.call is not None
+    shown = prompt.view.call.content
+    # the custom view's call, then its arguments; none for the bash view
+    assert "shell(command='ls', cwd='/srv/data')" in shown
+    assert shown.count("**Arguments**") == 1
+
+
+def test_a_request_shows_the_arguments_a_calls_own_view_omits() -> None:
+    from inspect_ai._sentinel._person import request_prompt
+
+    prompt = request_prompt(
+        "mockllm/model", 2, [(2, _turn_with_a_custom_view())], [], "auto", []
+    )
+    assert prompt.view.call is not None
+    shown = prompt.view.call.content
+    assert "shell(command='ls', cwd='/srv/data')" in shown
+    assert shown.count("**Arguments**") == 1
