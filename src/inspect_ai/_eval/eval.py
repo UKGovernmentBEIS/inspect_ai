@@ -304,7 +304,7 @@ def eval(
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
         max_samples: Maximum number of samples to run in parallel within each task
-            (default is max_connections)
+            (overrides a task's own `max_samples`; default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
@@ -588,7 +588,8 @@ async def eval_async(
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
-        max_samples: Maximum number of samples to run in parallel within each task (default is max_connections)
+        max_samples: Maximum number of samples to run in parallel within each task
+            (overrides a task's own `max_samples`; default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
@@ -1905,7 +1906,8 @@ async def eval_retry_async(
         working_limit = eval_log.eval.config.working_limit
         cost_limit = eval_log.eval.config.cost_limit
         max_dataset_memory = eval_log.eval.config.max_dataset_memory
-        max_samples = max_samples or eval_log.eval.config.max_samples
+        # per log: one run's tasks can record different values
+        retry_max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
         max_sandboxes = max_sandboxes or eval_log.eval.config.max_sandboxes
@@ -2060,7 +2062,7 @@ async def eval_retry_async(
                 working_limit=working_limit,
                 cost_limit=cost_limit,
                 model_cost_config=model_cost_config,
-                max_samples=max_samples,
+                max_samples=retry_max_samples,
                 max_dataset_memory=max_dataset_memory,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
