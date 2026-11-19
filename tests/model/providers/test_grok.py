@@ -1069,3 +1069,35 @@ async def test_grok_output_records_response_id(
     output, _ = await _generate_once(api)
 
     assert output.response_id == "grok-response"
+
+
+@pytest.mark.parametrize(
+    ("completion", "reasoning", "total", "cached", "expected_output"),
+    [
+        (9, 94, 135, 0, 103),  # reasoning reported outside completion_tokens
+        (103, 94, 135, 0, 103),  # reasoning already inside completion_tokens
+        (9, 0, 41, 0, 9),  # no reasoning
+        (9, 94, 0, 0, 9),  # no total reported: left unchanged
+        (9, 94, 135, 20, 103),  # cached prompt tokens
+    ],
+)
+def test_grok_usage_counts_reasoning_in_output_tokens(
+    completion: int, reasoning: int, total: int, cached: int, expected_output: int
+) -> None:
+    from xai_sdk.chat import usage_pb2
+
+    from inspect_ai.model._providers.grok import _model_usage_from_sampling_usage
+
+    usage = usage_pb2.SamplingUsage(
+        prompt_tokens=32,
+        completion_tokens=completion,
+        reasoning_tokens=reasoning,
+        total_tokens=total,
+        cached_prompt_text_tokens=cached,
+    )
+    model_usage = _model_usage_from_sampling_usage(usage)
+    assert model_usage.output_tokens == expected_output
+    assert model_usage.reasoning_tokens == reasoning
+    if total:
+        # input_tokens excludes cached prompt tokens
+        assert model_usage.input_tokens + cached + model_usage.output_tokens == total
