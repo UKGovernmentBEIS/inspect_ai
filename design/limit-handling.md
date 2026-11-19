@@ -7,9 +7,9 @@ chain* per execution context, ordered by when their `with` blocks were entered,
 in place of one tree per kind. A model call is recorded into every kind, its
 turn included, before one check walks that chain from the root and raises the
 outermost limit that has been reached, whatever its kind. Every
-place that has to choose one limit error from several (an exception group, the
-sandbox bridge's kept limit, the sample runner) chooses the outermost by the
-same rule.
+place that has to choose one limit error from several (an exception group
+from a tool or a bridge request, the sandbox bridge's kept limit, the sample
+runner) chooses the outermost by the same rule.
 
 A limit error is handled only by the code that entered its limit. Tools,
 handoffs and bridged host tools turn into a message only the token, cost and
@@ -33,9 +33,11 @@ none does, each owner checks its own limits when it ends normally: an
 once all of its work, background cleanup included, has finished (except on
 a resume for scoring). So, within a running attempt, a limit error that some handler
 catches and drops is not lost: it comes back at the next refused call, or at
-its owner's exit. Two exceptions remain. A plain `with token_limit()`,
+its owner's exit. Three exceptions remain. A plain `with token_limit()`,
 `cost_limit()` or `turn_limit()` block has no exit check, so a limit
-swallowed inside it is lost if no later call in the block meets it. And a
+swallowed inside it is lost if no later call in the block meets it.
+Background work that keeps running after the `run()` that started it has
+returned can likewise swallow that scope's limit after its exit check. And a
 checkpoint resume: checkpoints store
 usage but not the mark of a limit that refused a call, and the restore
 assigns the stored usage, so a resumed sample can lose such a refusal, and
@@ -347,7 +349,9 @@ tokens per call, run against this branch's base):
 4. **Outermost wins.** Wherever Inspect has to choose one limit error from
    several, it chooses the one with the smallest depth. A limit error with no
    node in the chain (a `custom` limit, a time limit, a node never entered)
-   ranks after every node that has one.
+   ranks after every node that has one. The one reduction left as it is,
+   `decisive_sentinel_exception()`, reduces errors escaping a sentinel
+   monitor, whose calls reach no token, turn or cost limit (rule 5).
 5. **A suspended call is invisible to the kinds it suspends.** Inside
    `suspend_token_limit()`, `suspend_turn_limit()` or `suspend_cost_limit()`
    (or `suspend_limits()`, all of them), limits of that kind neither record
@@ -562,8 +566,11 @@ def _counted(node: Limit) -> bool:
   owner's exit check.
 - Native compaction (`Model.compact()`, `_model.py:1594-1596`) records no
   turn. After a successful compaction it records the returned usage when
-  there is any (`record_model_call()`, as today only `if usage`), and then
-  runs `check_limits()` unconditionally, so a compaction that returns no
+  there is any, as today only `if usage`, through
+  `record_and_check_model_usage(self, usage, role=self.role, check=False)`
+  (which prices the usage and keeps the model, role and sample usage,
+  throughput and control-channel accounting), and then runs
+  `check_limits()` unconditionally, so a compaction that returns no
   usage still raises a limit another call has already taken past its
   budget. It does not fail for missing usage (that is the separate no-usage
   design, "Not this design").
@@ -589,7 +596,7 @@ def _counted(node: Limit) -> bool:
   checks of their own kind. Inspect still uses them where one value changes:
   the `TaskState.token_limit` and `cost_limit` setters
   (`src/inspect_ai/solver/_task_state.py:369`, `:393`), and the checkpoint
-  resume, which keeps its three checks (`sample_runtime.py:221-225`, see
+  resume, which keeps its token, cost and turn checks (`sample_runtime.py:221-225`, see
   "Checkpoints").
 - Message limits are unchanged: the innermost message node is checked at the
   start of `generate()` (`_model.py:1062`) and on every append to a limited
@@ -613,7 +620,7 @@ limit raises. Rule 4 extends that to every place that combines errors:
 | `apply_limits()` | catches a bare owned error only | with `catch_errors=True`, also catches a group whose leaves are all limit errors and whose outermost is owned (below); otherwise the group propagates unchanged |
 | Sample runner (`run.py:3416`) | first leaf of the group | `first_or_outermost_limit(group)` |
 | `decisive_tool_exception()` (`_call_tools.py:2052`) | termination, unexpected error, first limit, first leaf | termination, unexpected error, **outermost** limit, first leaf |
-| `decisive_sentinel_exception()` (`_call_tools.py:196`) | termination, other error, first leaf | termination, other error, outermost limit |
+| `decisive_sentinel_exception()` (`_call_tools.py:196`) | termination, other error, first leaf | unchanged: a monitor's calls run with token, turn and cost limits suspended, so the only limit it can reach is a message limit ("Sentinel failures") |
 | Bridge `_first_control()`, a group of only limits and refusals | its first leaf | `first_or_outermost_limit(group)`: a leading refusal still wins |
 | Bridge `_first_control()`, any other group | its first limit (other errors are logged) | `outermost_limit(group)` (other errors are logged) |
 | Bridge kept limit | first, replaced by a same-tree ancestor or sample root | replaced by any later limit that is outer (`_outer_than`) |
@@ -981,6 +988,24 @@ the limit. An author who needs the outcome either way reads the node after
 the block (`limit.usage` against `limit.limit`) or uses `apply_limits()`,
 whose exit check covers its own limits.
 
+**Background work that outlives its owner.** Work started with
+`background()` inside a `run()` or `apply_limits()` scope runs in the
+sample's task group by default ("What a runtime can rely on") and can keep
+running after the scope has returned. It inherits the scope's chain, so its
+calls still record into and are checked against the scope's nodes. The
+scope's exit check has already run by then, so a limit of the scope that
+the worker reaches afterwards and whose error the worker swallows is lost:
+for example, `run(limits=[token_limit(1)])` returns at usage 0, its
+background worker then uses 2 tokens and catches the error, and nothing
+checks the closed `run()` node again. The sample's exit check covers only
+the sample's limits, which pass under their own budgets. This is an
+exception to automatic recovery, alongside plain `with` blocks, and the
+design keeps that sample-scoped background lifetime on purpose (see "Not
+this design"). Spend stays bounded: every later call the worker makes
+under the node is refused (rule 3), and the sample's limits still apply. A
+caller that needs the outcome installs a background target inside the
+scope, so the work is joined before the scope's exit check runs.
+
 **Limits swallowed during a resume for scoring.** The same principle holds
 for a scoring resume, which has no sample exit check. A limit reached and
 swallowed during that attempt is not recorded: by a sample-start or
@@ -1085,8 +1110,10 @@ usage, and a normal resume restores it into the roots and checks them:
 checkpointer stores that payload
 (`src/inspect_ai/util/_checkpoint/checkpointer_impl.py:624-633`), and
 `restore_sample_runtime(check=True)` reseeds the roots and runs the token,
-cost and turn checks, in that order, with `>` (`sample_runtime.py:153-163`,
+cost and turn checks, in that order, with `>`, then the working-limit check
+of the current node and its ancestors (`sample_runtime.py:153-163`,
 `:221-225`; called for a normal resume at `checkpointer_impl.py:147-152`).
+The working check is unchanged.
 An exceeded root therefore still ends the resumed attempt before it makes a
 call. A resume for scoring (`check=False`) runs no check, as today, and
 the runner skips the sample's exit check on that attempt ("The owner's exit
@@ -1255,7 +1282,17 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    bridged, in a tool, a handoff, a subagent or a filter, reaches the
    runtime's code as a `LimitExceededError` whose `source` is the sample's node
    (`sample_limits().token`, `.cost`, `.turn`). It arrives bare, or in a
-   group where `outermost_limit()` returns it. No Inspect code between the
+   group where `outermost_limit()` returns it. This holds while the limit
+   remains the deciding outcome under each site's existing ranking of
+   limits against other errors, which this design keeps ("Precedence"): a
+   termination or an unexpected error in the same tool group decides ahead
+   of it (`decisive_tool_exception()`); a response-filter group mixing it
+   with an ordinary error becomes a `ResponseFilterError` and requests
+   sample failure; and `_first_sample_failure()` selects a sidecar failure
+   or an `UnmeteredCallError` ahead of it. The runtime then receives that
+   failure, and the sample can end in an error without the limit being
+   delivered or recorded, as guarantee 4 says for an exit decided by a
+   non-limit error. No Inspect code between the
    model call and the runtime converts it (rule 6), and no inner limit reached by the same call or a
    concurrent one replaces it (rules 3, 4, 8), except in the cases rule 3
    names: a call that only reaches the sample limit while exceeding an
@@ -1487,8 +1524,9 @@ raises at the next dispatch.
   chain limit (rule 4), so a member's time limit and the sample's token limit
   in one group resolve to the token limit.
 - **Working.** Stays out of the chain. The sample's working limit is enforced
-  by the monitor's cancellation. Nested working limits are not enforced today
-  (see "Not this design").
+  by the monitor's cancellation. Nested working limits are not polled
+  today; they are checked only when a checkpoint is restored, which can
+  fail the resume on one (see "Not this design").
 - **Message.** In the chain for ranking (rules 4 and 8), with its own check.
 
 ### What inspect_swarm can delete or simplify
@@ -2070,6 +2108,15 @@ under trio with `--runtrio`.
   handoff whose agent exceeds a `with token_limit()` entered inside it, and
   one whose agent exceeds a `time_limit()` entered inside it, return the
   agent's new messages and the handoff limit message, as today.
+- `tests/tools/test_call_tools.py`, `decisive_tool_exception()` beside
+  `test_native_group_with_limit_leaf_is_reported_as_the_limit` (whose
+  limit leaves cannot tell first from outermost): a native tool run under
+  an enclosing `cost_limit()` enters a `token_limit()` and raises a group
+  whose first leaf is that token limit's error and whose second is the
+  enclosing cost limit's; the cost limit decides, so it propagates out of
+  `execute_tools()` (today the first limit decides and the tool replies
+  with the token limit's `limit` error). The existing
+  `test_a_group_of_sentinel_limits_keeps_its_first_limit` stays as it is.
 - `tests/test_eval.py` (or the existing sample-limit tests): a solver that
   swallows a sample token limit and returns is recorded as limited; a solver
   whose call was refused at exactly the sample token budget, which swallows
@@ -2078,6 +2125,12 @@ under trio with `--runtrio`.
   `state.token_limit` is not; a resume for scoring over a spent budget is
   not; a sample with a cost limit whose solver calls an unpriced model fails
   with `UnmeteredCallError`;
+  - the runner's reduction (`first_or_outermost_limit()`): a solver that
+    enters a `with token_limit()` inside the sample's cost limit and lets
+    a group escape whose first leaf is that token limit's error and whose
+    second is the sample cost limit's is recorded with an `EvalSampleLimit`
+    of type `cost` (today `token`); the same group behind a leading
+    `RuntimeError` ends the sample in that error, with no `EvalSampleLimit`;
   - exit check after cleanup (each with the worker synchronized by an
     `anyio.Event`, never a sleep): a `background()` worker makes a priced
     call in its cancellation cleanup after `plan()` returns, exceeds the
@@ -2165,7 +2218,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    counter it assigns (no payload change).
    `src/inspect_ai/model/_model.py`: `record_and_check_model_usage(check=)`,
    the inner generation recording without a check, the outer frame's
-   `record_turn()` then `check_limits()`, `Model.compact()` recording
+   `record_turn()` then `check_limits()`, `Model.compact()` calling
+   `record_and_check_model_usage(self, usage, role=self.role, check=False)`
    when usage is present and then `check_limits()` unconditionally,
    `_check_limits_before_dispatch`.
    Tests: the node-level cases in `tests/util/test_limit*.py` (chain,
@@ -2192,10 +2246,12 @@ Each step is one PR, in this order. Each keeps the suite green.
    escaping group, and `check_own_limits()` over the sample's roots after
    the sample task group has joined when the solvers returned, skipped
    when the attempt is `resume_for_scoring`.
-   `src/inspect_ai/model/_call_tools.py`: `decisive_tool_exception`,
-   `decisive_sentinel_exception`. Tests: the owner-exit cases, which need
-   these checks: `run()` and sentinel tests in `tests/util/test_limit.py`,
-   `tests/test_eval.py`, `tests/agent/test_agent_overflow_compaction.py`,
+   `src/inspect_ai/model/_call_tools.py`: `decisive_tool_exception`
+   (`decisive_sentinel_exception` is unchanged). Tests: the owner-exit
+   cases, which need these checks: `run()` and sentinel tests in
+   `tests/util/test_limit.py`, the reductions in
+   `tests/tools/test_call_tools.py` and `tests/test_eval.py`,
+   `tests/agent/test_agent_overflow_compaction.py`,
    the live-override sample outcomes in `tests/_control/test_limits.py`,
    and the restore and scoring-resume outcomes in
    `tests/checkpoint/test_sample_runtime.py` (the checkpoint change is in
@@ -2246,8 +2302,12 @@ None.
 - `SampleLimitEvent` is emitted by every token, cost, turn and message node
   that raises, scoped or not, so the viewer shows an agent's limit as a sample
   limit. inspect_swarm subclasses nodes to avoid it.
-- Nested `working_limit()` scopes are never enforced; only the sample's root
-  is polled.
+- Nested `working_limit()` scopes are not polled: the working-limit
+  monitor checks only the sample's root. A nested scope is checked only
+  when a checkpoint is restored, where `restore_sample_runtime(check=True)`
+  calls `check_working_limit()` (`util/_checkpoint/sample_runtime.py:225`)
+  and `_WorkingLimit.check()` checks the ancestors and then the current
+  node, so a resume can fail on a nested working limit.
 - Ranking limits against non-limit errors in groups differs by site (tools
   rank unexpected errors first, the runner takes the first leaf). One ranking
   everywhere would be a separate change.
@@ -2275,7 +2335,9 @@ None.
 - Routing `background()` work to the `run()` or runtime that started it.
   Default deepagent background children keep their sample-scoped lifetime
   and report to the sample; a runtime that needs their errors installs a
-  background target (see "What a runtime can rely on").
+  background target (see "What a runtime can rely on"). A scope's limit
+  that such work reaches and swallows after the scope has returned is not
+  recovered ("Background work that outlives its owner").
 - **Calls that report no usage under a cost limit**, a separate design
   (decision: Ransom, 2026-11-17). It carries over these decisions
   unchanged: a response whose usage is missing or totals zero (cache fields
