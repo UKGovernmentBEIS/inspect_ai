@@ -750,7 +750,10 @@ does not apply to a message limit: the next call in a shorter conversation
 under the same node is not refused. That is why message limits stay out of
 the refusal mark and the owners' exit checks and are in the chain only for
 ranking. It is also why, when a message limit and a token, cost or turn
-limit meet, the spent budget decides, at every ranking site. Depth alone
+limit meet, the spent budget decides, at every ranking site, even when the
+budget limit belongs to an inner owner that catches it: the conversation
+the message limit measured ended on its budget, so the message limit is
+not recorded (decision: Ransom, 2026-11-19). Depth alone
 would not do: the sample's message node (depth 2) sits above its turn node
 and every agent's token, cost and turn node, so a reduction by depth would
 let it displace a spent budget. At a tool that converts the budget into a
@@ -1495,8 +1498,16 @@ sample node ("Ownership", message limits), so the calling agent or runtime
 receives that reply and can continue; guarantee 1's delivery covers token,
 cost and turn limits only. That reply is given only when the message limit
 decides the tool's error: a token, cost or turn limit raised in the same
-group, or reached by a bridge inside the tool, decides instead (rule 4),
-and a foreign one reaches the runtime as guarantee 1 says.
+group, or reached by a bridge inside the tool, decides instead (rule 4).
+A foreign one then reaches the runtime as guarantee 1 says; an owned one
+is handled by its owner (a tool error, or `run()` returning it), and the
+message limit that lost to it is not delivered or recorded at all. The
+same holds outside a tool: a member's conversation that reaches the sample
+message limit in the same bridged requests as the member's own `run()`
+budget limit ends on that budget limit, which `run()` returns, and the
+runtime sees no message limit error. The sample can then complete with no
+recorded limit, unless a later call reaches the message limit in its own
+conversation (decision: Ransom, 2026-11-19).
 
 ### Unpriced models
 
@@ -1654,7 +1665,8 @@ each of these interactions as a case of its own. Under the rules above they beco
   (rule 4 and the filter's reduction). A sample message limit beside a swarm
   token, cost or turn limit gives way to the swarm limit, wherever the two
   meet (rule 4), so bridged members that record the sample message limit in
-  `ended_by` today can record the swarm limit instead. A bridged host tool's model call that reaches the
+  `ended_by` today can record the swarm limit instead, or no sample limit
+  when the member scope that owns the winning limit catches it. A bridged host tool's model call that reaches the
   sample limit after the bridge kept a member limit makes the sample limit
   the kept one (rule 6, host tools). A kept sample limit lost to a
   cancellation before the CLI exits is recorded by the sample's exit check
@@ -1923,13 +1935,24 @@ documented. Behaviour changes:
   filter, the sample runner), a token, cost or turn limit now wins over a
   message limit, whatever their depths; today the first limit, or for the
   bridge's kept limit the sample root, could be the message limit. A bridge
-  or sample that sees both now records the budget limit: a sample whose
-  bridged agent reached the sample message limit and, in the same requests,
-  a token, cost or turn limit ends on the latter. inspect_swarm's bridged
-  tests that record a sample message limit in a member's `ended_by` may
-  change with this; inspect_swarm will be adjusted, and enabling such
-  runtime changes is this design's main motivation. A tool or handoff whose
-  only limit is a message limit behaves as today.
+  or sample that sees both now keeps the budget limit, and what the sample
+  records depends on who owns it. When the budget limit is the sample's, or
+  a scope's that lets it through, the sample ends on it. When it belongs to
+  an inner owner, such as a `run(limits=[token_limit(...)])` or
+  `cost_limit()` passed to `run()` around a bridged agent whose requests
+  also reached the inherited sample message limit, that owner catches its
+  own limit and returns `(state, error)`. The message limit is not
+  recorded anywhere: it measured the bridged agent's conversation, which
+  ended on its budget, and the caller's own conversation is not refused by
+  it unless it too reaches the limit. The sample can then complete with
+  `EvalSample.limit` unset, where today it records the message limit
+  (decision: Ransom, 2026-11-19). inspect_swarm's bridged tests that
+  record a sample message limit in a member's `ended_by` may change with
+  this: they can record the member's or the swarm's budget limit instead,
+  or, when a member scope catches its own limit, no sample limit at all;
+  inspect_swarm will be adjusted, and enabling such runtime changes is this
+  design's main motivation. A tool or handoff whose only limit is a message
+  limit behaves as today.
 - **Unpriced models under a cost limit fail.** A call to a model with no
   cost data, made while a sample, agent or swarm cost limit is active, is
   refused before dispatch with an `UnmeteredCallError` (a
@@ -2195,8 +2218,12 @@ under trio with `--runtrio`.
 - `tests/util/test_limit.py`, `run()` and `apply_limits()`: an owned limit
   raised inside the agent's task group is returned; a group with a foreign
   leaf propagates; a group of an owned token limit and a sourceless `custom`
-  limit propagates as a group; a group of an owned limit and a limit of a
-  node entered below it is caught and returns the owned one; a bare
+  limit propagates as a group; a group of an owned token limit and a token,
+  cost or turn limit of a node entered below it (the owned limit deciding
+  by depth) is caught and returns the owned token limit; a group of an
+  owned `message_limit()` and a token, cost or turn limit of a node entered
+  below it propagates unchanged, as a group, because the descendant's
+  budget limit decides (rule 4) and is not the scope's own; a bare
   descendant limit propagates; an owned token
   limit exceeded and swallowed inside the
   agent is returned as `(state, error)` by the exit check (the return path
@@ -2315,16 +2342,32 @@ under trio with `--runtrio`.
     by a member token limit, and a kept member token limit not replaced by
     the sample message limit; a kept message limit replaced by a shallower
     message limit (message-only handling by depth, as before);
-  - a bridge inside a tool, with the `_model_calling_tool()` harness
-    (`:1075`) running a nested bridge from an `as_tool()` child under a
-    sample `message_limit()` and an enclosing `turn_limit()`, and again
-    with a scoped `cost_limit()` entered above the tool: one bridged request
-    reaches the sample message limit and another the turn (or cost) limit,
-    in both arrival orders; the bridge keeps the turn (or cost) limit and
-    raises it when its agent unwinds, and it propagates out of
-    `execute_tools()` as a foreign limit, with no message `limit` tool
-    error; with only the message limit reached, the tool replies with the
-    message `limit` tool error, as today;
+  - a bridge inside a tool, through a new helper beside
+    `_model_calling_tool()` (`:1075`, a plain `ToolDef` whose nested mode
+    sends one request, so it cannot express two orders):
+    `_nested_bridge_agent(model, first)`, an `@agent` whose body builds a
+    bridge with `_model_bridge(model)` and a request filter, sends two
+    requests concurrently in a task group through
+    `_forward_provider_errors(bridge_service.generate_completions(bridge),
+    bridge)`, and then raises `bridge.generation_limit` if one is kept, as
+    `sandbox_agent_bridge()` does once its agent unwinds. The requests are a
+    `_ask_model_request(2)` prompt, which reaches a sample
+    `message_limit(2)` at `generate()`'s message check, and a
+    `_ask_model_request(1)` generation whose priced mockllm usage takes a
+    scoped `cost_limit()`, entered above the tool, past its budget after
+    the call. Both are admitted before either limit is reached (a
+    sequential second request would be refused at entry by the kept limit
+    and never reach its own limit). The filter orders them: it lets the
+    request named by `first` (`"message"` or `"cost"`) proceed and holds the
+    other on an `anyio.Event` set once the bridge keeps the first one's
+    limit, then returns `None` so default generation continues. The test
+    wraps the agent with `as_tool()` and runs it through `execute_tools()`
+    from an assistant message that calls it, once per order. In both, the
+    bridge keeps the cost limit (a depth-only rank would keep the shallower
+    message limit when it arrives second), the agent raises it, and it
+    propagates out of `execute_tools()` as a foreign limit, with no message
+    `limit` tool error. With only the message-limit request, the tool
+    replies with the message `limit` tool error, as today;
   - group reductions: a response filter that raises a group of the sample
     message limit's error and a scoped cost limit's error, in both orders,
     raises the cost limit from `_apply_response_filter()` and keeps it
