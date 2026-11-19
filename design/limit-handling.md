@@ -849,12 +849,11 @@ when `plan()` returns or raises (`run.py:3283`); the group is joined at
 `run.py:3405-3406`, inside the `with` block that holds the sample's limits
 (`run.py:3200-3212`). A `background()` worker can finish a priced call in
 its cancellation cleanup, reach a sample limit there, catch the error and
-return, after `plan()` has returned. So the check runs after the join:
-`run()` sets a local `solved = True` right after `plan()` returns, and after
-the `async with anyio.create_task_group()` block and the existing
-`solver_cancel` check, when `solved` is set, the runner runs the exit
-check over the sample's token, cost and turn roots
-(`sample_limits()`). It raises
+return, after `plan()` has returned. So the check runs after all of the
+sample's work has joined, and only when the solvers returned normally: it
+covers the sample's token, cost and turn roots (`sample_limits()`), and an
+attempt whose solvers raised, were cancelled or were interrupted keeps its
+outcome. It raises
 every root that counts at exit, each with its `SampleLimitEvent`, as one
 combined error (rule 4), and the existing `except LimitExceededError`
 (`run.py:3436`) records it, `EvalSample.limit` from its primary fields.
@@ -865,8 +864,8 @@ not a limit) goes to the error handling as today, so an error still outranks a
 limit at the runner. A termination keeps its own `except` clause. An
 operator interrupt and a limit delivered by cancellation (the working limit,
 or a limit a sandbox service routes to the sample) keep their handling
-inside `run()`, which sets the outcome before the join and leaves `solved`
-unset.
+inside `run()`, which sets the outcome before the join, so the exit check
+does not run for them.
 
 **A resume for scoring skips the sample's exit check.** It restores a spent
 budget on purpose and runs no agent work: `restore_sample_runtime(...,
@@ -2015,8 +2014,14 @@ documented. Behaviour changes:
   that returns without another call after a refusal at exactly its budget
   is not recorded as limited ("Checkpoints"). `EvalSampleLimit`, `SampleLimitEvent` and `EvalConfig` limit fields keep
   their shapes, and old logs read the same; a check that raises several
-  nodes records one `SampleLimitEvent` for each. No generated TypeScript type
-  changes.
+  nodes records one `SampleLimitEvent` for each. Log recovery
+  (`src/inspect_ai/log/_recover/`, the buffer reconstruction and the
+  streaming filestore paths) must still recover the `EvalSample.limit` the
+  live sample recorded, type, budget and reason, when several events of
+  the sample's limit type were emitted: today both paths take the last
+  event of that type (`select_limit_event()`, `_reconstruct.py:108`), which
+  for a sample token limit of 100 raised with a nested token limit of 10 is
+  the nested one. No generated TypeScript type changes.
 - **Docs.** `docs/setting-limits.qmd` and `docs/_agent_limits.md` state the
   combined error and its `limits`, which limit fills the single-valued
   records, that tool-based agents return a message for their own limits (an
@@ -2122,6 +2127,11 @@ under trio with `--runtrio`.
     role model with cost suspended runs; a solver that calls the same role
     model, unsuspended, fails the sample with `UnmeteredCallError`; an
     unpriced task model still fails at start.
+- `tests/log/test_recover_reconstruct.py` and
+  `tests/log/test_recover_filestore.py`: a sample whose token limit of 100
+  and a nested token limit of 10 raised in one check, recorded with
+  `EvalSample.limit` of 100 and its reason, is recovered with the same type,
+  budget and reason by both recovery paths; the same for cost limits.
 - `tests/util/test_limit_turn.py`: `turn_limit(3)` makes three generations
   and refuses the fourth before dispatch; a cache hit at the limit is served
   and then raises (it records its turn); in `tests/util/test_limit_token.py`,
@@ -2410,13 +2420,17 @@ Each step is one PR, in this order. Each keeps the suite green.
    `src/inspect_ai/util/_checkpoint/sample_runtime.py`:
    `restore_sample_runtime()` clears the refusal mark of each root whose
    counter it assigns (no payload change).
+   `src/inspect_ai/log/_recover/`: recovery choosing the event that matches
+   the live `EvalSample.limit` when one check emitted several.
    `src/inspect_ai/model/_model.py`: each model call recording, then
    running the chain check once, where its accounting runs today
    (generation, cache hit, native compaction, sidecar recovery), and the
    pre-dispatch check.
    Tests: the node-level cases in `tests/util/test_limit*.py` (chain,
    combined errors, recording, pre-dispatch refusal, the refusal mark
-   across setters and overrides), and in
+   across setters and overrides), the recovery cases in
+   `tests/log/test_recover_reconstruct.py` and
+   `tests/log/test_recover_filestore.py`, and in
    `tests/checkpoint/test_sample_runtime.py` that a restore clears the mark
    of each root it assigns.
 2. **Unpriced models.** `_limit.py`: `UnmeteredCallError`. `_model.py`:
