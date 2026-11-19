@@ -2,6 +2,7 @@
 
 from collections.abc import Awaitable, Callable, Hashable
 from contextvars import ContextVar
+from dataclasses import dataclass, field
 from logging import Filter, LogRecord, getLogger
 from typing import TYPE_CHECKING, Any, Generic, NamedTuple, NoReturn, TypeVar
 from weakref import WeakValueDictionary
@@ -87,9 +88,9 @@ class TaskSidecars:
         self._found = _Once[Sidecar | NoSidecar]()
         # the endpoints whose probe couldn't tell, warned of once
         self._warned: set[str] = set()
-        # each attempt's completed registration at a sidecar, with how many
-        # registrations of the task the sidecar had taken when it was sent
-        self._completed = _Once[tuple[bool, int]]()
+        # each attempt's registration of its sample at a sidecar, by the
+        # sample's uuid, then the sidecar's origin and the attempt
+        self._completions: dict[str, dict[tuple[str, int], _Completion]] = {}
         # the eval's id and token for each sidecar, by its origin: models with
         # other credentials reach the same sidecar, which keeps one token for
         # the eval
@@ -133,7 +134,7 @@ class TaskSidecars:
 
         A sidecar that no longer keeps the task's registration, as after it restarted or the registration expired, has the task registered again first. Each epoch and each retry of a sample completes its registration again, so a later one finds a sidecar that has lost the task, rather than being judged without the task's facts or refused.
 
-        The sidecar is told the sample's uuid, and holds the sample's facts while a run that named itself is in progress: it frees them when the last has ended. So a completion counts only for the registration of the task it was sent to. Once the task has been registered again, as by another sample that found it lost, an attempt completes its registration again before its next call, or the sidecar could free the facts under it when that other sample ends.
+        The sidecar is told the sample's uuid, and holds the sample's facts while a run that named itself is in progress: it frees them when the last has ended. So a completion counts only for the registration of the task it was sent to. Once the task has been registered again, as by another sample that found it lost, an attempt completes its registration again before its next call, or the sidecar could free the facts under it when that other sample ends. What it sends again is what it first sent, as a sample's input and metadata may have changed since.
 
         Raises:
             SentinelProxyError: If the sidecar couldn't take the sample, or no longer kept the task and couldn't register it again.
@@ -142,7 +143,7 @@ class TaskSidecars:
         def registrations() -> int:
             return sidecar.access.registrations if sidecar.access else 0
 
-        async def complete() -> tuple[bool, int]:
+        async def complete(sample: SampleFacts) -> tuple[bool, int]:
             # the registrations the sidecar took before this call, so one
             # another sample makes meanwhile isn't made again
             registered = sidecar.access.registrations if sidecar.access else None
@@ -184,22 +185,18 @@ class TaskSidecars:
                     f"The sentinel sidecar at {sidecar.origin} couldn't register the sample {sample.sample_id!r} of the task {self.facts.task!r}: {ex}"
                 ) from ex
 
-        while True:
-            # Remembered for the registration of the task it was sent to. A
-            # completion still on its way when the task is registered again
-            # is one the sidecar may have lost with the task, so it is sent
-            # again, and can't be remembered for the registration made since.
-            registration = registrations()
-            fixed, sent_to = await self._completed.run(
-                (sidecar.origin, sample_uuid, attempt, registration), complete
-            )
-            if sent_to == registrations():
-                if sent_to != registration:
-                    self._completed.remember(
-                        (sidecar.origin, sample_uuid, attempt, sent_to),
-                        (fixed, sent_to),
-                    )
-                return fixed
+        completion = self._completions.setdefault(sample_uuid, {}).setdefault(
+            (sidecar.origin, attempt), _Completion(sample)
+        )
+        # One at a time for the attempt: its calls made at once wait for the
+        # one that sends, and a completion that raised is tried again by the
+        # next. It is complete for the registration of the task it was sent
+        # to. A completion still on its way when the task is registered again
+        # is one the sidecar may have lost with the task, so it is sent again.
+        async with completion.lock:
+            while completion.done is None or completion.done.sent_to != registrations():
+                completion.done = _Completed(*await complete(completion.sample))
+            return completion.done.fixed
 
     def lost_monitor_state(self, sample_uuid: str, attempt_number: int) -> None:
         """Note that a sidecar lost an attempt's sample partway through, as on a restart, so the attempt's monitor state is never copied: what the sidecar holds for it began afresh."""
@@ -232,6 +229,7 @@ class TaskSidecars:
             tell: Whether to tell the sidecars. A cancelled sample's teardown can't be interrupted, so it doesn't wait on a sidecar that may not answer, and the sidecars drop the sample at its run expiry.
         """
         through = self._through.pop(sample_uuid, {}).values()
+        self._completions.pop(sample_uuid, None)
         self._unjudged.pop(sample_uuid, None)
         self._lost.pop(sample_uuid, None)
         if not tell:
@@ -461,9 +459,24 @@ class TaskSidecars:
                         await sidecar.call(
                             "register_task", {**params, "token": access.token}
                         )
+                        self._lost_with_token(sidecar)
             except SidecarCallError as ex:
                 self._registration_failed(sidecar, ex)
             access.registrations += 1
+
+    def _lost_with_token(self, sidecar: Sidecar) -> None:
+        # A sidecar that lost the eval's token lost everything it held for
+        # the eval with it, as on a restart: the monitor state of each attempt
+        # it had begun judging. Such an attempt completes its registration
+        # again and goes on, so nothing else would say what it lost. An
+        # attempt is taken as begun once its registration was complete, which
+        # its first judged call follows at once. A task's registration that
+        # expired alone loses none of this, and isn't told apart here: the
+        # sidecar took that registration signed.
+        for sample_uuid, completions in self._completions.items():
+            for (origin, attempt), completion in completions.items():
+                if origin == sidecar.origin and completion.done is not None:
+                    self.lost_monitor_state(sample_uuid, attempt)
 
     def access(self, origin: str) -> EvalAccess | None:
         """The eval's id and token for the sidecar at an origin, or None if no model of the task found one there."""
@@ -480,6 +493,24 @@ class TaskSidecars:
         raise SentinelProxyError(
             f"The sentinel sidecar at {sidecar.origin} couldn't register the task {facts.task!r}: {ex}"
         ) from ex
+
+
+class _Completed(NamedTuple):
+    fixed: bool
+    """Whether the sidecar's admin registered the task beforehand."""
+    sent_to: int
+    """How many registrations of the task the sidecar had taken when the completion was sent."""
+
+
+@dataclass
+class _Completion:
+    """One attempt's registration of its sample at a sidecar."""
+
+    sample: SampleFacts
+    """The facts the attempt first sent, which a later send repeats."""
+    lock: anyio.Lock = field(default_factory=anyio.Lock)
+    done: _Completed | None = None
+    """The latest completion the sidecar took, or None before the first."""
 
 
 class _Once(Generic[T]):
@@ -510,10 +541,6 @@ class _Once(Generic[T]):
             finally:
                 self._running.pop(key).set()
         return self._done[key]
-
-    def remember(self, key: Hashable, result: T) -> None:
-        """Keep a result for a key whose work another key's did."""
-        self._done[key] = result
 
 
 def _unauthorized(sidecar: Sidecar, ex: SidecarCallError) -> str:
