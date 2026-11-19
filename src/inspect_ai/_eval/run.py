@@ -100,6 +100,7 @@ from .loader import (
     as_solver_spec,
     solver_from_spec,
 )
+from .task.enqueue import creator_model_scope
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask, resolved_task_names
 from .task.run import (
@@ -699,7 +700,10 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                     error_after_write = False
                     with task_scope:
                         try:
-                            result = await task_run(options, task_cancel=task_cancel)
+                            with creator_model_scope(options.model):
+                                result = await task_run(
+                                    options, task_cancel=task_cancel
+                                )
                         except TaskRetryAbandonedError:
                             # abandoned at attempt start (a drain/cancel
                             # stamped the retry-abandoned registry between

@@ -212,8 +212,15 @@ Non-goals:
   `max_samples` is per task, and a task with none takes its default from
   its model's connection pool (`create_sample_semaphore`); model connection
   slots are held only during a `generate` call.
-- `_resolve_enqueued_tasks` (`src/inspect_ai/_eval/eval.py`) resolves an
-  added `Task` once per run model.
+- `_resolve_enqueued_tasks` (`src/inspect_ai/_eval/eval.py`) resolves a
+  task added inside a running attempt once, under that attempt's model, and
+  a task added elsewhere (including from a `TaskSource` callback) once per
+  run model. A private `ContextVar` (`_creator`,
+  `src/inspect_ai/_eval/task/enqueue.py`) carries the attempt's model in a
+  cell the attempt marks ended on exit, so a background coroutine that
+  outlives its attempt counts as outside it: `_run_task`
+  (`src/inspect_ai/_eval/run.py`) sets it around `task_run`, and each place
+  Inspect calls a `TaskSource` callback sets it to `None` for the call.
 - Every log records its task's dataset name (`EvalDataset.name`, which
   `TaskLogger` takes from `task.dataset`, `src/inspect_ai/_eval/task/log.py`).
   For a `SampleSource` task the dataset is the unnamed `MemoryDataset` of its
@@ -273,8 +280,9 @@ class SampleAbandonedError(RuntimeError):
 
 New exports from `inspect_ai`: `TaskHandle`, `TaskEndedError`,
 `SampleAbandonedError`, `samples_from_handle`. One handle per record, in
-resolution order: an ordinary `Task` gives one per run model, a task fed
-through a handle gives one ("Tasks fed through a handle").
+resolution order: a task added inside an attempt, including one fed
+through a handle, gives one ("Tasks fed through a handle"); a task added
+elsewhere gives one per run model.
 
 The *creator* of a task fed through a handle is the attempt that added it;
 its end closes the task's channel. Docs and error messages say "fed through
@@ -502,8 +510,9 @@ class PortRequest:
 - **One record, under the creator's model, one epoch.**
   `_resolve_enqueued_tasks` resolves a task whose dataset is
   `samples_from_handle()` once, for the model of the creator's attempt in
-  place of the run's model list (a `Task` that sets its own `model` keeps
-  it, as in any resolution). So `enqueue_task()` returns one handle for it,
+  place of the run's model list, as it does any task added inside an
+  attempt (a `Task` that sets its own `model` keeps it, as in any
+  resolution). So `enqueue_task()` returns one handle for it,
   and a creator in a multi-model run feeds a rollout task under its own
   model. Each sent sample runs once: a creator that wants repeats sends the
   sample again.
@@ -840,7 +849,7 @@ needs.
   and its exception; the start itself needs nothing new, because the
   dispatcher already rescans on `wake` (decision: Ransom, 2026-11-17,
   kept 2026-11-18).
-- **One fed task per run model**, as for ordinary tasks. The creator would
+- **One fed task per run model**, as for tasks added outside an attempt. The creator would
   pick the handle for its own model and close the rest in every use.
 - **Several epochs per sent sample**, with one result per epoch. It needs a
   future per epoch, a request that is partly abandoned, and an epoch on
@@ -961,8 +970,7 @@ the recorder's next flush writes the original path again. Before handles
 are used in Steward selection workers, Steward must not archive a log
 while the worker that wrote it is running (for example, by treating logs
 in the worker's log directory as in flight until it exits). This is a
-Steward change; the Inspect design is unchanged. Selection workers already
-need the runtime-pruning fix ("Implementation plan").
+Steward change; the Inspect design is unchanged.
 
 No eval log schema, viewer type, control-channel or config file changes. A
 fed task's log records the reserved dataset name `samples_from_handle`,
@@ -1206,7 +1214,7 @@ the selection-mode tests below run with pruning enabled. Running it under Stewar
 a running worker's fed logs from archival ("Compatibility and migration").
 
 - `_eval/task/enqueue.py` (`TaskHandle`, the errors, `TaskAttempt` and
-  `_attempt`, `result()` refusing a handle whose task is
+  `_attempt`, which replaces `_creator`, `result()` refusing a handle whose task is
   not fed through it, the `max_sandboxes` warning naming its `inspect ctl
   config` command, `RunQueue.cancel` closing a fed record's channel itself
   in every phase but `ended`, `enqueue_task()` returning handles, passing its creator
@@ -1227,8 +1235,8 @@ a running worker's fed logs from archival ("Compatibility and migration").
   naming a `HandleChannel`'s dataset and refusing the reserved name for any
   other; the `max_samples` parameter docs of `Task` and `task_with`, which
   say a run's value overrides the task's, adding that it does not for a
-  task fed through its handle), `_eval/eval.py` (`_resolve_enqueued_tasks` resolving a fed task
-  for its creator's model; the `eval_resolve_tasks` refusal;
+  task fed through its handle), `_eval/eval.py` (`_resolve_enqueued_tasks` reading the creator's
+  model from `_attempt`; the `eval_resolve_tasks` refusal;
   `eval_retry_async` refusing a log by its dataset name; `max_tasks`,
   `max_samples` and `max_sandboxes` docstrings), `_eval/evalset.py`
   (`all_evals_succeeded` and `validate_eval_set_prerequisites` skipping
@@ -1245,7 +1253,7 @@ a running worker's fed logs from archival ("Compatibility and migration").
   file), `docs/parallelism.qmd` (a fed task's `max_samples` is its own or
   its model's default, never the run's), `docs/reference`, and `_attempt` set to `None`
   around each `TaskSource` callback call (`_eval/task/run.py`,
-  `_eval/run.py`). Tests: those above.
+  `_eval/run.py`), where `_creator` is cleared today. Tests: those above.
 
 ## Open questions
 
@@ -1261,8 +1269,7 @@ cancels (2026-11-09); `result()` closes the handle before it waits
 (2026-11-11) a fed task takes no `max_tasks` slot, with no slot lent to any
 awaited task (replacing the 2026-11-03 decision to lend, made before a task
 could declare that it is fed through a handle), is resolved once under its
-creator's model (narrowing "one handle per task × model" to ordinary
-tasks), and its sent samples get `send-<token>-<n>` ids with a per-task
+creator's model (as is any task added inside an attempt), and its sent samples get `send-<token>-<n>` ids with a per-task
 token; and (2026-11-12) `samples_from_handle()` is the name, a fed task may
 be added from any code inside a running attempt, runs one epoch per sent
 sample, resolves its settings before the run's (except the oversight
