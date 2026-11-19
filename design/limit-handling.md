@@ -386,12 +386,8 @@ tokens per call, run against this branch's base):
    `suspend_token_limit()`, `suspend_turn_limit()` or `suspend_cost_limit()`
    (or `suspend_limits()`, all of them), limits of that kind neither record
    nor check the calls made in the block, and the unpriced-model refusal
-   (rule 9) skips a call while cost is suspended. The `dispatch_guard()`
-   checks are skipped while token limits are suspended, as today, so
-   `suspend_token_limit()` and `suspend_limits()` skip them and
-   `suspend_turn_limit()` or `suspend_cost_limit()` alone does not.
-   Approval, review and sentinel calls run under `suspend_limits()`, so they
-   skip the bridge guard. Message limits are still checked.
+   (rule 9) skips a call while cost is suspended. Message limits are
+   still checked.
 6. **The owner handles its error, all of it.** Code turns a limit error
    (bare, combined, or a group of limit errors) into a message, a tool
    error, a reply or a return value only when it owns every limit in it.
@@ -508,28 +504,21 @@ order sets their rank, which matters only for the primary fields.
   at or past its budget (`>=`). One node raises its own error; several
   raise their combined error. Each node that raises emits its
   `SampleLimitEvent`, as today, where today a check stops at the first.
-- **The refusal mark.** A token, cost or turn node that raises records the
-  budget it raised at, keeping the greatest such budget. The
-  mark lets an owner's exit check tell a limit reached exactly after a
-  refused call from one reached exactly with nothing refused. It counts
-  only while the node's effective budget equals the marked one, so a
-  budget changed by a `limit` setter or a live override
-  (`set_sample_limit_override()`) is judged by the budget in force, and
-  keeping the greatest refused budget makes a refusal at 10 count again
-  after the budget is lowered to 5 (where `TaskState`'s setters check with
-  `>`, `src/inspect_ai/solver/_task_state.py:358-370`, `:392`) and restored
-  to 10. That holds because usage never decreases between restores (token
-  metering is non-decreasing, cost and turns only add); a checkpoint
-  restore, which assigns a root's counter, clears that root's mark
-  ("Checkpoints"). A node whose limit is `None` (an inspect_swarm lever,
-  whose closed stop gate raises on its own state) is never reached by
-  count, and its mark does not matter. inspect_swarm's token, cost and
-  turn `_check_self()` overrides take part in the check, and so set the
-  mark too. Message nodes keep their own count-based check, outside this
-  check, and have no mark.
+- **The refusal mark.** At an owner's exit, a token, cost or turn limit
+  at exactly its budget counts only if it refused a call at its current
+  budget since the attempt started or its counters were last restored.
+  How that is recorded is the implementation's choice. The tests that pin
+  it are the retuned `run()` limits and the sample limits retuned through
+  `state.token_limit` and `state.cost_limit` (`tests/util/test_limit.py`),
+  the live-override case (`tests/_control/test_limits.py`) and the
+  turn-root restore cases (`tests/checkpoint/test_sample_runtime.py`).
+  inspect_swarm's token, cost and turn `_check_self()` overrides take part
+  in the check, so their refusals count too; a node whose limit is `None`
+  (an inspect_swarm lever) is never reached by count. Message limits have
+  no such record.
 - **The owner's exit check** (rule 7) raises each of the owner's own token,
-  cost and turn nodes that is exceeded, or reached with a mark at its
-  current budget; several raise their combined error.
+  cost and turn nodes that is exceeded, or reached and counting by the
+  refusal mark; several raise their combined error.
 - **Where it runs.** Every model call records, then checks once, where
   its accounting runs today (`src/inspect_ai/model/_model.py`):
   - A generation records its usage and its turn, then checks, in the
@@ -561,10 +550,15 @@ order sets their rank, which matters only for the primary fields.
     only when the sidecar's judgment supplies billed usage, and records no
     turn, as today; its check is the same check.
 - **Before dispatch.** The pre-dispatch check (`_check_limits_before_dispatch()`)
-  runs the check with `>=`, then the unpriced-model check (rule 9),
-  then the `dispatch_guard()` checks, which are skipped while token limits
-  are suspended, as today. It runs per attempt after the cache lookup, and
-  at the start of every bridged request.
+  runs the check with `>=`, then the unpriced-model check (rule 9). It
+  runs per attempt after the cache lookup, and at the start of every
+  bridged request. `dispatch_guard()` and its ContextVar
+  (`_model.py:3868-3893`) are removed, with the bridge's
+  `_refuse_after_a_recorded_limit()` (`service.py:173-194`), which was
+  their only user in this repository, inspect_swarm, inspect_swe and
+  inspect_sentinel: a request the bridge has admitted is stopped by node
+  state, since every provider call it makes refuses a reached token, cost
+  or turn node before dispatch.
 - **Turn limits.** `turn_limit(N)` allows N generations: the (N+1)th is
   refused before it is dispatched, with the message "Turn limit reached",
   where today it is made and raises after it returns (decision: Ransom,
@@ -592,7 +586,7 @@ by which limit ranks first. The rank only fills single-valued records.
 | Where | Today | Now |
 |---|---|---|
 | One check after a call | token tree, then cost tree (priced calls only); the first node that raises | token, cost and turn trees, every call; every node that raises, combined |
-| Pre-dispatch check | token, cost, then guards (guards skipped while tokens are suspended) | token, cost and turn trees, combined, then guards (still skipped while tokens are suspended) |
+| Pre-dispatch check | token, cost, then guards (guards skipped while tokens are suspended) | token, cost and turn trees, combined; no guards |
 | `_apply_response_filter()`, a group of only limits, terminations and refusals (`agent/_bridge/util.py:515-527`) | its first leaf | its first leaf, or, when that is a limit, the combined error of its limits; a mixed group is still a `ResponseFilterError` |
 | `apply_limits()` | catches a bare owned error only | with `catch_errors=True`, catches an error, bare, combined or a group, when every leaf is a limit error and every limit in it is the scope's own or entered while the scope was open (below); its `limit_error` is their combined error; otherwise the error propagates unchanged |
 | Sample runner (`run.py:3435`) | first leaf of the group | its first leaf, or, when that is a limit, the combined error of its limits; `EvalSample.limit` from the combined error's primary fields |
@@ -669,8 +663,7 @@ owner stands ("The owner's exit check").
 A request refused before dispatch, for example one that was queued for a
 connection slot, the pause gate or a retry while another call reached a limit,
 raises from the same check as a fresh call: every limit reached at that
-moment. In a bridged request the guard then raises a copy of the bridge's
-combined kept error when the check raises nothing.
+moment.
 
 Why combine: an owner can act on an error correctly only if it can see
 every limit in it. Reducing several limits to one, by any order, means some
@@ -715,8 +708,7 @@ limit is in the combined error's `limits` and in the transcript's
 ### Suspension
 
 Rule 5 states the suspension that already exists as one rule over the
-trees: a suspended kind is neither charged nor checked, and the bridge
-guard is skipped while token limits are suspended, as today.
+trees: a suspended kind is neither charged nor checked.
 Approval, review and in-process sentinel calls, and the wait for a sentinel
 sidecar's result, run under `suspend_limits()` ("Current behaviour"), so
 they record into and check no token, turn or cost limit, including in the
@@ -735,16 +727,10 @@ today: inspect_swarm's closed stop gate on a member's cost node does not
 refuse a call made by an approval or review callback that is already
 running.
 
-Calls made while token limits are suspended also skip `dispatch_guard()`,
-as they do today (`_model.py:3898-3910`); approval, review and sentinel
-calls suspend tokens through `suspend_limits()`, so they skip it. Turn or
-cost suspension alone does not skip the guard, as today: the suspension
-contexts are independent, and only the token one gates the guard. Message
-limits, which suspension never covered, are still checked as today
-(decision: Ransom, 2026-11-17). The
-bridge's guard is the only guard. The cost: once the bridge has kept a
-limit, an approval, review or monitor call made for a request already in
-flight still runs, and its spend counts against no limit. Every later
+Message limits, which suspension never covered, are still checked as today
+(decision: Ransom, 2026-11-17). Once the bridge has kept a limit, an
+approval, review or monitor call made for a request already in flight
+still runs, and its spend counts against no limit, as today. Every later
 request is refused at entry, before any tool or policy code runs: a
 generation request before its generation, and a host-tool request before
 the tool executes ("The sandbox bridge"), so before any approval or
@@ -813,9 +799,8 @@ is unchanged: the bridge never raises one through it.
 The in-process sentinel wrapper is unchanged: it still wraps any exception
 escaping a monitor or protocol in `SentinelFailure`
 (`src/inspect_ai/_sentinel/_dispatch.py:350-351`). Under rule 5 a monitor's
-own model calls run with token, turn and cost limits suspended and skip the
-bridge guard, so they cannot reach one of those limits or be refused by a
-kept one. The one limit a monitor can reach is a message limit: suspension
+own model calls run with token, turn and cost limits suspended, so they
+cannot reach one of those limits or be refused by one. The one limit a monitor can reach is a message limit: suspension
 leaves message limits active, and `generate()` checks the innermost message
 limit before dispatch (`src/inspect_ai/model/_model.py:1059-1062`,
 `src/inspect_ai/util/_limit.py:780-794`), so a monitor whose own prompt
@@ -953,35 +938,16 @@ Background deepagent subagents already read the scope after their block
 propagates.
 
 **What raises at exit.** Each of the owner's own nodes raises if it is
-exceeded (`> limit`), or if
-it is reached (`== limit`) and its refusal mark is at that same budget.
-So:
-
-- A sample that used exactly its token budget, or took exactly its N turns,
-  and returned without trying another call, is not recorded as limited.
-- A sample in which a call was refused at exactly the limit is. This is the
-  case where the refusal's error was lost on its way to the owner: a bridged
-  request refused at the sample's budget and kept, then a hard stop that
-  cancels the bridge before the kept limit is delivered; or a runtime that
-  dropped the error.
-- A limit that raised and whose effective budget then changed counts only
-  by the budget in force at exit. The budget can change through a `limit`
-  setter (a solver that catches the sample token limit and sets
-  `state.token_limit` higher) or through a live override of the sample's
-  token or message limit (`inspect ctl`, `set_sample_limit_override()`,
-  `src/inspect_ai/util/_limit_overrides.py:71-100`), which the root node's
-  `limit` getter reads on every access (`src/inspect_ai/util/_limit.py:1142-1145`)
-  without calling the setter. Because the mark stores the budget it was
-  refused at, both paths are handled the same way: a node refused at 10 whose
-  budget becomes 20 (by the setter, by setting an override, or by clearing an
-  override back to a launch budget of 20) and that ends at exactly 20 without
-  a refusal at 20 does not raise; one refused at 20 does. A budget changed
-  back to 10 after a refusal at 10 counts that refusal again, also when a
-  check at a lower budget (5) raised in between.
-
-The refusal mark is per node and survives the cancellation that loses
-the error itself; a change of the node's effective budget makes it not
-count, without clearing it. A checkpoint does not store it ("Checkpoints").
+exceeded (`> limit`), or if it is reached (`== limit`) and counts by the
+refusal mark ("Recording and checking"). So a sample that used exactly its
+token budget, or took exactly its N turns, and returned without trying
+another call, is not recorded as limited; a sample in which a call was
+refused at exactly the limit is. That second case is where the refusal's
+error was lost on its way to the owner: a bridged request refused at the
+sample's budget and kept, then a hard stop that cancels the bridge before
+the kept limit is delivered; or a runtime that dropped the error. A budget
+changed by a `limit` setter or a live override
+(`set_sample_limit_override()`) is judged by the budget in force at exit.
 
 **Plain `with` blocks.** A `with token_limit(...)`, `cost_limit(...)` or
 `turn_limit(...)` block entered directly, not through `apply_limits()` or
@@ -1151,18 +1117,9 @@ checkpointer entry that fails part-way and is entered again sets the same
 values. Work the attempt charged before the restore is overwritten; what
 that loses is under "Limits swallowed before a checkpoint restore".
 
-The restore also clears the refusal mark on each root whose counter it
-assigns, before its checks run. The mark keeps the greatest budget at which
-the node raised, which is right only while usage never decreases ("Recording
-and checking"); an assigned counter can be lower than the usage
-the mark was set against. Without the reset, a root refused at 20 before
-the restore, lowered to 10 (before the restore or in `on_resume` after
-it) and restored to 0 would keep a mark of 20: a fresh refusal after it
-consumed 10 would not count at the exit check, since the mark is compared
-with the budget of 10. After the reset, the mark again
-records only refusals at or after the restored usage, and the
-greatest-budget rule holds from there. A root the payload does not assign
-(its key is missing) keeps its counter and its mark.
+A restored root counts only refusals made after the restore (the
+guarantee under "Recording and checking"); a root the payload does not
+assign keeps its counter and what it refused.
 
 The roots of a resumed attempt carry no refusal mark from the
 previous attempt, so the exit check's handling of a limit reached exactly
@@ -1196,25 +1153,21 @@ order, of which only the limit handling changes:
 - **The kept limits.** The bridge keeps every limit its generations and
   host tools reached, once per limit node, and never replaces or drops
   one. `SandboxAgentBridge.generation_limit` keeps its name and its
-  readers (the kept-limit reply, the host-tool refusal, the guard's copy,
-  the raise at unwind) and always holds the combined error of the kept
+  readers (the kept-limit reply, the host-tool refusal, the raise at
+  unwind) and always holds the combined error of the kept
   limits. Host tools add an error their call does not own.
 - The entry check now covers turns with `>=` (rule 3), so the separate
   `check_turn_limit()` call goes away. The "a limit is already kept" branch
   stays, after the pre-dispatch check: that check runs first, so a newly
   reached limit raises and joins the kept ones, and then any request that
   arrives while a limit is kept gets the kept error's reply without a
-  generation. The branch does not rely on the guard, which is
-  skipped while token limits are suspended (rule 5): a service task
-  inherits the context `sandbox_agent_bridge()` starts it in
-  (`src/inspect_ai/agent/_bridge/sandbox/bridge.py:300-309`), so if that
-  context suspends tokens, the guard is skipped for every request, and a
-  kept message limit (which the check does not cover) would
-  otherwise let a fresh request with a shorter prompt reach the provider.
-  Inside a request already admitted, the guard is still skipped for
-  suspended calls, as decided.
+  generation, whatever is suspended, so a kept message limit (which the
+  check does not cover) still refuses a fresh request with a shorter
+  prompt. A request admitted before a limit was kept makes its remaining
+  provider calls under node state alone: each refuses a reached token,
+  cost or turn node and checks its own conversation's message limit.
 - **Host-tool requests are refused once a limit is kept.** Today only the
-  guard wraps a host tool's execution (`service.py:453-464`), so a host
+  dispatch guard wraps a host tool's execution (`service.py:453-464`), so a host
   tool admitted after the bridge kept a limit still runs, and a monitor in
   an `as_tool()` child or a tool calling `run()` makes a priced call that
   no limit counts, as often as the scaffold asks. Once a limit is kept, a
@@ -1239,7 +1192,11 @@ order, of which only the limit handling changes:
   limit both reach the owner. Today `_error_after_unwind()` (`:385-405`)
   raises the kept limit alone and drops an escaping one. The existing
   priorities stay: a termination, a requested sample failure and a pending
-  enclosing cancellation decide ahead of the limits, as today. If the agent is cancelled first, the kept
+  enclosing cancellation decide ahead of the limits, as today. Combining
+  applies only when the bridge has kept a limit: with nothing kept, an
+  agent that unwinds with a group led by an ordinary error (an
+  `ExceptionGroup` of a `RuntimeError` and a limit error) still fails with
+  that ordinary error, as today. If the agent is cancelled first, the kept
   limits are not raised there. Each token, cost or turn node among them
   raised when it was reached, so it carries the refusal mark. It refuses every later call under it (rule
   3), and when no other limit error reaches its owner, rule 7 raises it
@@ -1335,8 +1292,9 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    holding it and every other node that has since been reached (rule 3: the next
    check raises every reached node, combined). Approval,
    review and sentinel calls are the exception: they run with token, turn
-   and cost limits suspended and skip the bridge guard, so a reached limit
-   of those kinds, or a bridge's kept limit, does not refuse them.
+   and cost limits suspended, so a reached limit of those kinds does not
+   refuse them, and inside a request already in flight neither does a
+   bridge's kept limit.
    Calls already dispatched complete and are recorded, and each then runs
    the post-call check against the nodes' current totals (rules 2 and 3):
    it raises every node whose total is past its budget, combined, whether
@@ -1494,8 +1452,8 @@ catches it and calls the same model again (a compaction fallback, a hook
 that logs and continues, a first-error reduction) is refused again before
 dispatch, with nothing spent.
 
-**When.** In `_check_limits_before_dispatch(model)`, after the limit check
-and before the guards: if cost is not suspended, any active cost node
+**When.** In `_check_limits_before_dispatch(model)`, after the limit check:
+if cost is not suspended, any active cost node
 has a limit (not `None`), and `_get_model_info_direct(model)` has no
 `cost`, it raises. This is the start-time check's test
 (`resolve_model_costs()`), applied to each call. It is not
@@ -1790,8 +1748,7 @@ is still recorded as limited after a refusal at exactly its budget. The key
 was cut (decision: Ransom, 2026-11-16).
 
 **Raise a monitor's limit bare from the sentinel wrapper.** With token,
-turn and cost suspended for monitors and the bridge guard skipped, a
-monitor can reach only a message limit, which keeps today's
+turn and cost suspended for monitors, a monitor can reach only a message limit, which keeps today's
 `SentinelFailure` handling ("Sentinel failures") (decision: Ransom,
 2026-11-16).
 
@@ -1846,15 +1803,6 @@ bound that spend: the calls never advance it, so its checks never fail.
 Approver, reviewer and monitor calls are not part of this argument: they
 run with cost suspended, so no cost limit bounds them either way, and the
 refusal skips them (rule 9). Refusal was chosen (decision: Ransom, 2026-11-12).
-
-**Refuse suspended calls with the bridge guard too.** Approval, review and
-monitor calls inside a bridged request would stop once the bridge kept a
-limit, saving their spend. But a monitor refused that way raises the kept
-limit inside the sentinel wrapper, which turns it into a `SentinelFailure`;
-from a bridged host tool that failure then displaces the kept limit and
-fails the sample. Suspended calls keep skipping the guard, as today, at the
-cost of the policy calls for requests already in flight (decision: Ransom,
-2026-11-17).
 
 ## Compatibility and migration
 
@@ -2030,6 +1978,17 @@ documented. Behaviour changes:
   tools reached, whatever their kinds, and raises their combined error;
   today it keeps one, replacing it only by a same-tree ancestor or a sample
   root.
+- **The bridge's dispatch guard is gone.** A request the bridge admitted
+  before it kept a limit is now stopped by node state alone: each provider
+  call it still makes refuses a reached token, cost or turn node, as every
+  call does. One case changes: after the bridge keeps a message limit (or
+  a sourceless `custom` limit), a request already in flight can make its
+  remaining provider calls, each still checking its own conversation's
+  message limit; today the guard refused them with a copy of the kept
+  limit. New requests and host-tool requests are still refused at entry.
+  A kept limit whose budget a live override has since raised no longer
+  refuses calls already in flight, since the node no longer counts as
+  reached. `dispatch_guard()` was private and had no other user.
 - **Token limit formulas.** A token limit `type` formula must now be a
   non-negative weighted sum of `input` and `output` ("Token metering must
   not decrease"); `token_limit(10, type="input - output")` and formulas
@@ -2044,7 +2003,8 @@ documented. Behaviour changes:
   applies wherever the formula is evaluated, including when a checkpoint
   restore re-meters the same raw counts.
 - **Private internals.** `_encloses()`, `_sample_roots()` and `_in_tree()`
-  are removed. `_TurnLimit._check_self()` gains a parameter. Token, cost,
+  are removed, and so are `dispatch_guard()`, its ContextVar and the
+  bridge's `_refuse_after_a_recorded_limit()`. `_TurnLimit._check_self()` gains a parameter. Token, cost,
   turn and message nodes gain an entry number and the scope marker
   current at their entry (a ContextVar each call or scope sets, inherited
   by the tasks started inside it), and token, cost and turn nodes a
@@ -2181,12 +2141,8 @@ under trio with `--runtrio`.
   fails with a retried provider error and whose second succeeds counts one
   turn.
 - `tests/util/test_limit_token.py`: inside `suspend_limits()`, a call is not
-  refused by a reached token, turn or cost limit, nor by a
-  `dispatch_guard()`, and a reached message limit still refuses it; inside
-  `suspend_token_limit()` alone the guard is skipped; inside
-  `suspend_turn_limit()` alone and inside `suspend_cost_limit()` alone a
-  `dispatch_guard()` still refuses the call (pinned, as today); inside
-  `suspend_limits()`, a `_CostLimit` subclass whose `_check_self()` always
+  refused by a reached token, turn or cost limit, and a reached message
+  limit still refuses it; inside `suspend_limits()`, a `_CostLimit` subclass whose `_check_self()` always
   raises (as inspect_swarm's closed stop gate does) is not checked, and the
   same node refuses an unsuspended call;
   `token_limit()` and `TokenLimit` (including the `"input-output:10"`
@@ -2337,7 +2293,10 @@ under trio with `--runtrio`.
     group; `run()` does not return, and the error that leaves it holds
     both limits, the token limit's primary fields first; a requested
     sample failure, a termination and a pending enclosing cancellation
-    still decide ahead of the limits, as today;
+    still decide ahead of the limits, as today; with no kept limit, an
+    agent that unwinds with `ExceptionGroup([RuntimeError(...),
+    owned_limit_error])` still fails with the `RuntimeError`, and `run()`
+    does not return the limit;
   - a bridge inside a tool, end to end: an `as_tool()` agent whose body
     sends two bridged requests at once, one whose prompt reaches the
     sample's `message_limit(2)` and one whose priced usage takes a
@@ -2382,6 +2341,13 @@ under trio with `--runtrio`.
     cancellation of the bridged agent before delivery and a normal return
     from the solver, ends the sample on the token limit;
   - a request after a reached turn limit makes no generation;
+  - the dispatch guard's tests go with it:
+    `test_nested_dispatch_guard_keeps_the_enclosing_check` is deleted, and
+    `test_forward_provider_errors_refuses_model_calls_once_a_limit_is_recorded`
+    keeps its outcome (a request in flight makes no further model call of
+    its own, and a suspended call still runs) with a reached turn node in
+    place of a sourceless kept error, since node state now does the
+    refusing;
   - the kept-limit entry refusal holds under suspension: with the bridge's
     service task started inside `suspend_token_limit()`, and again inside
     `suspend_limits()`, a request whose three-message prompt reaches
@@ -2495,7 +2461,10 @@ Each step is one PR, in this order. Each keeps the suite green.
    simplification (the separate turn check goes; the kept-limit branch
    stays, after the pre-dispatch check), `_first_control` combining and
    generation errors added to the kept limits (step 4), deletion of
-   `_encloses`/`_sample_roots`/`_in_tree`. `src/inspect_ai/agent/_bridge/util.py`:
+   `_encloses`/`_sample_roots`/`_in_tree` and of
+   `_refuse_after_a_recorded_limit()`; `src/inspect_ai/model/_model.py`:
+   deletion of `dispatch_guard()`, its ContextVar and the guard step in
+   `_check_limits_before_dispatch()`. `src/inspect_ai/agent/_bridge/util.py`:
    `_apply_response_filter()`'s reduction.
    `src/inspect_ai/agent/_bridge/sandbox/host_tool.py`: the kept-limit
    refusal of host-tool requests. Tests:
