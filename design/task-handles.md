@@ -61,9 +61,10 @@ errored rollout is returned to its sender with its `error` set and then ends
 the task; requests still unresolved receive `TaskEndedError`, and a task fed
 through a handle is not retried. `fail_on_error=False` lets the task keep
 accepting rollouts after a sample error. Like any task added from inside a
-running task, the rollout task keeps the limits, error tolerance and
-`max_samples` it sets itself, and takes the run's values only for those it
-leaves unset.
+running task, the rollout task keeps its own limits and error tolerance,
+falling back to the run's values when unset. Its `max_samples` is its own
+value when set, otherwise its model's default; the run's value does not
+apply.
 
 Closing never stops rollouts already sent; a creator stops them with
 `cancel()` in an `except BaseException:` that re-raises, as above. It runs
@@ -100,9 +101,11 @@ running task (below) changes existing evals.
   `enqueue_task()` from inside a running task, fed through a handle or not,
   a sample limit, error-tolerance setting or `max_samples` is its own value
   if it sets one, else the run's, else the default (for a fed task, the
-  run's `max_samples` does not apply). Today the run's value replaces the
-  added task's, so an added task that sets its own `message_limit` under a
-  run-level `--message-limit`, for example, now keeps its own. Seed tasks,
+  run's `max_samples` does not apply); for such a task not fed through a
+  handle, so are `epochs` and the epoch reducer, resolved as one pair.
+  Today the run's value replaces the added task's, so an added task that
+  sets its own `message_limit` under a run-level `--message-limit`, or its
+  own `epochs=1` under `--epochs 3`, for example, now keeps its own. Seed tasks,
   tasks a `TaskSource` returns and tasks added from outside a running task
   keep today's rule, where the run's value wins; `approval`, `review` and
   `sentinel` keep the run's priority for every task.
@@ -767,9 +770,20 @@ the 2026-11-12 rule for fed tasks to every task added inside an attempt):
   the run's value ("Tasks fed through a handle").
 - `approval`, `review` and `sentinel`: the run's value still wins, as
   today; they are the operator's oversight controls for the whole run.
-- `epochs` and the epoch reducer keep today's resolution, where the run's
-  value replaces the task's, for a task not fed through a handle; a fed
-  task's are cleared ("Tasks fed through a handle").
+- `epochs` and the epoch reducer, for a task not fed through a handle,
+  are resolved together as one pair, task-first (decision: Ransom,
+  2026-11-18). If the task sets `epochs`, its epoch count and its own
+  reducer apply, the default reducer when it sets none; otherwise the
+  run's count and the run's reducer apply together, else the default (one
+  epoch). The run's reducer is never applied to, or validated against, the
+  task's own epoch count, so a task that sets `epochs=1` under a run with
+  `epochs=Epochs(3, "at_least_2")` runs one epoch with the default reducer
+  instead of being refused by `validate_reducer`; the task's own reducer is
+  validated against its own count, as today. The eval config records the
+  pair that applied (`epochs` and `epochs_reducer`). A fed task's are
+  cleared instead ("Tasks fed through a handle"). `epochs` is not an
+  oversight control; it is a run-level override of the task's own
+  declaration, like the sample limits.
 - Tags stay merged; generate config and the run-wide limits (`max_tasks`,
   `max_sandboxes`, `max_connections`) are unchanged.
 
@@ -786,7 +800,8 @@ The creator's own settings are not inherited: a searcher passes what it
 wants shared when it builds the rollout task. The cost is that a
 run-level cap, such as `--token-limit` or `--time-limit`, no longer binds
 an added task that sets its own value; the oversight controls still bind
-every task. `task_identifier()`'s `ResolvedTask` branch, which applies the
+every task, and a run-level `--epochs` no longer changes an added task
+that declares its own `epochs`. `task_identifier()`'s `ResolvedTask` branch, which applies the
 run's limits over the task's, is computed only for an eval set's requested
 tasks, which have no creator, so it never disagrees with an added task's
 log.
@@ -972,10 +987,11 @@ creator's model, is exempt from `max_tasks` and is left out of
 `eval_set()`'s result and the eval set's log-directory check.
 
 Existing evals that add tasks from inside a running task: an added task's
-own sample limits, error tolerance and `max_samples` now take precedence
-over the run's ("Settings of tasks added from inside a running task").
-An eval that relied on a run-level value (`--message-limit`,
-`--token-limit`, `--time-limit`, `--fail-on-error`, ...) to override what
+own sample limits, error tolerance and `max_samples`, and its own `epochs`
+with its reducer, now take precedence over the run's ("Settings of tasks
+added from inside a running task"). An eval that relied on a run-level
+value (`--message-limit`, `--token-limit`, `--time-limit`,
+`--fail-on-error`, `--epochs`, `--epochs-reducer`, ...) to override what
 an added task sets must remove the task's own value or set it to what it
 wants; the added task's log records the value that applied. Seed tasks,
 tasks a `TaskSource` returns, and tasks added from a `TaskSource` callback
@@ -1188,8 +1204,8 @@ test touched), with mockllm models; every test that waits is bounded with
     as today; under `eval()` and in a selection-mode worker;
   - under a run with `epochs=Epochs(3, "at_least_2")`, and separately with
     `pass_at_2` and `pass_k_2`, sending to a fed task succeeds, its log's
-    eval config records one epoch and no reducer from the run, and an
-    ordinary task in the same run keeps the run's three epochs and reducer;
+    eval config records one epoch and no reducer from the run, and a seed
+    task in the same run keeps the run's three epochs and reducer;
   - settings: under a run with `time_limit=10`, `message_limit=5`,
     `turn_limit=5` and `fail_on_error=True`, a fed task that sets
     `time_limit=60`, `turn_limit=100` and `fail_on_error=False` keeps them
@@ -1203,7 +1219,14 @@ test touched), with mockllm models; every test that waits is bounded with
     with 3 and one that sets none takes its model's pool default, while an
     ordinary added task that sets `max_samples=3` runs with 3 and one that
     sets none runs with 2; under a run with `epochs=3` an ordinary added
-    task that sets `epochs=1` runs three epochs; a run-level approval
+    task that sets `epochs=1` runs one epoch, one that sets none runs
+    three, and a seed task that sets `epochs=1` runs three; under a run with
+    `epochs=Epochs(3, "at_least_2")`, an ordinary added task that sets
+    `epochs=1` runs one epoch with the default reducer (no
+    `PrerequisiteError`), one that sets `epochs=Epochs(2, "pass_at_2")`
+    runs two epochs with `pass_at_2`, and one that sets none runs three
+    epochs with `at_least_2`, each log's eval config recording the count
+    and reducer that applied; a run-level approval
     policy applies to a fed task and to an ordinary added task that set
     their own; each log's eval config records the values that applied;
   - drain, `score` and `error`: an idle open channel ends the task and a
@@ -1270,7 +1293,9 @@ a running worker's fed logs from archival ("Compatibility and migration").
   detach the channel where the `SampleEnqueuer` is registered and cleared,
   and mark that enqueuer as the channel's), `_eval/run.py`
   (`configure_task()` resolving the settings of every task with a creator
-  task-first, `turn_limit` and `max_samples` included, and for a fed task
+  task-first, `turn_limit` and `max_samples` included, and for a task not
+  fed through a handle `epochs` with its reducer as one pair, without
+  validating the run's reducer against the task's own count; for a fed task
   skipping the run's `max_samples` and clearing its `epochs`, the run's
   epoch reducer, `limit` and `sample_id`; `_attempt` set in `run_one`; the
   uncounted start step; channels closed with the creator's attempt; no
@@ -1301,18 +1326,7 @@ a running worker's fed logs from archival ("Compatibility and migration").
 
 ## Open questions
 
-- **`epochs` of an ordinary task added from inside a running task.** The
-  2026-11-18 rule names sample limits, error tolerance and `max_samples`;
-  this design keeps today's resolution for `epochs` and the epoch reducer
-  (the run's value replaces the task's) for an added task not fed through a
-  handle. Recommendation: keep it so. An epoch count changes how many runs
-  a task makes and is validated against the run's reducer, so the run's
-  value is the one an operator sets for every task; a creator that wants
-  one run per sample feeds the task through its handle. Confidence: low,
-  because the decision's list may have been meant as examples of "its own
-  settings", which would put `epochs` task-first too.
-
-Decided: `enqueue_task()` returns `list[TaskHandle]` (Ransom,
+None. Decided: `enqueue_task()` returns `list[TaskHandle]` (Ransom,
 2026-11-03) and stays synchronous (2026-11-16, reversing the 2026-11-09
 decision to make it async; its reasons restated 2026-11-18: adding a task
 awaits nothing, and an async version would silently break every existing
@@ -1357,7 +1371,10 @@ clearing `_attempt` for the call; and (2026-11-17) protecting a running
 worker's fed logs from Steward's archival is a Steward prerequisite for
 selection workers, not an Inspect change; and (2026-11-18) every task added
 from inside a running attempt, fed or not, takes its own sample limits,
-error tolerance and `max_samples` first, then the run's, then the default,
+error tolerance and `max_samples` first, then the run's, then the default
+(and one not fed through a handle its own `epochs` and epoch reducer,
+resolved as one pair, so the run's reducer is never validated against the
+task's own count),
 with the oversight controls keeping the run's priority and tasks with no
 creator (seed tasks, `TaskSource` returns) keeping the run's value, so a
 fed task differs from other added tasks only where it is fed (`epochs`,
