@@ -1458,17 +1458,17 @@ inspect_sandboxes change is needed.
 [task-handles.md](task-handles.md) returns a `TaskHandle` per added record,
 lets a handle send samples to a task whose dataset is
 `samples_from_handle()`, and starts such a task outside `max_tasks`. It adds
-fields to `TaskRecord`, a creator argument to `RunQueue.add` with which
-`configure_task()` resolves the settings of a task added from inside a
-running task task-first, and one start rule to the dispatcher. Nothing here
-depends on it.
+fields to `TaskRecord`, a creator argument to `RunQueue.add`, a
+task-first settings rule in `configure_task()` for a task fed through a
+handle (every other task, an ordinary added one included, keeps the
+resolution described here), and one start rule to the dispatcher. Nothing
+here depends on it.
 
 ### Interactions with related changes
 
 - Recording which task added a task: [task-handles.md](task-handles.md)
-  passes the creator attempt to `RunQueue.add` for every task added inside
-  an attempt, to resolve its settings, but keeps it only for tasks fed
-  through a handle, so that change records the origin itself.
+  records the creator attempt only for tasks fed through a handle, so that
+  change records the origin itself.
 - Ordinary added tasks under `eval_set()` using their creator's model: it
   changes `_resolve_enqueued_tasks`, which `enqueue_task()` calls unchanged.
 - Selection-mode handling of added tasks: it changes resolution inside the
@@ -2154,7 +2154,16 @@ error snapshot) and 3b (queued tasks in the control channel), with task
 handles needing 3a only, and that an added task's model controller stays
 lazy (the 2026-11-12 decision kept), with remembered `--max-connections`
 retunes applied when a controller is created as a follow-up rather than an
-eager controller for added tasks.
+eager controller for added tasks; and (2026-11-19) that an ordinary task
+added from inside a running task keeps today's settings resolution (the
+run's values win), with only a task fed through a handle resolving its own
+first ([task-handles.md](task-handles.md#tasks-fed-through-a-handle)),
+narrowing the 2026-11-18 decision that every task added from inside a
+running task follows one task-first rule and replacing the 2026-11-19
+answer that such an ordinary task keeps its own `epochs` and reducer as a
+pair, because applying it to ordinary added tasks changed an existing
+feature and brought compatibility work that fed tasks, being new, do not
+need.
 
 ## Not this design
 

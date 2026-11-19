@@ -60,11 +60,10 @@ The rollout task sets `fail_on_error=False`. With the default, the first
 errored rollout is returned to its sender with its `error` set and then ends
 the task; requests still unresolved receive `TaskEndedError`, and a task fed
 through a handle is not retried. `fail_on_error=False` lets the task keep
-accepting rollouts after a sample error. Like any task added from inside a
-running task, the rollout task keeps its own limits and error tolerance,
-falling back to the run's values when unset. Its `max_samples` is its own
-value when set, otherwise its model's default; the run's value does not
-apply.
+accepting rollouts after a sample error. A task fed through a handle keeps
+its own limits and error tolerance, falling back to the run's values when
+unset. Its `max_samples` is its own value when set, otherwise its model's
+default; the run's value does not apply.
 
 Closing never stops rollouts already sent; a creator stops them with
 `cancel()` in an `except BaseException:` that re-raises, as above. It runs
@@ -79,9 +78,8 @@ added task is a `TaskRecord` in the run's `RunQueue`.
 
 ## Behaviour changes
 
-All but one are new API; no existing eval waits on a handle or uses
-`samples_from_handle()`. The settings rule for tasks added from inside a
-running task (below) changes existing evals.
+All of these are new API; no existing eval waits on a handle or uses
+`samples_from_handle()`.
 
 - `enqueue_task()` returns `list[TaskHandle]` and stays synchronous; a
   call on the run's event loop that ignores the result is unchanged (an
@@ -97,18 +95,11 @@ running task (below) changes existing evals.
   a sample and has not ended.
 - A task fed through a handle runs once, under its creator's model, with
   one epoch, whatever models and epochs the run has.
-- **Can change what an existing eval computes.** For a task added with
-  `enqueue_task()` from inside a running task, fed through a handle or not,
-  a sample limit, error-tolerance setting or `max_samples` is its own value
-  if it sets one, else the run's, else the default (for a fed task, the
-  run's `max_samples` does not apply); for such a task not fed through a
-  handle, so are `epochs` and the epoch reducer, resolved as one pair.
-  Today the run's value replaces the added task's, so an added task that
-  sets its own `message_limit` under a run-level `--message-limit`, or its
-  own `epochs=1` under `--epochs 3`, for example, now keeps its own. Seed tasks,
-  tasks a `TaskSource` returns and tasks added from outside a running task
-  keep today's rule, where the run's value wins; `approval`, `review` and
-  `sentinel` keep the run's priority for every task.
+- For a task fed through a handle, a sample limit or error-tolerance setting
+  is its own value if it sets one, else the run's, else the default, and its
+  `max_samples` is its own value or its model's default, never the run's.
+  For every other task, an ordinary task added from inside a running task
+  included, the run's value replaces the task's, as today.
 - A task fed through a handle is never retried automatically, and
   `eval_retry()` refuses its log. Its log is returned and listed with the
   run's other logs but does not decide `eval_set()`'s result or a
@@ -459,9 +450,7 @@ _attempt: ContextVar[TaskAttempt | None]   # set by run_one around _run_task
 
 `TaskRecord` gains `channel: HandleChannel | None = None`.
 `RunQueue.add` takes `creator: TaskAttempt | None`, which `enqueue_task()` passes from
-`_attempt` (`None` once that attempt has ended), and passes it to
-`configure_task()`, which resolves the settings of a task with a creator
-task-first ("Settings of tasks added from inside a running task"). The dispatcher's uncounted start, which task-dispatch.md
+`_attempt`. The dispatcher's uncounted start, which task-dispatch.md
 already uses for a record with `abort_requested`, also starts each queued
 record with a channel that holds a request, in queue order, if it is
 startable (task-dispatch.md "Start rule"); it is skipped once the
@@ -583,11 +572,17 @@ class PortRequest:
   returns. A caller whose wait is cancelled leaves its request in place: the
   sample still runs, and the request is removed when it settles or the task
   ends, with its result dropped.
-- **Settings.** A fed task always has a creator, so its sample limits and
-  error tolerance follow the rule for every task added from inside a
-  running task ("Settings of tasks added from inside a running task").
-  Two settings differ because the task is fed through its handle, and
-  `configure_task()` applies them in the same step:
+- **Settings.** `configure_task()` resolves a fed task's settings before it
+  builds the task's logger, so the log's eval config records the values
+  that applied. Only fed tasks take this rule: every other task, an
+  ordinary task added from inside a running task included, keeps today's
+  resolution, where the run's value replaces the task's (decision: Ransom,
+  2026-11-19):
+  - The sample limits (`message_limit`, `token_limit` with its
+    `token_limit_type`, `turn_limit`, `time_limit`, `working_limit`,
+    `cost_limit`) and error tolerance (`fail_on_error`, `continue_on_fail`,
+    `score_on_error`) are the fed task's own value if it sets one, else the
+    run's, else the default.
   - `epochs`, the epoch reducer, `limit` and `sample_id` are cleared: one
     epoch, no reducer from the run, no limit, no selection, whatever the run
     passes. For the reducer, `configure_task()` does not apply the run's
@@ -607,8 +602,14 @@ class PortRequest:
     default from its model's connection pool. The run's value does not
     apply, and `inspect ctl config --max-samples` still retunes it while it
     runs.
+  - `approval`, `review` and `sentinel`: the run's value still wins, as
+    today; they are the operator's oversight controls for the whole run.
+  - Tags stay merged; generate config and the run-wide limits (`max_tasks`,
+    `max_sandboxes`, `max_connections`) are unchanged.
 
-  Other `SampleSource` tasks keep today's filtering.
+  The creator's own settings are not inherited: the searcher passes what it
+  wants shared when it builds the rollout task. Other `SampleSource` tasks
+  keep today's resolution and filtering.
 - **Closing.** `channel.close()` sets `closed` and rings `pushed` in one
   synchronous step, so a feeder parked in `next_samples()` wakes and returns
   `None`; a second call does nothing. Every cause uses it: `close()`,
@@ -703,8 +704,8 @@ class PortRequest:
   identifier unique and stable, nothing matches a fed log by its settings,
   and the settings are the only inputs on which the `ResolvedTask` branch
   and the log-header branch can disagree. A fed task's settings are one
-  such disagreement: they resolve task-first ("Settings of tasks added
-  from inside a running task"), so the resolved branch, which applies the run's limits over the
+  such disagreement: they resolve task-first ("Tasks fed through a
+  handle"), so the resolved branch, which applies the run's limits over the
   task's, would hash the run's `message_limit` where the log records the
   task's own. With no settings in the identifier, no precedence rule is
   needed in `task_identifier()`.
@@ -749,101 +750,6 @@ class PortRequest:
   so no other log is skipped. An ordinary added task's log still fails the
   check without the flag, as today: it carries no mark that it was added
   ("Not this design").
-
-### Settings of tasks added from inside a running task
-
-A task added by `enqueue_task()` from code running inside an attempt that
-has not ended (`_attempt` set and `ended` false, the same test
-`_resolve_enqueued_tasks` uses to resolve it once under that attempt's
-model) has that attempt as its *creator*, whether it is fed through a
-handle or not. `enqueue_task()` passes the creator to `RunQueue.add` for
-every such task, and `configure_task()` resolves the task's settings
-task-first, before it builds the task's logger, so the log's eval config
-records the values that applied (decision: Ransom, 2026-11-18, widening
-the 2026-11-12 rule for fed tasks to every task added inside an attempt):
-
-- The sample limits (`message_limit`, `token_limit` with its
-  `token_limit_type`, `turn_limit`, `time_limit`, `working_limit`,
-  `cost_limit`), error tolerance (`fail_on_error`, `continue_on_fail`,
-  `score_on_error`) and `max_samples` are the task's own value if it sets
-  one, else the run's, else the default. A fed task's `max_samples` skips
-  the run's value ("Tasks fed through a handle").
-- `approval`, `review` and `sentinel`: the run's value still wins, as
-  today; they are the operator's oversight controls for the whole run.
-- `epochs` and the epoch reducer, for a task not fed through a handle,
-  are resolved together as one pair, task-first (decision: Ransom,
-  2026-11-18). If the task sets `epochs`, its epoch count and its own
-  reducer apply, the default reducer when it sets none; otherwise the
-  run's count and the run's reducer apply together, else the default (one
-  epoch). The run's reducer is never applied to, or validated against, the
-  task's own epoch count, so a task that sets `epochs=1` under a run with
-  `epochs=Epochs(3, "at_least_2")` runs one epoch with the default reducer
-  instead of being refused by `validate_reducer`; the task's own reducer is
-  validated against its own count, as today. The eval config records the
-  pair that applied (`epochs` and `epochs_reducer`). A fed task's are
-  cleared instead ("Tasks fed through a handle"). `epochs` is not an
-  oversight control; it is a run-level override of the task's own
-  declaration, like the sample limits.
-
-  **`eval_retry()` replays the recorded pair.** Today `eval_retry_async`
-  passes the log's pair as an eval-level override,
-  `Epochs(config.epochs, config.epochs_reducer)`, and the rebuilt task keeps
-  its own reducer when the recorded reducer is `None`
-  (`resolve_task_epochs`, and the same merge in today's `prepare_options`).
-  A recorded `None` means the default reducer applied, not that none was
-  chosen, so a log whose task's own pair applied with the default reducer
-  is retried with the factory's reducer: a factory declaring
-  `Epochs(2, "at_least_2")`, added as `task_with(factory(), epochs=1)`
-  under a three-epoch run, records one epoch and no reducer, and its retry
-  pairs one epoch with `at_least_2`, which `validate_reducer` refuses. So
-  `eval_retry_async` applies the recorded pair to the rebuilt task itself,
-  `task_with(task, epochs=Epochs(config.epochs, config.epochs_reducer))`
-  (which sets the task's reducer to the recorded names, or to the default
-  for `None`), and passes no eval-level `epochs`, so the retry runs the
-  pair the attempt ran. For a seed task's log nothing else changes: its
-  recorded pair is the one the run's precedence produced, and the retry has
-  no run-level epochs to apply over it. The one case that changes is the
-  same mismatch reached without an added task (a seed run of
-  `task_with(factory(), epochs=1)` whose factory declares a reducer), which
-  is retried with the default reducer it ran with instead of the factory's.
-- Tags stay merged; generate config and the run-wide limits (`max_tasks`,
-  `max_sandboxes`, `max_connections`) are unchanged.
-
-A task with no creator keeps today's rule, where the run's value replaces
-the task's: a seed task, a task a `TaskSource` returns (from `next_tasks()`
-or a callback), and a task added by `enqueue_task()` outside an attempt,
-from a `TaskSource` callback (which clears `_attempt` for the call) or
-from a coroutine that outlived its attempt. Those are the run's own tasks,
-which the run's values are meant to configure; a task added from inside a
-running task is configured by the code that adds it, which sizes it for
-its own use.
-
-The creator's own settings are not inherited: a searcher passes what it
-wants shared when it builds the rollout task. The cost is that a
-run-level cap, such as `--token-limit` or `--time-limit`, no longer binds
-an added task that sets its own value; the oversight controls still bind
-every task, and a run-level `--epochs` no longer changes an added task
-that declares its own `epochs`.
-
-**Identifiers.** `task_identifier()` promises the same identifier from a
-`ResolvedTask` and from the log that running it produces, and its
-`ResolvedTask` branch hashes the sample limits of the `eval_set_args` it
-is given over the task's own (`message_limit`, `token_limit` with its
-metering type, `turn_limit`, `time_limit`, `working_limit`, `cost_limit`;
-error tolerance, `max_samples` and `epochs` are not hashed). That is the
-precedence of a requested or seed task, which is unchanged, so every
-requested task's identifier and every stored identifier stay as they are.
-A task added from inside a running task resolves those limits task-first,
-so its log hashes the values that applied, and a caller that computes the
-identifier of such a task (it can pass a `ResolvedTask` to
-`enqueue_task()`) gets the matching one by passing `eval_set_args` whose
-limits are those values: the task's own where it sets one, else the
-run's. No eval-set path computes it (requested tasks have no creator,
-and inspect_flow and inspect_steward compute identifiers only for
-requested tasks and from log headers). `task_identifier()` gains no
-creator argument; its docstring and the reference docs state the
-precedence its `ResolvedTask` branch assumes and the values to pass for a
-task added from inside a running task.
 
 ### Waits and limits
 
@@ -940,14 +846,18 @@ needs.
   future per epoch, a request that is partly abandoned, and an epoch on
   `SampleAbandonedError`. A creator that wants repeats sends the sample
   again and sees each result as it comes.
-- **An added task inheriting its creator's settings.** The creator's limits
-  and error tolerance are chosen for the search, not for one rollout; the
+- **A fed task inheriting its creator's settings.** The creator's limits and
+  error tolerance are chosen for the search, not for one rollout; the
   searcher passes what it wants shared when it builds the rollout task.
-- **Task-first settings for fed tasks only**, with the run's value winning
-  for every other added task, as today. It keeps existing evals unchanged,
-  but gives a creator two rules for the tasks it adds, by whether it feeds
-  them, and leaves it no way to size an ordinary task it adds under a
-  run-level value (decision: Ransom, 2026-11-18).
+- **Task-first settings for every task added from inside a running task**,
+  fed or not, so a creator has one rule for every task it adds. It changes
+  an existing feature, ordinary added tasks, and brings compatibility work
+  with it: `task_identifier()` pairing for a `ResolvedTask` added that way,
+  `eval_retry()` replaying a recorded epoch pair (and the run's fallback for
+  tasks added during the retry), and migration text for existing evals.
+  Fed tasks are new and need none of it, so only they resolve task-first
+  (decision: Ransom, 2026-11-19, narrowing the 2026-11-18 one-rule
+  decision); it can be revisited if a real need appears.
 - **`max_samples` and similar settings as keyword arguments on
   `enqueue_task()`.** They would cover only `enqueue_task()`, with a second
   precedence rule beside the task's own settings; `max_samples` on `Task`
@@ -1019,33 +929,12 @@ buffers the task, now raises `RuntimeError`, and the worker calls
 `anyio.from_thread.run_sync(lambda: enqueue_task(...))` instead
 ([task-dispatch.md](task-dispatch.md#compatibility-and-migration)). New
 `TaskHandle`,
-`TaskEndedError`, `SampleAbandonedError` and `samples_from_handle`. Existing `SampleSource` tasks keep today's sample filtering, and the settings change below also applies to them when they are added inside a running attempt. Only a task fed through a handle ignores
+`TaskEndedError`, `SampleAbandonedError` and `samples_from_handle`. Existing `SampleSource` tasks, and every ordinary task added with `enqueue_task()`, are unchanged: only a task fed through a handle ignores
 the run's `--limit`, `--sample-id` and `--epochs` (with the run's epoch
-reducer) and the run's `max_samples`, runs once under its
+reducer) and the run's `max_samples`, resolves its settings before the
+run's, runs once under its
 creator's model, is exempt from `max_tasks` and is left out of
 `eval_set()`'s result and the eval set's log-directory check.
-
-Existing evals that add tasks from inside a running task: an added task's
-own sample limits, error tolerance and `max_samples`, and its own `epochs`
-with its reducer, now take precedence over the run's ("Settings of tasks
-added from inside a running task"). An eval that relied on a run-level
-value (`--message-limit`, `--token-limit`, `--time-limit`,
-`--fail-on-error`, `--epochs`, `--epochs-reducer`, ...) to override what
-an added task sets must remove the task's own value or set it to what it
-wants; the added task's log records the value that applied. Seed tasks,
-tasks a `TaskSource` returns, and tasks added from a `TaskSource` callback
-are unchanged. No migration is needed for an added task that sets none of
-these settings.
-
-`eval_retry()` applies a log's recorded epoch count and reducer to the
-rebuilt task, so a retry runs the pair its attempt ran. A log that recorded
-the default reducer for a task whose factory declares another (a
-`task_with(factory(), epochs=N)` run) is now retried with the default
-reducer it ran with, where today the retry takes the factory's reducer, or
-is refused when that reducer needs more epochs than N. `task_identifier()`
-is unchanged: requested tasks' and stored identifiers stay the same, and
-its docstring says which limits to pass for a task added from inside a
-running task ("Identifiers").
 
 inspect_flow's Delta store and inspect_steward's log observation and
 directory store key logs on `task_identifier()` from the log header, so a
@@ -1096,11 +985,8 @@ any task does.
   tasks a creator adds is the author's code's choice, and their samples stay
   under `max_samples`, `max_sandboxes` and the connection limits.
 - **Oversight controls**: a run-level `approval`, `review` or `sentinel`
-  policy applies to every added task, fed or not, even when the task sets
-  its own, so a task that code inside the run adds cannot opt out of the
-  operator's policy. Its sample limits can be looser than the run's when it
-  sets its own; they are chosen by the eval author's code, as a seed
-  task's own limits are when the run passes none.
+  policy applies to a fed task even when the task sets its own, so a
+  rollout task cannot opt out of the operator's policy.
 
 ## Testing
 
@@ -1230,22 +1116,7 @@ test touched), with mockllm models; every test that waits is bounded with
   the fed log; two fed logs that share a `task_id` and differ in
   `eval_id`, as attempts of one record would, give one identifier; an
   ordinary task's identifier is the same as before the change for a stored
-  log; an ordinary task added from inside a running task with its own
-  `message_limit=100` under a run limit of 5 has a log identifier equal to
-  its `ResolvedTask` identifier computed with `eval_set_args` holding
-  `message_limit=100` (and different from one computed with the run's 5),
-  and a requested task with the same settings keeps the identifier it had
-  before the change.
-- `tests/test_retry.py` (epoch pairs): a registered factory declaring
-  `Epochs(2, "at_least_2")`, added from a solver as
-  `task_with(factory(), epochs=1)` under a three-epoch run and failing
-  once, records one epoch and no reducer, and `eval_retry()` of its log
-  runs one epoch with the default reducer, with no `PrerequisiteError`;
-  the same for a seed run of `task_with(factory(), epochs=1)`; a log
-  recording a named reducer (`pass_at_2` with two epochs) and one recording
-  an empty reducer list are retried with exactly that pair; a seed run
-  under `--epochs 3` of a factory with its own reducer is retried with
-  three epochs and that reducer, as today.
+  log.
 - `tests/test_sample_source.py` (tasks fed through a handle):
   - a fed task's log records `eval.dataset.name == "samples_from_handle"`;
     a `Task` whose dataset is a `MemoryDataset` named `samples_from_handle`,
@@ -1274,25 +1145,14 @@ test touched), with mockllm models; every test that waits is bounded with
     `turn_limit=5` and `fail_on_error=True`, a fed task that sets
     `time_limit=60`, `turn_limit=100` and `fail_on_error=False` keeps them
     and takes `message_limit=5`, a fed task that sets none takes all four,
-    and an ordinary task with its own dataset that a solver adds with the
-    same settings keeps and takes the same values; a seed task, a task a
-    `TaskSource` returns from `task_complete`, and a task that a
-    `task_complete` callback adds with `enqueue_task()`, each setting
-    `turn_limit=100`, take the run's values, `turn_limit=5` included; under
-    a run-level `max_samples=2` a fed task that sets `max_samples=3` runs
-    with 3 and one that sets none takes its model's pool default, while an
-    ordinary added task that sets `max_samples=3` runs with 3 and one that
-    sets none runs with 2; under a run with `epochs=3` an ordinary added
-    task that sets `epochs=1` runs one epoch, one that sets none runs
-    three, and a seed task that sets `epochs=1` runs three; under a run with
-    `epochs=Epochs(3, "at_least_2")`, an ordinary added task that sets
-    `epochs=1` runs one epoch with the default reducer (no
-    `PrerequisiteError`), one that sets `epochs=Epochs(2, "pass_at_2")`
-    runs two epochs with `pass_at_2`, and one that sets none runs three
-    epochs with `at_least_2`, each log's eval config recording the count
-    and reducer that applied; a run-level approval
-    policy applies to a fed task and to an ordinary added task that set
-    their own; each log's eval config records the values that applied;
+    and an ordinary task with its own dataset that a solver in the same run
+    adds with `turn_limit=100` takes the run's values, `turn_limit=5`
+    included, as today; under a run-level `max_samples=2` a fed task that
+    sets `max_samples=3` runs with 3 and one that sets none takes its
+    model's pool default; under a run with `epochs=3` an ordinary added
+    task that sets `epochs=1` runs three epochs, as today; a run-level
+    approval policy applies to a fed task that sets its own; each log's
+    eval config records the values that applied;
   - drain, `score` and `error`: an idle open channel ends the task and a
     later send raises `TaskEndedError`; with a sample running, a send
     raises `RuntimeError` (neither subclass) until the task ends and
@@ -1349,19 +1209,15 @@ a running worker's fed logs from archival ("Compatibility and migration").
   not fed through it, the `max_sandboxes` warning naming its `inspect ctl
   config` command, `RunQueue.cancel` closing a fed record's channel itself
   in every phase but `ended`, `enqueue_task()` returning handles, passing its creator
-  for every task added inside an attempt, documenting the settings rule
-  for those tasks in its docstring, and refusing a fed task outside an
-  attempt or with `epochs` above 1),
+  and refusing a fed task outside an attempt or with `epochs` above 1),
   `_eval/task/sample_source.py` (`HandleChannel`, `samples_from_handle()`,
   the free `enqueue_sample()` refusal), `_eval/task/run.py` (attach and
   detach the channel where the `SampleEnqueuer` is registered and cleared,
   and mark that enqueuer as the channel's), `_eval/run.py`
-  (`configure_task()` resolving the settings of every task with a creator
-  task-first, `turn_limit` and `max_samples` included, and for a task not
-  fed through a handle `epochs` with its reducer as one pair, without
-  validating the run's reducer against the task's own count; for a fed task
-  skipping the run's `max_samples` and clearing its `epochs`, the run's
-  epoch reducer, `limit` and `sample_id`; `_attempt` set in `run_one`; the
+  (`configure_task()` resolving a fed task's settings task-first,
+  `turn_limit` and `max_samples` included, skipping the run's
+  `max_samples`, and clearing its `epochs`, the run's epoch reducer, `limit`
+  and `sample_id`; `_attempt` set in `run_one`; the
   uncounted start step; channels closed with the creator's attempt; no
   retry, and `can_retry=False` on the `TaskCancel` that `start_attempt`
   creates, for fed tasks; `channel.close()` from the
@@ -1369,27 +1225,24 @@ a running worker's fed logs from archival ("Compatibility and migration").
   action, `abort` included), `_eval/task/task.py` (`resolve_dataset_or_source`
   naming a `HandleChannel`'s dataset and refusing the reserved name for any
   other; the `max_samples` parameter docs of `Task` and `task_with`, which
-  say a run's value overrides the task's, adding that a task added from
-  inside a running task keeps its own), `_eval/eval.py` (`_resolve_enqueued_tasks` resolving a fed task
+  say a run's value overrides the task's, adding that it does not for a
+  task fed through its handle), `_eval/eval.py` (`_resolve_enqueued_tasks` resolving a fed task
   for its creator's model; the `eval_resolve_tasks` refusal;
-  `eval_retry_async` refusing a log by its dataset name and applying a
-  log's recorded epoch pair to the rebuilt task instead of passing it as
-  an eval-level override; `max_tasks`,
+  `eval_retry_async` refusing a log by its dataset name; `max_tasks`,
   `max_samples` and `max_sandboxes` docstrings), `_eval/evalset.py`
   (`all_evals_succeeded` and `validate_eval_set_prerequisites` skipping
-  logs with the reserved dataset name; `task_identifier`'s docstring
-  stating the precedence its `ResolvedTask` branch assumes; `task_identifier` building a fed
+  logs with the reserved dataset name; `task_identifier` building a fed
   task's identifier from its task id),
   `__init__.py` (exports), `docs/task-source.qmd` (handles; stopping
   rollouts with `cancel()` in an `except BaseException:` that re-raises,
   which runs on errors, limits and every cancellation, a time limit and a
   working limit included, and why a `finally:` would abort the rollout task
-  on a normal exit; `fail_on_error=False` for rollout tasks; the settings
-  rule for tasks added from inside a running task; and running the creator
+  on a normal exit; `fail_on_error=False` for rollout tasks; a fed task's
+  settings, resolved before the run's; and running the creator
   by name, `inspect eval search.py@search` and
   `eval_set("search.py@search", ...)`, when the rollout task shares its
-  file), `docs/parallelism.qmd` (a task added from inside a running task
-  keeps its own `max_samples`), `docs/reference`, and `_attempt` set to `None`
+  file), `docs/parallelism.qmd` (a fed task's `max_samples` is its own or
+  its model's default, never the run's), `docs/reference`, and `_attempt` set to `None`
   around each `TaskSource` callback call (`_eval/task/run.py`,
   `_eval/run.py`). Tests: those above.
 
@@ -1412,8 +1265,7 @@ tasks), and its sent samples get `send-<token>-<n>` ids with a per-task
 token; and (2026-11-12) `samples_from_handle()` is the name, a fed task may
 be added from any code inside a running attempt, runs one epoch per sent
 sample, resolves its settings before the run's (except the oversight
-controls; the run's `max_samples` does not apply to it; widened
-2026-11-18 to every task added inside an attempt), does not decide
+controls; the run's `max_samples` does not apply to it), does not decide
 `eval_set()`'s result, runs
 in a `.json`-logged run as in any other (dropping the 2026-11-03 `.json`
 refusal, whose premise was the per-delivery marker dropped on 2026-11-04),
@@ -1438,18 +1290,8 @@ the 2026-11-16 refusal of a fed task named like a requested or seed task),
 and fed-task creation is refused in every `TaskSource` callback, by
 clearing `_attempt` for the call; and (2026-11-17) protecting a running
 worker's fed logs from Steward's archival is a Steward prerequisite for
-selection workers, not an Inspect change; and (2026-11-18) every task added
-from inside a running attempt, fed or not, takes its own sample limits,
-error tolerance and `max_samples` first, then the run's, then the default
-(and one not fed through a handle its own `epochs` and epoch reducer,
-resolved as one pair, so the run's reducer is never validated against the
-task's own count),
-with the oversight controls keeping the run's priority and tasks with no
-creator (seed tasks, `TaskSource` returns) keeping the run's value, so a
-fed task differs from other added tasks only where it is fed (`epochs`,
-`limit` and `sample_id` cleared, the run's `max_samples` not applied, no
-`max_tasks` slot, a start on its first sample, no retry, no part in the
-eval set's result); the eval set's log-directory check skips fed logs, so
+selection workers, not an Inspect change; and (2026-11-18) the eval set's
+log-directory check skips fed logs, so
 resuming needs no `log_dir_allow_dirty=True` for them (replacing the
 earlier rule that it does, as for any added task's log); a creator
 stops its rollouts with `cancel()` in an `except BaseException:` that
@@ -1460,7 +1302,21 @@ first sample, at the cost of the empty-channel close rule and its
 `abort_requested` exception (the 2026-11-17 decision kept, with its cost
 corrected); and an added task's model controller is still created lazily,
 with `--max-connections` retunes remembered and applied when a controller
-is created as a follow-up, rather than created when the task is added.
+is created as a follow-up, rather than created when the task is added; and
+(2026-11-19) an ordinary task added from inside a running task keeps
+today's rules, where the run's values win (limits, error tolerance,
+`max_samples`, `epochs` and the epoch reducer), and only a task fed through
+a handle takes its own limits, error tolerance and `max_samples` first,
+with `epochs`, `limit` and `sample_id` cleared. This narrows the
+2026-11-18 decision that every task added from inside a running task
+follows one task-first rule, and replaces the 2026-11-19 answer that such
+an ordinary task keeps its own `epochs` and reducer as a pair: applying the
+task-first rule to ordinary added tasks changed an existing feature and
+brought compatibility work (`task_identifier()` pairing for a
+`ResolvedTask` added that way, `eval_retry()` replaying a recorded epoch
+pair and the run's fallback for tasks added during a retry, migration text
+for existing evals), while fed tasks are new and carry none of it. It can
+be revisited if a real need appears.
 
 ## Not this design
 
