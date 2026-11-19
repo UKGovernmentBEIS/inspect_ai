@@ -134,20 +134,20 @@ class TaskSidecars:
 
         A sidecar that no longer keeps the task's registration, as after it restarted or the registration expired, has the task registered again first. Each epoch and each retry of a sample completes its registration again, so a later one finds a sidecar that has lost the task, rather than being judged without the task's facts or refused.
 
-        The sidecar is told the sample's uuid, and holds the sample's facts while a run that named itself is in progress: it frees them when the last has ended. So a completion counts only for the registration of the task it was sent to. Once the eval has set about registering the task again, as for another sample that found it lost, an attempt completes its registration again before its next call, or the sidecar could free the facts under it when that other sample ends. This doesn't wait for the sidecar's answer to that registration, which may never arrive. What an attempt sends again is what it first sent, as a sample's input and metadata may have changed since.
+        The sidecar is told the sample's uuid, and holds the sample's facts while a run that named itself is in progress: it frees them when the last has ended. So a completion counts only for the registration of the task it was sent to. Once the eval has set about registering the task again, as for another sample that found it lost, an attempt completes its registration again before its next call, or the sidecar could free the facts under it when that other sample ends. This doesn't wait for the sidecar's answer to that registration, which may never arrive. A completion sent while a registration of the task is on its way may reach the sidecar before it, and be lost to it, so it counts for the call it was sent for and is sent again before the attempt's next. What an attempt sends again is what it first sent, as a sample's input and metadata may have changed since.
 
         Raises:
             SentinelProxyError: If the sidecar couldn't take the sample, or no longer kept the task and couldn't register it again.
         """
 
-        def registrations_sent() -> int:
-            return sidecar.access.registrations_sent if sidecar.access else 0
+        def changes() -> int:
+            return sidecar.access.registration_changes if sidecar.access else 0
 
         async def complete(params: dict[str, Any]) -> tuple[bool, int]:
             # the registrations the sidecar took before this call, so one
             # another sample makes meanwhile isn't made again
             registered = sidecar.access.registrations if sidecar.access else None
-            sent_to = registrations_sent()
+            sent_to = changes()
             try:
                 try:
                     result = await sidecar.eval_call("complete_registration", params)
@@ -159,7 +159,7 @@ class TaskSidecars:
                     # changes nothing for a sidecar that still keeps it, and
                     # another sample that already did so is not repeated.
                     await self._register(sidecar, unless_since=registered)
-                    sent_to = registrations_sent()
+                    sent_to = changes()
                     result = await sidecar.eval_call("complete_registration", params)
                 return result.get("fixed") is True, sent_to
             except SidecarCallError as ex:
@@ -197,12 +197,11 @@ class TaskSidecars:
         # next. It is complete for the registration of the task it was sent
         # to. A completion still on its way when the eval sets about
         # registering the task again is one the sidecar may have lost with
-        # the task, so it is sent again.
+        # the task, so it is sent again. One sent while a registration of
+        # the task was on its way is sent again by the attempt's next call,
+        # once that registration is over.
         async with completion.lock:
-            while (
-                completion.done is None
-                or completion.done.sent_to != registrations_sent()
-            ):
+            while completion.done is None or completion.done.sent_to != changes():
                 completion.done = _Completed(*await complete(completion.params))
             return completion.done.fixed
 
@@ -440,10 +439,12 @@ class TaskSidecars:
         async with access.lock:
             if unless_since is not None and access.registrations != unless_since:
                 return
-            # Counted before it is sent: the sidecar may take a registration
+            # Marked before it is sent: the sidecar may take a registration
             # whose answer never arrives, and a sample's completion sent
-            # before it is then for a registration the sidecar replaced.
-            access.registrations_sent += 1
+            # before it is then for a registration the sidecar replaced. And
+            # marked again once it is over: a completion sent meanwhile may
+            # have reached the sidecar first.
+            access.registration_changes += 1
             params: dict[str, Any] = {
                 "eval_id": facts.eval_id,
                 "task": facts.task,
@@ -476,9 +477,11 @@ class TaskSidecars:
                         await sidecar.call(
                             "register_task", {**params, "token": access.token}
                         )
+                access.registrations += 1
             except SidecarCallError as ex:
                 self._registration_failed(sidecar, ex)
-            access.registrations += 1
+            finally:
+                access.registration_changes += 1
 
     def _lost_with_token(self, sidecar: Sidecar) -> None:
         # A sidecar that lost the eval's token lost everything it held for
@@ -515,7 +518,7 @@ class _Completed(NamedTuple):
     fixed: bool
     """Whether the sidecar's admin registered the task beforehand."""
     sent_to: int
-    """How many registrations of the task the eval had set about sending when the completion was sent."""
+    """The eval's `registration_changes` for the sidecar when the completion was sent."""
 
 
 @dataclass

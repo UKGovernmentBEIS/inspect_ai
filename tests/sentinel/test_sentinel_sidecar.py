@@ -1113,7 +1113,7 @@ async def test_a_completion_on_its_way_when_the_task_is_registered_again_is_sent
             # answered after the eval set about registering the task again,
             # for another sample: the sidecar may have lost this completion
             # with the task it lost
-            held.pop().registrations_sent += 1
+            held.pop().registration_changes += 1
         return {}
 
     stand_in = StandInSidecar(methods={"complete_registration": complete})
@@ -1142,7 +1142,7 @@ async def test_an_attempt_sends_again_what_it_first_sent() -> None:
     # The task is registered again, as when another of its models' endpoints
     # is found at the same sidecar. The sample's input and metadata have
     # changed since, in place.
-    sidecar.access.registrations_sent += 1
+    sidecar.access.registration_changes += 1
     message.content = "Shred the report."
     sample.metadata["desk"]["city"] = "Oslo"
     await sidecars.complete_registration(sidecar, sample, "sample_123", 1)
@@ -1295,6 +1295,48 @@ async def test_a_sample_begun_while_a_restarts_registration_is_answered_lost_not
     await sidecars.copy_monitor_state("sample_c", 1, store)
     assert store.get(MONITOR_STATE_COPY)["copied"] is True
     assert store.get("Tally:lookups") == 1
+
+
+async def test_a_completion_sent_while_the_task_is_being_registered_is_sent_again_by_the_next_call() -> (
+    None
+):
+    registering = [False]
+    taken, answered = anyio.Event(), anyio.Event()
+
+    def register(_: dict[str, Any]) -> dict[str, Any]:
+        if registering[0]:
+            taken.set()
+            stand_in.answer_after = answered
+        return {}
+
+    stand_in = StandInSidecar(methods={"register_task": register})
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+    # another of the task's models, with other credentials, reaches the same
+    # sidecar, so the task is registered with it again
+    other = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="other-key",
+        memoize=False,
+        http_client=stand_in.http_client(),
+    )
+    registering[0] = True
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(sidecars.sidecar, other.api)
+        await taken.wait()
+        # a sample completes its registration while that one is on its way:
+        # it may reach the sidecar first, and be lost to the one replacing it
+        await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
+        answered.set()
+
+    # so the sample's next call sends it again, and the one after doesn't
+    for _ in range(2):
+        await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
+
+    assert len(_registered(stand_in, "complete_registration")) == 2
 
 
 async def test_a_sample_is_ended_with_its_task_named() -> None:
