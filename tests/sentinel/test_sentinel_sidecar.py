@@ -22,6 +22,7 @@ from inspect_ai import eval as inspect_eval
 from inspect_ai import score as score_log
 from inspect_ai._sentinel._sidecar._call import INSPECT_HEADERS, SidecarCall
 from inspect_ai._sentinel._sidecar._endpoint import (
+    EvalAccess,
     NoSidecar,
     SentinelProxyError,
     Sidecar,
@@ -687,6 +688,8 @@ async def test_a_samples_registration_is_completed_once_for_each_attempt() -> No
     assert _unsigned(completed) == {
         "eval_id": "eval_789",
         "task": "weather_desk",
+        # the run completing it, which the sidecar holds the facts for
+        "sample_uuid": "sample_123",
         "sample_id": 1,
         "sample_description": "A rainy day.",
         "metadata": {"city": "Philadelphia"},
@@ -1061,6 +1064,85 @@ async def test_a_later_epoch_registers_a_task_the_sidecar_lost_again() -> None:
 
     assert len(_registered(stand_in, "register_task")) == 2
     assert len(_registered(stand_in, "complete_registration")) == 3
+
+
+async def test_an_attempt_completes_its_registration_again_once_its_task_was_registered_again() -> (
+    None
+):
+    # The sidecar holds a sample's facts while a run that named itself is in
+    # progress. It loses the task after one sample completed its registration,
+    # and another sample, finding it lost, registers it again.
+    lost = [False]
+
+    def complete(_: dict[str, Any]) -> dict[str, Any]:
+        if lost[0]:
+            lost[0] = False
+            return {"error": {"code": -32009, "message": "no registration"}}
+        return {}
+
+    stand_in = StandInSidecar(methods={"complete_registration": complete})
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+    await sidecars.complete_registration(sidecar, _sample(), "sample_a", 1)
+    lost[0] = True
+    await sidecars.complete_registration(sidecar, _sample(), "sample_b", 1)
+
+    # the first sample's next calls: its completion was for the registration
+    # the sidecar lost, so it is sent again, once
+    for sample_uuid in ["sample_a", "sample_a", "sample_b"]:
+        await sidecars.complete_registration(sidecar, _sample(), sample_uuid, 1)
+
+    completed = _registered(stand_in, "complete_registration")
+    assert [params["sample_uuid"] for params in completed] == [
+        "sample_a",
+        # refused, and sent again once the task is registered again
+        "sample_b",
+        "sample_b",
+        "sample_a",
+    ]
+
+
+async def test_a_completion_on_its_way_when_the_task_is_registered_again_is_sent_again() -> (
+    None
+):
+    held: list[EvalAccess] = []
+
+    def complete(_: dict[str, Any]) -> dict[str, Any]:
+        if held:
+            # answered after another sample registered the task again: the
+            # sidecar may have lost this completion with the task it lost
+            held.pop().registrations += 1
+        return {}
+
+    stand_in = StandInSidecar(methods={"complete_registration": complete})
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None and sidecar.access is not None
+    held.append(sidecar.access)
+
+    for _ in range(2):
+        await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
+
+    assert len(_registered(stand_in, "complete_registration")) == 2
+
+
+async def test_a_sample_is_ended_with_its_task_named() -> None:
+    stand_in = StandInSidecar()
+    sidecars = TaskSidecars("auto", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+    sidecars.called_through("sample_123", 1, sidecar)
+
+    await sidecars.end_sample("sample_123")
+
+    # the task finds the registration the sidecar counts the sample's run in
+    [ended] = _registered(stand_in, "end_sample")
+    assert _unsigned(ended) == {
+        "eval_id": "eval_789",
+        "sample_uuid": "sample_123",
+        "task": "weather_desk",
+    }
 
 
 async def test_a_sidecar_found_after_the_task_started_is_registered_once() -> None:
