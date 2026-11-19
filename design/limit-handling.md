@@ -346,12 +346,15 @@ tokens per call, run against this branch's base):
    pre-dispatch check (`>=`). The message check runs before the chain
    check, so a reached message limit can raise ahead of a reached token,
    cost or turn limit.
-4. **Outermost wins.** Wherever Inspect has to choose one limit error from
-   several, it chooses the one with the smallest depth. A limit error with no
-   node in the chain (a `custom` limit, a time limit, a node never entered)
-   ranks after every node that has one. The one reduction left as it is,
-   `decisive_sentinel_exception()`, reduces errors escaping a sentinel
-   monitor, whose calls reach no token, turn or cost limit (rule 5).
+4. **Outermost wins.** Wherever one of Inspect's limit-aware reductions
+   chooses one limit error from several (the sites listed under
+   "Precedence"), it chooses the one with the smallest depth. A limit error
+   with no node in the chain (a `custom` limit, a time limit, a node never
+   entered) ranks after every node that has one. Generic first-error
+   reductions (`tg_collect()`, `unwrap_exception_group("first")`) are
+   unchanged, and so is `decisive_sentinel_exception()`, which reduces
+   errors escaping a sentinel monitor, whose calls reach no token, turn or
+   cost limit (rule 5).
 5. **A suspended call is invisible to the kinds it suspends.** Inside
    `suspend_token_limit()`, `suspend_turn_limit()` or `suspend_cost_limit()`
    (or `suspend_limits()`, all of them), limits of that kind neither record
@@ -392,7 +395,10 @@ under the limit is refused before dispatch, and if no limit error reaches
 the limit's owner, that owner's exit check finds it. A plain `with token_limit()`
 block has no owner but its author and no exit check, so its limit is found
 only by a call made while the block is open ("The owner's exit check").
-That holds within one attempt, up to its checkpoint restore: a checkpoint
+Background work that keeps running after the `run()` or `apply_limits()`
+scope that started it has returned can swallow that scope's limit after its
+exit check, and nothing finds it then ("Background work that outlives its
+owner"). That holds within one attempt, up to its checkpoint restore: a checkpoint
 resume keeps usage but drops the mark of a limit that refused a call, and
 its assigning restore can reopen a limit that work before it reached and
 swallowed ("Checkpoints", "Limits swallowed before a checkpoint
@@ -1002,9 +1008,18 @@ the sample's limits, which pass under their own budgets. This is an
 exception to automatic recovery, alongside plain `with` blocks, and the
 design keeps that sample-scoped background lifetime on purpose (see "Not
 this design"). Spend stays bounded: every later call the worker makes
-under the node is refused (rule 3), and the sample's limits still apply. A
-caller that needs the outcome installs a background target inside the
-scope, so the work is joined before the scope's exit check runs.
+under the node is refused (rule 3), and the sample's limits still apply.
+A caller that needs the outcome makes the work finish inside the scope:
+it opens a task group inside the agent body, within the scope's limits,
+and joins it before the body returns, so the scope's exit check sees the
+work's usage. A runtime that routes `background()` there sets the private
+`background_target` (`src/inspect_ai/util/_background.py:28`) to that
+group, as inspect_swarm does for each member; setting the target alone
+does not order the join before the exit check, and neither `run()` nor
+`apply_limits()` exposes it. A caller that inspects the node instead
+(`limit.usage` against `limit.limit`) does so after the background work
+has finished: when `run()` returns, the node can still show usage the work
+has not yet added.
 
 **Limits swallowed during a resume for scoring.** The same principle holds
 for a scoring resume, which has no sample exit check. A limit reached and
@@ -1681,8 +1696,10 @@ that approach found another such handler, and the list is open-ended: any
 user or extension code can catch an exception. The rules here make the
 nodes the record instead, so within one attempt a handler that swallows a
 limit error delays it by at most one call and cannot lose it, except in
-a plain `with` block, which has no exit check ("Plain `with` blocks"), and
-across a checkpoint restore, which drops the `_raised_at` mark and can
+a plain `with` block, which has no exit check ("Plain `with` blocks"), in
+background work that swallows a scope's limit after that scope's exit
+check ("Background work that outlives its owner"), and across a checkpoint
+restore, which drops the `_raised_at` mark and can
 reopen a limit swallowed before it ("Checkpoints", "Limits swallowed
 before a checkpoint restore").
 Inspect still changes its own handlers where that decides *which owner*
@@ -2246,18 +2263,21 @@ Each step is one PR, in this order. Each keeps the suite green.
    escaping group, and `check_own_limits()` over the sample's roots after
    the sample task group has joined when the solvers returned, skipped
    when the attempt is `resume_for_scoring`.
-   `src/inspect_ai/model/_call_tools.py`: `decisive_tool_exception`
-   (`decisive_sentinel_exception` is unchanged). Tests: the owner-exit
-   cases, which need these checks: `run()` and sentinel tests in
-   `tests/util/test_limit.py`, the reductions in
-   `tests/tools/test_call_tools.py` and `tests/test_eval.py`,
+   Tests: the owner-exit cases, which need these checks: `run()` and
+   sentinel tests in `tests/util/test_limit.py`, the runner's reduction
+   in `tests/test_eval.py`,
    `tests/agent/test_agent_overflow_compaction.py`,
    the live-override sample outcomes in `tests/_control/test_limits.py`,
    and the restore and scoring-resume outcomes in
    `tests/checkpoint/test_sample_runtime.py` (the checkpoint change is in
    step 1).
-4. **Ownership in tools.** `_call_tools.py`: the call leaf and ownership test
-   in `call_tool_task`, and the same test in `agent_handoff()`'s `except`.
+4. **Ownership in tools.** `_call_tools.py`: `decisive_tool_exception`
+   choosing the outermost limit (`decisive_sentinel_exception` is
+   unchanged), the call leaf and ownership test in `call_tool_task`, and
+   the same test in `agent_handoff()`'s `except`. The selection and the
+   ownership test go together: the native-tool reduction case in
+   `tests/tools/test_call_tools.py` needs both, since a selected foreign
+   limit propagates only once the ownership test runs.
    `src/inspect_ai/agent/_bridge/sandbox/host_tool.py`: `_raised` ownership,
    `keep_limit` for foreign limits.
    `src/inspect_ai/agent/_bridge/sandbox/types.py`:
