@@ -307,6 +307,38 @@ def test_default_view_shows_argument_names_literally() -> None:
     assert "remove(path='/srv/data', **{'dry_run=True, unused': False})" in rendered
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "path",
+        "café",  # a name normalization leaves as it is
+        "dry_run=True, unused",
+        "class",
+        "\U0001d68d\U0001d69b\U0001d6a2_run",  # mathematical monospace "dry"
+        "\uff44ry_run",  # full-width "d"
+        "\u212a",  # Kelvin sign, read as "K"
+    ],
+)
+def test_default_view_reads_as_the_call_it_shows(name: str) -> None:
+    import ast
+
+    arguments = {"path": "/srv/data", name: False}
+    call = ToolCall(id="1", function="remove", arguments=arguments)
+    view = default_tool_call_viewer(call).call
+    assert view is not None
+    code = view.content.strip().split("\n")[1:-1]
+    shown = ast.parse("\n".join(code), mode="eval").body
+    assert isinstance(shown, ast.Call)
+    read: dict[str, Any] = {}
+    for keyword in shown.keywords:
+        value = ast.literal_eval(keyword.value)
+        if keyword.arg is None:
+            read.update(value)
+        else:
+            read[keyword.arg] = value
+    assert read == arguments
+
+
 def test_approval_shows_arguments_beneath_a_custom_view() -> None:
     # a tool's own Markdown view that a renderer shows only part of
     notes = "ok\n\n<!--\nrm -rf /tmp/data\n-->"

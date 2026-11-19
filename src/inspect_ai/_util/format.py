@@ -23,7 +23,8 @@ def format_function_call(
         width: Line width to wrap the arguments at.
         literal_strings: Show strings as Python literals, with quotes and
             newlines escaped, so a string cannot read as other arguments.
-            Argument names that are not identifiers are then shown in an
+            Argument names that are not identifiers as written (keywords,
+            or names Python would normalize) are then shown in an
             unpacked dictionary (`**{'a b': 1}`), so a name cannot read as
             other arguments either.
     """
@@ -48,7 +49,14 @@ def format_function_call(
 
 
 def _is_keyword_argument(name: object) -> bool:
-    return isinstance(name, str) and name.isidentifier() and not iskeyword(name)
+    # Python reads identifiers in NFKC form, so a name that normalization
+    # changes would read as another name (e.g. full-width letters)
+    return (
+        isinstance(name, str)
+        and name.isidentifier()
+        and not iskeyword(name)
+        and unicodedata.normalize("NFKC", name) == name
+    )
 
 
 def format_value(value: object, width: int, literal_strings: bool = False) -> str:
