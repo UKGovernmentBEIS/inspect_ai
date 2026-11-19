@@ -192,16 +192,15 @@ def recover_eval_log(
             from its flushed samples alone instead of raising
             `RecoveryNotAvailable`. Pass it only for a log whose run you
             know has ended: a run on this host is detected by its buffer
-            database, but a run elsewhere leaves no local trace. Such a
-            recovery is refused when the file it writes (`output`, or
-            `<name>-recovered.eval`) is already a finished log: that may be
-            an earlier recovery that used a buffer since removed. The partial
-            log of an interrupted recovery is replaced, along with any buffer
-            samples it holds. Without a
-            buffer no sample is known to have been in progress, so
-            `incomplete_max` never refuses, and `incomplete_action="error"`
-            judges completeness from the flushed records alone, including
-            records a retry inherited from the attempt before it.
+            database, but a run elsewhere leaves no local trace. Refused when
+            the file it writes (`output`, or `<name>-recovered.eval`) is
+            already a finished log, which may be an earlier recovery from a
+            buffer since removed; the partial log of an interrupted recovery
+            is replaced, with any buffer samples it holds. Without a buffer
+            no sample is known to be in progress, so `incomplete_max` never
+            refuses and `incomplete_action="error"` judges completeness from
+            the flushed records alone, including those a retry inherited
+            from the attempt before it.
         status: Status of the recovered log unless `incomplete_action="error"`
             finalizes it with `status="success"`.
         error_message: Message of the recovered log's `EvalError` with
@@ -321,9 +320,8 @@ async def recover_eval_log_async(
             raise RecoveryNotAvailable(f"No sample buffer database found for {log}")
         if live_buffer_db_exists(log, db_dir=_db_dir):
             raise RecoveryNotAvailable(f"The eval for {log} is still running")
-        # a finished log at the output may be an earlier recovery that used a
-        # buffer since removed, so it can hold more than the flushed samples
-        # (the partial log of an interrupted recovery reads as "started")
+        # a finished log here may be an earlier recovery from a buffer since
+        # removed; an interrupted recovery's partial log reads as "started"
         if filesystem(write_output).exists(write_output):
             existing_output = await read_eval_log_async(
                 write_output, header_only=True, format="eval"

@@ -140,12 +140,10 @@ async def write_recovered_eval_log(
             results.
         status: Status of the log when it is not finalized as "success".
         error_message: Message of the `EvalError` of a log with status
-            "error", which then has an empty traceback (default: "Eval
-            recovered from crash"). A "cancelled" log has no error.
+            "error" (default: "Eval recovered from crash").
         completed_at: `stats.completed_at` of the log (default: now).
         log_update: Appended to the crashed log's `log_updates`.
-        has_buffer: Whether a sample buffer was found for the log. Without
-            one the default error's traceback is empty too.
+        has_buffer: Whether a sample buffer was found for the log.
 
     Returns:
         The written EvalLog (header only, samples on disk).

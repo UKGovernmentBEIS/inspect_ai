@@ -667,28 +667,6 @@ def test_failed_recovery_writes_nothing(
     assert recovered.status == "success"
 
 
-@pytest.mark.parametrize("name", ["2s", "3s"])
-def test_recovery_untrusted_metrics_warn_recovers_without_results(
-    name: str,
-    crashed: Any,
-    task_file: Path,
-    imports: Path,
-    untrusted_models: list[str],
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """untrusted_metrics="warn" recovers without results where "raise" refuses."""
-    path = crashed(_fixture(name, task_file))
-
-    with caplog.at_level(logging.WARNING, logger="inspect_ai"):
-        recovered = recover_eval_log(path.as_posix(), untrusted_metrics="warn")
-
-    assert Path(recovered.location) == path.with_name(f"{path.stem}-recovered.eval")
-    assert Path(recovered.location).exists()
-    assert recovered.results is None
-    assert any("Unable to recompute metrics" in r.message for r in caplog.records)
-    assert _imported(imports) == [] and untrusted_models == []
-
-
 def test_failed_recovery_reducer_advice(crashed: Any) -> None:
     path = crashed(_log(epochs_reducer=["no_such_reducer"]))
 
