@@ -493,7 +493,7 @@ from inspect_ai.log import (
 
 log = read_eval_log("my_eval.eval")
 
-result = exclude_samples(
+exclude_samples(
     log,
     ["sample-3", ("sample-7", 2)],  # every epoch of sample-3, epoch 2 of sample-7
     ProvenanceData(author="alice", reason="task environment was broken"),
@@ -502,7 +502,7 @@ result = exclude_samples(
 write_eval_log(log)
 ```
 
-The reason is required, and is also the score's explanation. `result.applied` lists the `(id, epoch)` of each sample excluded now, and `result.unchanged` those already excluded.
+The reason is required, and is also the score's explanation.
 
 The same edit is available from the command line. It rewrites the log in place:
 
@@ -511,7 +511,7 @@ $ inspect log exclude logs/my_eval.eval --sample sample-3 --sample sample-7 \
     --epoch 2 --reason "task environment was broken"
 ```
 
-`--epoch` applies to every `--sample`. `--author` defaults to your git identity, else your user name. `--json` prints the result as JSON.
+`--epoch` applies to every `--sample`. `--author` defaults to your git identity, else your user name.
 
 An excluded epoch takes no part in epoch reduction: a sample reduces as if that epoch had not run, and a sample with every epoch excluded counts as unscored. Epochs are reduced with the reducers the log records, rebuilt by name, so a custom reducer configured with other arguments is rebuilt with its defaults.
 
@@ -546,7 +546,7 @@ from inspect_ai.log import (
 log = read_eval_log("logs/my_eval.eval")
 empty = read_eval_log("logs/empty/my_empty_attempt.eval")
 
-result = zero_samples(
+zero_samples(
     log,
     empty,
     ["sample-3", ("sample-7", 2)],  # every epoch of sample-3, epoch 2 of sample-7

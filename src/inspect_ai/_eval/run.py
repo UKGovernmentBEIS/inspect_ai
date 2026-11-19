@@ -21,6 +21,8 @@ from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
     clear_eval_retry_pending,
+    get_eval_state,
+    latest_eval_for_task,
     mark_eval_retry_pending,
     task_retry_abandoned,
 )
@@ -98,6 +100,7 @@ from .loader import (
     as_solver_spec,
     solver_from_spec,
 )
+from .task.enqueue import creator_model_scope
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask, resolved_task_names
 from .task.run import (
@@ -697,7 +700,10 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                     error_after_write = False
                     with task_scope:
                         try:
-                            result = await task_run(options, task_cancel=task_cancel)
+                            with creator_model_scope(options.model):
+                                result = await task_run(
+                                    options, task_cancel=task_cancel
+                                )
                         except TaskRetryAbandonedError:
                             # abandoned at attempt start (a drain/cancel
                             # stamped the retry-abandoned registry between
@@ -1129,8 +1135,17 @@ async def run_task_retry_attempts(
                         # superseded (a retry abandoned before the pre-mark was
                         # never marked, and one abandoned during the log write
                         # was already cleared by the directive; this is a no-op
-                        # then)
-                        clear_eval_retry_pending(result.eval.eval_id)
+                        # then). An attempt that ended before it registered
+                        # (its prior-log seed or log_start failed) has no
+                        # flag of its own: the flag stands on the task's
+                        # latest registered attempt.
+                        registered = get_eval_state(result.eval.eval_id)
+                        if registered is None:
+                            registered = latest_eval_for_task(
+                                options.logger.eval.task_id
+                            )
+                        if registered is not None:
+                            clear_eval_retry_pending(registered.eval_id)
 
                     # Retry source selection needs the recorder's write state.
                     # Once no retry follows, release any unfinished entry even

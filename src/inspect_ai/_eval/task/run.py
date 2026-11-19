@@ -220,7 +220,7 @@ from inspect_ai.util._store import init_subtask_store
 
 from ..context import init_task_context
 from ..task import Task
-from .enqueue import get_task_enqueuer
+from .enqueue import creator_model_scope, get_task_enqueuer
 from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
@@ -907,18 +907,19 @@ async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None
     tasks the callback returned propagate.
     """
     if options.task_source is not None and options.run_samples:
-        try:
-            tasks = await options.task_source.task_complete(eval_log)
-        except Exception as ex:
-            if options.debug_errors:
-                raise
-            py_logger.error(
-                "TaskSource.task_complete() raised an error for task "
-                f"'{options.task.name}': {inner_exception(ex)}",
-                exc_info=ex,
-            )
-            return
-        _enqueue_source_tasks(tasks)
+        with creator_model_scope(None):
+            try:
+                tasks = await options.task_source.task_complete(eval_log)
+            except Exception as ex:
+                if options.debug_errors:
+                    raise
+                py_logger.error(
+                    "TaskSource.task_complete() raised an error for task "
+                    f"'{options.task.name}': {inner_exception(ex)}",
+                    exc_info=ex,
+                )
+                return
+            _enqueue_source_tasks(tasks)
 
 
 ABORTED_LOG_WRITE_TIMEOUT = 10.0
@@ -1451,11 +1452,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # single loop a stamp lands either before this check (caught
             # here) or after registration (the ordinary running-task path).
             # Nothing with an end-side pairing has fired yet (the task-start
-            # hook comes after register_eval); the display row opened above
-            # is left result-less, which is cosmetic and confined to this
-            # window by the earlier check above the disk paging. The finally
-            # below still runs, so the paged sample store's temp file is
-            # unlinked.
+            # hook comes after register_eval); the handler below completes
+            # the display row opened above as cancelled. The finally below
+            # still runs, so the paged sample store's temp file is unlinked.
             if task_retry_abandoned(logger.eval.task_id):
                 raise TaskRetryAbandonedError()
 
@@ -1917,11 +1916,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 await sample_feed.sample_abandoned(abandoned, epoch)
                             )
                         if options.task_source is not None:
-                            _enqueue_source_tasks(
-                                await options.task_source.sample_abandoned(
-                                    abandoned, epoch, task
+                            with creator_model_scope(None):
+                                _enqueue_source_tasks(
+                                    await options.task_source.sample_abandoned(
+                                        abandoned, epoch, task
+                                    )
                                 )
-                            )
                     return result
 
                 async def run_samples_dynamic(
@@ -2424,7 +2424,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # to the dispatcher, which maps it to a side-effect-free finalize
             # and discards this attempt's never-started log entry; writing an
             # error log here would supersede the errored prior attempt's log,
-            # which must remain the task's final state
+            # which must remain the task's final state. The row is completed
+            # as cancelled so the display counts it as finished; no samples
+            # ran in this attempt, and its log location is cleared because
+            # the dispatcher discards that log.
+            profile.log_location = ""
+            collect_eval_data(stats)
+            td.complete(TaskCancelled(0, stats))
             raise
 
         except BaseException as ex:
@@ -3794,9 +3800,10 @@ async def _task_run_sample_attempt(
                         await sample_feed.sample_complete(source_sample)
                     )
                 if task_source is not None:
-                    _enqueue_source_tasks(
-                        await task_source.sample_complete(source_sample, task)
-                    )
+                    with creator_model_scope(None):
+                        _enqueue_source_tasks(
+                            await task_source.sample_complete(source_sample, task)
+                        )
 
     # an interrupt stamped since the attempt's task group exited, up to the
     # sample's teardown just above, suppresses the retry
