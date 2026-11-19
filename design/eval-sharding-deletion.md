@@ -236,16 +236,28 @@ requirement").
 
 A deletion stopped by an error, a cancellation or a crash leaves each
 shard either holding its recorded current attempt or holding no attempt.
-A merge without the option refuses that state as vanished shards, as
-today; the message gains "If a deletion of the shards was interrupted,
-merge again with `delete_shards=True` (`--delete-shards`) to finish it."
-A merge with the option finishes it: when the only difference from the
-ledger is shards with no attempt left, it writes nothing and keeps the
-merged log as recorded (as when no shard is left: the recorded status
-must be `success` and a supplied selection must equal the recorded one),
-then verifies and deletes what remains. Any other difference (a changed
-shard, a new `<k>/`) is refused as today. A local lock left by a crash
-is reported, as for a crashed merge; the user deletes it and reruns.
+What a later merge without the option does depends on when it stopped,
+and only one case is new:
+
+- **Before any current attempt was deleted**, every shard still holds
+  its recorded attempt: an ordinary unchanged merge, which writes
+  nothing.
+- **After every current attempt was deleted** (only empty directories or
+  ancillary entries left): the existing no-shards case, which returns
+  the merged log as recorded.
+- **Part way through the current attempts**, some shards have no
+  attempt while others do: refused as vanished shards, as today. The
+  message gains "If a deletion of the shards was interrupted, merge
+  again with `delete_shards=True` (`--delete-shards`) to finish it."
+
+A merge with the option finishes every case. In the third, when the
+only difference from the ledger is shards with no attempt left, it
+writes nothing and keeps the merged log as recorded (as when no shard is
+left: the recorded status must be `success` and a supplied selection
+must equal the recorded one); in all three it then verifies and deletes
+what remains. Any other difference (a changed shard, a new `<k>/`) is
+refused as today. A local lock left by a crash is reported, as for a
+crashed merge; the user deletes it and reruns.
 
 The rule needs no marker of a deletion in progress: the ledger and the
 listing identify it, and it also finishes a hand removal that stopped
@@ -307,7 +319,8 @@ and gains a "Removing shards" section after "Merging":
 > deleted can be lost, as when you delete them by hand. Deletion cannot
 > be undone, except from object versions on a versioned S3 bucket.
 >
-> If deletion is interrupted, part of the `.shards` directory remains and
+> If deletion is interrupted, part of the `.shards` directory remains,
+> and if some shard directories still hold logs while others do not,
 > later merges refuse it. Merge again with `--delete-shards` to finish.
 > You can still delete the `.shards` directory by hand (`rm -r`,
 > `aws s3 rm --recursive`); later merges then return the merged log as it
@@ -420,12 +433,16 @@ No test needs network, Docker or a model provider.
   new attempt after a merge; a deleting merge merges it, then deletes.
   Separately, a ledger whose counts do not match the merged log's members
   is refused with nothing deleted.
-- `test_delete_shards_interrupted_then_finished`: a failure injected at
-  the first current-attempt delete. Afterwards every attempt left is a
-  recorded current attempt, no older attempt has become current, a merge
-  without the option refuses with the new message, and a merge with it
-  writes nothing and deletes the rest. With a different selection, the
-  finishing merge is refused.
+- `test_delete_shards_interrupted_then_finished`, parametrized over a
+  failure injected before, during and after the deletion of current
+  attempts (at the last non-attempt delete, at the first current-attempt
+  delete, and at the first directory removal or the confirming listing).
+  In every case every attempt left is a recorded current attempt and no
+  older attempt has become current; a merge without the option writes
+  nothing in the first and third cases and refuses with the new message
+  in the second; a merge with the option writes nothing and deletes the
+  rest. In the second case, a finishing merge with a different selection
+  is refused.
 - `test_delete_shards_refuses_interrupted_deletion_with_changed_shard`:
   one remaining shard changed; refused, nothing deleted.
 - `test_delete_shards_does_not_follow_symlinks` (local): a link in a
