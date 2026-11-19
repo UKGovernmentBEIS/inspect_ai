@@ -49,8 +49,6 @@ DESERIALIZING = "deserializing"
 MESSAGE_CACHE = "message_cache"
 
 SKIP_TRANSCRIPT_DISPATCH = "inspect_skip_transcript"
-EXC_SNAPSHOT = "exc_snapshot"
-"""Log record attribute holding a failed task's formatted traceback text."""
 
 
 def get_deserializing_context() -> dict[str, Any]:

@@ -1420,9 +1420,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # set custom sandbox limits
     limit_tokens = set_sandbox_limits()
 
-    with display().task(
-        profile,
-    ) as td:
+    # errors shown on the row release their live exception when the row
+    # closes, after a display that logs it there has done so
+    with _RowErrors() as row_errors, display().task(profile) as td:
         if options.record is not None:
             options.record.on_row_opened()
 
@@ -1443,7 +1443,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     f"Task cancelled by user ({task_cancel.cancel_type})"
                 )
                 td.complete(
-                    TaskError.from_exception(0, TerminateTaskError, cancel_ex, None)
+                    row_errors.add(
+                        TaskError.from_exception(0, TerminateTaskError, cancel_ex, None)
+                    )
                 )
             # the close in the finally below is never reached from here
             if isinstance(sample_store, DiskSampleStore):
@@ -2454,11 +2456,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         logger, eval_log, task_end_pending, raise_limits=False
                     )
                     td.complete(
-                        TaskError.from_exception(
-                            logger.samples_completed,
-                            TerminateTaskError,
-                            cancel_ex,
-                            None,
+                        row_errors.add(
+                            TaskError.from_exception(
+                                logger.samples_completed,
+                                TerminateTaskError,
+                                cancel_ex,
+                                None,
+                            )
                         )
                     )
                 else:
@@ -2511,8 +2515,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     # the dispatcher reports the attempt as a failed write and
                     # moves on, so the display must still show it finished
                     td.complete(
-                        TaskError.from_exception(
-                            logger.samples_completed, type, value, traceback
+                        row_errors.add(
+                            TaskError.from_exception(
+                                logger.samples_completed, type, value, traceback
+                            )
                         )
                     )
                     raise
@@ -2522,8 +2528,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
                 # display it
                 td.complete(
-                    TaskError.from_exception(
-                        logger.samples_completed, type, value, traceback
+                    row_errors.add(
+                        TaskError.from_exception(
+                            logger.samples_completed, type, value, traceback
+                        )
                     )
                 )
 
@@ -4572,6 +4580,27 @@ def _seed_error_retries(sample: EvalSample) -> list[EvalRetryError]:
     if sample.error is not None and not _is_cancellation_error(sample.error):
         seed.append(_eval_retry_error_from_sample(sample))
     return seed
+
+
+class _RowErrors(contextlib.AbstractContextManager["_RowErrors"]):
+    """The errors a task's display row shows, released when the row closes.
+
+    Entered before the row, so it exits after it: a display that logs the
+    error when the row closes (the log display) has the live exception, and
+    the row then keeps only the frame-free snapshot.
+    """
+
+    def __init__(self) -> None:
+        self._errors: list[TaskError] = []
+
+    def add(self, error: TaskError) -> TaskError:
+        self._errors.append(error)
+        return error
+
+    def __exit__(self, *excinfo: Any) -> None:
+        for error in self._errors:
+            error.release_exception()
+        self._errors.clear()
 
 
 def unwritten_task_log(logger: TaskLogger, ex: BaseException) -> EvalLog:

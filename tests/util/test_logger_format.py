@@ -6,17 +6,9 @@ from types import TracebackType
 from typing import Any
 
 import pytest
-import rich.console
 
-from inspect_ai._util.constants import EXC_SNAPSHOT
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.logger import (
-    LoggerFormat,
-    LogHandler,
-    exc_snapshot_filter,
-    logger_display_format,
-)
-from inspect_ai._util.trace import TraceFormatter
+from inspect_ai._util.logger import LogHandler, logger_display_format
 
 
 def log_record(
@@ -150,16 +142,6 @@ def test_plain_logger_format_escapes_newlines_in_exception(
     assert "ValueError: boom" in output
 
 
-def snapshot_record(exc_info: Any) -> LogRecord:
-    """A record carrying a failed task's error as LogDisplay logs it."""
-    from inspect_ai._display.core.display import TaskError
-
-    snapshot = TaskError.from_exception(0, *exc_info)
-    record = log_record("failed")
-    setattr(record, EXC_SNAPSHOT, snapshot.text)
-    return record
-
-
 def chained_exc_info() -> Any:
     try:
         try:
@@ -170,61 +152,12 @@ def chained_exc_info() -> Any:
         return sys.exc_info()
 
 
-@pytest.mark.parametrize("logger_format", ["plain", "json"])
-def test_logger_format_renders_exc_snapshot_like_exc_info(
-    monkeypatch: pytest.MonkeyPatch, tmp_path, logger_format: LoggerFormat
-) -> None:
-    monkeypatch.setenv("INSPECT_TRACE_LEVEL", "info")
-    exc_info = chained_exc_info()
-
-    def emitted(record: LogRecord) -> str:
-        stream = io.StringIO()
-        handler = LogHandler(
-            capture_levelno=INFO,
-            display_levelno=INFO,
-            transcript_levelno=0,
-            trace_dir=tmp_path,
-            logger_format=logger_format,
-            display_stream=stream,
-        )
-        handler.emit(record)
-        return stream.getvalue()
-
-    from_snapshot = emitted(snapshot_record(exc_info))
-    from_exc_info = emitted(log_record("failed", exc_info=exc_info))
-    assert "KeyError: 'inner'" in from_snapshot
-    if logger_format == "json":
-        snapshot_payload = json.loads(from_snapshot)
-        exc_info_payload = json.loads(from_exc_info)
-        assert snapshot_payload["msg"] == "failed"
-        assert snapshot_payload["exc_info"] == exc_info_payload["exc_info"]
-    else:
-        # the timestamp prefix differs between the two records
-        assert from_snapshot.split(" - ", 1)[1] == from_exc_info.split(" - ", 1)[1]
-
-
-def test_trace_formatter_omits_exc_snapshot() -> None:
-    formatter = TraceFormatter()
-    exc_info = chained_exc_info()
-
-    snapshot = snapshot_record(exc_info)
-    setattr(snapshot, "unrelated", "kept")
-    plain = log_record("failed", exc_info=exc_info)
-    setattr(plain, "unrelated", "kept")
-
-    snapshot_json = json.loads(formatter.format(snapshot))
-    plain_json = json.loads(formatter.format(plain))
-    snapshot_json.pop("timestamp")
-    plain_json.pop("timestamp")
-    assert EXC_SNAPSHOT not in snapshot_json
-    assert snapshot_json == plain_json
-    assert snapshot_json["unrelated"] == "kept"
-
-
-def test_task_error_snapshot_holds_no_frames() -> None:
+def test_task_error_snapshot_holds_no_frames_once_released() -> None:
     """A failed task's display row keeps no frame, so the task's locals are freed."""
     import gc
     import weakref
+
+    import rich.console
 
     from inspect_ai._display.core.display import TaskError
     from inspect_ai._util.rich import rich_traceback
@@ -247,6 +180,11 @@ def test_task_error_snapshot_holds_no_frames() -> None:
     del exc_info, dataset
     gc.collect()
 
+    # the live exception is kept until the row closes
+    assert dataset_ref() is not None
+    snapshot.release_exception()
+    gc.collect()
+
     assert dataset_ref() is None
     assert snapshot.samples_completed == 3
     assert snapshot.exc_type is ValueError
@@ -261,9 +199,10 @@ def test_task_error_snapshot_holds_no_frames() -> None:
     assert render(snapshot.rendered) == render(expected)
 
 
-def test_failed_task_traceback_reaches_an_application_handler() -> None:
-    """A handler installed before Inspect's formats the failed task's traceback."""
+def test_log_display_logs_a_failed_task_with_its_exception() -> None:
+    """Handlers get the failed task's exc_info: text formatters and structured ones."""
     import logging
+    import traceback
 
     from inspect_ai._display.core.display import (
         TaskError,
@@ -274,10 +213,30 @@ def test_failed_task_traceback_reaches_an_application_handler() -> None:
     from inspect_ai.log import EvalConfig
     from inspect_ai.model import GenerateConfig, ModelName
 
-    stream = io.StringIO()
-    handler = logging.StreamHandler(stream)
+    class StructuredFormatter(logging.Formatter):
+        """Builds error fields from record.exc_info, as JSON log formatters do."""
+
+        def format(self, record: LogRecord) -> str:
+            fields: dict[str, Any] = {"message": record.getMessage()}
+            if record.exc_info:
+                exc_type, exc_value, exc_tb = record.exc_info
+                fields["error"] = {
+                    "kind": exc_type.__name__ if exc_type is not None else None,
+                    "message": str(exc_value),
+                    "stack": "".join(
+                        traceback.format_exception(exc_type, exc_value, exc_tb)
+                    ),
+                }
+            return json.dumps(fields)
+
+    text_stream = io.StringIO()
+    text_handler = logging.StreamHandler(text_stream)
+    structured_stream = io.StringIO()
+    structured_handler = logging.StreamHandler(structured_stream)
+    structured_handler.setFormatter(StructuredFormatter())
     root = logging.getLogger()
-    root.addHandler(handler)
+    root.addHandler(text_handler)
+    root.addHandler(structured_handler)
     previous_level = root.level
     root.setLevel(logging.ERROR)
     try:
@@ -301,12 +260,17 @@ def test_failed_task_traceback_reaches_an_application_handler() -> None:
         error = TaskError.from_exception(0, *chained_exc_info())
         LogDisplay()._log_result(TaskWithResult(profile, error))
     finally:
-        root.removeHandler(handler)
+        root.removeHandler(text_handler)
+        root.removeHandler(structured_handler)
         root.setLevel(previous_level)
 
-    output = stream.getvalue()
-    assert "failed (0/1 logged)" in output
-    assert "ValueError: boom" in output
-    assert "KeyError: 'inner'" in output
-    # the filter is installed only for the failed task's record
-    assert exc_snapshot_filter not in root.filters
+    text = text_stream.getvalue()
+    assert "failed (0/1 logged)" in text
+    assert "ValueError: boom" in text
+    assert "KeyError: 'inner'" in text
+
+    structured = json.loads(structured_stream.getvalue())
+    assert structured["error"]["kind"] == "ValueError"
+    assert structured["error"]["message"] == "boom"
+    assert "KeyError: 'inner'" in structured["error"]["stack"]
+    assert 'raise ValueError("boom") from ex' in structured["error"]["stack"]

@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, JsonValue, ValidationError
 from shortuuid import uuid
 
 from .appdirs import inspect_data_dir
-from .constants import EXC_SNAPSHOT, TRACE
+from .constants import TRACE
 
 
 def inspect_trace_dir() -> Path:
@@ -203,7 +203,6 @@ class TraceFormatter(logging.Formatter):
                 "created",
                 "exc_info",
                 "exc_text",
-                EXC_SNAPSHOT,
                 "filename",
                 "levelno",
                 "levelname",

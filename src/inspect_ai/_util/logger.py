@@ -28,7 +28,6 @@ from .constants import (
     ALL_LOG_LEVELS,
     DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_LEVEL_TRANSCRIPT,
-    EXC_SNAPSHOT,
     HTTP,
     HTTP_LOG_LEVEL,
     PKG_NAME,
@@ -100,8 +99,6 @@ class LogHandler(RichHandler):
 
     @override
     def emit(self, record: LogRecord) -> None:
-        exc_snapshot_filter(record)
-
         # write to stderr if we are at or above the threshold
         if record.levelno >= self.display_level and self.display_level != NOTSET:
             self.emit_display(record)
@@ -254,20 +251,6 @@ def logger_display_format(env_prefix: str = "INSPECT") -> LoggerFormat:
     return cast(LoggerFormat, logger_format)
 
 
-def exc_snapshot_filter(record: LogRecord) -> bool:
-    """Set a record's ``exc_text`` from its exception snapshot, if it has one.
-
-    A failed task's error is logged as a text snapshot rather than an
-    ``exc_info`` tuple (see ``TaskError``). ``logging.Formatter.format``
-    appends ``exc_text``, so every handler shows the traceback as it would
-    for ``exc_info``. Usable as a logging filter: it always returns ``True``.
-    """
-    snapshot = getattr(record, EXC_SNAPSHOT, None)
-    if snapshot and not record.exc_info and not record.exc_text:
-        record.exc_text = snapshot
-    return True
-
-
 def json_log_record(record: LogRecord) -> dict[str, object]:
     payload: dict[str, object] = {
         "ts": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),
@@ -279,8 +262,6 @@ def json_log_record(record: LogRecord) -> dict[str, object]:
     }
     if record.exc_info:
         payload["exc_info"] = Formatter().formatException(record.exc_info)
-    elif snapshot := getattr(record, EXC_SNAPSHOT, None):
-        payload["exc_info"] = snapshot
     if record.stack_info:
         payload["stack_info"] = record.stack_info
     return payload

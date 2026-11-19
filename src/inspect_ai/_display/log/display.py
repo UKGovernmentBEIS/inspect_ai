@@ -3,9 +3,7 @@ import logging
 from typing import AsyncIterator, Callable, Coroutine, Iterator
 
 from inspect_ai._util._async import run_coroutine, run_main
-from inspect_ai._util.constants import EXC_SNAPSHOT
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
-from inspect_ai._util.logger import exc_snapshot_filter
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.log import EvalStats
 
@@ -129,18 +127,12 @@ class LogDisplay(Display):
                 stacklevel=4,
             )
         elif isinstance(task.result, TaskError):
-            # the root logger's filter sets exc_text before any handler runs,
-            # so a handler an application installed shows the traceback too
-            root = logging.getLogger()
-            root.addFilter(exc_snapshot_filter)
-            try:
-                logging.error(
-                    f"{title} failed ({task.result.samples_completed}/{task.profile.samples} logged)",
-                    extra={EXC_SNAPSHOT: task.result.text},
-                    stacklevel=4,
-                )
-            finally:
-                root.removeFilter(exc_snapshot_filter)
+            message = f"{title} failed ({task.result.samples_completed}/{task.profile.samples} logged)"
+            if task.result.exc_info is not None:
+                logging.error(message, exc_info=task.result.exc_info, stacklevel=4)
+            else:
+                # the live exception was already released: log its text
+                logging.error(f"{message}\n{task.result.text}", stacklevel=4)
         elif isinstance(task.result, TaskSuccess):
             config = task_config_str(task.profile)
             stats = self._task_stats_str(task.result.stats)

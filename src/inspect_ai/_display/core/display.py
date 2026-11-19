@@ -144,11 +144,14 @@ class TaskProfile:
 
 @dataclass
 class TaskError:
-    """A failed task's error, kept as a snapshot that holds no exception or frame.
+    """A failed task's error.
 
-    The task screen keeps each row's result for the whole run, so a live
-    traceback would keep the failed task's locals (its dataset among them)
-    alive until the run ends.
+    The task screen keeps each row's result for the whole run, so the row
+    keeps a snapshot of the traceback (``rendered`` and ``text``) that holds
+    no frame. The live exception (``exc_info``) is kept only until the task's
+    display row closes, for displays that log it there (see
+    :meth:`release_exception`), so a failed task's locals, its dataset among
+    them, do not outlive it.
     """
 
     samples_completed: int
@@ -157,6 +160,8 @@ class TaskError:
     """The traceback as Rich renders it."""
     text: str
     """The traceback as ``logging.Formatter.formatException`` formats it."""
+    exc_info: tuple[Type[BaseException], BaseException, TracebackType | None] | None
+    """The live exception, until :meth:`release_exception`."""
 
     @staticmethod
     def from_exception(
@@ -165,7 +170,7 @@ class TaskError:
         exc_value: BaseException,
         traceback: TracebackType | None,
     ) -> "TaskError":
-        """Snapshot an exception and its traceback."""
+        """Snapshot an exception and its traceback, keeping the live exception for now."""
         from inspect_ai._util.rich import rich_traceback
 
         text = "".join(format_exception(exc_type, exc_value, traceback))
@@ -176,7 +181,12 @@ class TaskError:
             exc_type=exc_type,
             rendered=rich_traceback(exc_type, exc_value, traceback),
             text=text,
+            exc_info=(exc_type, exc_value, traceback),
         )
+
+    def release_exception(self) -> None:
+        """Drop the live exception, keeping the snapshot."""
+        self.exc_info = None
 
 
 @dataclass
