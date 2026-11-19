@@ -412,8 +412,13 @@ tokens per call, run against this branch's base):
    scoring. An enclosing limit is left to its own owner.
 8. **The bridge keeps every limit it reaches.** The sandbox bridge keeps
    the set of limits any of its requests reached (generations and host
-   tools alike), refuses every later model call with their combined error
-   (rule 4), and raises that error when the agent has unwound.
+   tools alike), refuses every later request and host-tool request at entry
+   with their combined error (rule 4), and raises that error when the
+   agent has unwound. A request already admitted is stopped only by
+   reached limits on its own path (rule 3): if a kept limit was entered on
+   another request's path only, the admitted request can finish its
+   remaining provider calls. Spend is bounded by the work already in
+   flight (decision: Ransom, 2026-11-19).
 9. **A cost limit refuses an unpriced model.** While a cost limit is active
    and cost is not suspended, a call to a model with no cost data of
    its own, a router included, is refused before dispatch. Nothing is
@@ -536,7 +541,9 @@ order sets their rank, which matters only for the primary fields.
     that failed after its check (a failing cache store), its usage and its
     turn are counted again, as usage already is today. A call that
     crosses a child token or cost limit therefore advances every enclosing
-    turn limit before the child limit raises.
+    turn limit before the child limit raises. The active sample's turn
+    count, which the live control channel reports, includes every recorded
+    turn, also when the check after it raises.
   - A cache hit records its turn, then checks, and is never refused before
     it is served: it records no usage, so it can raise a token or cost
     limit only if one is already exceeded (today a hit returns without
@@ -1989,6 +1996,15 @@ documented. Behaviour changes:
   A kept limit whose budget a live override has since raised no longer
   refuses calls already in flight, since the node no longer counts as
   reached. `dispatch_guard()` was private and had no other user.
+  The same holds across requests: a request already admitted stops only at
+  reached limits on its own path, so when the bridge keeps a token, cost or
+  turn limit entered on a sibling request's path only, the admitted
+  request can finish its remaining provider calls (decision: Ransom,
+  2026-11-19). Today only a request filter that enters a limit around one
+  request produces this: a host tool's own limits become tool errors and
+  are never kept, and inspect_swarm enters member limits around each
+  member's own bridged agent, so one member's limit never reaches another
+  member's bridge.
 - **Token limit formulas.** A token limit `type` formula must now be a
   non-negative weighted sum of `input` and `output` ("Token metering must
   not decrease"); `token_limit(10, type="input - output")` and formulas
@@ -2139,7 +2155,10 @@ under trio with `--runtrio`.
   (caught) counts one turn and the next call is refused by the turn limit;
   the same with a child `cost_limit()`; a generation whose first attempt
   fails with a retried provider error and whose second succeeds counts one
-  turn.
+  turn; in an active sample, a generation whose post-call check raises
+  (a child `token_limit(1)`, and separately the turn limit itself) leaves
+  the sample's reported turn count (`ActiveSample.total_turns`, which the
+  control channel reads) including that turn.
 - `tests/util/test_limit_token.py`: inside `suspend_limits()`, a call is not
   refused by a reached token, turn or cost limit, and a reached message
   limit still refuses it; inside `suspend_limits()`, a `_CostLimit` subclass whose `_check_self()` always
