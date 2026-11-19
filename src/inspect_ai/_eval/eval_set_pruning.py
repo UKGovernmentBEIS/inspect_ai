@@ -302,14 +302,9 @@ def prune_task_call(
     """
     if _constructing:
         return False
-    # A bound enqueuer means a run is in progress, so the call comes from code
-    # the run executes and its task may be added with `enqueue_task()`. The
-    # worker resolves its selection before the run binds it. The ContextVar
-    # reaches the run's async tasks and threads given a copy of its context
-    # (`anyio.to_thread`, `asyncio.to_thread`), not a bare `threading.Thread` or
-    # `ThreadPoolExecutor`. design/task-dispatch.md ("Interactions with related
-    # changes") states this guarantee for its run queue; when that lands, this
-    # check can move to it.
+    # The worker resolves its selection before the run binds its enqueuer. Threads
+    # see the binding only with a copy of the run's context (`anyio.to_thread`,
+    # `asyncio.to_thread`), not a bare `threading.Thread` or `ThreadPoolExecutor`.
     if get_task_enqueuer() is not None:
         return False
     if not _pruner.active():
