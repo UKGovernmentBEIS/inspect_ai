@@ -62,6 +62,9 @@ class Turn:
     delay: float = 0.0
     """How long the call is held before it is answered, in seconds, as a proxy holds it while its sidecar judges."""
 
+    then: Callable[[], None] | None = None
+    """Run as the turn answers its call, for what happens at the sidecar before the client's next request."""
+
 
 @dataclass
 class StandInSidecar:
@@ -190,6 +193,8 @@ class StandInSidecar:
                         400, json={"error": {"type": "error", "message": unread}}
                     )
             turn = self.turns.pop(0) if self.turns else Turn()
+            if turn.then is not None:
+                turn.then()
             irid = request.headers.get("x-irid")
             if irid is not None and turn.judgment is not None:
                 self.judgments[irid] = turn.judgment

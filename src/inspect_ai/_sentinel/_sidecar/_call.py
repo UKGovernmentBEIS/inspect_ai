@@ -50,31 +50,6 @@ class SidecarCall(NamedTuple):
         headers = {**(config.extra_headers or {}), INSPECT_CONTEXT: self.header}
         return config.model_copy(update={"extra_headers": headers})
 
-    async def registration_current(self) -> "SidecarCall":
-        """Complete the sample's registration again if the sidecar may have lost it since `sidecar_call`, once the call has its connection.
-
-        The wait for a connection can be long. A sidecar that restarted meanwhile, and that another sample registered the task with again, would otherwise get the call's request without the sample's facts. What is sent again is what the attempt first sent.
-
-        Returns:
-            The call, with whether the sidecar's admin registered the task beforehand as the sidecar says now: a sidecar that restarted may have the task in its tasks folder since.
-
-        Raises:
-            SentinelProxyError: If the sidecar couldn't take the sample.
-        """
-        from inspect_ai.log._samples import sample_active
-        from inspect_ai.solver._task_state import sample_state
-
-        sidecars = task_sidecars()
-        active = sample_active()
-        state = sample_state()
-        if sidecars is None or active is None or state is None:
-            return self
-        return self._replace(
-            registered_beforehand=await _complete_registration(
-                sidecars, self.sidecar, active, state
-            )
-        )
-
 
 async def sidecar_call(model: "Model") -> SidecarCall | None:
     """The sidecar an agent call goes through, with the sample's registration complete, or None for a call no sidecar judges.
@@ -140,6 +115,44 @@ async def _complete_registration(
         active.sample_uuid,
         attempt_number(active),
     )
+
+
+async def registration_current(request_id: str) -> None:
+    """Complete the sample's registration again, as a try of the current agent call is sent under an `x-irid`, if the sidecar may have lost it since the call began.
+
+    A request can be sent long after `sidecar_call`: once the call has a connection, after the eval was paused, or as a retry after a backoff. A sidecar that lost the task meanwhile, and that another sample registered it with again, frees the sample's facts when that sample ends, and would refuse the request as unregistered. So each try makes sure of the registration first. Nothing is sent where it is still good, and what is sent again is what the attempt first sent.
+
+    The call then goes by what the sidecar says now of whether its admin registered the task beforehand: a sidecar that restarted may have the task in its tasks folder since.
+
+    A registration the sidecar can't take is logged and not raised: an error raised as a request is sent reaches the caller as a failed connection, which is retried. The request goes on, and the sidecar judges or refuses it as it finds it.
+    """
+    from inspect_ai._util.exception import SampleRefusedError
+    from inspect_ai.log._samples import sample_active
+    from inspect_ai.solver._task_state import sample_state
+
+    from ._endpoint import SentinelProxyError
+    from ._received import current_receiving
+
+    received = current_receiving()
+    if (
+        received is None
+        or received.request_id != request_id
+        or received.sidecar is None
+    ):
+        return
+    sidecars = task_sidecars()
+    active = sample_active()
+    state = sample_state()
+    if sidecars is None or active is None or state is None:
+        return
+    try:
+        received.registered_beforehand = await _complete_registration(
+            sidecars, received.sidecar, active, state
+        )
+    except (SentinelProxyError, SampleRefusedError) as ex:
+        logger.warning(
+            f"The sample's registration with the sentinel sidecar couldn't be completed again before a request was sent: {ex}"
+        )
 
 
 def sign_context(headers: MutableMapping[str, str], url: str) -> None:

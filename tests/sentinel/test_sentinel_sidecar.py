@@ -1617,6 +1617,38 @@ async def test_an_attempt_whose_first_registration_was_still_on_its_way_at_a_res
     assert store.get("Tally:lookups") == 1
 
 
+def test_a_retry_of_a_request_makes_sure_of_the_samples_registration_before_it_is_sent() -> (
+    None
+):
+    def registered_again() -> None:
+        # the task is registered with the sidecar again while the request's
+        # retry backs off, as when another of the task's models is found
+        # there, so the sidecar may have lost the sample's registration
+        sidecars = task_sidecars(stand_in.calls[0]["params"]["eval_id"])
+        assert sidecars is not None
+        access = sidecars.access("http://proxy.test")
+        assert access is not None
+        access.registration_changes += 1
+
+    stand_in = StandInSidecar(turns=[Turn(status=503, then=registered_again), Turn()])
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate())
+
+    [log] = eval(task, model=_model(stand_in), sentinel_proxy="auto", display="none")
+
+    assert log.status == "success"
+    endpoint = "/sentinel/v1"
+    sent = [
+        "model" if r.url.path != endpoint else json.loads(r.content)["method"]
+        for r in stand_in.requests
+        if r in stand_in.model_calls
+        or (
+            r.url.path == endpoint
+            and json.loads(r.content)["method"] == "complete_registration"
+        )
+    ]
+    assert sent == ["complete_registration", "model", "complete_registration", "model"]
+
+
 async def test_a_sample_is_ended_with_its_task_named() -> None:
     stand_in = StandInSidecar()
     sidecars = TaskSidecars("auto", _FACTS)
