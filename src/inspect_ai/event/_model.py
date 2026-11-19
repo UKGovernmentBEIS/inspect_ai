@@ -120,6 +120,9 @@ class ModelEvent(BaseEvent):
     output: ModelOutput
     """Output from model."""
 
+    handed_call_ids: list[str] | None = Field(default=None)
+    """For a call made through an agent bridge, the id the agent received for each tool call in `output.message`, in order, when the bridge gave any of them a new id (as when the model reused one id for several calls). The agent's later messages, and the results of its calls, carry these ids. `None` when every call kept the model's id, for direct calls, for a response a bridge's request or response filter changed, and in logs written before it was recorded."""
+
     retries: int | None = Field(default=None)
     """Retries for the model API request."""
 

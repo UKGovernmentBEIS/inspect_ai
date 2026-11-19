@@ -8185,6 +8185,20 @@
             "title": "Event",
             "type": "string"
           },
+          "handed_call_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Handed Call Ids"
+          },
           "input": {
             "items": {
               "anyOf": [
