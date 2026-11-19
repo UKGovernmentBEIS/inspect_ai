@@ -106,8 +106,11 @@ and does not restate it. It relies on:
   rest as unchanged, refuses stray logs and vanished shards, checks the
   merged log's members against its ledger, and plans the status
   ([implementation plan, "The merge"](eval-sharding-implementation.md#the-merge)
-  and "Validation"). So when it returns a `success` merged log, that log
-  holds every current attempt the pass listed.
+  and "Validation"). So when a pass that read shards returns a
+  `success` merged log, that log holds every current attempt the pass
+  listed. The no-shards path is the exception: it returns the stored
+  status without checking the members against the ledger or planning
+  the status again (`_recorded_pass` in `src/inspect_ai/log/_shards/_api.py`).
 - **Listing and names.** The merge lists the companion two levels deep
   (`list_shard_set`) and refuses an S3 name that S3 would read as another
   key (`check_s3_location`), both in `src/inspect_ai/log/_shards/_walk.py`.
@@ -240,9 +243,15 @@ and only one case is new:
 A merge with the option finishes every case. In the third, the pass
 accepts shards with no attempt left when every shard that still has one
 is unchanged: it writes nothing and keeps the merged log as recorded (as
-when no shard is left: the recorded status must be `success` and a
-supplied selection must equal the recorded one). In all three, deletion
-then deletes what remains. Any other difference (a changed shard, a new
+when no shard is left: a supplied selection must equal the recorded
+one). Whenever a pass with the option keeps the merged log as recorded
+without reading shards (the third case and the no-shards case), it
+validates that log before deletion may run, from what it has already
+read (the merged log's members and its full ledger): the members must
+number the ledger's sample counts, and the status planned from them
+must be `success`, not only the stored one. Otherwise it refuses, with
+nothing deleted, and names the merged log as changed outside the merge.
+In all three cases, deletion then deletes what remains. Any other difference (a changed shard, a new
 `<k>/`) is refused as today. A local lock left by a crash is reported,
 as for a crashed merge; the user deletes it and reruns.
 
@@ -252,7 +261,9 @@ way, as long as that left every shard with its recorded current attempt
 or no attempt. A hand removal that deleted a current attempt and left an
 older one (`aws s3 rm --recursive` keeps no order) is refused as an
 attempt regression, as today, and the user finishes it by hand. Cost:
-none beyond the classification the merge already makes.
+none beyond the classification the merge already makes; the validation
+of a kept log is in memory, over members and a ledger the pass has
+already read.
 
 ### What users see
 
@@ -453,6 +464,11 @@ No test needs network, Docker or a model provider.
 - `test_delete_shards_refuses_hand_removal_leaving_older_attempt`: a
   `<k>/` whose recorded current attempt was deleted while an older one
   was kept is refused as an attempt regression, nothing deleted.
+- `test_delete_shards_refuses_ledger_mismatch_after_interruption`,
+  parametrized over a partly deleted companion and one with no attempt
+  left: a sample member removed from the merged log between cleanup
+  calls (its `success` header kept) is refused by a merge with the
+  option, with nothing deleted.
 - `test_delete_shards_refuses_interrupted_deletion_with_changed_shard`:
   one remaining shard changed; refused, nothing deleted.
 - `test_delete_shards_does_not_follow_symlinks` (local): a link in a
@@ -496,6 +512,10 @@ the result gains no `shards_deleted` field.
 
 ## Not this design
 
+- Validating the merged log in a plain merge's no-shards path, which
+  returns the stored status without checking members against the ledger.
+  It predates deletion; this design adds the check only when
+  `delete_shards` is given.
 - A viewer delete of a merged log that also removes its companion, with
   per-object authorization (implementation plan, "Not this design").
 - A delete command or function that needs no task.
