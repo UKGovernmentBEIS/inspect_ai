@@ -239,8 +239,8 @@ def test_log_events_restores_pool_indices_when_transaction_rolls_back(
     )
     original_condense_event = db._condense_event
 
-    def fail_after_condense(conn, sample_event):
-        original_condense_event(conn, sample_event)
+    def fail_after_condense(conn, sample_event, call_attachments):
+        original_condense_event(conn, sample_event, call_attachments)
         raise RuntimeError("forced rollback")
 
     monkeypatch.setattr(db, "_condense_event", fail_after_condense)

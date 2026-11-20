@@ -61,8 +61,8 @@ The two halves of the *production* contract are deliberately asymmetric:
 
 `sample_complete` / `task_complete` fire as work completes (see below) and serve
 double duty: they observe results *and* may **return follow-up tasks**. A
-returned list is added to the run exactly as `enqueue_task` would (it is routed
-through the same run enqueuer — see below), so the *simplest* sources never
+returned list is added to the run as `enqueue_task` adds tasks outside a running
+task (it is routed through the same run enqueuer — see below), so the *simplest* sources never
 implement `next_tasks()` at all: they just react to each result and return the
 next tasks. The run then ends naturally when a batch's callbacks return nothing
 and `next_tasks()` (default `None`) yields no more. `next_tasks()` is reserved
@@ -156,7 +156,8 @@ all feed one buffer:
 - **Returning tasks from `sample_complete` / `task_complete`** — the *push from
   a result* path: the simplest sources react to each completion and return the
   follow-ups. The firing site routes the return value onto the run enqueuer, so
-  it is just sugar for "call `enqueue_task` with what you'd return."
+  it is just sugar for "call `enqueue_task` with what you'd return" from outside
+  a running task.
 - **`enqueue_task()`**
   ([task/enqueue.py](../src/inspect_ai/_eval/task/enqueue.py)) — the *imperative*
   primitive for *arbitrary* code (a solver, a scorer, a tool), not just a
@@ -173,6 +174,20 @@ The last two share the same downstream machinery:
   cost limit) plus a buffer. `enqueue()` resolves immediately (so a bad task
   surfaces at the call site) and buffers; `drain()` is the non-blocking pull the
   loop does after each batch.
+- Resolution depends on where the tasks are added. Inside a running task
+  attempt (its samples, solvers, tools, scorers and other code the attempt
+  runs), they resolve once, under the attempt's model, in place of the run's
+  models. Anywhere else, they resolve once per run model. TaskSource callbacks
+  (`initial_tasks`, `next_tasks`, `sample_complete`, `sample_abandoned`,
+  `task_complete`) count as outside an attempt, both for the tasks they return
+  and for `enqueue_task()` calls made inside them, and so does a background
+  coroutine still running after its attempt ended. A private `ContextVar` in
+  `task/enqueue.py` (`_creator`) carries the attempt's model in a cell the
+  attempt marks ended: `_run_task` (`_eval/run.py`) sets it around
+  `task_run`, and each callback site clears it.
+  [task-handles.md](task-handles.md)'s `_attempt` ContextVar replaces it. A
+  task that sets its own `model` keeps it either way, and model roles and
+  generate config come from the run.
 - The batch loop drains the enqueuer *before* consulting `next_tasks()`, so
   imperative additions and declarative generation compose in one loop.
 
