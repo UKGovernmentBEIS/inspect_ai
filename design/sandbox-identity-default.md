@@ -126,10 +126,9 @@ implementations are unchanged. `test_operations_take_the_scope_user`,
 
 A scope's `cwd` is an absolute directory, typically the member's home or
 workspace. On images whose working directory is `/root`, as many eval images
-set it, a member cannot enter the provider's default working directory: some runc versions refuse to start a command there, and others
-start it but fail anything that uses `.` or a relative path. Scaffold setup
-commands running as the member would otherwise have to pass `cwd` on every
-call.
+set it, a member cannot enter the provider's default working directory, so
+a command run there as the member can fail. Scaffold setup commands running
+as the member would otherwise have to pass `cwd` on every call.
 
 After resolving the user, the proxy resolves paths, inside a scope for the
 sandbox that has a `cwd` and outside any `framework_sandbox_operation()`:
@@ -151,9 +150,12 @@ applies wherever else a caller gives a relative path inside a scope:
   as an in-loop scorer, a relative `cwd` is kept, as `exec()` keeps it there;
   an omitted one still becomes the scope's `cwd`.
 - `sandbox_with(file)` resolves a relative `file` against the scope's `cwd`
-  for each candidate sandbox before probing it, so a file a member wrote
-  with `write_file("result.txt")` is found by `sandbox_with("result.txt")`.
-  The probe itself is a framework operation and runs as the default user. A
+  for each candidate sandbox before probing it, so
+  `sandbox_with("result.txt")` probes the same pathname a member's
+  `write_file("result.txt")` wrote. The probe itself is a framework
+  operation and runs as the default user, so discovery finds the file only
+  when the default user can read that pathname; a file only the member can
+  read is not found. A
   lookup whose path resolves differently, as the same relative path does in
   scopes with different `cwd`s or outside any scope, does not reuse an
   earlier result (`test_file_discovery_follows_the_scope_cwd`). Lookups
@@ -163,11 +165,12 @@ applies wherever else a caller gives a relative path inside a scope:
 These rules do not depend on the user: a call that names `user="root"` and
 no `cwd` also runs in the scope's `cwd`, so a relative path names the same
 file whoever the call runs as. Marked operations keep the provider's default
-directory, as they keep its default user. A marked command that runs as the
-member needs a directory the member can enter: `install_skills()`'s
-`chmod +x` names `/`, but its `pwd` for a relative skills directory names
-none, so it runs in the provider's working directory (see
-[`install_skills()`](#install_skills)). Outside a scope, in a scope without a `cwd`, on
+directory, as they keep its default user. `install_skills()` run as the
+member uses such operations: its mode changes still work without entering
+the provider's working directory, while resolving a relative skills
+directory needs
+that directory to be enterable (see [`install_skills()`](#install_skills)).
+Outside a scope, in a scope without a `cwd`, on
 another sandbox and through `as_type()`, nothing changes
 (`test_scope_cwd_is_not_used_by_framework_operations_or_elsewhere`). The
 `SandboxEvent` records the resolved `cwd` in an exec event's options and the
