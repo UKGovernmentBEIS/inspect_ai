@@ -154,9 +154,11 @@ applies wherever else a caller gives a relative path inside a scope:
   for each candidate sandbox before probing it, so a file a member wrote
   with `write_file("result.txt")` is found by `sandbox_with("result.txt")`.
   The probe itself is a framework operation and runs as the default user. A
-  lookup made in one scope, or outside any, is not reused in another
-  (`test_file_discovery_follows_the_scope_cwd`). `on_path=True` lookups are
-  unchanged.
+  lookup whose path resolves differently, as the same relative path does in
+  scopes with different `cwd`s or outside any scope, does not reuse an
+  earlier result (`test_file_discovery_follows_the_scope_cwd`). Lookups
+  that resolve to the same paths share a result whatever scope made them.
+  `on_path=True` lookups are unchanged.
 
 These rules do not depend on the user: a call that names `user="root"` and
 no `cwd` also runs in the scope's `cwd`, so a relative path names the same
