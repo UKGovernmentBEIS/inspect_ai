@@ -251,7 +251,11 @@ of those paths, not on a test: the tripwire does not check routing.
 **The marker, into tasks started inside a marked block.** Each marked block
 other than scoring wraps one awaited call to the proxy. A provider may start
 its own tasks, but those act on the unwrapped provider and never reach the
-proxy again, so the marker does not spread beyond the call it wraps.
+proxy again. Code the call itself runs in the marked context, such as the
+transcript subscribers its `SandboxEvent` notifies, and tasks that code
+starts, do inherit the marker, so their sandbox calls with no user run as the
+default user even after the wrapped call returns; that they make no such
+calls on a member's behalf rests on review, not a test.
 
 **In-loop scoring is the one marked block that runs task code.** A member's
 `react(attempts=...)` and `basic_agent()` call `score()` inside the member's
