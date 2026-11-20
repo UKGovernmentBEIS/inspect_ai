@@ -116,6 +116,10 @@ class TaskScreenApp(App[TR]):
         # all tasks processed by app
         self._app_tasks: list[TaskWithResult] = []
 
+        # the open suspension shared by overlapping suspend_app() calls
+        self._suspension: contextlib.AbstractContextManager[None] | None = None
+        self._suspension_count = 0
+
         # enable rich hooks
         rich_initialise()
 
@@ -166,24 +170,35 @@ class TaskScreenApp(App[TR]):
 
     @contextlib.contextmanager
     def suspend_app(self) -> Iterator[None]:
+        """Suspend the app while the block runs.
+
+        Overlapping calls (a sandbox setup in one task, an input screen in
+        another) share one suspension, which ends when the last of them
+        exits. Textual resumes the terminal driver only when its suspended
+        block returns normally, so the suspension is always ended normally and
+        an error or cancellation (a failed sandbox setup, which the task's
+        attempt recovers from) propagates after the app has resumed.
+        """
         # suspend only if the app is already loaded
         # (otherwise its not yet displayed )
-        if self._on_app_loaded.is_set():
-            # Textual resumes the terminal driver only when the suspended
-            # block returns normally, so an error or cancellation (a failed
-            # sandbox setup, which the task's attempt recovers from) is held
-            # until the app has resumed, then raised
-            error: BaseException | None = None
-            with self.app.suspend():
-                try:
-                    yield
-                except BaseException as ex:
-                    error = ex
-            self.app.refresh(repaint=True)
-            if error is not None:
-                raise error
-        else:
+        if not self._on_app_loaded.is_set():
             yield
+            return
+
+        if self._suspension_count == 0:
+            suspension = self.app.suspend()
+            suspension.__enter__()
+            self._suspension = suspension
+        self._suspension_count += 1
+        try:
+            yield
+        finally:
+            self._suspension_count -= 1
+            if self._suspension_count == 0:
+                ending, self._suspension = self._suspension, None
+                assert ending is not None
+                ending.__exit__(None, None, None)
+                self.app.refresh(repaint=True)
 
     # exit the app when the worker terminates
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:

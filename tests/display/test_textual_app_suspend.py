@@ -6,7 +6,7 @@ from typing import Any, Iterator
 import anyio
 import pytest
 
-from inspect_ai._display.textual.app import TaskScreenApp
+from inspect_ai._display.textual.app import TaskScreenApp, TextualTaskScreen
 from inspect_ai._util.error import PrerequisiteError
 
 
@@ -72,4 +72,43 @@ async def test_suspended_app_resumes_when_setup_is_cancelled(
             scope.cancel()
             await anyio.sleep_forever()
     assert scope.cancelled_caught
+    assert driver.calls == ["suspend", "resume"]
+
+
+class _SetupFailed(Exception):
+    pass
+
+
+@pytest.mark.parametrize("end", ["normal", "error", "cancel"])
+async def test_input_screen_during_setup_shares_the_suspension(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, end: str
+) -> None:
+    app, driver = _loaded_app(monkeypatch)
+    screen = TextualTaskScreen[None](app)
+    with anyio.CancelScope() as scope:
+        with contextlib.suppress(_SetupFailed):
+            with app.suspend_app():
+                # another task's input screen opens and closes during setup
+                with screen.input_screen(record_event=False):
+                    pass
+                assert driver.calls == ["suspend"]
+                if end == "error":
+                    raise _SetupFailed()
+                elif end == "cancel":
+                    scope.cancel()
+                    await anyio.sleep_forever()
+    assert scope.cancelled_caught == (end == "cancel")
+    assert driver.calls == ["suspend", "resume"]
+
+
+async def test_input_screen_open_when_setup_starts_shares_the_suspension(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app, driver = _loaded_app(monkeypatch)
+    screen = TextualTaskScreen[None](app)
+    with contextlib.ExitStack() as setup:
+        with screen.input_screen(record_event=False):
+            setup.enter_context(app.suspend_app())
+        # the input screen closed while setup is still running
+        assert driver.calls == ["suspend"]
     assert driver.calls == ["suspend", "resume"]

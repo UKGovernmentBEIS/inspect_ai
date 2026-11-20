@@ -404,3 +404,58 @@ async def test_rich_input_screen_closed_during_setup_draws_after_setup(
     assert "TASK" not in during and "Task running" not in during, repr(during)
     # ... and the renderer the input screen selected is drawn below them
     _assert_output_kept(output, "TASK TOP" if transient else "Task running")
+
+
+class _OutputWidget:
+    """Stands in for the ipywidgets Output that a notebook Live renders into."""
+
+    created: list["_OutputWidget"] = []
+
+    def __init__(self) -> None:
+        self.closed = False
+        self.uses = 0
+        self.uses_after_close = 0
+        _OutputWidget.created.append(self)
+
+    def __enter__(self) -> None:
+        self.uses += 1
+        if self.closed:
+            self.uses_after_close += 1
+
+    def __exit__(self, *excinfo: object) -> None:
+        pass
+
+    def clear_output(self, wait: bool = False) -> None:
+        pass
+
+    def close(self) -> None:
+        self.closed = True
+
+
+@pytest.mark.anyio
+async def test_rich_setup_keeps_the_notebook_output_widget(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """In a notebook, setup leaves the task display's output widget open."""
+    import types
+
+    ipywidgets = types.ModuleType("ipywidgets")
+    setattr(ipywidgets, "Output", _OutputWidget)
+    monkeypatch.setitem(sys.modules, "ipywidgets", ipywidgets)
+    monkeypatch.setattr("IPython.display.display", lambda *args, **kwargs: None)
+    monkeypatch.setattr(_OutputWidget, "created", [])
+
+    display = RichDisplay()
+    monkeypatch.setattr(rich, "_console", Console(force_jupyter=True))
+    async with display.task_screen([], parallel=False):
+        assert display.live is not None
+        display.live.update("TASK", refresh=True)
+        with display.suspend_task_app():
+            pass
+        display.live.update("TASK 2", refresh=True)
+
+    # one widget, used for progress after setup and for the final results
+    [widget] = _OutputWidget.created
+    assert not widget.closed
+    assert widget.uses_after_close == 0
+    assert widget.uses >= 3

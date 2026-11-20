@@ -231,8 +231,10 @@ class RichTaskScreen(TaskScreen):
         redirect. The task display and the mini-status are cleared first and
         drawn again below that output afterwards, however the block ends. An
         input screen that closes meanwhile selects which of them come back.
+        A notebook is left as it is: other output does not draw over its
+        output widget, and stopping the Live would close that widget.
         """
-        if self.suspended:
+        if self.suspended or self.live.console.is_jupyter:
             yield
             return
 
