@@ -2,12 +2,22 @@ import asyncio
 import contextlib
 import inspect
 import os
+import posixpath
 import re
 from collections.abc import Iterable
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import IO, Any, AsyncIterator, Callable, Generator, Literal, cast
+from typing import (
+    IO,
+    Any,
+    AsyncIterator,
+    Callable,
+    Generator,
+    Literal,
+    NamedTuple,
+    cast,
+)
 
 import anyio.to_thread
 import fsspec  # type: ignore
@@ -32,6 +42,8 @@ from inspect_ai._util.file import (
     default_fs_options,
     file,
     filesystem,
+    local_path,
+    url_protocol,
 )
 from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._condense import resolve_sample_attachments
@@ -1179,6 +1191,63 @@ async def log_files_from_ls_async(
 ) -> list[EvalLogInfo]:
     files = _filter_log_files(ls, formats, descending, sort)
     return await tg_collect([partial(log_file_info_async, f) for f in files])
+
+
+class LogDestination(NamedTuple):
+    """A listed log directory entry and where it is written beneath a target."""
+
+    relative: str
+    """The entry's name relative to the log directory, with `/` separators."""
+
+    destination: str
+    """`relative` joined beneath the target directory."""
+
+
+def contained_log_destination(
+    name: str, log_dir: str, target_dir: str
+) -> LogDestination:
+    """Place a listed log directory entry beneath a target directory.
+
+    Names listed from a remote store can contain `.` or `..` components or
+    an empty component (so the rest reads as absolute). Such a name is
+    refused rather than normalized, and the joined destination must stay
+    beneath `target_dir`.
+
+    Args:
+        name: Entry name as listed (e.g. `FileInfo.name`).
+        log_dir: Listed name of the log directory (e.g. `info(log_dir).name`).
+        target_dir: Local path or URL of the directory to write beneath.
+
+    Raises:
+        ValueError: If `name` is not inside `log_dir`, or would be written
+            outside `target_dir`.
+    """
+    from inspect_ai.util._checkpoint._layout._paths import contained_relative
+
+    prefix = log_dir if log_dir.endswith("/") else f"{log_dir}/"
+    if not name.startswith(prefix):
+        raise ValueError(f"Log file '{name}' is not inside '{log_dir}'.")
+    relative = name[len(prefix) :]
+    try:
+        contained_relative(relative)
+    except ValueError as ex:
+        raise ValueError(f"Log file '{name}' has an invalid path: {ex}") from ex
+
+    destination = posixpath.join(target_dir, relative)
+    if url_protocol(target_dir) in (None, "file"):
+        root = os.path.abspath(local_path(target_dir))
+        dest = os.path.abspath(local_path(destination))
+        try:
+            contained = dest != root and os.path.commonpath([root, dest]) == root
+        except ValueError:  # different drives on Windows
+            contained = False
+    else:
+        root = posixpath.normpath(target_dir)
+        dest = posixpath.normpath(destination)
+        contained = dest.startswith(root.rstrip("/") + "/")
+    if not contained:
+        raise ValueError(f"Log file '{name}' would be written outside '{target_dir}'.")
+    return LogDestination(relative=relative, destination=destination)
 
 
 log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"

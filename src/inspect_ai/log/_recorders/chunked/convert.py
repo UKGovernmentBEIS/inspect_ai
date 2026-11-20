@@ -45,7 +45,7 @@ from ..._condense import (
     walk_input,
     walk_json_value,
 )
-from ..._file import log_files_from_ls
+from ..._file import contained_log_destination, log_files_from_ls
 from ..._log import EvalSample
 from ..._skeleton import sample_skeleton
 from ..eval import (
@@ -147,7 +147,8 @@ def convert_eval_logs_to_chunked(
         root_dir = fs.info(path).name
         eval_logs = log_files_from_ls(fs.ls(path, recursive=True), ["eval"], True)
         input_files = [
-            eval_log.name.replace(f"{root_dir}/", "", 1) for eval_log in eval_logs
+            contained_log_destination(eval_log.name, root_dir, output_dir).relative
+            for eval_log in eval_logs
         ]
         display().print("Converting log files to chunked samples...")
         with display().progress(total=len(input_files)) as p:

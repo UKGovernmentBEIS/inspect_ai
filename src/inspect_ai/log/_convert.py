@@ -9,6 +9,7 @@ from inspect_ai._util.file import exists, filesystem
 from inspect_ai.log import resolve_sample_attachments
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import (
+    contained_log_destination,
     log_files_from_ls,
     read_eval_log,
     read_eval_log_async,
@@ -104,7 +105,8 @@ def convert_eval_logs(
         root_dir = fs.info(path).name
         eval_logs = log_files_from_ls(fs.ls(path, recursive=True), None, True)
         input_files = [
-            eval_log.name.replace(f"{root_dir}/", "", 1) for eval_log in eval_logs
+            contained_log_destination(eval_log.name, root_dir, output_dir).relative
+            for eval_log in eval_logs
         ]
         display().print("Converting log files...")
         with display().progress(total=len(input_files)) as p:

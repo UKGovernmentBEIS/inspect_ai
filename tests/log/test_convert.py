@@ -1,8 +1,9 @@
 import json
 import pathlib
 import re
+import shutil
 import zipfile
-from typing import Literal, NamedTuple
+from typing import Callable, Literal, NamedTuple
 
 import pytest
 from pydantic import JsonValue
@@ -12,6 +13,7 @@ from inspect_ai import Task
 from inspect_ai import eval as inspect_eval
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.file import filesystem
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
@@ -139,6 +141,48 @@ def test_convert_eval_logs(
         assert model_event_call_message_content.startswith("Hey there, hipster!")
     else:
         assert model_event_call_message_content.startswith("attachment:")
+
+
+_CONVERTERS: dict[str, Callable[[str, str], None]] = {
+    "convert": lambda path, output_dir: convert_eval_logs(path, "json", output_dir),
+    "chunked": convert_eval_logs_to_chunked,
+}
+
+
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_keeps_nested_names(tmp_path: pathlib.Path, converter: str):
+    input_file = (
+        _TESTS_DIR
+        / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    )
+    log_dir = tmp_path / "logs"
+    (log_dir / "sub").mkdir(parents=True)
+    shutil.copy(input_file, log_dir / "sub" / input_file.name)
+    output_dir = tmp_path / "out"
+
+    _CONVERTERS[converter](str(log_dir), str(output_dir))
+
+    extension = ".json" if converter == "convert" else ".eval"
+    output_file = (output_dir / "sub" / input_file.name).with_suffix(extension)
+    assert output_file.exists()
+
+
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_refuses_dot_components(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, converter: str
+):
+    memory_fs = filesystem("memory://").fs
+    monkeypatch.setattr(type(memory_fs), "store", {})
+    monkeypatch.setattr(type(memory_fs), "pseudo_dirs", [""])
+    memory_fs.pipe(
+        "/logs/sub/../../escaped/2024-01-01T00-00-00+00-00_task_abc.eval", b"log"
+    )
+    output_dir = tmp_path / "out"
+
+    with pytest.raises(ValueError, match="has an invalid path"):
+        _CONVERTERS[converter]("memory://logs", str(output_dir))
+
+    assert not (tmp_path / "escaped").exists()
 
 
 @pytest.mark.parametrize("stream", [True, 3], ids=["stream", "stream-3"])
