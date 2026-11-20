@@ -175,9 +175,9 @@ another sandbox and through `as_type()`, nothing changes
 `SandboxEvent` records the resolved `cwd` in an exec event's options and the
 resolved path in a file event's `file`.
 
-`identity.py` exports `SANDBOX_OPERATIONS_USE_SCOPE_CWD = True` so companion
-packages can tell that the installed inspect_ai applies the scope's `cwd` at
-the boundary.
+Companion packages tell that the installed inspect_ai applies the scope's
+`cwd` at the boundary through the `SANDBOX_OPERATIONS_USE_SCOPE_CWD` flag in
+`identity.py`.
 
 Docker's own file operations on an absolute path work for a user who cannot
 enter the image's default working directory.
@@ -335,9 +335,9 @@ take at the boundary:
   `write_file()` cannot take a user it fails with
   `SandboxUserUnsupportedError` before writing anything. It works for a
   member who cannot enter the provider's working directory, given an
-  absolute `dir` (see below for a relative one), and `install.py` exports
-  `INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT = True` so companion packages can
-  detect this. It changes no ownership: files it creates belong to the
+  absolute `dir` (see below for a relative one); companion packages detect
+  this capability through the `INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT`
+  flag in `install.py`. It changes no ownership: files it creates belong to the
   member, like every other file the member's scaffold creates, while a file
   it overwrites keeps whatever owner the provider's write leaves (Docker
   keeps the existing owner); it can overwrite only a file the member may
@@ -370,7 +370,10 @@ installers) meet these requirements before they run inside a scope:
 - **Shared artifacts at fixed paths**, such as agent binaries, Node,
   interpreters and source files that several members execute or load, follow
   the trust model's rule for them in
-  [Verify before use](sandbox-trust-model.md#verify-before-use). Otherwise
+  [Verify before use](sandbox-trust-model.md#verify-before-use), and every
+  file that members execute or load, with the directories between it and
+  the install directory, is protected from member modification: verifying
+  the install directory alone does not protect its contents. Otherwise
   the first member could own a file every later member executes, and run
   code as each peer.
 - **Per-user setup** (discovery, per-user installs, configuration under the
@@ -430,8 +433,8 @@ Each call would state its identity in its arguments, but `user` is
 would pass the sentinel to every third-party provider, and each would need
 to understand it. Rejected.
 
-**Framework code calls the unwrapped provider** (`as_type()` or the proxy's
-`_sandbox`). No new mechanism, but it drops the transcript events and output
+**Framework code calls the unwrapped provider** (through `as_type()` or the
+provider the proxy wraps). No new mechanism, but it drops the transcript events and output
 limits that injection and services rely on, and scatters provider unwrapping
 through framework code. Rejected.
 
