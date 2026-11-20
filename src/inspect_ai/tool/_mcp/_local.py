@@ -200,8 +200,9 @@ class MCPServerLocalSession(MCPServer):
         # another task never see a connection that is still handshaking or
         # being torn down.
         self._conn: _Connection | None = None
-        # Tools listed over a temporary connection while not entered. An open
-        # connection lists and caches its own tools instead.
+        # Tools listed over a temporary connection while not entered, kept for
+        # the life of this session. An open connection lists and caches its own
+        # tools instead, so it never reads this.
         self._unconnected_tool_list: list[MCPTool] | None = None
 
     @override
@@ -212,8 +213,6 @@ class MCPServerLocalSession(MCPServer):
             async with AsyncExitStack() as exit_stack:
                 session = await self._connect(exit_stack)
                 self._conn = _Connection(session, exit_stack.pop_all())
-                # Unentered use after this connection lists the tools again.
-                self._unconnected_tool_list = None
         return self
 
     @override
