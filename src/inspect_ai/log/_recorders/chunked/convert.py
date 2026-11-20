@@ -45,7 +45,11 @@ from ..._condense import (
     walk_input,
     walk_json_value,
 )
-from ..._file import contained_log_destination, log_files_from_ls
+from ..._file import (
+    contained_log_destination,
+    log_files_from_ls,
+    resolve_local_path,
+)
 from ..._log import EvalSample
 from ..._skeleton import sample_skeleton
 from ..eval import (
@@ -101,6 +105,7 @@ def convert_eval_logs_to_chunked(
     if not fs.exists(path):
         raise PrerequisiteError(f"Error: path '{path}' does not exist.")
 
+    output_dir = resolve_local_path(output_dir)
     output_fs = filesystem(output_dir)
     if output_dir.endswith(output_fs.sep):
         output_dir = output_dir[: -len(output_fs.sep)]

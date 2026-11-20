@@ -1200,7 +1200,23 @@ class LogDestination(NamedTuple):
     """The entry's name relative to the log directory, with `/` separators."""
 
     destination: str
-    """`relative` joined beneath the target directory (with `extension`, if given)."""
+    """Where to write the entry (with `extension`, if given).
+
+    For a local target, the resolved native path that was checked; otherwise
+    `relative` joined beneath the target URL.
+    """
+
+
+def resolve_local_path(path: str) -> str:
+    """Resolve a local path or `file://` URL to the native path writers use.
+
+    The result is absolute, with `~` expanded, `%xx` escapes decoded and
+    symlinks resolved, so a containment check and the writer that follows
+    it see the same file. Remote URLs are returned unchanged.
+    """
+    if url_protocol(path) in (None, "file"):
+        return os.path.realpath(os.path.expanduser(local_path(path)))
+    return path
 
 
 def contained_log_destination(
@@ -1211,7 +1227,8 @@ def contained_log_destination(
     Names listed from a remote store can contain `.` or `..` components or
     an empty component (so the rest reads as absolute). Such a name is
     refused rather than normalized. The destination must stay beneath
-    `target_dir`; for a local target, symlinks in either are resolved first.
+    `target_dir`. For a local target, both are resolved with
+    `resolve_local_path()` first and the resolved destination is returned.
 
     Args:
         name: Entry name as listed (e.g. `FileInfo.name`).
@@ -1241,8 +1258,8 @@ def contained_log_destination(
     )
     destination = posixpath.join(target_dir, written)
     if url_protocol(target_dir) in (None, "file"):
-        root = os.path.realpath(local_path(target_dir))
-        dest = os.path.realpath(local_path(destination))
+        root = resolve_local_path(target_dir)
+        dest = resolve_local_path(destination)
         try:
             contained = dest != root and os.path.commonpath([root, dest]) == root
         except ValueError:  # different drives on Windows
@@ -1253,7 +1270,7 @@ def contained_log_destination(
         contained = dest.startswith(root.rstrip("/") + "/")
     if not contained:
         raise ValueError(f"Log file '{name}' would be written outside '{target_dir}'.")
-    return LogDestination(relative=relative, destination=destination)
+    return LogDestination(relative=relative, destination=dest)
 
 
 log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"

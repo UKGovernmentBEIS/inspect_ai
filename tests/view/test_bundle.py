@@ -251,12 +251,15 @@ def test_contained_log_destination_refuses(name: str, target: str, error: str) -
         contained_log_destination(name, "s3://b/logs", target)
 
 
-def test_contained_log_destination_nested() -> None:
+def test_contained_log_destination_nested(tmp_path: Path) -> None:
     from inspect_ai.log._file import LogDestination, contained_log_destination
 
     assert contained_log_destination(
-        "s3://b/logs/a/b/x.eval", "s3://b/logs/", "/tmp/out"
-    ) == LogDestination(relative="a/b/x.eval", destination="/tmp/out/a/b/x.eval")
+        "s3://b/logs/a/b/x.eval", "s3://b/logs/", str(tmp_path / "out")
+    ) == LogDestination(
+        relative="a/b/x.eval",
+        destination=str(tmp_path.resolve() / "out" / "a" / "b" / "x.eval"),
+    )
 
 
 _FIXTURE_INDEX_HTML = """<!doctype html>

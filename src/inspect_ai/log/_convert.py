@@ -13,6 +13,7 @@ from inspect_ai.log._file import (
     log_files_from_ls,
     read_eval_log,
     read_eval_log_async,
+    resolve_local_path,
     write_eval_log,
 )
 from inspect_ai.log._recorders import create_recorder_for_location
@@ -53,6 +54,7 @@ def convert_eval_logs(
         raise PrerequisiteError(f"Error: path '{path}' does not exist.")
 
     # normalise output dir and ensure it exists
+    output_dir = resolve_local_path(output_dir)
     output_fs = filesystem(output_dir)
     if output_dir.endswith(fs.sep):
         output_dir = output_dir[:-1]

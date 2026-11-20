@@ -3,7 +3,7 @@ import pathlib
 import re
 import shutil
 import zipfile
-from typing import Callable, Literal, NamedTuple
+from typing import Any, Callable, Literal, NamedTuple
 
 import pytest
 from pydantic import JsonValue
@@ -13,7 +13,7 @@ from inspect_ai import Task
 from inspect_ai import eval as inspect_eval
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.content import ContentImage, ContentText
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.file import filesystem, to_uri
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
@@ -34,7 +34,12 @@ from inspect_ai.log._edit import (
     TagsEdit,
     edit_eval_log,
 )
-from inspect_ai.log._file import read_eval_log, write_eval_log
+from inspect_ai.log._file import (
+    LogDestination,
+    contained_log_destination,
+    read_eval_log,
+    write_eval_log,
+)
 from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._recorders.chunked import convert_eval_logs_to_chunked
 from inspect_ai.log._recorders.chunked.convert import (
@@ -149,8 +154,7 @@ _CONVERTERS: dict[str, Callable[[str, str], None]] = {
 }
 
 
-@pytest.mark.parametrize("converter", _CONVERTERS.keys())
-def test_convert_dir_keeps_nested_names(tmp_path: pathlib.Path, converter: str):
+def _nested_log_dir(tmp_path: pathlib.Path) -> tuple[pathlib.Path, pathlib.Path]:
     input_file = (
         _TESTS_DIR
         / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
@@ -158,6 +162,12 @@ def test_convert_dir_keeps_nested_names(tmp_path: pathlib.Path, converter: str):
     log_dir = tmp_path / "logs"
     (log_dir / "sub").mkdir(parents=True)
     shutil.copy(input_file, log_dir / "sub" / input_file.name)
+    return input_file, log_dir
+
+
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_keeps_nested_names(tmp_path: pathlib.Path, converter: str):
+    input_file, log_dir = _nested_log_dir(tmp_path)
     output_dir = tmp_path / "out"
 
     _CONVERTERS[converter](str(log_dir), str(output_dir))
@@ -172,13 +182,7 @@ def test_convert_dir_keeps_nested_names(tmp_path: pathlib.Path, converter: str):
 def test_convert_dir_refuses_symlinks_out_of_output_dir(
     tmp_path: pathlib.Path, converter: str, link: str
 ):
-    input_file = (
-        _TESTS_DIR
-        / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
-    )
-    log_dir = tmp_path / "logs"
-    (log_dir / "sub").mkdir(parents=True)
-    shutil.copy(input_file, log_dir / "sub" / input_file.name)
+    input_file, log_dir = _nested_log_dir(tmp_path)
     output_dir = tmp_path / "out"
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
@@ -195,6 +199,53 @@ def test_convert_dir_refuses_symlinks_out_of_output_dir(
         _CONVERTERS[converter](str(log_dir), str(output_dir))
 
     assert list(elsewhere.iterdir()) == []
+
+
+def _record_chunked_destinations(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    checked: list[str] = []
+
+    def record(*args: Any, **kwargs: Any) -> LogDestination:
+        destination = contained_log_destination(*args, **kwargs)
+        checked.append(destination.destination)
+        return destination
+
+    monkeypatch.setattr(
+        "inspect_ai.log._recorders.chunked.convert.contained_log_destination", record
+    )
+    return checked
+
+
+def test_chunked_convert_dir_writes_where_it_checked_tilde(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+):
+    input_file, log_dir = _nested_log_dir(tmp_path)
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.chdir(tmp_path)
+    checked = _record_chunked_destinations(monkeypatch)
+
+    convert_eval_logs_to_chunked(str(log_dir), "~/out")
+
+    written = home.resolve() / "out" / "sub" / input_file.name
+    assert checked == [str(written)]
+    assert written.is_file()
+    assert not (tmp_path / "~").exists()
+
+
+def test_chunked_convert_dir_writes_where_it_checked_file_url(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+):
+    input_file, log_dir = _nested_log_dir(tmp_path)
+    output_dir = tmp_path / "out dir"
+    checked = _record_chunked_destinations(monkeypatch)
+
+    convert_eval_logs_to_chunked(str(log_dir), to_uri(str(output_dir)))
+
+    written = output_dir.resolve() / "sub" / input_file.name
+    assert checked == [str(written)]
+    assert written.is_file()
+    assert not (tmp_path / "out%20dir").exists()
 
 
 @pytest.mark.parametrize("converter", _CONVERTERS.keys())
