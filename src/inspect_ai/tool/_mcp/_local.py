@@ -179,6 +179,7 @@ class _Connection:
     session: ClientSession
     exit_stack: AsyncExitStack
     refcount: int = 1
+    tool_list: list[MCPTool] | None = None
 
 
 class MCPServerLocalSession(MCPServer):
@@ -199,8 +200,10 @@ class MCPServerLocalSession(MCPServer):
         # another task never see a connection that is still handshaking or
         # being torn down.
         self._conn: _Connection | None = None
-        self._cached_tool_list: list[MCPTool] | None = None
-        self._cache_generation = 0
+        # Tools listed over a temporary connection while not entered, kept for
+        # the life of this session. An open connection lists and caches its own
+        # tools instead, so it never reads this.
+        self._unconnected_tool_list: list[MCPTool] | None = None
 
     @override
     async def __aenter__(self) -> MCPServer:
@@ -210,7 +213,6 @@ class MCPServerLocalSession(MCPServer):
             async with AsyncExitStack() as exit_stack:
                 session = await self._connect(exit_stack)
                 self._conn = _Connection(session, exit_stack.pop_all())
-                self._invalidate_tool_list()
         return self
 
     @override
@@ -229,40 +231,31 @@ class MCPServerLocalSession(MCPServer):
         conn.refcount -= 1
         if conn.refcount == 0:
             self._conn = None
-            try:
-                with trace_action(logger, "MCPServer", f"disconnect ({self._name})"):
-                    await conn.exit_stack.aclose()
-            finally:
-                # After teardown, not before: a tools() call during it lists
-                # over a temporary connection.
-                self._invalidate_tool_list()
-
-    def _invalidate_tool_list(self) -> None:
-        """Drop the cached tool list when a connection opens or closes.
-
-        Each connection lists its own tools. Advancing the generation also
-        stops a listing that is still in flight, over a temporary connection,
-        from caching its result.
-        """
-        self._cached_tool_list = None
-        self._cache_generation += 1
+            with trace_action(logger, "MCPServer", f"disconnect ({self._name})"):
+                await conn.exit_stack.aclose()
 
     @override
     async def tools(self) -> list[Tool]:
-        if self._cached_tool_list is not None:
-            mcp_tools = self._cached_tool_list
+        conn = self._conn
+        if conn is not None:
+            if conn.tool_list is None:
+                conn.tool_list = await self._list_tools(conn.session)
+            mcp_tools = conn.tool_list
         else:
-            generation = self._cache_generation
-            async with self._client_session() as session:
-                # get the underlying tools on the server
-                with trace_action(logger, "MCPServer", f"list_tools {self._name}"):
-                    mcp_tools = (await session.list_tools()).tools
-            if self._cache_generation == generation:
-                self._cached_tool_list = mcp_tools
+            if self._unconnected_tool_list is None:
+                async with AsyncExitStack() as exit_stack:
+                    session = await self._connect(exit_stack)
+                    tool_list = await self._list_tools(session)
+                self._unconnected_tool_list = tool_list
+            mcp_tools = self._unconnected_tool_list
 
         return [
             self._tool_def_from_mcp_tool(mcp_tool).as_tool() for mcp_tool in mcp_tools
         ]
+
+    async def _list_tools(self, session: ClientSession) -> list[MCPTool]:
+        with trace_action(logger, "MCPServer", f"list_tools {self._name}"):
+            return (await session.list_tools()).tools
 
     def _tool_def_from_mcp_tool(self, mcp_tool: MCPTool) -> ToolDef:
         async def execute(**kwargs: Any) -> ToolResult:
