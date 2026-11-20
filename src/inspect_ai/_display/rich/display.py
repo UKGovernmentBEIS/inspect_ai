@@ -241,6 +241,8 @@ class RichTaskScreen(TaskScreen):
         self.resume_live = self.live.is_started
         self.resume_status = self.status_started
         renderable = self.live.renderable
+        # Live.stop() sets this to "visible" for its last render
+        overflow = self.live.vertical_overflow
         if self.status_started:
             self._stop_status()
         if self.live.is_started:
@@ -254,6 +256,7 @@ class RichTaskScreen(TaskScreen):
         finally:
             self.suspended = False
             if self.resume_live:
+                self.live.vertical_overflow = overflow
                 self.live.start()
                 self.live.update(renderable, refresh=True)
             if self.resume_status:

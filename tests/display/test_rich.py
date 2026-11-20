@@ -286,10 +286,12 @@ def _assert_output_kept(output: str, redrawn: str) -> None:
     assert "\x1b[1A" not in after[:redraw], repr(after[:redraw])
 
 
-def _terminal_console() -> tuple[Console, int, TextIO]:
+def _terminal_console(height: int | None = None) -> tuple[Console, int, TextIO]:
     read_fd, write_fd = os.pipe()
     out = os.fdopen(write_fd, "w")
-    console = Console(file=out, force_terminal=True, width=60, color_system=None)
+    console = Console(
+        file=out, force_terminal=True, width=60, height=height, color_system=None
+    )
     return console, read_fd, out
 
 
@@ -323,6 +325,35 @@ async def test_rich_setup_output_is_written_above_the_task_display(
         display.live.update("TASK TOP\nTASK BOTTOM 2", refresh=True)
 
     _assert_output_kept(_read_all(read_fd, out), "TASK TOP")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("end", ["normal", "error", "cancel"])
+async def test_rich_setup_keeps_a_tall_task_display_cropped(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, end: str
+) -> None:
+    """A task display taller than the terminal is still cropped after setup."""
+    display = RichDisplay()
+    console, read_fd, out = _terminal_console(height=24)
+    monkeypatch.setattr(rich, "_console", console)
+    async with display.task_screen([], parallel=False):
+        assert display.live is not None
+        display.live.update("\n".join(f"ROW {i}" for i in range(40)), refresh=True)
+        if end == "error":
+            with pytest.raises(_SetupFailed):
+                await _run_setup(display, out, end)
+        else:
+            await _run_setup(display, out, end)
+        assert display.live.vertical_overflow == "ellipsis"
+        display.live.update("\n".join(f"AFTER {i}" for i in range(40)), refresh=True)
+        # the end of that redraw (the final render on exit is not cropped)
+        out.write("REDRAWN\n")
+        out.flush()
+
+    output = _read_all(read_fd, out)
+    after = output[output.index("AFTER 0") : output.index("REDRAWN")]
+    assert "AFTER 22" in after
+    assert "AFTER 39" not in after
 
 
 @pytest.mark.anyio
