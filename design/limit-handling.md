@@ -446,7 +446,7 @@ inspect_swarm's `record()` overrides) keep working. Entering a token,
 cost, turn or message limit also stamps the node with a global entry
 number, increasing across kinds and tasks, which it keeps after its block
 closes. The number only ranks limits for single-valued records (rule 4);
-ownership is decided by the trees (rule 6). Time and working limits get
+ownership is decided by scope membership (rule 6). Time and working limits get
 no number.
 
 The public addition is on `LimitExceededError`:
@@ -471,6 +471,16 @@ sites that reduce an exception group whose first leaf decides (the sample
 runner, the bridge's response filter and `_first_control()`) keep that
 rule for a leading non-limit error and combine the group's limits when the
 first leaf is a limit.
+
+Combining keeps every member's termination discoverable. A limit raised
+while an approver or a request or response filter terminated the sample
+can be a non-primary member of a combined error; the
+`TerminateSampleError` in that member's causal history (its cause, context
+or group) is still found by `find_control_flow()`
+(`src/inspect_ai/util/_sandbox/service.py:48-79`) on the combined error,
+as it is on the group it was built from, including when `apply_limits()`
+or `run()` returns the combined error and the caller raises it later. How
+the members' histories are kept reachable is the implementation's choice.
 
 In the sample, the sample's own limits are entered first (token, cost,
 message, turn), so its token, cost and turn limits rank ahead of every
@@ -2348,6 +2358,14 @@ under trio with `--runtrio`.
     limit's error and the sample `message_limit()`'s keeps both: their
     combined error propagates through `run()` (the message limit is not
     its own), where today the bridge keeps only the first leaf;
+  - `test_forward_provider_errors_leaves_termination_to_the_dispatcher`
+    gains a non-primary-member case: inside the wrapped call, an agent under
+    `run(limits=[token_limit(...), cost_limit(...)])` raises a group of the
+    token limit's error and the cost limit's, the latter raised from a
+    `TerminateSampleError`; `run()` returns their combined error (token
+    primary) and the call raises it;
+    the wrapper re-raises it, `find_control_flow()` on it yields that
+    termination, and the bridge's failure stays unrequested;
   - a bridge inside a tool, end to end: an `as_tool()` agent whose body
     sends two bridged requests at once, one whose prompt reaches the
     sample's `message_limit(2)` and one whose priced usage takes a
