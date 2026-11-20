@@ -3295,8 +3295,14 @@ class _LogHTTPServer:
     fsspec's HTTP filesystem sends. Records each request path it receives.
     """
 
-    def __init__(self, root: Path | None = None, redirect_to: str | None = None):
+    def __init__(
+        self,
+        root: Path | None = None,
+        redirect_to: str | None = None,
+        host: str = "127.0.0.1",
+    ):
         import http.server
+        import socket
         import threading
 
         requests: list[str] = []
@@ -3341,8 +3347,17 @@ class _LogHTTPServer:
                 if body:
                     self.wfile.write(data)
 
-        self._server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        self.url = f"http://127.0.0.1:{self._server.server_address[1]}"
+        server_class = http.server.ThreadingHTTPServer
+        url_host = host
+        if ":" in host:
+
+            class IPv6Server(http.server.ThreadingHTTPServer):
+                address_family = socket.AF_INET6
+
+            server_class = IPv6Server
+            url_host = f"[{host}]"
+        self._server = server_class((host, 0), Handler)
+        self.url = f"http://{url_host}:{self._server.server_address[1]}"
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()
 
@@ -3416,6 +3431,60 @@ def test_http_log_read_does_not_follow_redirect(
     assert resp.json() == {"detail": fastapi_server.HTTP_REDIRECT_REFUSED_MESSAGE}
     assert redirector.requests
     assert target.requests == []
+
+
+def _ipv6_loopback_available() -> bool:
+    import socket
+
+    try:
+        with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as sock:
+            sock.bind(("::1", 0))
+        return True
+    except OSError:
+        return False
+
+
+@pytest.mark.parametrize("url_form", ["ipv6_host", "colons_in_file_name"])
+@pytest.mark.parametrize(
+    "route",
+    # /logs and /log-headers read through fsspec's URL parser, which already
+    # treats `::` as a chain separator, so they fail on these URLs on main
+    [r for r in _HTTP_READ_ROUTES if not r.startswith(("/logs/", "/log-headers"))],
+)
+def test_http_log_read_with_double_colon_is_not_a_chain(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str],
+    tmp_path: Path,
+    route: str,
+    url_form: str,
+) -> None:
+    """A direct HTTP URL containing `::` reads, and its redirects are refused."""
+    if url_form == "ipv6_host":
+        if not _ipv6_loopback_available():
+            pytest.skip("IPv6 loopback is not available")
+        host = "::1"
+        _target, _redirector, fname = http_log_servers
+    else:
+        host = "127.0.0.1"
+        fname = "2025-01-01T00-00-00+00-00_task::taskid.eval"
+        write_eval_log(tmp_path, fname)
+    target = _LogHTTPServer(root=tmp_path, host=host)
+    redirector = _LogHTTPServer(redirect_to=target.url, host=host)
+    try:
+        with _http_view_client(target.url) as client:
+            direct = client.get(_http_route(route, fname))
+        direct.raise_for_status()
+        target_requests = len(target.requests)
+        # cached HTTP filesystems keep the first client's event loop
+        inspect_ai._view.common._async_connections.clear()
+        fsspec.get_filesystem_class("http").clear_instance_cache()
+        with _http_view_client(redirector.url) as client:
+            redirected = client.get(_http_route(route, fname))
+    finally:
+        redirector.close()
+        target.close()
+    assert target_requests > 0
+    assert redirected.status_code == 502
+    assert len(target.requests) == target_requests
 
 
 @pytest.mark.parametrize("cache", ["simplecache", "filecache", "blockcache"])

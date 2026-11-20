@@ -651,10 +651,16 @@ def refuse_http_redirects() -> Iterator[None]:
 
 
 def _is_chained_http_url(file: str) -> bool:
-    """Whether `file` is an fsspec chained URL (`a::b`) with an HTTP(S) link."""
-    return "::" in file and any(
+    """Whether `file` is an fsspec chained URL with an inner HTTP(S) link.
+
+    fsspec splits a URL on `::` and gives the filesystem options only to the
+    first link, so an HTTP(S) link after it (`simplecache::https://...`)
+    would not get them. A direct HTTP(S) URL with `::` in its host (an IPv6
+    address) or path keeps HTTP(S) as its first link and gets the options.
+    """
+    return any(
         (split_protocol(link)[0] or link) in ("http", "https")
-        for link in file.split("::")
+        for link in file.split("::")[1:]
     )
 
 
