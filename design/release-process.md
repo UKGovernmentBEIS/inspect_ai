@@ -46,7 +46,11 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
    `pypi`) and `publish-npm` (environment `npm`, via `npm-publish.yml`) each
    wait for an environment reviewer's approval. Once `publish-pypi` succeeds,
    `announce` posts the release to Slack (see [Slack
-   announcement](#slack-announcement)).
+   announcement](#slack-announcement)), and `docs` renders the docs site at
+   the tag and deploys it to GitHub Pages (`inspect.aisi.org.uk`), using
+   meridianlabs-ai/actions' `publish-docs.yml`. It deploys only when the tag
+   is the latest GitHub Release, so a recovery run for an older release never
+   rolls the site back.
 
 ## Slack announcement
 
@@ -153,7 +157,9 @@ Trusted publishers: PyPI matches the workflow file that runs the publishing
 job, so `release.yml` and `publish.yml` each need a PyPI publisher. npm matches
 the calling workflow, so `release.yml` and `npm-publish.yml` each need an npm
 publisher. The `pypi` and `npm` environments must allow deployments from
-`main` (release.yml) and from version tags (break-glass).
+`main` (release.yml) and from version tags (break-glass). The `github-pages`
+environment must allow `main`, and the Pages source must be "GitHub Actions".
+`publish-docs.yml` refuses any tag that is not a published release's.
 
 ## Minor or major release
 
@@ -176,8 +182,8 @@ Re-running the Release workflow is safe at any point.
   job, or run the Release workflow on `main` with no `tag`. It dispatches each
   check workflow that has no run yet on the release PR's head commit. Closing
   and reopening the release PR also runs them, as the person who reopened it.
-- **Release created, then a later job failed or was cancelled** (build or
-  either publish). In order of preference:
+- **Release created, then a later job failed or was cancelled** (build,
+  either publish, or docs). In order of preference:
   1. *Re-run failed jobs.* This keeps the original run's tag, and when only a
      publish job failed, it re-publishes the build job's original artifact.
   2. *Re-run all jobs*, or re-run a run that failed inside Release Please
@@ -237,6 +243,9 @@ Re-running the Release workflow is safe at any point.
   with dry-run unchecked.
 - **Local:** `python scripts/pypi-release.py release X.Y.Z` (PyPI only; its
   tag push no longer triggers npm, so dispatch `npm-publish.yml` on the tag).
+
+None of these deploy the docs; the next release's deploy includes their
+changes.
 
 After any release made outside the release PR, open a PR that sets
 `.release-please-manifest.json` and `fallback_version` in `pyproject.toml` to

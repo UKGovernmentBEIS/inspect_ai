@@ -200,7 +200,7 @@ By default, samples that were still in progress at the time of the crash are rec
 The `--incomplete-action` option resolves this by letting you choose the disposition for in-progress samples:
 
 - `retry` (the default) marks them as cancelled errors that a later retry re-runs.
-- `error` resolves them as operator terminations. When every expected sample is then final, the recovered log is finalized with status `"success"` and full results — nothing will retry it. If expected samples are missing entirely (never started), the log keeps status `"error"` and stays retryable. Expected samples are matched by id and epoch against the ids recorded in the log, so for a task with a dynamic `sample_source` (whose log records only the seed samples' ids) finalization happens only when the written samples are exactly the seed samples; once produced samples have been written, the log stays retryable. Finalization also requires the eval's metrics to be recomputed, so if a metric cannot be resolved during automatic recovery, or during manual recovery with `--trust-log` (for example, a custom metric from a package that is not installed there), the log is not finalized either. Whenever `error` does not finalize, `inspect log recover` prints a `not finalized:` line giving the reason.
+- `error` resolves them as operator terminations. When every expected sample is then final, the recovered log is finalized with status `"success"` and full results — nothing will retry it, unless it holds invalidated samples. If expected samples are missing entirely (never started), the log keeps status `"error"` and stays retryable. Expected samples are matched by id and epoch against the ids recorded in the log, so for a task with a dynamic `sample_source` (whose log records only the seed samples' ids) finalization happens only when the written samples are exactly the seed samples; once produced samples have been written, the log stays retryable. Finalization also requires the eval's metrics to be recomputed, so if a metric cannot be resolved during automatic recovery, or during manual recovery with `--trust-log` (for example, a custom metric from a package that is not installed there), the log is not finalized either. Whenever `error` does not finalize, `inspect log recover` prints a `not finalized:` line giving the reason.
 
 Note that finalization freezes *every* errored sample in the recovered log, not only the ones resolved during recovery: samples that had already failed before the crash (within the eval's `fail_on_error` tolerance, or with `fail_on_error=False`) are recorded as errors in the finalized log rather than re-run — the same outcome the eval would have reached had it not crashed. An explicit `inspect eval-retry` on the finalized log can still re-run its errored samples later.
 
@@ -238,3 +238,11 @@ log = recover_eval_log(
     incomplete_max=0.1,
 )
 ```
+
+`recover_eval_log()` raises `RecoveryNotAvailable` for a crashed log that has no sample buffer. Pass `allow_no_buffer=True` to recover such a log from its flushed samples alone, for example when the run was killed on another machine and its buffer database is gone:
+
+``` python
+log = recover_eval_log("path/to/crashed.eval", allow_no_buffer=True)
+```
+
+Pass it only for a log whose run you know has ended. Inspect cannot detect a run that is still going on another machine, and a log recovered while its run is still writing lacks the samples written afterwards. A recovery without a buffer is refused when the file it writes (`output`, or `<name>-recovered.eval`) is already a finished log; remove that file to recover again.

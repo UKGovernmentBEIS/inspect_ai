@@ -713,13 +713,14 @@ def retry_incomplete_task():
     )
 
 
-def _setup_crashed_retry_log(log_dir: str):
+def _setup_crashed_retry_log(log_dir: str, flushed_sample_1: bool = False):
     """Create a crashed 'started' log artifact for `retry_incomplete_task`.
 
     Rewrites a real eval log as a hard-crash artifact (start journal only, no
     header), with a buffer DB holding sample 1 completed (unflushed) and
-    sample 2 in progress at crash. Returns (started_log, buffer); the caller
-    owns buffer cleanup.
+    sample 2 in progress at crash. With `flushed_sample_1`, sample 1 is in the
+    log (uuid "flushed-1") instead of the buffer. Returns (started_log,
+    buffer); the caller owns buffer cleanup.
     """
     import zipfile
     from datetime import datetime, timezone
@@ -729,7 +730,7 @@ def _setup_crashed_retry_log(log_dir: str):
     from inspect_ai._util.file import local_path
     from inspect_ai._util.json import to_json_str_safe
     from inspect_ai.event import SampleInitEvent
-    from inspect_ai.log import EvalSampleSummary
+    from inspect_ai.log import EvalSample, EvalSampleSummary
     from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
     from inspect_ai.log._recorders.eval import LogStart
     from inspect_ai.log._recorders.types import SampleEvent
@@ -753,24 +754,42 @@ def _setup_crashed_retry_log(log_dir: str):
                 )
             ),
         )
+        if flushed_sample_1:
+            flushed = EvalSample(
+                id=1,
+                epoch=1,
+                uuid="flushed-1",
+                input="Say hello",
+                target="hello",
+                scores={"accuracy": Score(value="C", answer="hello")},
+            )
+            zf.writestr("samples/1_epoch_1.json", to_json_str_safe(flushed))
+            zf.writestr(
+                "_journal/summaries/1.json", to_json_str_safe([flushed.summary()])
+            )
 
     buffer = SampleBufferDatabase(started_log.location)
     now = datetime.now(timezone.utc).isoformat()
-    # sample 1: completed (scored) but unflushed at crash
-    completed = EvalSampleSummary(
-        id=1,
-        epoch=1,
-        input="Say hello",
-        target="hello",
-        scores={"accuracy": Score(value="C", answer="hello")},
-        started_at=now,
-        completed_at=now,
-    )
-    buffer.start_sample(completed)
-    buffer.log_events(
-        [SampleEvent(id=1, epoch=1, event=SampleInitEvent(sample=samples[0], state={}))]
-    )
-    buffer.complete_sample(completed, sample_metadata=None)
+    if not flushed_sample_1:
+        # sample 1: completed (scored) but unflushed at crash
+        completed = EvalSampleSummary(
+            id=1,
+            epoch=1,
+            input="Say hello",
+            target="hello",
+            scores={"accuracy": Score(value="C", answer="hello")},
+            started_at=now,
+            completed_at=now,
+        )
+        buffer.start_sample(completed)
+        buffer.log_events(
+            [
+                SampleEvent(
+                    id=1, epoch=1, event=SampleInitEvent(sample=samples[0], state={})
+                )
+            ]
+        )
+        buffer.complete_sample(completed, sample_metadata=None)
 
     # sample 2: in progress at crash
     in_progress = EvalSampleSummary(
@@ -814,6 +833,41 @@ def test_eval_retry_incomplete_action_error_finalizes():
             assert "terminated by operator during recovery" in resolved.error.message
             # the recovered file is the final log, so the buffer is swept
             assert not buffer.db_path.exists()
+        finally:
+            buffer.cleanup()
+
+
+def test_eval_retry_reruns_invalidated_sample_of_finalized_recovery() -> None:
+    """A recovery finalized as "success" is still retried when a sample is invalidated.
+
+    The crashed log's flushed sample was invalidated and the log written again
+    (a "started" header). Recovery with incomplete_action='error' covers the
+    whole dataset and finalizes it, but the invalidated sample has to re-run.
+    """
+    with tempfile.TemporaryDirectory() as log_dir:
+        started_log, buffer = _setup_crashed_retry_log(log_dir, flushed_sample_1=True)
+        try:
+            crashed = invalidate_samples(
+                read_eval_log(started_log.location),
+                sample_uuids=["flushed-1"],
+                provenance=ProvenanceData(author="test_person", reason="test_reason"),
+            )
+            write_eval_log(crashed, location=started_log.location)
+
+            (final,) = eval_retry(
+                started_log.location, log_dir=log_dir, incomplete_action="error"
+            )
+
+            assert final.status == "success"
+            assert not final.invalidated
+            # a retry ran: the result is a fresh log, not the recovered file
+            assert final.location is not None
+            assert "-recovered" not in final.location
+            retried = read_eval_log(final.location)
+            assert retried.samples is not None
+            rerun = next(s for s in retried.samples if s.id == 1)
+            assert rerun.uuid != "flushed-1"
+            assert rerun.invalidation is None
         finally:
             buffer.cleanup()
 

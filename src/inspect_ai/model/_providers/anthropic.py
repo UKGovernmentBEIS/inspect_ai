@@ -1745,16 +1745,18 @@ class AnthropicAPI(ModelAPI):
     ) -> None:
         """Opt into dropping prefix-mismatched thinking blocks on bound-thinking models.
 
-        Fable 5.1+, Opus 5.5, Sonnet 5.5, and Haiku 5.5 bind thinking blocks to
+        Fable 5.1+, Mythos 5.2, Opus 5.5, Sonnet 5.5, and Haiku 5.5 bind thinking blocks to
         the request prefix that produced them; solvers legitimately edit history, and without
         drop_block such an edit fails the replay with a 400. Applied to every
         request for these models — not only those replaying thinking blocks —
         so the beta header stays uniform across a task's requests (the batcher
-        submits a single header set per batch). Mythos does not run the
-        binding check, so it is excluded. Claude names Inspect doesn't
+        submits a single header set per batch). Mythos 5.1 and
+        claude-mythos-preview don't run the binding check but are opted in
+        with the rest of their name patterns. Claude names Inspect doesn't
         recognise (a new codename, or a version newer than any known release)
         are assumed to bind as well: models that don't bind accept the opt-in
-        (verified live on Claude 4.6 through Fable 5). Applied on the
+        (verified live on Claude 4.6 through Fable 5 and on Mythos 5, 5.1,
+        and preview). Applied on the
         first-party API and,
         for Sonnet 5.5 (verified live), on Bedrock: the binding-controls beta
         arrives per model on bedrock/vertex and is not offered on foundry, so
@@ -1768,7 +1770,7 @@ class AnthropicAPI(ModelAPI):
         replaces this binding config.
         """
         family = self.model_family()
-        binds_thinking = "mythos" not in family and (
+        binds_thinking = (
             self.is_claude_fable_5_1_or_later()
             or self.is_claude_opus_5_5_or_later()
             or self.is_claude_sonnet_5_5_or_later()
@@ -4762,7 +4764,7 @@ async def model_output_from_message(
         {"extra_body": dict(extra_body)} if extra_body else None
     )
 
-    # thinking block binding (Fable 5.1, Opus/Sonnet/Haiku 5.5): with the
+    # thinking block binding (Fable 5.1, Mythos 5.2, Opus/Sonnet/Haiku 5.5): with the
     # thinking-binding beta, replayed thinking blocks the server dropped (e.g.
     # after a history edit) are reported via input_transformations. Warn so callers know
     # reasoning context was lost; the raw entries (including the message path
