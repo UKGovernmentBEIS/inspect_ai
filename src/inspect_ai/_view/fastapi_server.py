@@ -22,6 +22,7 @@ from starlette.status import (
     HTTP_304_NOT_MODIFIED,
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
+    HTTP_502_BAD_GATEWAY,
 )
 from starlette.types import ASGIApp, Receive, Scope, Send
 from typing_extensions import override
@@ -32,7 +33,11 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem, bind_async_filesystem
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.error import WriteConflictError
-from inspect_ai._util.file import filesystem, refuse_http_redirects
+from inspect_ai._util.file import (
+    HTTPRedirectError,
+    filesystem,
+    refuse_http_redirects,
+)
 from inspect_ai._util.local_server import get_machine_ip
 from inspect_ai.log import EvalLog
 from inspect_ai.log._edit import LogUpdate
@@ -178,8 +183,16 @@ def view_server_app(
     app.add_middleware(RefuseHttpRedirectsMiddleware)
 
     @app.exception_handler(FileNotFoundError)
-    async def _file_not_found(_request: Request, _exc: FileNotFoundError) -> Response:
+    async def _file_not_found(_request: Request, exc: FileNotFoundError) -> Response:
+        # fsspec reports a failed HTTP lookup (here, a refused redirect) as
+        # FileNotFoundError, keeping the original error as its cause
+        if _redirect_error(exc) is not None:
+            return _redirect_refused_response(exc)
         return Response(status_code=HTTP_404_NOT_FOUND)
+
+    @app.exception_handler(HTTPRedirectError)
+    async def _redirect_refused(_request: Request, exc: HTTPRedirectError) -> Response:
+        return _redirect_refused_response(exc)
 
     async def _map_file(request: Request, file: str) -> str:
         if mapping_policy is not None:
@@ -721,6 +734,32 @@ class AsyncFilesystemMiddleware:
             return
         with bind_async_filesystem(self.fs):
             await self.app(scope, receive, send)
+
+
+HTTP_REDIRECT_REFUSED_MESSAGE = (
+    "The log URL returned an HTTP redirect. The log viewer does not follow "
+    "redirects: use the final URL of the log."
+)
+
+
+def _redirect_error(exc: BaseException) -> HTTPRedirectError | None:
+    """The `HTTPRedirectError` that `exc` is or was raised from, if any."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        if isinstance(current, HTTPRedirectError):
+            return current
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return None
+
+
+def _redirect_refused_response(exc: BaseException) -> Response:
+    logger.warning(f"Log read refused: {_redirect_error(exc)}")
+    return JSONResponse(
+        status_code=HTTP_502_BAD_GATEWAY,
+        content={"detail": HTTP_REDIRECT_REFUSED_MESSAGE},
+    )
 
 
 class RefuseHttpRedirectsMiddleware:

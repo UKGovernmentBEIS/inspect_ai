@@ -591,6 +591,10 @@ def local_path(filename: str) -> str:
 
 def default_fs_options(file: str) -> dict[str, Any]:
     scheme = urlparse(file).scheme
+    if _refuse_http_redirects.get() and _is_chained_http_url(file):
+        raise ValueError(
+            f"Chained URLs over HTTP(S) are not supported when HTTP redirects are refused: {file}"
+        )
     if (
         scheme == "s3"
         and configured_async_backend() == "trio"
@@ -635,13 +639,23 @@ def refuse_http_redirects() -> Iterator[None]:
 
     Applies to filesystems created in this context. A redirect raises
     `HTTPRedirectError` before any request goes to its target, so the bytes
-    read always come from the URL that was asked for.
+    read always come from the URL that was asked for. Chained URLs with an
+    HTTP(S) link (`simplecache::https://...`) raise `ValueError`, since their
+    inner HTTP filesystem would not get this setting.
     """
     token = _refuse_http_redirects.set(True)
     try:
         yield
     finally:
         _refuse_http_redirects.reset(token)
+
+
+def _is_chained_http_url(file: str) -> bool:
+    """Whether `file` is an fsspec chained URL (`a::b`) with an HTTP(S) link."""
+    return "::" in file and any(
+        (split_protocol(link)[0] or link) in ("http", "https")
+        for link in file.split("::")
+    )
 
 
 def http_redirects_refused() -> bool:

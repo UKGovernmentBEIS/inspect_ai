@@ -716,7 +716,7 @@ def _normalize_listing_name(log_dir: str | None, name: str) -> str:
     return normalize_azure_listing_name(log_dir, name)
 
 
-_async_connections: dict[tuple[str, bool], AsyncFileSystem] = {}
+_async_connections: dict[str, AsyncFileSystem] = {}
 
 
 def async_connection(log_file: str) -> AsyncFileSystem:
@@ -724,9 +724,11 @@ def async_connection(log_file: str) -> AsyncFileSystem:
     protocol, _ = split_protocol(log_file)
     protocol = protocol or "file"
 
-    # create connection if required (keyed on the redirect setting, which
-    # changes the options of an HTTP connection)
-    key = (protocol, http_redirects_refused())
+    # create connection if required (refusing redirects changes the options
+    # of an HTTP connection, so it gets its own entry)
+    key = protocol
+    if protocol in ("http", "https") and http_redirects_refused():
+        key = f"{protocol}:no-redirects"
     if key not in _async_connections.keys():
         _async_connections[key] = fsspec.filesystem(
             protocol,

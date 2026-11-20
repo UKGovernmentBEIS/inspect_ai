@@ -3412,9 +3412,48 @@ def test_http_log_read_does_not_follow_redirect(
     target, redirector, fname = http_log_servers
     with _http_view_client(redirector.url) as client:
         resp = client.get(_http_route(route, fname))
-    assert resp.status_code >= 400
+    assert resp.status_code == 502
+    assert resp.json() == {"detail": fastapi_server.HTTP_REDIRECT_REFUSED_MESSAGE}
     assert redirector.requests
     assert target.requests == []
+
+
+@pytest.mark.parametrize("cache", ["simplecache", "filecache", "blockcache"])
+def test_http_log_read_refuses_chained_http_url(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str], cache: str
+) -> None:
+    target, redirector, fname = http_log_servers
+    log_dir = f"{cache}::{redirector.url}"
+    app = fastapi_server.view_server_app(
+        access_policy=fastapi_server.OnlyDirAccessPolicy(log_dir)
+    )
+    with fastapi.testclient.TestClient(app, raise_server_exceptions=False) as client:
+        resp = client.get(f"/log-bytes/{log_dir}/{fname}?start=0&end=99")
+    assert resp.status_code >= 400
+    assert redirector.requests == []
+    assert target.requests == []
+    with inspect_ai._util.file.refuse_http_redirects():
+        with pytest.raises(ValueError, match="Chained URLs over HTTP"):
+            filesystem(f"{log_dir}/{fname}")
+
+
+@skip_if_trio
+async def test_async_connection_keeps_non_http_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An app that opens the S3 connection at startup keeps using it.
+
+    Options changed after startup (here `version_aware`) would otherwise make
+    the request-time lookup build a second instance.
+    """
+    monkeypatch.setattr(inspect_ai._view.common, "_async_connections", {})
+    s3 = inspect_ai._view.common.async_connection("s3://")
+    s3_options = dict(
+        inspect_ai._util.file.DEFAULT_FS_OPTIONS["s3"], version_aware=True
+    )
+    monkeypatch.setitem(inspect_ai._util.file.DEFAULT_FS_OPTIONS, "s3", s3_options)
+    with inspect_ai._util.file.refuse_http_redirects():
+        assert inspect_ai._view.common.async_connection("s3://") is s3
 
 
 @pytest.mark.parametrize("route", _HTTP_READ_ROUTES)
