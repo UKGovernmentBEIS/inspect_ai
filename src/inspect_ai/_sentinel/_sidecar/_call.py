@@ -117,7 +117,7 @@ async def _complete_registration(
     )
 
 
-async def registration_current(request_id: str) -> None:
+async def ensure_registration(request_id: str) -> None:
     """Complete the sample's registration again, as a try of the current agent call is sent under an `x-irid`, if the sidecar may have lost it since the call began.
 
     A request can be sent long after `sidecar_call`: once the call has a connection, after the eval was paused, or as a retry after a backoff. A sidecar that lost the task meanwhile, and that another sample registered it with again, frees the sample's facts when that sample ends, and would refuse the request as unregistered. So each try makes sure of the registration first. Nothing is sent where it is still good, and what is sent again is what the attempt first sent.

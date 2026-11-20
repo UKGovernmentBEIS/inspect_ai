@@ -447,9 +447,9 @@ class HttpxHooks(HttpHooks):
                 # may have waited long, and a retry comes after a backoff.
                 # Before the try is reported sent, so a restart this finds
                 # isn't taken to have lost what the try is yet to send.
-                from inspect_ai._sentinel._sidecar._call import registration_current
+                from inspect_ai._sentinel._sidecar._call import ensure_registration
 
-                await registration_current(request_id)
+                await ensure_registration(request_id)
             # an agent call through a sentinel sidecar is looked up there
             # only once a request of it is sent: an error before this is
             # Inspect's own, and the sidecar knows nothing of the call
