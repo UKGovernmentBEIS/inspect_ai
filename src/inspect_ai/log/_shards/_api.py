@@ -252,7 +252,7 @@ async def _delete_shards(
             f"{merged_path} has status '{header.status}', so its shards were not "
             "deleted. Only the shards of a complete merged log are deleted."
         )
-    current = [f"{shards_dir}/{e.shard}/{e.log}" for e in _ledger(header)]
+    current = [(e.shard, e.log) for e in _ledger(header)]
     await delete_companion(fs, shards_dir, listed, current)
 
 

@@ -77,25 +77,30 @@ async def delete_companion(
     fs: AsyncFilesystem,
     shards_dir: str,
     listed: Companion,
-    current: Iterable[str],
+    current: Iterable[tuple[str, str]],
 ) -> None:
     """Delete the entries of `listed`, then confirm that `shards_dir` is empty.
 
     Every entry is deleted by its own name, the shards' current attempts
-    (`current`) after all the others, so an interruption leaves each shard
-    with its current attempt or none. Local directories are then removed
-    deepest first, each only if empty. An entry already gone counts as
-    deleted.
+    after all the others, so an interruption leaves each shard with its
+    current attempt or none. A current attempt is a listed file whose last
+    two path components are one of the ledger's (shard, log) pairs in
+    `current`. Local directories are then removed deepest first, each only
+    if empty. An entry already gone counts as deleted.
 
     Raises:
         ShardSetError: Something is left in `shards_dir`.
         OSError, BotoCoreError, ClientError: A delete failed; the error notes
             that the merge can be run again to finish.
     """
-    current_set = set(current)
+    pairs = set(current)
+    first: list[str] = []
+    last: list[str] = []
+    for name in listed.files:
+        (last if tuple(name.rsplit("/", 2)[-2:]) in pairs else first).append(name)
     try:
-        await _delete_files(fs, [f for f in listed.files if f not in current_set])
-        await _delete_files(fs, [f for f in listed.files if f in current_set])
+        await _delete_files(fs, first)
+        await _delete_files(fs, last)
         if listed.dirs:
             await run_owned(functools.partial(_remove_dirs, listed.dirs))
         left = await _left(fs, shards_dir)
