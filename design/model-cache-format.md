@@ -420,7 +420,11 @@ or a model provider (they use `mockllm` and `INSPECT_CACHE_DIR` under
   `url2pathname` tripwire in `tests/util/test_file.py`).
 - **Round trip.** Store then fetch returns an equal output, including the
   assistant message ID, tool calls with JSON arguments, reasoning content,
-  and infinite floats (`-inf` logprob, `inf` total cost).
+  and infinite floats both in typed fields (`-inf` logprob, `inf` total
+  cost) and nested in tool-call arguments (`{"a": inf, "b": {"c": -inf}}`,
+  values the argument parser produces from JSON numeric overflow). The
+  argument cases matter because a Pydantic JSON-mode dump writes untyped
+  infinities as `null`, which the equality check would refuse.
 - **Non-ASCII text.** Store then fetch of an output with non-Latin text and
   an emoji in content and tool arguments returns an equal output, and the
   body holds the text as UTF-8.
