@@ -25,10 +25,7 @@ it, and every relative path the caller gives resolves against it: a `cwd`
 passed to `exec()` or `exec_remote()`, a `read_file()` or `write_file()`
 path, and a `sandbox_with()` file lookup. A relative path therefore names the
 same file in all of them. Absolute paths are kept, and marked operations are
-unaffected; `install_skills()` resolves a relative skills directory through
-such a marked operation, so it uses the provider's working directory. On
-Docker, file operations on an absolute path work for a user who cannot enter
-the image's working directory.
+unaffected.
 
 Companion packages that install tooling into a scoped sandbox provision
 shared artifacts inside the marker and verify them before a member uses
@@ -164,12 +161,8 @@ applies wherever else a caller gives a relative path inside a scope:
 These rules do not depend on the user: a call that names `user="root"` and
 no `cwd` also runs in the scope's `cwd`, so a relative path names the same
 file whoever the call runs as. Marked operations keep the provider's default
-directory, as they keep its default user. `install_skills()` run as the
-member uses such operations: its mode changes still work without entering
-the provider's working directory, while resolving a relative skills
-directory needs
-that directory to be enterable (see [`install_skills()`](#install_skills)).
-Outside a scope, in a scope without a `cwd`, on
+directory, as they keep its default user; [`install_skills()`](#install_skills)
+says what that means for a relative skills directory. Outside a scope, in a scope without a `cwd`, on
 another sandbox and through `as_type()`, nothing changes
 (`test_scope_cwd_is_not_used_by_framework_operations_or_elsewhere`). The
 `SandboxEvent` records the resolved `cwd` in an exec event's options and the
@@ -178,6 +171,8 @@ resolved path in a file event's `file`.
 Companion packages tell that the installed inspect_ai applies the scope's
 `cwd` at the boundary through the `SANDBOX_OPERATIONS_USE_SCOPE_CWD` flag in
 `identity.py`.
+
+### Closed working directories
 
 Docker's own file operations on an absolute path work for a user who cannot
 enter the image's default working directory.
@@ -337,10 +332,10 @@ take at the boundary:
 - **The member** (inside a scope for the sandbox, outside any marked block):
   every step runs with the member's authority. On a provider whose
   `write_file()` cannot take a user it fails with
-  `SandboxUserUnsupportedError` before writing anything. It works for a
-  member who cannot enter the provider's working directory, given an
-  absolute `dir` (see below for a relative one); companion packages detect
-  this capability through the `INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT`
+  `SandboxUserUnsupportedError` before writing anything. Given an absolute
+  `dir`, it works on a [closed working directory](#closed-working-directories)
+  (see below for a relative one); companion packages detect this capability
+  through the `INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT`
   flag in `install.py`. It changes no ownership: files it creates belong to the
   member, like every other file the member's scaffold creates, while a file
   it overwrites keeps whatever owner the provider's write leaves (Docker
@@ -413,8 +408,7 @@ installers) meet these requirements before they run inside a scope:
   to all three calls, and the same join applies to a relative
   `exec_remote()` `cwd` and to `sandbox_with()` lookups, so a relative path
   names the same file in all of these calls inside a scope. Marked
-  operations, and so `install_skills()`'s relative skills directory, keep
-  the provider's working directory.
+  operations keep the provider's working directory.
 
 ## Alternatives considered
 
@@ -495,9 +489,8 @@ unchanged too. Inside a scope:
 - **`install_skills()`** with a `user` behaves as outside a scope. With no
   `user` it installs with the member's authority: skill files it creates are
   owned by the member, and a file it overwrites keeps the owner the
-  provider's write leaves (on Docker, its existing owner). A relative or
-  default `dir` resolves in the provider's working directory, which the
-  member must be able to enter and write under.
+  provider's write leaves (on Docker, its existing owner). For a relative or
+  default `dir`, see [`install_skills()`](#install_skills).
 
 ## Security
 
