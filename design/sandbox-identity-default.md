@@ -126,9 +126,8 @@ methods and provider implementations are unchanged.
 ## The scope's `cwd` at the boundary
 
 A scope's `cwd` is an absolute directory, typically the member's home or
-workspace. On images whose working directory is `/root` (Docker's default,
-and many eval images), a member cannot enter the provider's default working
-directory: some runc versions refuse to start a command there, and others
+workspace. On images whose working directory is `/root`, as many eval images
+set it, a member cannot enter the provider's default working directory: some runc versions refuse to start a command there, and others
 start it but fail anything that uses `.` or a relative path. Scaffold setup
 commands running as the member would otherwise have to pass `cwd` on every
 call.
@@ -199,13 +198,26 @@ injection targeting, the sandbox-tools request user and the model-facing
 tools' strict resolution are unchanged inside a marked block: a built-in
 tool called there still passes its strictly resolved user, and a
 `bash_session()` or `text_editor()` request still carries the scope's user
-as its run-as parameter. A misplaced marker can therefore affect only
-unmarked calls that pass no user, and never the built-in tools.
+as its run-as parameter. For the user, the marker changes only calls that
+pass none; an explicit user is kept either way. For paths it suppresses the
+scope's defaults whatever the user: inside a marked block an `exec()` with no
+`cwd` runs in the provider's default directory, and a relative `cwd` or file
+path is passed through, even on a call that names a user (the member's own
+`pwd` in `install_skills()` is one). A misplaced marker can therefore change
+the user only of calls that pass none and the working directory of any call
+in the block, and never the built-in tools' user.
 
 **Contract.** Code that acts with the framework's authority and means "the
 sandbox's default user" by `user=None` goes through a marked helper. The
 marker wraps the single call to the proxy, not a whole operation. It is
-never placed around model-chosen work; in-loop scoring, which runs trusted
+never placed around model-chosen work. The helpers themselves do not check
+where their arguments came from: `privileged_exec()`, `privileged_shell()`
+and `exec_in_framework_directory()` run whatever command their caller
+passes, and a new caller of an already marked helper does not touch the
+tripwire's allowlist. Keeping model-chosen commands out of them is the duty
+of their callers, Inspect's own modules and companion code such as
+inspect_swe's shared installers, and is maintained by review of those
+callers; in-loop scoring, which runs trusted
 task code, is the one marked block that runs code Inspect does not fix. The
 trust model states this as its
 [framework-operation contract](sandbox-trust-model.md#sandbox-identity-scopes).
@@ -513,10 +525,14 @@ reaches.
 
 **The marker grants the default user.** A marker placed around model-chosen
 work would run that work as root. Three things limit this: the marker wraps
-single calls in helpers whose arguments Inspect fixes; it affects only calls
-that pass no user, never the model-facing tools' resolved users; and the
-tripwire test makes a marker use in a new module a reviewed allowlist
-change (uses inside already listed modules rely on review). The one
+single calls in helpers whose callers, Inspect and trusted companion code,
+supply fixed framework commands rather than model-chosen ones (the helpers
+do not verify this; review of their callers does); it changes the user only
+of calls that pass none, never the model-facing tools' resolved users,
+though it suppresses the scope's `cwd` and path defaults for every call in
+the block; and the tripwire test makes a marker use in a new module a
+reviewed allowlist change (uses inside already listed modules, and new
+callers of marked helpers, rely on review). The one
 block that runs task code, in-loop scoring, runs code the eval author
 already trusts as the default user at final scoring, but while other members
 are active (see [Context inheritance](#context-inheritance)).
