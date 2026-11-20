@@ -15,6 +15,7 @@ from inspect_ai.util._sandbox.environment import (
 )
 from inspect_ai.util._sandbox.identity import (
     sandbox_file_user_params,
+    sandbox_operation_file,
     sandbox_operation_user,
 )
 
@@ -47,7 +48,9 @@ async def install_skills(
         skills: Agent skills to install.
         sandbox: Sandbox environment name to copy skills to.
         user: User to write skills files with.
-        dir: Directory to install into (defaults to "./skills").
+        dir: Directory to install into (defaults to "./skills"). Inside a
+            `sandbox_identity()` scope with a `cwd`, a relative `dir`
+            resolves against that `cwd`.
 
     Returns:
         List of `SkillInfo` with skill names, descriptions, and locations.
@@ -210,7 +213,13 @@ async def _checked_exec(
 async def _resolve_skills_dir(
     sbox: SandboxEnvironment, user: str | None, dir: str | None
 ) -> PurePosixPath:
-    skills_dir = PurePosixPath(dir or "skills")
+    """Make the skills directory absolute.
+
+    A relative `dir` resolves against the scope's `cwd` as a `write_file()`
+    path does (see `sandbox_operation_file()`), and otherwise against the
+    working directory of a `pwd` run as `user`.
+    """
+    skills_dir = PurePosixPath(sandbox_operation_file(sbox, dir or "skills"))
     if not skills_dir.is_absolute():
         skills_dir = (
             PurePosixPath(await _checked_exec(sbox, user, ["pwd"])) / skills_dir
