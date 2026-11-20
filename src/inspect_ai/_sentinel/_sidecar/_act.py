@@ -27,6 +27,7 @@ from ._lookup import (
     request_result,
     unjudged_error,
     unknown_to_required,
+    usage_answer,
 )
 from ._received import (
     Judgment,
@@ -238,18 +239,33 @@ async def _end_call_registration_stopped(received: ReceivedCall) -> None:
     # logged, and usage that couldn't be had is noted as unknown.
     from ._review import cancel_call_that_may_be_paused, cancel_paused_call
 
+    # The attempts Inspect retried without asking about them, first. The
+    # lookup below asks about them too, and one whose usage can't be read
+    # would keep the latest attempt's from being recorded.
+    while received.unasked:
+        try:
+            await record_unasked_usage(received)
+        except Exception as ex:
+            note_usage_unavailable(received.unasked.pop(0), str(ex))
     # The latest attempt's request, if one was sent, and whether what its
     # judging billed was read. The sidecar gives a total for the id, so each
     # answer adds only what it has over the one before.
     request_id = received.request_id if received.sent else None
     read = request_id is None
+    # whether the sidecar answered the lookup at all
+    answered = request_id is None
     unread = "the sidecar couldn't be asked"
     if request_id is not None:
         try:
-            # asks nobody: see `awaiting_review` in the lookup
+            # asks nobody, and waits for no reply: see the lookup
             looked = received.looked or await request_result(received, replied=False)
             read = looked.usage_read
+            answered = read or looked.records is not None
             unread = looked.reason or unread
+        except ValueError as ex:
+            # an answer whose usage can't be read
+            answered = True
+            unread = str(ex)
         except Exception as ex:
             unread = str(ex)
     answer: dict[str, Any] | None = None
@@ -266,16 +282,14 @@ async def _end_call_registration_stopped(received: ReceivedCall) -> None:
         # paused it for a person, so the call is cancelled by its id.
         answer = await cancel_call_that_may_be_paused(received)
     if request_id is not None:
+        if answer is None and not answered:
+            # the lookup got no answer, as when its connection failed, and
+            # nothing said since what the judging billed: asked once more
+            answer = await usage_answer(received, request_id)
         if answer is not None and record_usage_read(received, request_id, answer):
             read = True
         if not read:
             note_usage_unavailable(request_id, unread)
-    # the attempts Inspect retried without asking about them
-    while received.unasked:
-        try:
-            await record_unasked_usage(received)
-        except Exception as ex:
-            note_usage_unavailable(received.unasked.pop(0), str(ex))
 
 
 def _note_lost(received: ReceivedCall) -> None:

@@ -224,6 +224,11 @@ class ReviewingSidecar(StandInSidecar):
     review_lookups_refused: int = 0
     """How many `request_result` lookups of a call that awaits a person's answer the sidecar answers with an error, from the first."""
     when_pending_review_lost: Callable[[], None] | None = None
+    when_resend_lost: Callable[[], None] | None = None
+    """Set to have a resend that the sidecar passed on to a busy provider lose its connection, and run as it does.
+
+    The provider still has the request, and Inspect gets a connection error.
+    """
     """Run as a "pending review" answer is lost, for what happens before the client's next try."""
     cut_off: bool = False
     """Whether the provider's reply is cut off on every try passed on to it.
@@ -420,6 +425,9 @@ class ReviewingSidecar(StandInSidecar):
             # the provider is still working, and the sidecar will hold its reply
             paused.turn = turn
             paused.state = "awaiting_reply"
+            if self.when_resend_lost is not None:
+                self.when_resend_lost()
+                raise httpx2.ReadError("The connection was lost.", request=request)
             self._holds[id(request)] = 60.0
         else:
             paused.turn = turn
@@ -2667,6 +2675,31 @@ def test_a_call_whose_samples_registration_stopped_it_is_cancelled_though_it_can
     else:
         assert "mockllm/judge" not in sample.model_usage
         assert len(unknown) == 1
+
+
+def test_a_resent_calls_reply_isnt_waited_for_once_its_samples_registration_stops_a_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    # The approved request is resent and reaches the provider, which is slow
+    # to reply, and the resend's connection is lost. The registration fills
+    # before the provider's SDK tries again.
+    stand_in = ReviewingSidecar(
+        pauses=["model_input"], turns=[Turn()], provider_busy_lookups=1_000_000
+    )
+    stand_in.when_resend_lost = _registration_fills(stand_in)
+
+    log = _run(stand_in, solver=generate(), sentinel_proxy="required", time_limit=20)
+
+    # The sidecar goes on saying it awaits the provider's reply. The call
+    # fails on the registration's error all the same, and is cancelled, and
+    # the sample doesn't run out its time waiting.
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.limit is None
+    assert sample.error is not None
+    assert "the registrations are full" in sample.error.message
+    assert stand_in.cancelled == [stand_in.model_calls[0].headers["x-irid"]]
 
 
 @pytest.mark.parametrize("stopped", ["the resend", "Inspect's retry"])

@@ -202,6 +202,12 @@ async def finish_paused_call(
     # whether Inspect will retry it.
     latest = _LatestError(will_retry=will_retry)
     while True:
+        if received.registration_error is not None:
+            # The fetch or resend just made was stopped, as the sidecar
+            # wouldn't take the sample's registration again. The call fails
+            # on that, so nothing more is asked, fetched or resent here.
+            # Inspect cancels the call where it stops retrying.
+            return PausedCallResult(raised=raised, returned_error=returned_error)
         looked = received.looked
         if looked is None:
             looked = await request_result(received, replied=False)

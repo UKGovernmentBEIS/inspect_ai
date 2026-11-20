@@ -1719,14 +1719,25 @@ def test_a_retry_whose_samples_registration_the_sidecar_wont_take_again_is_never
 
 @pytest.mark.parametrize(
     ("answer", "counted", "unknown"),
-    [("held", 1000, 0), ("unreadable", 0, 1), ("dropped", 0, 1)],
+    [
+        ("held", 1000, 0),
+        ("unreadable", 0, 1),
+        ("dropped", 0, 1),
+        # the first lookup's connection fails, and the sidecar is asked again
+        ("lost once", 1000, 0),
+    ],
 )
 def test_the_judging_usage_of_a_try_whose_retry_was_stopped_is_counted_once_or_noted_as_unknown(
     answer: str, counted: int, unknown: int
 ) -> None:
+    lookups = [0]
+
     def result(params: dict[str, Any]) -> dict[str, Any]:
+        lookups[0] += 1
         if answer == "dropped":
             return {"id": params["id"], "records": "dropped"}
+        if answer == "lost once" and lookups[0] == 1:
+            raise httpx2.ReadError("the connection was lost")
         usage = _judge_usage(1000)
         if answer == "unreadable":
             usage[0]["usage"]["total_tokens"] = "many"
@@ -1764,6 +1775,63 @@ def test_the_judging_usage_of_a_try_whose_retry_was_stopped_is_counted_once_or_n
         and e.data.get("judging_usage") == "unavailable"
     ]
     assert len(noted) == unknown
+    # a lookup that was answered isn't made again
+    assert lookups[0] == (2 if answer == "lost once" else 1)
+
+
+def test_an_earlier_attempts_unreadable_judging_usage_doesnt_lose_the_latest_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def result(params: dict[str, Any]) -> dict[str, Any]:
+        usage = _judge_usage(1000)
+        if params["id"] == stand_in.model_calls[0].headers["x-irid"]:
+            # the first attempt's, which this Inspect can't read
+            usage[0]["usage"]["total_tokens"] = "many"
+        return {
+            "id": params["id"],
+            "records": "held",
+            "state": "decided",
+            "judgment": {"outcome": "proceed", "steps": []},
+            "judging_usage": usage,
+        }
+
+    # The provider fails every try. Its SDK tries each attempt twice, and
+    # Inspect retries the call under another request id. The registration
+    # fills after that second attempt's first try.
+    stand_in = StandInSidecar(
+        turns=[Turn(status=503), Turn(status=503), Turn(status=503), Turn()],
+        methods={"request_result": result},
+    )
+    stand_in.turns[2].then = _registration_fills(stand_in)
+    model = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="test-key",
+        memoize=False,
+        http_client=stand_in.http_client(),
+        max_retries=1,
+    )
+    monkeypatch.setattr(model.api, "retry_wait", lambda: wait_none())
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate())
+
+    [log] = eval(task, model=model, sentinel_proxy="required", display="none")
+
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is not None
+    assert "the registrations are full" in sample.error.message
+    first, _, second = stand_in.model_calls
+    assert first.headers["x-irid"] != second.headers["x-irid"]
+    # the latest attempt's usage is counted, and only the first's is unknown
+    assert sample.model_usage["anthropic/claude-judge"].total_tokens == 1000
+    noted = [
+        e.data["request"]
+        for e in sample.events
+        if isinstance(e, InfoEvent)
+        and isinstance(e.data, dict)
+        and e.data.get("judging_usage") == "unavailable"
+    ]
+    assert noted == [first.headers["x-irid"]]
 
 
 async def test_a_sample_is_ended_with_its_task_named() -> None:

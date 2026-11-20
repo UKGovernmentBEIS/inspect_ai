@@ -154,6 +154,23 @@ def record_usage_read(
     return True
 
 
+async def usage_answer(
+    received: ReceivedCall, request_id: str
+) -> dict[str, Any] | None:
+    """Ask the sidecar once, without waiting, what it holds of a request, for what judging it billed, or None if the sidecar doesn't answer."""
+    sidecar = received.sidecar
+    if sidecar is None:
+        return None
+    with suspend_limits():
+        try:
+            answer: dict[str, Any] = await sidecar.eval_call(
+                "request_result", {"id": request_id, "wait": 0}
+            )
+        except SidecarCallError:
+            return None
+    return answer
+
+
 def note_usage_unavailable(request_id: str, reason: str) -> None:
     """Note in the transcript that what judging a request billed couldn't be had, so it reads as unknown rather than none."""
     from inspect_ai.log._transcript import transcript
@@ -448,6 +465,18 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                     # the wait, as it limits the call's retries. The
                     # sample's time limit and its cancellation end the wait
                     # too.
+                    if received.registration_error is not None:
+                        # A send of the call was stopped, as the sidecar
+                        # wouldn't take the sample's registration again. The
+                        # call fails on that and is cancelled at the sidecar,
+                        # so the reply isn't waited for.
+                        return _judging(
+                            Looked(
+                                "unavailable",
+                                "the call's send was stopped while the provider still had its request",
+                            ),
+                            result,
+                        )
                     provider_has_request = True
                     left = timeout_left(received)
                     if left is not None and left <= 0:
