@@ -4,6 +4,7 @@ Supports reading individual members from large ZIP archives (including ZIP64)
 stored locally or remotely (e.g., S3) using async range requests.
 """
 
+import importlib
 import struct
 import zlib
 from collections.abc import AsyncGenerator
@@ -11,9 +12,12 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import anyio
+import zstandard
+from botocore.exceptions import ClientError
+from pydantic import ValidationError
 from typing_extensions import Self
 
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem, ObjectChangedError
 
 from .compression import decompress_bytes
 from .compression_transcoding import CompressedToUncompressedStream
@@ -34,6 +38,57 @@ class ZipCrcError(ValueError):
     the archive was replaced between the central-directory read and the member
     read (each is a separate range request), so the bytes came from two
     versions of the object.
+    """
+
+
+# ijson ships no type information; every parse error it raises derives from this
+_IJSON_ERROR: type[Exception] = importlib.import_module("ijson").JSONError
+
+# What a read whose bytes came from two versions of the object can raise: a
+# CRC mismatch, a pinned read whose object was replaced, or a stale offset or
+# length that lands in the wrong bytes (a decompression, header, short-read or
+# parse error).
+_TORN_READ_ERRORS = (
+    ZipCrcError,
+    ObjectChangedError,
+    zlib.error,
+    zstandard.ZstdError,
+    struct.error,
+    EOFError,
+    _IJSON_ERROR,
+    ValueError,
+)
+
+
+def is_torn_read(ex: BaseException) -> bool:
+    """Whether a read of a zip being replaced may have failed only for that.
+
+    A reader of an object another process replaces (a running ``.eval`` log
+    is replaced on every flush) makes separate range requests for the
+    central directory and each member, so one read can mix two versions.
+    True for the errors such a read raises, including S3's ``InvalidRange``
+    (HTTP 416) for a stale offset past the end of a shorter replacement.
+    False for a pydantic ``ValidationError`` (a ``ValueError``): it comes
+    after the bytes passed their CRC check, so the member itself does not
+    parse. Other storage errors (``FileNotFoundError``, access denied,
+    throttling) are not torn reads.
+    """
+    if isinstance(ex, ValidationError):
+        return False
+    if isinstance(ex, ClientError):
+        return ex.response.get("Error", {}).get("Code") == "InvalidRange"
+    return isinstance(ex, _TORN_READ_ERRORS)
+
+
+class TornReadError(ValueError):
+    """A zip another process kept replacing could not be read cleanly.
+
+    Raised when a reader has spent its re-reads of an archive whose every
+    read was torn (see :func:`is_torn_read`), or of a member that never read
+    cleanly. ``__cause__`` is the last attempt's error. The object is likely
+    still being written, so a caller can retry later. A ``ValueError``, like
+    ``ZipCrcError``, so callers that catch ``ValueError`` around a read keep
+    working and ``is_torn_read()`` stays true for it.
     """
 
 
