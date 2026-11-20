@@ -47,6 +47,7 @@ from inspect_ai._util.error import (
     WriteConflictError,
     pip_dependency_error,
 )
+from inspect_ai._util.git import redact_url_credentials
 from inspect_ai._util.trace import trace_message
 
 if TYPE_CHECKING:
@@ -669,6 +670,11 @@ def http_redirects_refused() -> bool:
     return _refuse_http_redirects.get()
 
 
+def _url_without_secrets(url: str) -> str:
+    """`url` without userinfo, query or fragment, which can carry credentials."""
+    return redact_url_credentials(url).split("#", 1)[0].split("?", 1)[0]
+
+
 async def _redirect_refusing_client(**kwargs: Any) -> "aiohttp.ClientSession":
     """Create the aiohttp session for `HTTPFileSystem` (its `get_client` option).
 
@@ -684,8 +690,10 @@ async def _redirect_refusing_client(**kwargs: Any) -> "aiohttp.ClientSession":
     ) -> None:
         location = params.response.headers.get("Location")
         params.response.close()
+        target = _url_without_secrets(location) if location else "an unknown URL"
         raise HTTPRedirectError(
-            f"HTTP redirect from {params.url} to {location} was not followed."
+            f"HTTP redirect from {_url_without_secrets(str(params.url))} "
+            f"to {target} was not followed."
         )
 
     trace_config = aiohttp.TraceConfig()

@@ -3433,6 +3433,35 @@ def test_http_log_read_does_not_follow_redirect(
     assert target.requests == []
 
 
+def test_http_log_read_redirect_log_omits_url_secrets(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    target, _redirector, fname = http_log_servers
+    secret_target = target.url.replace("http://", "http://user:target-secret@")
+    redirector = _LogHTTPServer(redirect_to=secret_target)
+
+    class mapping_policy(FileMappingPolicy):
+        async def map(self, request: Request, file: str) -> str:
+            return f"{redirector.url}/{file}?sig=request-secret"
+
+        async def unmap(self, request: Request, file: str) -> str:
+            return file
+
+    app = fastapi_server.view_server_app(mapping_policy=mapping_policy())
+    try:
+        with caplog.at_level(logging.WARNING, logger=fastapi_server.__name__):
+            with fastapi.testclient.TestClient(app) as client:
+                resp = client.get(f"/log-bytes/{fname}?start=0&end=99")
+    finally:
+        redirector.close()
+    assert resp.status_code == 502
+    assert target.requests == []
+    assert "was not followed" in caplog.text
+    assert redirector.url in caplog.text
+    assert "secret" not in caplog.text
+
+
 def _ipv6_loopback_available() -> bool:
     import socket
 
