@@ -63,6 +63,7 @@ class RichDisplay(Display):
         self.progress_ui: RProgress | None = None
         self.parallel = False
         self.live: Live | None = None
+        self.screen: RichTaskScreen | None = None
         self.counters: dict[str, str] = {}
         rich_initialise()
 
@@ -86,7 +87,11 @@ class RichDisplay(Display):
     @override
     @contextlib.contextmanager
     def suspend_task_app(self) -> Iterator[None]:
-        yield
+        if self.screen is None:
+            yield
+        else:
+            with self.screen.suspend():
+                yield
 
     @override
     @contextlib.asynccontextmanager
@@ -107,8 +112,10 @@ class RichDisplay(Display):
                 ) as live,
             ):
                 # save reference to live
-                with RichTaskScreen(live) as task_screen:
+                screen = RichTaskScreen(live)
+                with screen as task_screen:
                     self.live = live
+                    self.screen = screen
 
                     async with anyio.create_task_group() as tg:
                         # update display every second while running
@@ -119,6 +126,7 @@ class RichDisplay(Display):
                             yield task_screen
                         finally:
                             tg.cancel_scope.cancel()
+                            self.screen = None
 
                 # render task results (re-enable live if necessary)
                 if not live.is_started:
@@ -132,6 +140,7 @@ class RichDisplay(Display):
             self.progress_ui = None
             self.parallel = False
             self.live = None
+            self.screen = None
 
     @override
     def update_task_count(self, n: int) -> None:
@@ -197,9 +206,46 @@ class RichTaskScreen(TaskScreen):
             f"[{self.theme.meta} bold]{status_text}...[/{self.theme.meta} bold]",
             spinner="clock",
         )
+        self.status_started = False
 
     def __exit__(self, *excinfo: Any) -> None:
+        self._stop_status()
+
+    def _start_status(self) -> None:
+        self.status.start()
+        self.status_started = True
+
+    def _stop_status(self) -> None:
         self.status.stop()
+        self.status_started = False
+
+    @contextlib.contextmanager
+    def suspend(self) -> Iterator[None]:
+        """Clear live rendering while other output goes to the terminal.
+
+        A child process (e.g. a Docker image build during sandbox setup)
+        writes to the inherited terminal descriptors, which Rich cannot
+        redirect. The task display and the mini-status are cleared first and
+        drawn again below that output afterwards, however the block ends.
+        """
+        live_started = self.live.is_started
+        status_started = self.status_started
+        renderable = self.live.renderable
+        if status_started:
+            self._stop_status()
+        if live_started:
+            # a blank render first, so that the restart does not move the
+            # cursor up over the lines written meanwhile
+            self.live.update("", refresh=True)
+            self.live.stop()
+        try:
+            yield
+        finally:
+            if live_started:
+                self.live.start()
+                self.live.update(renderable, refresh=True)
+            if status_started:
+                self._start_status()
 
     @override
     @contextlib.contextmanager
@@ -216,7 +262,7 @@ class RichTaskScreen(TaskScreen):
 
         # clear live task status and transient status
         self.live.update("", refresh=True)
-        self.status.stop()
+        self._stop_status()
 
         try:
             with input_screen_capture_suspended(self.live.console):
@@ -267,7 +313,7 @@ class RichTaskScreen(TaskScreen):
 
             # if not transient then display mini-status
             if not transient:
-                self.status.start()
+                self._start_status()
 
 
 class RichTaskDisplay(TaskDisplay):

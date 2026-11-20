@@ -1,5 +1,11 @@
+import os
+import sys
+from typing import TextIO
+
+import anyio
 import pytest
 import rich
+from rich.console import Console
 
 import inspect_ai._display.core.rich as display_rich
 from inspect_ai._display.core.rich import (
@@ -7,6 +13,7 @@ from inspect_ai._display.core.rich import (
     rich_initialise,
     rich_restore_defaults,
 )
+from inspect_ai._display.rich.display import RichDisplay
 
 
 def test_dumb_terminal_uses_columns_with_default_height(monkeypatch):
@@ -227,3 +234,102 @@ def test_rich_initialise_keeps_a_hosts_progress_context_usable(monkeypatch):
 
         console = rich.get_console()
         assert getattr(console, "_render_hooks", [])
+
+
+class _SetupFailed(Exception):
+    pass
+
+
+_CHILD_OUTPUT = "build step 1"
+
+
+async def _run_setup(display: RichDisplay, out: TextIO, end: str) -> None:
+    """A sandbox setup whose child process writes to the terminal descriptor."""
+    with anyio.CancelScope() as scope:
+        with display.suspend_task_app():
+            out.flush()
+            await anyio.run_process(
+                [sys.executable, "-c", f"print({_CHILD_OUTPUT!r})"],
+                stdout=out.fileno(),
+            )
+            if end == "error":
+                raise _SetupFailed()
+            elif end == "cancel":
+                scope.cancel()
+                await anyio.lowlevel.checkpoint()
+    assert scope.cancelled_caught == (end == "cancel")
+
+
+def _assert_output_kept(output: str, redrawn: str) -> None:
+    before, child, after = output.partition(_CHILD_OUTPUT + "\n")
+    assert child, output
+    # the live render was cleared before the child wrote its line ...
+    assert before.endswith("\x1b[2K"), repr(before[-80:])
+    # ... and is drawn again below it without moving the cursor back over it
+    redraw = after.index(redrawn)
+    assert "\x1b[1A" not in after[:redraw], repr(after[:redraw])
+
+
+def _terminal_console() -> tuple[Console, int, TextIO]:
+    read_fd, write_fd = os.pipe()
+    out = os.fdopen(write_fd, "w")
+    console = Console(file=out, force_terminal=True, width=60, color_system=None)
+    return console, read_fd, out
+
+
+def _read_all(read_fd: int, out: TextIO) -> str:
+    out.close()
+    chunks = []
+    while chunk := os.read(read_fd, 65536):
+        chunks.append(chunk)
+    os.close(read_fd)
+    return b"".join(chunks).decode()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("end", ["normal", "error", "cancel"])
+async def test_rich_setup_output_is_written_above_the_task_display(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, end: str
+) -> None:
+    """Output a sandbox setup's child process writes is not drawn over."""
+    display = RichDisplay()
+    console, read_fd, out = _terminal_console()
+    monkeypatch.setattr(rich, "_console", console)
+    async with display.task_screen([], parallel=False):
+        assert display.live is not None
+        display.live.update("TASK TOP\nTASK BOTTOM", refresh=True)
+        if end == "error":
+            with pytest.raises(_SetupFailed):
+                await _run_setup(display, out, end)
+        else:
+            await _run_setup(display, out, end)
+        assert display.live.is_started
+        display.live.update("TASK TOP\nTASK BOTTOM 2", refresh=True)
+
+    _assert_output_kept(_read_all(read_fd, out), "TASK TOP")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("end", ["normal", "error", "cancel"])
+async def test_rich_setup_output_is_written_above_the_mini_status(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, end: str
+) -> None:
+    """The mini-status a non-transient input screen leaves is cleared too."""
+    display = RichDisplay()
+    console, read_fd, out = _terminal_console()
+    monkeypatch.setattr(rich, "_console", console)
+    async with display.task_screen([], parallel=False) as screen:
+        with screen.input_screen(transient=False, record_event=False):
+            pass
+        assert display.screen is not None and display.screen.status_started
+        # draw it now rather than on its next tick
+        display.screen.status.update(spinner="clock")
+        if end == "error":
+            with pytest.raises(_SetupFailed):
+                await _run_setup(display, out, end)
+        else:
+            await _run_setup(display, out, end)
+        assert display.screen.status_started
+        assert display.live is not None and not display.live.is_started
+
+    _assert_output_kept(_read_all(read_fd, out), "Task running")
