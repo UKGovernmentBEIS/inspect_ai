@@ -501,8 +501,16 @@ passed to the three operations may be model-chosen, as they always could be.
 The default runs them as the framework-selected scope user, which in swarm
 user isolation is the member's user rather than the sandbox's default user.
 The scope's `cwd` is likewise host configuration. Resolving a model-supplied
-relative path against it gives the member no access it lacks: the call runs
-as the member, whose own permissions decide what the path reaches.
+relative path against it gives the member no access it lacks when the call
+runs as the member, whose own permissions decide what the path reaches. A
+call that names a privileged user, such as `user="root"`, keeps that user's
+authority while its working directory and relative paths resolve in a
+directory the member may control; an intentionally privileged operation
+therefore needs a trusted working directory and destination, as the trust
+model's [verified-directory](sandbox-trust-model.md#host-verified-directories)
+and [verify-before-use](sandbox-trust-model.md#verify-before-use) contracts
+require, and an absolute path alone does not make a member-controlled
+destination trusted.
 
 **The marker grants the default user.** A marker placed around model-chosen
 work would run that work as root. The trust model's

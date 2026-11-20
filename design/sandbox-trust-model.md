@@ -376,9 +376,16 @@ comes from the scope as well as from tool construction:
   member user isolation does not protect peers from it. Calls on the provider
   object that `as_type()` returns bypass the default, and so do calls on
   another sandbox. Unmarked calls also resolve their working directory and
-  relative paths against the scope's `cwd`; a relative path gives the member
-  no access it lacks, because the call runs as the member (see
+  relative paths against the scope's `cwd`, whatever user they name (see
   [The scope's `cwd` at the boundary](sandbox-identity-default.md#the-scopes-cwd-at-the-boundary)).
+  For a call that runs as the member, a relative path gives the member no
+  access it lacks. A call that names a privileged user, such as
+  `user="root"`, keeps that user's authority in a directory the member may
+  control, so an intentionally privileged operation needs a trusted working
+  directory and destination, as the
+  [verified-directory](#host-verified-directories) and
+  [verify-before-use](#verify-before-use) contracts require; an absolute
+  path alone does not make a member-controlled destination trusted.
 
 Custom tools inherit the scope's user with no change of their own: a tool that
 calls `exec()`, `read_file()` or `write_file()` without a user runs as the
