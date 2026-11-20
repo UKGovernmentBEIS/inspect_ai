@@ -221,6 +221,8 @@ class ReviewingSidecar(StandInSidecar):
     With a large number, every try that the provider's SDK makes on its own
     fails this way.
     """
+    review_lookups_refused: int = 0
+    """How many `request_result` lookups of a call that awaits a person's answer the sidecar answers with an error, from the first."""
     when_pending_review_lost: Callable[[], None] | None = None
     """Run as a "pending review" answer is lost, for what happens before the client's next try."""
     cut_off: bool = False
@@ -345,6 +347,14 @@ class ReviewingSidecar(StandInSidecar):
                 and call["params"].get("id") in self.paused
             ):
                 self.methods["request_result"] = self._request_result
+                if (
+                    self.paused[call["params"]["id"]].state == "awaiting_review"
+                    and self.review_lookups_refused > 0
+                ):
+                    self.review_lookups_refused -= 1
+                    self.methods["request_result"] = lambda params: self._refuse(
+                        -32000, "The sidecar can't answer."
+                    )
                 if self.paused[call["params"]["id"]].state != "awaiting_review":
                     if self.lookups_lost > 0:
                         self.lookups_lost -= 1
@@ -2608,6 +2618,52 @@ def test_nobody_is_asked_about_a_call_whose_samples_registration_stopped_its_ret
     [sent] = stand_in.model_calls
     assert stand_in.cancelled == [sent.headers["x-irid"]]
     assert sample.model_usage["mockllm/judge"].total_tokens == 1000
+
+
+@pytest.mark.parametrize("lookups_refused", [1, 10], ids=["once", "every time"])
+def test_a_call_whose_samples_registration_stopped_it_is_cancelled_though_it_cant_be_asked_about(
+    lookups_refused: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    person = Person("terminate")
+    person.install(monkeypatch)
+    # As above, and the sidecar then answers Inspect's lookup of the call
+    # with an error, so Inspect can't learn that the call awaits a person.
+    stand_in = ReviewingSidecar(
+        pauses=["model_input"],
+        turns=[Turn()],
+        pending_reviews_lost=1,
+        review_lookups_refused=lookups_refused,
+        # and, for "every time", once the call is cancelled too
+        lookups_refused=lookups_refused - 1,
+        judge_usage={"input_tokens": 1000, "output_tokens": 0, "total_tokens": 1000},
+    )
+    stand_in.when_pending_review_lost = _registration_fills(stand_in)
+
+    log = _run(stand_in, solver=generate(), sentinel_proxy="required")
+
+    # The call is cancelled by its id all the same, and still fails on the
+    # registration's error. What judging it cost is asked for once more: it
+    # is counted if the sidecar then says, and noted as unknown if not.
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert person.asked == []
+    assert sample.error is not None
+    assert "the registrations are full" in sample.error.message
+    [sent] = stand_in.model_calls
+    assert stand_in.cancelled == [sent.headers["x-irid"]]
+    unknown = [
+        e
+        for e in sample.events
+        if isinstance(e, InfoEvent)
+        and isinstance(e.data, dict)
+        and e.data.get("judging_usage") == "unavailable"
+    ]
+    if lookups_refused == 1:
+        assert sample.model_usage["mockllm/judge"].total_tokens == 1000
+        assert unknown == []
+    else:
+        assert "mockllm/judge" not in sample.model_usage
+        assert len(unknown) == 1
 
 
 @pytest.mark.parametrize("stopped", ["the resend", "Inspect's retry"])

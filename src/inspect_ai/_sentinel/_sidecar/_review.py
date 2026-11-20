@@ -950,6 +950,16 @@ async def cancel_paused_call(received: ReceivedCall | None) -> None:
     await _cancel(received, received.reviewed_request_id)
 
 
+async def cancel_call_that_may_be_paused(received: ReceivedCall) -> None:
+    """Tell the sidecar to cancel a call Inspect has given up on, where Inspect couldn't learn whether the sidecar paused it.
+
+    The sidecar may hold a question about the call that nobody will be asked, or a request it would still pass on. Cancelling a call that isn't paused, or has ended, changes nothing at the sidecar. Nothing is sent to a sidecar that asks no person through the eval, which pauses no call.
+    """
+    if received.request_id is None or not getattr(received.sidecar, "review", False):
+        return
+    await _cancel(received, received.request_id)
+
+
 async def cancel_paused_calls(sample_uuid: str) -> None:
     """Tell the sidecars to cancel the calls a sample leaves paused when it ends.
 

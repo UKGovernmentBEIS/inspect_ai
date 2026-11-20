@@ -4,6 +4,7 @@ A sidecar judges a whole turn before Inspect is handed it, and Inspect asks what
 """
 
 from collections.abc import Awaitable, Callable
+from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 from weakref import WeakKeyDictionary
 
@@ -43,6 +44,8 @@ _TOOL_CALL = TypeAdapter(ToolCall)
 
 if TYPE_CHECKING:
     from inspect_ai.model._response_headers import ResponseHeaders
+
+logger = getLogger(__name__)
 
 
 class CallDecision(NamedTuple):
@@ -197,22 +200,22 @@ async def refusal_after_error(
         SidecarNotJudgedError: If the sidecar couldn't judge the call for another reason, or the task requires a sidecar and the call's judgment is unavailable.
         SentinelProxyError: If a send of the call was stopped because the sidecar couldn't take the sample's registration again.
     """
+    if received.registration_error is not None:
+        await _end_call_registration_stopped(received)
+        raise received.registration_error
     # as in `refused_output`: an attempt that failed unsent is never looked up,
     # though earlier attempts that were sent may still have been judged
     if not received.sent:
         await record_unasked_usage(received)
-        if received.registration_error is None:
-            return None
-    elif received.looked is None:
+        return None
+    if received.looked is None:
         await request_result(received, replied=False)
     if received.paused:
         # Inspect has stopped retrying a paused call, so nothing will resend
-        # it. Cancel it at the sidecar. A call whose latest attempt was never
-        # sent is still paused from an earlier one.
+        # it. Cancel it at the sidecar.
         from ._review import cancel_paused_call
 
         await cancel_paused_call(received)
-    _raise_registration_error(received)
     # A sidecar the task requires that keeps no record of the call may have
     # lost the eval in a restart, and what it holds for the attempt may have
     # begun afresh since, so it is never copied, as for a lost sample.
@@ -226,13 +229,48 @@ async def refusal_after_error(
     return _refusal(received.judgment, model, bridged)
 
 
-def _raise_registration_error(received: ReceivedCall) -> None:
+async def _end_call_registration_stopped(received: ReceivedCall) -> None:
     # The sidecar couldn't take the sample's registration again as a try was
-    # sent, which stopped the send. The error that reached Inspect is what the
-    # provider's SDK made of that, a failed connection. Raised once the tries
-    # that were sent have been asked about, as the sidecar may have judged them.
-    if received.registration_error is not None:
-        raise received.registration_error
+    # sent, which stopped the send. The call fails on that error, whatever
+    # the error that reached Inspect, which is what the provider's SDK made
+    # of the stopped send. First the tries that were sent are accounted for,
+    # as the sidecar may have judged them, and a call it paused is cancelled.
+    # None of this replaces the registration's error: what fails here is
+    # logged, and the usage that couldn't be had is noted as unknown.
+    from ._review import cancel_call_that_may_be_paused, cancel_paused_call
+
+    known = False
+    try:
+        if received.sent and received.looked is None:
+            # asks nobody: see `awaiting_review` in the lookup
+            await request_result(received, replied=False)
+        known = (
+            not received.sent
+            or received.paused
+            or (received.looked is not None and received.looked.state != "unavailable")
+        )
+    except Exception as ex:
+        logger.debug(
+            f"A call its sample's registration stopped couldn't be asked about: {ex}"
+        )
+    if received.paused:
+        # Nothing will resend a paused call, so it is cancelled at the
+        # sidecar. A call whose latest attempt was never sent is still
+        # paused from an earlier one.
+        await cancel_paused_call(received)
+    elif not known:
+        # The sidecar may have paused the try for a person, and what it
+        # billed for judging it wasn't had. So the try is cancelled by its
+        # id, and its usage is asked for once more, or noted as unknown.
+        await cancel_call_that_may_be_paused(received)
+        if received.request_id is not None:
+            received.unasked.append(received.request_id)
+    try:
+        await record_unasked_usage(received)
+    except Exception as ex:
+        logger.debug(
+            f"The judging usage of a call its sample's registration stopped couldn't be read: {ex}"
+        )
 
 
 def _note_lost(received: ReceivedCall) -> None:
