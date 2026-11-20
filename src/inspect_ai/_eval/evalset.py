@@ -1675,7 +1675,7 @@ def _recover_crashed_log(
                     cleanup="finalized",
                     incomplete_action=incomplete_action,
                     incomplete_max=incomplete_max,
-                    _untrusted_metrics="warn",
+                    untrusted_metrics="warn",
                 )
             except RecoveryThresholdExceeded as ex:
                 logger.warning(
@@ -1683,7 +1683,7 @@ def _recover_crashed_log(
                     f"falling back to recover-and-retry: {ex}"
                 )
                 recovered = recover_eval_log(
-                    eval_log.location, cleanup=False, _untrusted_metrics="warn"
+                    eval_log.location, cleanup=False, untrusted_metrics="warn"
                 )
             if recovered.location:
                 log_info = log_info.model_copy(update={"name": recovered.location})
