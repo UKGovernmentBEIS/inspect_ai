@@ -239,6 +239,7 @@ def test_bundle_refuses_dot_components_in_log_names(
         ("s3://b/logs/../x.eval", "s3://b/out", "has an invalid path"),
         ("s3://b/logs/a/./x.eval", "s3://b/out", "has an invalid path"),
         ("s3://b/logs//etc/x.eval", "s3://b/out", "has an invalid path"),
+        ("s3://b/logs/a::b/x.eval", "s3://b/out", "has an invalid path"),
         ("s3://b/other/x.eval", "s3://b/out", "is not inside"),
         # file:// targets are percent-decoded when written locally
         ("s3://b/logs/%2e%2e/x.eval", "file:///tmp/out", "would be written outside"),

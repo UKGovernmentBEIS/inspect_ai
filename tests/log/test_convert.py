@@ -301,6 +301,21 @@ def test_convert_dir_refuses_dot_components(
     assert not (tmp_path / "escaped").exists()
 
 
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_refuses_url_chain_names(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, converter: str
+):
+    memory_fs = filesystem("memory://").fs
+    monkeypatch.setattr(type(memory_fs), "store", {})
+    monkeypatch.setattr(type(memory_fs), "pseudo_dirs", [""])
+    memory_fs.pipe("/logs/sub::x/2024-01-01T00-00-00+00-00_task_abc.eval", b"log")
+
+    with pytest.raises(ValueError, match="has an invalid path"):
+        _CONVERTERS[converter]("memory://logs", "memory://out")
+
+    assert memory_fs.find("/out") == []
+
+
 @pytest.mark.parametrize("stream", [True, 3], ids=["stream", "stream-3"])
 @pytest.mark.parametrize("to", ["eval", "json"])
 def test_stream_convert_preserves_log_updates(

@@ -1229,9 +1229,9 @@ def contained_log_destination(
 ) -> LogDestination:
     """Place a listed log directory entry beneath a target directory.
 
-    Names listed from a remote store can contain `.` or `..` components or
-    an empty component (so the rest reads as absolute). Such a name is
-    refused rather than normalized. The destination must stay beneath
+    Names listed from a remote store can contain `.` or `..` components,
+    an empty component (so the rest reads as absolute) or fsspec's `::`
+    URL-chain separator. Such a name is refused rather than normalized. The destination must stay beneath
     `target_dir`. For a local target, both are resolved with
     `resolve_local_path()` first and the resolved destination is returned.
 
@@ -1255,6 +1255,9 @@ def contained_log_destination(
         contained_relative(relative)
     except ValueError as ex:
         raise ValueError(f"Log file '{name}' has an invalid path: {ex}") from ex
+    # fsspec reads "::" as a URL chain, so a writer would open a different path
+    if "::" in relative:
+        raise ValueError(f"Log file '{name}' has an invalid path: it contains '::'.")
 
     written = (
         relative
