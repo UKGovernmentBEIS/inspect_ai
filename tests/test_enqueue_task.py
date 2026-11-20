@@ -325,6 +325,38 @@ def test_enqueue_task_from_run_start_hook_starts_after_the_seed() -> None:
     assert len({log.eval.run_id for log in logs}) == 1
 
 
+async def test_task_added_from_run_start_hook_is_freed_once_it_ends(
+    tmp_path: Path,
+) -> None:
+    # the hook's task has no other owner, so it and its dataset are freed
+    # once it ends, while the run waits on the source for more
+    refs: list[weakref.ref[Any]] = []
+    alive_during_next_pull: list[bool] = []
+
+    def hooked() -> Task:
+        added = Task(dataset=[Sample(input="x")], solver=[], name="hooked")
+        refs.extend([weakref.ref(added), weakref.ref(added.dataset)])
+        return added
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [Task(dataset=[Sample(input="x")], solver=[], name="seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            assert _record("hooked").phase == "ended"
+            gc.collect()
+            alive_during_next_pull.extend(ref() is not None for ref in refs)
+            return None
+
+    init_display_type("none")
+    with _enqueue_on_run_start(hooked):
+        logs = await eval_async(
+            _Src(), model="mockllm/model", log_dir=str(tmp_path), max_tasks=2
+        )
+    assert [log.eval.task for log in logs] == ["seed", "hooked"]
+    assert alive_during_next_pull == [False, False]
+
+
 @pytest.mark.parametrize("added", [False, True])
 def test_returned_logs_are_grouped_by_task_definition(added: bool) -> None:
     # several definitions and models at max_tasks > 1: each definition's

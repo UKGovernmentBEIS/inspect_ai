@@ -485,7 +485,9 @@ async def eval_run(
         # single task definition).
         return await dispatch_tasks(
             queue,
-            [record.options for record in seed if record.options is not None],
+            task_specs(
+                [record.options for record in seed if record.options is not None]
+            ),
             parallel=parallel,
             task_source=task_source,
             debug_errors=debug_errors,
@@ -797,7 +799,7 @@ def _attempt_cancel(can_retry: bool) -> tuple[TaskCancel, anyio.CancelScope]:
 
 async def dispatch_tasks(
     queue: RunQueue,
-    seed: list[TaskRunOptions],
+    seed_specs: list[TaskSpec],
     *,
     parallel: int,
     task_source: "TaskSource | None",
@@ -815,6 +817,10 @@ async def dispatch_tasks(
     When nothing is queued or running, ``task_source.next_tasks()`` is awaited
     for more; the run ends when it returns ``None`` or ``[]`` (at once without
     a source). Returns the log of each task that has one, in result order.
+
+    ``seed_specs`` are the display rows of the tasks already queued. The
+    dispatcher holds no task options of its own, so an ended task's ``Task``
+    and dataset are freed with its record's options.
     """
     # model-balancing state. Keyed by the Model object (identity), not
     # str(model): a provider may rewrite its model name mid-run (e.g. vLLM
@@ -875,7 +881,7 @@ async def dispatch_tasks(
             launch=parallel, in_flight=in_flight, pending=len(queue.pending)
         )
 
-    async with _run_task_screen(task_specs(seed)) as screen:
+    async with _run_task_screen(seed_specs) as screen:
         init_task_screen(screen)
         queue.screen_open = True
         try:
