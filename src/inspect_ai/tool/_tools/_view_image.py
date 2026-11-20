@@ -15,11 +15,12 @@ from inspect_ai.util._sandbox.identity import (
 from .._tool import Tool, ToolError, tool
 
 _SUPPORTED_MIME_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+_HEADER = "#\n"
 
 
 def _too_large_error(file_path: str) -> ToolError:
     return ToolError(
-        f"{file_path} is too large to view: its base64 encoding reaches the "
+        f"{file_path} is too large to view: its base64 encoding exceeds the "
         f"{SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE_STR} sandbox output limit."
     )
 
@@ -56,7 +57,13 @@ def view_image(
         with without_sandbox_events(sbox):
             try:
                 result = await sbox.exec(
-                    cmd=["sh", "-c", 'exec base64 < "$1"', "sh", file_path],
+                    cmd=[
+                        "sh",
+                        "-c",
+                        'printf "#\\n"; exec base64 < "$1"',
+                        "sh",
+                        file_path,
+                    ],
                     cwd=cwd,
                     timeout=timeout,
                     user=exec_user,
@@ -73,10 +80,10 @@ def view_image(
                 else f"Error reading: {file_path}"
             )
 
-        if len(result.stdout) >= SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE:
+        if not result.stdout.startswith(_HEADER):
             raise _too_large_error(file_path)
         try:
-            data = base64.b64decode(result.stdout)
+            data = base64.b64decode(result.stdout[len(_HEADER) :])
         except binascii.Error as ex:
             raise ToolError(f"{file_path} could not be decoded: {ex}") from ex
         mime_type = sniff_image_mime_type(data)

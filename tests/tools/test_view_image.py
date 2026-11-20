@@ -139,8 +139,9 @@ def test_view_image_data_not_logged_when_log_images_false(tmp_path: Path) -> Non
 def test_view_image_over_output_limit_is_a_tool_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE", "64")
-    response = _run_view_image("plot.png", PNG_BYTES + b"\x00" * 100, "plot.png")
+    monkeypatch.setenv("INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE", str(64 * 1024))
+    data = PNG_BYTES + bytes(range(256)) * 800
+    response = _run_view_image("plot.png", data, "plot.png")
     assert response.error is not None
     assert "too large to view" in response.error.message
 
@@ -157,7 +158,7 @@ def _default_sandbox(env: CannedSandbox) -> Iterator[None]:
 
 
 async def test_view_image_undecodable_output_is_a_tool_error() -> None:
-    env = CannedSandbox.returning(ExecResult(True, 0, "not base64!\n", ""))
+    env = CannedSandbox.returning(ExecResult(True, 0, "#\nnot base64!\n", ""))
     with _default_sandbox(env):
         with pytest.raises(ToolError, match="could not be decoded"):
             await view_image()(file_path="plot.png")

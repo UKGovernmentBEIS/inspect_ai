@@ -42,7 +42,7 @@ from inspect_ai.util._subprocess import ExecResult
 
 DEFAULT_USER = SandboxDefaultUser(uid=1111, gid=1111, groups=[1111], home="/h")
 
-PNG_SIGNATURE_BASE64 = "iVBORw0KGgo=\n"
+VIEW_IMAGE_OUTPUT = "#\niVBORw0KGgo=\n"
 
 
 class FakeSandbox:
@@ -111,9 +111,7 @@ class _RecordingSandbox(CannedSandbox):
     """Records each exec's `(cmd, user, cwd)`; every exec succeeds."""
 
     def __init__(self) -> None:
-        super().__init__(
-            lambda _cmd, _user: ExecResult(True, 0, PNG_SIGNATURE_BASE64, "")
-        )
+        super().__init__(lambda _cmd, _user: ExecResult(True, 0, VIEW_IMAGE_OUTPUT, ""))
         self.calls: list[tuple[list[str], str | None, str | None]] = []
 
     async def exec(
@@ -161,7 +159,7 @@ async def test_exec_tools_run_as_the_scope_user(
     default, workspace = _RecordingSandbox(), _RecordingSandbox()
     # the home directory lookup prints the passwd home
     workspace.policy = lambda cmd, _user: ExecResult(
-        True, 0, "/srv/w-1\n" if cmd[0] == "/bin/sh" else PNG_SIGNATURE_BASE64, ""
+        True, 0, "/srv/w-1\n" if cmd[0] == "/bin/sh" else VIEW_IMAGE_OUTPUT, ""
     )
     with (
         _environments(default=default, workspace=workspace),
