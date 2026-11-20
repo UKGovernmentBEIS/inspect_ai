@@ -169,11 +169,19 @@ class TaskScreenApp(App[TR]):
         # suspend only if the app is already loaded
         # (otherwise its not yet displayed )
         if self._on_app_loaded.is_set():
+            # Textual resumes the terminal driver only when the suspended
+            # block returns normally, so an error or cancellation (a failed
+            # sandbox setup, which the task's attempt recovers from) is held
+            # until the app has resumed, then raised
+            error: BaseException | None = None
             with self.app.suspend():
                 try:
                     yield
-                finally:
-                    self.app.refresh(repaint=True)
+                except BaseException as ex:
+                    error = ex
+            self.app.refresh(repaint=True)
+            if error is not None:
+                raise error
         else:
             yield
 
