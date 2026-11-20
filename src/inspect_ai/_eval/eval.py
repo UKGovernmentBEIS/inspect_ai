@@ -313,7 +313,8 @@ def eval(
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated). A task cancelled
             before it starts is started outside this limit and ends at once
-            with its cancelled log, so it never takes a slot.
+            with an error log reporting the cancellation, so it never takes a
+            slot.
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -600,7 +601,8 @@ async def eval_async(
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated). A task cancelled
             before it starts is started outside this limit and ends at once
-            with its cancelled log, so it never takes a slot.
+            with an error log reporting the cancellation, so it never takes a
+            slot.
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
         log_samples: Log detailed samples and scores (defaults to True)
@@ -1343,7 +1345,8 @@ def eval_retry(
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated). A task cancelled
             before it starts is started outside this limit and ends at once
-            with its cancelled log, so it never takes a slot.
+            with an error log reporting the cancellation, so it never takes a
+            slot.
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -1597,7 +1600,8 @@ async def eval_retry_async(
            (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel (default is 1).
             A task cancelled before it starts is started outside this limit and
-            ends at once with its cancelled log, so it never takes a slot.
+            ends at once with an error log reporting the cancellation, so it
+            never takes a slot.
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
         sandbox_cleanup: Cleanup sandbox environments after task completes

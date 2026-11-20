@@ -168,16 +168,23 @@ def test_task_error_snapshot_holds_no_frames_once_released() -> None:
     def run_task(dataset: Dataset) -> None:
         raise ValueError("task failed")
 
-    dataset = Dataset()
-    dataset_ref = weakref.ref(dataset)
-    exc_info: Any = None
-    try:
-        run_task(dataset)
-    except ValueError:
-        exc_info = sys.exc_info()
-    expected = rich_traceback(*exc_info)
-    snapshot = TaskError.from_exception(3, *exc_info)
-    del exc_info, dataset
+    def failed_task() -> tuple[weakref.ref[Dataset], TaskError, Any]:
+        # the failing code runs in a frame that has returned, as a task's
+        # does once its row closes (a live frame's locals snapshot on
+        # Python 3.11 and 3.12 would keep the dataset alive on its own)
+        dataset = Dataset()
+        exc_info: Any = None
+        try:
+            run_task(dataset)
+        except ValueError:
+            exc_info = sys.exc_info()
+        return (
+            weakref.ref(dataset),
+            TaskError.from_exception(3, *exc_info),
+            rich_traceback(*exc_info),
+        )
+
+    dataset_ref, snapshot, expected = failed_task()
     gc.collect()
 
     # the live exception is kept until the row closes

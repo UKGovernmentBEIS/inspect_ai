@@ -298,8 +298,12 @@ def _require_run_loop(queue: RunQueue) -> None:
     if token != queue._token:
         raise RuntimeError(
             "enqueue_task() must be called on the running eval's event loop. From "
-            "a worker thread, call it with "
-            "anyio.from_thread.run_sync(lambda: enqueue_task(...))."
+            "a thread started with anyio.to_thread.run_sync(), call "
+            "anyio.from_thread.run_sync(lambda: enqueue_task(...)). From any "
+            "other thread, capture token = anyio.lowlevel.current_token() and "
+            "context = contextvars.copy_context() in the running task and call "
+            "anyio.from_thread.run_sync(context.run, enqueue_task, tasks, "
+            "token=token)."
         )
 
 
@@ -386,8 +390,13 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
     added, against the tasks added so far, so tasks whose selectors name each
     other must be added in one call.
 
-    Call it on the running eval's event loop. From a worker thread, use
-    ``anyio.from_thread.run_sync(lambda: enqueue_task(...))``.
+    Call it on the running eval's event loop. From a thread started with
+    ``anyio.to_thread.run_sync()``, use
+    ``anyio.from_thread.run_sync(lambda: enqueue_task(...))``. From any other
+    thread, capture ``token = anyio.lowlevel.current_token()`` and
+    ``context = contextvars.copy_context()`` in the running task and call
+    ``anyio.from_thread.run_sync(context.run, enqueue_task, tasks,
+    token=token)``.
 
     Args:
         tasks: A ``Task`` (or list of tasks) to add to the running eval.

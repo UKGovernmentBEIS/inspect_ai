@@ -8,14 +8,16 @@ in-run caller).
 
 import contextlib
 import gc
+import threading
 import types
 import weakref
-from contextvars import copy_context
+from contextvars import Context, copy_context
 from pathlib import Path
 from typing import Any, Awaitable, Callable, ClassVar, Iterator, cast
 
 import anyio
 import anyio.from_thread
+import anyio.lowlevel
 import anyio.to_thread
 import pytest
 
@@ -512,8 +514,20 @@ async def test_enqueue_task_off_the_run_loop(tmp_path: Path) -> None:
         # the supported way from a worker
         anyio.from_thread.run_sync(lambda: enqueue_task(_hook_task("via_loop", _noop)))
 
+    def in_other_thread(token: anyio.lowlevel.EventLoopToken, context: Context) -> None:
+        # a thread anyio did not start passes the run's loop token and context
+        anyio.from_thread.run_sync(
+            context.run, enqueue_task, _hook_task("via_token", _noop), token=token
+        )
+
     async def add_from_threads() -> None:
         await anyio.to_thread.run_sync(in_worker)
+        thread = threading.Thread(
+            target=in_other_thread,
+            args=(anyio.lowlevel.current_token(), copy_context()),
+        )
+        thread.start()
+        await anyio.to_thread.run_sync(thread.join)
 
     init_display_type("none")
     logs = await eval_async(
@@ -521,7 +535,11 @@ async def test_enqueue_task_off_the_run_loop(tmp_path: Path) -> None:
         model="mockllm/model",
         log_dir=str(tmp_path),
     )
-    assert sorted(log.eval.task for log in logs) == ["parent", "via_loop"]
+    assert sorted(log.eval.task for log in logs) == [
+        "parent",
+        "via_loop",
+        "via_token",
+    ]
     assert len(errors) == 2
     assert all("event loop" in error for error in errors)
 
