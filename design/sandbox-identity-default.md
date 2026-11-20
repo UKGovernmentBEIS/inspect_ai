@@ -26,7 +26,8 @@ it, and every relative path the caller gives resolves against it: a `cwd`
 passed to `exec()` or `exec_remote()`, a `read_file()` or `write_file()`
 path, and a `sandbox_with()` file lookup. A relative path therefore names the
 same file in all of them. Absolute paths are kept, and marked operations are
-unaffected. Docker runs the commands behind its file operations from `/`, so
+unaffected; `install_skills()` resolves a relative skills directory through
+such a marked operation, so it uses the provider's working directory. Docker runs the commands behind its file operations from `/`, so
 an absolute path works for a user who cannot enter the image's working
 directory.
 
@@ -61,12 +62,13 @@ its CLI through `exec_remote()`, which takes the scope's user. If the first
 two calls ran as root, the configuration would land in root's home and the
 member's CLI would not find it.
 
-Applying the identity inside `exec()` was first rejected (in the
-[inspect_swarm isolation design](https://github.com/meridianlabs-ai/inspect_swarm/blob/main/design/swarm-sandbox-isolation.md))
-because Inspect's own commands and scorers also pass no user, to mean the
-default user, and `exec()` cannot tell them apart from a custom tool. The
-framework-operation marker makes them distinguishable: framework code
-declares its operations, so every unmarked call can take the scope's user.
+Inspect's own commands and scorers also pass no user, to mean the default
+user. Without a framework-operation marker, `exec()` cannot distinguish
+those calls from a custom tool's when both omit a user. The marker makes
+them distinguishable: framework code declares its operations, so every
+unmarked call can take the scope's user. (The
+[inspect_swarm isolation design](https://github.com/meridianlabs-ai/inspect_swarm/blob/main/design/swarm-sandbox-isolation.md)
+sets the scopes this applies to.)
 
 ## Scope
 
@@ -163,9 +165,11 @@ scope:
 These rules do not depend on the user: a call that names `user="root"` and
 no `cwd` also runs in the scope's `cwd`, so a relative path names the same
 file whoever the call runs as. Marked operations keep the provider's default
-directory, as they keep its default user; a marked command that runs as the
-member names a directory the member can enter, as `install_skills()`'s
-`chmod +x` does with `/`. Outside a scope, in a scope without a `cwd`, on
+directory, as they keep its default user. A marked command that runs as the
+member needs a directory the member can enter: `install_skills()`'s
+`chmod +x` names `/`, but its `pwd` for a relative skills directory names
+none, so it runs in the provider's working directory (see
+[`install_skills()`](#install_skills)). Outside a scope, in a scope without a `cwd`, on
 another sandbox and through `as_type()`, nothing changes. The `SandboxEvent`
 records the resolved `cwd` in an exec event's options and the resolved path
 in a file event's `file`.
@@ -226,9 +230,12 @@ sample's file copy and setup script run in
 running anything, so `skill()`'s shared install is not reached there.
 
 A tripwire test, `test_framework_operation_marker_sites` in
-`tests/util/sandbox/test_sandbox_identity.py`, asserts that the marker module
-is referenced only from the modules in this table. A new marked site is a
-deliberate change to its allowlist, which a reviewer sees.
+`tests/util/sandbox/test_sandbox_identity.py`, asserts that the set of
+modules referencing the marker module is exactly the modules in this table
+plus `identity.py`. A marker use in a new module is therefore a deliberate
+change to its allowlist, which a reviewer sees. The test does not see a new
+marker use inside a module already on the list, or a sandbox call that
+bypasses the marked helpers; review of those modules covers both.
 
 ### Default identity and root probes
 
@@ -250,8 +257,11 @@ Both the scope and the marker are ContextVars, so tasks inherit both.
 inherit it: sandbox-service polling loops for the bridge, `exec_remote()`
 process polling, the MCP server transports, and checkpoints that `react()`
 takes. Every sandbox operation these tasks perform goes through a marked
-helper, so each keeps its identity whatever task it runs in. The tripwire
-keeps that set closed.
+helper (the privileged helpers, the framework-directory helper, the JSON-RPC
+transport or the checkpoint copier), so each keeps its identity whatever
+task it runs in. This holds by construction of those paths; the tripwire
+limits which modules can use the marker but does not check that background
+work routes through it.
 
 **The marker, into tasks started inside a marked block.** Each marked block
 other than scoring wraps one awaited call to the proxy. A provider may start
@@ -259,8 +269,10 @@ its own tasks, but those act on the unwrapped provider and never reach the
 proxy again, so the marker does not spread beyond the call it wraps.
 
 **In-loop scoring is the one marked block that runs task code.** A member's
-`react(attempts=...)`, `basic_agent()` and the human agent's `task score`
-call `score()` inside the member's scope. `score()` wraps each
+`react(attempts=...)` and `basic_agent()` call `score()` inside the member's
+scope. (The human agent's `task score` also calls `score()`, but a human
+agent inside a scope is not a supported shape; see
+[Not this design](#not-this-design).) `score()` wraps each
 `await scorer(state, target)` in the marker. Unmarked, a scorer that calls
 `sandbox().exec()` would run as the member in-loop and as the default user
 when the same scorer runs at final scoring, which happens after the solver,
@@ -301,8 +313,8 @@ Update the sandbox provider to support file users, or read the file with exec().
 ```
 
 In inspect_ai, Docker and `local` (current user only) declare a file
-`user`. Third-party providers that do not raise for such calls inside a
-scope; all of them accept `exec(user=...)`, so `exec()` is unaffected. Outside
+`user`. Third-party providers that do not declare a keyword-capable file
+`user` raise `SandboxUserUnsupportedError` for these calls inside a scope; all of them accept `exec(user=...)`, so `exec()` is unaffected. Outside
 a scope, and for marked operations, nothing changes on any provider: a
 marked call passes no user, so the checkpoint copier and the detector keep
 working on providers without file users. Built-in tools are unaffected,
@@ -347,10 +359,13 @@ None)` once and applies the answer to every step:
   no `chown`. An in-loop scorer that installs skills behaves as the same
   scorer does at final scoring.
 
-A relative `dir` resolves against the provider's working directory, not the
-scope's `cwd`, because its `pwd` runs through the marked `privileged_exec()`.
-Inside a scope that location must be writable by the member; otherwise the
-caller passes an absolute directory.
+A relative `dir`, including the default `skills`, resolves against the
+provider's working directory, not the scope's `cwd`, because its `pwd` runs
+through the marked `privileged_exec()` with no `cwd`; the resulting absolute
+paths are what the file operations receive. Inside a scope with no `user`,
+the member must therefore be able to enter the provider's working directory
+(for `pwd`) and write the skills directory under it; otherwise the caller
+passes an absolute directory.
 
 ## Requirements on companion packages
 
@@ -398,7 +413,9 @@ installers) meet these requirements before they run inside a scope:
 - 2026-11-12 (decision: Ransom): the scope's `cwd` applies at the boundary
   to all three calls, and the same join applies to a relative
   `exec_remote()` `cwd` and to `sandbox_with()` lookups, so a relative path
-  names the same file everywhere inside a scope.
+  names the same file in all of these calls inside a scope. Marked
+  operations, and so `install_skills()`'s relative skills directory, keep
+  the provider's working directory.
 
 ## Alternatives considered
 
@@ -477,8 +494,9 @@ unchanged too. Inside a scope:
   dict; there is no schema or generated TypeScript type change, and existing
   logs read back unchanged.
 - **`install_skills()`** with a `user` behaves as outside a scope. With no
-  `user` it installs as the member, the skills are owned by the member, and
-  a relative `dir` must be writable by the member.
+  `user` it installs as the member and the skills are owned by the member;
+  a relative or default `dir` resolves in the provider's working directory,
+  which the member must be able to enter and write under.
 
 ## Security
 
@@ -497,7 +515,8 @@ reaches.
 work would run that work as root. Three things limit this: the marker wraps
 single calls in helpers whose arguments Inspect fixes; it affects only calls
 that pass no user, never the model-facing tools' resolved users; and the
-tripwire test makes every new site a reviewed allowlist change. The one
+tripwire test makes a marker use in a new module a reviewed allowlist
+change (uses inside already listed modules rely on review). The one
 block that runs task code, in-loop scoring, runs code the eval author
 already trusts as the default user at final scoring, but while other members
 are active (see [Context inheritance](#context-inheritance)).
