@@ -169,6 +169,20 @@ async def usage_answer(
     return answer
 
 
+def note_usage_incomplete(request_id: str) -> None:
+    """Note in the transcript that the sidecar was still judging a request Inspect gave up on, so what was recorded of its judging usage may not be all of it."""
+    from inspect_ai.log._transcript import transcript
+
+    transcript().info(
+        {
+            "request": request_id,
+            "judging_usage": "incomplete",
+            "reason": "the sidecar was still judging the attempt",
+        },
+        source="sentinel sidecar",
+    )
+
+
 def note_usage_unavailable(request_id: str, reason: str) -> None:
     """Note in the transcript that what judging a request billed couldn't be had, so it reads as unknown rather than none."""
     from inspect_ai.log._transcript import transcript
@@ -237,8 +251,6 @@ async def record_unasked_usage(received: ReceivedCall) -> None:
     Raises:
         ValueError: If an attempt's judging usage isn't one this Inspect can read.
     """
-    from inspect_ai.log._transcript import transcript
-
     sidecar = received.sidecar
     if sidecar is None:
         received.unasked.clear()
@@ -263,14 +275,7 @@ async def record_unasked_usage(received: ReceivedCall) -> None:
                     # on, and isn't waited for: what was billed so far is
                     # recorded, and the rest may never be
                     if result.get("state") == "judging":
-                        transcript().info(
-                            {
-                                "request": request_id,
-                                "judging_usage": "incomplete",
-                                "reason": "the sidecar was still judging the attempt",
-                            },
-                            source="sentinel sidecar",
-                        )
+                        note_usage_incomplete(request_id)
                     continue
                 reason = f"the sidecar's records are {records}"
             note_usage_unavailable(request_id, reason)

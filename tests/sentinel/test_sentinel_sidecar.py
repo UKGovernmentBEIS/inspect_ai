@@ -1718,17 +1718,19 @@ def test_a_retry_whose_samples_registration_the_sidecar_wont_take_again_is_never
 
 
 @pytest.mark.parametrize(
-    ("answer", "counted", "unknown"),
+    ("answer", "counted", "noted"),
     [
-        ("held", 1000, 0),
-        ("unreadable", 0, 1),
-        ("dropped", 0, 1),
+        ("held", 1000, None),
+        # the sidecar is still judging the try, and isn't waited for
+        ("judging", 1000, "incomplete"),
+        ("unreadable", 0, "unavailable"),
+        ("dropped", 0, "unavailable"),
         # the lookup's connection fails
-        ("lost", 0, 1),
+        ("lost", 0, "unavailable"),
     ],
 )
 def test_the_judging_usage_of_a_try_whose_retry_was_stopped_is_counted_once_or_noted_as_unknown(
-    answer: str, counted: int, unknown: int
+    answer: str, counted: int, noted: str | None
 ) -> None:
     lookups = [0]
 
@@ -1746,7 +1748,7 @@ def test_the_judging_usage_of_a_try_whose_retry_was_stopped_is_counted_once_or_n
         return {
             "id": params["id"],
             "records": "held",
-            "state": "awaiting_reply",
+            "state": "judging" if answer == "judging" else "awaiting_reply",
             "judging_usage": usage,
         }
 
@@ -1767,14 +1769,14 @@ def test_the_judging_usage_of_a_try_whose_retry_was_stopped_is_counted_once_or_n
     judge = sample.model_usage.get("anthropic/claude-judge")
     assert (judge.total_tokens if judge is not None else 0) == counted
     assert log.stats.model_usage.get("anthropic/claude-judge") == judge
-    noted = [
-        e
+    notes = [
+        e.data["judging_usage"]
         for e in sample.events
         if isinstance(e, InfoEvent)
         and isinstance(e.data, dict)
-        and e.data.get("judging_usage") == "unavailable"
+        and "judging_usage" in e.data
     ]
-    assert len(noted) == unknown
+    assert notes == ([noted] if noted is not None else [])
     # the sidecar is asked once, without waiting, as of an earlier attempt
     assert lookups[0] == 1
 

@@ -21,6 +21,7 @@ from inspect_ai.tool._tool_call import ToolCall
 
 from ._lookup import (
     lost_sample,
+    note_usage_incomplete,
     note_usage_unavailable,
     record_unasked_usage,
     record_usage_read,
@@ -270,7 +271,11 @@ async def _end_call_registration_stopped(received: ReceivedCall) -> None:
     # The sidecar gives a total for the id, so the answer adds only what it
     # has over what Inspect recorded before. A paused call was asked about
     # before, so only another call's usage can be wholly unknown.
-    if not (answer and record_usage_read(received, request_id, answer)) and not paused:
+    if answer and record_usage_read(received, request_id, answer):
+        if answer.get("state") == "judging":
+            # what was billed so far is recorded, and the rest may never be
+            note_usage_incomplete(request_id)
+    elif not paused:
         records = answer.get("records") if answer else None
         note_usage_unavailable(
             request_id,
