@@ -8,7 +8,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import TypedDict
 
 from inspect_ai._util.content import Content
-from inspect_ai._util.format import format_function_call
+from inspect_ai._util.format import format_function_call, safe_code_fence
 from inspect_ai._util.logger import warn_once
 
 
@@ -140,18 +140,36 @@ def resolve_tool_call_view(
                 f"Error in viewer for tool '{call.function}': {ex}. "
                 "Falling back to default rendering.",
             )
+            return viewer_failed_view(call)
     return default_tool_call_viewer(call)
 
 
 def default_tool_call_viewer(call: ToolCall) -> ToolCallView:
+    r"""The call as a Python function call, with its arguments as literals.
+
+    The surfaces fill `{{param}}` placeholders in a view from the call's
+    arguments, so `{{` in a string literal is written `{\x7b`, which reads as
+    the same string and is not a placeholder.
+    """
+    code = format_function_call(
+        call.function, call.arguments, literal_strings=True
+    ).replace("{{", "{\\x7b")
+    fence = safe_code_fence(code)
     return ToolCallView(
         call=ToolCallContent(
-            format="markdown",
-            content="```python\n"
-            + format_function_call(call.function, call.arguments)
-            + "\n```\n",
+            format="markdown", content=f"{fence}python\n{code}\n{fence}\n"
         )
     )
+
+
+def viewer_failed_view(call: ToolCall) -> ToolCallView:
+    """The default view of `call`, titled to say the tool's own viewer failed."""
+    view = default_tool_call_viewer(call)
+    if view.call is not None:
+        view.call.title = (
+            f"The viewer for '{call.function}' failed; showing the call's arguments"
+        )
+    return view
 
 
 def substitute_tool_call_content(

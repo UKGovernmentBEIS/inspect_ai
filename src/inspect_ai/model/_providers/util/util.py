@@ -158,18 +158,19 @@ _CLAUDE_FABLE_5_POINT_RELEASE = re.compile(
 def is_claude_fable_5_1_model(model_name: str) -> bool:
     """Fable/Mythos 5.1 or a later point release of those codenames.
 
-    Both models reject forced tool choice; only Fable 5.1 additionally binds
-    thinking blocks to their originating conversation prefix ("Claude Mythos
-    5.1 doesn't run this check"). The 5.1 behaviors are assumed to persist in
-    later point releases (see `is_claude_fable_5_2_model` for 5.2's changes).
+    Both models reject forced tool choice. Fable 5.1 and Mythos 5.2 also bind
+    thinking blocks to their originating conversation prefix; Mythos 5.1 does
+    not ("Claude Mythos 5.1 doesn't run this check") but accepts the
+    drop_block opt-in. The 5.1 behaviors are assumed to persist in later
+    point releases (see `is_claude_fable_5_2_model` for 5.2's changes).
     """
     return _CLAUDE_FABLE_5_POINT_RELEASE.search(model_name) is not None
 
 
 # Fable 5.2 and later point releases, with the same exclusions as
 # _CLAUDE_FABLE_5_POINT_RELEASE (base release, 1M-context and date suffixes).
-# Mythos 5.2 is documented alike but is not matched until verified live; it
-# keeps the Mythos 5.1 handling.
+# Mythos 5.2 is documented alike but is not matched until verified live; for
+# these behaviors it keeps the Mythos 5.1 handling.
 _CLAUDE_FABLE_5_2_OR_LATER = re.compile(
     r"claude-fable-5[-.](?:[2-9]|[1-9]\d)(?![0-9A-Za-z])"
 )

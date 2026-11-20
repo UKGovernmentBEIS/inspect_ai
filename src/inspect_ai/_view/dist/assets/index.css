@@ -488,25 +488,27 @@
   border-top: 1px solid
     var(--vscode-widget-border, var(--vscode-editorWidget-border));
 }
-._jsonPanel_1ssvw_1 {
+._jsonPanel_uye4r_1 {
   width: 100%;
   padding: 0.5em;
 }
 
-._jsonPanel_1ssvw_1:not(._simple_1ssvw_6) {
+._jsonPanel_uye4r_1:not(._simple_uye4r_6) {
   background: var(--bs-light);
   border-radius: var(--bs-border-radius);
 }
 
 /* `source-code` is a repo-wide convention class (see packages/theme base.css
-   and SourceCodePanel/ToolInput), so it stays global here. */
-._jsonPanel_1ssvw_1 .source-code {
+   and SourceCodePanel/ToolInput), so it stays global here. !important beats
+   Prism's white-space: pre and word-wrap: normal. */
+._jsonPanel_uye4r_1 .source-code {
   font-size: var(--inspect-font-size-small);
   white-space: pre-wrap !important;
   word-wrap: anywhere !important;
 }
 
-/* Prism.js convention class on highlighted code — must stay global. */
+/* Prism.js convention class on highlighted code — must stay global.
+   !important beats Prism's code-block background. */
 .language-javascript {
   background: transparent !important;
 }
@@ -913,23 +915,24 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   outline: 1px solid var(--bs-primary);
   outline-offset: 1px;
 }
-._sourcePanel_bat6y_1 {
+._sourcePanel_zvera_1 {
   width: 100%;
   padding: 0.5em;
 }
 
-._sourcePanel_bat6y_1:not(._simple_bat6y_6) {
+._sourcePanel_zvera_1:not(._simple_zvera_6) {
   background: var(--bs-light);
   border-radius: var(--bs-border-radius);
 }
 
-._sourcePanel_bat6y_1 ._code_bat6y_11 {
+/* !important beats Prism's white-space, word-wrap and background. */
+._sourcePanel_zvera_1 ._code_zvera_12 {
   font-size: var(--inspect-font-size-small);
   white-space: pre-wrap !important;
   word-wrap: anywhere !important;
   background: transparent !important;
 }
-._container_hqi3c_1 {
+._container_1zeje_1 {
   display: grid;
   grid-template-columns: 1fr max-content;
   column-gap: 0.3em;
@@ -940,12 +943,12 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   overflow: hidden;
 }
 
-._container_hqi3c_1:focus-within {
+._container_1zeje_1:focus-within {
   outline: 2px solid var(--bs-primary);
   outline-offset: 2px;
 }
 
-._input_hqi3c_17 {
+._input_1zeje_17 {
   border: none;
   outline: none;
   background: transparent;
@@ -953,15 +956,15 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   min-width: 0;
 }
 
-._withIcon_hqi3c_25 {
+._withIcon_1zeje_25 {
   grid-template-columns: max-content 1fr max-content;
 }
 
-._icon_hqi3c_29 {
+._icon_1zeje_29 {
   margin-left: 0.3em;
 }
 
-._clearText_hqi3c_33 {
+._clearText_1zeje_33 {
   padding: 0;
   border: none;
   background: none;
@@ -971,15 +974,15 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   margin-right: 0.3em;
 }
 
-._clearText_hqi3c_33:hover {
+._clearText_1zeje_33:hover {
   cursor: pointer;
 }
 
-._clearText_hqi3c_33._hidden_hqi3c_47:hover {
-  cursor: default !important;
+._clearText_1zeje_33._hidden_1zeje_47:hover {
+  cursor: default;
 }
-._hidden_hqi3c_47 {
-  opacity: 0 !important;
+._clearText_1zeje_33._hidden_1zeje_47 {
+  opacity: 0;
 }
 ._toolButton_l4xu9_1 {
   background-color: var(--bs-light-border-subtle);
@@ -1297,12 +1300,12 @@ button._segment_116ql_10._disabled_116ql_51:hover {
 ._collapsedContent_1qksy_105 ._inlineToggleSticky_1qksy_84 {
   position: static;
 }
-._carouselThumbs_osoon_1 {
+._carouselThumbs_n5zey_1 {
   display: grid;
   grid-template-columns: auto auto auto auto;
 }
 
-._carouselThumb_osoon_1 {
+._carouselThumb_n5zey_1 {
   display: block;
   background: black;
   color: white;
@@ -1314,12 +1317,12 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   text-align: center;
 }
 
-._carouselPlayIcon_osoon_18 {
+._carouselPlayIcon_n5zey_18 {
   font-size: 4em;
 }
 
 /* The <dialog> covers the viewport and centres the slide. */
-._lightbox_osoon_23 {
+._lightbox_n5zey_23 {
   width: 100%;
   height: 100%;
   max-width: none;
@@ -1332,23 +1335,23 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   transition: opacity 0.3s ease;
 }
 
-._lightbox_osoon_23:modal {
+._lightbox_n5zey_23:modal {
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 @starting-style {
-  ._lightbox_osoon_23:modal {
+  ._lightbox_n5zey_23:modal {
     opacity: 0;
   }
 }
 
-._lightbox_osoon_23::backdrop {
+._lightbox_n5zey_23::backdrop {
   background: rgba(0, 0, 0, 0.8);
 }
 
-._lightboxButtonClose_osoon_52 {
+._lightboxButtonClose_n5zey_52 {
   position: absolute;
   top: 10px;
   right: 10px;
@@ -1362,7 +1365,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   padding-bottom: 1em;
 }
 
-._lightboxPreviewButton_osoon_66 {
+._lightboxPreviewButton_n5zey_66 {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
@@ -1374,25 +1377,25 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   cursor: pointer;
 }
 
-._lightboxPreviewButton_osoon_66._next_osoon_78 {
+._lightboxPreviewButton_n5zey_66._next_n5zey_78 {
   right: 10px;
 }
 
-._lightboxPreviewButton_osoon_66._prev_osoon_82 {
+._lightboxPreviewButton_n5zey_66._prev_n5zey_82 {
   left: 10px;
 }
 
-._lightboxContent_osoon_86 {
-  max-width: 90vw !important;
-  max-height: 90vh !important;
+._lightboxContent_n5zey_86 {
+  max-width: 90vw;
+  max-height: 90vh;
   display: flex;
   position: relative;
   overflow: hidden;
 }
 
-._lightboxContent_osoon_86 > * {
-  max-height: 90vh !important;
-  max-width: 90vw !important;
+._lightboxContent_n5zey_86 > * {
+  max-height: 90vh;
+  max-width: 90vw;
 }
 ._asciinemaPlayerStatus_1doob_1 {
   margin-right: 0.5em;
@@ -1674,8 +1677,9 @@ button._segment_116ql_10._disabled_116ql_51:hover {
 }
 /*
  * Element reset: Bootstrap v5.3.8's Reboot, without its variable blocks
- * (tokens.css has those). Rules unchanged apart from formatting (Copyright
- * 2011-2025 The Bootstrap Authors, MIT license,
+ * (tokens.css has those). Rules unchanged apart from formatting and dropped
+ * vendor prefixes and vendor-only rules that current browsers don't need
+ * (Copyright 2011-2025 The Bootstrap Authors, MIT license,
  * https://github.com/twbs/bootstrap/blob/main/LICENSE).
  */
 
@@ -1780,10 +1784,8 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   }
 
   abbr[title] {
-    -webkit-text-decoration: underline dotted;
     text-decoration: underline dotted;
     cursor: help;
-    -webkit-text-decoration-skip-ink: none;
     text-decoration-skip-ink: none;
   }
 
@@ -1991,6 +1993,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   [list]:not([type="date"]):not([type="datetime-local"]):not(
       [type="month"]
     ):not([type="week"]):not([type="time"])::-webkit-calendar-picker-indicator {
+    /* !important, as in Reboot, so no other rule brings the datalist arrow back. */
     display: none !important;
   }
 
@@ -1998,18 +2001,13 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   [type="button"],
   [type="reset"],
   [type="submit"] {
-    -webkit-appearance: button;
+    appearance: button;
   }
   button:not(:disabled),
   [type="button"]:not(:disabled),
   [type="reset"]:not(:disabled),
   [type="submit"]:not(:disabled) {
     cursor: pointer;
-  }
-
-  ::-moz-focus-inner {
-    padding: 0;
-    border-style: none;
   }
 
   textarea {
@@ -2055,7 +2053,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   }
 
   [type="search"] {
-    -webkit-appearance: textfield;
+    appearance: textfield;
     outline-offset: -2px;
   }
   [type="search"]::-webkit-search-cancel-button {
@@ -2063,21 +2061,16 @@ button._segment_116ql_10._disabled_116ql_51:hover {
     filter: grayscale(1);
   }
   ::-webkit-search-decoration {
-    -webkit-appearance: none;
+    appearance: none;
   }
 
   ::-webkit-color-swatch-wrapper {
     padding: 0;
   }
 
-  ::-webkit-file-upload-button {
-    font: inherit;
-    -webkit-appearance: button;
-  }
-
   ::file-selector-button {
     font: inherit;
-    -webkit-appearance: button;
+    appearance: button;
   }
 
   output {
@@ -2098,14 +2091,16 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   }
 
   [hidden] {
+    /* !important so the hidden attribute wins over any display rule. */
     display: none !important;
   }
 }
 /*
- * Component classes, copied from Bootstrap v5.3.8 with rules unchanged apart from
- * formatting (Copyright 2011-2025 The Bootstrap Authors, MIT license,
- * https://github.com/twbs/bootstrap/blob/main/LICENSE). Only the classes the
- * apps use are copied.
+ * Component classes, copied from Bootstrap v5.3.8 with rules unchanged
+ * apart from formatting and dropped vendor prefixes and vendor-only rules
+ * that current browsers don't need (Copyright 2011-2025 The Bootstrap
+ * Authors, MIT license, https://github.com/twbs/bootstrap/blob/main/LICENSE).
+ * Only the classes the apps use are copied.
  */
 
 @layer tsmono.components {
@@ -2154,8 +2149,6 @@ button._segment_116ql_10._disabled_116ql_51:hover {
     font-weight: 400;
     line-height: 1.5;
     color: var(--bs-body-color);
-    -webkit-appearance: none;
-    -moz-appearance: none;
     appearance: none;
     background-color: var(--bs-body-bg);
     background-clip: padding-box;
@@ -2200,34 +2193,9 @@ button._segment_116ql_10._disabled_116ql_51:hover {
     background-color: var(--bs-secondary-bg);
     opacity: 1;
   }
-  .form-control::-webkit-file-upload-button {
-    padding: 0.375rem 0.75rem;
-    margin: -0.375rem -0.75rem;
-    -webkit-margin-end: 0.75rem;
-    margin-inline-end: 0.75rem;
-    color: var(--bs-body-color);
-    background-color: var(--bs-tertiary-bg);
-    pointer-events: none;
-    border-color: inherit;
-    border-style: solid;
-    border-width: 0;
-    border-inline-end-width: var(--bs-border-width);
-    border-radius: 0;
-    -webkit-transition:
-      color 0.15s ease-in-out,
-      background-color 0.15s ease-in-out,
-      border-color 0.15s ease-in-out,
-      box-shadow 0.15s ease-in-out;
-    transition:
-      color 0.15s ease-in-out,
-      background-color 0.15s ease-in-out,
-      border-color 0.15s ease-in-out,
-      box-shadow 0.15s ease-in-out;
-  }
   .form-control::file-selector-button {
     padding: 0.375rem 0.75rem;
     margin: -0.375rem -0.75rem;
-    -webkit-margin-end: 0.75rem;
     margin-inline-end: 0.75rem;
     color: var(--bs-body-color);
     background-color: var(--bs-tertiary-bg);
@@ -2244,18 +2212,9 @@ button._segment_116ql_10._disabled_116ql_51:hover {
       box-shadow 0.15s ease-in-out;
   }
   @media (prefers-reduced-motion: reduce) {
-    .form-control::-webkit-file-upload-button {
-      -webkit-transition: none;
-      transition: none;
-    }
     .form-control::file-selector-button {
       transition: none;
     }
-  }
-  .form-control:hover:not(:disabled):not(
-      [readonly]
-    )::-webkit-file-upload-button {
-    background-color: var(--bs-secondary-bg);
   }
   .form-control:hover:not(:disabled):not([readonly])::file-selector-button {
     background-color: var(--bs-secondary-bg);
@@ -2274,8 +2233,6 @@ button._segment_116ql_10._disabled_116ql_51:hover {
     font-weight: 400;
     line-height: 1.5;
     color: var(--bs-body-color);
-    -webkit-appearance: none;
-    -moz-appearance: none;
     appearance: none;
     background-color: var(--bs-body-bg);
     background-image:
@@ -2306,10 +2263,6 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   }
   .form-select:disabled {
     background-color: var(--bs-secondary-bg);
-  }
-  .form-select:-moz-focusring {
-    color: transparent;
-    text-shadow: 0 0 0 var(--bs-body-color);
   }
 
   .form-select-sm {
@@ -2354,7 +2307,6 @@ button._segment_116ql_10._disabled_116ql_51:hover {
     vertical-align: middle;
     cursor: pointer;
     -webkit-user-select: none;
-    -moz-user-select: none;
     user-select: none;
     border: var(--bs-btn-border-width) solid var(--bs-btn-border-color);
     border-radius: var(--bs-btn-border-radius);
@@ -2809,14 +2761,14 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   }
 }
 /*
- * Helper and utility classes, copied from Bootstrap v5.3.8 with rules unchanged apart from
- * formatting (Copyright 2011-2025 The Bootstrap Authors, MIT license,
+ * Helper and utility classes, copied from Bootstrap v5.3.8 with rules unchanged
+ * apart from formatting and dropped -webkit- prefixes that current browsers
+ * don't need (Copyright 2011-2025 The Bootstrap Authors, MIT license,
  * https://github.com/twbs/bootstrap/blob/main/LICENSE). Only the classes the
  * apps use are copied.
  */
 
 .sticky-top {
-  position: -webkit-sticky;
   position: sticky;
   top: 0;
   z-index: 1020;
@@ -3226,16 +3178,18 @@ pre[class*="language-"] {
   border: 1px solid var(--bs-light-border-subtle);
   border-left: 3px solid var(--inspect-readable-tool-call-border);
   border-radius: var(--bs-border-radius);
+  /* !important also outranks ToolBlock's less specific padding: 0 !important,
+     so a tool card's input zone keeps this padding. Dropping it changes that. */
   padding: 0.5em !important;
 }
 
 /* Flatten a fenced code block inside a view — the surface carries the box. */
 :root[data-theme-variant="readable"] .tool-call-input pre[class*="language-"] {
-  background-color: transparent !important;
-  border: 0 !important;
+  background-color: transparent;
+  border: 0;
   border-radius: 0;
-  margin: 0 !important;
-  padding: 0 !important;
+  margin: 0;
+  padding: 0;
 }
 
 /* Nested in a message band: neutral surface with a subtle (not colored) left,
@@ -3301,7 +3255,8 @@ body:not([class^="vscode-"]) a[role="tab"] {
   grid-template-rows: max-content max-content 1fr;
 }
 
-/* Inspect Text Styles */
+/* Inspect text utilities. Like the Bootstrap utilities in utilities.css, these
+   are !important so they win over component rules whatever the stylesheet order. */
 .text-style-label {
   text-transform: uppercase !important;
 }
@@ -3314,7 +3269,7 @@ body:not([class^="vscode-"]) a[role="tab"] {
   color: var(--bs-tertiary-color) !important;
 }
 
-/* Inspect Font Size Styles */
+/* Inspect font size utilities (see above). */
 .text-size-title {
   font-size: var(--inspect-font-size-title) !important;
 }
@@ -3430,7 +3385,7 @@ html.vscode {
 
 html.vscode .sample-input {
   line-height: 1.3em;
-  -webkit-line-clamp: 4 !important;
+  -webkit-line-clamp: 4;
 }
 
 body[class^="vscode-"] code {
@@ -3449,7 +3404,7 @@ body[class^="vscode-"] .navbar-brand {
   font-size: 1.1em;
 }
 body[class^="vscode-"] .navbar-brand > div {
-  margin-top: -0.2rem !important;
+  margin-top: -0.2rem;
 }
 
 body[class^="vscode-"] .task-title {
@@ -3590,7 +3545,7 @@ body {
 
 @media (max-width: 575px) {
   .navbar .vertical-metric-label {
-    font-size: 0.7rem !important;
+    font-size: 0.7rem;
   }
 }
 
@@ -3602,7 +3557,8 @@ body {
 
 @media (max-width: 575px) {
   .navbar .vertical-metric-value {
-    margin-top: 0.2rem !important;
+    margin-top: 0.2rem;
+    /* Beats the .text-size-largest utility on the same element. */
     font-size: 0.9rem !important;
   }
 }
@@ -3647,6 +3603,7 @@ body {
   --bs-btn-hover-border-color: var(--bs-secondary-bg-subtle);
 }
 
+/* !important beats Prism's white-space: pre and word-wrap: normal. */
 .markdown-content pre > code,
 .markdown-content pre {
   white-space: pre-wrap !important;
@@ -3874,15 +3831,9 @@ pre[class*="language-"].tool-output,
 .model-call pre[class*="language-"],
 .markdown-content pre[class*="language-"],
 pre[class*="language-"].tool-output {
-  border: none !important;
-  box-shadow: none !important;
-  border-radius: var(--bs-border-radius) !important;
-}
-
-.vscode-dark pre.jsonPanel {
-  background: none !important;
-  border: none !important;
-  box-shadow: none !important;
+  border: none;
+  box-shadow: none;
+  /* Beats the dark Prism theme's 0.5em radius below (same specificity). */
   border-radius: var(--bs-border-radius) !important;
 }
 
@@ -3947,7 +3898,6 @@ ul.jsondiffpatch-delta {
 .jsondiffpatch-unchanged,
 .jsondiffpatch-movedestination > .jsondiffpatch-value {
   transition: all 0.5s;
-  -webkit-transition: all 0.5s;
   overflow-y: hidden;
 }
 .jsondiffpatch-unchanged-showing .jsondiffpatch-unchanged,
@@ -4065,14 +4015,15 @@ ul.jsondiffpatch-textdiff {
   font-weight: bold;
 }
 
-/* prism-custom.css */
+/* prism-custom.css. !important beats the dark Prism theme's more specific
+   font-size: 1em below, and component rules that size code blocks. */
 code[class*="language-"],
 pre[class*="language-"] {
   font-size: 0.7rem !important;
 }
 
 .token {
-  font-size: 0.7rem !important;
+  font-size: 0.7rem;
 }
 
 /* PrismJS 1.29.0 https://prismjs.com/download.html#themes=prism-dark&languages=markup+css+clike+javascript+bash+python */
@@ -4091,12 +4042,7 @@ pre[class*="language-"] {
   word-break: normal;
   word-wrap: normal;
   line-height: 1.5;
-  -moz-tab-size: 4;
-  -o-tab-size: 4;
   tab-size: 4;
-  -webkit-hyphens: none;
-  -moz-hyphens: none;
-  -ms-hyphens: none;
   hyphens: none;
 }
 @media print {
@@ -4184,8 +4130,6 @@ pre[class*="language-"] {
 .hideSelection {
   user-select: none;
   -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
 }
 
 /* Find matches, registered by @tsmono/react's find band. */
@@ -4671,16 +4615,15 @@ li > ul {
   }
 
   body {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+    print-color-adjust: exact;
     orphans: 3;
     widows: 3;
   }
 
   #app,
   .app-main-grid {
-    height: auto !important;
-    overflow: visible !important;
+    height: auto;
+    overflow: visible;
   }
 
   pre,
@@ -5093,28 +5036,29 @@ li > ul {
 ._preCompact_seqs2_15 {
   margin-bottom: 0;
 }
-._title_1pwo3_1 {
+._title_16xvo_1 {
   margin-bottom: 0.25em;
   display: grid;
   grid-template-columns: auto 1fr auto;
   column-gap: 0.3em;
   align-items: baseline;
-  color: var(--bs-secondary) !important;
-  font-weight: var(--bs-body-font-weight) !important;
+  color: var(--bs-secondary);
+  font-weight: var(--bs-body-font-weight);
 }
 
-._content_1pwo3_11 {
+._content_16xvo_11 {
   margin-bottom: 0.5em;
   overflow-wrap: anywhere;
 }
 
-._grid_1pwo3_16 {
+._grid_16xvo_16 {
   border: solid var(--bs-border-color) 1px;
   border-radius: var(--bs-border-radius);
   padding: 0.5em;
 }
 
-._content_1pwo3_11 ._grid_1pwo3_16 .text-style-label {
+/* Overrides the .text-style-label utility, which is !important. */
+._content_16xvo_11 ._grid_16xvo_16 .text-style-label {
   text-transform: none !important;
 }
 ._contentData_1lrx1_1 {
@@ -5190,12 +5134,12 @@ li > ul {
 a._citationLink_1gzkd_9:hover {
   text-decoration: underline;
 }
-._contentImage_a1z7v_1 {
+._contentImage_3ih9j_1 {
   max-width: 800px;
   border: solid var(--bs-border-color) 1px;
 }
 
-._reasoning_a1z7v_6 {
+._reasoning_3ih9j_6 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 1em;
   margin-bottom: 0.5em;
@@ -5204,22 +5148,23 @@ a._citationLink_1gzkd_9:hover {
   overflow-wrap: anywhere;
 }
 
-._breakable_a1z7v_15 {
+._breakable_3ih9j_15 {
   overflow-wrap: break-word;
   min-width: 0;
 }
 
-._codePanel_a1z7v_20 {
+._codePanel_3ih9j_20 {
   margin: 0rem;
   overflow-y: scroll;
   overflow-x: auto;
 }
 
-._codePanelPre_a1z7v_26 {
+._codePanelPre_3ih9j_26 {
   padding: 0;
 }
 
-._codePanelPre_a1z7v_26 code {
+/* !important beats Prism's white-space, word-wrap and word-break. */
+._codePanelPre_3ih9j_26 code {
   white-space: pre-wrap !important;
   overflow-wrap: break-word !important;
   word-break: break-all !important;
@@ -5228,7 +5173,7 @@ a._citationLink_1gzkd_9:hover {
    which are neutral by default and only colorized under the readable
    variant (the Event Colors toggle); the output well is the tool-output
    fill, hairlines/border are the subtle border token. */
-._block_1ib8l_5 {
+._block_mqpat_5 {
   border-left: var(--inspect-tool-block-edge);
 }
 
@@ -5236,7 +5181,7 @@ a._citationLink_1gzkd_9:hover {
    frame a scroll container, which traps the sticky "less…" toggle of the
    ExpandablePanels inside at the block's bottom edge — off screen for any
    output taller than the viewport. */
-._standalone_1ib8l_13 {
+._standalone_mqpat_13 {
   border-top: 1px solid var(--bs-light-border-subtle);
   border-right: 1px solid var(--bs-light-border-subtle);
   border-bottom: 1px solid var(--bs-light-border-subtle);
@@ -5244,7 +5189,7 @@ a._citationLink_1gzkd_9:hover {
   overflow: clip;
 }
 
-._header_1ib8l_21 {
+._header_mqpat_21 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -5255,17 +5200,17 @@ a._citationLink_1gzkd_9:hover {
 /* The zero bottom padding above assumes an input/output zone follows; a
    header-only block (no input, no output yet) otherwise sits flush against
    the container's bottom edge. */
-._header_1ib8l_21:last-child {
+._header_mqpat_21:last-child {
   padding-bottom: 0.5rem;
 }
 
-._icon_1ib8l_36 {
+._icon_mqpat_36 {
   flex: none;
   font-size: 13px;
   color: var(--inspect-tool-block-ink);
 }
 
-._title_1ib8l_42 {
+._title_mqpat_42 {
   flex: none;
   font-family: var(--bs-font-monospace);
   font-size: var(--inspect-font-size-smaller);
@@ -5273,7 +5218,7 @@ a._citationLink_1gzkd_9:hover {
   color: var(--inspect-tool-block-ink);
 }
 
-._summary_1ib8l_50 {
+._summary_mqpat_50 {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -5284,7 +5229,7 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-secondary-color);
 }
 
-._pill_1ib8l_61 {
+._pill_mqpat_61 {
   flex: none;
   /* Right-aligned even when there is no args summary to push it over. */
   margin-left: auto;
@@ -5298,7 +5243,7 @@ a._citationLink_1gzkd_9:hover {
   padding: 1px 7px;
 }
 
-._inputZone_1ib8l_75 {
+._inputZone_mqpat_75 {
   background-color: var(--inspect-tool-block-input-bg);
   padding: 0 0.5rem 0.2rem 0.5rem;
 }
@@ -5307,11 +5252,11 @@ a._citationLink_1gzkd_9:hover {
    inside the ExpandablePanel's content — a scroll container on the zone
    would sit between the panel and the transcript scroller and trap its
    sticky toggle (see `.standalone`). */
-._inputZone_1ib8l_75 .tool-call-input {
+._inputZone_mqpat_75 .tool-call-input {
   overflow-x: auto;
 }
 
-._outputWell_1ib8l_88 {
+._outputWell_mqpat_88 {
   border-top: 1px solid var(--bs-light-border-subtle);
   background-color: var(--inspect-tool-block-output-bg);
   padding: 12px 15px;
@@ -5323,8 +5268,8 @@ a._citationLink_1gzkd_9:hover {
    renderers (prism code blocks, tool-call-input call-outs, tool output wells)
    would otherwise stack inside them. !important outranks the readable
    variant's higher-specificity :root[data-theme-variant] surface rules. */
-._inputZone_1ib8l_75 pre.tool-call-input,
-._inputZone_1ib8l_75 div.tool-call-input {
+._inputZone_mqpat_75 pre.tool-call-input,
+._inputZone_mqpat_75 div.tool-call-input {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -5332,13 +5277,15 @@ a._citationLink_1gzkd_9:hover {
   margin: 0 !important;
 }
 
-._inputZone_1ib8l_75 .tool-call-input pre[class*="language-"] {
-  margin: 0 !important;
-  padding: 0 !important;
-  background-color: transparent !important;
+/* div.tool-call-input outranks base.css's dark .markdown-content pre background
+   (the view's root is both). */
+._inputZone_mqpat_75 div.tool-call-input pre[class*="language-"] {
+  margin: 0;
+  padding: 0;
+  background-color: transparent;
 }
 
-._outputWell_1ib8l_88 .tool-output {
+._outputWell_mqpat_88 .tool-output {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -5346,33 +5293,33 @@ a._citationLink_1gzkd_9:hover {
   padding: 0 !important;
 }
 
-._inputInsetZone_1ib8l_123,
-._outputInsetZone_1ib8l_124 {
+._inputInsetZone_mqpat_125,
+._outputInsetZone_mqpat_126 {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 0 10px 10px;
 }
 
-._inputInsetZone_1ib8l_123 {
+._inputInsetZone_mqpat_125 {
   background-color: var(--inspect-tool-block-input-bg);
 }
 
-._header_1ib8l_21 + ._inputInsetZone_1ib8l_123 {
+._header_mqpat_21 + ._inputInsetZone_mqpat_125 {
   padding-top: 6px;
 }
 
-._inputZone_1ib8l_75 + ._inputInsetZone_1ib8l_123 {
+._inputZone_mqpat_75 + ._inputInsetZone_mqpat_125 {
   padding-top: 5px;
 }
 
-._outputInsetZone_1ib8l_124 {
+._outputInsetZone_mqpat_126 {
   border-top: 1px solid var(--bs-light-border-subtle);
   background-color: var(--inspect-tool-block-output-bg);
   padding-top: 10px;
 }
 
-._outputWell_1ib8l_88 + ._outputInsetZone_1ib8l_124 {
+._outputWell_mqpat_88 + ._outputInsetZone_mqpat_126 {
   border-top: 0;
   padding-top: 0;
 }
@@ -5400,27 +5347,29 @@ a._citationLink_1gzkd_9:hover {
 ._inProgress_1t8rx_9 {
   font-weight: bold;
 }
-._outputPre_7phrr_1 {
+._outputPre_1qpr1_1 {
   padding: 0.5em;
   margin-top: 0.25em;
   margin-bottom: 0;
 }
 
-._toolView_7phrr_7 {
-  padding-top: 0 !important;
+._toolView_1qpr1_7 {
+  padding-top: 0;
 }
 
-._toolView_7phrr_7 pre {
+._toolView_1qpr1_7 pre {
   margin-bottom: 0;
 }
 
-._toolView_7phrr_7 p > code {
-  font-size: var(--inspect-text-size-small) !important;
+._toolView_1qpr1_7 p > code {
+  font-size: var(--inspect-text-size-small);
+  /* Beats base.css's more specific inline-code colour. */
   color: var(--bs-body-color) !important;
 }
 
-._outputCode_7phrr_20 {
-  font-size: var(--inspect-text-size-small) !important;
+/* !important beats Prism's white-space: pre and word-wrap: normal. */
+._outputCode_1qpr1_22 {
+  font-size: var(--inspect-text-size-small);
   overflow-wrap: anywhere !important;
   white-space: pre-wrap !important;
 }
@@ -5442,27 +5391,27 @@ a._citationLink_1gzkd_9:hover {
 ._execError_13xcg_16 {
   color: var(--inspect-tool-error-color);
 }
-._toolImage_13oj2_1 {
+._toolImage_hbh79_1 {
   max-width: 800px;
   border: solid var(--inspect-tool-output-border) 1px;
 }
 
-._output_13oj2_6 {
+._output_hbh79_6 {
   display: grid;
 }
 
-._textOutput_13oj2_10 {
+._textOutput_hbh79_10 {
   padding-left: 2px;
   padding: 0.5em 0.5em 0.5em 0.5em;
   white-space: pre-wrap;
   margin-bottom: 0;
-  font-size: 0.9em !important;
+  font-size: 0.9em;
   border-radius: var(--bs-border-radius);
 }
 
 /* A block that inherits the pre's unicode-bidi, so an untrusted output's
    `plaintext` reaches the content-visibility chunks inside a long one. */
-._textCode_13oj2_21 {
+._textCode_hbh79_21 {
   display: block;
   unicode-bidi: inherit;
   word-wrap: anywhere;
@@ -5564,17 +5513,18 @@ a._citationLink_1gzkd_9:hover {
 ._description_gx8eg_42 {
   margin: 0.25rem 0 0.25rem 1rem;
 }
-._image_1evla_1 {
+._image_1mwlb_1 {
   margin-right: 0.2rem;
   opacity: 0.4;
 }
 
-._toolTitle_1evla_6 {
+._toolTitle_1mwlb_6 {
+  /* Beats base.css's more specific inline-code colour. */
   color: unset !important;
   overflow-wrap: anywhere;
 }
 
-._description_1evla_11 {
+._description_1mwlb_12 {
   margin-left: 0.3em;
   color: var(--inspect-tool-description-color);
 }
@@ -5858,9 +5808,9 @@ a._citationLink_1gzkd_9:hover {
 ._interactive_1c7cn_25:hover {
   background: var(--inspect-msg-label-bg-hover);
 }
-._bar_1wkhg_1 {
-  --glint: rgba(64, 72, 104, 0.1);
-  --label: #5c5c63;
+._bar_10b39_1 {
+  --glint: light-dark(rgba(64, 72, 104, 0.1), rgba(255, 255, 255, 0.08));
+  --label: light-dark(#5c5c63, #c2c2c9);
 
   position: relative;
   display: flex;
@@ -5875,7 +5825,7 @@ a._citationLink_1gzkd_9:hover {
   background: var(--bs-body-bg);
 }
 
-._bar_1wkhg_1::before {
+._bar_10b39_1::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -5888,14 +5838,14 @@ a._citationLink_1gzkd_9:hover {
   );
   background-size: 220% 100%;
   background-repeat: no-repeat;
-  animation: _gen-sweep_1wkhg_1 2.8s linear infinite;
+  animation: _gen-sweep_10b39_1 2.8s linear infinite;
 }
 
-._barLabelOnly_1wkhg_34 {
+._barLabelOnly_10b39_34 {
   justify-content: flex-start;
 }
 
-._label_1wkhg_38 {
+._label_10b39_38 {
   position: relative;
   font-weight: 400;
   font-size: 13.5px;
@@ -5904,24 +5854,24 @@ a._citationLink_1gzkd_9:hover {
   color: var(--label);
 }
 
-._ell_1wkhg_47 {
+._ell_10b39_47 {
   display: inline-flex;
 }
 
-._ell_1wkhg_47 i {
+._ell_10b39_47 i {
   font-style: normal;
-  animation: _gen-ell_1wkhg_1 1.5s ease-in-out infinite both;
+  animation: _gen-ell_10b39_1 1.5s ease-in-out infinite both;
 }
 
-._ell_1wkhg_47 i:nth-child(2) {
+._ell_10b39_47 i:nth-child(2) {
   animation-delay: 0.18s;
 }
 
-._ell_1wkhg_47 i:nth-child(3) {
+._ell_10b39_47 i:nth-child(3) {
   animation-delay: 0.36s;
 }
 
-._attempt_1wkhg_64 {
+._attempt_10b39_64 {
   position: relative;
   font-family: var(--bs-font-monospace);
   font-size: 11px;
@@ -5931,7 +5881,7 @@ a._citationLink_1gzkd_9:hover {
   background: color-mix(in oklab, var(--bs-secondary-color) 15%, transparent);
 }
 
-@keyframes _gen-sweep_1wkhg_1 {
+@keyframes _gen-sweep_10b39_1 {
   0% {
     background-position: 180% 0;
   }
@@ -5940,7 +5890,7 @@ a._citationLink_1gzkd_9:hover {
   }
 }
 
-@keyframes _gen-ell_1wkhg_1 {
+@keyframes _gen-ell_10b39_1 {
   0%,
   80%,
   100% {
@@ -5951,23 +5901,18 @@ a._citationLink_1gzkd_9:hover {
   }
 }
 
-[data-bs-theme="dark"] ._bar_1wkhg_1 {
-  --glint: rgba(255, 255, 255, 0.08);
-  --label: #c2c2c9;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  ._bar_1wkhg_1::before,
-  ._ell_1wkhg_47 i {
+  ._bar_10b39_1::before,
+  ._ell_10b39_47 i {
     animation: none;
   }
-  ._ell_1wkhg_47 i {
+  ._ell_10b39_47 i {
     opacity: 0.55;
   }
 }
-._bar_14x5r_1 {
-  --glint: rgba(64, 72, 104, 0.1);
-  --label: #5c5c63;
+._bar_wf27v_1 {
+  --glint: light-dark(rgba(64, 72, 104, 0.1), rgba(255, 255, 255, 0.08));
+  --label: light-dark(#5c5c63, #c2c2c9);
 
   position: relative;
   display: flex;
@@ -5981,7 +5926,7 @@ a._citationLink_1gzkd_9:hover {
   background: var(--bs-body-bg);
 }
 
-._bar_14x5r_1::before {
+._bar_wf27v_1::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -5994,21 +5939,21 @@ a._citationLink_1gzkd_9:hover {
   );
   background-size: 220% 100%;
   background-repeat: no-repeat;
-  animation: _le-sweep_14x5r_1 2.8s linear infinite;
+  animation: _le-sweep_wf27v_1 2.8s linear infinite;
 }
 
-._compact_14x5r_33 {
+._compact_wf27v_33 {
   border: none;
   background: transparent;
   padding: 8px;
   gap: 8px;
 }
 
-._compact_14x5r_33::before {
+._compact_wf27v_33::before {
   display: none;
 }
 
-._spinner_14x5r_44 {
+._spinner_wf27v_44 {
   position: relative;
   flex: none;
   width: 14px;
@@ -6016,10 +5961,10 @@ a._citationLink_1gzkd_9:hover {
   border-radius: 50%;
   border: 2px solid color-mix(in oklab, var(--label) 25%, transparent);
   border-top-color: var(--label);
-  animation: _le-spin_14x5r_1 0.8s linear infinite;
+  animation: _le-spin_wf27v_1 0.8s linear infinite;
 }
 
-._label_14x5r_55 {
+._label_wf27v_55 {
   position: relative;
   font-weight: 400;
   font-size: 13.5px;
@@ -6028,28 +5973,28 @@ a._citationLink_1gzkd_9:hover {
   color: var(--label);
 }
 
-._compact_14x5r_33 ._label_14x5r_55 {
+._compact_wf27v_33 ._label_wf27v_55 {
   font-size: 11.5px;
 }
 
-._ell_14x5r_68 {
+._ell_wf27v_68 {
   display: inline-flex;
 }
 
-._ell_14x5r_68 i {
+._ell_wf27v_68 i {
   font-style: normal;
-  animation: _le-ell_14x5r_1 1.5s ease-in-out infinite both;
+  animation: _le-ell_wf27v_1 1.5s ease-in-out infinite both;
 }
 
-._ell_14x5r_68 i:nth-child(2) {
+._ell_wf27v_68 i:nth-child(2) {
   animation-delay: 0.18s;
 }
 
-._ell_14x5r_68 i:nth-child(3) {
+._ell_wf27v_68 i:nth-child(3) {
   animation-delay: 0.36s;
 }
 
-@keyframes _le-sweep_14x5r_1 {
+@keyframes _le-sweep_wf27v_1 {
   0% {
     background-position: 180% 0;
   }
@@ -6058,13 +6003,13 @@ a._citationLink_1gzkd_9:hover {
   }
 }
 
-@keyframes _le-spin_14x5r_1 {
+@keyframes _le-spin_wf27v_1 {
   to {
     transform: rotate(360deg);
   }
 }
 
-@keyframes _le-ell_14x5r_1 {
+@keyframes _le-ell_wf27v_1 {
   0%,
   80%,
   100% {
@@ -6075,18 +6020,13 @@ a._citationLink_1gzkd_9:hover {
   }
 }
 
-[data-bs-theme="dark"] ._bar_14x5r_1 {
-  --glint: rgba(255, 255, 255, 0.08);
-  --label: #c2c2c9;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  ._bar_14x5r_1::before,
-  ._spinner_14x5r_44,
-  ._ell_14x5r_68 i {
+  ._bar_wf27v_1::before,
+  ._spinner_wf27v_44,
+  ._ell_wf27v_68 i {
     animation: none;
   }
-  ._ell_14x5r_68 i {
+  ._ell_wf27v_68 i {
     opacity: 0.55;
   }
 }
@@ -6101,21 +6041,21 @@ a._citationLink_1gzkd_9:hover {
   grid-template-columns: minmax(0, 1fr);
   margin-bottom: 0.75rem;
 }
-._container_15vhv_1 {
+._container_1idku_1 {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
 }
 
-._body_15vhv_8 {
+._body_1idku_8 {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
-._searchArea_15vhv_15 {
+._searchArea_1idku_15 {
   padding: 0.5rem;
   border-bottom: 1px solid var(--bs-border-color);
   display: flex;
@@ -6123,61 +6063,82 @@ a._citationLink_1gzkd_9:hover {
   gap: 0.45rem;
 }
 
-._inputShell_15vhv_23 {
+._inputShell_1idku_23 {
   display: flex;
   min-width: 0;
 }
 
-._inputShell_15vhv_23 vscode-textarea {
-  display: block;
-  width: 100%;
-}
-
-._controlsRow_15vhv_33 {
+._controlsRow_1idku_28 {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   flex-wrap: wrap;
 }
 
-._topRow_15vhv_40 {
+._topRow_1idku_35 {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
 }
 
-._typeToggle_15vhv_47 {
+._typeToggle_1idku_42 {
   display: flex;
   flex: 0 0 auto;
 }
 
-._topActions_15vhv_52 {
+._topActions_1idku_47 {
   display: flex;
   align-items: center;
   gap: 0.2rem;
 }
 
-._textarea_15vhv_58 {
+/* Matches vscode-textarea. That component can't be used here because its
+   textarea sits in a shadow root with no ::part, so field-sizing can't
+   reach it. */
+._textarea_1idku_56 {
+  display: block;
+  box-sizing: border-box;
   width: 100%;
-  font-family: inherit;
-  font-size: var(--inspect-font-size-small);
-  color: var(--bs-body-color);
+  field-sizing: content;
+  /* 2 to 10 lines, plus 2px padding and 1px border on each side. */
+  min-height: calc(2lh + 6px);
+  max-height: calc(10lh + 6px);
+  padding: 2px;
+  border: 1px solid var(--vscode-settings-textInputBorder, transparent);
+  border-radius: 4px;
+  resize: none;
+  background-color: var(--vscode-settings-textInputBackground, #313131);
+  color: var(--vscode-settings-textInputForeground, #cccccc);
+  font-family: var(--vscode-font-family, sans-serif);
+  font-size: var(--vscode-font-size, 13px);
+  font-weight: var(--vscode-font-weight, normal);
+  line-height: normal;
 }
 
-._modeRow_15vhv_65 {
+._textarea_1idku_56:focus {
+  border-color: var(--vscode-focusBorder, #0078d4);
+  outline: none;
+}
+
+._textarea_1idku_56::placeholder {
+  color: var(--vscode-input-placeholderForeground, #989898);
+  opacity: 1;
+}
+
+._modeRow_1idku_86 {
   flex: 1 1 16rem;
   min-width: 0;
   min-height: 0;
 }
 
-._modeControls_15vhv_71 {
+._modeControls_1idku_92 {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
 }
 
-._modeToggle_15vhv_77 {
+._modeToggle_1idku_98 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6195,17 +6156,17 @@ a._citationLink_1gzkd_9:hover {
     color 0.12s ease;
 }
 
-._modeToggle_15vhv_77:hover {
+._modeToggle_1idku_98:hover {
   background-color: var(--bs-secondary-bg);
   color: var(--bs-body-color);
 }
 
-._modeToggleActive_15vhv_100 {
+._modeToggleActive_1idku_121 {
   background-color: var(--bs-secondary-bg);
   color: var(--bs-body-color);
 }
 
-._modelPill_15vhv_105 {
+._modelPill_1idku_126 {
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -6219,16 +6180,16 @@ a._citationLink_1gzkd_9:hover {
   transition: border-color 0.12s ease;
 }
 
-._modelPill_15vhv_105:focus-within {
+._modelPill_1idku_126:focus-within {
   border-color: var(--vscode-focusBorder);
 }
 
-._modelInputShell_15vhv_123 {
+._modelInputShell_1idku_144 {
   flex: 1;
   min-width: 0;
 }
 
-._modelInput_15vhv_123 {
+._modelInput_1idku_144 {
   flex: 1;
   min-width: 0;
   font-family: inherit;
@@ -6240,11 +6201,11 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-body-color);
 }
 
-._modelInput_15vhv_123:focus {
+._modelInput_1idku_144:focus {
   outline: none;
 }
 
-._iconAction_15vhv_144 {
+._iconAction_1idku_165 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6261,17 +6222,17 @@ a._citationLink_1gzkd_9:hover {
     color 0.12s ease;
 }
 
-._iconAction_15vhv_144:hover {
+._iconAction_1idku_165:hover {
   background: var(--vscode-toolbar-hoverBackground);
   color: var(--bs-body-color);
 }
 
-._iconActionActive_15vhv_166 {
+._iconActionActive_1idku_187 {
   background: var(--vscode-toolbar-hoverBackground);
   color: var(--bs-body-color);
 }
 
-._runButton_15vhv_171 {
+._runButton_1idku_192 {
   flex: 0 0 auto;
   padding: 0.24rem 0.65rem;
   border: 1px solid var(--bs-border-color);
@@ -6283,16 +6244,16 @@ a._citationLink_1gzkd_9:hover {
   cursor: pointer;
 }
 
-._runButton_15vhv_171:hover:not(:disabled) {
+._runButton_1idku_192:hover:not(:disabled) {
   background-color: var(--bs-tertiary-bg);
 }
 
-._runButton_15vhv_171:disabled {
+._runButton_1idku_192:disabled {
   opacity: 0.55;
   cursor: default;
 }
 
-._results_15vhv_192 {
+._results_1idku_213 {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -6302,7 +6263,7 @@ a._citationLink_1gzkd_9:hover {
   gap: 0.5rem;
 }
 
-._sectionHeader_15vhv_202 {
+._sectionHeader_1idku_223 {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -6313,7 +6274,7 @@ a._citationLink_1gzkd_9:hover {
   letter-spacing: 0.05em;
 }
 
-._resultCard_15vhv_213 {
+._resultCard_1idku_234 {
   background-color: var(--bs-body-bg);
   font-size: var(--inspect-font-size-small);
   display: flex;
@@ -6321,18 +6282,18 @@ a._citationLink_1gzkd_9:hover {
   gap: 0.5rem;
 }
 
-._matchCount_15vhv_221 {
+._matchCount_1idku_242 {
   font-weight: 600;
   font-size: var(--inspect-font-size-smallest);
 }
 
-._recentList_15vhv_226 {
+._recentList_1idku_247 {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-._recentItem_15vhv_232 {
+._recentItem_1idku_253 {
   padding: 6px 10px;
   font-size: var(--inspect-font-size-small);
   color: var(--bs-body-color);
@@ -6342,18 +6303,18 @@ a._citationLink_1gzkd_9:hover {
   text-overflow: ellipsis;
 }
 
-._recentItem_15vhv_232:hover {
+._recentItem_1idku_253:hover {
   background: var(--bs-primary);
   color: white;
 }
 
-._recentEmpty_15vhv_247 {
+._recentEmpty_1idku_268 {
   padding: 0.6rem 0.5rem;
   font-size: var(--inspect-font-size-small);
   text-align: center;
 }
 
-._emptyState_15vhv_253 {
+._emptyState_1idku_274 {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -6363,13 +6324,731 @@ a._citationLink_1gzkd_9:hover {
   text-align: center;
 }
 
-._searchingText_15vhv_263 {
+._searchingText_1idku_284 {
   margin: 0;
 }
 
-._searchingElapsed_15vhv_267 {
+._searchingElapsed_1idku_288 {
   color: var(--bs-secondary-color);
   font-variant-numeric: tabular-nums;
+}
+._checkboxWrapper_93mzp_1 {
+  margin-bottom: 0.1rem;
+}
+
+._label_93mzp_5 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+._checkbox_93mzp_1 {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+._filterIcon_93mzp_16 {
+  margin-left: 0.5rem;
+  color: var(--bs-primary);
+}
+
+._scrollableContainer_93mzp_21 {
+  /* The popover is positioned below the trigger, so its actual visible room
+     is less than full viewport height. Cap conservatively so the scrollbar
+     kicks in before the popover extends past the viewport. */
+  max-height: min(70vh, calc(100vh - 10rem));
+  overflow-y: auto;
+  /* Reserve scrollbar space up-front so switching between view modes doesn't
+     reflow content width when a scrollbar appears/disappears. */
+  scrollbar-gutter: stable;
+}
+
+._section_93mzp_32 {
+  margin-bottom: 0.75rem;
+}
+
+._headerRow_93mzp_36 {
+  display: flex;
+  column-gap: 2rem;
+  row-gap: 1rem;
+  border-bottom: solid 1px var(--bs-border-color);
+  margin-bottom: 0.5rem;
+  justify-content: space-between;
+  align-items: center;
+}
+
+._scoresHeadingGroup_93mzp_46 {
+  display: flex;
+  align-items: center;
+  column-gap: 0.5rem;
+}
+
+._scoresViewModeControl_93mzp_52 {
+  margin-bottom: 2px;
+}
+
+._buttonContainer_93mzp_56 {
+  display: flex;
+  gap: 0.5rem;
+}
+
+._button_93mzp_56 {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--bs-link-color);
+  font: inherit;
+  text-decoration: none;
+}
+
+._button_93mzp_56:hover {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+._columnsLayout_93mzp_75 {
+  columns: 2;
+  column-gap: 2rem;
+}
+._filterButton_b38ko_1 {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: var(--bs-secondary);
+  cursor: pointer;
+}
+
+._filterButtonActive_b38ko_13 {
+  color: var(--bs-primary);
+}
+
+/* Active-filter dot — small affordance at the upper-right of the
+ * funnel, matching ag-grid's convention of indicating active filters. */
+._filterButtonActive_b38ko_13::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--bs-primary);
+}
+._headerActions_uh0qk_1 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 6px;
+}
+
+._filterPopover_uh0qk_8 {
+  min-width: 180px;
+}
+._filterContent_9ejoy_1 {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+._filterRow_9ejoy_7 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+._filterSelect_9ejoy_13,
+._filterInput_9ejoy_14 {
+  flex: 1;
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--bs-border-color);
+  background: var(--bs-body-bg);
+  color: var(--bs-body-color);
+}
+
+._filterInput_9ejoy_14:disabled,
+._filterSelect_9ejoy_13:disabled {
+  background: var(--bs-light);
+  color: var(--bs-secondary);
+}
+
+._filterButton_9ejoy_30 {
+  width: 100%;
+  padding: 0.2rem;
+}
+
+._rangeLabel_9ejoy_35 {
+  font-size: 11px;
+  color: var(--bs-secondary);
+  padding-left: 2px;
+}
+
+._joinRow_9ejoy_41 {
+  gap: 12px;
+  padding: 2px 0;
+}
+
+._joinOption_9ejoy_46 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  margin: 0;
+}
+._durationInputWrapper_tdbd6_1 {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+._durationHelper_tdbd6_8 {
+  font-size: 11px;
+  color: var(--bs-secondary);
+  padding-left: 2px;
+}
+._container_1y7u7_1 {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  overflow: auto;
+  outline: none;
+}
+
+/* Visually-hidden live region: read by screen readers, absent from layout and
+ * from pointer/scroll hit-testing. */
+._srStatus_1y7u7_11 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Keyboard focus ring for the sortable header control (mouse clicks don't
+ * trigger :focus-visible, so this stays out of the way for pointer users). */
+._headerContent_1y7u7_27:focus-visible,
+._rotatedSortTarget_1y7u7_28:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: -2px;
+  border-radius: 2px;
+}
+
+/* The table, tbody, and rows carry explicit JS-computed widths (total column
+ * width); min-width stretches each to its parent when the columns underfill
+ * the viewport, so row borders and hover highlights span the full grid width
+ * (AG parity) instead of stopping at the last column. */
+._table_1y7u7_38 {
+  position: relative;
+  min-width: 100%;
+}
+
+._thead_1y7u7_43 {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bs-light-bg-subtle);
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+._headerRow_1y7u7_51 {
+  display: flex;
+  /* Fill the thead height so cells stretch — rotated labels anchor to the
+   * header's bottom edge, and bottom-aligned normal headers sit at the base
+   * of the angled labels. */
+  height: 100%;
+}
+
+._headerCell_1y7u7_59 {
+  display: flex;
+  position: relative;
+  align-items: center;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 4px 0px 4px 8px;
+  text-align: left;
+  font-weight: 400;
+  color: var(--bs-secondary);
+  font-size: var(--inspect-font-size-smallestest);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Short vertical separator between column headers (matches the prior grid). */
+._headerCell_1y7u7_59::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 60%;
+  width: 1px;
+  background: var(--bs-border-color);
+}
+
+._headerCell_1y7u7_59:first-child::before {
+  display: none;
+}
+
+._headerContent_1y7u7_27 {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+  min-width: 0;
+}
+
+/* The whole cell is the sort target (so empty-label columns like the icon
+ * column are still clickable) — so the pointer cursor lives on the cell. */
+._headerCellSortable_1y7u7_102 {
+  cursor: pointer;
+}
+
+._sortIcon_1y7u7_106 {
+  font-size: 9px;
+  flex: 0 0 auto;
+}
+
+._sortIndicator_1y7u7_111 {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+/* Multi-sort position badge, tight against the arrow that follows it
+ * (matching the AG grid's `1↑`). */
+._sortOrder_1y7u7_119 {
+  font-size: var(--inspect-font-size-smallestest);
+}
+
+/* Filter funnel: hidden until the header is hovered, but stays visible when
+ * the column has an active filter (matches the prior grid). */
+._headerFilter_1y7u7_125 {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+._headerCell_1y7u7_59:hover ._headerFilter_1y7u7_125,
+._headerFilterActive_1y7u7_134 {
+  opacity: 1;
+}
+
+._headerText_1y7u7_138 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._headerCellCenter_1y7u7_144 {
+  justify-content: center;
+}
+
+/* Normal headers share the tall header row when score columns are rotated;
+ * bottom-align their content so the labels line up with the base of the
+ * angled labels. */
+._headerCellTall_1y7u7_151 {
+  align-items: flex-end;
+  padding-bottom: 6px;
+}
+
+/* In tall (rotated) mode the vertically-centered 60%-height separator becomes
+ * a ~69px line floating in the middle of the cell — it reaches up into the
+ * band where the previous column's angled label fans out and clashes with it.
+ * Drop it to the bottom and shorten it so it sits beside the bottom-aligned
+ * label, matching the AG grid. */
+._headerCellTall_1y7u7_151::before {
+  top: auto;
+  bottom: 0;
+  transform: none;
+  height: 22px;
+}
+
+/* Rotated (compact score) header cell: let the angled label overflow the
+ * narrow cell, and drop the vertical separator — the label's diagonal
+ * bottom border serves as the column divider instead. The cell box itself
+ * is pointer-transparent so its full-height rectangle (which tiles the
+ * header and stacks over neighbours' overflowing labels) doesn't intercept
+ * hover/clicks meant for the diagonal labels; only the labels are
+ * interactive. */
+._headerCellRotated_1y7u7_175 {
+  overflow: visible;
+  padding: 0;
+  pointer-events: none;
+}
+
+._headerCellRotated_1y7u7_175::before {
+  display: none;
+}
+
+/* ...except the first rotated header after a normal one: there's no preceding
+ * angled label whose diagonal could act as the divider (that's the job it does
+ * between adjacent rotated headers), so keep the vertical separator at the
+ * boundary — matching the prior grid. Use the bottom-aligned 22px form so it
+ * sits beside the rotated label, like the separator between two tall headers. */
+._headerCellTall_1y7u7_151 + ._headerCellRotated_1y7u7_175::before {
+  display: block;
+  top: auto;
+  bottom: 0;
+  transform: none;
+  height: 22px;
+}
+
+/* The 45° label, anchored flush to the column's right edge and rotated up
+ * from its bottom-left corner so it fans up-and-to-the-right. */
+._rotatedLabel_1y7u7_200 {
+  position: absolute;
+  bottom: 0;
+  left: 100%;
+  /* A bit taller than the text needs so the diagonal hover/click band is an
+   * easier target to land on and travel along to the funnel. */
+  height: 22px;
+  width: 130px;
+  padding-right: 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  cursor: pointer;
+  background: transparent;
+  /* Re-enable pointer events the cell box opts out of (see .headerCellRotated)
+   * so the whole diagonal label — text, sort caret, and funnel — is
+   * hoverable and clickable along its full length. */
+  pointer-events: auto;
+  /* The bottom border lies along the label's lower diagonal edge after
+   * rotation, acting as the divider between adjacent rotated headers. */
+  border-bottom: 1px solid var(--bs-border-color);
+  transform: rotate(-45deg);
+  transform-origin: bottom left;
+}
+
+/* The label's sort and drag target: everything but the filter funnel. */
+._rotatedSortTarget_1y7u7_28 {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 0.35rem;
+}
+
+._rotatedLabel_1y7u7_200:hover {
+  /* Lift above neighbouring labels so the hovered text is fully readable. */
+  background: var(--bs-tertiary-bg);
+  z-index: 2;
+}
+
+._rotatedText_1y7u7_243 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--inspect-font-size-smallestest);
+  letter-spacing: 0.05em;
+}
+
+/* Filter funnel at the end of the label: hidden until the label is hovered,
+ * but kept visible while the column has an active filter. */
+._rotatedFilter_1y7u7_254 {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+._rotatedLabel_1y7u7_200:hover ._rotatedFilter_1y7u7_254,
+._rotatedLabelFiltered_1y7u7_263 ._rotatedFilter_1y7u7_254 {
+  opacity: 1;
+}
+
+/* Hidden, non-rotated positioning anchor at the cell's bottom edge. The
+ * filter popover anchors here (not the funnel up in the rotated label) so it
+ * opens below the header, under the column, instead of over the headers. */
+._rotatedFilterAnchor_1y7u7_270 {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* --- Drag-to-reorder columns --- */
+
+/* While a header drag is in flight, rotated cells must catch dragover/drop
+ * themselves (they're pointer-transparent for hover/clicks — see
+ * .headerCellRotated), and their overflowing diagonal labels must NOT steal
+ * those events from the columns they fan across. Hit-testing for drag
+ * events follows pointer-events, so flip both for the drag's duration. */
+._theadDragging_1y7u7_286 ._headerCellRotated_1y7u7_175 {
+  pointer-events: auto;
+}
+
+._theadDragging_1y7u7_286 ._rotatedLabel_1y7u7_200 {
+  pointer-events: none;
+}
+
+._headerCellDragSource_1y7u7_294 {
+  opacity: 0.35;
+}
+
+/* Cursor-attached drag image (setDragImage). Parked offscreen — the browser
+ * snapshots it at dragstart; it never renders in place. */
+._dragGhost_1y7u7_300 {
+  position: absolute;
+  top: -1000px;
+  left: -1000px;
+  padding: 4px 10px;
+  font-size: var(--inspect-font-size-small);
+  text-transform: uppercase;
+  color: var(--bs-body-color);
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 3px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
+  white-space: nowrap;
+}
+
+/* Insertion indicator on the drop target's edge. An absolutely-positioned
+ * overlay rather than a border so the cell's layout doesn't shift while
+ * dragging. */
+._headerCellDropLeft_1y7u7_318::after,
+._headerCellDropRight_1y7u7_319::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--bs-primary);
+  z-index: 3;
+}
+
+._headerCellDropLeft_1y7u7_318::after {
+  left: -1px;
+}
+
+._headerCellDropRight_1y7u7_319::after {
+  right: -2px;
+}
+
+._tbody_1y7u7_337 {
+  position: relative;
+  min-width: 100%;
+}
+
+._row_1y7u7_342 {
+  display: flex;
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 100%;
+  border-bottom: 1px solid var(--bs-border-color);
+  background: var(--bs-body-bg);
+  cursor: pointer;
+  user-select: none;
+  /* Rows with an href render as <a>; keep them looking like plain rows. */
+  color: inherit;
+  text-decoration: none;
+}
+
+._row_1y7u7_342:hover {
+  background: var(--bs-light);
+  color: inherit;
+}
+
+._row_1y7u7_342._rowSelected_1y7u7_362 {
+  background: var(--bs-primary-bg-subtle);
+}
+
+._cell_1y7u7_366 {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  /* Re-enable text selection the row-level `user-select: none` suppresses, so
+   * cell contents can be selected and copied (parity with the AG grids'
+   * `enableCellTextSelection`). A click-drag selects text without firing the
+   * row's click handler, so this doesn't interfere with row activation. */
+  user-select: text;
+}
+
+/* Truncate a cell's content with an ellipsis (parity with the AG grid, whose
+ * `.ag-cell-value` wrapper carried these rules). `.cell` is a flex container,
+ * so `text-overflow` on it never reaches a block child's text — the child
+ * itself must clip. `min-width: 0` lets the single child shrink below its
+ * content width so the ellipsis appears; without `flex: 1` the child stays
+ * content-sized when it fits, so `justify-content` (center columns) still
+ * positions it. `white-space: nowrap` is inherited from `.cell`. */
+._cell_1y7u7_366 > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._cellCenter_1y7u7_396 {
+  justify-content: center;
+}
+
+/* Multiline (list) mode: rows are tall enough to host wrapped, line-clamped
+ * cells, so top-align content — a single-line cell then sits at the first line
+ * of its multiline neighbours instead of floating in the vertical centre of
+ * the tall row (matches the AG grid this replaced). */
+._multiline_1y7u7_404 ._cell_1y7u7_366 {
+  align-items: flex-start;
+}
+
+/* Left-pinned cells (position/left/z-index are inline — the sticky offset
+ * comes from the table's pinned-column geometry). They need an opaque
+ * background so unpinned cells sliding underneath don't show through, which
+ * must track the row's hover/selected state since the row's own background
+ * no longer reaches the viewer. The right border marks the pinned edge. */
+._headerCellPinned_1y7u7_413 {
+  background: var(--bs-light-bg-subtle);
+  border-right: 1px solid var(--bs-border-color);
+}
+
+._cellPinned_1y7u7_418 {
+  background: var(--bs-body-bg);
+  border-right: 1px solid var(--bs-border-color);
+}
+
+._row_1y7u7_342:hover ._cellPinned_1y7u7_418 {
+  background: var(--bs-light);
+}
+
+._rowSelected_1y7u7_362 ._cellPinned_1y7u7_418 {
+  background: var(--bs-primary-bg-subtle);
+}
+
+/* First normal column after a rotated block. The preceding angled label's
+ * bottom-border diagonal rises from the shared column edge at 45° (1px up
+ * per 1px right), so content flush at the default 8px inset collides with
+ * it — the label's text/line cut through the header text (~22px tall at
+ * the cell bottom). Indenting by the gap (kAfterRotatedGap + the default
+ * 8px) puts the diagonal safely above where the text starts; the cell is
+ * rendered kAfterRotatedGap wider to compensate, so the content box is
+ * unchanged. Applied to the header cell only — the diagonal overlaps just
+ * the header, so body cells keep the default inset (they still carry the
+ * matching extra render width, so the column edges stay aligned). */
+._afterRotatedGap_1y7u7_441 {
+  padding-left: 32px;
+}
+
+/* Drop the vertical separator at the gap column's left edge — it rises
+ * straight through the anchor of the preceding angled label, whose diagonal
+ * bottom border already marks the boundary (same treatment as
+ * .headerCellRotated::before). */
+._afterRotatedGap_1y7u7_441::before {
+  display: none;
+}
+
+._empty_1y7u7_453 {
+  position: absolute;
+  top: 3rem;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: var(--bs-secondary);
+}
+
+/* Column resize handle. A wide, invisible hit-strip straddling the column's
+ * right edge; a subtle accent line shows on hover / while dragging. The strip
+ * sits above cell content (z-index) and never triggers a sort (it is a sibling
+ * of .headerContent, so its clicks don't reach the sort handler). */
+._resizeHandle_1y7u7_466 {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -3px;
+  width: 7px;
+  cursor: col-resize;
+  z-index: 2;
+  touch-action: none;
+  user-select: none;
+}
+
+._resizeHandle_1y7u7_466::after {
+  content: "";
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  left: 3px;
+  width: 1px;
+  background: var(--bs-primary);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+._resizeHandle_1y7u7_466:hover::after,
+._resizeHandleActive_1y7u7_491::after,
+._resizeHandle_1y7u7_466:focus-visible::after {
+  opacity: 1;
+}
+
+/* Keyboard focus: a thicker accent line in place of an outline, which would
+ * box the invisible hit-strip rather than mark the column edge. */
+._resizeHandle_1y7u7_466:focus-visible {
+  outline: none;
+}
+._resizeHandle_1y7u7_466:focus-visible::after {
+  left: 2px;
+  width: 3px;
+}
+
+/* Forced colors drop the accent line's background; outline survives. */
+@media (forced-colors: active) {
+  ._resizeHandle_1y7u7_466:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
+/* Tall (rotated) mode: confine the hit-zone + accent line to the bottom
+ * divider band so it stays off the angled labels above. */
+._resizeHandleTall_1y7u7_516 {
+  top: auto;
+  height: 24px;
+}
+._resizeHandleTall_1y7u7_516::after {
+  top: 2px;
+  bottom: 2px;
+}
+
+/* Rotated header cells are pointer-events: none; re-enable it on the handle
+ * and pin it to the cell's bottom-right corner (below the diagonal label), so
+ * resizing lives in the divider band and the angled label stays clickable. */
+._resizeHandleRotated_1y7u7_528 {
+  top: auto;
+  bottom: 0;
+  height: 24px;
+  pointer-events: auto;
+}
+._resizeHandleRotated_1y7u7_528::after {
+  top: 2px;
+  bottom: 2px;
 }
 ._circle_17gxn_1 {
   width: 36px;
@@ -6708,84 +7387,6 @@ a._citationLink_1gzkd_9:hover {
   font-size: inherit;
   line-height: 1;
 }
-._checkboxWrapper_93mzp_1 {
-  margin-bottom: 0.1rem;
-}
-
-._label_93mzp_5 {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-._checkbox_93mzp_1 {
-  margin-right: 0.5rem;
-  cursor: pointer;
-}
-
-._filterIcon_93mzp_16 {
-  margin-left: 0.5rem;
-  color: var(--bs-primary);
-}
-
-._scrollableContainer_93mzp_21 {
-  /* The popover is positioned below the trigger, so its actual visible room
-     is less than full viewport height. Cap conservatively so the scrollbar
-     kicks in before the popover extends past the viewport. */
-  max-height: min(70vh, calc(100vh - 10rem));
-  overflow-y: auto;
-  /* Reserve scrollbar space up-front so switching between view modes doesn't
-     reflow content width when a scrollbar appears/disappears. */
-  scrollbar-gutter: stable;
-}
-
-._section_93mzp_32 {
-  margin-bottom: 0.75rem;
-}
-
-._headerRow_93mzp_36 {
-  display: flex;
-  column-gap: 2rem;
-  row-gap: 1rem;
-  border-bottom: solid 1px var(--bs-border-color);
-  margin-bottom: 0.5rem;
-  justify-content: space-between;
-  align-items: center;
-}
-
-._scoresHeadingGroup_93mzp_46 {
-  display: flex;
-  align-items: center;
-  column-gap: 0.5rem;
-}
-
-._scoresViewModeControl_93mzp_52 {
-  margin-bottom: 2px;
-}
-
-._buttonContainer_93mzp_56 {
-  display: flex;
-  gap: 0.5rem;
-}
-
-._button_93mzp_56 {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--bs-link-color);
-  font: inherit;
-  text-decoration: none;
-}
-
-._button_93mzp_56:hover {
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-._columnsLayout_93mzp_75 {
-  columns: 2;
-  column-gap: 2rem;
-}
 ._gridWrapper_nawgx_1 {
   height: 100%;
   width: 100%;
@@ -6914,646 +7515,6 @@ a._citationLink_1gzkd_9:hover {
   min-width: 0;
   flex: 1;
 }
-._filterButton_b38ko_1 {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 2px;
-  border: none;
-  background: transparent;
-  color: var(--bs-secondary);
-  cursor: pointer;
-}
-
-._filterButtonActive_b38ko_13 {
-  color: var(--bs-primary);
-}
-
-/* Active-filter dot — small affordance at the upper-right of the
- * funnel, matching ag-grid's convention of indicating active filters. */
-._filterButtonActive_b38ko_13::after {
-  content: "";
-  position: absolute;
-  top: -1px;
-  right: 0;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--bs-primary);
-}
-._headerActions_uh0qk_1 {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-right: 6px;
-}
-
-._filterPopover_uh0qk_8 {
-  min-width: 180px;
-}
-._filterContent_9ejoy_1 {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-._filterRow_9ejoy_7 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-._filterSelect_9ejoy_13,
-._filterInput_9ejoy_14 {
-  flex: 1;
-  font-size: 12px;
-  padding: 4px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--bs-border-color);
-  background: var(--bs-body-bg);
-  color: var(--bs-body-color);
-}
-
-._filterInput_9ejoy_14:disabled,
-._filterSelect_9ejoy_13:disabled {
-  background: var(--bs-light);
-  color: var(--bs-secondary);
-}
-
-._filterButton_9ejoy_30 {
-  width: 100%;
-  padding: 0.2rem;
-}
-
-._rangeLabel_9ejoy_35 {
-  font-size: 11px;
-  color: var(--bs-secondary);
-  padding-left: 2px;
-}
-
-._joinRow_9ejoy_41 {
-  gap: 12px;
-  padding: 2px 0;
-}
-
-._joinOption_9ejoy_46 {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 400;
-  margin: 0;
-}
-._durationInputWrapper_tdbd6_1 {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
-
-._durationHelper_tdbd6_8 {
-  font-size: 11px;
-  color: var(--bs-secondary);
-  padding-left: 2px;
-}
-._container_13cu0_1 {
-  position: relative;
-  height: 100%;
-  width: 100%;
-  overflow: auto;
-  outline: none;
-}
-
-/* Visually-hidden live region: read by screen readers, absent from layout and
- * from pointer/scroll hit-testing. */
-._srStatus_13cu0_11 {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  border: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-/* Keyboard focus ring for the sortable header control (mouse clicks don't
- * trigger :focus-visible, so this stays out of the way for pointer users). */
-._headerContent_13cu0_27:focus-visible,
-._rotatedSortTarget_13cu0_28:focus-visible {
-  outline: 2px solid var(--bs-primary);
-  outline-offset: -2px;
-  border-radius: 2px;
-}
-
-/* The table, tbody, and rows carry explicit JS-computed widths (total column
- * width); min-width stretches each to its parent when the columns underfill
- * the viewport, so row borders and hover highlights span the full grid width
- * (AG parity) instead of stopping at the last column. */
-._table_13cu0_38 {
-  position: relative;
-  min-width: 100%;
-}
-
-._thead_13cu0_43 {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--bs-light-bg-subtle);
-  border-bottom: 1px solid var(--bs-border-color);
-}
-
-._headerRow_13cu0_51 {
-  display: flex;
-  /* Fill the thead height so cells stretch — rotated labels anchor to the
-   * header's bottom edge, and bottom-aligned normal headers sit at the base
-   * of the angled labels. */
-  height: 100%;
-}
-
-._headerCell_13cu0_59 {
-  display: flex;
-  position: relative;
-  align-items: center;
-  box-sizing: border-box;
-  flex: 0 0 auto;
-  gap: 4px;
-  padding: 4px 0px 4px 8px;
-  text-align: left;
-  font-weight: 400;
-  color: var(--bs-secondary);
-  font-size: var(--inspect-font-size-smallestest) !important;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-/* Short vertical separator between column headers (matches the prior grid). */
-._headerCell_13cu0_59::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 60%;
-  width: 1px;
-  background: var(--bs-border-color);
-}
-
-._headerCell_13cu0_59:first-child::before {
-  display: none;
-}
-
-._headerContent_13cu0_27 {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  user-select: none;
-  min-width: 0;
-}
-
-/* The whole cell is the sort target (so empty-label columns like the icon
- * column are still clickable) — so the pointer cursor lives on the cell. */
-._headerCellSortable_13cu0_102 {
-  cursor: pointer;
-}
-
-._sortIcon_13cu0_106 {
-  font-size: 9px;
-  flex: 0 0 auto;
-}
-
-._sortIndicator_13cu0_111 {
-  display: inline-flex;
-  align-items: center;
-  flex: 0 0 auto;
-}
-
-/* Multi-sort position badge, tight against the arrow that follows it
- * (matching the AG grid's `1↑`). */
-._sortOrder_13cu0_119 {
-  font-size: var(--inspect-font-size-smallestest);
-}
-
-/* Filter funnel: hidden until the header is hovered, but stays visible when
- * the column has an active filter (matches the prior grid). */
-._headerFilter_13cu0_125 {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-._headerCell_13cu0_59:hover ._headerFilter_13cu0_125,
-._headerFilterActive_13cu0_134 {
-  opacity: 1;
-}
-
-._headerText_13cu0_138 {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-._headerCellCenter_13cu0_144 {
-  justify-content: center;
-}
-
-/* Normal headers share the tall header row when score columns are rotated;
- * bottom-align their content so the labels line up with the base of the
- * angled labels. */
-._headerCellTall_13cu0_151 {
-  align-items: flex-end;
-  padding-bottom: 6px;
-}
-
-/* In tall (rotated) mode the vertically-centered 60%-height separator becomes
- * a ~69px line floating in the middle of the cell — it reaches up into the
- * band where the previous column's angled label fans out and clashes with it.
- * Drop it to the bottom and shorten it so it sits beside the bottom-aligned
- * label, matching the AG grid. */
-._headerCellTall_13cu0_151::before {
-  top: auto;
-  bottom: 0;
-  transform: none;
-  height: 22px;
-}
-
-/* Rotated (compact score) header cell: let the angled label overflow the
- * narrow cell, and drop the vertical separator — the label's diagonal
- * bottom border serves as the column divider instead. The cell box itself
- * is pointer-transparent so its full-height rectangle (which tiles the
- * header and stacks over neighbours' overflowing labels) doesn't intercept
- * hover/clicks meant for the diagonal labels; only the labels are
- * interactive. */
-._headerCellRotated_13cu0_175 {
-  overflow: visible;
-  padding: 0;
-  pointer-events: none;
-}
-
-._headerCellRotated_13cu0_175::before {
-  display: none;
-}
-
-/* ...except the first rotated header after a normal one: there's no preceding
- * angled label whose diagonal could act as the divider (that's the job it does
- * between adjacent rotated headers), so keep the vertical separator at the
- * boundary — matching the prior grid. Use the bottom-aligned 22px form so it
- * sits beside the rotated label, like the separator between two tall headers. */
-._headerCellTall_13cu0_151 + ._headerCellRotated_13cu0_175::before {
-  display: block;
-  top: auto;
-  bottom: 0;
-  transform: none;
-  height: 22px;
-}
-
-/* The 45° label, anchored flush to the column's right edge and rotated up
- * from its bottom-left corner so it fans up-and-to-the-right. */
-._rotatedLabel_13cu0_200 {
-  position: absolute;
-  bottom: 0;
-  left: 100%;
-  /* A bit taller than the text needs so the diagonal hover/click band is an
-   * easier target to land on and travel along to the funnel. */
-  height: 22px;
-  width: 130px;
-  padding-right: 0.35rem;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-  cursor: pointer;
-  background: transparent;
-  /* Re-enable pointer events the cell box opts out of (see .headerCellRotated)
-   * so the whole diagonal label — text, sort caret, and funnel — is
-   * hoverable and clickable along its full length. */
-  pointer-events: auto;
-  /* The bottom border lies along the label's lower diagonal edge after
-   * rotation, acting as the divider between adjacent rotated headers. */
-  border-bottom: 1px solid var(--bs-border-color);
-  transform: rotate(-45deg);
-  transform-origin: bottom left;
-}
-
-/* The label's sort and drag target: everything but the filter funnel. */
-._rotatedSortTarget_13cu0_28 {
-  flex: 1;
-  min-width: 0;
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding-left: 0.35rem;
-}
-
-._rotatedLabel_13cu0_200:hover {
-  /* Lift above neighbouring labels so the hovered text is fully readable. */
-  background: var(--bs-tertiary-bg);
-  z-index: 2;
-}
-
-._rotatedText_13cu0_243 {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: var(--inspect-font-size-smallestest);
-  letter-spacing: 0.05em;
-}
-
-/* Filter funnel at the end of the label: hidden until the label is hovered,
- * but kept visible while the column has an active filter. */
-._rotatedFilter_13cu0_254 {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-._rotatedLabel_13cu0_200:hover ._rotatedFilter_13cu0_254,
-._rotatedLabelFiltered_13cu0_263 ._rotatedFilter_13cu0_254 {
-  opacity: 1;
-}
-
-/* Hidden, non-rotated positioning anchor at the cell's bottom edge. The
- * filter popover anchors here (not the funnel up in the rotated label) so it
- * opens below the header, under the column, instead of over the headers. */
-._rotatedFilterAnchor_13cu0_270 {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-}
-
-/* --- Drag-to-reorder columns --- */
-
-/* While a header drag is in flight, rotated cells must catch dragover/drop
- * themselves (they're pointer-transparent for hover/clicks — see
- * .headerCellRotated), and their overflowing diagonal labels must NOT steal
- * those events from the columns they fan across. Hit-testing for drag
- * events follows pointer-events, so flip both for the drag's duration. */
-._theadDragging_13cu0_286 ._headerCellRotated_13cu0_175 {
-  pointer-events: auto;
-}
-
-._theadDragging_13cu0_286 ._rotatedLabel_13cu0_200 {
-  pointer-events: none;
-}
-
-._headerCellDragSource_13cu0_294 {
-  opacity: 0.35;
-}
-
-/* Cursor-attached drag image (setDragImage). Parked offscreen — the browser
- * snapshots it at dragstart; it never renders in place. */
-._dragGhost_13cu0_300 {
-  position: absolute;
-  top: -1000px;
-  left: -1000px;
-  padding: 4px 10px;
-  font-size: var(--inspect-font-size-small);
-  text-transform: uppercase;
-  color: var(--bs-body-color);
-  background: var(--bs-body-bg);
-  border: 1px solid var(--bs-border-color);
-  border-radius: 3px;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
-  white-space: nowrap;
-}
-
-/* Insertion indicator on the drop target's edge. An absolutely-positioned
- * overlay rather than a border so the cell's layout doesn't shift while
- * dragging. */
-._headerCellDropLeft_13cu0_318::after,
-._headerCellDropRight_13cu0_319::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--bs-primary);
-  z-index: 3;
-}
-
-._headerCellDropLeft_13cu0_318::after {
-  left: -1px;
-}
-
-._headerCellDropRight_13cu0_319::after {
-  right: -2px;
-}
-
-._tbody_13cu0_337 {
-  position: relative;
-  min-width: 100%;
-}
-
-._row_13cu0_342 {
-  display: flex;
-  position: absolute;
-  top: 0;
-  left: 0;
-  min-width: 100%;
-  border-bottom: 1px solid var(--bs-border-color);
-  background: var(--bs-body-bg);
-  cursor: pointer;
-  user-select: none;
-  /* Rows with an href render as <a>; keep them looking like plain rows. */
-  color: inherit;
-  text-decoration: none;
-}
-
-._row_13cu0_342:hover {
-  background: var(--bs-light);
-  color: inherit;
-}
-
-._rowSelected_13cu0_362 {
-  background: var(--bs-primary-bg-subtle) !important;
-}
-
-._cell_13cu0_366 {
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  flex: 0 0 auto;
-  padding: 4px 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px !important;
-  /* Re-enable text selection the row-level `user-select: none` suppresses, so
-   * cell contents can be selected and copied (parity with the AG grids'
-   * `enableCellTextSelection`). A click-drag selects text without firing the
-   * row's click handler, so this doesn't interfere with row activation. */
-  user-select: text;
-}
-
-/* Truncate a cell's content with an ellipsis (parity with the AG grid, whose
- * `.ag-cell-value` wrapper carried these rules). `.cell` is a flex container,
- * so `text-overflow` on it never reaches a block child's text — the child
- * itself must clip. `min-width: 0` lets the single child shrink below its
- * content width so the ellipsis appears; without `flex: 1` the child stays
- * content-sized when it fits, so `justify-content` (center columns) still
- * positions it. `white-space: nowrap` is inherited from `.cell`. */
-._cell_13cu0_366 > * {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-._cellCenter_13cu0_396 {
-  justify-content: center;
-}
-
-/* Multiline (list) mode: rows are tall enough to host wrapped, line-clamped
- * cells, so top-align content — a single-line cell then sits at the first line
- * of its multiline neighbours instead of floating in the vertical centre of
- * the tall row (matches the AG grid this replaced). */
-._multiline_13cu0_404 ._cell_13cu0_366 {
-  align-items: flex-start;
-}
-
-/* Left-pinned cells (position/left/z-index are inline — the sticky offset
- * comes from the table's pinned-column geometry). They need an opaque
- * background so unpinned cells sliding underneath don't show through, which
- * must track the row's hover/selected state since the row's own background
- * no longer reaches the viewer. The right border marks the pinned edge. */
-._headerCellPinned_13cu0_413 {
-  background: var(--bs-light-bg-subtle);
-  border-right: 1px solid var(--bs-border-color);
-}
-
-._cellPinned_13cu0_418 {
-  background: var(--bs-body-bg);
-  border-right: 1px solid var(--bs-border-color);
-}
-
-._row_13cu0_342:hover ._cellPinned_13cu0_418 {
-  background: var(--bs-light);
-}
-
-._rowSelected_13cu0_362 ._cellPinned_13cu0_418 {
-  background: var(--bs-primary-bg-subtle);
-}
-
-/* First normal column after a rotated block. The preceding angled label's
- * bottom-border diagonal rises from the shared column edge at 45° (1px up
- * per 1px right), so content flush at the default 8px inset collides with
- * it — the label's text/line cut through the header text (~22px tall at
- * the cell bottom). Indenting by the gap (kAfterRotatedGap + the default
- * 8px) puts the diagonal safely above where the text starts; the cell is
- * rendered kAfterRotatedGap wider to compensate, so the content box is
- * unchanged. Applied to the header cell only — the diagonal overlaps just
- * the header, so body cells keep the default inset (they still carry the
- * matching extra render width, so the column edges stay aligned). */
-._afterRotatedGap_13cu0_441 {
-  padding-left: 32px;
-}
-
-/* Drop the vertical separator at the gap column's left edge — it rises
- * straight through the anchor of the preceding angled label, whose diagonal
- * bottom border already marks the boundary (same treatment as
- * .headerCellRotated::before). */
-._afterRotatedGap_13cu0_441::before {
-  display: none;
-}
-
-._empty_13cu0_453 {
-  position: absolute;
-  top: 3rem;
-  left: 0;
-  right: 0;
-  text-align: center;
-  color: var(--bs-secondary);
-}
-
-/* Column resize handle. A wide, invisible hit-strip straddling the column's
- * right edge; a subtle accent line shows on hover / while dragging. The strip
- * sits above cell content (z-index) and never triggers a sort (it is a sibling
- * of .headerContent, so its clicks don't reach the sort handler). */
-._resizeHandle_13cu0_466 {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: -3px;
-  width: 7px;
-  cursor: col-resize;
-  z-index: 2;
-  touch-action: none;
-  user-select: none;
-}
-
-._resizeHandle_13cu0_466::after {
-  content: "";
-  position: absolute;
-  top: 25%;
-  bottom: 25%;
-  left: 3px;
-  width: 1px;
-  background: var(--bs-primary);
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-._resizeHandle_13cu0_466:hover::after,
-._resizeHandleActive_13cu0_491::after,
-._resizeHandle_13cu0_466:focus-visible::after {
-  opacity: 1;
-}
-
-/* Keyboard focus: a thicker accent line in place of an outline, which would
- * box the invisible hit-strip rather than mark the column edge. */
-._resizeHandle_13cu0_466:focus-visible {
-  outline: none;
-}
-._resizeHandle_13cu0_466:focus-visible::after {
-  left: 2px;
-  width: 3px;
-}
-
-/* Forced colors drop the accent line's background; outline survives. */
-@media (forced-colors: active) {
-  ._resizeHandle_13cu0_466:focus-visible {
-    outline: 2px solid Highlight;
-    outline-offset: -2px;
-  }
-}
-
-/* Tall (rotated) mode: confine the hit-zone + accent line to the bottom
- * divider band so it stays off the angled labels above. */
-._resizeHandleTall_13cu0_516 {
-  top: auto;
-  height: 24px;
-}
-._resizeHandleTall_13cu0_516::after {
-  top: 2px;
-  bottom: 2px;
-}
-
-/* Rotated header cells are pointer-events: none; re-enable it on the handle
- * and pin it to the cell's bottom-right corner (below the diagonal label), so
- * resizing lives in the divider band and the angled label stays clickable. */
-._resizeHandleRotated_13cu0_528 {
-  top: auto;
-  bottom: 0;
-  height: 24px;
-  pointer-events: auto;
-}
-._resizeHandleRotated_13cu0_528::after {
-  top: 2px;
-  bottom: 2px;
-}
 ._footer_14uod_1 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   background: var(--bs-light-bg-subtle);
@@ -7638,15 +7599,15 @@ a._citationLink_1gzkd_9:hover {
    well off the model grey (≥ 1.8 : 1 light, ≥ 2.4 : 1 dark) so a tool
    tick reads next to a model span in either theme (design owner
    2026-09-15). */
-._chart_md8fn_6 {
+._chart_7cp9k_6 {
   position: relative;
   width: 100%;
   --sa-model-color: #64748b;
-  --sa-tool-color: #14b8a6;
-  --sa-tool-label-color: #0f766e;
+  --sa-tool-color: light-dark(#14b8a6, #2dd4bf);
+  --sa-tool-label-color: light-dark(#0f766e, #5eead4);
 }
 
-._svg_md8fn_14 {
+._svg_7cp9k_14 {
   display: block;
   position: absolute;
   top: 0;
@@ -7654,57 +7615,57 @@ a._citationLink_1gzkd_9:hover {
 }
 
 /* Uppercase 9px band labels, letter-spacing set inline (SVG attr). */
-._bandLabel_md8fn_22 {
+._bandLabel_7cp9k_22 {
   font-size: 9px;
   fill: var(--bs-secondary-color);
 }
 
-._bandHeadline_md8fn_27 {
+._bandHeadline_7cp9k_27 {
   font-size: 9px;
   fill: var(--bs-secondary-color);
   font-family: var(--bs-font-monospace);
 }
 
-._axisLine_md8fn_33 {
+._axisLine_7cp9k_33 {
   stroke: var(--bs-border-color);
 }
 
-._axisLabel_md8fn_37 {
+._axisLabel_7cp9k_37 {
   font-size: 9px;
   fill: var(--bs-secondary-color);
 }
 
-._yTickLabel_md8fn_42 {
+._yTickLabel_7cp9k_42 {
   font-size: 9px;
   fill: var(--bs-secondary-color);
 }
 
 /* ── working time ── */
 
-._workingBlock_md8fn_49 {
+._workingBlock_7cp9k_49 {
   fill: #5b8ec4;
 }
 
-._stallBracket_md8fn_53 {
-  stroke: #adb5bd;
+._stallBracket_7cp9k_53 {
+  stroke: light-dark(#adb5bd, #6c757d);
   stroke-width: 1;
   fill: none;
 }
 
-._stallBracketRetry_md8fn_59 {
-  stroke: #b04a3c;
+._stallBracketRetry_7cp9k_59 {
+  stroke: light-dark(#b04a3c, #d98b7f);
   stroke-width: 1;
   fill: none;
 }
 
-._stallLabel_md8fn_65 {
+._stallLabel_7cp9k_65 {
   font-size: 9px;
   fill: var(--bs-secondary-color);
 }
 
-._stallLabelRetry_md8fn_70 {
+._stallLabelRetry_7cp9k_70 {
   font-size: 9px;
-  fill: #b04a3c;
+  fill: light-dark(#b04a3c, #d98b7f);
 }
 
 /* ── curves ── */
@@ -7713,59 +7674,59 @@ a._citationLink_1gzkd_9:hover {
    curves, so a stroke or fill must never catch the pointer — a hover
    landing on a context vertex, or a travelling pointer crossing the line,
    would otherwise reach nothing (review pass 15). */
-._tokenSeries_md8fn_81 {
+._tokenSeries_7cp9k_81 {
   fill: none;
-  stroke: #495057;
+  stroke: light-dark(#495057, #adb5bd);
   stroke-width: 1.2;
   pointer-events: none;
 }
 
-._contextSeries_md8fn_88 {
+._contextSeries_7cp9k_88 {
   fill: none;
-  stroke: #3a7bd5;
+  stroke: light-dark(#3a7bd5, #6ea0dc);
   stroke-width: 1.2;
   pointer-events: none;
 }
 
-._contextDot_md8fn_95 {
-  fill: #3a7bd5;
+._contextDot_7cp9k_95 {
+  fill: light-dark(#3a7bd5, #6ea0dc);
   pointer-events: none;
 }
 
-._compactionDrop_md8fn_100 {
-  stroke: #2b6a94;
+._compactionDrop_7cp9k_100 {
+  stroke: light-dark(#2b6a94, #6ba3c9);
   stroke-dasharray: 3 2;
 }
 
-._compactionLabel_md8fn_105 {
+._compactionLabel_7cp9k_105 {
   font-size: 9px;
-  fill: #2b6a94;
+  fill: light-dark(#2b6a94, #8fbcd9);
 }
 
 /* ── shared cursor (handoff 11a) ── */
 
 /* One hairline through every band at the anchor time. */
-._cursorLine_md8fn_113 {
-  stroke: #adb5bd;
+._cursorLine_7cp9k_113 {
+  stroke: light-dark(#adb5bd, #6c757d);
   stroke-width: 1;
   pointer-events: none;
 }
 
 /* Dark pill on the axis pinning the exact time (or turn). */
-._cursorPill_md8fn_120 {
-  fill: #212529;
+._cursorPill_7cp9k_120 {
+  fill: light-dark(#212529, #dee2e6);
   pointer-events: none;
 }
 
-._cursorPillText_md8fn_125 {
-  fill: #fff;
+._cursorPillText_7cp9k_125 {
+  fill: light-dark(#fff, #212529);
   font-family: var(--bs-font-monospace);
   font-size: 9px;
   pointer-events: none;
 }
 
 /* Read-out dot per visible row on the curve bands (stroke = row hue). */
-._readoutDot_md8fn_133 {
+._readoutDot_7cp9k_133 {
   fill: var(--bs-body-bg);
   stroke-width: 1.5;
   pointer-events: none;
@@ -7773,75 +7734,75 @@ a._citationLink_1gzkd_9:hover {
 
 /* Full-plot hit surface — sits under every span/marker so they still
    receive their own hovers. */
-._plotHit_md8fn_141 {
+._plotHit_7cp9k_141 {
   fill: transparent;
 }
 
 /* Stall regions on the working band carry their own hover target. */
-._stallHit_md8fn_146 {
+._stallHit_7cp9k_146 {
   fill: transparent;
 }
 
 /* Token burn stacked by conversation (handoff 10a): each layer fills in
    its row hue at 0.28 with a 1px top edge in the same hue (both inline). */
-._tokenLayer_md8fn_152 {
+._tokenLayer_7cp9k_152 {
   opacity: 0.28;
   stroke: none;
   pointer-events: none;
 }
 
-._tokenLayerEdge_md8fn_158 {
+._tokenLayerEdge_7cp9k_158 {
   fill: none;
   stroke-width: 1;
   pointer-events: none;
 }
 
 /* Gutter legend under a curve band's label: swatch · name. */
-._legendName_md8fn_165 {
+._legendName_7cp9k_165 {
   font-size: 9px;
   fill: var(--bs-body-color);
 }
 
 /* ── model & tool activity ── */
 
-._rowLabel_md8fn_172 {
+._rowLabel_7cp9k_172 {
   font-size: 9px;
   fill: var(--bs-body-color);
 }
 
-._rowLabelMuted_md8fn_177 {
-  fill: #adb5bd;
+._rowLabelMuted_7cp9k_177 {
+  fill: light-dark(#adb5bd, #6c757d);
 }
 
-._modelSpan_md8fn_181 {
+._modelSpan_7cp9k_181 {
   fill: var(--sa-model-color);
 }
 
-._toolSpan_md8fn_185 {
+._toolSpan_7cp9k_185 {
   fill: var(--sa-tool-color);
 }
 
 /* Failed tool call: red-outlined span (handoff decision 4). */
-._failedSpan_md8fn_190 {
-  fill: #fdf1ef;
-  stroke: #b04a3c;
+._failedSpan_7cp9k_190 {
+  fill: light-dark(#fdf1ef, #322019);
+  stroke: light-dark(#b04a3c, #d98b7f);
 }
 
-._pendingSpan_md8fn_195 {
+._pendingSpan_7cp9k_195 {
   opacity: 0.55;
 }
 
 /* Span hover (handoff 11a): the hovered rect outlines. Its turn-mates no
    longer dim (design owner, 2026-09-15). */
-._spanHovered_md8fn_201 {
-  stroke: #212529;
+._spanHovered_7cp9k_201 {
+  stroke: light-dark(#212529, #f8f9fa);
   stroke-width: 1;
 }
 
 /* ── Turns axis (handoff 8b) ── */
 
 /* Column rects: no rounding, a 1.5px body-bg seam between columns. */
-._turnRect_md8fn_209 {
+._turnRect_7cp9k_209 {
   stroke: var(--bs-body-bg);
   stroke-width: 1.5;
 }
@@ -7849,143 +7810,143 @@ a._citationLink_1gzkd_9:hover {
 /* The seam rule above shares `.failedSpan` / `.spanHovered`'s specificity
    and comes later, so on a Turns rect it would win: the failed outline and
    the hover outline are restated at higher specificity. */
-._turnRect_md8fn_209._failedSpan_md8fn_190 {
-  stroke: #b04a3c;
+._turnRect_7cp9k_209._failedSpan_7cp9k_190 {
+  stroke: light-dark(#b04a3c, #d98b7f);
   stroke-width: 1;
 }
 
-._turnRect_md8fn_209._spanHovered_md8fn_201 {
-  stroke: #212529;
+._turnRect_7cp9k_209._spanHovered_7cp9k_201 {
+  stroke: light-dark(#212529, #f8f9fa);
   stroke-width: 1;
 }
 
 /* Faint full-height column separators behind every band. */
-._turnSeparator_md8fn_228 {
-  stroke: #f1f3f5;
+._turnSeparator_7cp9k_228 {
+  stroke: light-dark(#f1f3f5, #2b3035);
   stroke-width: 1;
   pointer-events: none;
 }
 
 /* A rejected call's slot: the tool never ran. */
-._ghostSpan_md8fn_235 {
-  fill: #f7f3fc;
-  stroke: #6b4fa8;
+._ghostSpan_7cp9k_235 {
+  fill: light-dark(#f7f3fc, #2a2436);
+  stroke: light-dark(#6b4fa8, #b39ddb);
   stroke-dasharray: 2 2;
   pointer-events: none;
 }
 
-._ghostLabel_md8fn_242 {
+._ghostLabel_7cp9k_242 {
   font-size: 8px;
-  fill: #6b4fa8;
+  fill: light-dark(#6b4fa8, #b39ddb);
 }
 
 /* A crowded half whose slots are all rejected calls: one ghost that,
    unlike the per-slot ghosts, takes the aggregate's hover and click. Its
    dashed stroke is declared after `.spanHovered`, so the hover outline is
    restated at higher specificity. */
-._ghostAggregate_md8fn_251 {
+._ghostAggregate_7cp9k_251 {
   pointer-events: auto;
 }
 
-._ghostAggregate_md8fn_251._spanHovered_md8fn_201 {
-  stroke: #212529;
+._ghostAggregate_7cp9k_251._spanHovered_7cp9k_201 {
+  stroke: light-dark(#212529, #f8f9fa);
 }
 
-._axisLabelMuted_md8fn_259 {
+._axisLabelMuted_7cp9k_259 {
   fill: var(--bs-secondary-color);
   opacity: 0.8;
 }
 
 /* Grader / secondary-role rows render muted (handoff decision 4). */
-._roleRow_md8fn_265 {
+._roleRow_7cp9k_265 {
   opacity: 0.7;
 }
 
 /* "+N more" fold row: a grey summary of the conversations past the cap. */
-._foldRow_md8fn_270 {
+._foldRow_7cp9k_270 {
   opacity: 0.6;
 }
 
 /* Parent conversation waiting on a spawned child — the only idle ever
    drawn on the activity band (handoff 10a). */
-._blockedThread_md8fn_276 {
-  stroke: #adb5bd;
+._blockedThread_7cp9k_276 {
+  stroke: light-dark(#adb5bd, #6c757d);
   stroke-width: 1;
   stroke-dasharray: 2 3;
 }
 
-._blockedLabel_md8fn_282 {
+._blockedLabel_7cp9k_282 {
   font-size: 8px;
-  fill: #adb5bd;
+  fill: light-dark(#adb5bd, #868e96);
 }
 
 /* ── agent gutter (handoff 10a) ── */
 
-._gutterCheckbox_md8fn_289 {
+._gutterCheckbox_7cp9k_289 {
   fill: none;
-  stroke: #212529;
+  stroke: light-dark(#212529, #dee2e6);
   stroke-width: 1;
 }
 
-._gutterCheckboxOn_md8fn_295 {
-  fill: #212529;
+._gutterCheckboxOn_7cp9k_295 {
+  fill: light-dark(#212529, #dee2e6);
 }
 
-._gutterCheck_md8fn_289 {
+._gutterCheck_7cp9k_289 {
   fill: none;
-  stroke: #fff;
+  stroke: light-dark(#fff, #212529);
   stroke-width: 1.4;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-._gutterExpand_md8fn_307 {
+._gutterExpand_7cp9k_307 {
   font-size: 9px;
   fill: var(--bs-secondary-color);
 }
 
-._gutterName_md8fn_312 {
+._gutterName_7cp9k_312 {
   font-size: 9px;
-  fill: #212529;
+  fill: light-dark(#212529, #dee2e6);
 }
 
-._gutterModel_md8fn_317 {
+._gutterModel_7cp9k_317 {
   font-size: 8px;
   fill: var(--bs-secondary-color);
 }
 
-._gutterHit_md8fn_322 {
+._gutterHit_7cp9k_322 {
   fill: transparent;
   cursor: pointer;
   outline: none;
 }
 
-._burstLabel_md8fn_328 {
+._burstLabel_7cp9k_328 {
   font-size: 8px;
   fill: var(--sa-tool-label-color);
 }
 
-._retryBadge_md8fn_333 {
+._retryBadge_7cp9k_333 {
   font-size: 9px;
-  fill: #b04a3c;
+  fill: light-dark(#b04a3c, #d98b7f);
 }
 
 /* Density strip columns: the majority kind's colour, opacity by count. */
-._densityModel_md8fn_339 {
+._densityModel_7cp9k_339 {
   fill: var(--sa-model-color);
 }
 
-._densityTool_md8fn_343 {
+._densityTool_7cp9k_343 {
   fill: var(--sa-tool-color);
 }
 
-._densityFailure_md8fn_347 {
-  fill: #b04a3c;
+._densityFailure_7cp9k_347 {
+  fill: light-dark(#b04a3c, #d98b7f);
   pointer-events: none;
 }
 
 /* Hover-only: the strip has no click action, so no pointer cursor. */
-._densityHit_md8fn_353 {
+._densityHit_7cp9k_353 {
   fill: transparent;
 }
 
@@ -7993,14 +7954,14 @@ a._citationLink_1gzkd_9:hover {
 
 /* Only the hit rect is interactive — the group's stem line would
    otherwise capture hovers meant for the bands beneath it. */
-._marker_md8fn_361 {
+._marker_7cp9k_361 {
   pointer-events: none;
 }
 
 /* Focusable for keyboard access to the card, but click-inert. Bootstrap's
    reboot gives every [role="button"] a pointer; the descendant selector
    outranks it. */
-._marker_md8fn_361 ._markerHit_md8fn_368 {
+._marker_7cp9k_361 ._markerHit_7cp9k_368 {
   fill: transparent;
   pointer-events: all;
   cursor: default;
@@ -8009,142 +7970,21 @@ a._citationLink_1gzkd_9:hover {
 
 /* Bordered count box above a clustered glyph (stroke/text take the
    category hue inline) — the task timeline's ordinal-box token. */
-._clusterBoxRect_md8fn_377 {
+._clusterBoxRect_7cp9k_377 {
   fill: var(--bs-body-bg);
   stroke-opacity: 0.55;
   pointer-events: none;
 }
 
-._clusterBoxText_md8fn_383 {
+._clusterBoxText_7cp9k_383 {
   font-family: var(--bs-font-monospace);
   font-size: 9px;
   pointer-events: none;
 }
-
-/* ── dark theme ── */
-
-[data-bs-theme="dark"] ._chart_md8fn_6 {
-  --sa-tool-color: #2dd4bf;
-  --sa-tool-label-color: #5eead4;
-}
-
-[data-bs-theme="dark"] ._tokenSeries_md8fn_81 {
-  stroke: #adb5bd;
-}
-
-[data-bs-theme="dark"] ._contextSeries_md8fn_88 {
-  stroke: #6ea0dc;
-}
-
-[data-bs-theme="dark"] ._contextDot_md8fn_95 {
-  fill: #6ea0dc;
-}
-
-[data-bs-theme="dark"] ._compactionDrop_md8fn_100 {
-  stroke: #6ba3c9;
-}
-
-[data-bs-theme="dark"] ._compactionLabel_md8fn_105 {
-  fill: #8fbcd9;
-}
-
-[data-bs-theme="dark"] ._stallBracket_md8fn_53 {
-  stroke: #6c757d;
-}
-
-[data-bs-theme="dark"] ._stallBracketRetry_md8fn_59 {
-  stroke: #d98b7f;
-}
-
-[data-bs-theme="dark"] ._stallLabelRetry_md8fn_70 {
-  fill: #d98b7f;
-}
-
-[data-bs-theme="dark"] ._failedSpan_md8fn_190 {
-  fill: #322019;
-  stroke: #d98b7f;
-}
-
-[data-bs-theme="dark"] ._turnRect_md8fn_209._failedSpan_md8fn_190 {
-  stroke: #d98b7f;
-}
-
-[data-bs-theme="dark"] ._retryBadge_md8fn_333 {
-  fill: #d98b7f;
-}
-
-[data-bs-theme="dark"] ._densityFailure_md8fn_347 {
-  fill: #d98b7f;
-}
-
-[data-bs-theme="dark"] ._rowLabelMuted_md8fn_177 {
-  fill: #6c757d;
-}
-
-[data-bs-theme="dark"] ._blockedThread_md8fn_276 {
-  stroke: #6c757d;
-}
-
-[data-bs-theme="dark"] ._blockedLabel_md8fn_282 {
-  fill: #868e96;
-}
-
-[data-bs-theme="dark"] ._gutterCheckbox_md8fn_289 {
-  stroke: #dee2e6;
-}
-
-[data-bs-theme="dark"] ._gutterCheckboxOn_md8fn_295 {
-  fill: #dee2e6;
-}
-
-[data-bs-theme="dark"] ._gutterCheck_md8fn_289 {
-  stroke: #212529;
-}
-
-[data-bs-theme="dark"] ._gutterName_md8fn_312 {
-  fill: #dee2e6;
-}
-
-[data-bs-theme="dark"] ._cursorLine_md8fn_113 {
-  stroke: #6c757d;
-}
-
-[data-bs-theme="dark"] ._cursorPill_md8fn_120 {
-  fill: #dee2e6;
-}
-
-[data-bs-theme="dark"] ._cursorPillText_md8fn_125 {
-  fill: #212529;
-}
-
-[data-bs-theme="dark"] ._spanHovered_md8fn_201 {
-  stroke: #f8f9fa;
-}
-
-[data-bs-theme="dark"] ._turnRect_md8fn_209._spanHovered_md8fn_201 {
-  stroke: #f8f9fa;
-}
-
-[data-bs-theme="dark"] ._turnSeparator_md8fn_228 {
-  stroke: #2b3035;
-}
-
-[data-bs-theme="dark"] ._ghostSpan_md8fn_235 {
-  fill: #2a2436;
-  stroke: #b39ddb;
-}
-
-[data-bs-theme="dark"] ._ghostLabel_md8fn_242 {
-  fill: #b39ddb;
-}
-
-[data-bs-theme="dark"] ._ghostAggregate_md8fn_251._spanHovered_md8fn_201 {
-  stroke: #f8f9fa;
-}
 /* One tooltip card for every hovered thing (handoff 11a/11b): reuses the
    .lineTooltip chrome — white, 1px border, r3, soft shadow, 0.72rem,
    tabular numerals — at a fixed 262px width. */
-._tooltip_1y9z1_4 {
+._tooltip_16eu2_4 {
   position: absolute;
   width: 262px;
   background: var(--bs-body-bg);
@@ -8161,14 +8001,14 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-body-color);
 }
 
-._header_1y9z1_21 {
+._header_16eu2_21 {
   display: flex;
   align-items: baseline;
   gap: 0.35rem;
   white-space: nowrap;
 }
 
-._subject_1y9z1_28 {
+._subject_16eu2_28 {
   font-weight: 600;
   flex: 1;
   min-width: 0;
@@ -8176,21 +8016,21 @@ a._citationLink_1gzkd_9:hover {
   text-overflow: ellipsis;
 }
 
-._statusFailed_1y9z1_36 {
-  color: #a13b2c;
+._statusFailed_16eu2_36 {
+  color: light-dark(#a13b2c, #d98b7f);
 }
 
-._statusRejected_1y9z1_40 {
-  color: #6b4fa8;
+._statusRejected_16eu2_40 {
+  color: light-dark(#6b4fa8, #b39ddb);
 }
 
-._timeLine_1y9z1_44 {
+._timeLine_16eu2_44 {
   font-family: var(--bs-font-monospace);
   font-size: 0.68rem;
   color: var(--bs-secondary-color);
 }
 
-._who_1y9z1_50 {
+._who_16eu2_50 {
   display: flex;
   align-items: center;
   gap: 0.3rem;
@@ -8198,14 +8038,14 @@ a._citationLink_1gzkd_9:hover {
   overflow: hidden;
 }
 
-._swatch_1y9z1_58 {
+._swatch_16eu2_58 {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-._dot_1y9z1_65 {
+._dot_16eu2_65 {
   display: inline-block;
   width: 7px;
   height: 7px;
@@ -8214,11 +8054,11 @@ a._citationLink_1gzkd_9:hover {
   vertical-align: middle;
 }
 
-._glyph_1y9z1_74 {
+._glyph_16eu2_74 {
   font-size: 0.65rem;
 }
 
-._grid_1y9z1_78 {
+._grid_16eu2_78 {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   column-gap: 0.75rem;
@@ -8226,28 +8066,28 @@ a._citationLink_1gzkd_9:hover {
   align-items: baseline;
 }
 
-._key_1y9z1_86 {
+._key_16eu2_86 {
   color: var(--bs-secondary-color);
   white-space: nowrap;
 }
 
-._value_1y9z1_91 {
+._value_16eu2_91 {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-._mono_1y9z1_98 {
+._mono_16eu2_98 {
   font-family: var(--bs-font-monospace);
   font-size: 0.68rem;
 }
 
-._muted_1y9z1_103 {
+._muted_16eu2_103 {
   color: var(--bs-secondary-color);
 }
 
-._ellipsis_1y9z1_107 {
+._ellipsis_16eu2_107 {
   display: inline-block;
   max-width: 100%;
   overflow: hidden;
@@ -8256,60 +8096,46 @@ a._citationLink_1gzkd_9:hover {
   vertical-align: bottom;
 }
 
-._list_1y9z1_116 {
+._list_16eu2_116 {
   display: flex;
   flex-direction: column;
   gap: 1px;
 }
 
-._listRow_1y9z1_122 {
+._listRow_16eu2_122 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   white-space: nowrap;
 }
 
-._listRow_1y9z1_122 > :nth-child(2) {
+._listRow_16eu2_122 > :nth-child(2) {
   flex: 1;
   min-width: 0;
 }
 
-._listRowHovered_1y9z1_134 {
+._listRowHovered_16eu2_134 {
   font-weight: 600;
 }
 
-._note_1y9z1_138 {
+._note_16eu2_138 {
   color: var(--bs-body-color);
 }
 
-._footer_1y9z1_142 {
+._footer_16eu2_142 {
   margin-top: 2px;
   padding: 3px 0 0 0;
   border: none;
   border-top: 1px dotted var(--bs-border-color);
   background: none;
-  color: #2a78d6;
+  color: light-dark(#2a78d6, #6ea0dc);
   font-size: 0.7rem;
   text-align: left;
   cursor: pointer;
 }
 
-._footer_1y9z1_142:hover {
+._footer_16eu2_142:hover {
   text-decoration: underline;
-}
-
-/* ── dark theme ── */
-
-[data-bs-theme="dark"] ._statusFailed_1y9z1_36 {
-  color: #d98b7f;
-}
-
-[data-bs-theme="dark"] ._statusRejected_1y9z1_40 {
-  color: #b39ddb;
-}
-
-[data-bs-theme="dark"] ._footer_1y9z1_142 {
-  color: #6ea0dc;
 }
 ._wrapper_14pl5_1 {
   font-variant-numeric: tabular-nums;
@@ -8712,37 +8538,37 @@ a._citationLink_1gzkd_9:hover {
 ._catReasoning_c99qp_155 {
   background: #1f4e8c;
 }
-._cell_1etak_1 {
+._cell_w4uhv_1 {
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
   flex-wrap: wrap;
 }
 
-._effectiveValue_1etak_8 {
+._effectiveValue_w4uhv_8 {
   font-weight: 600;
 }
 
-._clearedValue_1etak_12 {
+._clearedValue_w4uhv_12 {
   font-weight: 400;
 }
 
-._noneValue_1etak_16 {
+._noneValue_w4uhv_16 {
   font-style: italic;
 }
 
-._priorValue_1etak_20 {
+._priorValue_w4uhv_20 {
   color: var(--bs-secondary-color);
   font-size: 0.75rem;
 }
 
-._chip_1etak_25 {
+._chip_w4uhv_25 {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  border: 1px solid #d9cfe8;
-  background: #f7f3fc;
-  color: #4a2e73;
+  border: 1px solid light-dark(#d9cfe8, #4a3d63);
+  background: light-dark(#f7f3fc, #2a2333);
+  color: light-dark(#4a2e73, #cbb8ec);
   border-radius: 999px;
   padding: 0.05rem 0.45rem;
   font-size: 0.68rem;
@@ -8750,28 +8576,28 @@ a._citationLink_1gzkd_9:hover {
   cursor: help;
 }
 
-._chipCleared_1etak_39 {
-  border-color: #d3d9df;
-  background: #f6f7f8;
+._chipCleared_w4uhv_39 {
+  border-color: light-dark(#d3d9df, #464c52);
+  background: light-dark(#f6f7f8, #24272a);
   color: var(--bs-secondary-color);
 }
 
-._diamond_1etak_45 {
+._diamond_w4uhv_45 {
   width: 6px;
   height: 6px;
   background: #8f6fd0;
-  border: 1px solid #5d3f9e;
+  border: 1px solid light-dark(#5d3f9e, #b49ae0);
   transform: rotate(45deg);
   display: inline-block;
   flex-shrink: 0;
 }
 
-._popover_1etak_55 {
+._popover_w4uhv_55 {
   width: 330px;
   padding: 0;
 }
 
-._popoverHeader_1etak_60 {
+._popoverHeader_w4uhv_60 {
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -8782,20 +8608,20 @@ a._citationLink_1gzkd_9:hover {
   border-radius: 4px 4px 0 0;
 }
 
-._popoverHeader_1etak_60 ._diamond_1etak_45 {
+._popoverHeader_w4uhv_60 ._diamond_w4uhv_45 {
   width: 7px;
   height: 7px;
 }
 
-._popoverKnob_1etak_76 {
+._popoverKnob_w4uhv_76 {
   font-family: var(--bs-font-monospace);
 }
 
-._popoverHeaderNote_1etak_80 {
+._popoverHeaderNote_w4uhv_80 {
   color: var(--bs-secondary-color);
 }
 
-._popoverBody_1etak_84 {
+._popoverBody_w4uhv_84 {
   padding: 0.6rem;
   display: flex;
   flex-direction: column;
@@ -8803,41 +8629,41 @@ a._citationLink_1gzkd_9:hover {
   font-size: 0.78rem;
 }
 
-._popoverTransition_1etak_92 {
+._popoverTransition_w4uhv_92 {
   font-family: var(--bs-font-monospace);
   font-size: 0.85rem;
   overflow-wrap: anywhere;
 }
 
-._popoverTransition_1etak_92 ._from_1etak_98 {
+._popoverTransition_w4uhv_92 ._from_w4uhv_98 {
   color: var(--bs-secondary-color);
 }
 
-._popoverTransition_1etak_92 ._to_1etak_102 {
+._popoverTransition_w4uhv_92 ._to_w4uhv_102 {
   font-weight: 600;
 }
 
-._popoverGrid_1etak_106 {
+._popoverGrid_w4uhv_106 {
   display: grid;
   grid-template-columns: max-content 1fr;
   column-gap: 1em;
   row-gap: 0.2rem;
 }
 
-._popoverGrid_1etak_106 > div {
+._popoverGrid_w4uhv_106 > div {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-._popoverLabel_1etak_118 {
+._popoverLabel_w4uhv_118 {
   text-transform: uppercase;
   color: var(--bs-secondary-color);
   font-size: 0.68rem;
 }
 
-._scopePill_1etak_124 {
+._scopePill_w4uhv_124 {
   display: inline-flex;
-  border: 1px solid #d3d9df;
+  border: 1px solid light-dark(#d3d9df, #464c52);
   color: var(--bs-secondary-color);
   border-radius: 999px;
   padding: 0.05rem 0.4rem;
@@ -8846,7 +8672,7 @@ a._citationLink_1gzkd_9:hover {
   letter-spacing: 0.03em;
 }
 
-._timelineLink_1etak_135 {
+._timelineLink_w4uhv_135 {
   /* Renders as <a> when it has an href; keep the <button>'s focus ring. */
   outline-offset: 0;
   display: inline-flex;
@@ -8861,15 +8687,15 @@ a._citationLink_1gzkd_9:hover {
   cursor: pointer;
 }
 
-._timelineLink_1etak_135:hover {
+._timelineLink_w4uhv_135:hover {
   color: var(--bs-body-color);
 }
 
-._timelineLink_1etak_135 i {
+._timelineLink_w4uhv_135 i {
   font-size: 0.8rem;
 }
 
-._changeList_1etak_158 {
+._changeList_w4uhv_158 {
   font-family: var(--bs-font-monospace);
   font-size: 0.75rem;
   display: flex;
@@ -8877,61 +8703,40 @@ a._citationLink_1gzkd_9:hover {
   gap: 0.1rem;
 }
 
-._changeList_1etak_158 ._from_1etak_98 {
+._changeList_w4uhv_158 ._from_w4uhv_98 {
   color: var(--bs-secondary-color);
 }
 
-._changeList_1etak_158 ._to_1etak_102 {
+._changeList_w4uhv_158 ._to_w4uhv_102 {
   font-weight: 600;
 }
-
-[data-bs-theme="dark"] ._chip_1etak_25 {
-  border-color: #4a3d63;
-  background: #2a2333;
-  color: #cbb8ec;
-}
-
-[data-bs-theme="dark"] ._chipCleared_1etak_39 {
-  border-color: #464c52;
-  background: #24272a;
-  color: var(--bs-secondary-color);
-}
-
-[data-bs-theme="dark"] ._diamond_1etak_45 {
-  background: #8f6fd0;
-  border-color: #b49ae0;
-}
-
-[data-bs-theme="dark"] ._scopePill_1etak_124 {
-  border-color: #464c52;
-}
-._transition_1sx4b_1 {
+._transition_ia7l5_1 {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
-._oldLimit_1sx4b_6 {
+._oldLimit_ia7l5_6 {
   color: var(--bs-secondary);
 }
 
-._arrowUp_1sx4b_10,
-._arrowDown_1sx4b_11 {
+._arrowUp_ia7l5_10,
+._arrowDown_ia7l5_11 {
   margin: 0 5px;
 }
 
-._arrowUp_1sx4b_10 {
+._arrowUp_ia7l5_10 {
   color: var(--bs-secondary);
 }
 
-._arrowDown_1sx4b_11 {
-  color: #b04a3c;
+._arrowDown_ia7l5_11 {
+  color: light-dark(#b04a3c, #d98d7d);
 }
 
-._newLimit_1sx4b_23 {
+._newLimit_ia7l5_23 {
   font-weight: 600;
 }
 
-._badge_1sx4b_27 {
+._badge_ia7l5_27 {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 999px;
@@ -8940,52 +8745,26 @@ a._citationLink_1gzkd_9:hover {
   white-space: nowrap;
 }
 
-._badgeSlowStart_1sx4b_36 {
-  background: #e7eef8;
-  color: #3a6ea8;
+._badgeSlowStart_ia7l5_36 {
+  background: light-dark(#e7eef8, #253850);
+  color: light-dark(#3a6ea8, #9dc0ea);
 }
 
-._badgeSteadyUp_1sx4b_41 {
-  background: #e9f1eb;
-  color: #4a7a55;
+._badgeSteadyUp_ia7l5_41 {
+  background: light-dark(#e9f1eb, #253b2c);
+  color: light-dark(#4a7a55, #9ccaa8);
 }
 
-._badgeRateLimit_1sx4b_46 {
-  background: #f8e9e7;
-  color: #b04a3c;
+._badgeRateLimit_ia7l5_46 {
+  background: light-dark(#f8e9e7, #472a24);
+  color: light-dark(#b04a3c, #e39a8a);
 }
 
-._badgeManual_1sx4b_51 {
-  background: #eceef0;
-  color: #5f6771;
+._badgeManual_ia7l5_51 {
+  background: light-dark(#eceef0, #31353b);
+  color: light-dark(#5f6771, #aeb6bf);
 }
-
-/* Dark mode — dark tinted fills with light text (the light fills above are
-   near-white and glare on a dark surface). */
-[data-bs-theme="dark"] ._arrowDown_1sx4b_11 {
-  color: #d98d7d;
-}
-
-[data-bs-theme="dark"] ._badgeSlowStart_1sx4b_36 {
-  background: #253850;
-  color: #9dc0ea;
-}
-
-[data-bs-theme="dark"] ._badgeSteadyUp_1sx4b_41 {
-  background: #253b2c;
-  color: #9ccaa8;
-}
-
-[data-bs-theme="dark"] ._badgeRateLimit_1sx4b_46 {
-  background: #472a24;
-  color: #e39a8a;
-}
-
-[data-bs-theme="dark"] ._badgeManual_1sx4b_51 {
-  background: #31353b;
-  color: #aeb6bf;
-}
-._table_136xr_1 {
+._table_8yqgg_1 {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8125rem;
@@ -8993,7 +8772,7 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-body-color);
 }
 
-._table_136xr_1 thead th {
+._table_8yqgg_1 thead th {
   position: sticky;
   top: 0;
   background: var(--bs-body-bg);
@@ -9007,35 +8786,35 @@ a._citationLink_1gzkd_9:hover {
   border-bottom: 1px solid var(--bs-light-border-subtle);
 }
 
-._table_136xr_1 tbody td {
+._table_8yqgg_1 tbody td {
   padding: 7px 16px;
   border-bottom: 1px solid var(--bs-light-border-subtle);
   vertical-align: baseline;
 }
 
-._table_136xr_1 tbody tr:last-child td {
+._table_8yqgg_1 tbody tr:last-child td {
   border-bottom: 0;
 }
 
-._time_136xr_33 {
+._time_8yqgg_33 {
   color: var(--bs-secondary);
   white-space: nowrap;
 }
 
-._limitHead_136xr_38 {
+._limitHead_8yqgg_38 {
   text-align: right;
 }
 
-._limit_136xr_38 {
+._limit_8yqgg_38 {
   text-align: right;
   white-space: nowrap;
 }
 
-._noLimit_136xr_47 {
+._noLimit_8yqgg_47 {
   color: var(--bs-secondary);
 }
 
-._badge_136xr_51 {
+._badge_8yqgg_51 {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 999px;
@@ -9044,27 +8823,27 @@ a._citationLink_1gzkd_9:hover {
   white-space: nowrap;
 }
 
-._badgeConfig_136xr_60 {
-  border: 1px solid #d9cfe8;
+._badgeConfig_8yqgg_60 {
+  border: 1px solid light-dark(#d9cfe8, #4a3d63);
   background: var(--bs-body-bg);
-  color: #4a2e73;
+  color: light-dark(#4a2e73, #cbb8ec);
 }
 
-._configRow_136xr_66 {
-  background: #f7f3fc;
+._configRow_8yqgg_66 {
+  background: light-dark(#f7f3fc, #241f2e);
 }
 
-._rateLimitRow_136xr_70 {
-  background: #fdf6f5;
+._rateLimitRow_8yqgg_70 {
+  background: light-dark(#fdf6f5, #2e211e);
 }
 
-._configDetail_136xr_74 {
-  color: #4a2e73;
+._configDetail_8yqgg_74 {
+  color: light-dark(#4a2e73, #cbb8ec);
   margin-left: 0.4rem;
   font-size: 0.75rem;
 }
 
-._subheader_136xr_80 {
+._subheader_8yqgg_80 {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -9074,17 +8853,17 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-secondary);
 }
 
-._sharedBy_136xr_90 {
+._sharedBy_8yqgg_90 {
   white-space: nowrap;
 }
 
-._filters_136xr_94 {
+._filters_8yqgg_94 {
   margin-left: auto;
   display: inline-flex;
   gap: 0.35rem;
 }
 
-._filterChip_136xr_100 {
+._filterChip_8yqgg_100 {
   display: inline-flex;
   padding: 0.1rem 0.45rem;
   border: 1px solid var(--bs-border-color);
@@ -9095,34 +8874,17 @@ a._citationLink_1gzkd_9:hover {
   cursor: pointer;
 }
 
-._filterChipActive_136xr_111 {
+._filterChipActive_8yqgg_111 {
   border-color: var(--bs-secondary);
   background: var(--bs-secondary-bg);
   color: var(--bs-body-color);
 }
 
 /* Push the shared TimelineLink to the footer's left edge. */
-._footerLink_136xr_118 {
+._footerLink_8yqgg_118 {
   margin-right: auto;
 }
-
-[data-bs-theme="dark"] ._badgeConfig_136xr_60 {
-  border-color: #4a3d63;
-  color: #cbb8ec;
-}
-
-[data-bs-theme="dark"] ._configRow_136xr_66 {
-  background: #241f2e;
-}
-
-[data-bs-theme="dark"] ._rateLimitRow_136xr_70 {
-  background: #2e211e;
-}
-
-[data-bs-theme="dark"] ._configDetail_136xr_74 {
-  color: #cbb8ec;
-}
-._grid_13lh4_1 {
+._grid_1dytn_1 {
   display: grid;
   grid-template-columns: minmax(13rem, 1fr) max-content 1.2fr max-content;
   column-gap: 1.25rem;
@@ -9130,7 +8892,7 @@ a._citationLink_1gzkd_9:hover {
   font-size: 0.8125rem;
 }
 
-._headCell_13lh4_9 {
+._headCell_1dytn_9 {
   font-weight: 600;
   color: var(--bs-secondary-color);
   font-size: 0.7rem;
@@ -9140,27 +8902,27 @@ a._citationLink_1gzkd_9:hover {
   border-bottom: 1px solid var(--bs-border-color);
 }
 
-._cell_13lh4_19 {
+._cell_1dytn_19 {
   padding-top: 8px;
   padding-bottom: 12px;
   border-bottom: 1px dotted var(--bs-border-color);
 }
 
-._lastRow_13lh4_25 {
+._lastRow_1dytn_25 {
   border-bottom: none;
 }
 
-._modelCell_13lh4_29 {
+._modelCell_1dytn_29 {
   padding-right: 1.5rem;
 }
 
-._modelName_13lh4_33 {
+._modelName_1dytn_33 {
   display: block;
   font-weight: 500;
   word-break: break-word;
 }
 
-._roles_13lh4_39 {
+._roles_1dytn_39 {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -9170,48 +8932,48 @@ a._citationLink_1gzkd_9:hover {
   flex-wrap: wrap;
 }
 
-._roleChip_13lh4_49 {
+._roleChip_1dytn_49 {
   display: inline-flex;
   padding: 0.05rem 0.4rem;
-  border: 1px solid #cfe0f1;
-  background: #f2f7fc;
-  color: #1d4f7c;
+  border: 1px solid light-dark(#cfe0f1, #2c4a66);
+  background: light-dark(#f2f7fc, #16222e);
+  color: light-dark(#1d4f7c, #8db8dd);
   border-radius: 999px;
 }
 
-._avgCell_13lh4_58 {
+._avgCell_1dytn_58 {
   padding-right: 0.5rem;
 }
 
-._avgValue_13lh4_62 {
+._avgValue_1dytn_62 {
   display: block;
   font-size: 1rem;
   font-weight: 600;
 }
 
-._avgValue_13lh4_62 small {
+._avgValue_1dytn_62 small {
   font-size: 0.7rem;
   font-weight: 400;
   color: var(--bs-secondary-color);
   margin-left: 0.25rem;
 }
 
-._rateLimits_13lh4_75 {
+._rateLimits_1dytn_75 {
   display: block;
   font-size: 0.7rem;
-  color: #b04a3c;
+  color: light-dark(#b04a3c, #d98b7f);
   font-weight: 600;
   margin-top: 0.15rem;
 }
 
-._actionsCell_13lh4_83 {
+._actionsCell_1dytn_83 {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   align-items: flex-start;
 }
 
-._actionLink_13lh4_90 {
+._actionLink_1dytn_90 {
   /* Renders as <a> when it has an href; keep the <button>'s look and focus
      ring. */
   outline-offset: 0;
@@ -9227,62 +8989,62 @@ a._citationLink_1gzkd_9:hover {
   cursor: pointer;
 }
 
-._actionLink_13lh4_90:hover {
+._actionLink_1dytn_90:hover {
   color: var(--bs-body-color);
 }
 
-._actionLink_13lh4_90 i {
+._actionLink_1dytn_90 i {
   font-size: 0.8rem;
 }
 
-._chart_13lh4_114 {
+._chart_1dytn_114 {
   position: relative;
   width: 100%;
 }
 
-._svg_13lh4_119 {
+._svg_1dytn_119 {
   display: block;
 }
 
-._series_13lh4_123 {
+._series_1dytn_123 {
   fill: none;
-  stroke: #3a7bd5;
+  stroke: light-dark(#3a7bd5, #6ea0dc);
   stroke-width: 1.5;
 }
 
-._baseline_13lh4_129 {
+._baseline_1dytn_129 {
   stroke: var(--bs-border-color);
 }
 
-._capGuide_13lh4_133 {
+._capGuide_1dytn_133 {
   stroke: #9d84d1;
   stroke-dasharray: 3 3;
   opacity: 0.8;
 }
 
-._rateLimitLine_13lh4_139 {
-  stroke: #b04a3c;
+._rateLimitLine_1dytn_139 {
+  stroke: light-dark(#b04a3c, #d98b7f);
   stroke-width: 1;
   opacity: 0.55;
   cursor: pointer;
 }
 
-._retuneLine_13lh4_146 {
+._retuneLine_1dytn_146 {
   stroke: #9d84d1;
 }
 
-._retuneMarker_13lh4_150 {
+._retuneMarker_1dytn_150 {
   fill: #8f6fd0;
   stroke: #5d3f9e;
   cursor: pointer;
 }
 
-._chartLabel_13lh4_156 {
+._chartLabel_1dytn_156 {
   font-size: 9px;
   fill: var(--bs-secondary-color);
 }
 
-._legend_13lh4_161 {
+._legend_1dytn_161 {
   display: inline-flex;
   align-items: center;
   gap: 0.7rem;
@@ -9290,13 +9052,13 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-secondary-color);
 }
 
-._legendItem_13lh4_169 {
+._legendItem_1dytn_169 {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
 }
 
-._legendDiamond_13lh4_175 {
+._legendDiamond_1dytn_175 {
   width: 7px;
   height: 7px;
   background: #8f6fd0;
@@ -9305,40 +9067,18 @@ a._citationLink_1gzkd_9:hover {
   display: inline-block;
 }
 
-._legendRateLimit_13lh4_184 {
+._legendRateLimit_1dytn_184 {
   width: 1px;
   height: 10px;
-  background: #b04a3c;
+  background: light-dark(#b04a3c, #d98b7f);
   display: inline-block;
 }
 
-._legendGuide_13lh4_191 {
+._legendGuide_1dytn_191 {
   width: 12px;
   height: 0;
   border-top: 1px dashed #9d84d1;
   display: inline-block;
-}
-
-[data-bs-theme="dark"] ._roleChip_13lh4_49 {
-  border-color: #2c4a66;
-  background: #16222e;
-  color: #8db8dd;
-}
-
-[data-bs-theme="dark"] ._series_13lh4_123 {
-  stroke: #6ea0dc;
-}
-
-[data-bs-theme="dark"] ._rateLimits_13lh4_75 {
-  color: #d98b7f;
-}
-
-[data-bs-theme="dark"] ._legendRateLimit_13lh4_184 {
-  background: #d98b7f;
-}
-
-[data-bs-theme="dark"] ._rateLimitLine_13lh4_139 {
-  stroke: #d98b7f;
 }
 ._panel_ald9k_1 {
   display: block;
@@ -9406,13 +9146,13 @@ a._citationLink_1gzkd_9:hover {
 ._tableNoTop_ald9k_64 {
   margin-top: 0;
 }
-._container_143e5_1 {
+._container_ftpuv_1 {
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
 }
 
-._filterRow_143e5_7 {
+._filterRow_ftpuv_7 {
   display: flex;
   align-items: center;
   gap: 0.375rem;
@@ -9421,7 +9161,7 @@ a._citationLink_1gzkd_9:hover {
   padding-top: 0.25rem;
 }
 
-._caption_143e5_16 {
+._caption_ftpuv_16 {
   text-transform: uppercase;
   color: var(--bs-secondary-color);
   font-size: 0.68rem;
@@ -9433,7 +9173,7 @@ a._citationLink_1gzkd_9:hover {
 /* Filled colour pills: fill + border + text in one hue per category — the
    same hue the category's glyph uses on the rail, so the filter row doubles
    as the rail's legend. */
-._filterPill_143e5_28 {
+._filterPill_ftpuv_28 {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -9447,116 +9187,116 @@ a._citationLink_1gzkd_9:hover {
   cursor: pointer;
 }
 
-._pillCount_143e5_42 {
+._pillCount_ftpuv_42 {
   font-weight: 400;
 }
 
-._pillEmpty_143e5_46 {
+._pillEmpty_ftpuv_46 {
   opacity: 0.6;
   cursor: default;
 }
 
-._pillAll_143e5_51 {
+._pillAll_ftpuv_51 {
   color: var(--bs-body-color);
 }
 
-._pillAll_143e5_51._pillSelected_143e5_55 {
-  background: #212529;
-  border-color: #212529;
-  color: #fff;
+._pillAll_ftpuv_51._pillSelected_ftpuv_55 {
+  background: light-dark(#212529, #dee2e6);
+  border-color: light-dark(#212529, #dee2e6);
+  color: light-dark(#fff, #212529);
 }
 
-._pillError_143e5_61 {
-  background: #fdf1ef;
-  border-color: #ecc8c1;
-  color: #a13b2c;
+._pillError_ftpuv_61 {
+  background: light-dark(#fdf1ef, #322019);
+  border-color: light-dark(#ecc8c1, #6b3a30);
+  color: light-dark(#a13b2c, #d98b7f);
 }
 
-._pillLimit_143e5_67 {
-  background: #fffaeb;
-  border-color: #e8d8a0;
-  color: #8a6d1a;
+._pillLimit_ftpuv_67 {
+  background: light-dark(#fffaeb, #3a3220);
+  border-color: light-dark(#e8d8a0, #5c512f);
+  color: light-dark(#8a6d1a, #e8d8a0);
 }
 
-._pillApproval_143e5_73 {
-  background: #f7f3fc;
-  border-color: #d9cfe8;
-  color: #4a2e73;
+._pillApproval_ftpuv_73 {
+  background: light-dark(#f7f3fc, #2a2333);
+  border-color: light-dark(#d9cfe8, #4a3d63);
+  color: light-dark(#4a2e73, #cbb8ec);
 }
 
-._pillInput_143e5_79 {
-  background: #f2f7fc;
-  border-color: #cfe0f1;
-  color: #1d4f7c;
+._pillInput_ftpuv_79 {
+  background: light-dark(#f2f7fc, #16222e);
+  border-color: light-dark(#cfe0f1, #2c4a66);
+  color: light-dark(#1d4f7c, #8db8dd);
 }
 
-._pillInterrupt_143e5_85 {
-  background: #f8f9fa;
-  border-color: #dee2e6;
-  color: #6c757d;
+._pillInterrupt_ftpuv_85 {
+  background: light-dark(#f8f9fa, #26282b);
+  border-color: light-dark(#dee2e6, #4a5056);
+  color: light-dark(#6c757d, #9aa3ab);
 }
 
-._pillCompaction_143e5_91 {
-  background: #eef6fb;
-  border-color: #c3dcea;
-  color: #2b6a94;
+._pillCompaction_ftpuv_91 {
+  background: light-dark(#eef6fb, #16242e);
+  border-color: light-dark(#c3dcea, #2b4c66);
+  color: light-dark(#2b6a94, #8fbcd9);
 }
 
 /* The one palette addition (handoff): a green Scores hue. */
-._pillScore_143e5_98 {
-  background: #f0f7f2;
-  border-color: #d3e3d8;
-  color: #2f8a52;
+._pillScore_ftpuv_98 {
+  background: light-dark(#f0f7f2, #1d2b22);
+  border-color: light-dark(#d3e3d8, #2f4a3a);
+  color: light-dark(#2f8a52, #7fc79b);
 }
 
 /* Selected = solid fill with white text; unselected pills stay tinted. */
-._pillError_143e5_61._pillSelected_143e5_55 {
+._pillError_ftpuv_61._pillSelected_ftpuv_55 {
   background: #b04a3c;
   border-color: #b04a3c;
   color: #fff;
 }
 
-._pillLimit_143e5_67._pillSelected_143e5_55 {
+._pillLimit_ftpuv_67._pillSelected_ftpuv_55 {
   background: #8a6d1a;
   border-color: #8a6d1a;
   color: #fff;
 }
 
-._pillApproval_143e5_73._pillSelected_143e5_55 {
+._pillApproval_ftpuv_73._pillSelected_ftpuv_55 {
   background: #6b4fa8;
   border-color: #6b4fa8;
   color: #fff;
 }
 
-._pillInput_143e5_79._pillSelected_143e5_55 {
+._pillInput_ftpuv_79._pillSelected_ftpuv_55 {
   background: #1d4f7c;
   border-color: #1d4f7c;
   color: #fff;
 }
 
-._pillInterrupt_143e5_85._pillSelected_143e5_55 {
+._pillInterrupt_ftpuv_85._pillSelected_ftpuv_55 {
   background: #6c757d;
   border-color: #6c757d;
   color: #fff;
 }
 
-._pillCompaction_143e5_91._pillSelected_143e5_55 {
+._pillCompaction_ftpuv_91._pillSelected_ftpuv_55 {
   background: #2b6a94;
   border-color: #2b6a94;
   color: #fff;
 }
 
-._pillScore_143e5_98._pillSelected_143e5_55 {
+._pillScore_ftpuv_98._pillSelected_ftpuv_55 {
   background: #2f8a52;
   border-color: #2f8a52;
   color: #fff;
 }
 
-._pillSelected_143e5_55 ._pillCount_143e5_42 {
+._pillSelected_ftpuv_55 ._pillCount_ftpuv_42 {
   color: inherit;
 }
 
-._search_143e5_151 {
+._search_ftpuv_151 {
   margin-left: auto;
   border: 1px solid var(--bs-border-color);
   border-radius: 3px;
@@ -9567,11 +9307,11 @@ a._citationLink_1gzkd_9:hover {
   width: 220px;
 }
 
-._search_143e5_151::placeholder {
+._search_ftpuv_151::placeholder {
   color: var(--bs-secondary-color);
 }
 
-._list_143e5_166 {
+._list_ftpuv_166 {
   border: 1px solid var(--bs-border-color);
   border-radius: 3px;
   overflow: hidden;
@@ -9580,15 +9320,15 @@ a._citationLink_1gzkd_9:hover {
   padding: 0.25rem 0.5rem;
 }
 
-._empty_143e5_175 {
+._empty_ftpuv_175 {
   padding: 0.75rem;
   color: var(--bs-secondary-color);
   font-size: 0.8rem;
 }
 
 /* Four fixed columns — Time / Kind / Event / By (task-timeline parity). */
-._headerRow_143e5_182,
-._row_143e5_183 {
+._headerRow_ftpuv_182,
+._row_ftpuv_183 {
   display: grid;
   grid-template-columns: 110px 64px minmax(0, 1fr) minmax(56px, max-content);
   /* rem, not em — the header row's smaller font would shrink an em gap,
@@ -9598,7 +9338,7 @@ a._citationLink_1gzkd_9:hover {
   padding: 0.4rem 0.25rem;
 }
 
-._headerRow_143e5_182 {
+._headerRow_ftpuv_182 {
   text-transform: uppercase;
   color: var(--bs-secondary-color);
   font-size: 0.62rem;
@@ -9609,7 +9349,7 @@ a._citationLink_1gzkd_9:hover {
   padding-bottom: 0.25rem;
 }
 
-._timeSort_143e5_204 {
+._timeSort_ftpuv_204 {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
@@ -9625,22 +9365,22 @@ a._citationLink_1gzkd_9:hover {
   text-align: left;
 }
 
-._byHeader_143e5_220 {
+._byHeader_ftpuv_220 {
   text-align: right;
 }
 
-._row_143e5_183 {
+._row_ftpuv_183 {
   border-bottom: 1px dotted var(--bs-border-color);
   cursor: pointer;
 }
 
 /* Rows are virtualized (absolutely positioned), so :last-child would match
    whatever row happens to render last — the bottom row is flagged by index. */
-._row_143e5_183._rowLast_143e5_231 {
+._row_ftpuv_183._rowLast_ftpuv_231 {
   border-bottom: none;
 }
 
-._rowSelected_143e5_235 {
+._rowSelected_ftpuv_235 {
   background: var(--bs-secondary-bg);
   outline: 1px solid var(--bs-border-color);
   border-radius: 3px;
@@ -9648,45 +9388,45 @@ a._citationLink_1gzkd_9:hover {
 
 /* Hover-linked wash while the row's glyph is hovered on the rail — the
    inset bar carries the category hue. */
-._rowWash_143e5_243 {
-  background: #faf8fd;
+._rowWash_ftpuv_243 {
+  background: light-dark(#faf8fd, #221d2b);
 }
 
-._washError_143e5_247 {
+._washError_ftpuv_247 {
   box-shadow: inset 2px 0 0 #b04a3c;
-  background: #fdf6f5;
+  background: light-dark(#fdf6f5, #2b1f1b);
 }
 
-._washLimit_143e5_252 {
+._washLimit_ftpuv_252 {
   box-shadow: inset 2px 0 0 #8a6d1a;
-  background: #fffaeb;
+  background: light-dark(#fffaeb, #2b2619);
 }
 
-._washApproval_143e5_257 {
+._washApproval_ftpuv_257 {
   box-shadow: inset 2px 0 0 #6b4fa8;
 }
 
-._washInput_143e5_261 {
+._washInput_ftpuv_261 {
   box-shadow: inset 2px 0 0 #1d4f7c;
-  background: #f7fafd;
+  background: light-dark(#f7fafd, #1a222b);
 }
 
-._washInterrupt_143e5_266 {
+._washInterrupt_ftpuv_266 {
   box-shadow: inset 2px 0 0 #6c757d;
-  background: #f8f9fa;
+  background: light-dark(#f8f9fa, #222528);
 }
 
-._washCompaction_143e5_271 {
+._washCompaction_ftpuv_271 {
   box-shadow: inset 2px 0 0 #2b6a94;
-  background: #f4f9fc;
+  background: light-dark(#f4f9fc, #19242c);
 }
 
-._washScore_143e5_276 {
+._washScore_ftpuv_276 {
   box-shadow: inset 2px 0 0 #2f8a52;
-  background: #f4faf6;
+  background: light-dark(#f4faf6, #1c2620);
 }
 
-._time_143e5_204 {
+._time_ftpuv_204 {
   font-family: var(--bs-font-monospace);
   font-size: 0.72rem;
   color: var(--bs-secondary-color);
@@ -9694,7 +9434,7 @@ a._citationLink_1gzkd_9:hover {
 }
 
 /* Centers the pill on the row's first text line. */
-._kindCell_143e5_289 {
+._kindCell_ftpuv_289 {
   display: flex;
   align-items: center;
   height: calc(0.8rem * 1.5);
@@ -9702,7 +9442,7 @@ a._citationLink_1gzkd_9:hover {
 
 /* Same filled pill as the filter row at 0.65rem uppercase, so a row's Kind
    cell and its filter pill are visibly one object. */
-._kindPill_143e5_297 {
+._kindPill_ftpuv_297 {
   display: inline-flex;
   align-items: center;
   border: 1px solid;
@@ -9716,24 +9456,24 @@ a._citationLink_1gzkd_9:hover {
 
 /* Body: one size, one weight, two colours — mono separates values from
    prose; no bold and no status colour anywhere in the cell. */
-._event_143e5_311 {
+._event_ftpuv_311 {
   font-size: 0.8rem;
   font-weight: 400;
   color: var(--bs-body-color);
   line-height: 1.5;
 }
 
-._muted_143e5_318 {
+._muted_ftpuv_318 {
   color: var(--bs-secondary-color);
 }
 
-._mono_143e5_322 {
+._mono_ftpuv_322 {
   font-family: var(--bs-font-monospace);
   font-size: 0.75rem;
 }
 
 /* Author demoted to a right-aligned channel — user vs system at a glance. */
-._by_143e5_220 {
+._by_ftpuv_220 {
   font-size: 0.72rem;
   font-weight: 400;
   color: var(--bs-secondary-color);
@@ -9744,7 +9484,7 @@ a._citationLink_1gzkd_9:hover {
   white-space: nowrap;
 }
 
-._openEvent_143e5_339 {
+._openEvent_ftpuv_339 {
   font-size: 0.72rem;
   color: var(--bs-link-color);
   background: none;
@@ -9753,136 +9493,8 @@ a._citationLink_1gzkd_9:hover {
   cursor: pointer;
 }
 
-._openEvent_143e5_339:hover {
+._openEvent_ftpuv_339:hover {
   text-decoration: underline;
-}
-
-/* ── dark theme (mirrors the task timeline's pill overrides; Scores gets
-      its new dark variant per the handoff) ── */
-
-[data-bs-theme="dark"] ._pillAll_143e5_51._pillSelected_143e5_55 {
-  background: #dee2e6;
-  border-color: #dee2e6;
-  color: #212529;
-}
-
-[data-bs-theme="dark"] ._pillError_143e5_61 {
-  background: #322019;
-  border-color: #6b3a30;
-  color: #d98b7f;
-}
-
-[data-bs-theme="dark"] ._pillLimit_143e5_67 {
-  background: #3a3220;
-  border-color: #5c512f;
-  color: #e8d8a0;
-}
-
-[data-bs-theme="dark"] ._pillApproval_143e5_73 {
-  background: #2a2333;
-  border-color: #4a3d63;
-  color: #cbb8ec;
-}
-
-[data-bs-theme="dark"] ._pillInput_143e5_79 {
-  background: #16222e;
-  border-color: #2c4a66;
-  color: #8db8dd;
-}
-
-[data-bs-theme="dark"] ._pillInterrupt_143e5_85 {
-  background: #26282b;
-  border-color: #4a5056;
-  color: #9aa3ab;
-}
-
-[data-bs-theme="dark"] ._pillCompaction_143e5_91 {
-  background: #16242e;
-  border-color: #2b4c66;
-  color: #8fbcd9;
-}
-
-[data-bs-theme="dark"] ._pillScore_143e5_98 {
-  background: #1d2b22;
-  border-color: #2f4a3a;
-  color: #7fc79b;
-}
-
-[data-bs-theme="dark"] ._pillError_143e5_61._pillSelected_143e5_55,
-[data-bs-theme="dark"] ._pillLimit_143e5_67._pillSelected_143e5_55,
-[data-bs-theme="dark"] ._pillApproval_143e5_73._pillSelected_143e5_55,
-[data-bs-theme="dark"] ._pillInput_143e5_79._pillSelected_143e5_55,
-[data-bs-theme="dark"] ._pillInterrupt_143e5_85._pillSelected_143e5_55,
-[data-bs-theme="dark"] ._pillCompaction_143e5_91._pillSelected_143e5_55,
-[data-bs-theme="dark"] ._pillScore_143e5_98._pillSelected_143e5_55 {
-  color: #fff;
-}
-
-[data-bs-theme="dark"] ._pillError_143e5_61._pillSelected_143e5_55 {
-  background: #b04a3c;
-  border-color: #b04a3c;
-}
-
-[data-bs-theme="dark"] ._pillLimit_143e5_67._pillSelected_143e5_55 {
-  background: #8a6d1a;
-  border-color: #8a6d1a;
-}
-
-[data-bs-theme="dark"] ._pillApproval_143e5_73._pillSelected_143e5_55 {
-  background: #6b4fa8;
-  border-color: #6b4fa8;
-}
-
-[data-bs-theme="dark"] ._pillInput_143e5_79._pillSelected_143e5_55 {
-  background: #1d4f7c;
-  border-color: #1d4f7c;
-}
-
-[data-bs-theme="dark"] ._pillInterrupt_143e5_85._pillSelected_143e5_55 {
-  background: #6c757d;
-  border-color: #6c757d;
-}
-
-[data-bs-theme="dark"] ._pillCompaction_143e5_91._pillSelected_143e5_55 {
-  background: #2b6a94;
-  border-color: #2b6a94;
-}
-
-[data-bs-theme="dark"] ._pillScore_143e5_98._pillSelected_143e5_55 {
-  background: #2f8a52;
-  border-color: #2f8a52;
-}
-
-[data-bs-theme="dark"] ._rowWash_143e5_243 {
-  background: #221d2b;
-}
-
-[data-bs-theme="dark"] ._washError_143e5_247 {
-  background: #2b1f1b;
-}
-
-[data-bs-theme="dark"] ._washLimit_143e5_252 {
-  background: #2b2619;
-}
-
-[data-bs-theme="dark"] ._washApproval_143e5_257 {
-  background: #221d2b;
-}
-
-[data-bs-theme="dark"] ._washInput_143e5_261 {
-  background: #1a222b;
-}
-
-[data-bs-theme="dark"] ._washInterrupt_143e5_266 {
-  background: #222528;
-}
-
-[data-bs-theme="dark"] ._washCompaction_143e5_271 {
-  background: #19242c;
-}
-
-[data-bs-theme="dark"] ._washScore_143e5_276 {
-  background: #1c2620;
 }
 ._container_pqeak_1 {
   padding: 0.5em 1em 1em 1em;
@@ -9965,12 +9577,12 @@ a._citationLink_1gzkd_9:hover {
 ._splitClear_15xqr_15 i {
   font-size: 0.85em;
 }
-._toolsGrid_1qqm2_1 {
+._toolsGrid_1lgnd_1 {
   display: grid;
   row-gap: 0em;
 }
 
-._tools_1qqm2_1 {
+._tools_1lgnd_1 {
   display: grid;
   grid-template-columns: max-content max-content;
   column-gap: 1rem;
@@ -9978,11 +9590,12 @@ a._citationLink_1gzkd_9:hover {
   align-items: baseline;
 }
 
-._tool_1qqm2_1 {
+._tool_1lgnd_1 {
   padding: 0;
+  /* Beats base.css's more specific inline-code colour. */
   color: inherit !important;
 }
-._root_ugt1x_1 {
+._root_u5fhd_1 {
   /* A var, not a plain 100vh, so a host whose chrome sits above the page
      (scout's ProjectBar) can shrink the root via its className without a
      cascade-order fight — an overflowing root gets its header clipped once
@@ -9995,7 +9608,7 @@ a._citationLink_1gzkd_9:hover {
 /* Fixed secondary header under the app chrome: agent-path breadcrumb on the
    left; turn label + turn/lane navigation + exit-focus on the right. A
    non-scrolling sibling of the scroll container (the column layout pins it). */
-._focusBar_ugt1x_14 {
+._focusBar_u5fhd_14 {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -10006,7 +9619,7 @@ a._citationLink_1gzkd_9:hover {
   border-bottom: 1px solid var(--bs-border-color);
 }
 
-._crumbs_ugt1x_25 {
+._crumbs_u5fhd_25 {
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
@@ -10014,13 +9627,13 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-secondary);
 }
 
-._laneName_ugt1x_33 {
+._laneName_u5fhd_33 {
   font-weight: 500;
 }
 
 /* Breadcrumb segments that act (ancestor links, lane picker) render as plain
    text in the bar's muted color; hover matches the bar's icon buttons. */
-._crumbButton_ugt1x_39 {
+._crumbButton_u5fhd_39 {
   display: inline-flex;
   align-items: center;
   gap: 0.25em;
@@ -10033,28 +9646,28 @@ a._citationLink_1gzkd_9:hover {
   cursor: pointer;
 }
 
-._crumbButton_ugt1x_39:hover {
+._crumbButton_u5fhd_39:hover {
   color: var(--bs-body-color);
   text-decoration: underline;
 }
 
-._crumbButton_ugt1x_39:focus-visible {
+._crumbButton_u5fhd_39:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }
 
-._crumbSeparator_ugt1x_62 {
+._crumbSeparator_u5fhd_62 {
   font-size: 0.7em;
   opacity: 0.6;
 }
 
-._laneMenu_ugt1x_67 {
+._laneMenu_u5fhd_67 {
   display: flex;
   flex-direction: column;
   row-gap: 0.15em;
 }
 
-._laneMenuItem_ugt1x_73 {
+._laneMenuItem_u5fhd_73 {
   display: block;
   border: none;
   background: none;
@@ -10067,27 +9680,27 @@ a._citationLink_1gzkd_9:hover {
   padding: 0.1em 0.4em;
 }
 
-._laneMenuItem_ugt1x_73:hover {
+._laneMenuItem_u5fhd_73:hover {
   background-color: var(--bs-secondary-bg);
 }
 
-._laneMenuItemCurrent_ugt1x_90 {
+._laneMenuItemCurrent_u5fhd_90 {
   font-weight: 600;
 }
 
-._controls_ugt1x_94 {
+._controls_u5fhd_94 {
   display: inline-flex;
   align-items: center;
   gap: 0.15em;
   color: var(--bs-secondary);
 }
 
-._turnLabel_ugt1x_101 {
+._turnLabel_u5fhd_101 {
   white-space: nowrap;
   margin-right: 0.35em;
 }
 
-._divider_ugt1x_106 {
+._divider_u5fhd_106 {
   display: inline-block;
   width: 1px;
   align-self: stretch;
@@ -10096,7 +9709,7 @@ a._citationLink_1gzkd_9:hover {
   opacity: 0.5;
 }
 
-._button_ugt1x_115 {
+._button_u5fhd_115 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -10109,16 +9722,16 @@ a._citationLink_1gzkd_9:hover {
   text-decoration: none;
 }
 
-._button_ugt1x_115:hover:not(:disabled) {
+._button_u5fhd_115:hover:not(:disabled) {
   color: var(--bs-body-color);
 }
 
-._button_ugt1x_115:focus-visible {
+._button_u5fhd_115:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }
 
-._button_ugt1x_115:disabled {
+._button_u5fhd_115:disabled {
   opacity: 0.3;
   cursor: default;
 }
@@ -10127,11 +9740,11 @@ a._citationLink_1gzkd_9:hover {
    shrink: an overflow:hidden header (scout's navbar) has no automatic
    min-height, so with the scroller's content-sized flex basis it would get
    crushed whenever the focused turn is taller than the viewport. */
-._root_ugt1x_1 > :not(._container_ugt1x_146) {
+._root_u5fhd_1 > :not(._container_u5fhd_146) {
   flex-shrink: 0;
 }
 
-._container_ugt1x_146 {
+._container_u5fhd_146 {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -10141,15 +9754,15 @@ a._citationLink_1gzkd_9:hover {
 /* A single focused event isn't a transcript list — drop the per-card box and
    the expanded-boundary gutter (both are transcript-row chrome). Keep the
    background so the model's sticky header stays opaque as content scrolls. */
-._container_ugt1x_146 [id^="event-panel-"] {
-  border: none !important;
-  box-shadow: none !important;
+._root_u5fhd_1 ._container_u5fhd_146 [id^="event-panel-"] {
+  border: none;
+  box-shadow: none;
   padding: 0;
 }
 
 /* Sample/transcript-level error strip: persistent on every focused turn
    (only the last turn's slice carries the actual error card). */
-._errorStrip_ugt1x_168 {
+._errorStrip_u5fhd_168 {
   display: flex;
   align-items: baseline;
   gap: 0.5em;
@@ -10164,7 +9777,7 @@ a._citationLink_1gzkd_9:hover {
   cursor: pointer;
 }
 
-._errorStripLabel_ugt1x_183 {
+._errorStripLabel_u5fhd_183 {
   font-weight: 600;
   text-transform: uppercase;
   font-size: 0.7rem;
@@ -10172,7 +9785,7 @@ a._citationLink_1gzkd_9:hover {
   flex-shrink: 0;
 }
 
-._errorStripMessage_ugt1x_191 {
+._errorStripMessage_u5fhd_191 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -10415,7 +10028,7 @@ a._citationLink_1gzkd_9:hover {
 ._chainExplanation_etmzh_45 > :last-child {
   margin-bottom: 0;
 }
-._inset_1g4dt_1 {
+._inset_szjh2_1 {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -10428,21 +10041,21 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-body-color);
 }
 
-._output_1g4dt_14 {
+._output_szjh2_14 {
   border-color: var(--inspect-check-result-border);
 }
 
-._inset_1g4dt_1._reject_1g4dt_18 {
+._inset_szjh2_1._reject_szjh2_18 {
   border-color: var(--inspect-check-reject-border);
   background-color: var(--inspect-check-reject-bg);
 }
 
-._inset_1g4dt_1._modify_1g4dt_23 {
+._inset_szjh2_1._modify_szjh2_23 {
   border-color: var(--inspect-check-modify-border);
   background-color: var(--inspect-check-modify-bg);
 }
 
-._summary_1g4dt_28 {
+._summary_szjh2_28 {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -10450,41 +10063,41 @@ a._citationLink_1gzkd_9:hover {
   min-width: 0;
 }
 
-._icon_1g4dt_36 {
+._icon_szjh2_36 {
   color: rgba(var(--bs-body-color-rgb), 0.6);
 }
 
-._verdict_1g4dt_40 {
+._verdict_szjh2_40 {
   font-weight: 600;
 }
 
-._who_1g4dt_44 {
+._who_szjh2_44 {
   color: var(--bs-secondary-color);
 }
 
-._mono_1g4dt_48 {
+._mono_szjh2_48 {
   font-family: var(--bs-font-monospace);
 }
 
-._reasonWrap_1g4dt_52,
-._error_1g4dt_53 {
+._reasonWrap_szjh2_52,
+._error_szjh2_53 {
   flex: 1 1 200px;
   min-width: 0;
 }
 
-._reasonWrap_1g4dt_52 {
+._reasonWrap_szjh2_52 {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
 }
 
-._reason_1g4dt_52 {
+._reason_szjh2_52 {
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
 }
 
-._error_1g4dt_53 {
+._error_szjh2_53 {
   margin: 0;
   font-family: var(--bs-font-monospace);
   font-size: 0.75rem;
@@ -10492,7 +10105,7 @@ a._citationLink_1gzkd_9:hover {
   overflow-wrap: anywhere;
 }
 
-._more_1g4dt_78 {
+._more_szjh2_78 {
   padding: 0;
   border: 0;
   background: none;
@@ -10501,14 +10114,14 @@ a._citationLink_1gzkd_9:hover {
   cursor: pointer;
 }
 
-._reason_1g4dt_52 p,
-._reason_1g4dt_52 > :last-child {
+._reason_szjh2_52 p,
+._reason_szjh2_52 > :last-child {
   margin-bottom: 0;
 }
 
 /* With the checks expandable, the full explanation is in the tree detail;
    "more" shows it in place. */
-._clamped_1g4dt_94 {
+._clamped_szjh2_94 {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -10516,43 +10129,43 @@ a._citationLink_1gzkd_9:hover {
   overflow: hidden;
 }
 
-._scores_1g4dt_102 {
+._scores_szjh2_102 {
   font-family: var(--bs-font-monospace);
   font-size: 0.78rem;
   color: var(--bs-secondary-color);
   white-space: nowrap;
 }
 
-._approveIcon_1g4dt_109 {
+._approveIcon_szjh2_109 {
   color: var(--inspect-check-approve-icon);
 }
 
-._approveText_1g4dt_113 {
+._approveText_szjh2_113 {
   color: var(--inspect-check-approve-text);
 }
 
-._rejectIcon_1g4dt_117 {
+._rejectIcon_szjh2_117 {
   color: var(--inspect-check-reject-icon);
 }
 
-._rejectText_1g4dt_121 {
+._rejectText_szjh2_121 {
   color: var(--inspect-check-reject-text);
 }
 
-._rejectReason_1g4dt_125 {
+._rejectReason_szjh2_125 {
   color: var(--inspect-check-reject-reason);
 }
 
-._modifyIcon_1g4dt_129 {
+._modifyIcon_szjh2_129 {
   color: var(--inspect-check-modify-icon);
 }
 
-._modifyText_1g4dt_133 {
+._modifyText_szjh2_133 {
   color: var(--inspect-check-modify-text);
 }
 
-._chip_1g4dt_137,
-._pill_1g4dt_138 {
+._chip_szjh2_137,
+._pill_szjh2_138 {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -10564,13 +10177,13 @@ a._citationLink_1gzkd_9:hover {
   white-space: nowrap;
 }
 
-._chip_1g4dt_137 {
+._chip_szjh2_137 {
   color: var(--inspect-check-modify-text);
   background-color: var(--inspect-check-flag-bg);
   border-color: var(--inspect-check-modify-border);
 }
 
-._pill_1g4dt_138 {
+._pill_szjh2_138 {
   cursor: pointer;
   font-family: inherit;
   color: var(--inspect-tool-block-ink);
@@ -10578,43 +10191,43 @@ a._citationLink_1gzkd_9:hover {
   border-color: var(--inspect-check-input-border);
 }
 
-._trailing_1g4dt_164 {
+._trailing_szjh2_164 {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   margin-left: auto;
 }
 
-._output_1g4dt_14 ._pill_1g4dt_138 {
+._output_szjh2_14 ._pill_szjh2_138 {
   color: var(--inspect-check-result-pill-text);
   background-color: var(--inspect-check-result-pill-bg);
   border-color: var(--inspect-check-result-border);
 }
 
-._reject_1g4dt_18 ._pill_1g4dt_138 {
+._reject_szjh2_18 ._pill_szjh2_138 {
   color: var(--inspect-check-reject-reason);
   background-color: var(--bs-body-bg);
   border-color: var(--inspect-check-reject-border);
 }
 
-._modify_1g4dt_23 ._pill_1g4dt_138 {
+._modify_szjh2_23 ._pill_szjh2_138 {
   color: var(--inspect-check-modify-text);
   background-color: var(--bs-body-bg);
   border-color: var(--inspect-check-modify-border);
 }
 
-._pillChevron_1g4dt_189 {
+._pillChevron_szjh2_189 {
   font-size: 0.8em;
 }
 
-._label_1g4dt_193 {
+._label_szjh2_193 {
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
 }
 
-._replaced_1g4dt_200 {
+._replaced_szjh2_200 {
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -10625,7 +10238,7 @@ a._citationLink_1gzkd_9:hover {
   background-color: var(--bs-body-bg);
 }
 
-._code_1g4dt_211 {
+._code_szjh2_211 {
   font-family: var(--bs-font-monospace);
   font-size: 0.78rem;
   line-height: 1.55;
@@ -10634,10 +10247,12 @@ a._citationLink_1gzkd_9:hover {
 }
 
 /* The proposal renders through the tool input view; flatten the boxed
-   surface the readable variant gives it. */
-._replaced_1g4dt_200 ._code_1g4dt_211 pre.tool-call-input,
-._replaced_1g4dt_200 ._code_1g4dt_211 div.tool-call-input,
-._replaced_1g4dt_200 ._code_1g4dt_211 .tool-call-input pre[class*="language-"] {
+   surface the readable variant gives it. !important overrides those surface
+   rules. Their padding is also !important at the same specificity, so for
+   padding this rule wins on stylesheet order. */
+._replaced_szjh2_200 ._code_szjh2_211 pre.tool-call-input,
+._replaced_szjh2_200 ._code_szjh2_211 div.tool-call-input,
+._replaced_szjh2_200 ._code_szjh2_211 .tool-call-input pre[class*="language-"] {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -10646,15 +10261,16 @@ a._citationLink_1gzkd_9:hover {
   font-size: inherit;
 }
 
-/* Struck through and without syntax colors, so the tool input reads as what ran. */
-._struck_1g4dt_233,
-._struck_1g4dt_233 * {
+/* Struck through and without syntax colors, so the tool input reads as what ran.
+   !important beats Prism's more specific token colours. */
+._struck_szjh2_236,
+._struck_szjh2_236 * {
   color: rgba(var(--bs-body-color-rgb), 0.6) !important;
   text-decoration: line-through;
   text-decoration-color: rgba(var(--bs-body-color-rgb), 0.35);
 }
 
-._notRun_1g4dt_240 {
+._notRun_szjh2_243 {
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -10665,7 +10281,7 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-secondary-color);
 }
 
-._notRunBody_1g4dt_251 {
+._notRunBody_szjh2_254 {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -10673,7 +10289,7 @@ a._citationLink_1gzkd_9:hover {
   min-width: 0;
 }
 
-._message_1g4dt_259 {
+._message_szjh2_262 {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   align-items: baseline;
@@ -10685,11 +10301,11 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-body-color);
 }
 
-._message_1g4dt_259 ._label_1g4dt_193 {
+._message_szjh2_262 ._label_szjh2_193 {
   color: var(--inspect-check-reject-text);
 }
 
-._messageText_1g4dt_275 {
+._messageText_szjh2_278 {
   font-family: var(--bs-font-monospace);
   font-size: 0.75rem;
   white-space: pre-wrap;
@@ -11350,22 +10966,22 @@ a._turnButton_loteg_100 {
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
-._section_8yqw9_1 {
+._section_1yqrk_1 {
   margin: 1em 0 0 0;
 }
 
-._header_8yqw9_5 {
+._header_1yqrk_5 {
   display: flex;
   align-items: center;
   gap: 0.6em;
   padding-bottom: 0.3em;
 }
 
-._label_8yqw9_12 {
+._label_1yqrk_12 {
   font-weight: 600;
 }
 
-._badge_8yqw9_16 {
+._badge_1yqrk_16 {
   display: inline-flex;
   align-items: center;
   font-family: var(--bs-font-monospace);
@@ -11380,97 +10996,70 @@ a._turnButton_loteg_100 {
 }
 
 /* Shared chroma/lightness, hue varies — keeps the set harmonious. */
-._neutral_8yqw9_31 {
-  --srb-fg: oklch(0.5 0.05 155);
-  --srb-bg: oklch(0.972 0.018 155);
-  --srb-bd: oklch(0.86 0.055 155);
+._neutral_1yqrk_31 {
+  --srb-fg: light-dark(oklch(0.5 0.05 155), oklch(0.82 0.06 155));
+  --srb-bg: light-dark(oklch(0.972 0.018 155), oklch(0.28 0.03 155));
+  --srb-bd: light-dark(oklch(0.86 0.055 155), oklch(0.42 0.04 155));
 }
-._amber_8yqw9_36 {
-  --srb-fg: oklch(0.52 0.09 64);
-  --srb-bg: oklch(0.972 0.034 75);
-  --srb-bd: oklch(0.85 0.065 75);
+._amber_1yqrk_36 {
+  --srb-fg: light-dark(oklch(0.52 0.09 64), oklch(0.83 0.09 75));
+  --srb-bg: light-dark(oklch(0.972 0.034 75), oklch(0.3 0.04 64));
+  --srb-bd: light-dark(oklch(0.85 0.065 75), oklch(0.45 0.05 70));
 }
-._blue_8yqw9_41 {
-  --srb-fg: oklch(0.5 0.11 256);
-  --srb-bg: oklch(0.972 0.026 256);
-  --srb-bd: oklch(0.86 0.055 256);
+._blue_1yqrk_41 {
+  --srb-fg: light-dark(oklch(0.5 0.11 256), oklch(0.82 0.09 256));
+  --srb-bg: light-dark(oklch(0.972 0.026 256), oklch(0.3 0.04 256));
+  --srb-bd: light-dark(oklch(0.86 0.055 256), oklch(0.45 0.06 256));
 }
-._rose_8yqw9_46 {
-  --srb-fg: oklch(0.52 0.14 22);
-  --srb-bg: oklch(0.972 0.032 22);
-  --srb-bd: oklch(0.87 0.06 22);
+._rose_1yqrk_46 {
+  --srb-fg: light-dark(oklch(0.52 0.14 22), oklch(0.82 0.1 22));
+  --srb-bg: light-dark(oklch(0.972 0.032 22), oklch(0.3 0.05 22));
+  --srb-bd: light-dark(oklch(0.87 0.06 22), oklch(0.46 0.08 22));
 }
-._gray_8yqw9_51 {
-  --srb-fg: oklch(0.48 0.006 260);
-  --srb-bg: oklch(0.972 0.003 260);
-  --srb-bd: oklch(0.88 0.005 260);
+._gray_1yqrk_51 {
+  --srb-fg: light-dark(oklch(0.48 0.006 260), oklch(0.8 0.01 260));
+  --srb-bg: light-dark(oklch(0.972 0.003 260), oklch(0.29 0.005 260));
+  --srb-bd: light-dark(oklch(0.88 0.005 260), oklch(0.42 0.008 260));
 }
-
-/* Dark mode — dark tinted fills with light text (the light fills above are
-   near-white and glare on a dark surface). */
-[data-bs-theme="dark"] ._neutral_8yqw9_31 {
-  --srb-fg: oklch(0.82 0.06 155);
-  --srb-bg: oklch(0.28 0.03 155);
-  --srb-bd: oklch(0.42 0.04 155);
-}
-[data-bs-theme="dark"] ._amber_8yqw9_36 {
-  --srb-fg: oklch(0.83 0.09 75);
-  --srb-bg: oklch(0.3 0.04 64);
-  --srb-bd: oklch(0.45 0.05 70);
-}
-[data-bs-theme="dark"] ._blue_8yqw9_41 {
-  --srb-fg: oklch(0.82 0.09 256);
-  --srb-bg: oklch(0.3 0.04 256);
-  --srb-bd: oklch(0.45 0.06 256);
-}
-[data-bs-theme="dark"] ._rose_8yqw9_46 {
-  --srb-fg: oklch(0.82 0.1 22);
-  --srb-bg: oklch(0.3 0.05 22);
-  --srb-bd: oklch(0.46 0.08 22);
-}
-[data-bs-theme="dark"] ._gray_8yqw9_51 {
-  --srb-fg: oklch(0.8 0.01 260);
-  --srb-bg: oklch(0.29 0.005 260);
-  --srb-bd: oklch(0.42 0.008 260);
-}
-._container_17lir_1 {
+._container_1jcqw_1 {
   margin: 0.5em 0 0 0;
   width: 100%;
 }
 
-._all_17lir_6 {
+._all_1jcqw_6 {
   display: flex;
   flex-direction: column;
   gap: 1em;
 }
 
-._tableSelection_17lir_12 {
+._tableSelection_1jcqw_12 {
   width: fit-content;
   align-self: start;
   justify-self: start;
 }
 
-._config_17lir_18 {
+._config_1jcqw_18 {
   margin-top: 0;
 }
 
-._codePre_17lir_22 {
+._codePre_1jcqw_22 {
   background: var(--bs-light);
   width: 100%;
   padding: 0.5em;
   border-radius: var(--bs-border-radius);
 }
 
-._code_17lir_22 {
+/* !important beats Prism's white-space: pre and word-wrap: normal. */
+._code_1jcqw_22 {
   white-space: pre-wrap !important;
   word-wrap: anywhere !important;
 }
 
-._progress_17lir_34 {
+._progress_1jcqw_35 {
   margin-left: 0;
 }
 
-._error_17lir_38 {
+._error_1jcqw_39 {
   color: var(--bs-danger);
   padding: 0.5em;
   border: 1px solid var(--bs-danger);
@@ -11481,7 +11070,7 @@ a._turnButton_loteg_100 {
   margin: 0.5em 0;
 }
 
-._cancelled_17lir_49 {
+._cancelled_1jcqw_50 {
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -11494,12 +11083,12 @@ a._turnButton_loteg_100 {
   margin: 0.5em 0;
 }
 
-._showAllLink_17lir_62 {
+._showAllLink_1jcqw_63 {
   text-align: center;
   padding: 0.5em 0 0.7em;
 }
 
-._showAllLink_17lir_62 button {
+._showAllLink_1jcqw_63 button {
   padding: 0;
   border: none;
   background: none;
@@ -11509,20 +11098,20 @@ a._turnButton_loteg_100 {
   text-decoration: none;
 }
 
-._showAllIcon_17lir_77 {
+._showAllIcon_1jcqw_78 {
   margin-right: 0.35em;
 }
 
-._showAllLink_17lir_62 button:hover {
+._showAllLink_1jcqw_63 button:hover {
   color: var(--bs-body-color);
   text-decoration: underline;
 }
 
-._toolConfig_17lir_86 {
+._toolConfig_1jcqw_87 {
   padding-top: 0.5em;
 }
 
-._toolChoice_17lir_90 {
+._toolChoice_1jcqw_91 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   display: grid;
   grid-template-columns: max-content minmax(0, auto);
@@ -11532,17 +11121,17 @@ a._turnButton_loteg_100 {
   overflow-wrap: anywhere;
 }
 
-._fallbackBadge_17lir_100 {
+._fallbackBadge_1jcqw_101 {
   font-style: italic;
 }
 
-._providerIds_17lir_104 {
+._providerIds_1jcqw_105 {
   display: grid;
   grid-template-columns: auto auto auto max-content;
   column-gap: 1em;
 }
 
-._providerIdRow_17lir_110 {
+._providerIdRow_1jcqw_111 {
   display: grid;
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
@@ -11551,34 +11140,34 @@ a._turnButton_loteg_100 {
   border-bottom: 1px dotted var(--bs-light-border-subtle);
 }
 
-._providerIdRow_17lir_110:last-child {
+._providerIdRow_1jcqw_111:last-child {
   border-bottom: none;
 }
 
-._providerIdRow_17lir_110 button {
+._providerIdRow_1jcqw_111 button {
   padding: 0;
   line-height: 1;
   align-self: center;
 }
 
-._providerIdLabel_17lir_129 {
+._providerIdLabel_1jcqw_130 {
   font-family: var(--bs-font-monospace);
   font-size: var(--inspect-font-size-smallest);
   color: var(--bs-secondary);
 }
 
-._providerIdValue_17lir_135 {
+._providerIdValue_1jcqw_136 {
   font-family: var(--bs-font-monospace);
   color: var(--bs-body-color);
   overflow-wrap: anywhere;
 }
 
-._providerIdStatus_17lir_141 {
+._providerIdStatus_1jcqw_142 {
   color: var(--bs-secondary);
   font-feature-settings: "tnum";
 }
 
-._providerIdFailed_17lir_146 {
+._providerIdFailed_1jcqw_147 {
   color: var(--bs-danger);
 }
 ._noMargin_1a3fk_1 {
@@ -12810,7 +12399,7 @@ a._turnButton_loteg_100 {
   -webkit-user-select: none;
   user-select: none;
 }
-._eventRow_dssp9_1 {
+._eventRow_1dh6h_1 {
   display: grid;
   grid-template-columns: 0.7em 1fr;
   column-gap: 0.25em;
@@ -12818,11 +12407,11 @@ a._turnButton_loteg_100 {
   padding-left: 0.7em;
 }
 
-._eventRow_dssp9_1._selected_dssp9_9 {
+._eventRow_1dh6h_1._selected_1dh6h_9 {
   font-weight: 800;
 }
 
-._eventRow_dssp9_1 ._toggle_dssp9_13 {
+._eventRow_1dh6h_1 ._toggle_1dh6h_13 {
   font-size: 0.7em;
   margin-top: 4px;
   padding: 0;
@@ -12834,26 +12423,26 @@ a._turnButton_loteg_100 {
   cursor: pointer;
 }
 
-._eventLink_dssp9_25,
-._eventLink_dssp9_25 a {
+._eventLink_1dh6h_25,
+._eventLink_1dh6h_25 a {
   color: var(--bs-body-color);
   text-decoration: none;
   cursor: pointer;
 }
 
-._eventLink_dssp9_25:hover,
-._eventLink_dssp9_25 a:hover {
+._eventLink_1dh6h_25:hover,
+._eventLink_1dh6h_25 a:hover {
   text-decoration: underline;
   color: var(--bs-link-hover-color);
 }
 
-._label_dssp9_38 {
+._label_1dh6h_38 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-._iconSlot_dssp9_44 {
+._iconSlot_1dh6h_44 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -12861,40 +12450,40 @@ a._turnButton_loteg_100 {
   margin-right: 0.3em;
 }
 
-._eventRow_dssp9_1._selected_dssp9_9 ._iconSlot_dssp9_44 {
+._eventRow_1dh6h_1._selected_1dh6h_9 ._iconSlot_1dh6h_44 {
   opacity: 1;
 }
 
-._progress_dssp9_56 {
-  margin-left: 0.3em !important;
+._progress_1dh6h_56 {
+  margin-left: 0.3em;
 }
 
-._loadingRow_dssp9_60 {
+._loadingRow_1dh6h_60 {
   cursor: default;
 }
 
-._spinner_dssp9_64 {
+._spinner_1dh6h_64 {
   width: 0.85em;
   height: 0.85em;
   border-radius: 50%;
   border: 1.5px solid color-mix(in oklab, currentColor 30%, transparent);
   border-top-color: currentColor;
-  animation: _outline-spin_dssp9_1 0.8s linear infinite;
+  animation: _outline-spin_1dh6h_1 0.8s linear infinite;
 }
 
-@keyframes _outline-spin_dssp9_1 {
+@keyframes _outline-spin_1dh6h_1 {
   to {
     transform: rotate(360deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  ._spinner_dssp9_64 {
+  ._spinner_1dh6h_64 {
     animation: none;
   }
 }
 
-._popover_dssp9_85 {
+._popover_1dh6h_85 {
   min-width: 300px;
   max-width: 80%;
 }
@@ -13256,7 +12845,7 @@ a._turnButton_loteg_100 {
 ._fullscreenTool_6sqvk_88 i {
   font-size: 1.05em;
 }
-._card_1bwn0_1 {
+._card_5vv4z_1 {
   flex: 1;
   border: 1px solid var(--bs-border-color);
   border-radius: 8px;
@@ -13268,15 +12857,15 @@ a._turnButton_loteg_100 {
     border-color 0.12s ease;
 }
 
-._cardCollapsed_1bwn0_13 {
+._cardCollapsed_5vv4z_13 {
   background: var(--bs-tertiary-bg);
 }
 
-._cardOpen_1bwn0_17 {
+._cardOpen_5vv4z_17 {
   background: var(--bs-body-bg);
 }
 
-._header_1bwn0_21 {
+._header_5vv4z_21 {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -13284,7 +12873,7 @@ a._turnButton_loteg_100 {
   cursor: pointer;
 }
 
-._attemptLabel_1bwn0_29 {
+._attemptLabel_5vv4z_29 {
   flex: none;
   font-weight: 700;
   font-size: 13.5px;
@@ -13294,7 +12883,7 @@ a._turnButton_loteg_100 {
 
 /* Right-aligned per-attempt metadata; tabular-nums keeps the timestamps from
    jittering as digits change. */
-._timestamp_1bwn0_39 {
+._timestamp_5vv4z_39 {
   margin-left: auto;
   flex: none;
   font-family: var(--bs-font-monospace);
@@ -13304,7 +12893,7 @@ a._turnButton_loteg_100 {
   font-variant-numeric: tabular-nums;
 }
 
-._errorChip_1bwn0_49 {
+._errorChip_5vv4z_49 {
   display: inline-flex;
   align-items: center;
   flex: none;
@@ -13319,7 +12908,7 @@ a._turnButton_loteg_100 {
   white-space: nowrap;
 }
 
-._message_1bwn0_64 {
+._message_5vv4z_64 {
   font-size: 12.5px;
   color: var(--bs-secondary-color);
   min-width: 0;
@@ -13328,7 +12917,7 @@ a._turnButton_loteg_100 {
   white-space: nowrap;
 }
 
-._chevron_1bwn0_73 {
+._chevron_5vv4z_73 {
   flex: none;
   color: var(--bs-tertiary-color);
   font-size: 14px;
@@ -13337,41 +12926,41 @@ a._turnButton_loteg_100 {
 /* No horizontal padding: the Events transcript goes edge-to-edge so its row
    borders meet the card edges. The divider band and error panel re-add their
    own inset. */
-._body_1bwn0_82 {
+._body_5vv4z_82 {
   padding: 2px 0 16px;
 }
 
 /* Centered Error/Events control on a hairline that extends to both card edges,
    reading as a labeled section divider between the header and the content. */
-._dividerBand_1bwn0_88 {
+._dividerBand_5vv4z_88 {
   display: flex;
   align-items: center;
   gap: 12px;
   margin: 0 14px;
 }
 
-._hairline_1bwn0_95 {
+._hairline_5vv4z_95 {
   flex: 1;
   height: 1px;
   background: var(--bs-border-color);
 }
 
-._toggle_1bwn0_101 {
+._toggle_5vv4z_101 {
   flex: none;
   display: flex;
 }
 
-._content_1bwn0_106 {
+._content_5vv4z_106 {
   padding-top: 14px;
 }
 
-._errorPanel_1bwn0_110 {
+._errorPanel_5vv4z_110 {
   margin: 0 14px;
 }
 
-._ansi_1bwn0_114 {
+._ansi_5vv4z_114 {
   margin: 0.5em 0;
-  font-size: clamp(0.3rem, 1.1vw, 0.8rem) !important;
+  font-size: clamp(0.3rem, 1.1vw, 0.8rem);
 }
 ._row_5mttp_1 {
   display: flex;
@@ -15189,34 +14778,6 @@ pre._value_8citi_25 {
   outline: 2px solid var(--bs-border-color);
   outline-offset: 1px;
 }
-._textarea_8mbr9_1 {
-  font-family: var(--bs-font-monospace);
-  font-size: 0.75rem;
-  line-height: 1.5;
-  padding: 0.4rem 0.625rem;
-  resize: none;
-  /* No inner scrollbar — the surrounding container (e.g. the metadata
-     table scroll wrapper) handles overflow. The height is matched to
-     scrollHeight, so a scrollbar would only appear from a transient
-     measurement glitch. */
-  overflow: hidden;
-  /* Borderless, transparent flat-cell look so the textarea reads as
-     part of the surrounding grid (and `rowNew` highlights bleed
-     through unbroken). Overrides Bootstrap `form-control`'s border,
-     border-radius, and focus box-shadow. */
-  background: transparent;
-  border: none;
-  border-radius: 0;
-}
-
-._textarea_8mbr9_1:focus {
-  outline: none;
-  box-shadow: none;
-  /* Subtle tinted background as the focus indicator — replaces the
-     form-control blue ring with something that doesn't visually
-     interrupt the grid. */
-  background: var(--bs-tertiary-bg);
-}
 ._container_13ofn_1 {
   display: flex;
   flex-direction: column;
@@ -15341,7 +14902,7 @@ pre._value_8citi_25 {
    row, provenance fields, and footer stay on-screen no matter how many
    keys the user has. The chrome (border, rounded corners) moves to
    this element since the inner table now overflows scrollwise. */
-._tableScroll_1i84k_5 {
+._tableScroll_168df_5 {
   max-height: 40vh;
   overflow-y: auto;
   border: 1px solid var(--bs-border-color);
@@ -15353,31 +14914,31 @@ pre._value_8citi_25 {
    the whole table. Each row is a subgrid inheriting the parent track
    layout, which keeps row-level styling (divider, "new" highlight)
    attached to a single wrapper element rather than every cell. */
-._table_1i84k_5 {
+._table_168df_5 {
   display: grid;
   grid-template-columns: minmax(140px, 220px) 1fr auto;
   column-gap: 0.625rem;
 }
 
-._empty_1i84k_23 {
+._empty_168df_23 {
   padding: 0.75rem 0.875rem;
   color: var(--bs-secondary-color);
   /* Span all columns when the table is otherwise empty. */
   grid-column: 1 / -1;
 }
 
-._row_1i84k_30 {
+._row_168df_30 {
   display: grid;
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
   align-items: flex-start;
 }
 
-._rowDivider_1i84k_37 {
+._rowDivider_168df_37 {
   border-top: 1px solid var(--bs-border-color);
 }
 
-._rowNew_1i84k_41 {
+._rowNew_168df_41 {
   background: var(--bs-success-bg-subtle);
 }
 
@@ -15388,22 +14949,43 @@ pre._value_8citi_25 {
    inset that previously came from `.row { padding-inline: 0.75rem }`.
 
    No vertical padding on `.value`: the textarea's own internal padding
-   (0.4rem top/bottom from AutogrowText) already provides breathing
+   (0.4rem top/bottom from `.valueInput`) already provides breathing
    room within the edit box, and an outer pad makes the row feel
    over-stuffed. `.key` and `.remove` use a top inset that lines them
    up with the textarea's first text baseline. */
-._key_1i84k_54 {
+._key_168df_54 {
   font-family: var(--bs-font-monospace);
   word-break: break-all;
   padding: 0.4rem 0 0 0.75rem;
 }
 
-._value_1i84k_51 {
+._value_168df_51 {
   min-width: 0;
   padding: 0;
 }
 
-._remove_1i84k_54 {
+/* Grows with its content and never scrolls; `.tableScroll` handles
+   overflow. Borderless and transparent so it reads as a grid cell and
+   `.rowNew` shows through. */
+._valueInput_168df_52 {
+  field-sizing: content;
+  font-family: var(--bs-font-monospace);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  padding: 0.4rem 0.625rem;
+  resize: none;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+._valueInput_168df_52:focus {
+  outline: none;
+  box-shadow: none;
+  background: var(--bs-tertiary-bg);
+}
+
+._remove_168df_54 {
   background: transparent;
   border: none;
   padding: 0.4rem 0.75rem 0 0.4rem;
@@ -15413,32 +14995,32 @@ pre._value_8citi_25 {
   line-height: 1;
 }
 
-._remove_1i84k_54:hover {
+._remove_168df_54:hover {
   color: var(--bs-danger);
   background: var(--bs-tertiary-bg);
 }
 
-._remove_1i84k_54:disabled {
+._remove_168df_54:disabled {
   cursor: default;
   opacity: 0.5;
 }
 
-._addRow_1i84k_87 {
+._addRow_168df_108 {
   margin-top: 0.625rem;
   display: grid;
   grid-template-columns: 1fr 7.5rem auto;
   gap: 0.5rem;
 }
 
-._addKeyInput_1i84k_94 {
+._addKeyInput_168df_115 {
   min-width: 0;
 }
 
-._typeSelect_1i84k_98 {
+._typeSelect_168df_119 {
   font-family: var(--bs-font-monospace);
 }
 
-._addButton_1i84k_102 {
+._addButton_168df_123 {
   white-space: nowrap;
 }
 ._headerActions_1fn25_1 {
@@ -15852,13 +15434,13 @@ pre._value_8citi_25 {
 ._tagPillAlign_q7chi_11 {
   align-items: center;
 }
-._container_1y1ui_1 {
+._container_cycy9_1 {
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
 }
 
-._filterRow_1y1ui_7 {
+._filterRow_cycy9_7 {
   display: flex;
   align-items: center;
   gap: 0.375rem;
@@ -15867,7 +15449,7 @@ pre._value_8citi_25 {
   padding-top: 0.25rem;
 }
 
-._caption_1y1ui_16 {
+._caption_cycy9_16 {
   text-transform: uppercase;
   color: var(--bs-secondary-color);
   font-size: 0.68rem;
@@ -15879,7 +15461,7 @@ pre._value_8citi_25 {
 /* Filled colour pills: fill + border + text in one hue per category — the
    same hue the category's mark uses on the rail, so the filter row doubles
    as the rail's legend. */
-._filterPill_1y1ui_28 {
+._filterPill_cycy9_28 {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -15893,116 +15475,116 @@ pre._value_8citi_25 {
   cursor: pointer;
 }
 
-._pillCount_1y1ui_42 {
+._pillCount_cycy9_42 {
   font-weight: 400;
 }
 
-._pillEmpty_1y1ui_46 {
+._pillEmpty_cycy9_46 {
   opacity: 0.6;
   cursor: default;
 }
 
-._pillAll_1y1ui_51 {
+._pillAll_cycy9_51 {
   color: var(--bs-body-color);
 }
 
-._pillAll_1y1ui_51._pillSelected_1y1ui_55 {
-  background: #212529;
-  border-color: #212529;
-  color: #fff;
+._pillAll_cycy9_51._pillSelected_cycy9_55 {
+  background: light-dark(#212529, #dee2e6);
+  border-color: light-dark(#212529, #dee2e6);
+  color: light-dark(#fff, #212529);
 }
 
-._pillConfig_1y1ui_61 {
-  background: #f7f3fc;
-  border-color: #d9cfe8;
-  color: #4a2e73;
+._pillConfig_cycy9_61 {
+  background: light-dark(#f7f3fc, #2a2333);
+  border-color: light-dark(#d9cfe8, #4a3d63);
+  color: light-dark(#4a2e73, #cbb8ec);
 }
 
-._pillConnections_1y1ui_67 {
-  background: #eef6fb;
-  border-color: #c3dcea;
-  color: #2b6a94;
+._pillConnections_cycy9_67 {
+  background: light-dark(#eef6fb, #16242e);
+  border-color: light-dark(#c3dcea, #2b4c66);
+  color: light-dark(#2b6a94, #8fbcd9);
 }
 
-._pillLimits_1y1ui_73 {
-  background: #fffaeb;
-  border-color: #e8d8a0;
-  color: #8a6d1a;
+._pillLimits_cycy9_73 {
+  background: light-dark(#fffaeb, #3a3220);
+  border-color: light-dark(#e8d8a0, #5c512f);
+  color: light-dark(#8a6d1a, #e8d8a0);
 }
 
-._pillErrors_1y1ui_79 {
-  background: #fdf1ef;
-  border-color: #ecc8c1;
-  color: #a13b2c;
+._pillErrors_cycy9_79 {
+  background: light-dark(#fdf1ef, #322019);
+  border-color: light-dark(#ecc8c1, #6b3a30);
+  color: light-dark(#a13b2c, #d98b7f);
 }
 
 /* Light grey — the rail's cancelled-dot hue, one step lighter than Run. */
-._pillCancels_1y1ui_86 {
-  background: #f8f9fa;
-  border-color: #dee2e6;
-  color: #6c757d;
+._pillCancels_cycy9_86 {
+  background: light-dark(#f8f9fa, #26282b);
+  border-color: light-dark(#dee2e6, #4a5056);
+  color: light-dark(#6c757d, #9aa3ab);
 }
 
-._pillTags_1y1ui_92 {
-  background: #f2f7fc;
-  border-color: #cfe0f1;
-  color: #1d4f7c;
+._pillTags_cycy9_92 {
+  background: light-dark(#f2f7fc, #16222e);
+  border-color: light-dark(#cfe0f1, #2c4a66);
+  color: light-dark(#1d4f7c, #8db8dd);
 }
 
-._pillRun_1y1ui_98 {
-  background: #f6f7f8;
-  border-color: #d3d9df;
-  color: #495057;
+._pillRun_cycy9_98 {
+  background: light-dark(#f6f7f8, #24272a);
+  border-color: light-dark(#d3d9df, #464c52);
+  color: light-dark(#495057, #aeb6bf);
 }
 
 /* Selected = solid dark fill with white text; unselected pills stay tinted. */
-._pillConfig_1y1ui_61._pillSelected_1y1ui_55 {
+._pillConfig_cycy9_61._pillSelected_cycy9_55 {
   background: #6b4fa8;
   border-color: #6b4fa8;
   color: #fff;
 }
 
-._pillConnections_1y1ui_67._pillSelected_1y1ui_55 {
+._pillConnections_cycy9_67._pillSelected_cycy9_55 {
   background: #2b6a94;
   border-color: #2b6a94;
   color: #fff;
 }
 
-._pillLimits_1y1ui_73._pillSelected_1y1ui_55 {
+._pillLimits_cycy9_73._pillSelected_cycy9_55 {
   background: #8a6d1a;
   border-color: #8a6d1a;
   color: #fff;
 }
 
-._pillErrors_1y1ui_79._pillSelected_1y1ui_55 {
+._pillErrors_cycy9_79._pillSelected_cycy9_55 {
   background: #b04a3c;
   border-color: #b04a3c;
   color: #fff;
 }
 
-._pillCancels_1y1ui_86._pillSelected_1y1ui_55 {
+._pillCancels_cycy9_86._pillSelected_cycy9_55 {
   background: #6c757d;
   border-color: #6c757d;
   color: #fff;
 }
 
-._pillTags_1y1ui_92._pillSelected_1y1ui_55 {
+._pillTags_cycy9_92._pillSelected_cycy9_55 {
   background: #1d4f7c;
   border-color: #1d4f7c;
   color: #fff;
 }
 
-._pillRun_1y1ui_98._pillSelected_1y1ui_55 {
+._pillRun_cycy9_98._pillSelected_cycy9_55 {
   background: #495057;
   border-color: #495057;
   color: #fff;
 }
 
-._pillSelected_1y1ui_55 ._pillCount_1y1ui_42 {
+._pillSelected_cycy9_55 ._pillCount_cycy9_42 {
   color: inherit;
 }
 
-._search_1y1ui_151 {
+._search_cycy9_151 {
   margin-left: auto;
   border: 1px solid var(--bs-border-color);
   border-radius: 3px;
@@ -16013,11 +15595,11 @@ pre._value_8citi_25 {
   width: 220px;
 }
 
-._search_1y1ui_151::placeholder {
+._search_cycy9_151::placeholder {
   color: var(--bs-secondary-color);
 }
 
-._list_1y1ui_166 {
+._list_cycy9_166 {
   border: 1px solid var(--bs-border-color);
   border-radius: 3px;
   overflow: hidden;
@@ -16026,15 +15608,15 @@ pre._value_8citi_25 {
   padding: 0.25rem 0.5rem;
 }
 
-._empty_1y1ui_175 {
+._empty_cycy9_175 {
   padding: 0.75rem;
   color: var(--bs-secondary-color);
   font-size: 0.8rem;
 }
 
 /* Four fixed columns — Time / Kind / Event / By (canvas 37a). */
-._headerRow_1y1ui_182,
-._row_1y1ui_183 {
+._headerRow_cycy9_182,
+._row_cycy9_183 {
   display: grid;
   grid-template-columns: 110px 64px minmax(0, 1fr) minmax(56px, max-content);
   /* rem, not em — the header row's smaller font would shrink an em gap,
@@ -16044,7 +15626,7 @@ pre._value_8citi_25 {
   padding: 0.4rem 0.25rem;
 }
 
-._headerRow_1y1ui_182 {
+._headerRow_cycy9_182 {
   text-transform: uppercase;
   color: var(--bs-secondary-color);
   font-size: 0.62rem;
@@ -16055,7 +15637,7 @@ pre._value_8citi_25 {
   padding-bottom: 0.25rem;
 }
 
-._timeSort_1y1ui_204 {
+._timeSort_cycy9_204 {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
@@ -16071,37 +15653,37 @@ pre._value_8citi_25 {
   text-align: left;
 }
 
-._byHeader_1y1ui_220 {
+._byHeader_cycy9_220 {
   text-align: right;
 }
 
-._row_1y1ui_183 {
+._row_cycy9_183 {
   border-bottom: 1px dotted var(--bs-border-color);
 }
 
 /* Rows are virtualized (absolutely positioned), so :last-child would match
    whatever row happens to render last — the bottom row is flagged by index. */
-._row_1y1ui_183._rowLast_1y1ui_230 {
+._row_cycy9_183._rowLast_cycy9_230 {
   border-bottom: none;
 }
 
-._rowClickable_1y1ui_234 {
+._rowClickable_cycy9_234 {
   cursor: pointer;
 }
 
-._rowSelected_1y1ui_238 {
-  background: #f7f3fc;
-  outline: 1px solid #d9cfe8;
+._rowSelected_cycy9_238 {
+  background: light-dark(#f7f3fc, #241f2e);
+  outline: 1px solid light-dark(#d9cfe8, #4a3d63);
   border-radius: 3px;
 }
 
 /* Hover-linked wash while the row's ◆ is hovered on the rail. */
-._rowWash_1y1ui_245 {
-  background: #faf8fd;
-  box-shadow: inset 2px 0 0 #9d84d1;
+._rowWash_cycy9_245 {
+  background: light-dark(#faf8fd, #221d2b);
+  box-shadow: inset 2px 0 0 light-dark(#9d84d1, #6b4fa8);
 }
 
-._time_1y1ui_204 {
+._time_cycy9_204 {
   font-family: var(--bs-font-monospace);
   font-size: 0.72rem;
   color: var(--bs-secondary-color);
@@ -16109,7 +15691,7 @@ pre._value_8citi_25 {
 }
 
 /* Centers the pill on the row's first text line. */
-._kindCell_1y1ui_258 {
+._kindCell_cycy9_258 {
   display: flex;
   align-items: center;
   height: calc(0.8rem * 1.5);
@@ -16117,7 +15699,7 @@ pre._value_8citi_25 {
 
 /* Same filled pill as the filter row at 0.65rem uppercase, so a row's Kind
    cell and its filter pill are visibly one object. */
-._kindPill_1y1ui_266 {
+._kindPill_cycy9_266 {
   display: inline-flex;
   align-items: center;
   border: 1px solid;
@@ -16131,24 +15713,24 @@ pre._value_8citi_25 {
 
 /* Body: one size, one weight, two colours — mono separates values from
    prose; no bold and no status colour anywhere in the cell. */
-._event_1y1ui_280 {
+._event_cycy9_280 {
   font-size: 0.8rem;
   font-weight: 400;
   color: var(--bs-body-color);
   line-height: 1.5;
 }
 
-._muted_1y1ui_287 {
+._muted_cycy9_287 {
   color: var(--bs-secondary-color);
 }
 
-._mono_1y1ui_291 {
+._mono_cycy9_291 {
   font-family: var(--bs-font-monospace);
   font-size: 0.75rem;
 }
 
 /* Author demoted to a right-aligned channel — user vs system at a glance. */
-._by_1y1ui_220 {
+._by_cycy9_220 {
   font-size: 0.72rem;
   font-weight: 400;
   color: var(--bs-secondary-color);
@@ -16161,16 +15743,16 @@ pre._value_8citi_25 {
 
 /* The identical 13px bordered mono box as the rail marker — one shared
    token, not two coincidentally-similar numbers. */
-._ordinalBox_1y1ui_310 {
+._ordinalBox_cycy9_310 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 13px;
   height: 13px;
   padding: 0 2px;
-  border: 1px solid #b9a5e0;
+  border: 1px solid light-dark(#b9a5e0, #4a3d63);
   border-radius: 2px;
-  color: #5d3f9e;
+  color: light-dark(#5d3f9e, #cbb8ec);
   font-family: var(--bs-font-monospace);
   font-size: 9px;
   line-height: 1;
@@ -16178,7 +15760,7 @@ pre._value_8citi_25 {
   vertical-align: 1px;
 }
 
-._openSample_1y1ui_327 {
+._openSample_cycy9_327 {
   font-size: 0.72rem;
   color: var(--bs-link-color);
   background: none;
@@ -16191,202 +15773,94 @@ pre._value_8citi_25 {
   outline-offset: 0;
 }
 
-._openSample_1y1ui_327:hover {
+._openSample_cycy9_327:hover {
   text-decoration: underline;
   /* Outrank the global a:hover link colour. */
   color: var(--bs-link-color);
 }
-
-[data-bs-theme="dark"] ._pillAll_1y1ui_51._pillSelected_1y1ui_55 {
-  background: #dee2e6;
-  border-color: #dee2e6;
-  color: #212529;
-}
-
-[data-bs-theme="dark"] ._pillConfig_1y1ui_61 {
-  background: #2a2333;
-  border-color: #4a3d63;
-  color: #cbb8ec;
-}
-
-[data-bs-theme="dark"] ._pillConnections_1y1ui_67 {
-  background: #16242e;
-  border-color: #2b4c66;
-  color: #8fbcd9;
-}
-
-[data-bs-theme="dark"] ._pillLimits_1y1ui_73 {
-  background: #3a3220;
-  border-color: #5c512f;
-  color: #e8d8a0;
-}
-
-[data-bs-theme="dark"] ._pillErrors_1y1ui_79 {
-  background: #322019;
-  border-color: #6b3a30;
-  color: #d98b7f;
-}
-
-[data-bs-theme="dark"] ._pillCancels_1y1ui_86 {
-  background: #26282b;
-  border-color: #4a5056;
-  color: #9aa3ab;
-}
-
-[data-bs-theme="dark"] ._pillTags_1y1ui_92 {
-  background: #16222e;
-  border-color: #2c4a66;
-  color: #8db8dd;
-}
-
-[data-bs-theme="dark"] ._pillRun_1y1ui_98 {
-  background: #24272a;
-  border-color: #464c52;
-  color: #aeb6bf;
-}
-
-[data-bs-theme="dark"] ._pillConfig_1y1ui_61._pillSelected_1y1ui_55,
-[data-bs-theme="dark"] ._pillConnections_1y1ui_67._pillSelected_1y1ui_55,
-[data-bs-theme="dark"] ._pillLimits_1y1ui_73._pillSelected_1y1ui_55,
-[data-bs-theme="dark"] ._pillErrors_1y1ui_79._pillSelected_1y1ui_55,
-[data-bs-theme="dark"] ._pillCancels_1y1ui_86._pillSelected_1y1ui_55,
-[data-bs-theme="dark"] ._pillTags_1y1ui_92._pillSelected_1y1ui_55,
-[data-bs-theme="dark"] ._pillRun_1y1ui_98._pillSelected_1y1ui_55 {
-  color: #fff;
-}
-
-[data-bs-theme="dark"] ._pillConfig_1y1ui_61._pillSelected_1y1ui_55 {
-  background: #6b4fa8;
-  border-color: #6b4fa8;
-}
-
-[data-bs-theme="dark"] ._pillConnections_1y1ui_67._pillSelected_1y1ui_55 {
-  background: #2b6a94;
-  border-color: #2b6a94;
-}
-
-[data-bs-theme="dark"] ._pillLimits_1y1ui_73._pillSelected_1y1ui_55 {
-  background: #8a6d1a;
-  border-color: #8a6d1a;
-}
-
-[data-bs-theme="dark"] ._pillErrors_1y1ui_79._pillSelected_1y1ui_55 {
-  background: #b04a3c;
-  border-color: #b04a3c;
-}
-
-[data-bs-theme="dark"] ._pillCancels_1y1ui_86._pillSelected_1y1ui_55 {
-  background: #6c757d;
-  border-color: #6c757d;
-}
-
-[data-bs-theme="dark"] ._pillTags_1y1ui_92._pillSelected_1y1ui_55 {
-  background: #1d4f7c;
-  border-color: #1d4f7c;
-}
-
-[data-bs-theme="dark"] ._pillRun_1y1ui_98._pillSelected_1y1ui_55 {
-  background: #495057;
-  border-color: #495057;
-}
-
-[data-bs-theme="dark"] ._rowSelected_1y1ui_238 {
-  background: #241f2e;
-  outline-color: #4a3d63;
-}
-
-[data-bs-theme="dark"] ._rowWash_1y1ui_245 {
-  background: #221d2b;
-  box-shadow: inset 2px 0 0 #6b4fa8;
-}
-
-[data-bs-theme="dark"] ._ordinalBox_1y1ui_310 {
-  border-color: #4a3d63;
-  color: #cbb8ec;
-}
-._chart_1we23_1 {
+._chart_1hl8c_1 {
   position: relative;
   width: 100%;
 }
 
-._svg_1we23_6 {
+._svg_1hl8c_6 {
   display: block;
   position: absolute;
   top: 0;
   left: 0;
 }
 
-._bandLabel_1we23_13 {
+._bandLabel_1hl8c_13 {
   font-size: 9px;
   fill: var(--bs-secondary-color);
 }
 
-._bandLabelModel_1we23_18 {
+._bandLabelModel_1hl8c_18 {
   fill: var(--bs-body-color);
 }
 
-._activeSeries_1we23_22 {
+._activeSeries_1hl8c_22 {
   fill: none;
-  stroke: #495057;
+  stroke: light-dark(#495057, #adb5bd);
   stroke-width: 1.2;
 }
 
-._connectionsSeries_1we23_28 {
+._connectionsSeries_1hl8c_28 {
   fill: none;
-  stroke: #3a7bd5;
+  stroke: light-dark(#3a7bd5, #6ea0dc);
   stroke-width: 1.2;
 }
 
-._limitGuide_1we23_34 {
+._limitGuide_1hl8c_34 {
   stroke: #9d84d1;
   stroke-dasharray: 3 3;
   opacity: 0.8;
 }
 
-._guideLabel_1we23_40 {
+._guideLabel_1hl8c_40 {
   font-size: 9px;
-  fill: #5d3f9e;
+  fill: light-dark(#5d3f9e, #b49ae0);
 }
 
-._rateLimitLine_1we23_45 {
-  stroke: #b04a3c;
+._rateLimitLine_1hl8c_45 {
+  stroke: light-dark(#b04a3c, #d98b7f);
   stroke-width: 1;
   opacity: 0.55;
 }
 
 /* Hover lives on the hit columns — dots stay visual-only so tiny radii
    never fight the pointer. */
-._terminationDot_1we23_53 {
+._terminationDot_1hl8c_53 {
   pointer-events: none;
 }
 
-._termHitColumn_1we23_57 {
+._termHitColumn_1hl8c_57 {
   fill: transparent;
   cursor: pointer;
 }
 
-._lineHit_1we23_62 {
+._lineHit_1hl8c_62 {
   fill: transparent;
 }
 
-._crosshair_1we23_66 {
+._crosshair_1hl8c_66 {
   stroke: var(--bs-secondary-color);
   stroke-dasharray: 3 3;
   opacity: 0.6;
   pointer-events: none;
 }
 
-._hoverDotActive_1we23_73 {
-  fill: #495057;
+._hoverDotActive_1hl8c_73 {
+  fill: light-dark(#495057, #adb5bd);
   pointer-events: none;
 }
 
-._hoverDotConnections_1we23_78 {
-  fill: #3a7bd5;
+._hoverDotConnections_1hl8c_78 {
+  fill: light-dark(#3a7bd5, #6ea0dc);
   pointer-events: none;
 }
 
-._lineTooltip_1we23_83 {
+._lineTooltip_1hl8c_83 {
   position: absolute;
   pointer-events: none;
   background: var(--bs-body-bg);
@@ -16400,79 +15874,79 @@ pre._value_8citi_25 {
   z-index: 9;
 }
 
-._axisLine_1we23_97 {
+._axisLine_1hl8c_97 {
   stroke: var(--bs-border-color);
 }
 
-._axisLabel_1we23_101 {
+._axisLabel_1hl8c_101 {
   font-size: 9px;
   fill: var(--bs-secondary-color);
 }
 
-._yTickLabel_1we23_106 {
+._yTickLabel_1hl8c_106 {
   font-size: 9px;
   fill: var(--bs-secondary-color);
 }
 
-._axisBreak_1we23_111 {
+._axisBreak_1hl8c_111 {
   stroke: var(--bs-secondary-color);
   stroke-width: 1;
   fill: none;
 }
 
-._postRunLabel_1we23_117 {
+._postRunLabel_1hl8c_117 {
   font-size: 9px;
   fill: var(--bs-secondary-color);
   opacity: 0.8;
 }
 
-._marker_1we23_123 {
+._marker_1hl8c_123 {
   cursor: pointer;
   outline: none;
 }
 
-._markerLine_1we23_128 {
+._markerLine_1hl8c_128 {
   stroke: #9d84d1;
 }
 
-._markerLineLog_1we23_132 {
-  stroke: #7fa8d0;
+._markerLineLog_1hl8c_132 {
+  stroke: light-dark(#7fa8d0, #4d7aa8);
 }
 
 /* Row-hover / selection: the guide line thickens (canvas 36c). */
-._markerLineActive_1we23_137 {
+._markerLineActive_1hl8c_137 {
   stroke: #6b4fa8;
   stroke-width: 1.75;
 }
 
-._markerLineLogActive_1we23_142 {
+._markerLineLogActive_1hl8c_142 {
   stroke: #1d4f7c;
   stroke-width: 1.75;
 }
 
-._markerDiamond_1we23_147 {
+._markerDiamond_1hl8c_147 {
   fill: #8f6fd0;
   stroke: #5d3f9e;
   cursor: pointer;
 }
 
-._markerDiamondLog_1we23_153 {
+._markerDiamondLog_1hl8c_153 {
   fill: #5b8ec4;
   stroke: #1d4f7c;
 }
 
 /* Deep lavender solid — the ordinal reverses out in white on top. */
-._markerDiamondActive_1we23_159 {
+._markerDiamondActive_1hl8c_159 {
   fill: #6b4fa8;
   stroke: #6b4fa8;
 }
 
-._markerDiamondLogActive_1we23_164 {
+._markerDiamondLogActive_1hl8c_164 {
   fill: #1d4f7c;
   stroke: #1d4f7c;
 }
 
-._markerDiamondText_1we23_169 {
+._markerDiamondText_1hl8c_169 {
   fill: #fff;
   font-family: var(--bs-font-monospace);
   font-size: 7px;
@@ -16480,29 +15954,29 @@ pre._value_8citi_25 {
 }
 
 /* The 13px bordered mono box — the same token the History row renders. */
-._ordinalBoxRect_1we23_177 {
+._ordinalBoxRect_1hl8c_177 {
   fill: var(--bs-body-bg);
-  stroke: #b9a5e0;
+  stroke: light-dark(#b9a5e0, #4a3d63);
 }
 
-._ordinalBoxText_1we23_182 {
-  fill: #5d3f9e;
+._ordinalBoxText_1hl8c_182 {
+  fill: light-dark(#5d3f9e, #cbb8ec);
   font-family: var(--bs-font-monospace);
   font-size: 9px;
   pointer-events: none;
 }
 
-._markerPostRun_1we23_189 {
+._markerPostRun_1hl8c_189 {
   opacity: 0.45;
 }
 
-._markerPostRun_1we23_189:hover,
-._markerPostRun_1we23_189:focus,
-._markerPostRun_1we23_189._markerActive_1we23_195 {
+._markerPostRun_1hl8c_189:hover,
+._markerPostRun_1hl8c_189:focus,
+._markerPostRun_1hl8c_189._markerActive_1hl8c_195 {
   opacity: 1;
 }
 
-._markerPopover_1we23_199 {
+._markerPopover_1hl8c_199 {
   position: absolute;
   width: 300px;
   background: var(--bs-body-bg);
@@ -16514,7 +15988,7 @@ pre._value_8citi_25 {
   pointer-events: none;
 }
 
-._markerPopoverHeader_1we23_211 {
+._markerPopoverHeader_1hl8c_211 {
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -16524,43 +15998,43 @@ pre._value_8citi_25 {
   border-radius: 4px 4px 0 0;
 }
 
-._markerPopoverOrdinal_1we23_221 {
+._markerPopoverOrdinal_1hl8c_221 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 13px;
   height: 13px;
   padding: 0 2px;
-  border: 1px solid #b9a5e0;
+  border: 1px solid light-dark(#b9a5e0, #4a3d63);
   border-radius: 2px;
-  color: #5d3f9e;
+  color: light-dark(#5d3f9e, #cbb8ec);
   font-family: var(--bs-font-monospace);
   font-size: 9px;
   line-height: 1;
   flex-shrink: 0;
 }
 
-._markerPopoverTime_1we23_237 {
+._markerPopoverTime_1hl8c_237 {
   margin-left: auto;
   color: var(--bs-secondary-color);
   font-family: var(--bs-font-monospace);
   font-size: 0.7rem;
 }
 
-._markerPopoverBody_1we23_244 {
+._markerPopoverBody_1hl8c_244 {
   padding: 0.45rem 0.6rem;
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
 }
 
-._markerPopoverEntry_1we23_251 {
+._markerPopoverEntry_1hl8c_251 {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
 }
 
-._markerPopoverChange_1we23_257 {
+._markerPopoverChange_1hl8c_257 {
   font-family: var(--bs-font-monospace);
   font-size: 0.72rem;
   display: flex;
@@ -16569,11 +16043,11 @@ pre._value_8citi_25 {
   flex-wrap: wrap;
 }
 
-._markerPopoverMuted_1we23_266 {
+._markerPopoverMuted_1hl8c_266 {
   color: var(--bs-secondary-color);
 }
 
-._markerPopoverMeta_1we23_270 {
+._markerPopoverMeta_1hl8c_270 {
   display: grid;
   grid-template-columns: max-content 1fr;
   column-gap: 0.8em;
@@ -16581,23 +16055,23 @@ pre._value_8citi_25 {
   align-items: baseline;
 }
 
-._markerPopoverMeta_1we23_270 > span {
+._markerPopoverMeta_1hl8c_270 > span {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-._markerPopoverLabel_1we23_283 {
+._markerPopoverLabel_1hl8c_283 {
   color: var(--bs-secondary-color);
   font-size: 0.68rem;
 }
 
-._markerPopoverByline_1we23_288 {
+._markerPopoverByline_1hl8c_288 {
   color: var(--bs-secondary-color);
   font-size: 0.7rem;
   overflow-wrap: anywhere;
 }
 
-._samplePopover_1we23_294 {
+._samplePopover_1hl8c_294 {
   position: absolute;
   width: 330px;
   background: var(--bs-body-bg);
@@ -16608,7 +16082,7 @@ pre._value_8citi_25 {
   font-size: 0.78rem;
 }
 
-._popoverHeader_1we23_305 {
+._popoverHeader_1hl8c_305 {
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
@@ -16619,7 +16093,7 @@ pre._value_8citi_25 {
   border-radius: 4px 4px 0 0;
 }
 
-._popoverStatusDot_1we23_316 {
+._popoverStatusDot_1hl8c_316 {
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -16627,27 +16101,27 @@ pre._value_8citi_25 {
   flex-shrink: 0;
 }
 
-._popoverSampleId_1we23_324 {
+._popoverSampleId_1hl8c_324 {
   font-weight: 600;
 }
 
-._popoverEpoch_1we23_328 {
+._popoverEpoch_1hl8c_328 {
   color: var(--bs-secondary-color);
 }
 
-._popoverStatusWord_1we23_332 {
+._popoverStatusWord_1hl8c_332 {
   margin-left: auto;
   font-weight: 600;
 }
 
-._popoverBody_1we23_337 {
+._popoverBody_1hl8c_337 {
   padding: 0.5rem 0.6rem;
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
 }
 
-._popoverInput_1we23_344 {
+._popoverInput_1hl8c_344 {
   color: var(--bs-body-color);
   line-height: 1.4;
   display: -webkit-box;
@@ -16656,7 +16130,7 @@ pre._value_8citi_25 {
   overflow: hidden;
 }
 
-._popoverGrid_1we23_353 {
+._popoverGrid_1hl8c_353 {
   display: grid;
   grid-template-columns: max-content 1fr;
   column-gap: 1em;
@@ -16664,23 +16138,23 @@ pre._value_8citi_25 {
   align-items: baseline;
 }
 
-._popoverGrid_1we23_353 > div {
+._popoverGrid_1hl8c_353 > div {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-._popoverLabel_1we23_366 {
+._popoverLabel_1hl8c_366 {
   text-transform: uppercase;
   color: var(--bs-secondary-color);
   font-size: 0.68rem;
 }
 
-._popoverMore_1we23_372 {
+._popoverMore_1hl8c_372 {
   color: var(--bs-secondary-color);
   font-size: 0.72rem;
 }
 
-._popoverError_1we23_377 {
+._popoverError_1hl8c_377 {
   color: #b04a3c;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -16688,17 +16162,17 @@ pre._value_8citi_25 {
   overflow: hidden;
 }
 
-._popoverCallout_1we23_385 {
+._popoverCallout_1hl8c_385 {
   font-size: 0.72rem;
-  color: #664d03;
-  background: #fffaeb;
-  border: 1px solid #e8d8a0;
+  color: light-dark(#664d03, #e8d8a0);
+  background: light-dark(#fffaeb, #3a3220);
+  border: 1px solid light-dark(#e8d8a0, #5c512f);
   border-radius: 3px;
   padding: 0.3rem 0.45rem;
   overflow-wrap: anywhere;
 }
 
-._popoverOpen_1we23_395 {
+._popoverOpen_1hl8c_395 {
   font-size: 0.72rem;
   color: var(--bs-link-color);
   background: none;
@@ -16712,59 +16186,12 @@ pre._value_8citi_25 {
   text-align: left;
 }
 
-._popoverOpen_1we23_395:hover {
+._popoverOpen_1hl8c_395:hover {
   text-decoration: underline;
   /* Outrank the global a:hover link colour. */
   color: var(--bs-link-color);
 }
-
-[data-bs-theme="dark"] ._activeSeries_1we23_22 {
-  stroke: #adb5bd;
-}
-
-[data-bs-theme="dark"] ._connectionsSeries_1we23_28 {
-  stroke: #6ea0dc;
-}
-
-[data-bs-theme="dark"] ._hoverDotActive_1we23_73 {
-  fill: #adb5bd;
-}
-
-[data-bs-theme="dark"] ._hoverDotConnections_1we23_78 {
-  fill: #6ea0dc;
-}
-
-[data-bs-theme="dark"] ._guideLabel_1we23_40 {
-  fill: #b49ae0;
-}
-
-[data-bs-theme="dark"] ._ordinalBoxRect_1we23_177 {
-  stroke: #4a3d63;
-}
-
-[data-bs-theme="dark"] ._ordinalBoxText_1we23_182 {
-  fill: #cbb8ec;
-}
-
-[data-bs-theme="dark"] ._markerPopoverOrdinal_1we23_221 {
-  border-color: #4a3d63;
-  color: #cbb8ec;
-}
-
-[data-bs-theme="dark"] ._markerLineLog_1we23_132 {
-  stroke: #4d7aa8;
-}
-
-[data-bs-theme="dark"] ._rateLimitLine_1we23_45 {
-  stroke: #d98b7f;
-}
-
-[data-bs-theme="dark"] ._popoverCallout_1we23_385 {
-  color: #e8d8a0;
-  background: #3a3220;
-  border-color: #5c512f;
-}
-._container_fne0n_1 {
+._container_g217z_1 {
   padding: 0.5em 1em 1em 1em;
   width: 100%;
   display: flex;
@@ -16772,7 +16199,7 @@ pre._value_8citi_25 {
   gap: 0.6rem;
 }
 
-._pickerRow_fne0n_9 {
+._pickerRow_g217z_9 {
   display: flex;
   align-items: center;
   gap: 0.375rem;
@@ -16780,7 +16207,7 @@ pre._value_8citi_25 {
   flex-wrap: wrap;
 }
 
-._caption_fne0n_17 {
+._caption_g217z_17 {
   text-transform: uppercase;
   color: var(--bs-secondary-color);
   font-size: 0.68rem;
@@ -16789,7 +16216,7 @@ pre._value_8citi_25 {
   margin-right: 0.25rem;
 }
 
-._bandChip_fne0n_26 {
+._bandChip_g217z_26 {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -16803,22 +16230,22 @@ pre._value_8citi_25 {
   cursor: pointer;
 }
 
-._bandChipOn_fne0n_40 {
+._bandChipOn_g217z_40 {
   border-color: var(--bs-secondary);
   background: var(--bs-secondary-bg);
   color: var(--bs-body-color);
 }
 
-._bandChip_fne0n_26 i {
+._bandChip_g217z_26 i {
   font-size: 0.7rem;
 }
 
-._bandChipNote_fne0n_50 {
+._bandChipNote_g217z_50 {
   color: var(--bs-secondary-color);
   font-size: 0.66rem;
 }
 
-._legend_fne0n_55 {
+._legend_g217z_55 {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
@@ -16827,29 +16254,25 @@ pre._value_8citi_25 {
   color: var(--bs-secondary-color);
 }
 
-._legendItem_fne0n_64 {
+._legendItem_g217z_64 {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   white-space: nowrap;
 }
 
-._legendDot_fne0n_71 {
+._legendDot_g217z_71 {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   display: inline-block;
 }
 
-._legendRateLimit_fne0n_78 {
+._legendRateLimit_g217z_78 {
   width: 1px;
   height: 10px;
-  background: #b04a3c;
+  background: light-dark(#b04a3c, #d98b7f);
   display: inline-block;
-}
-
-[data-bs-theme="dark"] ._legendRateLimit_fne0n_78 {
-  background: #d98b7f;
 }
 ._button_12472_1 {
   display: flex;
@@ -17443,18 +16866,19 @@ pre._value_8citi_25 {
     content: "...";
   }
 }
-._container_ovp9s_1 {
+._container_183n7_1 {
   display: grid;
   grid-template-rows: max-content 1fr;
   height: 100vh;
 }
 
-._panel_ovp9s_7 {
+._panel_183n7_7 {
   margin: 0.5rem;
   overflow-y: scroll;
 }
 
-._code_ovp9s_12 {
+._code_183n7_12 {
+  /* Beats Prism's code-block background. */
   background: transparent !important;
 }
 ._heading_1trs5_1 {
