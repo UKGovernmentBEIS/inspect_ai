@@ -421,6 +421,40 @@ class TestPollDeliversOutputAfterLeaderExits:
             assert result.exit_code == 0
 
     @pytest.mark.asyncio
+    async def test_output_past_a_buffer_that_is_full_at_exit_is_delivered(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The reader waiting on the full buffer holds the end of the output."""
+        monkeypatch.setattr(job_module, "_BACKPRESSURE_BUFFER_SIZE", 64 * 1024)
+        controller = Controller()
+        pid = await controller.submit("seq -w 1 20000")
+        await _wait_for_exit(controller._jobs[pid])
+
+        result, stdout, _ = await self._poll_to_completion(controller, pid)
+
+        # numbered lines, so lost, repeated or reordered output shows
+        assert stdout == "".join(f"{i:05d}\n" for i in range(1, 20001))
+        assert (result.state, result.exit_code) == ("completed", 0)
+
+    @pytest.mark.asyncio
+    async def test_room_given_to_a_full_buffer_after_exit_is_bounded(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Output left beyond the room is cut off, and the job still ends."""
+        limit, room = 64 * 1024, 16 * 1024
+        monkeypatch.setattr(job_module, "_BACKPRESSURE_BUFFER_SIZE", limit)
+        monkeypatch.setattr(job_module, "_MAX_TAIL_BYTES", room)
+        controller = Controller()
+        pid = await controller.submit("seq -w 1 20000")  # 120,000 bytes
+        await _wait_for_exit(controller._jobs[pid])
+
+        result, stdout, _ = await self._poll_to_completion(controller, pid)
+
+        # the reader stops with the read (of up to 4096 bytes) that reaches the limit
+        assert len(stdout) < limit + room + 4096
+        assert (result.state, result.exit_code) == ("completed", 0)
+
+    @pytest.mark.asyncio
     async def test_completes_within_one_second_when_a_child_writes_forever(
         self,
     ) -> None:
