@@ -155,23 +155,11 @@ bytes, so no platform newline translation):
 
 2. **Body**: the `ModelOutput`, as one line of JSON.
 
-Both lines use the JSON dialect eval logs use: non-finite floats are written
-as the constants `NaN`, `Infinity` and `-Infinity` (see
-[NaN score serialization](nan-serialization.md)), and other values are
-standard JSON. Strings are written as UTF-8 rather than `\u` escapes; a
-string holding a surrogate code point cannot be encoded, so such an output
-fails serialization and is not cached (Store).
-
-**Non-finite floats** in any float field (logprobs, `time`,
-`usage.total_cost`) need the mechanism named here: the writer dumps the
-output in Pydantic's JSON mode and encodes it with the stdlib `json` encoder
-with `allow_nan=True`. A spike (Pydantic 2.14) showed that
-`ModelOutput.model_dump_json()` writes `null` for a non-finite `time` or
-`usage.total_cost`, and that a wrapper root model with
-`ser_json_inf_nan="constants"` still writes `null` for a `-inf` logprob in a
-nested model. The reader parses the body with the stdlib `json` module, which
-reads those constants, and then validates the parsed value against
-`ModelOutput`. The header is read the same way.
+Both lines use the JSON dialect eval logs use (see
+[NaN score serialization](nan-serialization.md)), which the Round trip test
+checks. Strings are written as UTF-8 rather than `\u` escapes; a string
+holding a surrogate code point cannot be encoded, so such an output fails
+serialization and is not cached (Store).
 
 The header is a Pydantic model, internal to `_cache.py`. Unknown header
 fields are ignored, so a later additive change that old readers can ignore
@@ -254,15 +242,9 @@ the types JSON cannot carry. Among the outputs it refuses:
 - Strings holding a surrogate code point (U+D800–U+DFFF). As a value it
   fails UTF-8 encoding; as a dictionary key Pydantic's JSON mode replaces it,
   which can merge two keys.
-- Possibly a `NaN` in a float field. `NaN` never equals itself, so the
-  outcome follows ordinary model equality, which compares an identical
-  object as equal: a `NaN` the provider code created itself
-  (`float("nan")`) reads back as a different object, compares unequal and is
-  not cached, while one that came from the stdlib `json` parser (which
-  returns the same `NaN` object each time) compares equal and is cached.
-  Either way a hit never changes the value, since a stored `NaN` reads back
-  as `NaN`. This design accepts the misses rather than adding a comparison
-  that treats `NaN` as equal. Infinite values compare equal and are cached.
+- Non-finite floats. Infinite floats round-trip and are cached. An output
+  holding NaN may fail the equality check and then is not cached; this is
+  accepted.
 - `metadata` that does not serialize, such as a non-JSON object from a
   third-party provider; today it is cached only if it pickles.
 
@@ -468,12 +450,10 @@ or a model provider (they use `mockllm` and `INSPECT_CACHE_DIR` under
   "1": "second"}`); a dataclass instance and a Pydantic model instance as
   tool-call argument values; and a non-JSON object in `metadata` (which
   fails serialization).
-- **NaN follows equality.** Called directly through `cache_store` and
-  `cache_fetch`, because `Model._generate` replaces `output.time` with the
-  measured duration before storing: an output whose `time` is
-  `float("nan")` is not stored (no entry, one warning), and one whose `time`
-  is the `NaN` returned by `json.loads("NaN")` is stored and fetched back
-  with `time` NaN.
+- **NaN refused.** Called directly through `cache_store`, because
+  `Model._generate` replaces `output.time` with the measured duration before
+  storing: an output whose `time` is `float("nan")` is not stored (no entry,
+  one warning).
 - **Metadata normalization is still cached.** An output with a `datetime` in
   `metadata` is cached, and the hit returns it as its ISO string.
 - **Containment tests keep their purpose.** The existing tests that check
@@ -507,8 +487,8 @@ or a model provider (they use `mockllm` and `INSPECT_CACHE_DIR` under
    import; the store-time round-trip check and the warning for outputs not
    cached.
    Tests: never-deserialized, tripwire, round trip, non-ASCII text, invalid
-   headers, invalid bodies, expiry, legacy entries, lossy outputs,
-   metadata normalization, the containment tests, and the updated existing
+   headers, invalid bodies, expiry, legacy entries, lossy outputs, NaN
+   refused, metadata normalization, the containment tests, and the updated existing
    tests.
 2. **CLI and docs** (`src/inspect_ai/_cli/cache.py`, `docs/caching.qmd`).
    Pruneable table title and help text; a caching docs section on the entry
