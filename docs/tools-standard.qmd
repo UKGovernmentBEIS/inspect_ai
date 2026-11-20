@@ -594,7 +594,7 @@ def intercode_ctf():
 
 Inspect provides three read-only sandbox tools — `read_file()`, `list_files()`, and `grep()` — for agents that need filesystem access without write capabilities. These are the default tools for `research()` and `plan()` subagents in the deep agent system, but are useful in any eval where you want to give a model read-only access.
 
-All three tools require a [Sandbox Environment](sandboxing.qmd) and accept optional `timeout`, `user`, and `sandbox` parameters matching the `bash()` tool.
+These three tools and `view_image()` (below) require a [Sandbox Environment](sandboxing.qmd) and accept optional `timeout`, `user`, and `sandbox` parameters matching the `bash()` tool.
 
 ### read_file
 
@@ -643,6 +643,22 @@ grep(timeout=60)
 ```
 
 The model can specify a `pattern`, `path`, optional `glob` filter (e.g. `"*.py"`), `fixed_strings` flag for literal matching, `extended_regexp` flag for extended regex (ERE), and `output_mode` (`"content"`, `"files_with_matches"`, or `"count"`). Patterns use grep's basic regex (BRE) by default. Results include file paths and line numbers by default.
+
+### view_image
+
+`read_file()` returns text only. To let the model see an image file in the sandbox (for example a plot it generated), use `view_image()`, which returns the file to the model as an image:
+
+``` python
+from inspect_ai.tool import view_image
+
+# default configuration
+view_image()
+
+# with timeout and user
+view_image(timeout=30, user="nobody")
+```
+
+The model specifies a `file_path`. PNG, JPEG, GIF and WebP files are supported; other files return an error to the model. Images are passed to the model as-is, without resizing or decoding, so an image the provider rejects (for example one over its size or pixel limits, or a corrupt file) fails the sample at the next model call. `view_image()` is not one of the default `research()` and `plan()` subagent tools.
 
 ### Task Setup
 

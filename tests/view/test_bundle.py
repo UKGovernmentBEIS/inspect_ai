@@ -5,6 +5,7 @@ import os
 import tempfile
 from html.parser import HTMLParser
 from pathlib import Path
+from typing import Any
 
 import pytest
 from test_helpers.utils import skip_if_trio
@@ -19,6 +20,7 @@ from inspect_ai.log._bundle import (
     _insert_content_security_policy,
     _prepare_viewer,
     bundle_log_dir,
+    copy_log_files,
     embed_log_dir,
 )
 from inspect_ai.scorer import match
@@ -194,6 +196,74 @@ def test_bundle_hf_output_dir_allowed(monkeypatch) -> None:
 
     # Should not raise PrerequisiteError about subdirectory
     bundle_log_dir(log_dir=".", output_dir="hf/username/myspace")
+
+
+_LOG_NAME = "2024-01-01T00-00-00+00-00_task_abc.eval"
+
+
+@pytest.fixture
+def memory_fs(monkeypatch: pytest.MonkeyPatch) -> Any:
+    fs = filesystem("memory://").fs
+    monkeypatch.setattr(type(fs), "store", {})
+    monkeypatch.setattr(type(fs), "pseudo_dirs", [""])
+    return fs
+
+
+def test_bundle_copies_nested_log_names(memory_fs: Any, tmp_path: Path) -> None:
+    memory_fs.pipe(f"/logs/sub/{_LOG_NAME}", b"log")
+    memory_fs.pipe("/logs/sub/eval-set.json", b"{}")
+    bundle_logs = tmp_path / "bundle" / "logs"
+
+    copy_log_files("memory://logs", str(bundle_logs), lambda _: None)
+
+    assert (bundle_logs / "sub" / _LOG_NAME).read_bytes() == b"log"
+    assert (bundle_logs / "sub" / "eval-set.json").read_bytes() == b"{}"
+
+
+@pytest.mark.parametrize("name", [f"sub/../../escaped/{_LOG_NAME}", f"./{_LOG_NAME}"])
+def test_bundle_refuses_dot_components_in_log_names(
+    memory_fs: Any, tmp_path: Path, name: str
+) -> None:
+    memory_fs.pipe(f"/logs/{name}", b"log")
+    bundle_logs = tmp_path / "bundle" / "logs"
+
+    with pytest.raises(ValueError, match="has an invalid path"):
+        copy_log_files("memory://logs", str(bundle_logs), lambda _: None)
+
+    assert not (tmp_path / "bundle" / "escaped").exists()
+
+
+@pytest.mark.parametrize(
+    "name,target,error",
+    [
+        ("s3://b/logs/../x.eval", "s3://b/out", "has an invalid path"),
+        ("s3://b/logs/a/./x.eval", "s3://b/out", "has an invalid path"),
+        ("s3://b/logs//etc/x.eval", "s3://b/out", "has an invalid path"),
+        ("s3://b/logs/a::b/x.eval", "s3://b/out", "has an invalid path"),
+        ("s3://b/other/x.eval", "s3://b/out", "is not inside"),
+        # file:// targets are percent-decoded when written locally
+        ("s3://b/logs/%2e%2e/x.eval", "file:///tmp/out", "would be written outside"),
+    ],
+)
+def test_contained_log_destination_refuses(name: str, target: str, error: str) -> None:
+    from inspect_ai.log._file import contained_log_destination
+
+    with pytest.raises(ValueError, match=error):
+        contained_log_destination(name, "s3://b/logs", target)
+
+
+def test_contained_log_destination_nested(tmp_path: Path) -> None:
+    from inspect_ai.log._file import LogDestination, contained_log_destination
+
+    assert contained_log_destination(
+        "s3://b/logs/a/b/x.eval", "s3://b/logs/", str(tmp_path / "out")
+    ) == LogDestination(
+        relative="a/b/x.eval",
+        destination=str(tmp_path.resolve() / "out" / "a" / "b" / "x.eval"),
+    )
+    assert contained_log_destination(
+        "s3://b/logs/a/b/x.eval", "s3://b/logs/", "s3://c/out"
+    ) == LogDestination(relative="a/b/x.eval", destination="s3://c/out/a/b/x.eval")
 
 
 _FIXTURE_INDEX_HTML = """<!doctype html>

@@ -446,6 +446,7 @@ _LITERAL_ARGV_ALLOWED = {
     "tool/_tools/_grep.py",
     "tool/_tools/_list_files.py",
     "tool/_tools/_read_file.py",
+    "tool/_tools/_view_image.py",
     # The dedicated computer image has no agent boundary; its `python3` lives
     # in /usr/local/bin (argv bound to a name, as above).
     "tool/_tools/_computer/_common.py",
