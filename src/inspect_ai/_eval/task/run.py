@@ -13,6 +13,7 @@ from typing import (
     Callable,
     Iterator,
     Literal,
+    Mapping,
     NamedTuple,
     Protocol,
     TypeAlias,
@@ -110,9 +111,11 @@ from inspect_ai.log import (
 from inspect_ai.log._addonly import AddOnlyStoreError, init_sample_record_writer
 from inspect_ai.log._condense import (
     SampleSerializationError,
+    condense_event_calls,
     condense_sample,
     is_log_serializable,
     mark_attachments_resolved,
+    resolve_event_calls,
     resolve_events_attachments,
 )
 from inspect_ai.log._file import (
@@ -219,7 +222,7 @@ from inspect_ai.util._store import init_subtask_store
 
 from ..context import init_task_context
 from ..task import Task
-from .enqueue import get_task_enqueuer
+from .enqueue import creator_model_scope, get_task_enqueuer
 from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
@@ -257,7 +260,13 @@ from .scheduler import (
 )
 from .store import DiskSampleStore, maybe_page_to_disk
 from .task_source import TaskSource
-from .util import sample_id_filter, sample_limit_count, sample_messages, slice_dataset
+from .util import (
+    sample_id_filter,
+    sample_limit_count,
+    sample_messages,
+    slice_dataset,
+    task_run_dir,
+)
 
 py_logger = getLogger(__name__)
 
@@ -900,18 +909,19 @@ async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None
     tasks the callback returned propagate.
     """
     if options.task_source is not None and options.run_samples:
-        try:
-            tasks = await options.task_source.task_complete(eval_log)
-        except Exception as ex:
-            if options.debug_errors:
-                raise
-            py_logger.error(
-                "TaskSource.task_complete() raised an error for task "
-                f"'{options.task.name}': {inner_exception(ex)}",
-                exc_info=ex,
-            )
-            return
-        _enqueue_source_tasks(tasks)
+        with creator_model_scope(None):
+            try:
+                tasks = await options.task_source.task_complete(eval_log)
+            except Exception as ex:
+                if options.debug_errors:
+                    raise
+                py_logger.error(
+                    "TaskSource.task_complete() raised an error for task "
+                    f"'{options.task.name}': {inner_exception(ex)}",
+                    exc_info=ex,
+                )
+                return
+            _enqueue_source_tasks(tasks)
 
 
 ABORTED_LOG_WRITE_TIMEOUT = 10.0
@@ -1444,11 +1454,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # single loop a stamp lands either before this check (caught
             # here) or after registration (the ordinary running-task path).
             # Nothing with an end-side pairing has fired yet (the task-start
-            # hook comes after register_eval); the display row opened above
-            # is left result-less, which is cosmetic and confined to this
-            # window by the earlier check above the disk paging. The finally
-            # below still runs, so the paged sample store's temp file is
-            # unlinked.
+            # hook comes after register_eval); the handler below completes
+            # the display row opened above as cancelled. The finally below
+            # still runs, so the paged sample store's temp file is unlinked.
             if task_retry_abandoned(logger.eval.task_id):
                 raise TaskRetryAbandonedError()
 
@@ -1844,6 +1852,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         max_sandboxes=config.max_sandboxes,
                         sandbox_cleanup=sandbox_cleanup,
                         apply_sandbox_bindings=options.apply_sandbox_bindings,
+                        task_dir=task_run_dir(task, options.eval_wd),
                         plan=plan,
                         scorers=scorers,
                         scorer_names=scorer_names,
@@ -1909,11 +1918,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 await sample_feed.sample_abandoned(abandoned, epoch)
                             )
                         if options.task_source is not None:
-                            _enqueue_source_tasks(
-                                await options.task_source.sample_abandoned(
-                                    abandoned, epoch, task
+                            with creator_model_scope(None):
+                                _enqueue_source_tasks(
+                                    await options.task_source.sample_abandoned(
+                                        abandoned, epoch, task
+                                    )
                                 )
-                            )
                     return result
 
                 async def run_samples_dynamic(
@@ -2416,7 +2426,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # to the dispatcher, which maps it to a side-effect-free finalize
             # and discards this attempt's never-started log entry; writing an
             # error log here would supersede the errored prior attempt's log,
-            # which must remain the task's final state
+            # which must remain the task's final state. The row is completed
+            # as cancelled so the display counts it as finished; no samples
+            # ran in this attempt, and its log location is cleared because
+            # the dispatcher discards that log.
+            profile.log_location = ""
+            collect_eval_data(stats)
+            td.complete(TaskCancelled(0, stats))
             raise
 
         except BaseException as ex:
@@ -2655,6 +2671,7 @@ async def task_run_sample(
     max_sandboxes: int | None,
     sandbox_cleanup: bool,
     apply_sandbox_bindings: Callable[[SandboxEnvironmentSpec], None] | None,
+    task_dir: str,
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
@@ -2711,6 +2728,7 @@ async def task_run_sample(
             max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
             apply_sandbox_bindings=apply_sandbox_bindings,
+            task_dir=task_dir,
             plan=plan,
             scorers=scorers,
             scorer_names=scorer_names,
@@ -2763,6 +2781,7 @@ async def _task_run_sample_attempt(
     max_sandboxes: int | None,
     sandbox_cleanup: bool,
     apply_sandbox_bindings: Callable[[SandboxEnvironmentSpec], None] | None,
+    task_dir: str,
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
@@ -2862,16 +2881,22 @@ async def _task_run_sample_attempt(
             else None
         )
 
-        def on_sample_event(event: Event) -> None:
+        def on_sample_event_buffered(
+            event: Event, call_attachments: Mapping[str, str]
+        ) -> None:
             if logger:
                 try:
-                    logger.log_sample_event(sample_id, state.epoch, event)
+                    logger.log_sample_event(
+                        sample_id, state.epoch, event, call_attachments
+                    )
                 except Exception as ex:
                     # the transcript logs a subscriber's error and goes on;
                     # with the add-only store on, the sample must stop
                     if sample_record_writer is not None:
                         sample_record_writer.insert_failed(ex)
                     raise
+
+        def on_sample_event(event: Event) -> None:
             emit_sample_event(
                 eval_set_id=eval_set_id,
                 run_id=run_id,
@@ -2894,6 +2919,7 @@ async def _task_run_sample_attempt(
         )
         init_transcript(sample_transcript)
         init_subtask_store(state.store)
+        sample_transcript._subscribe_store(on_sample_event_buffered)
         sample_transcript._subscribe(on_sample_event)
         init_sample_record_writer(sample_record_writer)
         if scorers:
@@ -2915,6 +2941,7 @@ async def _task_run_sample_attempt(
                     max_sandboxes,
                     sandbox_cleanup,
                     sample,
+                    task_dir,
                     apply_setup_bindings=apply_sandbox_bindings,
                 ),
                 lambda: isinstance(failure, _AttemptCancel),
@@ -3808,9 +3835,10 @@ async def _task_run_sample_attempt(
                         await sample_feed.sample_complete(source_sample)
                     )
                 if task_source is not None:
-                    _enqueue_source_tasks(
-                        await task_source.sample_complete(source_sample, task)
-                    )
+                    with creator_model_scope(None):
+                        _enqueue_source_tasks(
+                            await task_source.sample_complete(source_sample, task)
+                        )
 
     # an interrupt stamped since the attempt's task group exited, up to the
     # sample's teardown just above, suppresses the retry
@@ -3932,6 +3960,17 @@ def create_eval_sample(
     end_time = sample_clock()
     total_time = end_time - start_time if start_time is not None else None
 
+    # retry events arrive with raw calls; a "core" sample holds them condensed
+    attachments = dict(transcript().attachments)
+    error_retries = [
+        retry.model_copy(
+            update={"events": condense_event_calls(retry.events, attachments)}
+        )
+        if retry.events is not None
+        else retry
+        for retry in error_retries
+    ]
+
     eval_sample = EvalSample(
         id=id,
         epoch=state.epoch,
@@ -3950,7 +3989,7 @@ def create_eval_sample(
         uuid=state.uuid,
         events=list(transcript().events) if include_events else [],
         timelines=list(transcript().timelines) or None,
-        attachments=dict(transcript().attachments),
+        attachments=attachments,
         model_usage=sample_model_usage(),
         role_usage=sample_role_usage(),
         model_fallbacks=sample_model_fallbacks() or None,
@@ -4415,10 +4454,22 @@ def _eval_retry_error(
     sample_id: str | int | None = None,
     epoch: int | None = None,
 ) -> EvalRetryError:
-    """Create retry error with events from the most recent ModelEvent onward."""
+    """Create retry error with events from the most recent ModelEvent onward.
+
+    The events come from the transcript when it still holds them all, and
+    otherwise from the sample buffer, with their attachments resolved, model
+    calls included.
+    """
     from inspect_ai.event._model import ModelEvent
 
-    if logger is not None and logger.buffer_db is not None and sample_id is not None:
+    sample_transcript = transcript()
+    transcript_history = sample_transcript.history
+    if (
+        transcript_history.resident_events_truncated
+        and logger is not None
+        and logger.buffer_db is not None
+        and sample_id is not None
+    ):
         if epoch is None:
             raise ValueError(
                 "epoch is required when reading retry events from buffer DB"
@@ -4426,10 +4477,11 @@ def _eval_retry_error(
         with logger.buffer_db.open_sample_history(sample_id, epoch) as sample_history:
             return eval_retry_error_from_history(error, sample_history)
 
-    sample_transcript = transcript()
-    transcript_history = sample_transcript.history
     recent_events = (
-        transcript_history.events_since_last(ModelEvent)
+        resolve_event_calls(
+            transcript_history.events_since_last(ModelEvent),
+            sample_transcript.attachments,
+        )
         if transcript_history.full_history_available
         else []
     )

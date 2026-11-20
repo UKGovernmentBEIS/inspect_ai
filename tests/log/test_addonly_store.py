@@ -8,7 +8,7 @@ See design/prototype-tamper-evident-logs-findings.md.
 
 import json
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -424,11 +424,15 @@ def test_failed_buffer_insert_stops_sample(
     log_sample_event = TaskLogger.log_sample_event
 
     def failing_insert(
-        self: TaskLogger, id: str | int, epoch: int, event: Event
+        self: TaskLogger,
+        id: str | int,
+        epoch: int,
+        event: Event,
+        call_attachments: Mapping[str, str],
     ) -> None:
         if isinstance(event, InfoEvent) and event.data == "fail insert":
             raise RuntimeError("disk full")
-        log_sample_event(self, id, epoch, event)
+        log_sample_event(self, id, epoch, event, call_attachments)
 
     monkeypatch.setattr(TaskLogger, "log_sample_event", failing_insert)
 

@@ -1004,10 +1004,8 @@ async def test_exclude_samples_edits_every_key():
     other_scores = log.samples[1].model_dump_json(include={"scores"})
 
     provenance = _provenance()
-    result = exclude_samples(log, ["a"], provenance)
+    exclude_samples(log, ["a"], provenance)
 
-    assert result.applied == [("a", 1)]
-    assert result.unchanged == []
     for name, original in originals.items():
         edited = sample.scores[name]
         assert score_is_excluded(edited), name
@@ -1045,9 +1043,8 @@ async def test_exclude_samples_errored_sample_without_scores():
     errored = log.samples[1]
     assert errored.error is not None and not errored.scores
 
-    result = exclude_samples(log, ["b"], _provenance())
+    exclude_samples(log, ["b"], _provenance())
 
-    assert result.applied == [("b", 1)]
     assert list(errored.scores) == ["match"]
     assert score_is_excluded(errored.scores["match"])
     assert errored.error is not None
@@ -1097,35 +1094,51 @@ async def test_exclude_samples_selectors():
         exclude_samples(log, [cast(Any, (1,))], _provenance())
 
     # a bare id covers every epoch, a string matches an int id, a pair one epoch
-    result = exclude_samples(log, [1, "2", (3, 2), (1, 1)], _provenance())
-    assert result.applied == [(1, 1), (1, 2), (2, 1), (2, 2), (3, 2)]
+    exclude_samples(log, [1, "2", (3, 2), (1, 1)], _provenance())
     excluded = {
         (s.id, s.epoch)
         for s in log.samples
         if score_is_excluded(s.scores["metadata_value_scorer"])
     }
-    assert excluded == set(result.applied)
+    assert excluded == {(1, 1), (1, 2), (2, 1), (2, 2), (3, 2)}
 
 
 @pytest.mark.anyio
-async def test_exclude_samples_unchanged():
+async def test_exclude_samples_reapplied():
+    """Excluding an excluded sample again records another edit."""
     log = (
         await eval_async(_value_task({"a": ["C"], "b": ["C"]}), model="mockllm/model")
     )[0]
     exclude_samples(log, ["a"], _provenance())
-    score = log.samples[0].scores["metadata_value_scorer"]
+    sample = log.samples[0]
+    score = sample.scores["metadata_value_scorer"]
     history = len(score.history)
+    events = sum(isinstance(e, ScoreEditEvent) for e in sample.events)
 
-    result = exclude_samples(log, ["a", "b"], _provenance())
-    assert result.applied == [("b", 1)]
-    assert result.unchanged == [("a", 1)]
-    assert len(score.history) == history
+    exclude_samples(log, ["a", "b"], _provenance("again"))
+    assert len(score.history) == history + 1
+    assert sum(isinstance(e, ScoreEditEvent) for e in sample.events) == events + 1
+    provenance = score.history[-1].provenance
+    assert provenance is not None and provenance.reason == "again"
+    assert score_is_excluded(score)
+    assert score_is_excluded(log.samples[1].scores["metadata_value_scorer"])
 
     # a later edit of the value means the score is no longer excluded
     edit_score(log, "a", "metadata_value_scorer", ScoreEdit(value=1))
-    result = exclude_samples(log, ["a"], _provenance())
-    assert result.applied == [("a", 1)]
+    exclude_samples(log, ["a"], _provenance())
     assert score_is_excluded(score)
+
+
+@pytest.mark.anyio
+async def test_exclude_samples_empty_selectors_resolve_metrics():
+    """No selector edits nothing, but an unbuildable metric is still refused."""
+    log = (await eval_async(_value_task({"a": ["C"]}), model="mockllm/model"))[0]
+    log.eval.scorers[0].metrics = [EvalMetricDefinition(name="no_such_metric")]
+    before = log.model_dump_json()
+
+    with pytest.raises(LookupError, match="no_such_metric"):
+        exclude_samples(log, [], _provenance())
+    assert log.model_dump_json() == before
 
 
 @pytest.mark.anyio

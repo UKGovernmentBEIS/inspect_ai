@@ -100,6 +100,6 @@ def human_approver(
 
             # fallback to plain console approval (available in all displays)
             except NotImplementedError:
-                return console_approval(message, view, choices, call.arguments)
+                return console_approval(message, view, choices, call)
 
     return approve

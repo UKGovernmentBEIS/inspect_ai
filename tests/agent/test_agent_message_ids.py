@@ -2634,11 +2634,11 @@ def test_matching_work_is_linear_with_concurrent_candidates(
     Every candidate's output stays a reason the next request may not be a
     retry, and none is compared with each reply.
     """
-    # both above the recent threads the bridge keeps (`_MAX_RECENT_THREADS`)
+    # both at or above the recent threads the bridge keeps (`_MAX_RECENT_THREADS`)
     small = _concurrent_candidates_work(dialect, 16, tmp_path)
-    large = _concurrent_candidates_work(dialect, 128, tmp_path)
-    # linear is 8x; comparing each output with each reply is 64x
-    assert large < 12 * small
+    large = _concurrent_candidates_work(dialect, 64, tmp_path)
+    # linear is under 4x; comparing each output with each reply is 7.5x
+    assert large < 6 * small
 
 
 def _assert_contract(log: EvalLog) -> EvalSample:

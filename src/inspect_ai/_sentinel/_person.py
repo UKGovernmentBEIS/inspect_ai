@@ -16,9 +16,16 @@ from typing import Literal, NamedTuple, cast
 from shortuuid import uuid as shortuuid
 
 from inspect_ai._util.content import ContentReasoning, ContentText, ContentToolUse
-from inspect_ai._util.format import MARKER_CLOSE, MARKER_OPEN, display_safe
+from inspect_ai._util.format import (
+    MARKER_CLOSE,
+    MARKER_OPEN,
+    display_safe,
+    markdown_escaped,
+    safe_code_fence,
+)
 from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._approver import Approver
+from inspect_ai.approval._human.util import arguments_view
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -576,7 +583,7 @@ class _Section(NamedTuple):
     def markdown(self) -> str:
         head = f"**{self.label}**"
         if self.name:
-            head = f"{head} {_markdown_escaped(self.name)}"
+            head = f"{head} {markdown_escaped(self.name)}"
         return head if self.body is None else f"{head}\n\n{fenced(self.body)}"
 
 
@@ -702,16 +709,20 @@ def _call_markdown(
     The content is what the transcript shows (`ToolCall.view`, which
     `Model.generate` sets from the tool's viewer, or the default rendering),
     with the call's placeholders filled in (see `_contained`). `text_label`
-    labels the block of content that has no language of its own.
+    labels the block of content that has no language of its own. A view other
+    than the call's default view is followed by the call's arguments, as a
+    call's own approval shows them (see `arguments_view`).
     """
-    content = substitute_tool_call_content(
-        call.view or cast(ToolCallContent, default_tool_call_viewer(call).call),
-        call.arguments,
-    )
+    view = call.view or cast(ToolCallContent, default_tool_call_viewer(call).call)
+    content = substitute_tool_call_content(view, call.arguments)
     header = f"**Call {index} of {count}:** {_markdown_text(call.function, safe)}"
     if content.title and content.title != call.function:
         header = f"{header} ({_markdown_text(content.title, safe)})"
-    return f"{header}\n\n{_contained(content, safe, text_label)}"
+    shown = f"{header}\n\n{_contained(content, safe, text_label)}"
+    arguments = arguments_view(call, ToolCallView(call=view))
+    if arguments is not None:
+        shown = f"{shown}\n\n**Full tool call**\n\n{_contained(arguments, safe)}"
+    return shown
 
 
 def _contained(
@@ -753,11 +764,7 @@ _SAID = "output"
 
 
 def _code_block(code: str, language: str) -> str:
-    # deferred: the ACP shim imports `acp.schema`, which only matters once a
-    # person is asked
-    from inspect_ai.approval._human.acp import _safe_code_fence
-
-    fence = _safe_code_fence(code)
+    fence = safe_code_fence(code)
     return f"{fence}{language}\n{code}\n{fence}"
 
 
@@ -772,11 +779,7 @@ def _code_span(text: str, safe: _Escaped) -> str:
 def _markdown_text(text: str, safe: _Escaped) -> str:
     # one line of literal text: markdown punctuation escaped, so a function
     # name or viewer title cannot add structure
-    return _markdown_escaped(_one_line(text, safe))
-
-
-def _markdown_escaped(text: str) -> str:
-    return re.sub(r"([\\`*_{}\[\]()#+\-.!|<>~&])", r"\\\1", text)
+    return markdown_escaped(_one_line(text, safe))
 
 
 def _one_line(text: str, safe: _Escaped) -> str:
