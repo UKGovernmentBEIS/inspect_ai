@@ -46,7 +46,11 @@ from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog, EvalLogInfo, HeadlineMetric
 from inspect_ai.model import GenerateConfig
 from inspect_ai.model._model import Model, ModelRoles
-from inspect_ai.model._util import resolve_model, resolve_model_roles
+from inspect_ai.model._util import (
+    resolve_model,
+    resolve_model_roles,
+    resolve_required_model_roles,
+)
 from inspect_ai.review._policy import (
     ReviewPolicy,
     ReviewPolicyConfig,
@@ -265,7 +269,7 @@ class Task:
         self.model = resolve_model(model)
         self.config = config
         self.model_roles = resolve_model_roles(model_roles)
-        self.required_model_roles = required_model_roles
+        self.required_model_roles = resolve_required_model_roles(required_model_roles)
         self.sandbox = resolve_sandbox_environment(sandbox)
         self.checkpoint = normalize_checkpoint(checkpoint)
         self.approval = resolve_approval(approval)
@@ -506,7 +510,7 @@ def task_with(
     if not isinstance(model_roles, NotGiven):
         task.model_roles = resolve_model_roles(model_roles)
     if not isinstance(required_model_roles, NotGiven):
-        task.required_model_roles = required_model_roles
+        task.required_model_roles = resolve_required_model_roles(required_model_roles)
     if not isinstance(sandbox, NotGiven):
         task.sandbox = resolve_sandbox_environment(sandbox)
     if not isinstance(checkpoint, NotGiven):

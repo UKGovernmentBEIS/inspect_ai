@@ -1,18 +1,26 @@
 import tempfile
+from typing import Any
 
 import pytest
 from test_helpers.utils import failing_solver, skip_if_no_google, skip_if_no_openai
 
-from inspect_ai import Task, eval, eval_retry, task
+from inspect_ai import Task, eval, eval_retry, task, task_with
 from inspect_ai._eval.evalset import eval_set
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model import GenerateConfig, Model, ModelOutput, get_model
+from inspect_ai.model import (
+    ChatMessage,
+    GenerateConfig,
+    Model,
+    ModelOutput,
+    get_model,
+)
 from inspect_ai.model._model import model_concurrency_key
 from inspect_ai.model._util import resolve_model_roles
 from inspect_ai.solver import solver
+from inspect_ai.tool import ToolChoice, ToolInfo
 
 RED_TEAM = "red_team"
 RED_TEAM_DEFAULT = "openai/gpt-4o"
@@ -576,7 +584,12 @@ JUDGE = "judge"
 def recording_model(calls: list[str]) -> Model:
     """Mock model that records each generate call in `calls`."""
 
-    def output(input, tools, tool_choice, config) -> ModelOutput:
+    def output(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
         calls.append("generate")
         return ModelOutput.from_content(model="mockllm/model", content="output")
 
@@ -671,13 +684,40 @@ def test_required_model_roles_missing_fails_eval_set() -> None:
 
 def test_required_model_roles_retry() -> None:
     """A retry passes the check with the roles recorded in the log."""
-    calls: list[str] = []
     log = eval(
         required_roles_task(),
-        model=recording_model(calls),
+        model="mockllm/model",
         model_roles={GRADER: MOCK_A, JUDGE: MOCK_B},
     )[0]
     log.status = "cancelled"
     log.samples = []
     log = eval_retry(log)[0]
     assert log.status == "success"
+
+
+def test_required_model_roles_missing_across_tasks() -> None:
+    """One error covers every task in the eval, naming each task's missing roles."""
+    calls: list[str] = []
+    with pytest.raises(PrerequisiteError) as exc_info:
+        eval(
+            [
+                Task(name="needs_grader", required_model_roles=[GRADER]),
+                Task(name="needs_judge", required_model_roles=[JUDGE]),
+                Task(name="needs_nothing"),
+            ],
+            model=recording_model(calls),
+        )
+    message = str(exc_info.value)
+    assert GRADER in message and "needs_grader" in message
+    assert JUDGE in message and "needs_judge" in message
+    assert "needs_nothing" not in message
+    assert calls == []
+
+
+@pytest.mark.parametrize("invalid", ["judge", [1], ["judge", None]])
+def test_required_model_roles_rejects_non_list_of_names(invalid: Any) -> None:
+    """A bare string is an error rather than one required role per character."""
+    with pytest.raises(PrerequisiteError):
+        Task(required_model_roles=invalid)
+    with pytest.raises(PrerequisiteError):
+        task_with(Task(), required_model_roles=invalid)

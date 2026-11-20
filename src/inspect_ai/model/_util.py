@@ -46,6 +46,28 @@ def resolve_model_roles(
         return None
 
 
+def resolve_required_model_roles(
+    required_model_roles: list[str] | None,
+) -> list[str] | None:
+    """Validate a task's `required_model_roles`.
+
+    Raises:
+        PrerequisiteError: If the value is not a list of role names. A bare
+            string is rejected because it would otherwise be read as one role
+            per character.
+    """
+    if required_model_roles is None:
+        return None
+    if isinstance(required_model_roles, str) or not all(
+        isinstance(role, str) for role in required_model_roles
+    ):
+        raise PrerequisiteError(
+            f"required_model_roles has an invalid value ({required_model_roles!r}): "
+            + "expected a list of model role names."
+        )
+    return list(required_model_roles)
+
+
 def _resolve_role_model(role: str, model: str | Model) -> Model:
     # memoize=False for strings / copy for Model instances so that each role
     # gets a distinct Model instance; otherwise roles sharing the same model

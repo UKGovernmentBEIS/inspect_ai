@@ -1330,8 +1330,9 @@ def _resolve_enqueued_tasks(
     consistently with the run. Tasks added inside a running task attempt
     resolve once, under that attempt's model (:func:`creator_model`), in place
     of the run's models; elsewhere they resolve once per run model. Raises
-    ``ValueError`` if the tasks can't be resolved, and ``RuntimeError`` for a
-    placeholder left by eval-set selection pruning (``is_placeholder``).
+    ``ValueError`` if the tasks can't be resolved, ``RuntimeError`` for a
+    placeholder left by eval-set selection pruning (``is_placeholder``), and
+    ``PrerequisiteError`` if a task requires a model role that has no model.
     """
     attempt_model = creator_model()
     if attempt_model is not None:
