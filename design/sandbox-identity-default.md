@@ -477,14 +477,18 @@ ways of calling it:
 
   This branch stays separate from the explicit-user branch above.
 
-Both branches resolve a relative `dir` (the default is `skills`) the way the
-proxy resolves a relative `write_file()` path: inside a scope with a cwd,
-outside any marked block, against the scope's cwd, with
-`sandbox_operation_file()`. Otherwise it resolves against the working
-directory of a `pwd` run as the install's user through `privileged_exec()`,
-which is the provider's working directory. That directory may be closed to the
-member (an image `WORKDIR` of `/root`), so a member in a scope with no cwd
-needs an absolute `dir` it can write (decision: Ransom, 2026-11-20).
+The member branch resolves a relative `dir` (the default is `skills`) the way
+the proxy resolves the member's relative `write_file()` path: when the scope
+has a cwd, against that cwd, with `sandbox_operation_file()`. Otherwise, and
+in the explicit-user and legacy branches, a relative `dir` resolves against
+the working directory of a `pwd` run as the install's user through
+`privileged_exec()`, which is the provider's working directory. That
+directory may be closed to the member (an image `WORKDIR` of `/root`), so a
+member in a scope with no cwd needs an absolute `dir` it can write (decision:
+Ransom, 2026-11-20). The explicit-user branch does not take the scope's cwd:
+its writes run with the default user's authority and its `chown` as root, so
+resolving into a directory the member controls, typically its home, would let
+a symbolic link the member planted there redirect them to a protected file.
 
 Outside a scope, nothing changes for either form. Because the marked write
 passes no user, a provider whose `write_file()` takes no `user` keeps working
@@ -710,11 +714,12 @@ Inside a scope:
 - **`install_skills()` callers** that pass a `user` keep the same ownership.
   Callers that omit it get skills owned by the member inside a scope, as
   described under [Public `install_skills()`](#public-install_skills). Inside
-  a scope with a cwd, a relative skills directory resolves against that cwd,
-  for either form (`_resolve_skills_dir()`, `tool/_tools/_skill/install.py`).
-  Inside a scope with no cwd it resolves against the provider's working
-  directory, which must then be writable by the member; otherwise pass an
-  absolute writable directory.
+  a scope with a cwd, their relative skills directory resolves against that
+  cwd (`install_skills()`, `tool/_tools/_skill/install.py`). Inside a scope
+  with no cwd it resolves against the provider's working directory, which
+  must then be writable by the member; otherwise pass an absolute writable
+  directory. An explicit-user install resolves a relative directory against
+  the provider's working directory, inside a scope as outside.
 - **Companion packages that install tooling** (inspect_swe). Shared artifacts
   at fixed paths, ones that several members execute or load, must satisfy the
   trust model's
@@ -904,7 +909,9 @@ Other files:
   - `test_install_skills_omitted_user_in_a_scope_without_cwd`: in a scope
     with no cwd, a relative `dir` resolves through a `pwd` run as `w-1`.
   - `test_install_skills_explicit_user_in_a_scope_relative_dir`: with
-    `user="root"`, a relative `dir` also resolves against the scope's cwd.
+    `user="root"` in a scope with a cwd, the default `dir` resolves through a
+    `pwd` run as root in the provider's working directory, not the scope's
+    cwd.
   - `test_install_skills_omitted_user_under_marker_matches_final_scoring`:
     the same install run inside `framework_sandbox_operation()` within the
     scope, into a directory only the default user can write. No step names

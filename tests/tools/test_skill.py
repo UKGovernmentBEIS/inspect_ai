@@ -269,9 +269,12 @@ class TestSkillInstallation:
         _use_sandbox(SandboxEnvironmentProxy(sandbox))
         with sandbox_identity("w-1", cwd="/home/w-1"):
             [installed] = await install_skills([self.SCRIPTED], user="root")
-        assert installed.location == "/home/w-1/skills/example/SKILL.md"
-        assert ("pwd", "root") not in sandbox.steps
-        assert sandbox.owners["/home/w-1/skills/example/scripts/run.sh"] == "root"
+        # an explicit user's default-user writes keep the provider's
+        # directory rather than one the member controls
+        assert installed.location == "/work/skills/example/SKILL.md"
+        assert sandbox.steps[0] == ("pwd", "root")
+        assert sandbox.cwds[0] is None
+        assert sandbox.owners["/work/skills/example/scripts/run.sh"] == "root"
 
     async def test_install_skills_raw_provider_without_file_user_in_a_scope(
         self, monkeypatch: pytest.MonkeyPatch
