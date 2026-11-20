@@ -216,13 +216,15 @@ class TaskScreenApp(App[TR]):
     async def task_screen(
         self, tasks: list[TaskSpec], parallel: bool
     ) -> AsyncIterator[TaskScreen]:
+        # set the total first: a task added while the app loads adds to it
+        self._total_tasks = len(tasks)
+
         # indicate its time to load then wait on the load
         self._on_load_app.set()
         await self._on_app_loaded.wait()
 
         # reset state
         self._tasks = []
-        self._total_tasks = len(tasks)
         self._parallel = parallel
 
         # clear existing task progress

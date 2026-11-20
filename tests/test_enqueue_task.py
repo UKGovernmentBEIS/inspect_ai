@@ -325,6 +325,34 @@ def test_enqueue_task_from_run_start_hook_starts_after_the_seed() -> None:
     assert len({log.eval.run_id for log in logs}) == 1
 
 
+@pytest.mark.parametrize("added", [False, True])
+def test_returned_logs_are_grouped_by_task_definition(added: bool) -> None:
+    # several definitions and models at max_tasks > 1: each definition's
+    # models in turn (sequence-major), with tasks added from on_run_start
+    # after the seed
+    def run() -> list[EvalLog]:
+        return eval(
+            [_hook_task("A", _noop), _hook_task("B", _noop)],
+            model=["mockllm/one", "mockllm/two"],
+            max_tasks=2,
+            display="none",
+        )
+
+    if added:
+        with _enqueue_on_run_start(lambda: _hook_task("C", _noop)):
+            logs = run()
+    else:
+        logs = run()
+
+    expected = [
+        (task, model)
+        for task in ["A", "B", "C"][: 3 if added else 2]
+        for model in ["mockllm/one", "mockllm/two"]
+    ]
+    assert [(log.eval.task, log.eval.model) for log in logs] == expected
+    assert all(log.status == "success" for log in logs)
+
+
 async def test_enqueue_task_from_run_start_hook_config_error_fails_the_run(
     tmp_path: Path,
 ) -> None:
@@ -925,6 +953,35 @@ async def test_task_total_for_an_added_task_cancelled_while_queued(
     assert child.status == "error"
     # counted when added, taken off once when it ended without a row
     assert task_count_changes == [1, -1]
+
+
+async def test_textual_task_total_keeps_a_task_added_while_the_app_loads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app: Any = TaskScreenApp()
+    app._on_load_app = anyio.Event()
+    app._on_app_loaded = anyio.Event()
+    app._driver = object()
+    monkeypatch.setattr(app, "update_display", lambda: None)
+    monkeypatch.setattr(app, "refresh", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        app, "query_one", lambda *args: types.SimpleNamespace(init_tasks=len)
+    )
+    totals: list[int] = []
+
+    async def open_screen() -> None:
+        async with app.task_screen([object()], parallel=True):
+            totals.append(app._total_tasks)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(open_screen)
+        # the screen waits for the app to load; a task is added meanwhile
+        await app._on_load_app.wait()
+        app.update_task_count(1)
+        app._on_app_loaded.set()
+
+    # the seed task and the added one
+    assert totals == [2]
 
 
 async def test_ending_a_record_twice_lowers_the_task_total_once(
