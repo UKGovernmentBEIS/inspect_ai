@@ -1,18 +1,26 @@
 import tempfile
+from typing import Any
 
 import pytest
 from test_helpers.utils import failing_solver, skip_if_no_google, skip_if_no_openai
 
-from inspect_ai import Task, eval, eval_retry, task
+from inspect_ai import Task, eval, eval_retry, task, task_with
 from inspect_ai._eval.evalset import eval_set
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.model import (
+    ChatMessage,
+    GenerateConfig,
+    Model,
+    ModelOutput,
+    get_model,
+)
 from inspect_ai.model._model import model_concurrency_key
 from inspect_ai.model._util import resolve_model_roles
 from inspect_ai.solver import solver
+from inspect_ai.tool import ToolChoice, ToolInfo
 
 RED_TEAM = "red_team"
 RED_TEAM_DEFAULT = "openai/gpt-4o"
@@ -566,3 +574,168 @@ def test_eval_retry_keeps_overridden_role_over_task_role() -> None:
     retried = log_retry.eval.model_roles[GRADER]
     assert not isinstance(retried, list) and retried.model == MOCK_A
     check_model_role(log_retry, GRADER, MOCK_A)
+
+
+# -- Task-declared required roles (mockllm, no API keys needed) --
+
+JUDGE = "judge"
+
+
+def recording_model(calls: list[str]) -> Model:
+    """Mock model that records each generate call in `calls`."""
+
+    def output(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        calls.append("generate")
+        return ModelOutput.from_content(model="mockllm/model", content="output")
+
+    return get_model("mockllm/model", custom_outputs=output)
+
+
+@task
+def required_roles_task():
+    return Task(required_model_roles=[GRADER, JUDGE])
+
+
+def test_required_model_roles_missing_fails_before_model_calls() -> None:
+    """Missing required roles fail the eval before any model is called."""
+    calls: list[str] = []
+    with pytest.raises(PrerequisiteError) as exc_info:
+        eval(
+            required_roles_task(),
+            model=recording_model(calls),
+        )
+    # the one error names every missing role
+    assert GRADER in str(exc_info.value)
+    assert JUDGE in str(exc_info.value)
+    assert calls == []
+
+
+def test_required_model_roles_names_only_missing_roles() -> None:
+    """A role that was specified is not reported as missing."""
+    calls: list[str] = []
+    with pytest.raises(PrerequisiteError) as exc_info:
+        eval(
+            required_roles_task(),
+            model=recording_model(calls),
+            model_roles={GRADER: MOCK_A},
+        )
+    assert JUDGE in str(exc_info.value)
+    assert GRADER not in str(exc_info.value)
+    assert calls == []
+
+
+def test_required_model_roles_specified_at_eval_level() -> None:
+    """Roles passed to eval() (one model or a list) count as specified."""
+    calls: list[str] = []
+    log = eval(
+        required_roles_task(),
+        model=recording_model(calls),
+        model_roles={GRADER: MOCK_A, JUDGE: [MOCK_B, MOCK_C]},
+    )[0]
+    assert log.status == "success"
+    assert calls == ["generate"]
+
+
+def test_required_model_roles_specified_by_task_default() -> None:
+    """The task's own model_roles count as specified."""
+    calls: list[str] = []
+    log = eval(
+        Task(
+            model_roles={GRADER: MOCK_A, JUDGE: MOCK_B},
+            required_model_roles=[GRADER, JUDGE],
+        ),
+        model=recording_model(calls),
+    )[0]
+    assert log.status == "success"
+    assert calls == ["generate"]
+
+
+def test_required_model_roles_not_declared() -> None:
+    """A task that declares no required roles runs with no roles specified."""
+    task = Task()
+    assert task.required_model_roles is None
+    calls: list[str] = []
+    log = eval(task, model=recording_model(calls))[0]
+    assert log.status == "success"
+    assert calls == ["generate"]
+
+
+def test_required_model_roles_missing_fails_eval_set() -> None:
+    """eval_set() fails on a missing required role before any model is called."""
+    calls: list[str] = []
+    with tempfile.TemporaryDirectory() as log_dir:
+        with pytest.raises(PrerequisiteError) as exc_info:
+            eval_set(
+                Task(
+                    model_roles={GRADER: MOCK_A},
+                    required_model_roles=[GRADER, JUDGE],
+                ),
+                log_dir=log_dir,
+                model=recording_model(calls),
+            )
+    assert JUDGE in str(exc_info.value)
+    assert calls == []
+
+
+def test_required_model_roles_retry() -> None:
+    """A retry passes the check with the roles recorded in the log."""
+    log = eval(
+        required_roles_task(),
+        model="mockllm/model",
+        model_roles={GRADER: MOCK_A, JUDGE: MOCK_B},
+    )[0]
+    log.status = "cancelled"
+    log.samples = []
+    log = eval_retry(log)[0]
+    assert log.status == "success"
+
+
+def test_required_model_roles_missing_across_tasks() -> None:
+    """One error covers every task in the eval, naming each task's missing roles."""
+    calls: list[str] = []
+    with pytest.raises(PrerequisiteError) as exc_info:
+        eval(
+            [
+                Task(name="needs_grader", required_model_roles=[GRADER]),
+                Task(name="needs_judge", required_model_roles=[JUDGE]),
+                Task(name="needs_nothing"),
+            ],
+            model=recording_model(calls),
+        )
+    message = str(exc_info.value)
+    assert GRADER in message and "needs_grader" in message
+    assert JUDGE in message and "needs_judge" in message
+    assert "needs_nothing" not in message
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "invalid", ["judge", [1], ["judge", None], ("judge",), {"judge": "model"}, 1]
+)
+def test_required_model_roles_rejects_non_list_of_names(invalid: Any) -> None:
+    """A bare string is an error rather than one required role per character."""
+    with pytest.raises(TypeError):
+        Task(required_model_roles=invalid)
+    with pytest.raises(TypeError):
+        task_with(Task(), required_model_roles=invalid)
+
+
+def test_required_model_roles_checked_on_retry() -> None:
+    """A retry fails before running when its log has no model for a required role."""
+    log = eval(
+        required_roles_task(),
+        model="mockllm/model",
+        model_roles={GRADER: MOCK_A, JUDGE: MOCK_B},
+    )[0]
+    log.status = "cancelled"
+    log.samples = []
+    log.eval.model_roles = None
+    with pytest.raises(PrerequisiteError) as exc_info:
+        eval_retry(log)
+    assert GRADER in str(exc_info.value)
+    assert JUDGE in str(exc_info.value)

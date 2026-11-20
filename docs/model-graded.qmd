@@ -29,7 +29,7 @@ Model selection follows this precedence:
 
 1. If `model` is provided, it is used (if a list is provided, each model grades independently and the grades are combined by `reducer`).
 
-2. Else if `model_role` is provided (default: `"grader"`), the model bound to that role (via `eval(..., model_roles={...})` or `--model-role grader=...`) is used (a list of models bound to the role is combined by `reducer`, as when a list is passed for `model`). Pass `ModelRole("grader", required=True)` (from `inspect_ai.model`) to raise an error when the role is not bound instead of falling back to the model being evaluated.
+2. Else if `model_role` is provided (default: `"grader"`), the model bound to that role (via `eval(..., model_roles={...})` or `--model-role grader=...`) is used (a list of models bound to the role is combined by `reducer`, as when a list is passed for `model`). Pass `ModelRole("grader", required=True)` (from `inspect_ai.model`) to raise an error when the role is not bound instead of falling back to the model being evaluated. That error is raised when the scorer first runs; to have a missing role reported before any sample runs, also list it in the task's [`required_model_roles`](models.qmd#required-roles).
 
 3. Else the model currently being evaluated is used.
 

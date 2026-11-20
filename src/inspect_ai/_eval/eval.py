@@ -34,7 +34,11 @@ from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.model._model_info import set_model_cost
-from inspect_ai.model._util import resolve_model_costs, resolve_model_roles
+from inspect_ai.model._util import (
+    resolve_model_costs,
+    resolve_model_roles,
+    validate_required_model_roles,
+)
 from inspect_ai.util._anyio import inner_exception
 
 # The imports above must load before _display (circular import).
@@ -880,6 +884,7 @@ async def _eval_async_inner(
                 "Error: No inspect tasks were found at the specified paths."
             )
 
+        validate_required_model_roles(resolved_tasks)
         resolve_model_costs(resolved_tasks, cost_limit)
 
         # make every resolved task's model addressable by the model pause
@@ -1325,8 +1330,9 @@ def _resolve_enqueued_tasks(
     consistently with the run. Tasks added inside a running task attempt
     resolve once, under that attempt's model (:func:`creator_model`), in place
     of the run's models; elsewhere they resolve once per run model. Raises
-    ``ValueError`` if the tasks can't be resolved, and ``RuntimeError`` for a
-    placeholder left by eval-set selection pruning (``is_placeholder``).
+    ``ValueError`` if the tasks can't be resolved, ``RuntimeError`` for a
+    placeholder left by eval-set selection pruning (``is_placeholder``), and
+    ``PrerequisiteError`` if a task requires a model role that has no model.
     """
     attempt_model = creator_model()
     if attempt_model is not None:
@@ -1374,6 +1380,7 @@ def _resolve_enqueued_tasks(
                 "call enqueue_task(child()) in a solver), or set "
                 "INSPECT_EVAL_SET_NO_PRUNE=1."
             )
+    validate_required_model_roles(resolved)
     resolve_model_costs(resolved, cost_limit)
     return resolved
 
