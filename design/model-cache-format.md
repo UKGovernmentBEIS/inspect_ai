@@ -466,10 +466,14 @@ or a model provider (they use `mockllm` and `INSPECT_CACHE_DIR` under
   model text into a `date` (the text `2026-01-01`) and into colliding keys
   (the text `1: first` and `"1": second` on two lines, giving `{1: "first",
   "1": "second"}`); a dataclass instance and a Pydantic model instance as
-  tool-call argument values; a `time` of `float("nan")`; and a non-JSON
-  object in `metadata` (which fails serialization). A separate case gives
-  `time` the `NaN` returned by `json.loads("NaN")`: it is cached, and the hit
-  returns `NaN`.
+  tool-call argument values; and a non-JSON object in `metadata` (which
+  fails serialization).
+- **NaN follows equality.** Called directly through `cache_store` and
+  `cache_fetch`, because `Model._generate` replaces `output.time` with the
+  measured duration before storing: an output whose `time` is
+  `float("nan")` is not stored (no entry, one warning), and one whose `time`
+  is the `NaN` returned by `json.loads("NaN")` is stored and fetched back
+  with `time` NaN.
 - **Metadata normalization is still cached.** An output with a `datetime` in
   `metadata` is cached, and the hit returns it as its ISO string.
 - **Containment tests keep their purpose.** The existing tests that check
