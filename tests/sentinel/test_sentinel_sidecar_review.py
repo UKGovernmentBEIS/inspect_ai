@@ -51,6 +51,7 @@ from inspect_ai._sentinel._sidecar._review import (
     MAX_ERROR_FETCHES,
     MAX_RESENDS,
 )
+from inspect_ai._sentinel._sidecar._task import task_sidecars
 from inspect_ai._util.working import sample_wait
 from inspect_ai.approval import Approval
 from inspect_ai.approval._approval import ApprovalDecision
@@ -220,6 +221,8 @@ class ReviewingSidecar(StandInSidecar):
     With a large number, every try that the provider's SDK makes on its own
     fails this way.
     """
+    when_pending_review_lost: Callable[[], None] | None = None
+    """Run as a "pending review" answer is lost, for what happens before the client's next try."""
     cut_off: bool = False
     """Whether the provider's reply is cut off on every try passed on to it.
 
@@ -446,6 +449,8 @@ class ReviewingSidecar(StandInSidecar):
         # the connection fails before the error arrives.
         if self.pending_reviews_lost > 0:
             self.pending_reviews_lost -= 1
+            if self.when_pending_review_lost is not None:
+                self.when_pending_review_lost()
             raise httpx2.ConnectError("The connection was lost.", request=request)
         return _refusal("pending review")
 
@@ -2548,6 +2553,114 @@ def test_a_call_given_up_on_after_a_lost_pending_review_is_cancelled_at_once(
     # on it, without waiting for the sample to end
     first = stand_in.model_calls[0]
     assert cancelled_before_the_sample_ended == [[first.headers["x-irid"]]]
+
+
+def _registration_fills(stand_in: ReviewingSidecar) -> Callable[[], None]:
+    # The task is registered with the sidecar again, as when another of the
+    # task's models is found there, and other samples fill the registration.
+    # So the sidecar won't take the sample's registration again, which the
+    # next try of a request finds as it is sent.
+    full = [False]
+
+    def complete(_: dict[str, Any]) -> dict[str, Any]:
+        if full[0]:
+            return {"error": {"code": -32008, "message": "the registrations are full"}}
+        return {}
+
+    def fill() -> None:
+        sidecars = task_sidecars(stand_in.calls[0]["params"]["eval_id"])
+        assert sidecars is not None
+        access = sidecars.access("http://proxy.test")
+        assert access is not None
+        access.registration_changes += 1
+        full[0] = True
+
+    stand_in.methods["complete_registration"] = complete
+    return fill
+
+
+def test_nobody_is_asked_about_a_call_whose_samples_registration_stopped_its_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    person = Person("terminate")
+    person.install(monkeypatch)
+    # The first try's "pending review" is lost with its connection, and the
+    # registration fills before the provider's SDK tries again.
+    stand_in = ReviewingSidecar(
+        pauses=["model_input"],
+        turns=[Turn()],
+        pending_reviews_lost=1,
+        judge_usage={"input_tokens": 1000, "output_tokens": 0, "total_tokens": 1000},
+    )
+    stand_in.when_pending_review_lost = _registration_fills(stand_in)
+
+    log = _run(stand_in, solver=generate(), sentinel_proxy="required")
+
+    # The call fails on the registration's error whatever a person answers,
+    # so nobody is asked: an answer of "terminate" would have ended the
+    # sample with no error. The paused call is cancelled at the sidecar, and
+    # what judging its first try cost is still counted.
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert person.asked == []
+    assert sample.error is not None
+    assert "the registrations are full" in sample.error.message
+    [sent] = stand_in.model_calls
+    assert stand_in.cancelled == [sent.headers["x-irid"]]
+    assert sample.model_usage["mockllm/judge"].total_tokens == 1000
+
+
+@pytest.mark.parametrize("stopped", ["the resend", "Inspect's retry"])
+def test_a_paused_call_whose_samples_registration_stops_it_is_cancelled_at_once(
+    stopped: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stand_in = ReviewingSidecar(
+        pauses=["model_input"],
+        turns=[Turn()],
+        # Inspect retries a "pending review" it lost, having asked the person
+        pending_reviews_lost=1 if stopped == "Inspect's retry" else 0,
+    )
+    fill = _registration_fills(stand_in)
+
+    async def fills_meanwhile() -> None:
+        fill()
+
+    # the registration fills while the person decides, and they approve
+    Person("approve", meanwhile=fills_meanwhile).install(monkeypatch)
+    monkeypatch.setattr(AnthropicAPI, "retry_wait", lambda self: wait_none())
+    cancelled_as_the_call_ended: list[list[str]] = []
+
+    @solver
+    def calls_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            try:
+                return await generate(state)
+            finally:
+                cancelled_as_the_call_ended.append(list(stand_in.cancelled))
+
+        return solve
+
+    task = Task(dataset=[Sample(input="Hi.")], solver=calls_once())
+    # with no retries in the provider's SDK, Inspect retries the call itself
+    retries: dict[str, Any] = {"max_retries": 0} if stopped == "Inspect's retry" else {}
+    model = get_model(
+        "anthropic/claude-haiku-4-5",
+        base_url="http://proxy.test",
+        api_key="test-key",
+        memoize=False,
+        http_client=stand_in.http_client(),
+        **retries,
+    )
+
+    [log] = inspect_eval(task, model=model, sentinel_proxy="required", display="none")
+
+    # The approved request is never sent on. The sidecar is told at once,
+    # as the call fails, and not only when the sample ends.
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None and "the registrations are full" in error.message
+    [sent] = stand_in.model_calls
+    assert cancelled_as_the_call_ended == [[sent.headers["x-irid"]]]
 
 
 def test_a_call_whose_replies_keep_being_cut_off_isnt_resent_without_end(

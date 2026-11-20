@@ -352,6 +352,19 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                 # wait.
                 provider_has_request = False
                 mark_paused(received)
+                if received.registration_error is not None:
+                    # A send of the call was stopped, as the sidecar wouldn't
+                    # take the sample's registration again, and the call
+                    # fails on that whatever a person answers. So nobody is
+                    # asked. The call is left marked as paused, for Inspect
+                    # to cancel at the sidecar.
+                    return _judging(
+                        Looked(
+                            "unavailable",
+                            "the call's send was stopped before a person was asked",
+                        ),
+                        result,
+                    )
                 await ask_person(received)
                 continue
             if (

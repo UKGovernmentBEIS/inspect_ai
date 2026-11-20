@@ -126,6 +126,12 @@ async def refused_output(
     # send.
     if not received.sends:
         record_send(received)
+    # A send the sample's registration stopped is acted on where Inspect
+    # stops retrying, in `refusal_after_error`. The call fails on the
+    # registration's error whatever the sidecar decided, so nobody is asked
+    # about it and nothing is fetched or resent for it here.
+    if received.registration_error is not None:
+        return None
     # Inspect doesn't look up an error it will retry, with two exceptions: a
     # call that is already paused for a person, whose state only the sidecar
     # knows, and a sidecar that can ask a person through the eval (below).
@@ -195,13 +201,14 @@ async def refusal_after_error(
     # though earlier attempts that were sent may still have been judged
     if not received.sent:
         await record_unasked_usage(received)
-        _raise_registration_error(received)
-        return None
-    if received.looked is None:
+        if received.registration_error is None:
+            return None
+    elif received.looked is None:
         await request_result(received, replied=False)
     if received.paused:
         # Inspect has stopped retrying a paused call, so nothing will resend
-        # it. Cancel it at the sidecar.
+        # it. Cancel it at the sidecar. A call whose latest attempt was never
+        # sent is still paused from an earlier one.
         from ._review import cancel_paused_call
 
         await cancel_paused_call(received)
