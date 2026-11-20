@@ -173,9 +173,13 @@ The last two share the same downstream machinery:
 
 - The run's `RunQueue` holds the *resolve* closure (`_resolve_enqueued_tasks`,
   bound via `functools.partial` to the run's models / roles / config / sandbox /
-  cost limit). `enqueue()` resolves and configures immediately (so a bad task
-  surfaces at the call site) and queues the task, which starts when a slot is
-  free.
+  cost limit). Once the run has opened its queue, `enqueue()` resolves and
+  configures immediately (so a bad task surfaces at the call site) and queues
+  the task, which starts when a slot is free. From an `on_run_start` hook,
+  before the queue opens, it resolves immediately but configures after the
+  hooks return, when the queue opens: the tasks start after the seed, and a
+  failing configuration or selection check ends the run before any seed task
+  starts ([task-dispatch.md](task-dispatch.md#adding-tasks)).
 - Resolution depends on where the tasks are added. Inside a running task
   attempt (its samples, solvers, tools, scorers and other code the attempt
   runs), they resolve once, under the attempt's model, in place of the run's

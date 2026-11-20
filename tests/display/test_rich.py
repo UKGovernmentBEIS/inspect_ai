@@ -287,6 +287,7 @@ def _assert_output_kept(output: str, redrawn: str) -> None:
 
 
 def _terminal_console(height: int | None = None) -> tuple[Console, int, TextIO]:
+    """A terminal console on a pipe (use with the ``terminal_env`` fixture)."""
     read_fd, write_fd = os.pipe()
     out = os.fdopen(write_fd, "w")
     console = Console(
@@ -307,7 +308,10 @@ def _read_all(read_fd: int, out: TextIO) -> str:
 @pytest.mark.anyio
 @pytest.mark.parametrize("end", ["normal", "error", "cancel"])
 async def test_rich_setup_output_is_written_above_the_task_display(
-    fresh_display: None, monkeypatch: pytest.MonkeyPatch, end: str
+    fresh_display: None,
+    terminal_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    end: str,
 ) -> None:
     """Output a sandbox setup's child process writes is not drawn over."""
     display = RichDisplay()
@@ -330,7 +334,10 @@ async def test_rich_setup_output_is_written_above_the_task_display(
 @pytest.mark.anyio
 @pytest.mark.parametrize("end", ["normal", "error", "cancel"])
 async def test_rich_setup_keeps_a_tall_task_display_cropped(
-    fresh_display: None, monkeypatch: pytest.MonkeyPatch, end: str
+    fresh_display: None,
+    terminal_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    end: str,
 ) -> None:
     """A task display taller than the terminal is still cropped after setup."""
     display = RichDisplay()
@@ -359,7 +366,10 @@ async def test_rich_setup_keeps_a_tall_task_display_cropped(
 @pytest.mark.anyio
 @pytest.mark.parametrize("end", ["normal", "error", "cancel"])
 async def test_rich_setup_output_is_written_above_the_mini_status(
-    fresh_display: None, monkeypatch: pytest.MonkeyPatch, end: str
+    fresh_display: None,
+    terminal_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    end: str,
 ) -> None:
     """The mini-status a non-transient input screen leaves is cleared too."""
     display = RichDisplay()
@@ -396,6 +406,7 @@ def _redraw_tick(display: RichDisplay) -> None:
 @pytest.mark.parametrize("showing", ["task_display", "mini_status"])
 async def test_rich_input_screen_closed_during_setup_draws_after_setup(
     fresh_display: None,
+    terminal_env: None,
     monkeypatch: pytest.MonkeyPatch,
     showing: str,
     transient: bool,
