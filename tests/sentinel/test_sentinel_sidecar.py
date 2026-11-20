@@ -1649,9 +1649,10 @@ def test_a_retry_of_a_request_makes_sure_of_the_samples_registration_before_it_i
     assert sent == ["complete_registration", "model", "complete_registration", "model"]
 
 
-def test_a_retry_whose_samples_registration_the_sidecar_wont_take_again_is_never_sent() -> (
-    None
-):
+@pytest.mark.parametrize("retried_by", ["the provider's SDK", "Inspect"])
+def test_a_retry_whose_samples_registration_the_sidecar_wont_take_again_is_never_sent(
+    retried_by: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     full = [False]
 
     def registered_again() -> None:
@@ -1670,22 +1671,43 @@ def test_a_retry_whose_samples_registration_the_sidecar_wont_take_again_is_never
         return {}
 
     stand_in = StandInSidecar(
-        turns=[Turn(status=503, then=registered_again), Turn()],
+        turns=[
+            # the first try is judged, with the judge's 1,000 tokens billed,
+            # and the provider fails it
+            Turn(
+                status=503,
+                judgment={"outcome": "proceed", "steps": []},
+                judging={"judging_usage": _judge_usage(1000)},
+                then=registered_again,
+            ),
+            Turn(),
+        ],
         methods={"complete_registration": complete},
     )
+    model = _model(stand_in)
+    if retried_by == "Inspect":
+        model = get_model(
+            _MODELS["anthropic"],
+            base_url="http://proxy.test",
+            api_key="test-key",
+            memoize=False,
+            http_client=stand_in.http_client(),
+            max_retries=0,
+        )
+        monkeypatch.setattr(model.api, "retry_wait", lambda: wait_none())
     task = Task(dataset=[Sample(input="Hi.")], solver=generate())
 
-    [log] = eval(
-        task, model=_model(stand_in), sentinel_proxy="required", display="none"
-    )
+    [log] = eval(task, model=model, sentinel_proxy="required", display="none")
 
     # sent on, the retry could be judged without the sample's facts
     assert len(stand_in.model_calls) == 1
     assert log.samples is not None
-    error = log.samples[0].error
-    assert error is not None
-    assert "SentinelProxyError" in error.message
-    assert "the registrations are full" in error.message
+    sample = log.samples[0]
+    assert sample.error is not None
+    assert "SentinelProxyError" in sample.error.message
+    assert "the registrations are full" in sample.error.message
+    # the try that was sent is still asked about, for what judging it cost
+    assert sample.model_usage["anthropic/claude-judge"].total_tokens == 1000
 
 
 async def test_a_sample_is_ended_with_its_task_named() -> None:
