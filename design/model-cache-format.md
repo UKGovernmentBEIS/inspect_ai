@@ -10,9 +10,9 @@ reads the header, checks the version, key and expiry, and validates the
 output with the same Pydantic models that read eval logs; anything that does
 not parse or validate is a cache miss. `inspect cache list --pruneable` and
 `inspect cache prune` read only the header line and judge an entry by it
-alone. An output that JSON cannot hold (one carrying a non-JSON object, or
-a string with a surrogate code point) is not cached, so a cache hit returns
-what was stored.
+alone. An output the format cannot hold exactly (a non-JSON value such as
+a date in tool-call arguments, or a string with a surrogate code point) is
+not cached, so a cache hit returns what was stored.
 
 Entries written by earlier versions (pickles) are never loaded. New entries
 use a different file name (`<key>.jsonl` beside the old `<key>`), so an
@@ -46,8 +46,9 @@ Goals:
 - On lookup, a file whose header or body does not parse or validate is a
   cache miss. It never raises into `generate()`.
 - A cache hit returns the output that was stored. An output the format
-  cannot hold is not cached; the only change a hit can show is that a
-  `metadata` value of a non-JSON type comes back in its JSON form (Store).
+  cannot hold is not cached, so a hit never changes content, tool calls or
+  their arguments; the only change a hit can show is that a `metadata` value
+  of a non-JSON type comes back in its JSON form (Store).
 - List and prune read only a bounded header, never the cached output, so
   they judge an entry by its header alone: a file whose header does not
   parse or validate is skipped, and an entry with a valid expired header is
@@ -235,32 +236,40 @@ header, are left alone by list and prune.
 
 `cache_store` writes the two-line file at `<key>.jsonl` and leaves any
 legacy `<key>` file in place. The content-filter rule and path checks are
-unchanged. Two kinds of output are not cached: `generate()` returns them
-normally, and a `warn_once` per model says caching was skipped and why.
+unchanged. Before writing, the writer checks that the format can hold the
+output. The check reads the output's Python-mode dump, because converting to
+JSON already changes the values it looks for. An output that fails is not
+cached: `generate()` returns it normally, and a `warn_once` per model says
+caching was skipped and why. The rule:
 
-- **Not JSON-serializable**, for example when a third-party provider puts a
-  non-JSON object in `metadata`. Today such an output is cached only if it
-  pickles; built-in providers put only JSON values in output metadata.
-- **Any string holding a surrogate code point** (U+D800–U+DFFF), as a value
-  or as a dictionary key, anywhere in the output: message content, tool-call
-  arguments, metadata. Python strings can hold these (a model's escaped
-  text can decode to them, for example through the YAML fallback of tool-call
-  argument parsing), but JSON cannot carry them exactly: Pydantic's JSON
-  mode replaces a surrogate in a dictionary key, which can merge two keys,
-  and the stdlib decoder joins an adjacent high and low surrogate into one
-  character. Both changed outputs would validate and be served as hits. The
-  writer therefore checks every string value and dictionary key of the
-  output's Python-mode dump before the JSON dump, since the JSON-mode dump
-  has already replaced key surrogates. Cost: such outputs reach the provider
-  on every call, where pickle caches them today.
+- **Everywhere outside `metadata` fields** (message content, tool calls and
+  their arguments, logprobs, usage, every other field) each value is
+  JSON-native: a string, an integer, a float (non-finite included), a
+  boolean, `None`, a list, or a dictionary whose keys are strings. Anything
+  else would come back changed yet valid: a `date` as a string, a set or
+  tuple as a list, `bytes` as text, and an integer key merged with the string
+  key of the same digits (`{1: "a", "1": "b"}` becomes `{"1": "b"}`). Tool-call
+  arguments can hold all of these, because the YAML fallback of tool-call
+  argument parsing (`src/inspect_ai/model/_call_tools.py:2443`) decodes
+  model text into YAML types.
+- **In `metadata` fields** (of the output and of its messages) values need
+  only serialize to JSON. Values of non-JSON types come back in their JSON
+  form (a `datetime` as a string), which is what the eval log records for
+  the same output. An output whose metadata does not serialize, for example
+  a non-JSON object from a third-party provider, is not cached; today it is
+  cached only if it pickles.
+- **No string anywhere**, as a value or as a dictionary key, metadata
+  included, holds a surrogate code point (U+D800–U+DFFF). Python strings can
+  hold these (the same YAML fallback can produce them from escaped text),
+  but JSON cannot carry them exactly: Pydantic's JSON mode replaces a
+  surrogate in a dictionary key, which can merge two keys, and the stdlib
+  decoder joins an adjacent high and low surrogate into one character.
 
-Lookup never sees an entry with surrogates, so a hit never returns changed
-strings.
-
-A cache hit returns the output as JSON reads it back. For built-in providers
-this equals the stored output; values in `metadata` that are not native JSON
-types come back as their JSON form (a `datetime` as a string), which is what
-the eval log records for the same output.
+So a cache hit never returns changed content, tool calls or arguments; the
+`metadata` exception above is the only difference a hit can show. Of the
+6,916 real outputs measured in Current behaviour, none failed the rule.
+Cost: outputs that fail it reach the provider on every call, where pickle
+caches them today.
 
 ### Concurrency and failure
 
@@ -364,9 +373,11 @@ pickle's 9.9 KB (pickle stores the repeated string once) and 36.9 KB with
   `cache_prune` also return and delete legacy entries; their docstrings and
   the `inspect cache list --pruneable` and `inspect cache prune` help and
   table title say so. `cache_size` and `cache_clear` are unchanged.
-- **Outputs.** A cache hit returns the JSON round trip of the stored output
-  (see Store). Outputs that cannot be serialized to JSON, and outputs with
-  a surrogate code point in any string, are no longer cached and produce a
+- **Outputs.** A cache hit returns the stored output, with non-JSON
+  `metadata` values in their JSON form (see Store). Outputs the format
+  cannot hold (non-JSON values outside metadata, such as YAML-parsed dates
+  or non-string keys in tool arguments; metadata that does not serialize;
+  surrogate code points in any string) are no longer cached and produce a
   warning; they call the provider every time.
 - **Eval logs, schemas and viewer types.** Unchanged. `ModelEvent.cache`
   values and the cache key are unchanged.
@@ -431,11 +442,15 @@ or a model provider (they use `mockllm` and `INSPECT_CACHE_DIR` under
   unexpired) is a miss on lookup, is listed by `cache_list_expired()`, is
   deleted by `cache_prune()`, and `--model` filtering applies to it. A
   key-named file without a pickle header is not listed or deleted.
-- **Unserializable output.** An output with a non-JSON object in `metadata`
-  is returned by `generate()`, is not cached, and produces one warning.
-- **Surrogate output.** An output with a surrogate code point in a tool-call
-  argument key is returned by `generate()`, writes no entry, a second
-  identical call reaches the provider again, and one warning is produced.
+- **Outputs not cached.** Each of these is returned by `generate()`, writes
+  no entry, reaches the provider again on a second identical call, and
+  produces one warning: tool-call arguments that the YAML fallback of
+  `parse_tool_call` (with a one-parameter tool) decodes from model text into
+  a `date` (the text `2026-01-01`) and into colliding keys (the text
+  `1: first` and `"1": second` on two lines, giving `{1: "first", "1":
+  "second"}`), a surrogate code point in a tool-call argument key, and a non-JSON object
+  in `metadata`. A `datetime` in `metadata` is cached and comes back as its
+  ISO string.
 - **Containment tests keep their purpose.** The existing tests that check
   lookup, list, prune and clear stay inside the cache directory
   (`test_cache_store_and_fetch_stay_in_cache_dir`,
@@ -464,10 +479,10 @@ or a model provider (they use `mockllm` and `INSPECT_CACHE_DIR` under
    Header model, writer and reader; `cache_store` and `cache_fetch` on
    `<key>.jsonl`; `cache_list_expired` and `cache_prune` on entry-name
    patterns with header-only reads and legacy detection; remove the `pickle`
-   import; the surrogate check and the warning for outputs not cached.
+   import; the eligibility check and the warning for outputs not cached.
    Tests: never-deserialized, tripwire, round trip, non-ASCII text, invalid
-   headers, invalid bodies, expiry, legacy entries, unserializable output,
-   surrogate output, the containment tests, and the updated existing tests.
+   headers, invalid bodies, expiry, legacy entries, outputs not cached,
+   the containment tests, and the updated existing tests.
 2. **CLI and docs** (`src/inspect_ai/_cli/cache.py`, `docs/caching.qmd`).
    Pruneable table title and help text; a caching docs section on the entry
    format, that entries from earlier versions are not reused, and that
