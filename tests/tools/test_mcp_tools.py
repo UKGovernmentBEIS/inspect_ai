@@ -892,8 +892,8 @@ async def test_mcp_tool_use_during_disconnect_opens_its_own_connection() -> None
 
     A tool call from another task during teardown must open its own
     connection rather than use the closing one. A `tools()` call through the
-    session returned by `async with` fills the cache from that temporary
-    connection, so the cache must still be empty once teardown finishes.
+    session returned by `async with` lists over a temporary connection, and
+    the next connection must still list its own tools.
     """
     from inspect_ai.model._call_tools import decisive_tool_exception
     from inspect_ai.tool._mcp._local import MCPServerLocalSession
@@ -951,10 +951,10 @@ async def test_mcp_tool_use_during_disconnect_opens_its_own_connection() -> None
     assert isinstance(error, ToolError), repr(call_errors[0])
     assert "answered" in str(error)
     assert (0, "tools/call") not in received, received
-    assert session._cached_tool_list is None, (
-        "tools listed over a temporary connection during teardown must not "
-        "be served to the next connection"
-    )
+    with anyio.fail_after(5):
+        async with session:
+            # connections 1 and 2 were the temporary call and listing
+            assert [ToolDef(t).name for t in await session.tools()] == ["connection_3"]
 
 
 @skip_if_no_mcp_package
@@ -1104,6 +1104,40 @@ async def test_mcp_tool_list_spanning_connect_is_not_cached(returns: str) -> Non
 
     assert not unexpected, f"writer saw unexpected methods: {unexpected}"
     assert tool_names == [["connection_0"], ["connection_0"]]
+
+
+@skip_if_no_mcp_package
+async def test_mcp_tools_listed_once_per_connection() -> None:
+    """An open connection, and a session that is not entered, list once.
+
+    `resolve_tools()` calls `tools()` on every generate, so a server that is
+    never entered would otherwise connect and list on every turn. The
+    unentered list is kept across a connection, which never reads it.
+    """
+    from inspect_ai.tool._mcp._local import MCPServerLocalSession
+
+    unexpected: list[str] = []
+    received: list[tuple[int, str]] = []
+    client = _make_simulated_mcp_client(
+        _answer_tool_call, unexpected_methods=unexpected, received=received
+    )
+    session = MCPServerLocalSession(client, name="listed-once", events=False)
+
+    with anyio.fail_after(5):
+        for _ in range(2):
+            assert [ToolDef(t).name for t in await session.tools()] == ["connection_0"]
+        async with session:
+            for _ in range(2):
+                assert [ToolDef(t).name for t in await session.tools()] == [
+                    "connection_1"
+                ]
+        assert [ToolDef(t).name for t in await session.tools()] == ["connection_0"]
+
+    assert not unexpected, f"writer saw unexpected methods: {unexpected}"
+    assert [r for r in received if r[1] == "tools/list"] == [
+        (0, "tools/list"),
+        (1, "tools/list"),
+    ]
 
 
 @skip_if_no_mcp_package

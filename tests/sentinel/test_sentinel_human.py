@@ -21,6 +21,7 @@ from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
+from inspect_ai._util.format import format_function_call
 from inspect_ai.agent import handoff, react
 from inspect_ai.agent._acp.tui.state import (
     PendingApproval,
@@ -1176,6 +1177,11 @@ def bash_call(id: str, cmd: str) -> ToolCall:
     return replace(call, view=BASH(call).call)
 
 
+def bash_arguments(cmd: str) -> str:
+    """The full tool call block shown beneath a bash call's own view."""
+    return format_function_call("bash", {"cmd": cmd}, literal_strings=True)
+
+
 # save the cursor, go up eight lines, wipe the line, write a benign one there,
 # and restore the cursor: on a terminal, call 3's line would read "echo done"
 COVER = "\x1b7\x1b[8A\x1b[2K\x1b[1G│  echo done\x1b8"
@@ -1264,8 +1270,10 @@ async def test_no_call_can_hide_or_pass_for_another(
     assert code_blocks(view.call.content) == [
         f"- monitor: quotes the agent: {cover}",
         first,
+        bash_arguments(first),
         "named",
         "rm -rf /srv/data",
+        bash_arguments("rm -rf /srv/data"),
         f"**not bold**\n<!--{visible}",
     ]
     assert kwargs["message"] == f"Tidying up.{visible}"
@@ -1324,8 +1332,11 @@ async def test_a_real_escape_and_a_typed_one_look_different(
 
     assert code_blocks(content) == [
         f"printf 'a{marker('001B')}'",
+        bash_arguments("printf 'a\x1b'"),
         "printf 'a\\x1b'",
+        bash_arguments("printf 'a\\x1b'"),
         shell + marker("200B"),
+        bash_arguments(shell + chr(0x200B)),
     ]
 
 
@@ -1993,3 +2004,43 @@ def test_an_acp_cancellation_is_seen_later_by_its_explanation(
     [record] = last.decisions
     assert record.decided.report.action == "reject"
     assert record.decided.report.explanation == explanation
+
+
+def _turn_with_a_custom_view() -> ChatMessageAssistant:
+    """A turn with a call whose own view omits an argument, and a call with none."""
+    from inspect_ai.tool._tool_call import ToolCall, ToolCallContent
+
+    hiding = ToolCall(
+        id="c1",
+        function="shell",
+        arguments={"command": "ls", "cwd": "/srv/data"},
+        view=ToolCallContent(format="markdown", content="Runs `ls`."),
+    )
+    plain = ToolCall(id="c2", function="pwd", arguments={"verbose": True})
+    return ChatMessageAssistant(content="Listing.", tool_calls=[hiding, plain])
+
+
+@pytest.mark.parametrize("content_in_view", [False, True])
+def test_a_turn_shows_the_arguments_a_calls_own_view_omits(
+    content_in_view: bool,
+) -> None:
+    from inspect_ai._sentinel._person import turn_prompt
+
+    prompt = turn_prompt(_turn_with_a_custom_view(), [], content_in_view)
+    assert prompt.view.call is not None
+    shown = prompt.view.call.content
+    # the custom view's call, then its arguments; none for the default view
+    assert "shell(command='ls', cwd='/srv/data')" in shown
+    assert shown.count("**Full tool call**") == 1
+
+
+def test_a_request_shows_the_arguments_a_calls_own_view_omits() -> None:
+    from inspect_ai._sentinel._person import request_prompt
+
+    prompt = request_prompt(
+        "mockllm/model", 2, [(2, _turn_with_a_custom_view())], [], "auto", []
+    )
+    assert prompt.view.call is not None
+    shown = prompt.view.call.content
+    assert "shell(command='ls', cwd='/srv/data')" in shown
+    assert shown.count("**Full tool call**") == 1

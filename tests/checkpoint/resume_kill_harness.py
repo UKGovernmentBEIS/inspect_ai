@@ -32,6 +32,7 @@ import anyio
 from checkpoint.docker_projects import record_docker_projects
 from checkpoint.transcript_store_cache import redirect_transcript_store_cache_dir
 from inspect_ai import Task, eval, eval_retry, task
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
 from inspect_ai.log import read_eval_log
@@ -135,6 +136,17 @@ TURN_LIMIT_ENV = "INSPECT_TEST_RESUME_TURN_LIMIT"
 # Tokens the scripted model reports per generate, each direction.
 GENERATE_TOKENS = 10
 
+# When set to "1", the remember turn's assistant text and the remember tool's
+# result are `literal_reply()`.
+LITERAL_ENV = "INSPECT_TEST_RESUME_LITERAL"
+
+
+def literal_reply() -> str | None:
+    """Text that names the attachment turn 0's bash command is pooled in, when `LITERAL_ENV` is set."""
+    if os.environ.get(LITERAL_ENV) != "1":
+        return None
+    return f"attachment://{mm3_hash(WRITE_CMD)}"
+
 
 def crash_signal() -> signal.Signals:
     return signal.Signals[os.environ.get(SIGNAL_ENV, "SIGKILL")]
@@ -196,7 +208,8 @@ def remember() -> Tool:
             Confirmation string.
         """
         store().set(key, value)
-        return f"remembered: {key}"
+        literal = literal_reply()
+        return literal if literal is not None else f"remembered: {key}"
 
     return execute
 
@@ -284,7 +297,10 @@ def _scripted_tool_call(input: list[ChatMessage]) -> ModelOutput:
         return ModelOutput.for_tool_call(SCRIPTED_MODEL, "bash", {"command": WRITE_CMD})
     if n == 1:
         return ModelOutput.for_tool_call(
-            SCRIPTED_MODEL, "remember", {"key": STORE_KEY, "value": LAYER1_CONTENT}
+            SCRIPTED_MODEL,
+            "remember",
+            {"key": STORE_KEY, "value": LAYER1_CONTENT},
+            content=literal_reply(),
         )
     # The k-th crash (k = done) lands at turn `2 + done`; cycles that don't
     # crash do a work turn that writes a new sandbox file (non-empty diff vs

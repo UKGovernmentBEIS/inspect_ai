@@ -1407,6 +1407,154 @@ def test_format_view_content_fence_grows_for_longer_backtick_runs() -> None:
     assert "`````" in formatted.content
 
 
+def _markdown_token_types(text: str) -> set[str]:
+    from markdown_it import MarkdownIt
+
+    types: set[str] = set()
+    for token in MarkdownIt("commonmark").parse(text):
+        types.add(token.type)
+        types.update(child.type for child in token.children or [])
+    return types
+
+
+def test_format_view_content_escapes_the_title() -> None:
+    # a title is plain text, and can hold an argument (agent_status: <id>)
+    view_content = ToolCallContent(
+        title="agent_status: a <!-- b --> c", format="text", content="ok"
+    )
+    formatted = _format_view_content_as_markdown(view_content)
+    assert not {"html_block", "html_inline"} & _markdown_token_types(formatted.content)
+
+
+def test_build_request_shows_the_whole_command_beneath_the_bash_view() -> None:
+    from markdown_it import MarkdownIt
+
+    from inspect_ai.tool._tools._execute import code_viewer
+
+    command = "ls\n```\n<!--\nrm -rf /tmp/data\n-->"
+    call = _make_call(arguments={"command": command})
+    req = _build_request(
+        session_id="s1",
+        call=call,
+        view=code_viewer("bash", "command")(call),
+        choices=["approve", "reject"],
+    )
+    # the bash view can hide lines; the full tool call block shows the command whole
+    arguments = _texts(req.tool_call.content)[-1]
+    assert not {"html_block", "html_inline"} & _markdown_token_types(arguments)
+    fences = [t for t in MarkdownIt("commonmark").parse(arguments) if t.type == "fence"]
+    assert [fence.content for fence in fences] == [f"bash(command={command!r})\n"]
+
+
+def test_build_request_shows_arguments_beneath_an_edited_inspect_view() -> None:
+    # a custom viewer that cuts the bash view down to the command's first line
+    from inspect_ai.tool._tools._execute import code_viewer
+
+    call = _make_call(arguments={"command": "ls\nrm -rf /tmp/data"})
+    view = code_viewer("bash", "command")(call)
+    assert view.call is not None
+    view = ToolCallView(
+        call=view.call.model_copy(update={"content": "```bash\nls\n```"})
+    )
+    req = _build_request(
+        session_id="s1", call=call, view=view, choices=["approve", "reject"]
+    )
+    texts = _texts(req.tool_call.content)
+    assert texts[-1].startswith("**Full tool call**")
+    assert "rm -rf /tmp/data" in texts[-1]
+
+
+def test_build_request_shows_no_arguments_block_beneath_the_default_view() -> None:
+    from inspect_ai.tool._tool_call import default_tool_call_viewer
+
+    call = _make_call()
+    req = _build_request(
+        session_id="s1",
+        call=call,
+        view=default_tool_call_viewer(call),
+        choices=["approve", "reject"],
+    )
+    assert _texts(req.tool_call.content) == ["```python\nbash(command='ls -la')\n```\n"]
+
+
+def test_build_request_shows_arguments_beneath_a_custom_view() -> None:
+    # a tool's own Markdown view that a renderer shows only part of
+    notes = "ok\n\n<!--\nrm -rf /tmp/data\n-->"
+    call = _make_call(function="note", arguments={"notes": notes})
+    view = ToolCallView(
+        call=ToolCallContent(format="markdown", content="Notes: {{notes}}")
+    )
+    req = _build_request(
+        session_id="s1", call=call, view=view, choices=["approve", "reject"]
+    )
+    texts = _texts(req.tool_call.content)
+    # the custom view, a separator, then every argument in a block of its own
+    assert texts[0] == f"Notes: {notes}"
+    assert texts[1] == "---"
+    assert texts[2].startswith("**Full tool call**\n\n```python\n")
+    assert f"note(notes={notes!r})" in texts[2]
+
+
+def _client_rendered(call: ToolCall, view: ToolCallView) -> str:
+    """The approval card's text as the ACP TUI renders the request."""
+    import io
+
+    from rich.console import Console
+    from textual.widgets import Static
+
+    from inspect_ai.agent._acp.tui.widgets.tool_call import compose_content_item
+
+    req = _build_request(
+        session_id="s1", call=call, view=view, choices=["approve", "reject"]
+    )
+    buffer = io.StringIO()
+    console = Console(file=buffer, width=200, color_system=None)
+    for block in req.tool_call.content or []:
+        for item in compose_content_item(block):
+            for widget in item.compose():
+                assert isinstance(widget, Static)
+                console.print(widget.content)
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize(
+    "viewer,param",
+    [("bash", "command"), ("python", "code"), ("think", "thought")],
+)
+def test_client_shows_the_call_when_removed_characters_join_backticks(
+    viewer: str, param: str
+) -> None:
+    # the TUI removes control and format characters before rendering, which
+    # joins the backticks around a zero-width space into a longer run
+    from inspect_ai.tool._tools._execute import code_viewer
+    from inspect_ai.tool._tools._think import think_tool_viewer
+
+    value = "cat <<'EOF'\n``\u200b`\nEOF\n<!--\nrm -rf /tmp/data\n-->"
+    call = _make_call(function=viewer, arguments={param: value})
+    view = (think_tool_viewer() if viewer == "think" else code_viewer(viewer, param))(
+        call
+    )
+    rendered = _client_rendered(call, view)
+    for line in ["<!--", "rm -rf /tmp/data", "-->"]:
+        assert line in rendered
+
+
+def test_build_request_shows_placeholder_text_as_written() -> None:
+    from inspect_ai.tool._tools._execute import code_viewer
+
+    command = "echo {{command}} {{path}}"
+    call = _make_call(arguments={"command": command, "path": "/etc/passwd"})
+    req = _build_request(
+        session_id="s1",
+        call=call,
+        view=code_viewer("bash", "command")(call),
+        choices=["approve", "reject"],
+    )
+    # the bash view fills in the placeholders; the full tool call block does not
+    arguments = _texts(req.tool_call.content)[-1]
+    assert "command='echo {\\x7bcommand}} {\\x7bpath}}'" in arguments
+
+
 def test_separator_block_is_horizontal_rule_markdown() -> None:
     block = _separator_block()
     assert block.type == "content"
@@ -1456,11 +1604,13 @@ def test_build_request_inserts_separator_between_context_and_call() -> None:
         choices=["approve"],
     )
     texts = _texts(req.tool_call.content)
-    # Expect: [context, separator, call] in order.
-    assert len(texts) == 3
+    # Expect: [context, separator, call, separator, arguments] in order.
+    assert len(texts) == 5
     assert "context body" in texts[0]
     assert "---" in texts[1]
     assert "call body" in texts[2]
+    assert "---" in texts[3]
+    assert texts[4].startswith("**Full tool call**")
 
 
 def test_build_request_omits_separator_when_one_half_missing() -> None:
@@ -1475,10 +1625,12 @@ def test_build_request_omits_separator_when_one_half_missing() -> None:
         choices=["approve"],
     )
     texts = _texts(req.tool_call.content)
-    # Just the call block; no separator.
-    assert len(texts) == 1
+    # The call block, then the arguments; no separator before the call.
+    assert len(texts) == 3
     assert "call body" in texts[0]
     assert "---" not in texts[0]
+    assert texts[1] == "---"
+    assert texts[2].startswith("**Full tool call**")
 
 
 def test_build_request_fences_plain_text_view_content() -> None:
@@ -1495,7 +1647,7 @@ def test_build_request_fences_plain_text_view_content() -> None:
         choices=["approve"],
     )
     texts = _texts(req.tool_call.content)
-    assert len(texts) == 1
+    assert len(texts) == 3
     assert texts[0].startswith("```\n")
     assert "  preserve indent" in texts[0]
 
@@ -1512,24 +1664,24 @@ def test_build_request_markdown_snapshot_for_typical_bash_approval() -> None:
     so duplicating it here would mean the same text twice a few
     rows apart in inline-on-transcript clients. No ``_meta`` keys.
     """
-    view = ToolCallView(
-        call=ToolCallContent(
-            title="bash", format="markdown", content="```bash\nls -la\n```"
-        ),
-    )
+    from inspect_ai.tool._tools._execute import code_viewer
+
+    call = _make_call()
     req = _build_request(
         session_id="s1",
-        call=_make_call(),
-        view=view,
+        call=call,
+        view=code_viewer("bash", "command")(call),
         choices=["approve", "reject"],
     )
-    # One block — just the formatted view call. No assistant message.
+    # The formatted view call, then the call's arguments. No assistant message.
     texts = _texts(req.tool_call.content)
-    assert len(texts) == 1
-    assert "**Assistant**" not in texts[0]
-    assert "I want to list files." not in texts[0]
+    assert len(texts) == 3
+    assert "**Assistant**" not in "\n".join(texts)
+    assert "I want to list files." not in "\n".join(texts)
     assert texts[0].startswith("**bash**\n\n")
     assert "```bash\nls -la\n```" in texts[0]
+    assert texts[1] == "---"
+    assert texts[2] == "**Full tool call**\n\n```python\nbash(command='ls -la')\n```\n"
     # No protocol extension: no `_meta` keys on any block.
     for block in req.tool_call.content or []:
         assert block.field_meta is None, (
