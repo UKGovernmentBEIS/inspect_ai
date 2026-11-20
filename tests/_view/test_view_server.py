@@ -3289,13 +3289,20 @@ def test_api_log_download_encodes_non_latin1_filename(
 
 
 class _LogHTTPServer:
-    """A local HTTP server that serves one directory, or redirects every request.
+    """A local HTTP server that serves one directory, or redirects requests.
 
     Supports HEAD, GET and single `Range: bytes=a-b` requests, which is what
-    fsspec's HTTP filesystem sends. Records each request path it receives.
+    fsspec's HTTP filesystem sends. With `redirect_to`, requests whose method
+    is in `redirect_methods` are redirected there. Records each request path
+    it receives.
     """
 
-    def __init__(self, root: Path | None = None, redirect_to: str | None = None):
+    def __init__(
+        self,
+        root: Path | None = None,
+        redirect_to: str | None = None,
+        redirect_methods: tuple[str, ...] = ("HEAD", "GET"),
+    ):
         import http.server
         import threading
 
@@ -3314,14 +3321,15 @@ class _LogHTTPServer:
 
             def _respond(self, body: bool) -> None:
                 requests.append(self.path)
-                if redirect_to is not None:
+                if redirect_to is not None and self.command in redirect_methods:
                     self.send_response(302)
                     self.send_header("Location", redirect_to + self.path)
                     self.send_header("Content-Length", "0")
                     self.end_headers()
                     return
-                assert root is not None
-                target = root / urllib.parse.unquote(self.path.lstrip("/"))
+                target = (root or Path("/nonexistent")) / urllib.parse.unquote(
+                    self.path.lstrip("/")
+                )
                 if not target.is_file():
                     self.send_error(404)
                     return
@@ -3415,6 +3423,34 @@ def test_http_log_read_does_not_follow_redirect(
     assert resp.status_code == 502
     assert resp.json() == {"detail": fastapi_server.HTTP_REDIRECT_REFUSED_MESSAGE}
     assert redirector.requests
+    assert target.requests == []
+
+
+@pytest.mark.parametrize("route", _HTTP_READ_ROUTES)
+@pytest.mark.parametrize("get_serves_log", [True, False])
+def test_http_log_read_refuses_head_redirect(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str],
+    tmp_path: Path,
+    route: str,
+    get_serves_log: bool,
+) -> None:
+    """A redirected HEAD fails the read even when GET of the URL is not redirected.
+
+    fsspec's metadata lookup retries a failed HEAD with GET.
+    """
+    target, _redirector, fname = http_log_servers
+    head_redirector = _LogHTTPServer(
+        root=tmp_path if get_serves_log else None,
+        redirect_to=target.url,
+        redirect_methods=("HEAD",),
+    )
+    try:
+        with _http_view_client(head_redirector.url) as client:
+            resp = client.get(_http_route(route, fname))
+    finally:
+        head_redirector.close()
+    assert resp.status_code == 502
+    assert resp.json() == {"detail": fastapi_server.HTTP_REDIRECT_REFUSED_MESSAGE}
     assert target.requests == []
 
 

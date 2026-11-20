@@ -668,8 +668,16 @@ async def _redirect_refusing_client(**kwargs: Any) -> "aiohttp.ClientSession":
 
     aiohttp has no session-wide redirect setting, and fsspec chooses
     `allow_redirects` per request, so a trace hook stops every redirect.
+
+    fsspec's metadata lookup (`HTTPFileSystem._info`) swallows a failed HEAD
+    and retries with GET. So after a HEAD redirect is refused, the next GET
+    of the same URL on this session fails with the same error, which keeps
+    the lookup from succeeding or reporting some other error.
     """
     import aiohttp
+
+    # URL -> number of refused HEAD redirects not yet matched by a failed GET
+    refused_heads: dict[str, int] = {}
 
     async def on_redirect(
         _session: aiohttp.ClientSession,
@@ -678,12 +686,30 @@ async def _redirect_refusing_client(**kwargs: Any) -> "aiohttp.ClientSession":
     ) -> None:
         location = params.response.headers.get("Location")
         params.response.close()
+        if params.method == "HEAD":
+            url = str(params.url)
+            refused_heads[url] = refused_heads.get(url, 0) + 1
         raise HTTPRedirectError(
             f"HTTP redirect from {params.url} to {location} was not followed."
         )
 
+    async def on_start(
+        _session: aiohttp.ClientSession,
+        _ctx: Any,
+        params: aiohttp.TraceRequestStartParams,
+    ) -> None:
+        url = str(params.url)
+        if params.method == "GET" and refused_heads.get(url, 0) > 0:
+            refused_heads[url] -= 1
+            if refused_heads[url] == 0:
+                del refused_heads[url]
+            raise HTTPRedirectError(
+                f"HTTP HEAD request to {url} was redirected; the redirect was not followed."
+            )
+
     trace_config = aiohttp.TraceConfig()
     trace_config.on_request_redirect.append(on_redirect)
+    trace_config.on_request_start.append(on_start)
     trace_configs = [*kwargs.pop("trace_configs", []), trace_config]
     return aiohttp.ClientSession(trace_configs=trace_configs, **kwargs)
 
