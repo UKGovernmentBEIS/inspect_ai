@@ -82,12 +82,14 @@ Its edge cases all come from the same few interactions in Inspect:
   an enclosing `run()` limit, token share or cap, and the other way round.
   From an exception group it takes the *first* limit before comparing at
   all.
-- **Unpriced calls skip the post-call cost check.** An unpriced call never
-  adds to a cost limit, and no cost limit is checked after it returns. The
+- **Unpriced calls skip the post-call cost check.** A call whose cost
+  `model_usage_cost()` resolves to `None` (an unpriced model, unless its
+  provider reports priced serving models, as for a router) never adds to
+  a cost limit, and no cost limit is checked after it returns. The
   pre-dispatch check still runs for it, so a cost limit already at or over
   its budget refuses it. But a cost limit that a concurrent priced call
-  has reached is not raised after it, and an unpriced model that the
-  start-time check does not cover (a subagent's model, or any model an
+  has reached is not raised after it, and an unpriced model, with no
+  priced serving models reported, that the start-time check does not cover (a subagent's model, or any model an
   agent resolves by name) can be called without bound under a cost limit
   that priced calls have not reached. So can a priced model whose provider
   returns no usage, which this design leaves to a separate one (see "Not
@@ -404,9 +406,11 @@ tokens per call, run against this branch's base):
    state, catches nothing. A tool, handoff or bridged host tool owns the
    limits entered inside the call, of any kind, by the same test,
    and every message limit raised in the call, which measured the call's
-   own conversation (see "Ownership"). A limit error with no node (a
-   sourceless `custom` error) is inside no scope: `apply_limits()` lets it
-   propagate, and a tool, handoff or host tool maps it as today.
+   own conversation (see "Ownership"). A limit error with no source has
+   no node and is inside no scope: `apply_limits()` lets it propagate. At
+   a tool, handoff or host tool a sourceless `custom` or message error is
+   the call's own and is mapped as today; a sourceless error of any other
+   type (token, cost, turn, time, working) is foreign and propagates.
 7. **Each owner checks its own limits at exit.** A limit error that
    reaches its owner stands. When an `apply_limits()` scope ends normally,
    Inspect checks the token, cost and turn limits that scope entered, and
@@ -746,7 +750,9 @@ in the call's own context (the call's task and the tasks started inside
 it, which carry its scope marker, rule 1) while the call ran, a message limit (it measured the call's own
 conversation, whichever node raised it, as
 `test_agent_as_tool_respects_sample_limits` pins today), or a `custom`
-limit with no source, which has no node and keeps today's mapping. A limit error is *owned by the call*
+limit with no source, which has no node and keeps today's mapping. A
+sourceless error of any other type was never entered in the call, so it
+is not the call's own. A limit error is *owned by the call*
 when every limit in it (each member of a combined error) is the call's own.
 Nested scopes keep their membership in the scopes around them (rule 1):
 the limits an `as_tool()` agent enters in its own `apply_limits()` scope
@@ -775,8 +781,9 @@ tool error; a handoff still answers its own limit) pin this nesting.
 - **Handoffs.** For `agent_handoff()` the call starts before it enters
   the handoff's limits, and its `except LimitExceededError`
   applies the same test: an error not owned
-  by the call (one of its limits is a limit other than a message limit,
-  entered outside the handoff) is re-raised. An owned error keeps today's handoff
+  by the call (one of its limits is neither a message limit, a sourceless
+  `custom` limit, nor a limit entered inside the handoff; a sourceless
+  token error included) is re-raised. An owned error keeps today's handoff
   result, the handed-off agent's new messages followed by the "exceeded
   its <type> limit" message, with the combined error's
   type. As today, only a bare error is caught; a group propagates through
@@ -1619,7 +1626,7 @@ each of these interactions as a case of its own. Under the rules above they beco
   limit adds the sample limit to the kept ones (rules 6 and 8). A member
   whose error holds a sample limit and its own limit is not caught by the
   member's scope; the wrapper receives every limit and fills `ended_by`
-  from the primary fields or from `limits` as it chooses.
+  from the combined error's primary fields.
   A kept sample limit lost to a
   cancellation before the CLI exits is recorded by the sample's exit check
   when the solvers return, if it is exceeded (rule 7).
@@ -1662,8 +1669,9 @@ What the swarm must change:
   its primary limit's, so both must look at every member of `limits`:
   an error whose limits include a foreign one (a sample message limit
   beside a member token limit, say) is foreign as a whole and is
-  re-raised, not consumed, and `ended_by` is filled from the member's own
-  limits or the primary fields, as the swarm chooses. Without this, a
+  re-raised, not consumed. Classifying ownership looks at every member;
+  `ended_by`, the one reported outcome, reads the combined error's primary
+  fields. Without this, a
   combined member-token and sample-message error would be treated as
   wholly the member's, and the sample's limit would be lost.
 - **Pricing.** A member whose model has no cost data of its own (a router
@@ -2285,7 +2293,10 @@ under trio with `--runtrio`.
   handoff passes on a foreign token limit and still answers its own; a
   handoff whose agent exceeds a `with token_limit()` entered inside it, and
   one whose agent exceeds a `time_limit()` entered inside it, return the
-  agent's new messages and the handoff limit message, as today; an
+  agent's new messages and the handoff limit message, as today; a handed-off
+  agent that raises a sourceless token error propagates it out of the
+  handoff, while one that raises a sourceless `custom` error or reaches a
+  message limit gets the handoff limit message, as today; an
   `as_tool()` agent with its own `cost_limit()`, called inside
   `run(limits=[token_limit(N)])`, whose one call crosses both limits,
   raises their combined error out of `execute_tools()`, and `run()`
