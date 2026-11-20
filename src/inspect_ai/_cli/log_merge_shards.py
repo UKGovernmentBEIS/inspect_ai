@@ -28,6 +28,7 @@ from inspect_ai._util.error import PrerequisiteError
 if TYPE_CHECKING:
     from inspect_ai._eval.task.task import Task
     from inspect_ai.log import ShardMergeResult
+    from inspect_ai.log._shards._api import MergePaths
 
 _Kind = Literal[
     "setup",
@@ -102,6 +103,14 @@ class _MergeFailure(Exception):
     help="Write a 'started' or 'error' merged log when the shard set is incomplete.",
 )
 @click.option(
+    "--delete-shards",
+    type=bool,
+    is_flag=True,
+    default=False,
+    allow_from_autoenv=False,
+    help="Delete the shards directory once the merged log is complete. Only for a finished run that nothing else writes to. Cannot be combined with --allow-incomplete.",
+)
+@click.option(
     "--json",
     "json_output",
     type=bool,
@@ -129,6 +138,7 @@ def merge_shards_command(
     sample_id: str | None,
     sample_count: int | None,
     allow_incomplete: bool,
+    delete_shards: bool,
     json_output: bool,
     **common: Unpack[CommonOptions],
 ) -> None:
@@ -157,7 +167,13 @@ def merge_shards_command(
             ids = _parse_sample_ids(sample_id)
             from inspect_ai.log._shards._api import check_merge_arguments
 
-            paths, _ = check_merge_arguments(log, ids, sample_count)
+            paths, _ = check_merge_arguments(
+                log,
+                ids,
+                sample_count,
+                allow_incomplete=allow_incomplete,
+                delete_shards=delete_shards,
+            )
 
         with _phase("task"):
             built = _build_task(
@@ -189,10 +205,20 @@ def merge_shards_command(
                     sample_ids=ids,
                     sample_count=sample_count,
                     allow_incomplete=allow_incomplete,
+                    delete_shards=delete_shards,
                 )
             )
 
-        _print_result(result, json_output, stdout)
+        _print_result(
+            result, json_output, stdout, _deleted(log, paths) if delete_shards else None
+        )
+
+
+def _deleted(log: str, paths: "MergePaths") -> str:
+    """The deleted shards directory, in the form the merged log is reported in."""
+    from inspect_ai._util.file import to_uri
+
+    return to_uri(paths.shards_dir) if log.startswith("file://") else paths.shards_dir
 
 
 def _check_command_line(ctx: click.Context) -> None:
@@ -301,7 +327,10 @@ def _build_task(
 
 
 def _print_result(
-    result: "ShardMergeResult", json_output: bool, stdout: TextIO
+    result: "ShardMergeResult",
+    json_output: bool,
+    stdout: TextIO,
+    deleted: str | None,
 ) -> None:
     header = result.log
     shards = len(header.eval.shards.ledger) if header.eval.shards is not None else 0
@@ -322,6 +351,8 @@ def _print_result(
         else:
             print(f"No changes since the last merge: {header.location}", file=stdout)
         print(f"  status: {header.status}", file=stdout, flush=True)
+        if deleted is not None:
+            print(f"  shards: deleted {deleted}", file=stdout, flush=True)
 
 
 @contextmanager
@@ -427,7 +458,9 @@ def _merge_phase(shards_dir: str) -> Iterator[None]:
             )
         raise _MergeFailure("not_found", ex, message) from ex
     except (OSError, BotoCoreError, ClientError) as ex:
-        raise _MergeFailure("storage_error", ex, _message(ex)) from ex
+        # a failed delete notes how to finish deleting
+        message = " ".join([_message(ex), *getattr(ex, "__notes__", [])])
+        raise _MergeFailure("storage_error", ex, message) from ex
 
 
 def _in_shard_set(root: str, path: str) -> bool:
