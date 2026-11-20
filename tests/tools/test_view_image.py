@@ -14,7 +14,7 @@ from inspect_ai.log import read_eval_log, resolve_sample_attachments
 from inspect_ai.model import ChatMessageTool, ModelOutput, get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import ContentImage, ToolError, view_image
-from inspect_ai.util import OutputLimitExceededError, sandbox
+from inspect_ai.util import OutputLimitExceededError, SandboxTimeoutError, sandbox
 from inspect_ai.util._sandbox.context import (
     sandbox_default_context_var,
     sandbox_environments_context_var,
@@ -171,6 +171,16 @@ async def test_view_image_output_limit_exception_is_a_tool_error() -> None:
     with _default_sandbox(CannedSandbox(raise_limit)):
         with pytest.raises(ToolError, match="too large to view"):
             await view_image()(file_path="plot.png")
+
+
+async def test_view_image_timeout_raises_sandbox_timeout_without_output() -> None:
+    def raise_timeout(_cmd: list[str], _user: str | None) -> ExecResult[str]:
+        raise SandboxTimeoutError("timed out", truncated_output="#\nAAAA")
+
+    with _default_sandbox(CannedSandbox(raise_timeout)):
+        with pytest.raises(SandboxTimeoutError) as excinfo:
+            await view_image(timeout=1)(file_path="plot.png")
+    assert excinfo.value.truncated_output is None
 
 
 @skip_if_no_docker

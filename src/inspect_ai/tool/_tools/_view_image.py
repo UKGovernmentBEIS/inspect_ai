@@ -3,7 +3,11 @@ import binascii
 
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.images import as_data_uri, sniff_image_mime_type
-from inspect_ai.util import OutputLimitExceededError, SandboxEnvironmentLimits
+from inspect_ai.util import (
+    OutputLimitExceededError,
+    SandboxEnvironmentLimits,
+    SandboxTimeoutError,
+)
 from inspect_ai.util import sandbox as sandbox_env
 from inspect_ai.util._sandbox.events import without_sandbox_events
 from inspect_ai.util._sandbox.identity import (
@@ -72,7 +76,7 @@ def view_image(
             except OutputLimitExceededError as ex:
                 raise _too_large_error(file_path) from ex
             except TimeoutError as ex:
-                raise TimeoutError(f"Timed out reading {file_path}") from ex
+                raise SandboxTimeoutError(str(ex)) from ex
         if not result.success:
             raise ToolError(
                 result.stderr.strip()
