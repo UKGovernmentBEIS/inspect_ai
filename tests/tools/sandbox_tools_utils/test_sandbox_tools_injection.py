@@ -1453,6 +1453,8 @@ async def test_probe_exception(error: Exception, state: str) -> None:
     assert access.state == state
     assert access.error is error
     assert str(error) in access.reason
+    # only a failed probe's error is raised again, as the tools' cause
+    assert (error.__traceback__ is not None) == (state == "failed")
 
 
 async def test_probe_cancellation_propagates_and_records_nothing() -> None:

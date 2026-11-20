@@ -477,7 +477,7 @@ async def eval_run(
         # task's controller is created on its model's first generate
         if run_samples:
             await ensure_controllers(tasks, kwargs)
-        seed = queue.add(tasks, seed=True)
+        seed = queue.add(tasks, seed=True) + queue.add_held()
 
         # `parallel` is the max concurrent (task × model) units; the
         # dispatcher spreads work across models and caps concurrency there,

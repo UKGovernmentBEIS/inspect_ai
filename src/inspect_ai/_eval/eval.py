@@ -1035,7 +1035,7 @@ async def _eval_async_inner(
         # models / config, and eval_run's dispatcher starts them under this
         # run_id as soon as a slot is free. Bound before the run-start hooks so
         # they see the run as in progress (eval_set_pruning.prune_task_call);
-        # the queue accepts tasks once eval_run has opened it.
+        # tasks they add are held and start after the seed tasks.
         resolve_added_tasks = functools.partial(
             _resolve_enqueued_tasks,
             models=model,

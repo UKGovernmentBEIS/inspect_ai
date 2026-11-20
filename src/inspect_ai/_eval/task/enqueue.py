@@ -125,6 +125,7 @@ class RunQueue:
         self.task_retry_attempts = 0
         """The run's retry budget for each task."""
         self._ids: set[str] = set()
+        self._held: list[list[ResolvedTask]] = []
         self._token = anyio.lowlevel.current_token()
 
     def open(self, configure: ConfigureTasksFn, *, task_retry_attempts: int) -> None:
@@ -132,10 +133,28 @@ class RunQueue:
         self._configure = configure
         self.task_retry_attempts = task_retry_attempts
 
-    def enqueue(self, tasks: "Tasks") -> list[TaskRecord]:
-        """Resolve ``tasks`` against the run and add them."""
-        self._check_open()
-        return self.add(self._resolve(tasks))
+    def enqueue(self, tasks: "Tasks") -> None:
+        """Resolve ``tasks`` against the run and add them.
+
+        Tasks enqueued before the queue opens (from a run-start hook) are
+        resolved now and held until :meth:`add_held`.
+        """
+        self._check_not_closed()
+        resolved = self._resolve(tasks)
+        if self._configure is None:
+            self._held.append(resolved)
+        else:
+            self.add(resolved)
+
+    def add_held(self) -> list[TaskRecord]:
+        """Add the tasks enqueued before the queue opened, after the seed.
+
+        They are counted with the seed when the task screen opens. A
+        configuration error raises from the run, since the call that enqueued
+        them has returned.
+        """
+        held, self._held = self._held, []
+        return [record for batch in held for record in self.add(batch, seed=True)]
 
     def resolve(self, tasks: "Tasks") -> "list[ResolvedTask]":
         """Resolve ``tasks`` against the run's models and config."""
@@ -153,8 +172,8 @@ class RunQueue:
 
         Args:
             resolved: The tasks to add.
-            seed: The run's seed tasks, which the task screen counts when it
-                opens.
+            seed: The run's seed tasks (and those held from before it
+                opened), which the task screen counts when it opens.
         """
         self._check_open()
         assert self._configure is not None
@@ -277,12 +296,15 @@ class RunQueue:
         """The log of each record that has one, in result order."""
         return [record.log for record in self.records if record.log is not None]
 
-    def _check_open(self) -> None:
+    def _check_not_closed(self) -> None:
         _require_run_loop(self)
         if self.closed:
             raise RuntimeError(
                 "enqueue_task() was called after the run stopped starting tasks."
             )
+
+    def _check_open(self) -> None:
+        self._check_not_closed()
         if self._configure is None:
             raise RuntimeError(
                 "enqueue_task() was called before the run started its tasks."

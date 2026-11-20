@@ -221,7 +221,10 @@ class RootAccess:
     reason: str
     """Why the probe reached ``state``, for traces and error messages."""
     error: Exception | None = None
-    """The probe's exception when it raised (always set for ``failed``)."""
+    """The probe's exception when it raised (always set for ``failed``).
+
+    Only a ``failed`` probe's exception keeps its traceback: the tools raise it
+    as the cause of their error."""
 
 
 class SandboxEnvironment(abc.ABC):

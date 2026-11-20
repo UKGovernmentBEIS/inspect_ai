@@ -46,7 +46,9 @@ from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.background import run_in_background
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.registry import _registry
 from inspect_ai.dataset import Sample
+from inspect_ai.hooks import Hooks, RunStart, hooks
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log
 from inspect_ai.model import ChatMessageUser, GenerateConfig, get_model
 from inspect_ai.model._generate_config import active_generate_config
@@ -283,6 +285,30 @@ def test_enqueue_task_does_not_leak_active_model() -> None:
 def test_enqueue_task_outside_run_raises() -> None:
     with pytest.raises(RuntimeError, match="while an eval is running"):
         enqueue_task(child())
+
+
+class _EnqueueOnRunStart(Hooks):
+    async def on_run_start(self, data: RunStart) -> None:
+        enqueue_task(child())
+
+
+def test_enqueue_task_from_run_start_hook_starts_after_the_seed() -> None:
+    @hooks("enqueue_on_run_start", description="adds a task at run start")
+    def enqueue_on_run_start() -> type[Hooks]:
+        return _EnqueueOnRunStart
+
+    try:
+        logs = eval(
+            Task(dataset=[Sample(input="hi")], solver=[generate()], name="parent"),
+            model="mockllm/model",
+            display="none",
+        )
+    finally:
+        del _registry["hooks:enqueue_on_run_start"]
+
+    assert [log.eval.task for log in logs] == ["parent", "child"]
+    assert all(log.status == "success" for log in logs)
+    assert len({log.eval.run_id for log in logs}) == 1
 
 
 # -- one queue, one dispatcher (design/task-dispatch.md) -----------------------
