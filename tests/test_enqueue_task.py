@@ -288,27 +288,67 @@ def test_enqueue_task_outside_run_raises() -> None:
 
 
 class _EnqueueOnRunStart(Hooks):
+    add: ClassVar[list[Callable[[], Task]]] = []
+    returned: ClassVar[list[bool]] = []
+
     async def on_run_start(self, data: RunStart) -> None:
-        enqueue_task(child())
+        enqueue_task(self.add[0]())
+        self.returned.append(True)
 
 
-def test_enqueue_task_from_run_start_hook_starts_after_the_seed() -> None:
+@contextlib.contextmanager
+def _enqueue_on_run_start(add: Callable[[], Task]) -> Iterator[list[bool]]:
+    """Register a hook that adds ``add()`` at run start; yields its returns."""
+
     @hooks("enqueue_on_run_start", description="adds a task at run start")
     def enqueue_on_run_start() -> type[Hooks]:
         return _EnqueueOnRunStart
 
+    _EnqueueOnRunStart.add = [add]
+    _EnqueueOnRunStart.returned = []
     try:
+        yield _EnqueueOnRunStart.returned
+    finally:
+        del _registry["hooks:enqueue_on_run_start"]
+
+
+def test_enqueue_task_from_run_start_hook_starts_after_the_seed() -> None:
+    with _enqueue_on_run_start(child):
         logs = eval(
             Task(dataset=[Sample(input="hi")], solver=[generate()], name="parent"),
             model="mockllm/model",
             display="none",
         )
-    finally:
-        del _registry["hooks:enqueue_on_run_start"]
 
     assert [log.eval.task for log in logs] == ["parent", "child"]
     assert all(log.status == "success" for log in logs)
     assert len({log.eval.run_id for log in logs}) == 1
+
+
+async def test_enqueue_task_from_run_start_hook_config_error_fails_the_run(
+    tmp_path: Path,
+) -> None:
+    # the hook's call returns; the configuration check runs when dispatch
+    # opens, and its error ends the run before any seed task starts
+    started: list[str] = []
+
+    async def seed_started() -> None:
+        started.append("parent")
+
+    init_display_type("none")
+    with _enqueue_on_run_start(
+        lambda: _hook_task("child", _noop, epochs=Epochs(1, "at_least_2"))
+    ) as returned:
+        with pytest.raises(PrerequisiteError):
+            await eval_async(
+                _hook_task("parent", seed_started),
+                model="mockllm/model",
+                log_dir=str(tmp_path),
+            )
+
+    assert returned == [True]
+    assert started == []
+    assert list(tmp_path.glob("*.eval")) == []
 
 
 # -- one queue, one dispatcher (design/task-dispatch.md) -----------------------

@@ -412,6 +412,11 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
     added, against the tasks added so far, so tasks whose selectors name each
     other must be added in one call.
 
+    Called from an ``on_run_start`` hook, the tasks are resolved at the call
+    and start after the run's own tasks. Their configuration, sample
+    selection and task id checks run after the hooks return; a failing check
+    ends the run before any task starts.
+
     Call it on the running eval's event loop. From a thread started with
     ``anyio.to_thread.run_sync()``, use
     ``anyio.from_thread.run_sync(lambda: enqueue_task(...))``. From any other
@@ -432,9 +437,10 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
             task is a placeholder that eval-set selection pruning left in
             place of a task it did not build.
         ValueError: If the tasks can't be resolved, or a task id is already
-            in the run.
+            in the run (from the run for a call from an ``on_run_start``
+            hook).
         PrerequisiteError: If a task's configuration or sample selection is
-            invalid.
+            invalid (from the run for a call from an ``on_run_start`` hook).
     """
     queue = get_run_queue()
     if queue is None:
