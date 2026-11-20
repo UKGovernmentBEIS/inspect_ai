@@ -1,7 +1,9 @@
 import atexit
+import contextlib
 import json
 import os
 import sys
+import threading
 from datetime import datetime, timezone
 from logging import (
     INFO,
@@ -268,10 +270,28 @@ def json_log_record(record: LogRecord) -> dict[str, object]:
 
 
 def log_to_transcript(record: LogRecord) -> None:
+    """Record a log record in the current transcript as a `LoggerEvent`.
+
+    A record logged on a thread other than the transcript's event loop thread
+    (e.g. in `to_thread`, which copies the context and so the transcript) is
+    recorded on the loop thread, so that the transcript and its subscribers
+    (the sample buffer) run on one thread only. The event is created here, so
+    it keeps the time of the record, and it is appended when the loop runs the
+    callback. If the loop has finished, the record is not recorded: nothing
+    reads the transcript after that. A transcript created where no loop runs
+    records on the calling thread.
+    """
     from inspect_ai.event._logger import LoggerEvent, LoggingMessage
     from inspect_ai.log._transcript import transcript
 
-    transcript()._event(LoggerEvent(message=LoggingMessage._from_log_record(record)))
+    active = transcript()
+    event = LoggerEvent(message=LoggingMessage._from_log_record(record))
+    loop_thread = active._loop_thread
+    if loop_thread is None or loop_thread.ident == threading.get_ident():
+        active._event(event)
+    else:
+        with contextlib.suppress(RuntimeError):
+            loop_thread.call_soon(lambda: active._event(event))
 
 
 def warn_once(logger: Logger, message: str) -> None:

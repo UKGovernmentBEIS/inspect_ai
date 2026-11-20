@@ -22,6 +22,7 @@ from pydantic import (
 )
 from shortuuid import uuid
 
+from inspect_ai._util._async import LoopThread, current_loop_thread
 from inspect_ai._util.constants import SKIP_TRANSCRIPT_DISPATCH
 from inspect_ai._util.list import find_last_match
 from inspect_ai._util.logger import warn_once
@@ -571,6 +572,7 @@ class Transcript:
     _event_loggers: list[_TranscriptSubscription]
     _notifying_subscribers: set[int]
     _context: WalkContext
+    _loop_thread: LoopThread | None
 
     @overload
     def __init__(
@@ -600,6 +602,9 @@ class Transcript:
         resident_tail: int = 100,
         history_provider: TranscriptHistoryProvider | None = None,
     ) -> None:
+        # The transcript and its subscribers are not thread-safe: events from
+        # another thread are passed to this loop (see `log_to_transcript`).
+        self._loop_thread = current_loop_thread()
         self._event_logger = None
         self._event_loggers = []
         self._next_event_logger_id = 0

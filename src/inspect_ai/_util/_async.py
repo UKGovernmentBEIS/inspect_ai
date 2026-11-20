@@ -3,6 +3,7 @@ import contextlib
 import inspect
 import os
 import signal
+import sys
 import threading
 from types import FrameType, TracebackType
 from typing import (
@@ -12,6 +13,7 @@ from typing import (
     Coroutine,
     Iterable,
     Literal,
+    NamedTuple,
     NoReturn,
     TypeVar,
     TypeVarTuple,
@@ -429,6 +431,34 @@ async def _trio_cancel_on_sigint(main: Callable[[], Coroutine[None, None, T]]) -
     if interrupted:
         raise KeyboardInterrupt
     return result
+
+
+class LoopThread(NamedTuple):
+    """The thread an event loop runs on, and how to run a callback there from another thread."""
+
+    ident: int
+    """`threading.get_ident()` of the loop's thread."""
+
+    call_soon: Callable[[Callable[[], None]], object]
+    """Schedule a callback on the loop without waiting for it. Safe to call from any thread. Raises `RuntimeError` when the loop has finished."""
+
+
+def current_loop_thread() -> LoopThread | None:
+    """The event loop running on this thread, or None when no loop runs here."""
+    try:
+        call_soon: Callable[[Callable[[], None]], object] = (
+            asyncio.get_running_loop().call_soon_threadsafe
+        )
+    except RuntimeError:
+        if "trio" not in sys.modules:
+            return None
+        import trio
+
+        try:
+            call_soon = trio.lowlevel.current_trio_token().run_sync_soon
+        except RuntimeError:
+            return None
+    return LoopThread(ident=threading.get_ident(), call_soon=call_soon)
 
 
 def current_async_backend() -> Literal["asyncio", "trio"] | None:
