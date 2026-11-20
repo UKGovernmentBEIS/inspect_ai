@@ -602,8 +602,9 @@ class Transcript:
         resident_tail: int = 100,
         history_provider: TranscriptHistoryProvider | None = None,
     ) -> None:
-        # The transcript and its subscribers are not thread-safe: events from
-        # another thread are passed to this loop (see `log_to_transcript`).
+        # The transcript and its subscribers are not thread-safe. Log records
+        # from another thread are recorded on this loop (see
+        # `log_to_transcript`); other events from another thread are not.
         self._loop_thread = current_loop_thread()
         self._event_logger = None
         self._event_loggers = []

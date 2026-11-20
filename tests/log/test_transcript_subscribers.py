@@ -1,5 +1,6 @@
 """Tests for the private `Transcript._subscribe` multi-cast API."""
 
+import contextvars
 import logging
 import threading
 from collections.abc import Iterator, Mapping
@@ -9,6 +10,7 @@ from unittest.mock import patch
 
 import anyio
 import anyio.from_thread
+import pytest
 
 from inspect_ai._util.constants import SKIP_TRANSCRIPT_DISPATCH
 from inspect_ai._util.logger import log_to_transcript
@@ -258,10 +260,10 @@ async def test_worker_thread_log_reaches_subscribers_on_loop_thread() -> None:
     assert {thread for thread, _ in seen} == {loop_thread}
 
 
-async def test_sample_buffer_rows_follow_transcript_order_with_worker_thread_logs(
+async def test_worker_thread_logs_have_one_buffer_writer_thread_and_transcript_order(
     tmp_path: Path,
 ) -> None:
-    """Sample buffer rows have the transcript's order, written by the loop thread only."""
+    """With worker thread logs, one thread (the loop) writes the sample buffer, and its rows have the transcript order."""
     db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
     tr = Transcript()
     loop_thread = threading.get_ident()
@@ -294,3 +296,68 @@ async def test_sample_buffer_rows_follow_transcript_order_with_worker_thread_log
     ]
     assert row_ids == [event.uuid for event in tr.events]
     assert writer_threads == {loop_thread}
+
+
+_caller: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "_caller", default=None
+)
+
+
+async def test_worker_thread_log_subscriber_runs_in_caller_context() -> None:
+    """Subscribers see the logging caller's context vars (e.g. the active sample for hooks)."""
+    tr = Transcript()
+    seen: list[str | None] = []
+    tr._subscribe(lambda _event: seen.append(_caller.get()))
+
+    token = _caller.set("sample")
+    try:
+        with _current_transcript(tr):
+            await anyio.to_thread.run_sync(_log_warning, "worker")
+    finally:
+        _caller.reset(token)
+
+    assert seen == ["sample"]
+
+
+def _log_warning_in_thread(message: str) -> int:
+    """Log from a new thread with a copy of this context; return the thread's ident."""
+    errors: list[BaseException] = []
+    context = contextvars.copy_context()
+
+    def run() -> None:
+        try:
+            context.run(_log_warning, message)
+        except BaseException as ex:
+            errors.append(ex)
+
+    thread = threading.Thread(target=run)
+    thread.start()
+    thread.join(timeout=10)
+    assert not thread.is_alive()
+    assert errors == []
+    assert thread.ident is not None
+    return thread.ident
+
+
+def test_log_with_no_loop_records_on_calling_thread() -> None:
+    tr = Transcript()
+    threads: list[int] = []
+    tr._subscribe(lambda _event: threads.append(threading.get_ident()))
+
+    with _current_transcript(tr):
+        worker = _log_warning_in_thread("worker")
+
+    assert [_label(event) for event in tr.events] == ["worker"]
+    assert threads == [worker]
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_log_after_loop_closed_is_not_recorded(backend: str) -> None:
+    async def create() -> Transcript:
+        return Transcript()
+
+    tr = anyio.run(create, backend=backend)
+    with _current_transcript(tr):
+        _log_warning_in_thread("worker")
+
+    assert list(tr.events) == []

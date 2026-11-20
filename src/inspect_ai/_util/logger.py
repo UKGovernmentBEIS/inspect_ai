@@ -1,5 +1,7 @@
 import atexit
 import contextlib
+import contextvars
+import functools
 import json
 import os
 import sys
@@ -272,13 +274,20 @@ def json_log_record(record: LogRecord) -> dict[str, object]:
 def log_to_transcript(record: LogRecord) -> None:
     """Record a log record in the current transcript as a `LoggerEvent`.
 
-    A record logged on a thread other than the transcript's event loop thread
+    A log record from a thread other than the transcript's event loop thread
     (e.g. in `to_thread`, which copies the context and so the transcript) is
-    recorded on the loop thread, so that the transcript and its subscribers
-    (the sample buffer) run on one thread only. The event is created here, so
-    it keeps the time of the record, and it is appended when the loop runs the
-    callback. If the loop has finished, the record is not recorded: nothing
-    reads the transcript after that. A transcript created where no loop runs
+    recorded on the loop thread, so that the sample buffer and the other
+    subscribers do not run on two threads at once. This applies to log
+    records only: other events that a worker thread records (e.g.
+    `transcript().info()` in `to_thread`) still run on that thread.
+
+    The event is created here, so it keeps the time and span of the record.
+    It is appended when the loop runs the callback, in a copy of the caller's
+    context (trio does not copy it). If the loop is closed, the record is not
+    added to the transcript and no error goes to the caller; it still goes to
+    the console, log file and trace. With `asyncio.run` or `anyio.run`, the
+    eval log is written before the loop closes. If the loop is stopped but not
+    closed, the callback stays queued. A transcript created where no loop runs
     records on the calling thread.
     """
     from inspect_ai.event._logger import LoggerEvent, LoggingMessage
@@ -291,7 +300,9 @@ def log_to_transcript(record: LogRecord) -> None:
         active._event(event)
     else:
         with contextlib.suppress(RuntimeError):
-            loop_thread.call_soon(lambda: active._event(event))
+            loop_thread.call_soon(
+                functools.partial(contextvars.copy_context().run, active._event, event)
+            )
 
 
 def warn_once(logger: Logger, message: str) -> None:
