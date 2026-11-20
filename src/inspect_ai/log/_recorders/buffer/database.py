@@ -18,6 +18,7 @@ from typing import (
     Iterable,
     Iterator,
     Literal,
+    Mapping,
     TypeAlias,
     TypeVar,
 )
@@ -60,7 +61,8 @@ from ..._condense import (
     ATTACHMENT_PROTOCOL,
     WalkContext,
     attachment_refs_from_value,
-    attachments_content_fn,
+    events_attachment_fn,
+    existing_attachments_content_fn,
     walk_chat_message,
     walk_events,
     walk_input,
@@ -375,7 +377,25 @@ class SampleBufferDatabase(SampleBuffer):
                 (str(sample.id), sample.epoch, to_json_str_safe(sample)),
             )
 
-    def log_events(self, events: list[SampleEvent]) -> None:
+    def log_events(
+        self,
+        events: list[SampleEvent],
+        call_attachments: Mapping[str, str] | None = None,
+    ) -> None:
+        """Buffer sample events.
+
+        The events hold raw values, except `ModelEvent.call`, which is
+        condensed as a transcript gives it to subscribers that keep their
+        own attachment store (see `Transcript._subscribe_store`). Literal
+        text that begins with `attachment://` or `tc://` in the raw values is
+        stored as an attachment of its own, so it reads back as written.
+
+        Args:
+            events: Events to buffer.
+            call_attachments: The attachments the events' model calls
+                reference. A reference missing from it is kept as it is: it
+                names an attachment an earlier notification gave.
+        """
         # `None` mark = the index didn't exist before this batch (pop on restore)
         index_snapshots: dict[tuple[str, int], tuple[int | None, int | None]] = {}
 
@@ -412,7 +432,7 @@ class SampleBufferDatabase(SampleBuffer):
                                 None if call_index is None else call_index.mark(),
                             )
 
-                    event = self._condense_event(conn, event)
+                    event = self._condense_event(conn, event, call_attachments or {})
                     values.extend(
                         (
                             event.event.uuid or uuid(),
@@ -1852,9 +1872,16 @@ class SampleBufferDatabase(SampleBuffer):
             }
         )
 
-    def _condense_event(self, conn: Connection, event: SampleEvent) -> SampleEvent:
+    def _condense_event(
+        self,
+        conn: Connection,
+        event: SampleEvent,
+        call_attachments: Mapping[str, str],
+    ) -> SampleEvent:
         if isinstance(event.event, ModelEvent):
-            return self._condense_model_event(conn, event, event.event)
+            return self._condense_model_event(
+                conn, event, event.event, call_attachments
+            )
 
         # alias attachments
         attachments: dict[str, str] = {}
@@ -1869,7 +1896,11 @@ class SampleBufferDatabase(SampleBuffer):
         return event
 
     def _condense_model_event(
-        self, conn: Connection, event: SampleEvent, model_event: ModelEvent
+        self,
+        conn: Connection,
+        event: SampleEvent,
+        model_event: ModelEvent,
+        call_attachments: Mapping[str, str],
     ) -> SampleEvent:
         key = (str(event.id), event.epoch)
         if key in self._completed_samples:
@@ -1888,7 +1919,13 @@ class SampleBufferDatabase(SampleBuffer):
 
         attachments: dict[str, str] = {}
         content_fn = self._create_attachments_content_fn(attachments)
-        context = WalkContext(message_cache={}, only_core=False)
+        # the call holds references, which take the buffer's policy as the
+        # attachments they name (one missing from `call_attachments` is held
+        # already)
+        call_fn = existing_attachments_content_fn(
+            call_attachments.get, set(), content_fn, keep_missing=True
+        )
+        context = WalkContext(message_cache={}, only_core=False, call_fn=call_fn)
 
         # positions derive from index size: valid only because the condense
         # helper registers each add_message/add_call result in the index
@@ -1913,7 +1950,7 @@ class SampleBufferDatabase(SampleBuffer):
             messages=msg_index,
             calls=call_index,
             walk_message=lambda m: walk_chat_message(m, content_fn, context),
-            walk_call_message=lambda v: walk_json_value(v, content_fn, context),
+            walk_call_message=lambda v: walk_json_value(v, call_fn, context),
             add_message=add_message,
             add_call=add_call,
         )
@@ -1938,7 +1975,8 @@ class SampleBufferDatabase(SampleBuffer):
     def _create_attachments_content_fn(
         self, attachments: dict[str, str]
     ) -> Callable[[str], str]:
-        return attachments_content_fn(self.log_images, 100, attachments)
+        """Content function for raw values: pools long text and stores literal reference text as attachments."""
+        return events_attachment_fn(attachments, self.log_images, escape_refs=True)
 
     def _resolve_attachments_content_fn(self, conn: Connection) -> Callable[[str], str]:
         def content_fn(text: str) -> str:

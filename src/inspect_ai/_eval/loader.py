@@ -48,6 +48,7 @@ from inspect_ai.util._sandbox.compose import (
 from inspect_ai.util._sandbox.environment import (
     resolve_sandbox_environment,
 )
+from inspect_ai.util._sandbox.paths import resolve_config_paths
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 from inspect_ai.viewer import ViewerConfig
 
@@ -520,14 +521,10 @@ def resolve_task_sandbox(
                             "eval does not support, so it will not be used.",
                         )
 
-        # resolve relative paths
-        if isinstance(resolved_sandbox.config, str):
-            file_path = Path(resolved_sandbox.config)
-            if not file_path.is_absolute():
-                file_path = Path(task_run_dir(task)) / file_path
-                resolved_sandbox = SandboxEnvironmentSpec(
-                    resolved_sandbox.type, file_path.as_posix()
-                )
+        resolved_sandbox = SandboxEnvironmentSpec(
+            resolved_sandbox.type,
+            resolve_config_paths(resolved_sandbox.config, task_run_dir(task)),
+        )
 
     # return resolved sandbox
     return resolved_sandbox
@@ -542,14 +539,11 @@ def resolve_task_file_sandbox(
     if task_file is None:
         return sandbox
 
-    file_path = Path(sandbox.config)
-    if file_path.is_absolute():
-        return sandbox
-
     # resolve relative sandbox config paths from logged task file location
-    src_dir = Path(task_file).parent
-    file_path = (src_dir / file_path).resolve()
-    return SandboxEnvironmentSpec(sandbox.type, file_path.as_posix())
+    return SandboxEnvironmentSpec(
+        sandbox.type,
+        resolve_config_paths(sandbox.config, Path(task_file).parent.as_posix()),
+    )
 
 
 def load_tasks(

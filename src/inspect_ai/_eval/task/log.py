@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from importlib import metadata as importlib_metadata
 from importlib.metadata import Distribution
@@ -44,7 +45,7 @@ from inspect_ai.log import (
     EvalStatus,
     HeadlineMetric,
 )
-from inspect_ai.log._condense import condensed_sample_summary
+from inspect_ai.log._condense import resolved_sample_summary
 from inspect_ai.log._log import (
     EvalLog,
     EvalMetricDefinition,
@@ -713,10 +714,25 @@ class TaskLogger:
         if self._buffer_db is not None:
             self._buffer_db.start_sample(sample)
 
-    def log_sample_event(self, id: str | int, epoch: int, event: Event) -> None:
-        # log the sample event
+    def log_sample_event(
+        self,
+        id: str | int,
+        epoch: int,
+        event: Event,
+        call_attachments: Mapping[str, str],
+    ) -> None:
+        """Buffer a sample event, as a transcript gives it to subscribers that keep their own attachment store.
+
+        Args:
+            id: Sample id.
+            epoch: Sample epoch.
+            event: The event, with its model call condensed.
+            call_attachments: The attachments the call references.
+        """
         if self._buffer_db is not None:
-            self._buffer_db.log_events([SampleEvent(id=id, epoch=epoch, event=event)])
+            self._buffer_db.log_events(
+                [SampleEvent(id=id, epoch=epoch, event=event)], call_attachments
+            )
 
     def remove_sample(self, id: str | int, epoch: int) -> None:
         if self._buffer_db is not None:
@@ -824,7 +840,7 @@ class TaskLogger:
         self._seeded_pending.discard(_seeded_key(sample.id, sample.epoch))
         if self._buffer_db is not None:
             self._buffer_db.complete_sample(
-                condensed_sample_summary(sample),
+                resolved_sample_summary(sample),
                 sample_metadata=sample.metadata,
                 sample_store=sample.store,
             )

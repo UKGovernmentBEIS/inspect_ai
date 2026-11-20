@@ -139,7 +139,9 @@ class TaskInitStubs:
         self.calls: list[str] = []
         project = compose_project()
 
-        async def fake_create(cls: Any, name: str, config: Any) -> ComposeProject:
+        async def fake_create(
+            cls: Any, name: str, config: Any, env: dict[str, str] | None = None
+        ) -> ComposeProject:
             return project
 
         async def fake_validate_prereqs() -> None:

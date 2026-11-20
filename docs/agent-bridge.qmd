@@ -327,7 +327,7 @@ HTTP headers an agent sends to the sandbox bridge's proxy are forwarded only as 
 
 ## Tool Approval
 
-Tool calls made by a bridged agent can be governed by [approval policies](approval.qmd), even though the agent executes its own tools. Approval is applied to the tool calls in each model response before that response reaches the agent, so a rejected call is never run.
+Tool calls made by a bridged agent can be governed by [approval policies](approval.qmd), even though the agent executes its own tools. Approval is applied to the tool calls in each model response before that response reaches the agent, so a rejected call is never run. Web search and code execution that the model provider runs for the agent ([granted](#granted-capabilities) with `web_search` or `code_execution`) are not reviewed by approval (see [Provider-Run Tools](approval.qmd#provider-run-tools)), and remote MCP servers are refused while a policy is active (see [Remote MCP Servers](approval.qmd#remote-mcp)).
 
 Eval-level and task-level policies apply automatically; both `agent_bridge()` and `sandbox_agent_bridge()` also accept an `approval` parameter:
 

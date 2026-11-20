@@ -139,7 +139,10 @@ class ApprovalRequestContent(ScrollableContainer):
             self.mount_all(
                 Static(r)
                 for r in render_tool_approval(
-                    approval.message, approval.view, approval.call.arguments
+                    approval.message,
+                    approval.view,
+                    approval.call.arguments,
+                    approval.call,
                 )
             )
             self.scroll_end(animate=False)

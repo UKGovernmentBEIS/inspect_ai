@@ -12,9 +12,10 @@ The Docker daemon is stubbed at the compose-command layer; compose files are
 generated and removed for real (in an isolated auto-compose directory).
 """
 
+import functools
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import anyio
 import pytest
@@ -30,22 +31,26 @@ from inspect_ai import (
     eval,
     eval_async,
 )
+from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
+from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util import (
+    ComposeBuild,
     ComposeConfig,
     ComposeService,
     ExecResult,
     SandboxEnvironmentSpec,
+    sandboxenv,
 )
 from inspect_ai.util._display import init_display_type
 from inspect_ai.util._sandbox.docker import cleanup as cleanup_module
 from inspect_ai.util._sandbox.docker import config as config_module
 from inspect_ai.util._sandbox.docker import docker as docker_module
 from inspect_ai.util._sandbox.docker.cleanup import cleanup_state
-from inspect_ai.util._sandbox.docker.compose import Project
+from inspect_ai.util._sandbox.docker.compose import Project, compose_services
 from inspect_ai.util._sandbox.docker.config import auto_compose_dir
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.docker.util import ComposeProject
@@ -74,6 +79,7 @@ class FakeDocker:
         self.fail_build_contexts: set[str] = set()
         self.on_build_failure: list[Any] = []
         self.on_build: list[Any] = []
+        self.on_up: list[Any] = []
         data_dir = tmp_path.resolve() / "inspect-data"
 
         def fake_data_dir(subdir: str | None) -> Path:
@@ -116,6 +122,8 @@ class FakeDocker:
         async def compose_up(
             project: ComposeProject, services: dict[str, Any]
         ) -> ExecResult[str]:
+            for hook in self.on_up:
+                hook(project)
             self.running.add(project.name)
             self.events.append(f"up:{project.sample_id}")
             return ExecResult(success=True, returncode=0, stdout="", stderr="")
@@ -1088,6 +1096,213 @@ async def test_independent_evaluations_do_not_share_cleanup_state(
     assert fake_docker.generated_files() == []
 
 
+# -- config paths and setup environment ------------------------------------------
+
+
+class SetupRecord(NamedTuple):
+    op: str
+    config: str | None
+    compose: dict[str, Any]
+    env: dict[str, str] | None
+    environ_value: str | None
+
+
+def record_projects(fake: FakeDocker, environ_name: str = "") -> list[SetupRecord]:
+    """Record each project `task_init` builds and `sample_init` brings up.
+
+    The compose file is read when the command runs, since a generated file is
+    removed at cleanup.
+    """
+    records: list[SetupRecord] = []
+
+    def record(op: str, project: ComposeProject) -> None:
+        compose: dict[str, Any] = {}
+        if project.config is not None:
+            with open(project.config) as f:
+                compose = yaml.safe_load(f)
+        records.append(
+            SetupRecord(
+                op=op,
+                config=project.config,
+                compose=compose,
+                env=project.env,
+                environ_value=os.environ.get(environ_name) if environ_name else None,
+            )
+        )
+
+    async def on_build(project: ComposeProject) -> None:
+        record("build", project)
+
+    fake.on_build.append(on_build)
+    fake.on_up.append(functools.partial(record, "up"))
+    return records
+
+
+def build_contexts(record: SetupRecord) -> list[Any]:
+    contexts: list[Any] = []
+    for service in record.compose["services"].values():
+        build = service.get("build")
+        contexts.append(build.get("context") if isinstance(build, dict) else build)
+    return contexts
+
+
+@pytest.mark.parametrize("route", ["seed", "added"])
+@pytest.mark.parametrize(
+    "kind",
+    ["compose_file", "dockerfile", "build_dot", "build_omitted", "dockerfile_only"],
+)
+async def test_relative_configs_select_the_task_directory(
+    fake_docker: FakeDocker,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+    route: str,
+) -> None:
+    """Setup and samples use the task directory's file when the launch directory has one too.
+
+    The launch directory (the working directory) and the task directory each
+    hold a `compose.yaml` and a `Dockerfile`. `task_init_environment`,
+    `task_init` and `sample_init` all select the task directory's, for a seed
+    sample and for a sample a `SampleSource` adds.
+    """
+    launch = Path.cwd().resolve()
+    task_dir = (tmp_path / "task").resolve()
+    for directory in [launch, task_dir]:
+        write_dockerfile(directory)
+        write_compose_file(directory / "compose.yaml")
+    task_dir_posix = task_dir.as_posix()
+
+    configs: dict[str, SandboxEnvironmentConfigType] = {
+        "compose_file": "compose.yaml",
+        "dockerfile": "Dockerfile",
+        "build_dot": ComposeConfig(services={"default": ComposeService(build=".")}),
+        "build_omitted": ComposeConfig(
+            services={"default": ComposeService(build=ComposeBuild())}
+        ),
+        "dockerfile_only": ComposeConfig(
+            services={
+                "default": ComposeService(build=ComposeBuild(dockerfile="Dockerfile"))
+            }
+        ),
+    }
+    config = configs[kind]
+
+    seen_by_environment: list[SandboxEnvironmentConfigType | None] = []
+    original = DockerSandboxEnvironment.task_init_environment
+
+    async def task_init_environment(
+        cls: Any, config: SandboxEnvironmentConfigType | None, metadata: dict[str, str]
+    ) -> dict[str, str]:
+        seen_by_environment.append(config)
+        return await original(config, metadata)
+
+    monkeypatch.setattr(
+        DockerSandboxEnvironment,
+        "task_init_environment",
+        classmethod(task_init_environment),
+    )
+    records = record_projects(fake_docker)
+
+    sample = Sample(id="s", input="x", sandbox=SandboxEnvironmentSpec("docker", config))
+    dataset: Any = [sample]
+    if route == "added":
+        dataset = _AddOne("next_samples", sample)
+    task = Task(dataset=dataset, solver=[generate()], name="t")
+    setattr(task, TASK_RUN_DIR_ATTR, task_dir_posix)
+
+    logs = await eval_async(task, model="mockllm/model")
+
+    assert logs[0].status == "success", logs[0].error
+    assert _sample_errors(logs[0]) == []
+    assert [r.op for r in records] == ["build", "up"]
+    for record in records:
+        if kind == "compose_file":
+            assert record.config == f"{task_dir_posix}/compose.yaml"
+        else:
+            assert build_contexts(record) == [task_dir_posix]
+    for seen in seen_by_environment:
+        if isinstance(seen, str):
+            assert seen == f"{task_dir_posix}/{config}"
+        else:
+            assert isinstance(seen, ComposeConfig)
+            build = seen.services["default"].build
+            context = build if isinstance(build, str) else build and build.context
+            assert context == task_dir_posix
+    assert seen_by_environment
+
+
+async def test_sample_metadata_reaches_compose_build_through_the_project(
+    fake_docker: FakeDocker, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`SAMPLE_METADATA_*` values reach `compose build` without touching os.environ."""
+    compose_file = tmp_path / "meta" / "compose.yaml"
+    compose_file.parent.mkdir()
+    compose_file.write_text(
+        yaml.safe_dump(
+            {"services": {"default": {"image": "img-${SAMPLE_METADATA_TAG}"}}}
+        )
+    )
+
+    async def fake_subprocess(args: list[str], **kwargs: Any) -> ExecResult[str]:
+        # `docker compose config --images`, as interpolated with the env
+        assert kwargs["env"] == {"SAMPLE_METADATA_TAG": "v1"}
+        return ExecResult(success=True, returncode=0, stdout="img-v1\n", stderr="")
+
+    monkeypatch.setattr(docker_module, "subprocess", fake_subprocess)
+    monkeypatch.delenv("SAMPLE_METADATA_TAG", raising=False)
+    records = record_projects(fake_docker, "SAMPLE_METADATA_TAG")
+
+    logs = await eval_async(
+        Task(
+            dataset=[Sample(input="x", metadata={"tag": "v1"})],
+            solver=[generate()],
+            sandbox=SandboxEnvironmentSpec("docker", compose_file.as_posix()),
+            name="t",
+        ),
+        model="mockllm/model",
+    )
+
+    assert logs[0].status == "success", logs[0].error
+    [build] = [r for r in records if r.op == "build"]
+    assert build.env == {"SAMPLE_METADATA_TAG": "v1"}
+    assert build.environ_value is None
+    assert "SAMPLE_METADATA_TAG" not in os.environ
+
+
+@sandboxenv(name="docker_custom_init_env")
+class CustomInitEnvDocker(DockerSandboxEnvironment):
+    """A Docker subclass with its own task_init_environment."""
+
+    @classmethod
+    async def task_init_environment(
+        cls, config: SandboxEnvironmentConfigType | None, metadata: dict[str, str]
+    ) -> dict[str, str]:
+        return {"CUSTOM_INIT_VAR": "custom"}
+
+
+async def test_docker_subclass_task_init_environment_reaches_its_build(
+    fake_docker: FakeDocker, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("CUSTOM_INIT_VAR", raising=False)
+    records = record_projects(fake_docker, "CUSTOM_INIT_VAR")
+
+    logs = await eval_async(
+        Task(
+            dataset=[Sample(input="x")],
+            solver=[generate()],
+            sandbox="docker_custom_init_env",
+            name="t",
+        ),
+        model="mockllm/model",
+    )
+
+    assert logs[0].status == "success", logs[0].error
+    [build] = [r for r in records if r.op == "build"]
+    assert build.env == {"CUSTOM_INIT_VAR": "custom"}
+    assert build.environ_value is None
+    assert "CUSTOM_INIT_VAR" not in os.environ
+
+
 # -- real Docker ----------------------------------------------------------------
 
 
@@ -1104,3 +1319,182 @@ def test_docker_empty_seed_sample_source() -> None:
     assert logs[0].status == "success", logs[0].error
     assert _sample_errors(logs[0]) == []
     assert [str(s.input) for s in (logs[0].samples or [])] == ["added"]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_docker_builds_the_task_directorys_dockerfile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A task loaded from another directory builds and runs its own Dockerfile.
+
+    The sample names a relative `Dockerfile`, and the launch directory has a
+    different one; setup and the sample both use the task directory's.
+    """
+    task_dir = tmp_path / "task"
+    launch = tmp_path / "launch"
+    for directory in [task_dir, launch]:
+        directory.mkdir(exist_ok=True)
+        (directory / "Dockerfile").write_text(
+            f"FROM python:3.12-slim\nRUN echo {directory.name} > /marker\n"
+        )
+    task_file = task_dir / "marker_task.py"
+    task_file.write_text(
+        """from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.model import ModelOutput
+from inspect_ai.solver import solver
+from inspect_ai.util import sandbox
+
+
+@solver
+def read_marker():
+    async def solve(state, generate):
+        result = await sandbox().exec(["cat", "/marker"])
+        state.output = ModelOutput.from_content("mockllm/model", result.stdout.strip())
+        return state
+
+    return solve
+
+
+@task
+def marker_task():
+    return Task(
+        dataset=[Sample(input="x", sandbox=("docker", "Dockerfile"))],
+        solver=read_marker(),
+    )
+"""
+    )
+    monkeypatch.chdir(launch)
+
+    [log] = eval(
+        f"{task_file.as_posix()}@marker_task",
+        model="mockllm/model",
+        display="none",
+        log_dir=(tmp_path / "logs").as_posix(),
+    )
+
+    assert log.status == "success", log.error
+    assert _sample_errors(log) == []
+    assert log.samples is not None
+    assert log.samples[0].output.completion == "task"
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_docker_env_files_resolve_from_the_compose_file_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Compose's env_file and .env lookups are unchanged by setup running in the launch directory.
+
+    The task and launch directories each hold a `compose.yaml`, a `vars.env`
+    and a `.env`, with different values. The launch `.env` is loaded into the
+    process environment with `init_dotenv()`, as a run started there does.
+    In `task_init` and `sample_init` alike (resolved by real `docker compose
+    config`, and in the running container), the relative `env_file` comes
+    from the compose file's directory, a variable only the task `.env` sets
+    is interpolated from it, and a variable both set keeps the launch value.
+    """
+    task_dir = tmp_path / "task"
+    launch = tmp_path / "launch"
+    for directory in [task_dir, launch]:
+        directory.mkdir(exist_ok=True)
+        (directory / "compose.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "services": {
+                        "default": {
+                            "image": "python:3.12-slim",
+                            "command": "tail -f /dev/null",
+                            "init": True,
+                            "network_mode": "none",
+                            "env_file": "vars.env",
+                            "environment": {
+                                "TASK_ONLY_VALUE": "${INSPECT_TEST_TASK_ONLY:-unset}",
+                                "SHARED_VALUE": "${INSPECT_TEST_SHARED:-unset}",
+                                "COMPOSE_DIR": directory.name,
+                            },
+                        }
+                    }
+                }
+            )
+        )
+        (directory / "vars.env").write_text(f"ENV_FILE_VALUE={directory.name}\n")
+    (task_dir / ".env").write_text(
+        "INSPECT_TEST_TASK_ONLY=task\nINSPECT_TEST_SHARED=task\n"
+    )
+    (launch / ".env").write_text("INSPECT_TEST_SHARED=launch\n")
+    task_file = task_dir / "env_task.py"
+    task_file.write_text(
+        """from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.model import ModelOutput
+from inspect_ai.solver import solver
+from inspect_ai.util import sandbox
+
+
+@solver
+def read_env():
+    async def solve(state, generate):
+        names = ["ENV_FILE_VALUE", "TASK_ONLY_VALUE", "SHARED_VALUE", "COMPOSE_DIR"]
+        result = await sandbox().exec(["printenv", *names])
+        state.output = ModelOutput.from_content(
+            "mockllm/model", ",".join(result.stdout.split())
+        )
+        return state
+
+    return solve
+
+
+@task
+def env_task():
+    return Task(
+        dataset=[Sample(input="x", sandbox=("docker", "compose.yaml"))],
+        solver=read_env(),
+    )
+"""
+    )
+
+    resolved: list[tuple[int | str | None, dict[str, Any]]] = []
+
+    async def recording_compose_services(project: ComposeProject) -> dict[str, Any]:
+        services = await compose_services(project)
+        resolved.append((project.sample_id, dict(services["default"])))
+        return dict(services)
+
+    monkeypatch.setattr(docker_module, "compose_services", recording_compose_services)
+    monkeypatch.chdir(launch)
+    names = ["INSPECT_TEST_TASK_ONLY", "INSPECT_TEST_SHARED"]
+    for name in names:
+        monkeypatch.delenv(name, raising=False)
+    try:
+        init_dotenv()
+        assert os.environ.get("INSPECT_TEST_SHARED") == "launch"
+        assert "INSPECT_TEST_TASK_ONLY" not in os.environ
+
+        [log] = eval(
+            f"{task_file.as_posix()}@env_task",
+            model="mockllm/model",
+            display="none",
+            log_dir=(tmp_path / "logs").as_posix(),
+        )
+    finally:
+        for name in names:
+            os.environ.pop(name, None)
+
+    assert log.status == "success", log.error
+    assert _sample_errors(log) == []
+    expected = {
+        "ENV_FILE_VALUE": "task",
+        "TASK_ONLY_VALUE": "task",
+        "SHARED_VALUE": "launch",
+        "COMPOSE_DIR": "task",
+    }
+    # compose config output: environment as a mapping
+    setup = [service for sample_id, service in resolved if sample_id is None]
+    samples = [service for sample_id, service in resolved if sample_id is not None]
+    assert setup and samples
+    for service in setup + samples:
+        assert {k: service["environment"].get(k) for k in expected} == expected
+    assert log.samples is not None
+    assert log.samples[0].output.completion == "task,task,launch,task"
