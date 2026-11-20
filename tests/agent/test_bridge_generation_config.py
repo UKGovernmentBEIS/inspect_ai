@@ -810,6 +810,7 @@ def test_google_forward_then_clear():
         "topK": 2,
         # structural
         "stopSequences": ["foo"],
+        "seed": 42,
         # structured output (Gemini OpenAPI-style schema, uppercase type names)
         "responseMimeType": "application/json",
         "responseSchema": {
@@ -839,8 +840,16 @@ def test_google_forward_then_clear():
     clear_generation_params(config)
     _assert_cleared(config)
     assert config.stop_seqs == ["foo"]
+    assert config.seed == 42
     # structured output survives clearing (it's functional, not a tuning knob)
     assert config.response_schema is not None
+
+
+def test_google_seed_invalid_type_rejected():
+    config = generate_config_from_google({"seed": "not-an-int"})
+    with pytest.raises(BridgePolicyError) as ex:
+        validate_client_config(config)
+    assert provider_error_payload(ex.value)["status"] == 400
 
 
 def test_google_response_json_schema_used_directly():

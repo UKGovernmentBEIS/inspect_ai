@@ -285,6 +285,7 @@ def generate_config_from_google(generation_config: Any) -> GenerateConfig:
     config.stop_seqs = generation_config.get(
         "stopSequences", generation_config.get("stop_sequences")
     )
+    config.seed = generation_config.get("seed")
 
     # The provider sends all of these, but nothing read them off the request,
     # so a client setting any of them silently got the model default.
