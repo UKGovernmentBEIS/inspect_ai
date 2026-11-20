@@ -1285,20 +1285,23 @@ async def test_no_call_can_hide_or_pass_for_another(
     # the panel and console write to a terminal: nothing the agent wrote may
     # reach it as a control sequence
     terminal = io.StringIO()
-    console = Console(file=terminal, force_terminal=True, width=120, record=True)
+    # Use 80 columns so the second call's heading wraps in CI.
+    console = Console(file=terminal, force_terminal=True, width=80, record=True)
     for renderable in render_tool_approval(kwargs["message"], view, call.arguments):
         console.print(renderable)
+    panel_text = console.export_text()
     console.print(Markdown(block.content.text))
     for agent_sequence in ["\x1b7", "\x1b8", "\x1b[8A", "\x1b[2K", RLO]:
         assert agent_sequence not in terminal.getvalue()
     notice = NOTICE
     assert f"**{notice}**" in view.call.content
-    for text in [console.export_text(), rendered(block.content.text)]:
+    for text in [panel_text, rendered(block.content.text)]:
         assert "The turn makes 4 tool calls." in text
         assert notice in text
         assert "rm -rf /srv/data" in text
         assert "**not bold**" in text
-        assert "<!-- **x** [x](y) ``" in text
+        unwrapped = " ".join(line.strip(" ") for line in text.split("\n"))
+        assert "Call 2 of 4: bash <!-- **x** [x](y) ``" in unwrapped
         assert [line for line in text.splitlines() if "Call 3 of 4" in line]
         assert [line for line in text.splitlines() if "Call 4 of 4" in line]
 
