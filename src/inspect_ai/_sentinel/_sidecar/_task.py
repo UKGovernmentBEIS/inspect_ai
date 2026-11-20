@@ -500,7 +500,7 @@ class TaskSidecars:
                         # its answer never arrive, and an attempt that
                         # completes its registration while the answer is on
                         # its way began after the restart.
-                        self._mark_attempts_lost(sidecar)
+                        self._mark_monitor_state_lost(sidecar)
                         await sidecar.call(
                             "register_task", {**params, "token": access.token}
                         )
@@ -510,7 +510,7 @@ class TaskSidecars:
             finally:
                 access.registration_change_count += 1
 
-    def _mark_attempts_lost(self, sidecar: Sidecar) -> None:
+    def _mark_monitor_state_lost(self, sidecar: Sidecar) -> None:
         # A sidecar that lost the eval's token lost everything it held for
         # the eval with it, as on a restart: the monitor state of each attempt
         # it had begun judging. Such an attempt completes its registration
