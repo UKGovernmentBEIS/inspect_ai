@@ -23,7 +23,13 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import _READ_FULLY_CHUNK_SIZE, AsyncFilesystem
 from inspect_ai._util.azure import is_azure_auth_error
 from inspect_ai._util.constants import PKG_NAME
-from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
+from inspect_ai._util.file import (
+    default_fs_options,
+    dirname,
+    filesystem,
+    http_redirects_refused,
+    size_in_mb,
+)
 from inspect_ai._view.azure import normalize_azure_listing_name
 from inspect_ai.log._edit import LogUpdate, edit_eval_log
 from inspect_ai.log._file import (
@@ -710,7 +716,7 @@ def _normalize_listing_name(log_dir: str | None, name: str) -> str:
     return normalize_azure_listing_name(log_dir, name)
 
 
-_async_connections: dict[str, AsyncFileSystem] = {}
+_async_connections: dict[tuple[str, bool], AsyncFileSystem] = {}
 
 
 def async_connection(log_file: str) -> AsyncFileSystem:
@@ -718,9 +724,11 @@ def async_connection(log_file: str) -> AsyncFileSystem:
     protocol, _ = split_protocol(log_file)
     protocol = protocol or "file"
 
-    # create connection if required
-    if protocol not in _async_connections.keys():
-        _async_connections[protocol] = fsspec.filesystem(
+    # create connection if required (keyed on the redirect setting, which
+    # changes the options of an HTTP connection)
+    key = (protocol, http_redirects_refused())
+    if key not in _async_connections.keys():
+        _async_connections[key] = fsspec.filesystem(
             protocol,
             asynchronous=True,
             loop=asyncio.get_event_loop(),
@@ -728,7 +736,7 @@ def async_connection(log_file: str) -> AsyncFileSystem:
         )
 
     # return async file-system
-    return _async_connections.get(protocol)
+    return _async_connections[key]
 
 
 def resolve_header_only(path: str, header_only: int | None) -> bool:

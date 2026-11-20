@@ -3281,3 +3281,181 @@ def test_api_log_download_encodes_non_latin1_filename(
     resp.raise_for_status()
     assert "utf-8''" in resp.headers["content-disposition"]
     assert [body.released for body in bodies] == [1]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HTTP(S) log reads do not follow redirects
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class _LogHTTPServer:
+    """A local HTTP server that serves one directory, or redirects every request.
+
+    Supports HEAD, GET and single `Range: bytes=a-b` requests, which is what
+    fsspec's HTTP filesystem sends. Records each request path it receives.
+    """
+
+    def __init__(self, root: Path | None = None, redirect_to: str | None = None):
+        import http.server
+        import threading
+
+        requests: list[str] = []
+        self.requests = requests
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, format: str, *args: Any) -> None:
+                pass
+
+            def do_HEAD(self) -> None:
+                self._respond(body=False)
+
+            def do_GET(self) -> None:
+                self._respond(body=True)
+
+            def _respond(self, body: bool) -> None:
+                requests.append(self.path)
+                if redirect_to is not None:
+                    self.send_response(302)
+                    self.send_header("Location", redirect_to + self.path)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                assert root is not None
+                target = root / urllib.parse.unquote(self.path.lstrip("/"))
+                if not target.is_file():
+                    self.send_error(404)
+                    return
+                data = target.read_bytes()
+                status = 200
+                range_header = self.headers.get("Range")
+                if range_header is not None:
+                    start_s, end_s = range_header.removeprefix("bytes=").split("-")
+                    start = int(start_s)
+                    end = int(end_s) if end_s else len(data) - 1
+                    data = data[start : end + 1]
+                    status = 206
+                self.send_response(status)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Accept-Ranges", "bytes")
+                self.end_headers()
+                if body:
+                    self.wfile.write(data)
+
+        self._server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self._server.server_address[1]}"
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+
+    def close(self) -> None:
+        self._server.shutdown()
+        self._server.server_close()
+
+
+@contextlib.contextmanager
+def _http_view_client(base_url: str) -> Generator[TestClient, Any, None]:
+    """A view server whose log paths map to URLs under `base_url`."""
+
+    class mapping_policy(FileMappingPolicy):
+        async def map(self, request: Request, file: str) -> str:
+            return f"{base_url}/{file}"
+
+        async def unmap(self, request: Request, file: str) -> str:
+            return file.removeprefix(f"{base_url}/")
+
+    app = fastapi_server.view_server_app(mapping_policy=mapping_policy())
+    with fastapi.testclient.TestClient(app, raise_server_exceptions=False) as client:
+        yield client
+
+
+@pytest.fixture
+def http_log_servers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Generator[tuple[_LogHTTPServer, _LogHTTPServer, str], Any, None]:
+    """A server holding a log, and a second server redirecting to the first.
+
+    Yields (target, redirector, log file name).
+    """
+    # Async HTTP filesystems are cached and keep the event loop they were
+    # created on; each TestClient runs its own loop.
+    monkeypatch.setattr(inspect_ai._view.common, "_async_connections", {})
+    fsspec.get_filesystem_class("http").clear_instance_cache()
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_eval_log(tmp_path, fname)
+    target = _LogHTTPServer(root=tmp_path)
+    redirector = _LogHTTPServer(redirect_to=target.url)
+    try:
+        yield target, redirector, fname
+    finally:
+        redirector.close()
+        target.close()
+
+
+_HTTP_READ_ROUTES = [
+    "/log-size/{fname}",
+    "/log-info/{fname}",
+    "/log-bytes/{fname}?start=0&end=99",
+    "/log-download/{fname}",
+    "/logs/{fname}",
+    "/logs/{fname}?header-only=0",
+    "/log-headers?file={quoted}",
+]
+
+
+def _http_route(route: str, fname: str) -> str:
+    return route.format(fname=fname, quoted=urllib.parse.quote_plus(fname))
+
+
+@pytest.mark.parametrize("route", _HTTP_READ_ROUTES)
+def test_http_log_read_does_not_follow_redirect(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str], route: str
+) -> None:
+    target, redirector, fname = http_log_servers
+    with _http_view_client(redirector.url) as client:
+        resp = client.get(_http_route(route, fname))
+    assert resp.status_code >= 400
+    assert redirector.requests
+    assert target.requests == []
+
+
+@pytest.mark.parametrize("route", _HTTP_READ_ROUTES)
+def test_http_log_read_direct(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str],
+    tmp_path: Path,
+    route: str,
+) -> None:
+    target, _redirector, fname = http_log_servers
+    data = (tmp_path / fname).read_bytes()
+    with _http_view_client(target.url) as client:
+        resp = client.get(_http_route(route, fname))
+    resp.raise_for_status()
+    if route.startswith("/log-size"):
+        assert resp.json() == len(data)
+    elif route.startswith("/log-info"):
+        assert resp.json()["size"] == len(data)
+    elif route.startswith("/log-bytes"):
+        assert resp.content == data[:100]
+    elif route.startswith("/log-download"):
+        assert resp.content == data
+    elif route.startswith("/log-headers"):
+        assert resp.json()[0]["eval"]["task"] == "task"
+    else:
+        assert resp.json()["eval"]["task"] == "task"
+
+
+def test_refuse_http_redirects_scope(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str],
+) -> None:
+    target, redirector, fname = http_log_servers
+    url = f"{redirector.url}/{fname}"
+    with inspect_ai._util.file.refuse_http_redirects():
+        with pytest.raises(
+            inspect_ai._util.file.HTTPRedirectError, match="was not followed"
+        ):
+            filesystem(url).read_bytes(url)
+    assert target.requests == []
+
+    # outside the context a redirect is followed as before
+    data = filesystem(url).read_bytes(url)
+    assert data == filesystem(f"{target.url}/{fname}").read_bytes(
+        f"{target.url}/{fname}"
+    )

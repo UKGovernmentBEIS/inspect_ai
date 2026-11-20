@@ -32,7 +32,7 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem, bind_async_filesystem
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.error import WriteConflictError
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.file import filesystem, refuse_http_redirects
 from inspect_ai._util.local_server import get_machine_ip
 from inspect_ai.log import EvalLog
 from inspect_ai.log._edit import LogUpdate
@@ -175,6 +175,7 @@ def view_server_app(
             every log's content as plain text; None defers to each log.
     """
     app = FastAPI()
+    app.add_middleware(RefuseHttpRedirectsMiddleware)
 
     @app.exception_handler(FileNotFoundError)
     async def _file_not_found(_request: Request, _exc: FileNotFoundError) -> Response:
@@ -719,6 +720,22 @@ class AsyncFilesystemMiddleware:
             await self.app(scope, receive, send)
             return
         with bind_async_filesystem(self.fs):
+            await self.app(scope, receive, send)
+
+
+class RefuseHttpRedirectsMiddleware:
+    """Make every HTTP(S) read in a request fail on a redirect.
+
+    The server authorizes the URL a request names, so the bytes it returns
+    must come from that URL and not from wherever it redirects. Pure ASGI, so
+    the setting reaches the route handler and its streamed response body.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        with refuse_http_redirects():
             await self.app(scope, receive, send)
 
 
