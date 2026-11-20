@@ -18,9 +18,8 @@ recorded limit and the error `run()` returns.
 
 A limit error is handled only by the code that entered every limit in it.
 `run()` and `apply_limits()` catch an error whose limits are all their own
-or inside them (below one of their own limits of that kind, or, for a
-scope that entered none, entered in the scope's own context), and return
-it (`run()` without a `limits` list,
+or entered inside them (in the scope's own context, nested scopes
+included), and return it (`run()` without a `limits` list,
 which returns only the state, catches none). Tools, handoffs and bridged host tools turn into a
 message an error whose token, cost and turn limits were all entered inside
 the call (a message limit raised in the call measures the call's own
@@ -344,7 +343,7 @@ tokens per call, run against this branch's base):
    and each limit node records the marker current at its entry. Nested
    scopes keep their membership in the scopes around them, so a node
    entered in an inner scope (an `as_tool()` agent's limits inside a tool
-   call, a limited adapter inside an empty `run()`) also counts as entered
+   call, a limited adapter inside a `run()`) also counts as entered
    in each enclosing scope's context, while a sibling scope's nodes stay
    foreign. That is how ownership (rule 6) tells a node entered in a
    scope's own context from one a sibling task entered under the same
@@ -392,11 +391,10 @@ tokens per call, run against this branch's base):
    (bare, combined, or a group of limit errors) into a message, a tool
    error, a reply or a return value only when it owns every limit in it.
    Otherwise it lets the whole error propagate unchanged. `apply_limits()`
-   owns its own limits and every node *inside* it: one that hangs below
-   one of its own nodes in that node's per-kind tree, or, for a scope that
-   entered no token, cost, turn or message limit, one entered in the
-   scope's own context (its task and the tasks started inside it) while it
-   was open. A sibling task's limit that reaches a scope belongs to the
+   owns its own limits and every node *inside* it: one entered in the
+   scope's own context (its task and the tasks started inside it, nested
+   scopes included) while it was open, whatever its kind; the node carries
+   the scope's marker (rule 1). A sibling task's limit that reaches a scope belongs to the
    sibling and propagates. `run(limits=None)`, which can return only the
    state, catches nothing. A tool, handoff or bridged host tool owns the
    token, cost and turn limits entered inside the call, by the same test,
@@ -551,9 +549,9 @@ order sets their rank, which matters only for the primary fields.
   2026-11-12). Native compaction and bridged requests are refused once a
   turn limit is reached.
 - `check_token_limit()`, `check_cost_limit()` and `check_turn_limit()` stay
-  as checks of their own kind where one value changes: the
-  `TaskState.token_limit` and `cost_limit` setters and the checkpoint
-  resume ("Checkpoints").
+  as checks of their own kind where one value changes (the
+  `TaskState.token_limit` and `cost_limit` setters) and at the checkpoint
+  resume, the one exception to combined checking ("Checkpoints").
 - Message limits are unchanged: the innermost message node is checked at the
   start of `generate()` (`_model.py:1062`) and on every append to a limited
   conversation. A message check sees only that node, so precedence does not
@@ -574,7 +572,7 @@ by which limit ranks first. The rank only fills single-valued records.
 | One check after a call | token tree, then cost tree (priced calls only); the first node that raises | token, cost and turn trees, every call; every node that raises, combined |
 | Pre-dispatch check | token, cost, then guards (guards skipped while tokens are suspended) | token, cost and turn trees, combined; no guards |
 | `_apply_response_filter()`, a group of only limits, terminations and refusals (`agent/_bridge/util.py:515-527`) | its first leaf | its first leaf, or, when that is a limit, the combined error of its limits; a mixed group is still a `ResponseFilterError` |
-| `apply_limits()` | catches a bare owned error only | with `catch_errors=True`, catches an error, bare, combined or a group, when every leaf is a limit error and every limit in it is the scope's own or inside the scope (below one of the scope's own limits of its kind or, for a scope that entered none, entered in its own context; below); its `limit_error` is their combined error; otherwise the error propagates unchanged |
+| `apply_limits()` | catches a bare owned error only | with `catch_errors=True`, catches an error, bare, combined or a group, when every leaf is a limit error and every limit in it is the scope's own or inside the scope (entered in its own context; below); its `limit_error` is their combined error; otherwise the error propagates unchanged |
 | Sample runner (`run.py:3435`) | first leaf of the group | its first leaf, or, when that is a limit, the combined error of its limits; `EvalSample.limit` from the combined error's primary fields |
 | `decisive_tool_exception()` (`_call_tools.py:2052`), for native tools and a bridged host tool's `_raised()` (`host_tool.py:527`) | termination, unexpected error, first limit, first leaf | termination, unexpected error, the combined error of all the limits, first leaf; the caller then applies the ownership test to every limit in it ("Ownership") |
 | `decisive_sentinel_exception()` (`_call_tools.py:196`) | termination, other error, first leaf | unchanged: a monitor's calls run with token, turn and cost limits suspended, so the only limit it can reach is a message limit ("Sentinel failures") |
@@ -605,11 +603,9 @@ every limit in it (each member of a combined error) is covered by the
 scope. A limit is covered when it is one of the scope's own limits (of any
 kind: a `time_limit()` or `working_limit()` passed to `run()` or
 `apply_limits()` is the scope's own, as today), or a node inside the scope
-(rule 6): one that hangs below one of the scope's own nodes in its
-per-kind tree, or, when the scope entered no token, cost, turn or message
-limit (`run(limits=[])`, a time-only scope), one entered in the scope's
-own context, its task and the tasks started inside it, while it was open
-(the node carries the scope's marker, rule 1). A node a sibling task entered is not inside the scope, even when it hangs
+(rule 6): one entered in the scope's own context, its task and the tasks
+started inside it, while it was open, of any kind and whatever limits the
+scope entered (the node carries the scope's marker, rule 1). A node a sibling task entered is not inside the scope, even when it hangs
 below the same enclosing node and its error reaches the scope's body. For a
 covered exit, `limit_scope.limit_error` is set to the combined error and,
 with `catch_errors=True`, the exception is swallowed. With
@@ -629,21 +625,18 @@ the combined error; a deepagent background subagent reads it from the
 scope after its block, as today. `run(limits=None)` returns only the state,
 so it has nowhere to report an error and catches nothing: every limit
 error propagates from it, as today. Which limit ranks first does not matter
-for catching: a group of the scope's own token limit and a cost limit that
-hangs below the scope's own cost limit is caught like any other covered
-group, and `run()` returns their combined error. Inside-ness follows each
-kind's tree, so a scope that entered only a token limit does not own a
-cost limit entered inside it, which has no node of the scope's above it:
-that error propagates, as today. A bare
+for catching: a group of the scope's own token limit and a cost limit
+entered inside the scope is caught like any other covered group, and
+`run()` returns their combined error, also when the scope entered only a
+token limit. A bare
 error from one of the scope's own limits, a time limit included, is caught
 as today, also when it is raised as the limits exit (a time limit raises
 from its cancel scope's exit), so `run(limits=[time_limit(...)])` and the
 deepagent callers of `apply_limits()` keep returning their own time limit
 error. A bare error from a descendant (a plain `with token_limit()` block
 or an `as_solver()` limit inside the agent, whose error escaped it) is now
-caught too and returned by `run(limits=[...])` when it is inside the scope
-(below one of its nodes of that kind, or, for a scope with only a time
-limit or no limits, entered in its context), where today it propagates. The error that
+caught too and returned by `run(limits=[...])`, whatever the scope's
+limits, where today it propagates. The error that
 escaped is not compared with node state: a limit error that reaches its
 owner stands ("The owner's exit check").
 
@@ -687,10 +680,13 @@ conversation is the sample's.
 
 The rank fills single-valued records with the more significant outcome:
 a spent budget before a conversation's length, the outermost before an
-inner one. So a sample whose agent reached both its message limit and a
-token limit records the token limit in `EvalSample.limit`, and the message
+inner one. So when a sample's message limit and a token limit come back
+combined (one error, a group of limit errors, or the bridge's kept set),
+the sample records the token limit in `EvalSample.limit`, and the message
 limit is in the combined error's `limits` and in the transcript's
-`SampleLimitEvent`s.
+`SampleLimitEvent`s. A message limit checked first in a native
+`generate()` still raises alone (rule 3), and the sample records it; the
+runner does not reconcile it with node state.
 
 ### Suspension
 
@@ -731,8 +727,8 @@ inside the call), which keeps today's mapping. A limit error is *owned by the ca
 when every limit in it (each member of a combined error) is the call's own.
 Nested scopes keep their membership in the scopes around them (rule 1):
 the limits an `as_tool()` agent enters in its own `apply_limits()` scope
-inside the call are the call's own, and a limited adapter inside an empty
-or time-only `run()` is inside that `run()`. A sibling call's or sibling
+inside the call are the call's own, and a limited adapter inside a
+`run()` is inside that `run()`. A sibling call's or sibling
 scope's limits stay foreign. The `as_tool()` and handoff cases in
 `tests/agent/test_agent_execute.py` (the tool's own token limit is still a
 tool error; a handoff still answers its own limit) pin this nesting.
@@ -875,6 +871,10 @@ can still be lost; every other summary in this document points here:
 - **Message limits** keep no state: a swallowed message limit error is not
   recovered, and a shorter conversation under the same limit can still
   dispatch.
+- **An owner that does not end normally**: an exceeded limit swallowed
+  before a later non-limit failure, termination or cancellation has no
+  later call under it and no normal-exit check; the abnormal outcome
+  stands (guarantee 4).
 
 A limit error that does reach its owner can still leave out another limit
 reached at the same time ("What the owner can miss").
@@ -1124,7 +1124,10 @@ of the current node and its ancestors (`sample_runtime.py:153-163`,
 `:221-225`; called for a normal resume at `checkpointer_impl.py:147-152`).
 The working check is unchanged.
 An exceeded root therefore still ends the resumed attempt before it makes a
-call. A resume for scoring (`check=False`) runs no check, as today, and
+call. These ordered per-kind checks are the one exception to combined
+checking (rule 3): the restore assigns the three counters together, and
+the first kind that fails raises alone, so with several roots exceeded only
+that one is in the error's `limits` and gets a `SampleLimitEvent`. A resume for scoring (`check=False`) runs no check, as today, and
 the runner skips the sample's exit check on that attempt ("The owner's exit
 check").
 
@@ -1698,10 +1701,9 @@ added later.
 
 **One chain of every kind per execution context.** Pushing token, cost,
 turn and message nodes onto one stack would give each node a depth and
-an ancestry across kinds, so a scope that entered only a token limit could
-own a cost limit entered inside it, and sibling tasks would never be
-ordered against each other. But ownership only needs each kind's tree,
-which exists today, and ranking only fills single-valued records, where an
+an ancestry across kinds, and sibling tasks would never be ordered
+against each other. But ownership needs only the scope marker (rule 1),
+and ranking only fills single-valued records, where an
 entry number orders nodes on one path the same way and an arbitrary but
 fixed order between siblings does no harm. The chain would add a stack
 that every limit kind pushes and pops, a new failure when blocks exit out
@@ -1964,15 +1966,18 @@ documented. Behaviour changes:
   provider omits usage. A separate design covers it ("Not this design").
 - **`apply_limits()`**, with `catch_errors=True` (`run()`), catches an
   error, bare, combined or an exception group, when every leaf is a limit
-  error and every limit in it is its own or inside it (below one of its
-  own nodes in that kind's tree, or, for a scope that entered no token,
-  cost, turn or message limit, entered in its own context); its
+  error and every limit in it is its own or inside it (entered in its own
+  context, nested scopes included, whatever its kind); its
   `limit_error` is their combined error. Any other leaf or limit, including
   a sourceless `custom` limit, an enclosing message limit or a sibling
   task's limit, propagates the whole error unchanged, as today. A bare
   error from a limit inside the scope (a plain block's or an `as_solver()`
   limit inside the agent) is now returned by `run(limits=[...])` where
-  today it raises; `run(limits=None)`, which
+  today it raises, whatever the kinds the scope entered: a bare error from
+  a plain `with cost_limit()` inside an agent under
+  `run(limits=[token_limit(N)])` is now returned by `run()` instead of
+  propagating. The rule for `run(limits=[...])` has no exceptions: it
+  returns the limits entered inside it. `run(limits=None)`, which
   returns only the state, catches nothing, as today. With `catch_errors=False` a
   group propagates unchanged, as today. At normal exit it raises its own
   limits that are exceeded, combined;
@@ -1980,25 +1985,6 @@ documented. Behaviour changes:
   `(state, error)` in these cases where today it raises or returns
   `(state, None)`. A limit error that escapes its body is handled as it is
   (by ownership of every limit in it), not compared with node state.
-- **A scope's limit beside an inner limit of another kind.** Inside-ness
-  follows each kind's tree, so `run(limits=[token_limit(N)])` does not
-  own a plain `cost_limit()` entered inside its agent. Today, when one call
-  crosses both, the token limit raises first and `run()` returns it, and
-  the solver continues. Now the call raises their combined error, which
-  `run()` does not own all of, so it escapes `run()`, and the sample
-  records the token limit (it ranks first). The same holds for an
-  adapter's limits: an `as_tool()` agent's, a handoff's or an
-  `as_solver()` agent's `cost_limit()` inside a token-limited `run()`.
-  Today a call crossing both is a tool error or handoff message for the
-  tool's or handoff's limit (or escapes `as_solver()` as the token error),
-  and the next call is refused by `run()`'s token limit, which `run()`
-  returns; now the combined error leaves the adapter and `run()` and can
-  end the sample. Context membership (rule 6) applies only to a scope that
-  entered no token, cost, turn or message limit; once a scope enters one,
-  inside-ness follows each kind's tree. So coverage is not monotonic in the
-  limit list: `run(limits=[time_limit(...)])` owns an inner adapter's cost
-  limit, and adding a `token_limit()` to the same list makes that cost
-  limit foreign.
 - **The sample runner**, when the solvers return normally, checks the
   sample's limits after the solvers and the sample's background work have
   finished, and records an exceeded sample limit found then.
@@ -2227,12 +2213,11 @@ under trio with `--runtrio`.
   `run(limits=[token_limit(...), cost_limit(...)])`, a group of its token
   limit and a cost limit entered below its cost limit is caught and
   returns their combined error (`limits` both); with
-  `run(limits=[token_limit(...)])` only, a cost limit entered inside the
-  agent is not inside the scope (no cost node of the scope above it), and
-  its error propagates; under `run(limits=[token_limit(N)])` with a plain
-  `cost_limit()` inside the agent, one call that crosses both raises their
-  combined error, which escapes `run()` (today `run()` returns the token
-  error), and the sample records the token limit; a bare token limit entered below the scope's token
+  `run(limits=[token_limit(...)])` only, a bare error from a cost limit
+  entered inside the agent is caught and returned (today it propagates);
+  under `run(limits=[token_limit(N)])` with a plain `cost_limit()` inside
+  the agent, one call that crosses both raises their combined error, which
+  `run()` returns, token-primary (today `run()` returns the token error); a bare token limit entered below the scope's token
   limit is caught and returned; `run(limits=[time_limit(...)])` and
   `run(limits=[])` catch and return a bare limit entered in the agent's
   own task or a task it started, while `run(limits=None)` lets it
@@ -2242,7 +2227,9 @@ under trio with `--runtrio`.
   owned token
   limit exceeded and swallowed inside the
   agent is returned as `(state, error)` by the exit check (the return path
-  of `run()`); an owned limit reached exactly and swallowed after a refused
+  of `run()`); an agent that swallows an exceeded owned token limit and
+  then raises `RuntimeError`: the runtime error propagates and `run()`
+  returns no limit (the abnormal end stands); an owned limit reached exactly and swallowed after a refused
   call returns `(state, None)` (the accepted loss); a sample limit swallowed inside the agent does
   not leave `run()` at its exit (`run()` returns `(state, None)`), the
   caller's next model call is refused with it, and if the solver instead
@@ -2270,7 +2257,9 @@ under trio with `--runtrio`.
   dispatch; after a scoring-only restore of spent token, cost and turn
   roots, `as_solver(react(...))` returns normally with no model call and
   the sample is scored and not recorded as limited (the no-call control),
-  on asyncio and Trio.
+  on asyncio and Trio; a normal restore of token, cost and turn roots all
+  above budget raises the token limit alone, with only its limit event (the
+  ordered-restore control).
 - `tests/agent/test_agent_execute.py`: a sample token limit reached inside an
   `as_tool()` agent ends the sample with `limit.type == "token"` and no
   further generation; `as_tool()`'s own token limit is still a tool error;
@@ -2281,8 +2270,10 @@ under trio with `--runtrio`.
   agent's new messages and the handoff limit message, as today; an
   `as_tool()` agent with its own `cost_limit()`, called inside
   `run(limits=[token_limit(N)])`, whose one call crosses both limits,
-  raises their combined error out of `execute_tools()` and out of
-  `run()`, and the sample records the token limit; the same agent whose
+  raises their combined error out of `execute_tools()`, and `run()`
+  returns it, token-primary (today the tool's reply names the token limit,
+  and `run()` returns the token error only if a later call is checked);
+  the same agent whose
   call crosses only its own cost limit gets the tool's `limit` error, as
   today.
 - `tests/tools/test_call_tools.py`, `decisive_tool_exception()` and the
@@ -2423,11 +2414,10 @@ under trio with `--runtrio`.
     first;
   - through `_run_bridged_agent()` (a one-sample eval with a served scaffold,
     no Docker), overlapping generations that reach a `run()` cost limit and
-    then an outer `run()` token limit (`outer_limit`) propagate from both:
-    the inner `run()` does not own the token limit, and the outer `run()`,
-    which entered only a token limit, does not own the cost limit. The
-    sample ends on one error holding both, primary fields the token
-    limit's; the same with the sample's token limit in place of the outer
+    then an outer `run()` token limit (`outer_limit`) propagate from the
+    inner `run()`, which does not own the token limit, and the outer
+    `run()`, inside which the cost limit was entered, returns one error
+    holding both, primary fields the token limit's; the same with the sample's token limit in place of the outer
     `run()`'s ends the sample on it;
   - the message limit is not lost behind an inner owner's budget: a bridged
     agent inside `run(limits=[token_limit(...)])` whose requests reach both
@@ -2481,7 +2471,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    `tests/test_sample_limits.py`, `tests/test_enqueue_task.py`,
    `tests/agent/test_bridge_provider_errors.py`.
 3. **Owners and reductions.** `_limit.py`: `apply_limits()` covered exits
-   and the exit check over its own limits on a normal return.
+   (a limit is covered when it is the scope's own or its node carries the
+   scope's marker) and the exit check over its own limits on a normal return.
    `src/inspect_ai/agent/_run.py`: the return after the block.
    `src/inspect_ai/_eval/task/run.py`: combining the limits of the
    escaping group, and the exit check over the sample's roots after
