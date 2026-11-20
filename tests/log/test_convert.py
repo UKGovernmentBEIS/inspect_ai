@@ -167,6 +167,36 @@ def test_convert_dir_keeps_nested_names(tmp_path: pathlib.Path, converter: str):
     assert output_file.exists()
 
 
+@pytest.mark.parametrize("link", ["dir", "file"])
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_refuses_symlinks_out_of_output_dir(
+    tmp_path: pathlib.Path, converter: str, link: str
+):
+    input_file = (
+        _TESTS_DIR
+        / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    )
+    log_dir = tmp_path / "logs"
+    (log_dir / "sub").mkdir(parents=True)
+    shutil.copy(input_file, log_dir / "sub" / input_file.name)
+    output_dir = tmp_path / "out"
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    if link == "dir":
+        output_dir.mkdir()
+        (output_dir / "sub").symlink_to(elsewhere, target_is_directory=True)
+    else:
+        extension = ".json" if converter == "convert" else ".eval"
+        output_file = (output_dir / "sub" / input_file.name).with_suffix(extension)
+        output_file.parent.mkdir(parents=True)
+        output_file.symlink_to(elsewhere / "converted")
+
+    with pytest.raises(ValueError, match="would be written outside"):
+        _CONVERTERS[converter](str(log_dir), str(output_dir))
+
+    assert list(elsewhere.iterdir()) == []
+
+
 @pytest.mark.parametrize("converter", _CONVERTERS.keys())
 def test_convert_dir_refuses_dot_components(
     monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, converter: str

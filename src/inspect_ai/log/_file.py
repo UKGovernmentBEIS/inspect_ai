@@ -1200,23 +1200,24 @@ class LogDestination(NamedTuple):
     """The entry's name relative to the log directory, with `/` separators."""
 
     destination: str
-    """`relative` joined beneath the target directory."""
+    """`relative` joined beneath the target directory (with `extension`, if given)."""
 
 
 def contained_log_destination(
-    name: str, log_dir: str, target_dir: str
+    name: str, log_dir: str, target_dir: str, extension: str | None = None
 ) -> LogDestination:
     """Place a listed log directory entry beneath a target directory.
 
     Names listed from a remote store can contain `.` or `..` components or
     an empty component (so the rest reads as absolute). Such a name is
-    refused rather than normalized, and the joined destination must stay
-    beneath `target_dir`.
+    refused rather than normalized. The destination must stay beneath
+    `target_dir`; for a local target, symlinks in either are resolved first.
 
     Args:
         name: Entry name as listed (e.g. `FileInfo.name`).
         log_dir: Listed name of the log directory (e.g. `info(log_dir).name`).
         target_dir: Local path or URL of the directory to write beneath.
+        extension: Replaces the entry's extension in the destination.
 
     Raises:
         ValueError: If `name` is not inside `log_dir`, or would be written
@@ -1233,10 +1234,15 @@ def contained_log_destination(
     except ValueError as ex:
         raise ValueError(f"Log file '{name}' has an invalid path: {ex}") from ex
 
-    destination = posixpath.join(target_dir, relative)
+    written = (
+        relative
+        if extension is None
+        else f"{posixpath.splitext(relative)[0]}.{extension}"
+    )
+    destination = posixpath.join(target_dir, written)
     if url_protocol(target_dir) in (None, "file"):
-        root = os.path.abspath(local_path(target_dir))
-        dest = os.path.abspath(local_path(destination))
+        root = os.path.realpath(local_path(target_dir))
+        dest = os.path.realpath(local_path(destination))
         try:
             contained = dest != root and os.path.commonpath([root, dest]) == root
         except ValueError:  # different drives on Windows
