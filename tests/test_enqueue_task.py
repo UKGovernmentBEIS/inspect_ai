@@ -20,9 +20,11 @@ from inspect_ai._eval.task.enqueue import (
     creator_model_scope,
     enqueue_task,
 )
+from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.tasks import Tasks
 from inspect_ai._util.background import run_in_background
 from inspect_ai._util.content import ContentImage
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log
 from inspect_ai.model import ChatMessageUser, GenerateConfig, get_model
@@ -469,6 +471,27 @@ def test_resolve_enqueued_tasks_outside_attempt_resolves_per_run_model() -> None
     with creator_model_scope(models[1]):
         assert resolve(child()) == ["mockllm/model2"]
         assert resolve(resolved_child) == ["mockllm/model"]
+
+
+def test_resolve_enqueued_tasks_checks_required_model_roles() -> None:
+    def resolve(model_roles: dict[str, str] | None) -> list[ResolvedTask]:
+        return _resolve_enqueued_tasks(
+            Task(required_model_roles=["judge"]),
+            models=[get_model("mockllm/model")],
+            model_roles=model_roles,
+            config=GenerateConfig(),
+            sandbox=None,
+            sample_shuffle=None,
+            checkpoint=None,
+            cost_limit=None,
+        )
+
+    # a missing required role is refused when the task is added
+    with pytest.raises(PrerequisiteError) as exc_info:
+        resolve(None)
+    assert "judge" in str(exc_info.value)
+
+    assert len(resolve({"judge": "mockllm/model"})) == 1
 
 
 def test_enqueue_task_after_creator_attempt_ends_resolves_per_run_model() -> None:

@@ -369,6 +369,21 @@ model = get_model(role="grader", default="openai/gpt-6-luna")
 
 This means that you can use model roles as a means of external configurability even if you aren't yet explicitly taking advantage of them.
 
+### Required Roles
+
+If a task cannot run without a role (for example, a `judge` role that must not fall back to the model being evaluated), list the role in the task's `required_model_roles`:
+
+``` python
+Task(
+    ...,
+    required_model_roles=["judge"]
+)
+```
+
+Before running any samples (or starting sandboxes), Inspect checks that a model is specified for every required role, either at the eval level (`--model-role` or the `model_roles` argument to `eval()`) or in the task's own `model_roles`. If any are missing, the eval fails with a single error that names all of them.
+
+Without `required_model_roles`, a missing role is detected only when it is first used with `get_model(role="judge", required=True)`. For a role used in a scorer, that is after the solver has run for the sample.
+
 ### Roles for Tasks
 
 In some cases it may not be convenient to specify `model_roles` in the top level call to `eval()`. For example, you might be running an [Eval Set](eval-sets.qmd) to explore the behaviour of different models for a given role. In this case, do not specify `model_roles` at the eval level, rather, specify them at the task level.

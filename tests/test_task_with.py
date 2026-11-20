@@ -142,3 +142,13 @@ def test_task_with_max_samples() -> None:
     assert task.max_samples is None
     with pytest.raises(ValueError, match="max_samples must be a positive integer"):
         task_with(task, max_samples=0)
+
+
+def test_task_with_required_model_roles() -> None:
+    task = task_with(minimal_task(), required_model_roles=["grader"])
+    assert task.required_model_roles == ["grader"]
+    # unspecified leaves the required roles in place
+    task = task_with(task, time_limit=30)
+    assert task.required_model_roles == ["grader"]
+    task = task_with(task, required_model_roles=None)
+    assert task.required_model_roles is None
