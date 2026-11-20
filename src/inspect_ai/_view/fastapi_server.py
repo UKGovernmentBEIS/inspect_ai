@@ -938,10 +938,11 @@ def view_server(
     )
 
     # get filesystem and resolve log_dir to full path
-    fs = filesystem(log_dir)
-    if not fs.exists(log_dir):
-        fs.mkdir(log_dir, True)
-    log_dir = fs.info(log_dir).name
+    with refuse_http_redirects():
+        fs = filesystem(log_dir)
+        if not fs.exists(log_dir):
+            fs.mkdir(log_dir, True)
+        log_dir = fs.info(log_dir).name
 
     app = standalone_view_app(
         log_dir=log_dir,

@@ -3596,3 +3596,48 @@ def test_refuse_http_redirects_scope(
     assert data == filesystem(f"{target.url}/{fname}").read_bytes(
         f"{target.url}/{fname}"
     )
+
+
+class _StopViewServer(Exception):
+    pass
+
+
+def _view_server_preflight(log_dir: str, monkeypatch: pytest.MonkeyPatch) -> str:
+    """Run view_server() up to app construction and return the resolved log dir.
+
+    Also checks that redirect refusal has ended before the app is built.
+    """
+    resolved: list[str] = []
+
+    def stop(log_dir: str, **kwargs: Any) -> None:
+        assert not inspect_ai._util.file.http_redirects_refused()
+        resolved.append(log_dir)
+        raise _StopViewServer()
+
+    monkeypatch.setattr(fastapi_server, "standalone_view_app", stop)
+    with pytest.raises(_StopViewServer):
+        fastapi_server.view_server(log_dir=log_dir)
+    return resolved[0]
+
+
+def test_view_server_startup_does_not_follow_redirect(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, redirector, _fname = http_log_servers
+    with pytest.raises(
+        inspect_ai._util.file.HTTPRedirectError, match="was not followed"
+    ):
+        _view_server_preflight(f"{redirector.url}/logs", monkeypatch)
+    assert redirector.requests
+    assert target.requests == []
+
+
+def test_view_server_startup_direct(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, _redirector, fname = http_log_servers
+    log_dir = _view_server_preflight(f"{target.url}/{fname}", monkeypatch)
+    assert log_dir == f"{target.url}/{fname}"
+    assert target.requests
