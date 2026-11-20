@@ -13,10 +13,9 @@ Inspect's own operations, which use an omitted user to mean "the sandbox's
 default user", mark themselves with a private context manager,
 `framework_sandbox_operation()`. Inside the marked block the proxy leaves an
 omitted user alone. The mark sits on the few low-level helpers these
-operations route through: the privileged-command helpers, the
-framework-directory helper, the sandbox-tools transport and launcher, the
-sandbox-file detector, the checkpoint copier, in-loop scoring, and the
-default-authority write of `install_skills()`. A provider whose `read_file()`
+operations route through, on in-loop scoring and on the default-authority
+write of `install_skills()`; the trust model lists the sites. A provider
+whose `read_file()`
 or `write_file()` cannot take a user raises inside a scope rather than
 reading or writing as the default user. The scope and the marker are private
 to inspect_ai.
@@ -27,9 +26,9 @@ passed to `exec()` or `exec_remote()`, a `read_file()` or `write_file()`
 path, and a `sandbox_with()` file lookup. A relative path therefore names the
 same file in all of them. Absolute paths are kept, and marked operations are
 unaffected; `install_skills()` resolves a relative skills directory through
-such a marked operation, so it uses the provider's working directory. A
-provider's file operations on an absolute path work for a user who cannot
-enter the provider's working directory.
+such a marked operation, so it uses the provider's working directory. On
+Docker, file operations on an absolute path work for a user who cannot enter
+the image's working directory.
 
 Companion packages that install tooling into a scoped sandbox provision
 shared artifacts inside the marker and verify them before a member uses
@@ -180,8 +179,8 @@ resolved path in a file event's `file`.
 packages can tell that the installed inspect_ai applies the scope's `cwd` at
 the boundary.
 
-A provider's own file operations on an absolute path work for a user who
-cannot enter the provider's default working directory. For Docker,
+Docker's own file operations on an absolute path work for a user who cannot
+enter the image's default working directory.
 `test_member_installs_a_scripted_skill_with_a_closed_workdir`
 (`tests/tools/test_skill.py`, which needs Docker) pins this end to end on an
 image whose working directory is `/root`, and
@@ -194,77 +193,49 @@ user, so the case does not arise there.
 ## The framework-operation marker
 
 `framework_sandbox_operation()`, in `_framework_operation.py`, is a private
-context manager that marks the block it wraps; like the scope, it is held in
-a ContextVar (see [Context inheritance](#context-inheritance)).
+context manager. Inside the block it wraps, the proxy leaves an omitted user
+as the provider's default user. The trust model's
+[framework-operation contract](sandbox-trust-model.md#sandbox-identity-scopes)
+says which code may use it and where it sits: code acting with the
+framework's authority marks the single sandbox call, never model-chosen
+work, and in-loop scoring is the one marked block that runs task code. Three
+of its sites have reasons specific to this design. The sandbox-tools
+transport is marked because, in a sandbox with no usable root, a member
+cannot enter the default user's private tools tree
+(`test_transport_runs_as_the_tools_user_in_a_scope`). In-loop scoring is
+marked so a scorer keeps the default user (see
+[Context inheritance](#context-inheritance)). The write of an
+explicit-user `install_skills()` is marked so that install keeps its
+contract (see [`install_skills()`](#install_skills)).
 
-The marker affects only the boundary default for user and `cwd`. The scope,
-injection targeting, the sandbox-tools request user and the model-facing
-tools' strict resolution are unchanged inside a marked block: a built-in
-tool called there still passes its strictly resolved user, and a
-`bash_session()` or `text_editor()` request still carries the scope's user
-as its run-as parameter. For the user, the marker changes only calls that
-pass none; an explicit user is kept either way. For paths it suppresses the
-scope's defaults whatever the user: inside a marked block an `exec()` with no
-`cwd` runs in the provider's default directory, and a relative `cwd` or file
-path is passed through, even on a call that names a user (the member's own
-`pwd` in `install_skills()` is one). A misplaced marker can therefore change
-the user only of calls that pass none and the working directory of any call
-in the block, and never the built-in tools' user.
+The tripwire test `test_framework_operation_marker_sites`
+(`tests/util/sandbox/test_sandbox_identity.py`) fixes the set of modules
+that reference the marker, so marking a call in a new module is a reviewed
+change. It does not check which calls route through the marked helpers, and
+those helpers run whatever command their caller passes: keeping model-chosen
+work out of them rests on review of their callers, companion code included,
+not on a test.
 
-**Contract.** Code that acts with the framework's authority and means "the
-sandbox's default user" by `user=None` goes through a marked helper. The
-marker wraps the single call to the proxy, not a whole operation. It is
-never placed around model-chosen work. The helpers themselves do not check
-where their arguments came from: `privileged_exec()`, `privileged_shell()`
-and `exec_in_framework_directory()` run whatever command their caller
-passes, and a new caller of an already marked helper does not touch the
-tripwire's allowlist. Keeping model-chosen commands out of them is the duty
-of their callers, Inspect's own modules and companion code such as
-inspect_swe's shared installers, and is maintained by review of those
-callers; in-loop scoring, which runs trusted
-task code, is the one marked block that runs code Inspect does not fix. The
-trust model states this as its
-[framework-operation contract](sandbox-trust-model.md#sandbox-identity-scopes).
-
-### Marked sites
-
-| Site | What it covers |
-|---|---|
-| `privileged_exec()`, `privileged_shell()`, `image_path_lookup()` ([`_privileged.py`](../src/inspect_ai/util/_sandbox/_privileged.py)) | Every command Inspect issues with the framework's authority: the default-identity probe, OS detection, sandbox services, checkpoint and restore commands, the passwd home lookup, file detection's `test -r`, sample setup, skill digests and ownership changes. These helpers already require `user` and document `None` as the default user; the marker keeps that true inside a scope. |
-| `_run_verified()` ([`_framework_directory.py`](../src/inspect_ai/util/_sandbox/_framework_directory.py)) | Every framework-directory helper: tools-tree install, verification and `stat`, service queues, checkpoint scratch. |
-| `SandboxJSONRPCTransport` ([`_json_rpc_transport.py`](../src/inspect_ai/util/_sandbox/_json_rpc_transport.py)) | The tools CLI runs as the tools user; the member's identity travels as the request's `user` param. Without the marker, a sandbox with no usable root would launch the CLI as the member, who cannot enter the default user's private tools tree (`test_transport_runs_as_the_tools_user_in_a_scope`). |
-| `start-server` launch ([`tool/_sandbox_tools_utils/sandbox.py`](../src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py)) | The server runs as the tools user. |
-| `_is_file_readable()` fallback read ([`context.py`](../src/inspect_ai/util/_sandbox/context.py)) | The `sandbox_with()` detector's `read_file()` runs as the default user. |
-| Checkpoint chunk read ([`util/_checkpoint/_copy.py`](../src/inspect_ai/util/_checkpoint/_copy.py)) | The chunk is read as `root` on a provider with file users and as the default user otherwise, inside a scope as outside. |
-| `score()` ([`scorer/_score.py`](../src/inspect_ai/scorer/_score.py)) | In-loop scoring; see [Context inheritance](#context-inheritance). |
-| `install_skills()`'s default-authority write ([`tool/_tools/_skill/install.py`](../src/inspect_ai/tool/_tools/_skill/install.py)) | See [`install_skills()`](#install_skills). |
-
-`identity.py` reads the marker. Nothing else in inspect_ai needs it. The
-sample's file copy and setup script run in
-`init_sandbox_environments_sample()`, before any solver can open a scope.
-`skill()` and `computer()` refuse inside a scope for their sandbox before
-running anything, so `skill()`'s shared install is not reached there.
-
-A tripwire test, `test_framework_operation_marker_sites` in
-`tests/util/sandbox/test_sandbox_identity.py`, asserts that the set of
-modules referencing the marker module is exactly the modules in this table
-plus `identity.py`. A marker use in a new module is therefore a deliberate
-change to its allowlist, which a reviewer sees. The test does not see a new
-marker use inside a module already on the list, or a sandbox call that
-bypasses the marked helpers; review of those modules covers both.
+The marker affects only the boundary default. For the user, it changes only
+calls that pass none: an explicit user is kept, and the model-facing tools
+still pass their strictly resolved users. For paths, it suppresses the
+scope's `cwd` and relative-path resolution for every call in the block,
+including calls that name a user (the member's `pwd` in `install_skills()`
+is one). A misplaced marker can therefore change the user only of calls that
+pass none, and the working directory of any call in the block.
 
 ### Default identity and root probes
 
-The probes injection runs go through the `_privileged.py` sites, so they
-describe the sandbox, not the member whose tool call triggered them. The
-sandbox-tools injection records the sandbox's default identity even when it
-first happens lazily, at a tool's first call inside a member's scope
-(`test_injection_inside_a_scope_records_the_default_identity` in
-`tests/tools/sandbox_tools_utils/test_sandbox_tools_injection.py`).
-Otherwise the first member to trigger injection would be taken for the
+Injection probes the sandbox through marked helpers, so injection first
+triggered by a member's tool call inside its scope does not change the
+identity that later unscoped tool requests use. With a root tools user they
+still run as the sandbox's default identity, and with a rootless tools user
+as the tools user; the root and rootless cases of
+`test_injection_inside_a_scope_records_the_default_identity`
+(`tests/tools/sandbox_tools_utils/test_sandbox_tools_injection.py`) pin
+both. Unmarked, the first member to trigger injection would be taken for the
 sandbox's default user, and every later unscoped tools request would switch
-to that member. OS detection and checkpoint restore's identity check go
-through the same helpers.
+to that member.
 
 ## Context inheritance
 
@@ -273,12 +244,9 @@ Both the scope and the marker are ContextVars, so tasks inherit both.
 **The scope, into framework background work.** Tasks started inside a scope
 inherit it: sandbox-service polling loops for the bridge, `exec_remote()`
 process polling, the MCP server transports, and checkpoints that `react()`
-takes. Every sandbox operation these tasks perform goes through a marked
-helper (the privileged helpers, the framework-directory helper, the JSON-RPC
-transport or the checkpoint copier), so each keeps its identity whatever
-task it runs in. This holds by construction of those paths; the tripwire
-limits which modules can use the marker but does not check that background
-work routes through it.
+takes. Their sandbox operations keep the framework's identity whatever task
+they run in, because each goes through a marked helper. That rests on review
+of those paths, not on a test: the tripwire does not check routing.
 
 **The marker, into tasks started inside a marked block.** Each marked block
 other than scoring wraps one awaited call to the proxy. A provider may start
@@ -295,11 +263,16 @@ marker (`test_react_in_loop_scorer_keeps_the_default_user_in_a_scope` in
 `sandbox().exec()` would run as the member in-loop and as the default user
 when the same scorer runs at final scoring, which happens after the solver,
 outside every scope; the in-loop verdict could then differ from the final
-score, for example when the scorer reads a root-only test file. Marked, every
-scorer runs on the identity it was written for. A scorer that calls a
-built-in tool still runs that tool as the member. Tasks the scorer starts
-inherit the marker. The scorer is trusted task code, and the marker gives it
-no authority it would not have at final scoring.
+score, for example when the scorer reads a root-only test file. Marked, a
+scorer's userless calls run as the default user of the sandbox they address.
+That matches final scoring only when both phases address the same sandbox: a
+scope makes its named sandbox the default, and `score()` does not restore
+the sample's default selection, so a scorer that calls `sandbox()` inside a
+scope for another sandbox addresses that sandbox in-loop and the sample's
+default sandbox at final scoring. A scorer that calls a built-in tool still
+runs that tool as the member. Tasks the scorer starts inherit the marker.
+The scorer is trusted task code, and the marker gives it no authority it
+would not have at final scoring.
 
 The cost is timing. A scorer can execute submitted code (SWE-bench runs the
 modified repository's tests; Frontier-CS runs the submitted program).
@@ -354,23 +327,22 @@ the marked write passes no user, a provider whose `write_file()` takes no
 `user` keeps working for explicit-user installs inside a scope
 (`test_install_skills_explicit_user_in_a_scope`).
 
-**Omitted `user`.** `install_skills()` decides once, as the boundary would
-for a call with no user, whether it installs as the scope's member, and
-every step follows that decision:
+**Omitted `user`.** The install takes the user a call with no user would
+take at the boundary:
 
 - **The member** (inside a scope for the sandbox, outside any marked block):
-  every step runs with the member's authority: `pwd` for a relative `dir`,
-  each write and each `chmod +x`. On a provider whose `write_file()` cannot
-  take a user it raises `SandboxUserUnsupportedError` before writing
-  anything. It changes no ownership: files it creates belong to the member,
-  like every other file the member's scaffold creates, while a file it
-  overwrites keeps whatever owner the provider's write leaves (Docker
-  overwrites in place and keeps the existing owner). It can overwrite only a
-  file the member may write. Its `chmod +x` works for a member who cannot
-  enter the provider's working directory, and `install.py` exports
+  every step runs with the member's authority. On a provider whose
+  `write_file()` cannot take a user it fails with
+  `SandboxUserUnsupportedError` before writing anything. It works for a
+  member who cannot enter the provider's working directory, given an
+  absolute `dir` (see below for a relative one), and `install.py` exports
   `INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT = True` so companion packages can
-  detect this. The rule applies whether the caller passes the sample's proxy
-  or the provider behind it. `test_install_skills_omitted_user_in_a_scope`,
+  detect this. It changes no ownership: files it creates belong to the
+  member, like every other file the member's scaffold creates, while a file
+  it overwrites keeps whatever owner the provider's write leaves (Docker
+  keeps the existing owner); it can overwrite only a file the member may
+  write. The rule applies whether the caller passes the sample's proxy or the
+  provider behind it. `test_install_skills_omitted_user_in_a_scope`,
   `test_install_skills_omitted_user_in_a_scope_relative_dir` and
   `test_install_skills_raw_provider_without_file_user_in_a_scope`
   (`tests/tools/test_skill.py`) and, with Docker,
@@ -396,17 +368,11 @@ Packages that install tooling into a scoped sandbox (inspect_swe's agent
 installers) meet these requirements before they run inside a scope:
 
 - **Shared artifacts at fixed paths**, such as agent binaries, Node,
-  interpreters and source files that several members execute or load, are
-  provisioned inside the marker with `user=None` and satisfy the trust
-  model's [verified-directory](sandbox-trust-model.md#host-verified-directories)
-  and [verify-before-use](sandbox-trust-model.md#verify-before-use)
-  contracts. The location is created or adopted with
-  `ensure_framework_directory()` before any privileged step writes or
-  executes there, those steps run through `exec_in_framework_directory()`
-  rather than a pathname, and every executed or loaded file and the
-  directories between it and the install directory are protected from member
-  modification. Otherwise the first member could own a file every later
-  member executes, and run code as each peer.
+  interpreters and source files that several members execute or load, follow
+  the trust model's rule for them in
+  [Verify before use](sandbox-trust-model.md#verify-before-use). Otherwise
+  the first member could own a file every later member executes, and run
+  code as each peer.
 - **Per-user setup** (discovery, per-user installs, configuration under the
   agent's home) runs as the member and resolves that member's home rather
   than an inherited `HOME`. The boundary default supplies the member's
@@ -428,7 +394,9 @@ installers) meet these requirements before they run inside a scope:
   mention the scope; the `sandbox_identity()` docstring and the trust model
   do.
 - 2026-11-02 (decision: Ransom): in-loop scoring keeps the sandbox's default
-  user, so a scorer runs on the same identity in-loop and at final scoring.
+  user, so a scorer that addresses the same sandbox runs on the same
+  identity in-loop and at final scoring (see
+  [Context inheritance](#context-inheritance) for sandbox selection).
 - 2026-11-04 (decision: Ransom): a scorer cannot open its own scope during
   in-loop scoring; `sandbox_identity()` raises inside a marked block rather
   than ignoring the scope there. No scorer in Inspect or its satellite
@@ -537,18 +505,13 @@ relative path against it gives the member no access it lacks: the call runs
 as the member, whose own permissions decide what the path reaches.
 
 **The marker grants the default user.** A marker placed around model-chosen
-work would run that work as root. Three things limit this: the marker wraps
-single calls in helpers whose callers, Inspect and trusted companion code,
-supply fixed framework commands rather than model-chosen ones (the helpers
-do not verify this; review of their callers does); it changes the user only
-of calls that pass none, never the model-facing tools' resolved users,
-though it suppresses the scope's `cwd` and path defaults for every call in
-the block; and the tripwire test makes a marker use in a new module a
-reviewed allowlist change (uses inside already listed modules, and new
-callers of marked helpers, rely on review). The one
-block that runs task code, in-loop scoring, runs code the eval author
-already trusts as the default user at final scoring, but while other members
-are active (see [Context inheritance](#context-inheritance)).
+work would run that work as root. The trust model's
+[framework-operation contract](sandbox-trust-model.md#sandbox-identity-scopes)
+forbids that, and [the marker section](#the-framework-operation-marker)
+says what enforces it and what rests on review. In-loop scoring runs code
+the eval author already trusts as the default user at final scoring, but
+while other members are active (see
+[Context inheritance](#context-inheritance)).
 
 **Shared artifacts.** Without the
 [companion requirements](#requirements-on-companion-packages), the default

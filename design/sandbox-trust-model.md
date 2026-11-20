@@ -430,7 +430,8 @@ user. `install_skills()` inside a scope keeps its existing behaviour when it
 is given a `user`: a write with the default user's authority, then `chown` to
 that user. Given no `user`, it installs as the scope's user: the write, the
 `pwd` for a relative directory and `chmod +x` all name that user, and no
-`chown` runs, because the writer owns the files. On a provider whose
+`chown` runs: files it creates are owned by that user, and a file it
+overwrites keeps its existing owner. On a provider whose
 `write_file()` cannot take a user, that install raises
 `SandboxUserUnsupportedError` before writing anything. Inside a marked block
 (in-loop scoring), an install with no `user` takes the legacy default-user
