@@ -106,6 +106,8 @@ class Looked(NamedTuple):
     """
     judging_usage: list[JudgingUsage] | None = None
     """What the provider billed for the models the sidecar's sentinel called while judging every attempt at the call."""
+    usage_read: bool = False
+    """Whether the answer was about records the sidecar holds, so that what its judging billed was read, if only as nothing."""
 
 
 async def request_result(received: ReceivedCall, replied: bool) -> Looked:
@@ -135,15 +137,49 @@ async def request_result(received: ReceivedCall, replied: bool) -> Looked:
     return looked
 
 
+def record_usage_read(
+    received: ReceivedCall, request_id: str, result: dict[str, Any]
+) -> bool:
+    """Record what an answer of `request_result` adds to the judging usage recorded for a request id, and say whether the answer held a total that could be read.
+
+    For an answer Inspect asked for outside `request_result`, as after it cancelled a call. The sidecar reports a total for the id, so only what was added since the last answer is recorded.
+    """
+    if result.get("records") != "held":
+        return False
+    try:
+        used = parse_judging_usage(result.get("judging_usage")) or None
+    except ValueError:
+        return False
+    record_judging_usage(_not_yet_recorded(received, used, request_id))
+    return True
+
+
+def note_usage_unavailable(request_id: str, reason: str) -> None:
+    """Note in the transcript that what judging a request billed couldn't be had, so it reads as unknown rather than none."""
+    from inspect_ai.log._transcript import transcript
+
+    transcript().info(
+        {
+            "request": request_id,
+            "judging_usage": "unavailable",
+            "reason": reason,
+        },
+        source="sentinel sidecar",
+    )
+
+
 def _not_yet_recorded(
-    received: ReceivedCall, used: list[JudgingUsage] | None
+    received: ReceivedCall,
+    used: list[JudgingUsage] | None,
+    request_id: str | None = None,
 ) -> list[JudgingUsage] | None:
     # The sidecar reports usage for a request id as a total over every attempt
     # under that id. Inspect asks about a paused call more than once under one
     # id, so it records only the usage added since it last asked.
-    if not used or received.request_id is None:
+    request_id = request_id or received.request_id
+    if not used or request_id is None:
         return used
-    recorded = received.usage_recorded.setdefault(received.request_id, {})
+    recorded = received.usage_recorded.setdefault(request_id, {})
     new: list[JudgingUsage] = []
     for entry in used:
         key = (entry.role, entry.model)
@@ -222,14 +258,7 @@ async def record_unasked_usage(received: ReceivedCall) -> None:
                         )
                     continue
                 reason = f"the sidecar's records are {records}"
-            transcript().info(
-                {
-                    "request": request_id,
-                    "judging_usage": "unavailable",
-                    "reason": reason,
-                },
-                source="sentinel sidecar",
-            )
+            note_usage_unavailable(request_id, reason)
             received.unasked.pop(0)
 
 
@@ -507,6 +536,7 @@ def _judging(looked: Looked, result: dict[str, Any]) -> Looked:
     return looked._replace(
         judging_time=float(judging_time) if judging_time is not None else None,
         judging_usage=parse_judging_usage(result.get("judging_usage")) or None,
+        usage_read=True,
     )
 
 

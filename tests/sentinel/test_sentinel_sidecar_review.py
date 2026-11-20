@@ -2659,8 +2659,11 @@ def test_a_call_whose_samples_registration_stopped_it_is_cancelled_though_it_can
         and e.data.get("judging_usage") == "unavailable"
     ]
     if lookups_refused == 1:
+        # what the sidecar says as the call is cancelled is what is counted,
+        # and it isn't asked again
         assert sample.model_usage["mockllm/judge"].total_tokens == 1000
         assert unknown == []
+        assert len(_called(stand_in, "request_result")) == 2
     else:
         assert "mockllm/judge" not in sample.model_usage
         assert len(unknown) == 1

@@ -1649,15 +1649,19 @@ def test_a_retry_of_a_request_makes_sure_of_the_samples_registration_before_it_i
     assert sent == ["complete_registration", "model", "complete_registration", "model"]
 
 
-@pytest.mark.parametrize("retried_by", ["the provider's SDK", "Inspect"])
-def test_a_retry_whose_samples_registration_the_sidecar_wont_take_again_is_never_sent(
-    retried_by: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def _registration_fills(stand_in: StandInSidecar) -> Callable[[], None]:
+    # The task is registered with the sidecar again, as when another of the
+    # task's models is found there, and other samples fill the registration.
+    # So the sidecar won't take the sample's registration again, which the
+    # next try of a request finds as it is sent.
     full = [False]
 
-    def registered_again() -> None:
-        # the task is registered with the sidecar again while the request's
-        # retry backs off, and other samples fill the registration meanwhile
+    def complete(_: dict[str, Any]) -> dict[str, Any]:
+        if full[0]:
+            return {"error": {"code": -32008, "message": "the registrations are full"}}
+        return {}
+
+    def fill() -> None:
         sidecars = task_sidecars(stand_in.calls[0]["params"]["eval_id"])
         assert sidecars is not None
         access = sidecars.access("http://proxy.test")
@@ -1665,11 +1669,14 @@ def test_a_retry_whose_samples_registration_the_sidecar_wont_take_again_is_never
         access.registration_changes += 1
         full[0] = True
 
-    def complete(_: dict[str, Any]) -> dict[str, Any]:
-        if full[0]:
-            return {"error": {"code": -32008, "message": "the registrations are full"}}
-        return {}
+    stand_in.methods["complete_registration"] = complete
+    return fill
 
+
+@pytest.mark.parametrize("retried_by", ["the provider's SDK", "Inspect"])
+def test_a_retry_whose_samples_registration_the_sidecar_wont_take_again_is_never_sent(
+    retried_by: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     stand_in = StandInSidecar(
         turns=[
             # the first try is judged, with the judge's 1,000 tokens billed,
@@ -1678,12 +1685,12 @@ def test_a_retry_whose_samples_registration_the_sidecar_wont_take_again_is_never
                 status=503,
                 judgment={"outcome": "proceed", "steps": []},
                 judging={"judging_usage": _judge_usage(1000)},
-                then=registered_again,
             ),
             Turn(),
-        ],
-        methods={"complete_registration": complete},
+        ]
     )
+    # the registration fills while the request's retry backs off
+    stand_in.turns[0].then = _registration_fills(stand_in)
     model = _model(stand_in)
     if retried_by == "Inspect":
         model = get_model(
@@ -1708,6 +1715,55 @@ def test_a_retry_whose_samples_registration_the_sidecar_wont_take_again_is_never
     assert "the registrations are full" in sample.error.message
     # the try that was sent is still asked about, for what judging it cost
     assert sample.model_usage["anthropic/claude-judge"].total_tokens == 1000
+
+
+@pytest.mark.parametrize(
+    ("answer", "counted", "unknown"),
+    [("held", 1000, 0), ("unreadable", 0, 1), ("dropped", 0, 1)],
+)
+def test_the_judging_usage_of_a_try_whose_retry_was_stopped_is_counted_once_or_noted_as_unknown(
+    answer: str, counted: int, unknown: int
+) -> None:
+    def result(params: dict[str, Any]) -> dict[str, Any]:
+        if answer == "dropped":
+            return {"id": params["id"], "records": "dropped"}
+        usage = _judge_usage(1000)
+        if answer == "unreadable":
+            usage[0]["usage"]["total_tokens"] = "many"
+        # the sidecar is still waiting for the reply of the try the provider
+        # failed, and says what judging it has billed so far
+        return {
+            "id": params["id"],
+            "records": "held",
+            "state": "awaiting_reply",
+            "judging_usage": usage,
+        }
+
+    stand_in = StandInSidecar(
+        turns=[Turn(status=503), Turn()], methods={"request_result": result}
+    )
+    stand_in.turns[0].then = _registration_fills(stand_in)
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate())
+
+    [log] = eval(
+        task, model=_model(stand_in), sentinel_proxy="required", display="none"
+    )
+
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is not None
+    assert "the registrations are full" in sample.error.message
+    judge = sample.model_usage.get("anthropic/claude-judge")
+    assert (judge.total_tokens if judge is not None else 0) == counted
+    assert log.stats.model_usage.get("anthropic/claude-judge") == judge
+    noted = [
+        e
+        for e in sample.events
+        if isinstance(e, InfoEvent)
+        and isinstance(e.data, dict)
+        and e.data.get("judging_usage") == "unavailable"
+    ]
+    assert len(noted) == unknown
 
 
 async def test_a_sample_is_ended_with_its_task_named() -> None:

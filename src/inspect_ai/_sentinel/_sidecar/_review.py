@@ -932,7 +932,7 @@ def mark_ended(received: ReceivedCall) -> None:
         _clear_paused(received)
 
 
-async def cancel_paused_call(received: ReceivedCall | None) -> None:
+async def cancel_paused_call(received: ReceivedCall | None) -> dict[str, Any] | None:
     """Tell the sidecar to cancel a paused call that Inspect has given up on.
 
     When Inspect cancels or fails a call that is paused, the sidecar is left
@@ -943,21 +943,29 @@ async def cancel_paused_call(received: ReceivedCall | None) -> None:
     Inspect waits at most `CANCEL_TIMEOUT` seconds for the sidecar, because the
     teardown of a cancelled sample can't be interrupted. If the sidecar doesn't
     answer, it closes the call when the sample ends, or when the run expires.
+
+    Returns:
+        What the sidecar then said of the call with `request_result`, or None if nothing was cancelled or it didn't say.
     """
     if received is None or not received.paused or received.reviewed_request_id is None:
-        return
+        return None
     _clear_paused(received)
-    await _cancel(received, received.reviewed_request_id)
+    return await _cancel(received, received.reviewed_request_id)
 
 
-async def cancel_call_that_may_be_paused(received: ReceivedCall) -> None:
+async def cancel_call_that_may_be_paused(
+    received: ReceivedCall,
+) -> dict[str, Any] | None:
     """Tell the sidecar to cancel a call Inspect has given up on, where Inspect couldn't learn whether the sidecar paused it.
 
     The sidecar may hold a question about the call that nobody will be asked, or a request it would still pass on. Cancelling a call that isn't paused, or has ended, changes nothing at the sidecar. Nothing is sent to a sidecar that asks no person through the eval, which pauses no call.
+
+    Returns:
+        What the sidecar then said of the call with `request_result`, or None if it was sent nothing or didn't say.
     """
     if received.request_id is None or not getattr(received.sidecar, "review", False):
-        return
-    await _cancel(received, received.request_id)
+        return None
+    return await _cancel(received, received.request_id)
 
 
 async def cancel_paused_calls(sample_uuid: str) -> None:
@@ -970,7 +978,7 @@ async def cancel_paused_calls(sample_uuid: str) -> None:
         await _cancel(received, request_id)
 
 
-async def _cancel(received: ReceivedCall, request_id: str) -> None:
+async def _cancel(received: ReceivedCall, request_id: str) -> dict[str, Any] | None:
     # Inspect calls `cancel_paused_request`, then calls `request_result` once,
     # so that the record of a question the cancellation closed goes into the
     # eval's log. Leaving the sidecar to close the call when the sample ends
@@ -980,12 +988,14 @@ async def _cancel(received: ReceivedCall, request_id: str) -> None:
     with anyio.CancelScope(shield=True), anyio.move_on_after(CANCEL_TIMEOUT):
         try:
             await sidecar.eval_call("cancel_paused_request", {"id": request_id})
-            result = await sidecar.eval_call(
+            result: dict[str, Any] = await sidecar.eval_call(
                 "request_result", {"id": request_id, "wait": 0}
             )
             if result.get("records") == "held":
                 log_reviews(received, result)
+            return result
         except Exception as ex:
             logger.debug(
                 f"The sentinel sidecar at {sidecar.origin} couldn't be told a call was given up: {ex}"
             )
+    return None

@@ -4,7 +4,6 @@ A sidecar judges a whole turn before Inspect is handed it, and Inspect asks what
 """
 
 from collections.abc import Awaitable, Callable
-from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 from weakref import WeakKeyDictionary
 
@@ -22,7 +21,9 @@ from inspect_ai.tool._tool_call import ToolCall
 
 from ._lookup import (
     lost_sample,
+    note_usage_unavailable,
     record_unasked_usage,
+    record_usage_read,
     request_result,
     unjudged_error,
     unknown_to_required,
@@ -44,8 +45,6 @@ _TOOL_CALL = TypeAdapter(ToolCall)
 
 if TYPE_CHECKING:
     from inspect_ai.model._response_headers import ResponseHeaders
-
-logger = getLogger(__name__)
 
 
 class CallDecision(NamedTuple):
@@ -236,41 +235,47 @@ async def _end_call_registration_stopped(received: ReceivedCall) -> None:
     # of the stopped send. First the tries that were sent are accounted for,
     # as the sidecar may have judged them, and a call it paused is cancelled.
     # None of this replaces the registration's error: what fails here is
-    # logged, and the usage that couldn't be had is noted as unknown.
+    # logged, and usage that couldn't be had is noted as unknown.
     from ._review import cancel_call_that_may_be_paused, cancel_paused_call
 
-    known = False
-    try:
-        if received.sent and received.looked is None:
+    # The latest attempt's request, if one was sent, and whether what its
+    # judging billed was read. The sidecar gives a total for the id, so each
+    # answer adds only what it has over the one before.
+    request_id = received.request_id if received.sent else None
+    read = request_id is None
+    unread = "the sidecar couldn't be asked"
+    if request_id is not None:
+        try:
             # asks nobody: see `awaiting_review` in the lookup
-            await request_result(received, replied=False)
-        known = (
-            not received.sent
-            or received.paused
-            or (received.looked is not None and received.looked.state != "unavailable")
-        )
-    except Exception as ex:
-        logger.debug(
-            f"A call its sample's registration stopped couldn't be asked about: {ex}"
-        )
+            looked = received.looked or await request_result(received, replied=False)
+            read = looked.usage_read
+            unread = looked.reason or unread
+        except Exception as ex:
+            unread = str(ex)
+    answer: dict[str, Any] | None = None
     if received.paused:
         # Nothing will resend a paused call, so it is cancelled at the
         # sidecar. A call whose latest attempt was never sent is still
         # paused from an earlier one.
-        await cancel_paused_call(received)
-    elif not known:
-        # The sidecar may have paused the try for a person, and what it
-        # billed for judging it wasn't had. So the try is cancelled by its
-        # id, and its usage is asked for once more, or noted as unknown.
-        await cancel_call_that_may_be_paused(received)
-        if received.request_id is not None:
-            received.unasked.append(received.request_id)
-    try:
-        await record_unasked_usage(received)
-    except Exception as ex:
-        logger.debug(
-            f"The judging usage of a call its sample's registration stopped couldn't be read: {ex}"
-        )
+        request_id = received.reviewed_request_id
+        answer = await cancel_paused_call(received)
+    elif request_id is not None and (
+        received.looked is None or received.looked.state == "unavailable"
+    ):
+        # Inspect didn't learn the call's state, and the sidecar may have
+        # paused it for a person, so the call is cancelled by its id.
+        answer = await cancel_call_that_may_be_paused(received)
+    if request_id is not None:
+        if answer is not None and record_usage_read(received, request_id, answer):
+            read = True
+        if not read:
+            note_usage_unavailable(request_id, unread)
+    # the attempts Inspect retried without asking about them
+    while received.unasked:
+        try:
+            await record_unasked_usage(received)
+        except Exception as ex:
+            note_usage_unavailable(received.unasked.pop(0), str(ex))
 
 
 def _note_lost(received: ReceivedCall) -> None:
