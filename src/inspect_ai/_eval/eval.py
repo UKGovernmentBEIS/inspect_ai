@@ -952,6 +952,15 @@ async def _eval_async_inner(
         if epochs is not None and epochs.epochs < 1:
             raise ValueError("epochs must be a positive integer.")
 
+        if max_samples is not None and max_samples < 1:
+            raise ValueError(
+                f"max_samples must be a positive integer (got {max_samples})."
+            )
+        if max_tasks is not None and max_tasks < 1:
+            raise ValueError(
+                f"max_tasks must be a positive integer (got {max_tasks})."
+            )
+
         # resolve log_model_api from env var if not explicitly set
         if log_model_api is None:
             log_model_api_env = os.environ.get("INSPECT_EVAL_LOG_MODEL_API")

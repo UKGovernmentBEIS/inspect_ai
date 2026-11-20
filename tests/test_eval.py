@@ -1426,6 +1426,20 @@ def test_task_max_samples_rejects_non_positive() -> None:
         Task(dataset=[Sample(input="x")], max_samples=0)
 
 
+@pytest.mark.parametrize("bad_value", [0, -1])
+def test_eval_max_samples_rejects_non_positive(bad_value: int) -> None:
+    task = Task(dataset=[Sample(input="x")])
+    with pytest.raises(ValueError, match="max_samples must be a positive integer"):
+        eval(task, model="mockllm/model", max_samples=bad_value, display="none")
+
+
+@pytest.mark.parametrize("bad_value", [0, -1])
+def test_eval_max_tasks_rejects_non_positive(bad_value: int) -> None:
+    task = Task(dataset=[Sample(input="x")])
+    with pytest.raises(ValueError, match="max_tasks must be a positive integer"):
+        eval(task, model="mockllm/model", max_tasks=bad_value, display="none")
+
+
 def test_ctl_retunes_task_max_samples() -> None:
     from inspect_ai._control.eval_state import get_eval_state
     from inspect_ai._control.limits import task_limits
