@@ -481,6 +481,14 @@ or group) is still found by `find_control_flow()`
 as it is on the group it was built from, including when `apply_limits()`
 or `run()` returns the combined error and the caller raises it later. How
 the members' histories are kept reachable is the implementation's choice.
+Discoverable is not delivered: a combined error that `run()` returns
+normally carries its termination only to a caller that raises it again.
+A caller that keeps the returned error, as deepagent's synchronous and
+background dispatchers do when they turn it into a result string
+(`src/inspect_ai/agent/_deepagent/agent_tool.py:628-632`, `:778-784`),
+ends the termination there. Today such a group escapes `run()` and the
+bridge finds the termination; under the covered-exit rule it is returned,
+the same as a bare owned limit with a termination in its history today.
 
 In the sample, the sample's own limits are entered first (token, cost,
 message, turn), so its token, cost and turn limits rank ahead of every
@@ -749,7 +757,9 @@ tool error; a handoff still answers its own limit) pin this nesting.
   If the error is owned by the call, it is mapped to the `limit` tool
   error as today, with the combined error's message (its top-ranked
   limit's). That covers `as_tool()` limits, any `with token_limit()` inside
-  a tool, and message limits. An error that is not owned is handled like a
+  a tool, and message limits, except a message limit raised by a sentinel
+  tool-call or tool-result stage's own model call, which keeps the
+  sentinel path (Sentinel failures). An error that is not owned is handled like a
   termination raised in a tool: its `ToolEvent` is completed, its siblings
   in the stage are cancelled, and the error propagates out of
   `execute_tools()` as the combined `LimitExceededError`, not as a group:
@@ -800,8 +810,14 @@ leaves message limits active, and `generate()` checks the innermost message
 limit before dispatch (`src/inspect_ai/model/_model.py:1059-1062`,
 `src/inspect_ai/util/_limit.py:780-794`), so a monitor whose own prompt
 reaches an inherited message cap raises a message limit. It keeps today's
-handling: the wrapper turns it into a `SentinelFailure`. A native tool
-unwraps it as today (`_sentinel_exception()`, `_call_tools.py:186-193`).
+handling: the wrapper turns it into a `SentinelFailure`. In a native
+tool's tool-call (before-tool) or tool-result (after-tool) stage,
+`execute_tools()` unwraps it into the stage's exception as today
+(`_sentinel_exception()`, `_call_tools.py:186-193`, `:336-337`,
+`:400-401`), and it propagates out of `execute_tools()` as the bare
+message limit, without the ownership mapping: it does not become a
+`limit` tool error, even though the same limit reached in the tool's
+body would. Ownership (`execute_tools()`) refers here.
 From a native generate stage it reaches the sample runner as a
 `SentinelFailure`, not a `LimitExceededError`, so the runner's
 `except LimitExceededError` does not record it: `handle_error()` only
@@ -1987,7 +2003,12 @@ documented. Behaviour changes:
   a plain `with cost_limit()` inside an agent under
   `run(limits=[token_limit(N)])` is now returned by `run()` instead of
   propagating. The rule for `run(limits=[...])` has no exceptions: it
-  returns the limits entered inside it. `run(limits=None)`, which
+  returns the limits entered inside it. An owned limit group with a
+  termination in a non-primary member's history is also returned now,
+  where today it escapes `run()` and the bridge acts on the termination;
+  a caller that keeps the returned error (deepagent's dispatchers) no
+  longer delivers that termination unless it raises the error again
+  ("Trees and entry numbers"). `run(limits=None)`, which
   returns only the state, catches nothing, as today. With `catch_errors=False` a
   group propagates unchanged, as today. At normal exit it raises its own
   limits that are exceeded, combined;
@@ -2305,7 +2326,12 @@ under trio with `--runtrio`.
   holding only the message limit's error is still the message `limit`
   tool error. The existing
   `test_a_group_of_sentinel_limits_keeps_its_first_limit`
-  (`tests/sentinel/test_sentinel_dispatch.py:3331`) stays as it is.
+  (`tests/sentinel/test_sentinel_dispatch.py:3331`) stays as it is. A new
+  `test_a_sentinel_tool_stage_message_limit_propagates` there pins the
+  sentinel exception: a sentinel protocol whose before-tool, then
+  after-tool, model call reaches an inherited message limit propagates the
+  bare message limit out of `execute_tools()`; its control sends the same
+  prompt from the tool body and gets the `limit` tool error.
 - `tests/test_eval.py` (or the existing sample-limit tests): a solver that
   swallows an exceeded sample token limit and returns is recorded as
   limited; a solver whose call was refused at exactly the sample token
@@ -2365,7 +2391,9 @@ under trio with `--runtrio`.
     `TerminateSampleError`; `run()` returns their combined error (token
     primary) and the call raises it;
     the wrapper re-raises it, `find_control_flow()` on it yields that
-    termination, and the bridge's failure stays unrequested;
+    termination, and the bridge's failure stays unrequested; a no-rethrow
+    control keeps the returned combined error as a result, as deepagent's
+    dispatchers do, and the dispatcher sees no termination;
   - a bridge inside a tool, end to end: an `as_tool()` agent whose body
     sends two bridged requests at once, one whose prompt reaches the
     sample's `message_limit(2)` and one whose priced usage takes a
