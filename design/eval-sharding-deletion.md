@@ -177,16 +177,27 @@ does not follow links locally) on top of the pass's own listing.
 - **By listed name, never by prefix.** Each entry of the set is deleted
   by its own name; locally, directories are then removed deepest first,
   each only if empty, the companion last. A symbolic link is removed as
-  a link, and its target is never visited.
+  a link, and its target is never visited. Locally this is deletion's
+  own unlink in `log/_shards/_delete.py`, which removes a symbolic link
+  as a link and treats a missing entry as deleted; neither
+  `AsyncFilesystem.delete_file` (which raises `FileNotFoundError` for a
+  missing local file) nor fsspec's `rm` (which fails on a link to a
+  directory) does both. On S3 it is the existing object delete.
 - **Current attempts last.** Every other entry (older attempts,
   `scans/`, checkpoint directories, a `.buffer/`, directory markers) is
   deleted before any shard's current attempt. Cost: none, the same
   deletes in two groups.
-- **Bounded.** At most 32 deletes in flight, run as the merge's other
-  bounded I/O is: the first failure or a cancellation cancels the
-  remaining deletes and propagates. Deletes are one request per object
-  on S3, which does not charge for them. A delete that finds its entry
-  already gone counts as deleted.
+- **Bounded.** At most 32 deletes in flight, run with the merge's
+  ordinary bounded concurrency (`tg_collect`): the first failure or a
+  cancellation cancels the remaining deletes and propagates. Deletes are
+  one request per object on S3, which does not charge for them. A
+  delete that finds its entry already gone counts as deleted.
+- **Not owned threads.** Local deletes are a deliberate exception to the
+  implementation plan's rule that every worker thread the merge starts
+  goes through `run_owned` ("Cancellation and concurrency"): after a
+  cancellation, an unlink already started may finish after the lock is
+  released. It can only remove an entry of the listed set, and on S3 a
+  delete already sent cannot be waited for either.
 - **Confirmed.** After the last delete, one more recursive listing,
   directory markers included, must find nothing under `<name>.shards/`;
   otherwise the call raises, naming up to ten entries left and the
@@ -418,6 +429,13 @@ model provider.
   at each stage, every shard holds its recorded current attempt or none,
   and a deleting rerun finishes (after a simulated crash, once the stale
   local lock is removed).
+- `test_delete_shards_rerun_refuses_partly_deleted` (parametrized): on a
+  companion left partly deleted by an interruption, a deleting rerun
+  whose stored status is not `success`, whose supplied selection differs
+  from the recorded one, or whose remaining shard has changed is
+  refused, and nothing is written or deleted.
+- `test_plain_merge_refuses_partly_deleted`: a merge without the option
+  refuses the same partly deleted companion as vanished shards.
 - `test_delete_shards_does_not_follow_symlinks` (local): link targets
   survive, and a linked companion is refused before anything is written.
 - `test_delete_shards_stays_in_prefix` (S3): sibling prefixes survive.
@@ -427,7 +445,8 @@ model provider.
   type and says to rerun with the option; the command reports
   `storage_error` with that advice.
 - `test_delete_shards_holds_lock` (local): a merge started during
-  deletion is refused with `WriteConflictError`.
+  deletion is refused with `WriteConflictError`. It does not check that
+  no unlink runs after a cancellation ("Not owned threads" above).
 - `test_delete_shards_cancelled`: after cancellation every shard holds
   its recorded current attempt or none, and a rerun completes.
 - In `tests/test_eval_set.py`,
@@ -441,8 +460,8 @@ model provider.
 
 One PR:
 
-- `log/_shards/_delete.py`: the listing, the S3 name check, deletion and
-  the confirming listing.
+- `log/_shards/_delete.py`: the listing, the S3 name check, deletion
+  (with its own local unlink) and the confirming listing.
 - `log/_shards/_api.py`: the option, the argument check, the listing
   before the pass, the deleting rerun's acceptance of shard directories
   with no attempt left, and the incomplete-set message on a deleting
