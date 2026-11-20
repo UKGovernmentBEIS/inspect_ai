@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import TextIO
+from typing import Callable, TextIO
 
 import anyio
 import pytest
@@ -241,17 +241,33 @@ class _SetupFailed(Exception):
 
 
 _CHILD_OUTPUT = "build step 1"
+_LATER_CHILD_OUTPUT = "build step 2"
 
 
-async def _run_setup(display: RichDisplay, out: TextIO, end: str) -> None:
-    """A sandbox setup whose child process writes to the terminal descriptor."""
+async def _write_from_child(out: TextIO, text: str) -> None:
+    out.flush()
+    await anyio.run_process(
+        [sys.executable, "-c", f"print({text!r})"], stdout=out.fileno()
+    )
+
+
+async def _run_setup(
+    display: RichDisplay,
+    out: TextIO,
+    end: str,
+    meanwhile: Callable[[], None] | None = None,
+) -> None:
+    """A sandbox setup whose child process writes to the terminal descriptor.
+
+    `meanwhile` runs between two child writes, as another task would while
+    the setup awaits its child.
+    """
     with anyio.CancelScope() as scope:
         with display.suspend_task_app():
-            out.flush()
-            await anyio.run_process(
-                [sys.executable, "-c", f"print({_CHILD_OUTPUT!r})"],
-                stdout=out.fileno(),
-            )
+            await _write_from_child(out, _CHILD_OUTPUT)
+            if meanwhile is not None:
+                meanwhile()
+                await _write_from_child(out, _LATER_CHILD_OUTPUT)
             if end == "error":
                 raise _SetupFailed()
             elif end == "cancel":
@@ -333,3 +349,58 @@ async def test_rich_setup_output_is_written_above_the_mini_status(
         assert display.live is not None and not display.live.is_started
 
     _assert_output_kept(_read_all(read_fd, out), "Task running")
+
+
+def _redraw_tick(display: RichDisplay) -> None:
+    """Redraw the renderers that are running, as the display's ticks do."""
+    assert display.live is not None and display.screen is not None
+    if display.live.is_started:
+        display.live.update("TASK TOP\nTASK BOTTOM", refresh=True)
+    display.screen.status.update(spinner="clock")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("end", ["normal", "error", "cancel"])
+@pytest.mark.parametrize("transient", [True, False])
+@pytest.mark.parametrize("showing", ["task_display", "mini_status"])
+async def test_rich_input_screen_closed_during_setup_draws_after_setup(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    showing: str,
+    transient: bool,
+    end: str,
+) -> None:
+    """An input screen closed during setup starts its renderers when setup ends."""
+    display = RichDisplay()
+    console, read_fd, out = _terminal_console()
+    monkeypatch.setattr(rich, "_console", console)
+    async with display.task_screen([], parallel=False) as screen:
+        assert display.live is not None and display.screen is not None
+        if showing == "mini_status":
+            with screen.input_screen(transient=False, record_event=False):
+                pass
+        _redraw_tick(display)
+
+        def close_input_screen() -> None:
+            with screen.input_screen(transient=transient, record_event=False):
+                pass
+            _redraw_tick(display)
+
+        if end == "error":
+            with pytest.raises(_SetupFailed):
+                await _run_setup(display, out, end, close_input_screen)
+        else:
+            await _run_setup(display, out, end, close_input_screen)
+
+        assert display.live.is_started == transient
+        assert display.screen.status_started == (not transient)
+        _redraw_tick(display)
+
+    output = _read_all(read_fd, out)
+    _, _, during = output.partition(_CHILD_OUTPUT + "\n")
+    during, later, _ = during.partition(_LATER_CHILD_OUTPUT + "\n")
+    assert later, output
+    # nothing was drawn between the two child writes ...
+    assert "TASK" not in during and "Task running" not in during, repr(during)
+    # ... and the renderer the input screen selected is drawn below them
+    _assert_output_kept(output, "TASK TOP" if transient else "Task running")

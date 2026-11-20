@@ -207,6 +207,9 @@ class RichTaskScreen(TaskScreen):
             spinner="clock",
         )
         self.status_started = False
+        self.suspended = False
+        self.resume_live = False
+        self.resume_status = False
 
     def __exit__(self, *excinfo: Any) -> None:
         self._stop_status()
@@ -226,25 +229,32 @@ class RichTaskScreen(TaskScreen):
         A child process (e.g. a Docker image build during sandbox setup)
         writes to the inherited terminal descriptors, which Rich cannot
         redirect. The task display and the mini-status are cleared first and
-        drawn again below that output afterwards, however the block ends.
+        drawn again below that output afterwards, however the block ends. An
+        input screen that closes meanwhile selects which of them come back.
         """
-        live_started = self.live.is_started
-        status_started = self.status_started
+        if self.suspended:
+            yield
+            return
+
+        self.resume_live = self.live.is_started
+        self.resume_status = self.status_started
         renderable = self.live.renderable
-        if status_started:
+        if self.status_started:
             self._stop_status()
-        if live_started:
+        if self.live.is_started:
             # a blank render first, so that the restart does not move the
             # cursor up over the lines written meanwhile
             self.live.update("", refresh=True)
             self.live.stop()
+        self.suspended = True
         try:
             yield
         finally:
-            if live_started:
+            self.suspended = False
+            if self.resume_live:
                 self.live.start()
                 self.live.update(renderable, refresh=True)
-            if status_started:
+            if self.resume_status:
                 self._start_status()
 
     @override
@@ -303,8 +313,13 @@ class RichTaskScreen(TaskScreen):
             # the live display, which shows it again when it stops)
             self.live.console.show_cursor(False)
 
+            # while suspended, start nothing until the suspension ends
+            if self.suspended:
+                self.resume_live = transient
+                self.resume_status = not transient
+
             # if transient then disable live updates entirely
-            if transient is False and self.live.is_started:
+            elif transient is False and self.live.is_started:
                 self.live.stop()
 
             # otherwise make sure they are enabled
@@ -312,7 +327,7 @@ class RichTaskScreen(TaskScreen):
                 self.live.start()
 
             # if not transient then display mini-status
-            if not transient:
+            if not transient and not self.suspended:
                 self._start_status()
 
 
