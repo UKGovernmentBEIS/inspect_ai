@@ -27,9 +27,9 @@ passed to `exec()` or `exec_remote()`, a `read_file()` or `write_file()`
 path, and a `sandbox_with()` file lookup. A relative path therefore names the
 same file in all of them. Absolute paths are kept, and marked operations are
 unaffected; `install_skills()` resolves a relative skills directory through
-such a marked operation, so it uses the provider's working directory. Docker runs the commands behind its file operations from `/`, so
-an absolute path works for a user who cannot enter the image's working
-directory.
+such a marked operation, so it uses the provider's working directory. A
+provider's file operations on an absolute path work for a user who cannot
+enter the provider's working directory.
 
 Companion packages that install tooling into a scoped sandbox provision
 shared artifacts inside the marker and verify them before a member uses
@@ -56,11 +56,11 @@ is root in most images: a custom tool that calls `sandbox().exec()`,
 isolated member read and write every other member's files.
 
 Scaffold code that is not a tool has the same problem. An inspect_swe agent
-running as a member writes its configuration with `write_file()` under the
-`$HOME` that `exec(["sh", "-c", "echo $HOME"])` reports, and then launches
-its CLI through `exec_remote()`, which takes the scope's user. If the first
-two calls ran as root, the configuration would land in root's home and the
-member's CLI would not find it.
+running as a member runs its setup commands with `exec()` and writes its
+configuration under the member's home with `write_file()`, then launches its
+CLI through `exec_remote()`, which takes the scope's user. If the setup ran
+as root, the configuration would be root's files and the member's CLI could
+not use it.
 
 Inspect's own commands and scorers also pass no user, to mean the default
 user. Without a framework-operation marker, `exec()` cannot distinguish
@@ -101,27 +101,26 @@ return these proxies. The proxy is therefore the one host-side place every
 sample-level `exec()`, `read_file()` and `write_file()` passes through,
 unless the caller used `as_type()`.
 
-Each of the three methods resolves its user first, with
-`sandbox_operation_user(env, user)`:
+Each of the three methods runs as:
 
-- An explicit `user` is returned unchanged.
-- Inside a `framework_sandbox_operation()` block, `None` is returned
-  unchanged.
-- Otherwise the result is `sandbox_identity_user(env, None, strict=False)`:
-  the scope's user inside a scope for `env`, `None` outside one or for
-  another sandbox. Sandboxes are compared after unwrapping proxies, so the
-  sample's proxy and the provider behind it count as one sandbox.
+- an explicit `user`, unchanged, inside a scope as outside;
+- the provider's default user when the call names none inside a
+  `framework_sandbox_operation()` block;
+- otherwise the scope's user inside a scope for that sandbox, and the
+  provider's default user outside one or for another sandbox. The sample's
+  proxy and the provider behind it count as one sandbox.
 
-`exec()` forwards the resolved user to the provider. The file methods build
-their keyword arguments with `sandbox_file_user_params()`, which resolves the
-same way and then forwards the user if the provider's method declares a
-keyword-capable `user` parameter, or raises (see
+The file methods raise instead when the provider cannot take a user (see
 [Providers that cannot take a file user](#providers-that-cannot-take-a-file-user)).
-The `SandboxEvent` options record the resolved user, so the transcript shows
-the user each operation ran as. Provider internals that call their own
-methods (Docker's `write_file()` runs `self.exec(...)`) act on the unwrapped
-object and never reach the proxy again. `SandboxEnvironment`'s abstract
-methods and provider implementations are unchanged.
+The `SandboxEvent` options record the user each operation ran as. Calls a
+provider makes on itself do not pass through the proxy, so they are not
+defaulted a second time. `SandboxEnvironment`'s abstract methods and provider
+implementations are unchanged. `test_operations_take_the_scope_user`,
+`test_explicit_user_is_kept_in_a_scope`,
+`test_other_sandbox_and_outside_scope_unchanged`,
+`test_the_provider_behind_a_sample_proxy_is_the_same_sandbox` and
+`test_framework_operation_keeps_the_default_user`
+(`tests/util/sandbox/test_sandbox_identity.py`) pin these rules.
 
 ## The scope's `cwd` at the boundary
 
@@ -135,31 +134,29 @@ call.
 After resolving the user, the proxy resolves paths, inside a scope for the
 sandbox that has a `cwd` and outside any `framework_sandbox_operation()`:
 
-- `exec()` with no `cwd` runs in the scope's `cwd`
-  (`sandbox_operation_cwd()`).
-- A relative `cwd`, or a relative `read_file()` or `write_file()` path, is
-  joined to the scope's `cwd` (`sandbox_operation_cwd()`,
-  `sandbox_operation_file()`). `SandboxEnvironment.exec()` documents a
+- `exec()` with no `cwd` runs in the scope's `cwd`.
+- A relative `cwd`, or a relative `read_file()` or `write_file()` path,
+  resolves against the scope's `cwd`. `SandboxEnvironment.exec()` documents a
   relative `cwd` as relative to the default working directory, and inside
   the scope that directory is the scope's `cwd`.
 - An absolute `cwd` or path is kept.
 
-The same join applies wherever else a caller gives a relative path inside a
-scope:
+`test_operations_use_the_scope_cwd` pins these rules. The same resolution
+applies wherever else a caller gives a relative path inside a scope:
 
-- `exec_remote()` resolves its `cwd` with `sandbox_identity_cwd()`: no `cwd`
-  becomes the scope's `cwd`, and a relative one is joined to it, so
-  `exec_remote(cwd="sub")` and `exec(cwd="sub")` run in the same directory.
-  Inside a marked operation, such as an in-loop scorer, a relative `cwd` is
-  kept, as `exec()` keeps it there; an omitted one still becomes the scope's
-  `cwd`.
-- `sandbox_with(file)` resolves a relative `file` with
-  `sandbox_operation_file()` for each candidate sandbox before probing it, so
-  a file a member wrote with `write_file("result.txt")` is found by
-  `sandbox_with("result.txt")`. The probe itself is a framework operation and
-  runs as the default user. The discovery cache key holds the path each
-  sandbox was probed with, so a lookup made in one scope, or outside any, is
-  not reused in another. `on_path=True` lookups are unchanged.
+- `exec_remote()` with no `cwd` runs in the scope's `cwd`, and a relative one
+  resolves against it, so `exec_remote(cwd="sub")` and `exec(cwd="sub")` run
+  in the same directory (`test_identity_scope_resolves_a_relative_cwd` in
+  `tests/util/sandbox/test_exec_remote.py`). Inside a marked operation, such
+  as an in-loop scorer, a relative `cwd` is kept, as `exec()` keeps it there;
+  an omitted one still becomes the scope's `cwd`.
+- `sandbox_with(file)` resolves a relative `file` against the scope's `cwd`
+  for each candidate sandbox before probing it, so a file a member wrote
+  with `write_file("result.txt")` is found by `sandbox_with("result.txt")`.
+  The probe itself is a framework operation and runs as the default user. A
+  lookup made in one scope, or outside any, is not reused in another
+  (`test_file_discovery_follows_the_scope_cwd`). `on_path=True` lookups are
+  unchanged.
 
 These rules do not depend on the user: a call that names `user="root"` and
 no `cwd` also runs in the scope's `cwd`, so a relative path names the same
@@ -169,29 +166,31 @@ member needs a directory the member can enter: `install_skills()`'s
 `chmod +x` names `/`, but its `pwd` for a relative skills directory names
 none, so it runs in the provider's working directory (see
 [`install_skills()`](#install_skills)). Outside a scope, in a scope without a `cwd`, on
-another sandbox and through `as_type()`, nothing changes. The `SandboxEvent`
-records the resolved `cwd` in an exec event's options and the resolved path
-in a file event's `file`.
+another sandbox and through `as_type()`, nothing changes
+(`test_scope_cwd_is_not_used_by_framework_operations_or_elsewhere`). The
+`SandboxEvent` records the resolved `cwd` in an exec event's options and the
+resolved path in a file event's `file`.
 
 `identity.py` exports `SANDBOX_OPERATIONS_USE_SCOPE_CWD = True` so companion
 packages can tell that the installed inspect_ai applies the scope's `cwd` at
 the boundary.
 
-A provider's own commands must also work for a user who cannot enter the
-default working directory. Docker's `read_file()` runs `tar` with `--workdir
-/`, and its `write_file()` runs `mkdir -p`, `tee` and the `ls` of its
-permission-denied diagnostic from `/` on the already-absolute path; the
-diagnostic lists the destination's parent rather than `.`. The `local`
-provider runs only as the current user and writes with Python I/O, so it has
-no such command.
+A provider's own file operations on an absolute path work for a user who
+cannot enter the provider's default working directory. For Docker,
+`test_member_installs_a_scripted_skill_with_a_closed_workdir`
+(`tests/tools/test_skill.py`, which needs Docker) pins this end to end on an
+image whose working directory is `/root`, and
+`test_read_file_command_preserves_user_and_archive_options` and
+`test_write_file_commands_run_from_the_root_directory`
+(`tests/util/sandbox/test_docker_read_file.py`) pin it on runtimes that
+would not show the failure. The `local` provider runs only as the current
+user, so the case does not arise there.
 
 ## The framework-operation marker
 
-`_framework_operation.py` is a leaf module that imports only the standard
-library, so every helper below can import it without a cycle. It holds a
-`ContextVar[bool]`, the context manager `framework_sandbox_operation()` that
-sets it for the block, and `in_framework_sandbox_operation()`, which reads
-it.
+`framework_sandbox_operation()`, in `_framework_operation.py`, is a private
+context manager that marks the block it wraps; like the scope, it is held in
+a ContextVar (see [Context inheritance](#context-inheritance)).
 
 The marker affects only the boundary default for user and `cwd`. The scope,
 injection targeting, the sandbox-tools request user and the model-facing
@@ -228,7 +227,7 @@ trust model states this as its
 |---|---|
 | `privileged_exec()`, `privileged_shell()`, `image_path_lookup()` ([`_privileged.py`](../src/inspect_ai/util/_sandbox/_privileged.py)) | Every command Inspect issues with the framework's authority: the default-identity probe, OS detection, sandbox services, checkpoint and restore commands, the passwd home lookup, file detection's `test -r`, sample setup, skill digests and ownership changes. These helpers already require `user` and document `None` as the default user; the marker keeps that true inside a scope. |
 | `_run_verified()` ([`_framework_directory.py`](../src/inspect_ai/util/_sandbox/_framework_directory.py)) | Every framework-directory helper: tools-tree install, verification and `stat`, service queues, checkpoint scratch. |
-| `SandboxJSONRPCTransport` ([`_json_rpc_transport.py`](../src/inspect_ai/util/_sandbox/_json_rpc_transport.py)) | The tools CLI runs as the tools user; the member's identity travels as the request's `user` param. Without the marker, a sandbox with no usable root would launch the CLI as the member, who cannot enter the default user's 0700 tools tree. |
+| `SandboxJSONRPCTransport` ([`_json_rpc_transport.py`](../src/inspect_ai/util/_sandbox/_json_rpc_transport.py)) | The tools CLI runs as the tools user; the member's identity travels as the request's `user` param. Without the marker, a sandbox with no usable root would launch the CLI as the member, who cannot enter the default user's private tools tree (`test_transport_runs_as_the_tools_user_in_a_scope`). |
 | `start-server` launch ([`tool/_sandbox_tools_utils/sandbox.py`](../src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py)) | The server runs as the tools user. |
 | `_is_file_readable()` fallback read ([`context.py`](../src/inspect_ai/util/_sandbox/context.py)) | The `sandbox_with()` detector's `read_file()` runs as the default user. |
 | Checkpoint chunk read ([`util/_checkpoint/_copy.py`](../src/inspect_ai/util/_checkpoint/_copy.py)) | The chunk is read as `root` on a provider with file users and as the default user otherwise, inside a scope as outside. |
@@ -251,15 +250,16 @@ bypasses the marked helpers; review of those modules covers both.
 
 ### Default identity and root probes
 
-The probes injection runs stay correct through the `_privileged.py` sites.
-The root-access probe passes `user="root"`. The default-identity probe
-(`_detect_default_user()`) passes `user=None` through `privileged_shell()`,
-so it reports the sandbox's default identity even when injection first
-happens lazily, at a tool's first call inside a member's scope. Unmarked, the
-first member to trigger injection would be recorded as the sandbox's
-`_tools_default_user`, and every later unscoped tools request would switch
-to that member. OS detection and checkpoint restore's `id -u` go through the
-same helpers.
+The probes injection runs go through the `_privileged.py` sites, so they
+describe the sandbox, not the member whose tool call triggered them. The
+sandbox-tools injection records the sandbox's default identity even when it
+first happens lazily, at a tool's first call inside a member's scope
+(`test_injection_inside_a_scope_records_the_default_identity` in
+`tests/tools/sandbox_tools_utils/test_sandbox_tools_injection.py`).
+Otherwise the first member to trigger injection would be taken for the
+sandbox's default user, and every later unscoped tools request would switch
+to that member. OS detection and checkpoint restore's identity check go
+through the same helpers.
 
 ## Context inheritance
 
@@ -284,8 +284,9 @@ proxy again, so the marker does not spread beyond the call it wraps.
 `react(attempts=...)` and `basic_agent()` call `score()` inside the member's
 scope. (The human agent's `task score` also calls `score()`, but a human
 agent inside a scope is not a supported shape; see
-[Not this design](#not-this-design).) `score()` wraps each
-`await scorer(state, target)` in the marker. Unmarked, a scorer that calls
+[Not this design](#not-this-design).) `score()` runs each scorer inside the
+marker (`test_react_in_loop_scorer_keeps_the_default_user_in_a_scope` in
+`tests/agent/test_agent_react.py`). Unmarked, a scorer that calls
 `sandbox().exec()` would run as the member in-loop and as the default user
 when the same scorer runs at final scoring, which happens after the solver,
 outside every scope; the in-loop verdict could then differ from the final
@@ -307,26 +308,23 @@ read, as final scoring's report can.
 user would not reach the scorer's userless calls, while the same scorer
 opening the same scope at final scoring, which is unmarked, would run them
 as that user. `sandbox_identity()` therefore raises `SandboxIdentityError`
-when opened inside `framework_sandbox_operation()`.
+when opened inside `framework_sandbox_operation()`
+(`test_scope_cannot_open_inside_a_framework_operation`,
+`test_react_in_loop_scorer_cannot_open_a_scope`).
 
 ## Providers that cannot take a file user
 
 Inside a scope, an unmarked `read_file()` or `write_file()` with no user
-resolves to the scope's user. If the provider's method declares no
-keyword-capable `user` parameter (a `**kwargs` catch-all does not count),
-`sandbox_file_user_params()` raises `SandboxUserUnsupportedError`. Because
-the caller passed no user and would not otherwise know where one came from,
-the message names the scope:
+resolves to the scope's user. If the provider's method cannot take a user,
+as the trust model's
+[File-operation users](sandbox-trust-model.md#file-operation-users) defines
+it, the call raises `SandboxUserUnsupportedError` before reaching the
+provider. Because the caller passed no user and would not otherwise know
+where one came from, the error names the scope's user and sandbox and points
+to `exec()` (`test_provider_without_file_user_raises_in_a_scope`).
 
-```
-KubernetesSandboxEnvironment.read_file does not support a user, so it cannot
-run as 'swarm-w-1' inside the sandbox identity scope for sandbox 'default'.
-Update the sandbox provider to support file users, or read the file with exec().
-```
-
-In inspect_ai, Docker and `local` (current user only) declare a file
-`user`. Third-party providers that do not declare a keyword-capable file
-`user` raise `SandboxUserUnsupportedError` for these calls inside a scope; all of them accept `exec(user=...)`, so `exec()` is unaffected. Outside
+In inspect_ai, Docker and `local` (current user only) take a file `user`.
+Third-party providers whose file methods cannot take one raise `SandboxUserUnsupportedError` for these calls inside a scope; all of them accept `exec(user=...)`, so `exec()` is unaffected. Outside
 a scope, and for marked operations, nothing changes on any provider: a
 marked call passes no user, so the checkpoint copier and the detector keep
 working on providers without file users. Built-in tools are unaffected,
@@ -348,33 +346,41 @@ mode changes follow. Unmarked, `install_skills(..., user="root",
 dir="/root/skills")` inside a member's scope would write as the member and
 fail with `PermissionError` before it could hand the files to root. Because
 the marked write passes no user, a provider whose `write_file()` takes no
-`user` keeps working for explicit-user installs inside a scope.
+`user` keeps working for explicit-user installs inside a scope
+(`test_install_skills_explicit_user_in_a_scope`).
 
-**Omitted `user`.** `install_skills()` calls `sandbox_operation_user(sbox,
-None)` once and applies the answer to every step:
+**Omitted `user`.** `install_skills()` decides once, as the boundary would
+for a call with no user, whether it installs as the scope's member, and
+every step follows that decision:
 
 - **The member** (inside a scope for the sandbox, outside any marked block):
-  the install runs as the member. It first checks that the provider's
-  `write_file()` can take a user, and raises `SandboxUserUnsupportedError`
-  before writing anything if not. The member is then named on every step:
-  `pwd` for a relative `dir`, each `write_file(..., user=member)` and each
-  `chmod +x`. No `chown` runs, because the writer owns the files. `chmod +x`
-  runs from `/`, because the member may not be able to enter the provider's
-  working directory; `install.py` exports
+  every step runs with the member's authority: `pwd` for a relative `dir`,
+  each write and each `chmod +x`. On a provider whose `write_file()` cannot
+  take a user it raises `SandboxUserUnsupportedError` before writing
+  anything. It changes no ownership: files it creates belong to the member,
+  like every other file the member's scaffold creates, while a file it
+  overwrites keeps whatever owner the provider's write leaves (Docker
+  overwrites in place and keeps the existing owner). It can overwrite only a
+  file the member may write. Its `chmod +x` works for a member who cannot
+  enter the provider's working directory, and `install.py` exports
   `INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT = True` so companion packages can
-  detect this. The skills land owned by the member, like every other write
-  the member's scaffold makes. The rule applies whether the caller passes the
-  sample's proxy or the provider behind it, since the scope is matched after
-  unwrapping.
+  detect this. The rule applies whether the caller passes the sample's proxy
+  or the provider behind it. `test_install_skills_omitted_user_in_a_scope`,
+  `test_install_skills_omitted_user_in_a_scope_relative_dir` and
+  `test_install_skills_raw_provider_without_file_user_in_a_scope`
+  (`tests/tools/test_skill.py`) and, with Docker,
+  `test_member_installs_a_scripted_skill_with_a_closed_workdir` pin this
+  branch.
 - **`None`** (outside a scope, or inside a marked block such as in-loop
   scoring): the legacy path, a write with the default user's authority and
   no `chown`. An in-loop scorer that installs skills behaves as the same
-  scorer does at final scoring.
+  scorer does at final scoring
+  (`test_install_skills_omitted_user_under_marker_matches_final_scoring`).
 
 A relative `dir`, including the default `skills`, resolves against the
-provider's working directory, not the scope's `cwd`, because its `pwd` runs
-through the marked `privileged_exec()` with no `cwd`; the resulting absolute
-paths are what the file operations receive. Inside a scope with no `user`,
+provider's working directory, not the scope's `cwd`, because its `pwd` is a
+marked operation; the file operations then receive absolute paths. Inside a
+scope with no `user`,
 the member must therefore be able to enter the provider's working directory
 (for `pwd`) and write the skills directory under it; otherwise the caller
 passes an absolute directory.
@@ -399,11 +405,12 @@ installers) meet these requirements before they run inside a scope:
 - **Per-user setup** (discovery, per-user installs, configuration under the
   agent's home) runs as the member and resolves that member's home rather
   than an inherited `HOME`. The boundary default supplies the member's
-  identity, not its environment: Docker's `exec()` adds `--user` and leaves
-  the image's `HOME` in place, whereas the sandbox-tools job launcher sets
-  `HOME` to the switched user's home unless the caller sets it.
-  `sandbox_identity_vars()` returns the member's home from the passwd
-  database.
+  identity, not its environment: it does not change a command's
+  environment, so `HOME` in a defaulted `exec()` is whatever the provider
+  sets, not necessarily the member's home. `sandbox_identity_vars()`
+  returns the member's home from the passwd database
+  (`test_home_lookup_script_reads_the_passwd_database` and the
+  `test_vars_*` tests in `tests/util/sandbox/test_sandbox_identity.py`).
 
 ## Decisions
 
@@ -506,9 +513,11 @@ unchanged too. Inside a scope:
   dict; there is no schema or generated TypeScript type change, and existing
   logs read back unchanged.
 - **`install_skills()`** with a `user` behaves as outside a scope. With no
-  `user` it installs as the member and the skills are owned by the member;
-  a relative or default `dir` resolves in the provider's working directory,
-  which the member must be able to enter and write under.
+  `user` it installs with the member's authority: skill files it creates are
+  owned by the member, and a file it overwrites keeps the owner the
+  provider's write leaves (on Docker, its existing owner). A relative or
+  default `dir` resolves in the provider's working directory, which the
+  member must be able to enter and write under.
 
 ## Security
 
@@ -518,10 +527,9 @@ it; the model never supplies it. The commands, paths and file contents
 passed to the three operations may be model-chosen, as they always could be.
 The default runs them as the framework-selected scope user, which in swarm
 user isolation is the member's user rather than the sandbox's default user.
-The scope's `cwd` is likewise host configuration, and a relative path a
-model supplies is joined to it with `posixpath.join`, which gives the member
-no access it lacks: the member's own permissions decide what the path
-reaches.
+The scope's `cwd` is likewise host configuration. Resolving a model-supplied
+relative path against it gives the member no access it lacks: the call runs
+as the member, whose own permissions decide what the path reaches.
 
 **The marker grants the default user.** A marker placed around model-chosen
 work would run that work as root. Three things limit this: the marker wraps
@@ -547,9 +555,9 @@ write followed by `chown`, inside a scope as outside. Its known exposure, a
 destination an agent can redirect through symbolic links, is unchanged and
 is tracked in the trust model's
 [File-operation users](sandbox-trust-model.md#file-operation-users) section.
-An omitted-user install inside a scope writes as the member and runs no
-privileged `chown`, so it adds no root operation in a directory the member
-controls.
+An omitted-user install inside a scope writes with the member's authority
+and changes no ownership, so it adds no root operation in a directory the
+member controls and can overwrite only files the member may write.
 
 **Providers without file users fail closed** (see
 [above](#providers-that-cannot-take-a-file-user)).
