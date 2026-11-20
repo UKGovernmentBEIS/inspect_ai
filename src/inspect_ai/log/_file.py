@@ -46,6 +46,7 @@ from inspect_ai._util.file import (
     url_protocol,
 )
 from inspect_ai._util.json import to_json_safe
+from inspect_ai._util.path import native_path
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._resolve import rebind_sample_timelines, resolve_sample_events_data
@@ -1208,15 +1209,19 @@ class LogDestination(NamedTuple):
 
 
 def resolve_local_path(path: str) -> str:
-    """Resolve a local path or `file://` URL to the native path writers use.
+    """Resolve a path on the local filesystem to the native path writers use.
 
-    The result is absolute, with `~` expanded, `%xx` escapes decoded and
-    symlinks resolved, so a containment check and the writer that follows
-    it see the same file. Remote URLs are returned unchanged.
+    Applies to every form fsspec opens locally (a plain path, `file://` or
+    `local://`). The result is absolute, with `~` expanded, `file://`
+    escapes decoded and symlinks resolved, so a containment check and the
+    writer that follows it see the same file. Other URLs are returned
+    unchanged.
     """
-    if url_protocol(path) in (None, "file"):
-        return os.path.realpath(os.path.expanduser(local_path(path)))
-    return path
+    if not filesystem(path).is_local():
+        return path
+    if url_protocol(path) == "file":
+        path = local_path(path)
+    return os.path.realpath(native_path(path))
 
 
 def contained_log_destination(
@@ -1257,7 +1262,7 @@ def contained_log_destination(
         else f"{posixpath.splitext(relative)[0]}.{extension}"
     )
     destination = posixpath.join(target_dir, written)
-    if url_protocol(target_dir) in (None, "file"):
+    if filesystem(target_dir).is_local():
         root = resolve_local_path(target_dir)
         destination = resolve_local_path(destination)
         try:

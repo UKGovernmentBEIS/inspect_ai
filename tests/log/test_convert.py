@@ -201,6 +201,23 @@ def test_convert_dir_refuses_symlinks_out_of_output_dir(
     assert list(elsewhere.iterdir()) == []
 
 
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_refuses_symlinks_out_of_local_url_output_dir(
+    tmp_path: pathlib.Path, converter: str
+):
+    _, log_dir = _nested_log_dir(tmp_path)
+    output_dir = tmp_path / "out"
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    output_dir.mkdir()
+    (output_dir / "sub").symlink_to(elsewhere, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="would be written outside"):
+        _CONVERTERS[converter](str(log_dir), f"local://{output_dir}")
+
+    assert list(elsewhere.iterdir()) == []
+
+
 def _record_chunked_destinations(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     checked: list[str] = []
 
