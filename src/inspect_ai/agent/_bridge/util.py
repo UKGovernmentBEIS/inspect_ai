@@ -1672,6 +1672,7 @@ async def _bridge_generate_impl(
         if producer is not None and fresh is not output:
             # a copy the steps share, as approval and the scaffold get `fresh`
             producer = replace(producer, handed=fresh.message.model_copy(deep=True))
+            _record_agent_tool_call_ids(producer.event, fresh)
         output = fresh
         bridge._handouts.propose(output.message.tool_calls or [])
         # each call's handout, named before review so its approvals and
@@ -1798,6 +1799,24 @@ def _fresh_call_ids(
         message.content = _renamed_anchors(message.content, fresh)
     with_edited_id(generated.message, message)
     return output
+
+
+def _record_agent_tool_call_ids(event: "ModelEvent", fresh: ModelOutput) -> None:
+    """Record on `event` the id the agent receives for each of its output's calls (`ModelEvent.agent_tool_call_ids`).
+
+    `fresh` is the event's output with fresh call ids (`_fresh_call_ids`),
+    its calls in the same order, since the bridge records this only for a
+    response it passes to the agent as the event logged it
+    (`_Generations.producer`). Set before approval, as a rejected turn's
+    replayed results carry these ids too. The event has completed, so the
+    update is written as the bridge's other late updates are
+    (`_link_result_messages`); a model event sink that has not yet emitted
+    the event writes it with the ids.
+    """
+    from inspect_ai.log._transcript import transcript
+
+    event.agent_tool_call_ids = [call.id for call in fresh.message.tool_calls or []]
+    transcript()._event_updated(event)
 
 
 def _renamed_anchors(
