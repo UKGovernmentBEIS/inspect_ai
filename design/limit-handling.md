@@ -1917,7 +1917,10 @@ documented. Behaviour changes:
   entered below it (of any kind), sourceless `custom` limits and message
   limits behaves as before; a handoff still
   returns the handed-off agent's new messages and its limit message for
-  them.
+  them. A limit error of another type raised with no source (code that
+  builds `LimitExceededError("token", ...)` itself) is no longer the
+  call's own and propagates; every error Inspect's limit nodes raise
+  carries its node as `source`.
 - **Unpriced models under a cost limit fail.** A call to a model with no
   cost data, made while a sample, agent or swarm cost limit is active, is
   refused before dispatch with an `UnmeteredCallError` (a
@@ -2293,8 +2296,12 @@ under trio with `--runtrio`.
   today.
 - `tests/tools/test_call_tools.py`, `decisive_tool_exception()` and the
   call's ownership test, beside
-  `test_native_group_with_limit_leaf_is_reported_as_the_limit`: a native
-  tool run under an enclosing `cost_limit()` enters a `token_limit()` and
+  `test_native_group_with_limit_leaf_is_reported_as_the_limit` (its group
+  cases change their `_token_limit()` fixture, a token error with no
+  source, to raise from a `token_limit()` node entered and exceeded inside
+  the tool, and keep their `limit` tool error; a control raising the
+  sourceless token error propagates it out of `execute_tools()`, since it
+  is not the call's own): a native tool run under an enclosing `cost_limit()` enters a `token_limit()` and
   raises a group of that token limit's error and the enclosing cost
   limit's; the call does not own all of it, so their combined error
   (`limits` both) propagates out of `execute_tools()` (today the first
@@ -2457,8 +2464,15 @@ under trio with `--runtrio`.
     propagate the combined error, and the sample ends on it with a
     `SampleLimitEvent` for each limit;
 - `tests/tools/test_tools_bridge.py`: a bridged host tool's own limit is
-  still the `limit` tool error text (the existing `test_bridged_limit_replies_with_the_native_tool_error` and
-  `test_sandbox_bridge_host_tool_limit_does_not_end_the_sample`). Beside `test_bridged_limit_replies_with_the_native_tool_error`,
+  still the `limit` tool error text and does not end the sample (the
+  existing `test_bridged_limit_replies_with_the_native_tool_error` and
+  `test_sandbox_bridge_host_tool_limit_does_not_end_the_sample`, whose
+  `_token_limit()` fixture builds a token error with no source and changes
+  to raise from a `token_limit()` node the tool enters and exceeds, so the
+  error is the call's own). A sourceless-token control raises the old
+  fixture's error inside the tool: it is not the call's own (rule 6), so
+  it is added to the bridge's kept limits while the scaffold gets the same
+  tool-error text, and the sample ends on it when the agent unwinds. Beside `test_bridged_limit_replies_with_the_native_tool_error`,
   with the `_serve_grouped()` harness: a host tool served under a
   `message_limit()` and then an enclosing `turn_limit()`, both entered
   outside the tool, raises a group of the message limit's error and the
