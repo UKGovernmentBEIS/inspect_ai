@@ -1,7 +1,8 @@
 """Tests for score editing functionality."""
 
+import json
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import pytest
 
@@ -876,6 +877,261 @@ async def test_score_edit_none_fields_round_trip(
     assert fields(history) == fields(edited_history)
     edit_events = [e for e in read_sample.events if isinstance(e, ScoreEditEvent)]
     assert fields([e.edit for e in edit_events]) == fields(history[1:])
+
+
+def _score_edit_with_none(field: str) -> ScoreEdit:
+    values: dict[str, Any] = {"value": "C", field: None}
+    return ScoreEdit(**values)
+
+
+def _dump_score_edit_selection(
+    edit: ScoreEdit,
+    selection: Literal["include", "exclude"],
+    selected: Any,
+) -> dict[str, Any]:
+    kwargs = {selection: selected}
+    dumped = edit.model_dump(mode="json", exclude_none=True, **kwargs)
+    return dumped
+
+
+@pytest.mark.parametrize("field", ["answer", "explanation", "reason"])
+def test_score_edit_explicit_none_fields_serialize_as_null(field: str) -> None:
+    edit = _score_edit_with_none(field)
+
+    dumped = edit.model_dump(mode="json", exclude_none=True)
+
+    assert field in dumped
+    assert dumped[field] is None
+
+
+@pytest.mark.parametrize("field", ["answer", "explanation", "reason"])
+@pytest.mark.parametrize("serializer", ["model_dump", "model_dump_json"])
+@pytest.mark.parametrize("selection", ["exclude", "include"])
+def test_score_edit_none_fields_respect_field_selection(
+    field: str,
+    serializer: str,
+    selection: str,
+) -> None:
+    edit = _score_edit_with_none(field)
+    kwargs: dict[str, Any] = (
+        {"exclude": {field}} if selection == "exclude" else {"include": {"value"}}
+    )
+
+    if serializer == "model_dump":
+        dumped = edit.model_dump(mode="json", exclude_none=True, **kwargs)
+    else:
+        dumped = json.loads(edit.model_dump_json(exclude_none=True, **kwargs))
+
+    assert field not in dumped
+
+
+@pytest.mark.parametrize("field", ["answer", "explanation", "reason"])
+@pytest.mark.parametrize(
+    ("selection", "selected", "expected_present"),
+    [
+        ("exclude", False, True),
+        ("exclude", True, False),
+        ("include", False, True),
+        ("include", True, True),
+    ],
+)
+def test_score_edit_none_fields_respect_mapping_selection(
+    field: str,
+    selection: Literal["include", "exclude"],
+    selected: bool,
+    expected_present: bool,
+) -> None:
+    edit = _score_edit_with_none(field)
+    selected_fields = (
+        {"value": True, field: selected}
+        if selection == "include"
+        else {field: selected}
+    )
+    dumped = _dump_score_edit_selection(edit, selection, selected_fields)
+
+    assert (field in dumped) is expected_present
+
+
+@pytest.mark.parametrize("field", ["answer", "explanation", "reason"])
+@pytest.mark.parametrize(
+    ("selection", "selection_value", "expected_present"),
+    [
+        ("include", {"__all__": True}, True),
+        ("include", {"__all__": False}, True),
+        ("include", {"__all__"}, True),
+        ("exclude", {"__all__": True}, False),
+        ("exclude", {"__all__": False}, True),
+        ("exclude", {"__all__"}, False),
+    ],
+)
+def test_score_edit_none_fields_respect_all_selection(
+    field: str,
+    selection: Literal["include", "exclude"],
+    selection_value: Any,
+    expected_present: bool,
+) -> None:
+    edit = _score_edit_with_none(field)
+    dumped = _dump_score_edit_selection(edit, selection, selection_value)
+
+    assert (field in dumped) is expected_present
+
+
+@pytest.mark.parametrize("field", ["answer", "explanation", "reason"])
+@pytest.mark.parametrize(
+    ("selection", "selection_kind", "expected_present"),
+    [
+        ("include", "field", True),
+        ("include", "field_all", True),
+        ("exclude", "field_all", True),
+        ("exclude", "all_field", True),
+        ("exclude", "all_true_field_false", True),
+        ("exclude", "all_true_field_all", True),
+        ("exclude", "all_true_field_ellipsis", False),
+    ],
+)
+def test_score_edit_none_fields_respect_scalar_mapping_selection(
+    field: str,
+    selection: Literal["include", "exclude"],
+    selection_kind: str,
+    expected_present: bool,
+) -> None:
+    edit = _score_edit_with_none(field)
+    selection_cases: dict[str, dict[str, Any]] = {
+        "field": {field: False},
+        "field_all": {field: {"__all__": True}},
+        "all_field": {"__all__": {field: True}},
+        "all_true_field_false": {"__all__": True, field: False},
+        "all_true_field_all": {"__all__": True, field: {"__all__": True}},
+        "all_true_field_ellipsis": {"__all__": True, field: ...},
+    }
+    selected = selection_cases[selection_kind]
+
+    dumped = _dump_score_edit_selection(edit, selection, selected)
+
+    assert (field in dumped) is expected_present
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "expected_present"),
+    [
+        (
+            {"include": {"history": {0: {"reason": True}}}},
+            True,
+        ),
+        (
+            {"include": {"history": {"__all__": {"reason": True}}}},
+            True,
+        ),
+        (
+            {"exclude": {"history": {0: {"reason": True}}}},
+            False,
+        ),
+        (
+            {"exclude": {"history": {"__all__": {"reason": True}}}},
+            False,
+        ),
+        (
+            {"exclude": {"history": {0: {"__all__": True, "reason": False}}}},
+            True,
+        ),
+    ],
+)
+def test_score_edit_none_reason_respects_nested_selection(
+    kwargs: dict[str, Any],
+    expected_present: bool,
+) -> None:
+    score = Score(
+        value="C",
+        history=[ScoreEdit(value="C", reason=None)],
+    )
+
+    dumped = score.model_dump(mode="json", exclude_none=True, **kwargs)
+    edit = dumped["history"][0]
+
+    assert ("reason" in edit) is expected_present
+
+
+def test_score_edit_none_reason_respects_nested_all_set() -> None:
+    score = Score(
+        value="C",
+        history=[ScoreEdit(value="C", reason=None)],
+    )
+
+    dumped = score.model_dump(
+        mode="json",
+        exclude_none=True,
+        exclude={"history": {"__all__"}},
+    )
+
+    assert dumped["history"] == []
+
+
+@pytest.mark.parametrize("mode", ["validation", "serialization"])
+def test_score_edit_json_schema_keeps_typed_fields(
+    mode: Literal["validation", "serialization"],
+) -> None:
+    schema = ScoreEdit.model_json_schema(mode=mode)
+
+    assert set(schema["properties"]) == {
+        "value",
+        "answer",
+        "explanation",
+        "reason",
+        "metadata",
+        "provenance",
+    }
+    assert "#/$defs/ScoreEdit" not in json.dumps(schema)
+
+
+def test_score_edit_default_reason_serializes_as_unchanged() -> None:
+    edit = ScoreEdit(value="C")
+
+    dumped = edit.model_dump(mode="json", exclude_none=True)
+
+    assert dumped["reason"] == "UNCHANGED"
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.anyio
+async def test_score_edit_explicit_none_reason_round_trip(
+    tmp_path: Path, log_format: str
+) -> None:
+    log = (await eval_async(single_metric_task(), model="mockllm/model"))[0]
+    assert log.samples
+    sample = log.samples[0]
+    sample_id = sample.id
+    assert sample.scores
+
+    sample.scores["single_metric_scorer"] = Score(
+        value=0,
+        reason="grader_failed",
+    )
+
+    edit_score(
+        log,
+        sample_id,
+        "single_metric_scorer",
+        ScoreEdit(
+            value=1,
+            reason=None,
+            provenance=ProvenanceData(author="test_editor"),
+        ),
+    )
+
+    log_file = (tmp_path / f"score-edit-reason.{log_format}").as_posix()
+    await write_eval_log_async(log, log_file)
+
+    restored = await read_eval_log_sample_async(log_file, id=sample_id, epoch=1)
+    assert restored.scores
+    restored_score = restored.scores["single_metric_scorer"]
+
+    assert restored_score.reason is None
+    assert restored_score.history[0].reason == "grader_failed"
+    assert restored_score.history[-1].reason is None
+
+    edit_events = [e for e in restored.events if isinstance(e, ScoreEditEvent)]
+    assert edit_events
+    assert edit_events[-1].edit.reason is None
 
 
 def test_score_edit_missing_fields_are_unchanged_outside_log_reads() -> None:
