@@ -182,9 +182,11 @@ does not follow links locally) on top of the pass's own listing.
   `scans/`, checkpoint directories, a `.buffer/`, directory markers) is
   deleted before any shard's current attempt. Cost: none, the same
   deletes in two groups.
-- **Bounded.** At most 32 deletes in flight; the first failure stops new
-  ones, those in flight finish, and the failure propagates. Deletes are
-  one request per object on S3, which does not charge for them.
+- **Bounded.** At most 32 deletes in flight, run as the merge's other
+  bounded I/O is: the first failure or a cancellation cancels the
+  remaining deletes and propagates. Deletes are one request per object
+  on S3, which does not charge for them. A delete that finds its entry
+  already gone counts as deleted.
 - **Confirmed.** After the last delete, one more recursive listing,
   directory markers included, must find nothing under `<name>.shards/`;
   otherwise the call raises, naming up to ten entries left and the
@@ -196,26 +198,22 @@ Guarantees:
 
 - An interrupted deletion (an error, a cancellation, a crash) leaves
   every shard holding its recorded current attempt or no attempt, and
-  never makes an older attempt current.
+  never makes an older attempt current; the error or cancellation
+  propagates. This holds because the current-attempt group starts only
+  after every other delete has finished without error.
 - A merge with the option, run again on the untouched run, writes
   nothing and finishes the deletion, whichever point it stopped at.
   After a crash of a local merge, its lock file stays, as for any
   crashed merge ("Overlap guards" in the implementation plan): the user
   checks that the process it names has stopped, deletes the lock file,
   then reruns.
-- A merge without the option behaves as it does today for the state
-  left: it writes nothing when every shard still holds its attempt or
-  none does, and refuses a state where some shards have lost theirs, as
-  vanished shards. That refusal's message adds that a deletion
-  interrupted part way is finished by merging again with the option.
-- When the interruption left some recorded attempts missing, a changed
-  shard or a new shard directory found by a deleting rerun is refused,
-  as today, with the advice to restore the files or delete the rest of
-  the shards directory by hand. When every recorded attempt is still
-  there, the rerun is an ordinary deleting call and merges such a change
-  before deleting, as a first deleting call does; with no marker of a
-  deletion in progress the two cannot be told apart, and keeping the run
-  untouched between calls is the user's responsibility.
+
+Other states (a shard changed or added after an interruption, a plain
+merge of a partly deleted companion) arise only when the quiescence
+requirement is broken, or by the user's choice not to finish; the merge
+handles them as today, refusing a companion where some shards have lost
+their current attempt as vanished shards, with today's advice to delete
+the shards directory or restore the files.
 
 The deleting rerun takes the merge's existing path for a companion with
 no attempts left, which it also takes when the only differences from
@@ -229,13 +227,18 @@ classification.
 
 - **Messages say what must be corrected before retrying**: rename an S3
   name that S3 would read as another key; delete and rebuild a merged log
-  changed outside the merge; restore the files or finish by hand for a
-  changed or new shard beside missing recorded attempts; for an incomplete set on a deleting call,
-  restore a complete, mergeable shard set (or, to abandon the run,
-  remove its shards by hand), never `--allow-incomplete`. A storage
-  failure or an interruption during deletion says to run the merge again
-  with the option. Exception types are the merge's existing ones, and a
-  storage error keeps its type.
+  changed outside the merge. On a deleting call, the existing
+  incomplete-set message drops its hint to pass `allow_incomplete`,
+  which cannot be combined with the option, and says that a run being
+  abandoned has its shards removed by hand. A reported storage error
+  during deletion says to run the merge again with the option. Exception
+  types are the merge's existing ones, and a storage error keeps its
+  type.
+- **Cancellation and crashes.** Ctrl-C or cancellation propagates
+  without a merge report or error envelope, as for any merge, and a
+  crashed process reports nothing; the retry guidance then comes from
+  the docs ("Documentation" below) and from a later merge's
+  vanished-shard refusal.
 - **Command report.** After the status line, `  shards: deleted <shards
   dir>` when `--delete-shards` was given.
 - **`--json`.** The result object is unchanged. Errors use the existing
@@ -361,9 +364,9 @@ No migration required.
   callers and `ShardMergeResult` are unchanged.
 - **CLI.** `--delete-shards` is new, and the report gains a line when it
   is given; the `--json` result object is unchanged.
-- **Messages.** The vanished-shard message, the incomplete-set message on
-  a deleting call and the `eval_set()` refusal change; tests matching
-  their text change with them.
+- **Messages.** The incomplete-set message on a deleting call and the
+  `eval_set()` refusal change; tests matching their text change with
+  them.
 - **Log format.** None. Deletion writes nothing to the merged log; no
   schema or `ts-mono` change.
 
@@ -405,20 +408,16 @@ model provider.
 - `test_delete_shards_merges_shard_changed_since_merge`: a shard changed
   since the last merge is merged first, then deleted.
 - `test_delete_shards_leaves_attempt_written_after_listing`: an attempt
-  created under a new name after the listing is not deleted, the call raises naming it,
-  and a rerun finishes.
+  created under a new name after the listing is not deleted, the call
+  raises naming it, and a rerun finishes.
 - `test_delete_shards_with_allow_incomplete_is_refused`: `ValueError`
   before any I/O.
 - `test_delete_shards_refuses_incomplete_set`: nothing is written or
-  deleted, and the message gives the deleting-call advice, not
-  `allow_incomplete`.
+  deleted, and the message does not suggest `allow_incomplete`.
 - `test_delete_shards_interrupted_then_finished`: after an interruption
   at each stage, every shard holds its recorded current attempt or none,
-  a plain merge behaves as today, and a deleting rerun finishes (after a
-  simulated crash, once the stale local lock is removed).
-- `test_delete_shards_refuses_changed_shard_after_interruption`: after an
-  interruption that left some recorded attempts missing, a changed or new
-  shard is refused with corrective advice, nothing deleted.
+  and a deleting rerun finishes (after a simulated crash, once the stale
+  local lock is removed).
 - `test_delete_shards_does_not_follow_symlinks` (local): link targets
   survive, and a linked companion is refused before anything is written.
 - `test_delete_shards_stays_in_prefix` (S3): sibling prefixes survive.
@@ -429,8 +428,8 @@ model provider.
   `storage_error` with that advice.
 - `test_delete_shards_holds_lock` (local): a merge started during
   deletion is refused with `WriteConflictError`.
-- `test_delete_shards_cancelled`: cancellation releases the lock only
-  after deletes in flight finish, and a rerun completes.
+- `test_delete_shards_cancelled`: after cancellation every shard holds
+  its recorded current attempt or none, and a rerun completes.
 - In `tests/test_eval_set.py`,
   `test_eval_set_accepts_log_dir_after_delete_shards`: the log directory
   is accepted once the shards are deleted.
@@ -447,7 +446,7 @@ One PR:
 - `log/_shards/_api.py`: the option, the argument check, the listing
   before the pass, the deleting rerun's acceptance of shard directories
   with no attempt left, and the incomplete-set message on a deleting
-  call; `log/_shards/_plan.py`: the vanished-shard message.
+  call.
 - `src/inspect_ai/_util/asyncfiles.py`: a recursive listing that
   includes S3 directory markers, if none exists, leaving existing
   listings unchanged.
