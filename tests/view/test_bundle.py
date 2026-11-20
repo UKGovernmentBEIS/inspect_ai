@@ -260,6 +260,9 @@ def test_contained_log_destination_nested(tmp_path: Path) -> None:
         relative="a/b/x.eval",
         destination=str(tmp_path.resolve() / "out" / "a" / "b" / "x.eval"),
     )
+    assert contained_log_destination(
+        "s3://b/logs/a/b/x.eval", "s3://b/logs/", "s3://c/out"
+    ) == LogDestination(relative="a/b/x.eval", destination="s3://c/out/a/b/x.eval")
 
 
 _FIXTURE_INDEX_HTML = """<!doctype html>

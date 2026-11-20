@@ -249,6 +249,24 @@ def test_chunked_convert_dir_writes_where_it_checked_file_url(
 
 
 @pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_writes_to_remote_output_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, converter: str
+):
+    memory_fs = filesystem("memory://").fs
+    monkeypatch.setattr(type(memory_fs), "store", {})
+    monkeypatch.setattr(type(memory_fs), "pseudo_dirs", [""])
+    input_file, log_dir = _nested_log_dir(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    _CONVERTERS[converter](str(log_dir), "memory://out")
+
+    extension = ".json" if converter == "convert" else ".eval"
+    output_name = pathlib.PurePosixPath(input_file.name).with_suffix(extension).name
+    assert memory_fs.isfile(f"/out/sub/{output_name}")
+    assert not (tmp_path / "memory:").exists()
+
+
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
 def test_convert_dir_refuses_dot_components(
     monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, converter: str
 ):

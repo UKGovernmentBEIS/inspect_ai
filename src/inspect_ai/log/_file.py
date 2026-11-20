@@ -1259,9 +1259,11 @@ def contained_log_destination(
     destination = posixpath.join(target_dir, written)
     if url_protocol(target_dir) in (None, "file"):
         root = resolve_local_path(target_dir)
-        dest = resolve_local_path(destination)
+        destination = resolve_local_path(destination)
         try:
-            contained = dest != root and os.path.commonpath([root, dest]) == root
+            contained = (
+                destination != root and os.path.commonpath([root, destination]) == root
+            )
         except ValueError:  # different drives on Windows
             contained = False
     else:
@@ -1270,7 +1272,7 @@ def contained_log_destination(
         contained = dest.startswith(root.rstrip("/") + "/")
     if not contained:
         raise ValueError(f"Log file '{name}' would be written outside '{target_dir}'.")
-    return LogDestination(relative=relative, destination=dest)
+    return LogDestination(relative=relative, destination=destination)
 
 
 log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
