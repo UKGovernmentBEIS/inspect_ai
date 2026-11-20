@@ -254,10 +254,15 @@ the types JSON cannot carry. Among the outputs it refuses:
 - Strings holding a surrogate code point (U+D800–U+DFFF). As a value it
   fails UTF-8 encoding; as a dictionary key Pydantic's JSON mode replaces it,
   which can merge two keys.
-- A `NaN` in any float field. `NaN` never equals itself, so such an output
-  compares unequal and is not cached; this design accepts that miss rather
-  than adding a comparison that treats `NaN` as equal. Infinite values
-  compare equal and are cached.
+- Possibly a `NaN` in a float field. `NaN` never equals itself, so the
+  outcome follows ordinary model equality, which compares an identical
+  object as equal: a `NaN` the provider code created itself
+  (`float("nan")`) reads back as a different object, compares unequal and is
+  not cached, while one that came from the stdlib `json` parser (which
+  returns the same `NaN` object each time) compares equal and is cached.
+  Either way a hit never changes the value, since a stored `NaN` reads back
+  as `NaN`. This design accepts the misses rather than adding a comparison
+  that treats `NaN` as equal. Infinite values compare equal and are cached.
 - `metadata` that does not serialize, such as a non-JSON object from a
   third-party provider; today it is cached only if it pickles.
 
@@ -267,7 +272,10 @@ the same output; leaving `metadata` out of the comparison keeps such outputs
 cached. So a cache hit never returns changed content, tool calls or
 arguments, and the `metadata` normalization is the only difference a hit
 can show. Of the 6,916 real outputs measured in Current behaviour, none was
-refused.
+refused. The guarantee is `==` equality, not type identity: a value that
+compares equal to its JSON form, such as an `IntEnum` or a `defaultdict` in
+tool-call arguments, is cached and comes back as an `int` or a `dict`; no
+built-in provider produces such arguments.
 
 Cost: one extra parse, validation and comparison per store, about 25 µs on
 those outputs (the whole check took 39 µs per entry against 15 µs for
@@ -383,7 +391,8 @@ pickle's 9.9 KB (pickle stores the repeated string once) and 36.9 KB with
 - **Outputs.** A cache hit returns the stored output, with non-JSON
   `metadata` values in their JSON form (see Store). Outputs that do not read
   back equal (for example YAML-parsed dates, non-string keys or objects in
-  tool-call arguments, surrogate code points, NaN values) and outputs that
+  tool-call arguments, surrogate code points, some NaN values) and outputs
+  that
   do not serialize are no longer cached and produce a warning; they call the
   provider every time.
 - **Eval logs, schemas and viewer types.** Unchanged. `ModelEvent.cache`
@@ -457,8 +466,10 @@ or a model provider (they use `mockllm` and `INSPECT_CACHE_DIR` under
   model text into a `date` (the text `2026-01-01`) and into colliding keys
   (the text `1: first` and `"1": second` on two lines, giving `{1: "first",
   "1": "second"}`); a dataclass instance and a Pydantic model instance as
-  tool-call argument values; a `NaN` `time`; and a non-JSON object in
-  `metadata` (which fails serialization).
+  tool-call argument values; a `time` of `float("nan")`; and a non-JSON
+  object in `metadata` (which fails serialization). A separate case gives
+  `time` the `NaN` returned by `json.loads("NaN")`: it is cached, and the hit
+  returns `NaN`.
 - **Metadata normalization is still cached.** An output with a `datetime` in
   `metadata` is cached, and the hit returns it as its ISO string.
 - **Containment tests keep their purpose.** The existing tests that check
