@@ -714,10 +714,28 @@ def test_required_model_roles_missing_across_tasks() -> None:
     assert calls == []
 
 
-@pytest.mark.parametrize("invalid", ["judge", [1], ["judge", None]])
+@pytest.mark.parametrize(
+    "invalid", ["judge", [1], ["judge", None], ("judge",), {"judge": "model"}, 1]
+)
 def test_required_model_roles_rejects_non_list_of_names(invalid: Any) -> None:
     """A bare string is an error rather than one required role per character."""
-    with pytest.raises(PrerequisiteError):
+    with pytest.raises(TypeError):
         Task(required_model_roles=invalid)
-    with pytest.raises(PrerequisiteError):
+    with pytest.raises(TypeError):
         task_with(Task(), required_model_roles=invalid)
+
+
+def test_required_model_roles_checked_on_retry() -> None:
+    """A retry fails before running when its log has no model for a required role."""
+    log = eval(
+        required_roles_task(),
+        model="mockllm/model",
+        model_roles={GRADER: MOCK_A, JUDGE: MOCK_B},
+    )[0]
+    log.status = "cancelled"
+    log.samples = []
+    log.eval.model_roles = None
+    with pytest.raises(PrerequisiteError) as exc_info:
+        eval_retry(log)
+    assert GRADER in str(exc_info.value)
+    assert JUDGE in str(exc_info.value)

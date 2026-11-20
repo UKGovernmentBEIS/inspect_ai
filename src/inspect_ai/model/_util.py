@@ -52,18 +52,18 @@ def resolve_required_model_roles(
     """Validate a task's `required_model_roles`.
 
     Raises:
-        PrerequisiteError: If the value is not a list of role names. A bare
-            string is rejected because it would otherwise be read as one role
-            per character.
+        TypeError: If the value is not a list of role names. A bare string is
+            rejected because it would otherwise be read as one role per
+            character.
     """
     if required_model_roles is None:
         return None
-    if isinstance(required_model_roles, str) or not all(
+    if not isinstance(required_model_roles, list) or not all(
         isinstance(role, str) for role in required_model_roles
     ):
-        raise PrerequisiteError(
-            f"required_model_roles has an invalid value ({required_model_roles!r}): "
-            + "expected a list of model role names."
+        raise TypeError(
+            "required_model_roles must be a list of model role names "
+            f"(got {required_model_roles!r})."
         )
     return list(required_model_roles)
 
