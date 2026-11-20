@@ -221,8 +221,6 @@ class ReviewingSidecar(StandInSidecar):
     With a large number, every try that the provider's SDK makes on its own
     fails this way.
     """
-    review_lookups_refused: int = 0
-    """How many `request_result` lookups of a call that awaits a person's answer the sidecar answers with an error, from the first."""
     when_pending_review_lost: Callable[[], None] | None = None
     when_resend_lost: Callable[[], None] | None = None
     """Set to have a resend that the sidecar passed on to a busy provider lose its connection, and run as it does.
@@ -352,14 +350,6 @@ class ReviewingSidecar(StandInSidecar):
                 and call["params"].get("id") in self.paused
             ):
                 self.methods["request_result"] = self._request_result
-                if (
-                    self.paused[call["params"]["id"]].state == "awaiting_review"
-                    and self.review_lookups_refused > 0
-                ):
-                    self.review_lookups_refused -= 1
-                    self.methods["request_result"] = lambda params: self._refuse(
-                        -32000, "The sidecar can't answer."
-                    )
                 if self.paused[call["params"]["id"]].state != "awaiting_review":
                     if self.lookups_lost > 0:
                         self.lookups_lost -= 1
@@ -2629,29 +2619,27 @@ def test_nobody_is_asked_about_a_call_whose_samples_registration_stopped_its_ret
 
 
 @pytest.mark.parametrize("lookups_refused", [1, 10], ids=["once", "every time"])
-def test_a_call_whose_samples_registration_stopped_it_is_cancelled_though_it_cant_be_asked_about(
+def test_a_cancelled_calls_judging_usage_is_asked_for_once_more_or_noted_as_unknown(
     lookups_refused: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     person = Person("terminate")
     person.install(monkeypatch)
-    # As above, and the sidecar then answers Inspect's lookup of the call
-    # with an error, so Inspect can't learn that the call awaits a person.
+    # As above, and the sidecar then answers with an error when asked what
+    # judging the call billed.
     stand_in = ReviewingSidecar(
         pauses=["model_input"],
         turns=[Turn()],
         pending_reviews_lost=1,
-        review_lookups_refused=lookups_refused,
-        # and, for "every time", once the call is cancelled too
-        lookups_refused=lookups_refused - 1,
+        lookups_refused=lookups_refused,
         judge_usage={"input_tokens": 1000, "output_tokens": 0, "total_tokens": 1000},
     )
     stand_in.when_pending_review_lost = _registration_fills(stand_in)
 
     log = _run(stand_in, solver=generate(), sentinel_proxy="required")
 
-    # The call is cancelled by its id all the same, and still fails on the
-    # registration's error. What judging it cost is asked for once more: it
-    # is counted if the sidecar then says, and noted as unknown if not.
+    # The call is cancelled all the same, and fails on the registration's
+    # error. Its usage is asked for once more: it is counted if the sidecar
+    # then says, and noted as unknown if not.
     assert log.samples is not None
     sample = log.samples[0]
     assert person.asked == []
@@ -2659,6 +2647,7 @@ def test_a_call_whose_samples_registration_stopped_it_is_cancelled_though_it_can
     assert "the registrations are full" in sample.error.message
     [sent] = stand_in.model_calls
     assert stand_in.cancelled == [sent.headers["x-irid"]]
+    assert len(_called(stand_in, "request_result")) == 2
     unknown = [
         e
         for e in sample.events
@@ -2667,33 +2656,38 @@ def test_a_call_whose_samples_registration_stopped_it_is_cancelled_though_it_can
         and e.data.get("judging_usage") == "unavailable"
     ]
     if lookups_refused == 1:
-        # what the sidecar says as the call is cancelled is what is counted,
-        # and it isn't asked again
         assert sample.model_usage["mockllm/judge"].total_tokens == 1000
         assert unknown == []
-        assert len(_called(stand_in, "request_result")) == 2
     else:
         assert "mockllm/judge" not in sample.model_usage
         assert len(unknown) == 1
 
 
-def test_a_resent_calls_reply_isnt_waited_for_once_its_samples_registration_stops_a_retry(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("busy_lookups", "judging_lookups"),
+    [(1_000_000, 0), (1, 1_000_000)],
+    ids=["the provider is slow to reply", "the sidecar is slow to judge the reply"],
+)
+def test_a_resent_call_isnt_waited_on_once_its_samples_registration_stops_a_retry(
+    busy_lookups: int, judging_lookups: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     Person("approve").install(monkeypatch)
-    # The approved request is resent and reaches the provider, which is slow
-    # to reply, and the resend's connection is lost. The registration fills
-    # before the provider's SDK tries again.
+    # The approved request is resent and reaches the provider, and the
+    # resend's connection is lost. The registration fills before the
+    # provider's SDK tries again.
     stand_in = ReviewingSidecar(
-        pauses=["model_input"], turns=[Turn()], provider_busy_lookups=1_000_000
+        pauses=["model_input"],
+        turns=[Turn()],
+        provider_busy_lookups=busy_lookups,
+        judging_lookups=judging_lookups,
     )
     stand_in.when_resend_lost = _registration_fills(stand_in)
 
     log = _run(stand_in, solver=generate(), sentinel_proxy="required", time_limit=20)
 
-    # The sidecar goes on saying it awaits the provider's reply. The call
-    # fails on the registration's error all the same, and is cancelled, and
-    # the sample doesn't run out its time waiting.
+    # Asked, the sidecar would go on saying it awaits the reply, or is
+    # judging it. The call fails on the registration's error all the same,
+    # and is cancelled, and the sample doesn't run out its time waiting.
     assert log.samples is not None
     sample = log.samples[0]
     assert sample.limit is None

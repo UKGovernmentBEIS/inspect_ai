@@ -233,63 +233,53 @@ async def _end_call_registration_stopped(received: ReceivedCall) -> None:
     # The sidecar couldn't take the sample's registration again as a try was
     # sent, which stopped the send. The call fails on that error, whatever
     # the error that reached Inspect, which is what the provider's SDK made
-    # of the stopped send. First the tries that were sent are accounted for,
-    # as the sidecar may have judged them, and a call it paused is cancelled.
-    # None of this replaces the registration's error: what fails here is
-    # logged, and usage that couldn't be had is noted as unknown.
+    # of the stopped send. First a call the sidecar may have paused is
+    # cancelled, and the tries that were sent are accounted for, as the
+    # sidecar may have judged them. Nothing here waits on the sidecar's
+    # judging or asks a person, as the lookup of a call would, and none of
+    # it replaces the registration's error.
     from ._review import cancel_call_that_may_be_paused, cancel_paused_call
 
-    # The attempts Inspect retried without asking about them, first. The
-    # lookup below asks about them too, and one whose usage can't be read
-    # would keep the latest attempt's from being recorded.
+    # the attempts Inspect retried without asking about them, each on its own
     while received.unasked:
         try:
             await record_unasked_usage(received)
         except Exception as ex:
             note_usage_unavailable(received.unasked.pop(0), str(ex))
-    # The latest attempt's request, if one was sent, and whether what its
-    # judging billed was read. The sidecar gives a total for the id, so each
-    # answer adds only what it has over the one before.
-    request_id = received.request_id if received.sent else None
-    read = request_id is None
-    # whether the sidecar answered the lookup at all
-    answered = request_id is None
-    unread = "the sidecar couldn't be asked"
-    if request_id is not None:
-        try:
-            # asks nobody, and waits for no reply: see the lookup
-            looked = received.looked or await request_result(received, replied=False)
-            read = looked.usage_read
-            answered = read or looked.records is not None
-            unread = looked.reason or unread
-        except ValueError as ex:
-            # an answer whose usage can't be read
-            answered = True
-            unread = str(ex)
-        except Exception as ex:
-            unread = str(ex)
-    answer: dict[str, Any] | None = None
-    if received.paused:
-        # Nothing will resend a paused call, so it is cancelled at the
-        # sidecar. A call whose latest attempt was never sent is still
-        # paused from an earlier one.
-        request_id = received.reviewed_request_id
-        answer = await cancel_paused_call(received)
-    elif request_id is not None and (
-        received.looked is None or received.looked.state == "unavailable"
-    ):
-        # Inspect didn't learn the call's state, and the sidecar may have
-        # paused it for a person, so the call is cancelled by its id.
-        answer = await cancel_call_that_may_be_paused(received)
-    if request_id is not None:
-        if answer is None and not answered:
-            # the lookup got no answer, as when its connection failed, and
-            # nothing said since what the judging billed: asked once more
-            answer = await usage_answer(received, request_id)
-        if answer is not None and record_usage_read(received, request_id, answer):
-            read = True
-        if not read:
-            note_usage_unavailable(request_id, unread)
+    # The request of the call the sidecar may still hold: one it paused for
+    # a person, or the latest attempt's, if it was sent.
+    paused = received.paused
+    request_id = (
+        received.reviewed_request_id
+        if paused
+        else (received.request_id if received.sent else None)
+    )
+    if request_id is None:
+        return
+    # Nothing will resend a paused call, so it is cancelled at the sidecar.
+    # A call Inspect doesn't know to be paused is cancelled by its id, as
+    # the sidecar may have paused it and the answer saying so been lost.
+    answer = (
+        await cancel_paused_call(received)
+        if paused
+        else await cancel_call_that_may_be_paused(received)
+    )
+    if answer is None:
+        # asked once, without waiting, as an earlier attempt is
+        answer = await usage_answer(received, request_id)
+    # The sidecar gives a total for the id, so the answer adds only what it
+    # has over what Inspect recorded before. A paused call was asked about
+    # before, so only another call's usage can be wholly unknown.
+    if not (answer and record_usage_read(received, request_id, answer)) and not paused:
+        records = answer.get("records") if answer else None
+        note_usage_unavailable(
+            request_id,
+            "the sidecar didn't answer"
+            if answer is None
+            else f"the sidecar's records are {records}"
+            if records != "held"
+            else "the sidecar's judging usage can't be read",
+        )
 
 
 def _note_lost(received: ReceivedCall) -> None:

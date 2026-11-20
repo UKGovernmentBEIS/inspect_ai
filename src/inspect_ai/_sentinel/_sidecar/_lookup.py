@@ -106,8 +106,6 @@ class Looked(NamedTuple):
     """
     judging_usage: list[JudgingUsage] | None = None
     """What the provider billed for the models the sidecar's sentinel called while judging every attempt at the call."""
-    usage_read: bool = False
-    """Whether the answer was about records the sidecar holds, so that what its judging billed was read, if only as nothing."""
 
 
 async def request_result(received: ReceivedCall, replied: bool) -> Looked:
@@ -398,19 +396,6 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                 # wait.
                 provider_has_request = False
                 mark_paused(received)
-                if received.registration_error is not None:
-                    # A send of the call was stopped, as the sidecar wouldn't
-                    # take the sample's registration again, and the call
-                    # fails on that whatever a person answers. So nobody is
-                    # asked. The call is left marked as paused, for Inspect
-                    # to cancel at the sidecar.
-                    return _judging(
-                        Looked(
-                            "unavailable",
-                            "the call's send was stopped before a person was asked",
-                        ),
-                        result,
-                    )
                 await ask_person(received)
                 continue
             if (
@@ -465,18 +450,6 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                     # the wait, as it limits the call's retries. The
                     # sample's time limit and its cancellation end the wait
                     # too.
-                    if received.registration_error is not None:
-                        # A send of the call was stopped, as the sidecar
-                        # wouldn't take the sample's registration again. The
-                        # call fails on that and is cancelled at the sidecar,
-                        # so the reply isn't waited for.
-                        return _judging(
-                            Looked(
-                                "unavailable",
-                                "the call's send was stopped while the provider still had its request",
-                            ),
-                            result,
-                        )
                     provider_has_request = True
                     left = timeout_left(received)
                     if left is not None and left <= 0:
@@ -565,7 +538,6 @@ def _judging(looked: Looked, result: dict[str, Any]) -> Looked:
     return looked._replace(
         judging_time=float(judging_time) if judging_time is not None else None,
         judging_usage=parse_judging_usage(result.get("judging_usage")) or None,
-        usage_read=True,
     )
 
 

@@ -1723,8 +1723,8 @@ def test_a_retry_whose_samples_registration_the_sidecar_wont_take_again_is_never
         ("held", 1000, 0),
         ("unreadable", 0, 1),
         ("dropped", 0, 1),
-        # the first lookup's connection fails, and the sidecar is asked again
-        ("lost once", 1000, 0),
+        # the lookup's connection fails
+        ("lost", 0, 1),
     ],
 )
 def test_the_judging_usage_of_a_try_whose_retry_was_stopped_is_counted_once_or_noted_as_unknown(
@@ -1736,7 +1736,7 @@ def test_the_judging_usage_of_a_try_whose_retry_was_stopped_is_counted_once_or_n
         lookups[0] += 1
         if answer == "dropped":
             return {"id": params["id"], "records": "dropped"}
-        if answer == "lost once" and lookups[0] == 1:
+        if answer == "lost":
             raise httpx2.ReadError("the connection was lost")
         usage = _judge_usage(1000)
         if answer == "unreadable":
@@ -1775,8 +1775,8 @@ def test_the_judging_usage_of_a_try_whose_retry_was_stopped_is_counted_once_or_n
         and e.data.get("judging_usage") == "unavailable"
     ]
     assert len(noted) == unknown
-    # a lookup that was answered isn't made again
-    assert lookups[0] == (2 if answer == "lost once" else 1)
+    # the sidecar is asked once, without waiting, as of an earlier attempt
+    assert lookups[0] == 1
 
 
 def test_an_earlier_attempts_unreadable_judging_usage_doesnt_lose_the_latest_attempts(
