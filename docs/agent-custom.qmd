@@ -453,7 +453,7 @@ If two calls continue the same turn and no later call resolves the fork, replay 
 
 Without recorded origins, a failed call's input may leave an earlier fork unresolved, and a custom solver's own calls may be inferred as agent turns when its only agent is unwrapped.
 
-Replay joins each tool call to the model call that proposed it by the message id its `ToolEvent` records (`call_message_id`). Where a cached output gives several model calls that message id, it takes the latest of those model calls before the tool call, in the tool call's own conversation. In logs written before Inspect 0.3.290, which don't record it, it takes the latest model call that proposed the call's id instead. A tool step's id is its call id, but where an earlier execution's steps have that id (e.g. a retry), a later execution's steps are named by its `execution_id`. Replay skips the tool steps of calls an agent bridge checked or ran, and logs a warning naming them.
+Replay joins each tool call to the model call that proposed it by the message id its `ToolEvent` records (`call_message_id`). Where a cached output gives several model calls that message id, it takes the latest of those model calls before the tool call, in the tool call's own conversation. In logs written before Inspect 0.3.290, which don't record it, it takes the latest model call that proposed the call's id instead. A tool step's id is its call id, but where an earlier execution's steps have that id (e.g. a retry), a later execution's steps are named by its `execution_id`.
 
 Sentinel event replay requires a log written by Inspect 0.3.100 or later. Earlier logs lack the `solvers` and `scorers` spans that separate the agent's work from scoring (and, before 0.3.94, native tool spans), so `steps_from_events()` raises an error rather than replaying them incorrectly. This includes samples that a retried eval carried over from such a log, whatever version its header records. Replay those logs from their messages instead. In supported logs, a spanless tool event can mark a call halted before execution and does not create tool steps.
 
@@ -467,6 +467,39 @@ with model_origin("environment"):
 ```
 
 An agent run inside the block keeps the block's kind, and a sentinel does not check the tool calls made within it. The marker is a context variable, so it reaches the calls made in the task that entered the block and in tasks that task starts while inside it, and no others. If the evaluated agent's calls are made from inside an environment block (for example, by an auditor's tool that generates the target's turn), they are marked as environment too, so make them outside the block.
+
+#### Bridged Agents
+
+For an agent run through an agent bridge (e.g. Claude Code with inspect_swe), replay shows each tool call as the model wrote it, and each result as the model next received it.
+
+The call's step comes right after the model call that wrote it, with that model call's input, tools and output message (`assistant_message`). The result's step comes right before the next request to the model that carries it, with the same model call's input, tools and message.
+
+These steps follow the conversation, not the checks a sentinel made live, so they can differ from what the sentinel was shown:
+
+| Case | What replay shows |
+|----|----|
+| A sentinel or approver rejected the call | The rejection, as the call's result |
+| A sentinel or approver modified the call | The call as the model wrote it |
+| A request filter rewrote the result | The rewritten result |
+| A host tool a sandbox bridge ran | The tool under the name the model used (e.g. `mcp__host__addition`) |
+| The bridge never handed the call to the agent (e.g. a token limit, or a rejected call in the same response) | The call, and whatever result the model next received |
+| The result never reached the model (e.g. a limit or a sentinel ended the sample) | The call, with no result |
+| The model gave more than one call in the agent's conversation the same id (e.g. Mistral's `"null"`, or a retry answered from the model cache) | Each of those calls, with no result |
+| The bridge handed the call over under a new id, as it does for a reused id | The model call's message with the reused id (live's has the new call id and message id) |
+| The model reused an id from the messages the agent started with | The call, with no result |
+| An agent run without its own agent span continues messages from an agent that had one, after other bridged calls outside any agent span, and the model reuses an id from those messages | The call, possibly with that id's earlier result |
+
+Tool calls whose provider reuses one call id (for example Mistral) show without their results. The log doesn't record which call a result under a shared id answers, so replay leaves them all without one rather than risk showing another call's result. A later release may pair these exactly.
+
+In logs written before Inspect 0.3.292, replay shows the tool calls of an agent that used the Google API without a sentinel, but not their results.
+
+Replay doesn't attach the live sentinel's checks of bridged calls to these steps. A recorded check has the call id, but not the model call that proposed the call. Where a call id is reused, or an agent takes up messages from another conversation, the log alone can't reliably say which model call a check belongs to. Comparing live checks with replayed steps is left to downstream tools (e.g. inspect_sentinel).
+
+A person's decision at a live check still reaches the later steps of the conversation.
+
+A bridged call's steps are named by its model call's `uuid` and the call id (`<uuid>/<call id>`), so they never take the id of a native tool call. If one model response has two calls with the same id, replay skips both and logs a warning.
+
+This replay needs a log from Inspect 0.3.277 or later, which marks the model calls a bridge makes for its agent (`ModelEvent.requested_model`). In older logs, a bridged agent's calls have no tool steps.
 
 ## Parallelism
 
