@@ -1113,7 +1113,7 @@ async def test_a_completion_on_its_way_when_the_task_is_registered_again_is_sent
             # answered after the eval set about registering the task again,
             # for another sample: the sidecar may have lost this completion
             # with the task it lost
-            held.pop().registration_changes += 1
+            held.pop().registration_change_count += 1
         return {}
 
     stand_in = StandInSidecar(methods={"complete_registration": complete})
@@ -1142,7 +1142,7 @@ async def test_an_attempt_sends_again_what_it_first_sent() -> None:
     # The task is registered again, as when another of its models' endpoints
     # is found at the same sidecar. The sample's input and metadata have
     # changed since, in place.
-    sidecar.access.registration_changes += 1
+    sidecar.access.registration_change_count += 1
     message.content = "Shred the report."
     sample.metadata["desk"]["city"] = "Oslo"
     await sidecars.complete_registration(sidecar, sample, "sample_123", 1)
@@ -1628,7 +1628,7 @@ def test_a_retry_of_a_request_makes_sure_of_the_samples_registration_before_it_i
         assert sidecars is not None
         access = sidecars.access("http://proxy.test")
         assert access is not None
-        access.registration_changes += 1
+        access.registration_change_count += 1
 
     stand_in = StandInSidecar(turns=[Turn(status=503, then=registered_again), Turn()])
     task = Task(dataset=[Sample(input="Hi.")], solver=generate())
@@ -1666,7 +1666,7 @@ def _registration_fills(stand_in: StandInSidecar) -> Callable[[], None]:
         assert sidecars is not None
         access = sidecars.access("http://proxy.test")
         assert access is not None
-        access.registration_changes += 1
+        access.registration_change_count += 1
         full[0] = True
 
     stand_in.methods["complete_registration"] = complete

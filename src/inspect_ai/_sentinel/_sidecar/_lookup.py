@@ -135,7 +135,7 @@ async def request_result(received: ReceivedCall, replied: bool) -> Looked:
     return looked
 
 
-def record_usage_read(
+def record_new_usage(
     received: ReceivedCall, request_id: str, result: dict[str, Any]
 ) -> bool:
     """Record what an answer of `request_result` adds to the judging usage recorded for a request id, and say whether the answer held a total that could be read.
@@ -152,9 +152,7 @@ def record_usage_read(
     return True
 
 
-async def usage_answer(
-    received: ReceivedCall, request_id: str
-) -> dict[str, Any] | None:
+async def fetch_usage(received: ReceivedCall, request_id: str) -> dict[str, Any] | None:
     """Ask the sidecar once, without waiting, what it holds of a request, for what judging it billed, or None if the sidecar doesn't answer."""
     sidecar = received.sidecar
     if sidecar is None:

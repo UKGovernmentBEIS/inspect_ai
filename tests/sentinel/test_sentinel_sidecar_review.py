@@ -2580,7 +2580,7 @@ def _registration_fills(stand_in: ReviewingSidecar) -> Callable[[], None]:
         assert sidecars is not None
         access = sidecars.access("http://proxy.test")
         assert access is not None
-        access.registration_changes += 1
+        access.registration_change_count += 1
         full[0] = True
 
     stand_in.methods["complete_registration"] = complete

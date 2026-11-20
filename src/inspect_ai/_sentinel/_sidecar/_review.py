@@ -959,7 +959,7 @@ async def cancel_paused_call(received: ReceivedCall | None) -> dict[str, Any] | 
     return await _cancel(received, received.reviewed_request_id)
 
 
-async def cancel_call_that_may_be_paused(
+async def cancel_call_by_id(
     received: ReceivedCall,
 ) -> dict[str, Any] | None:
     """Tell the sidecar to cancel a call Inspect has given up on, where Inspect couldn't learn whether the sidecar paused it.

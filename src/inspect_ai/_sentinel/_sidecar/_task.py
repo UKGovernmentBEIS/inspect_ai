@@ -143,14 +143,14 @@ class TaskSidecars:
             SentinelProxyError: If the sidecar couldn't take the sample, or no longer kept the task and couldn't register it again.
         """
 
-        def changes() -> int:
-            return sidecar.access.registration_changes if sidecar.access else 0
+        def get_registration_change_count() -> int:
+            return sidecar.access.registration_change_count if sidecar.access else 0
 
         async def complete(params: dict[str, Any]) -> tuple[bool, int]:
             # the registrations the sidecar took before this call, so one
             # another sample makes meanwhile isn't made again
             registered = sidecar.access.registrations if sidecar.access else None
-            sent_to = changes()
+            change_count_when_sent = get_registration_change_count()
             try:
                 try:
                     result = await sidecar.eval_call("complete_registration", params)
@@ -162,9 +162,9 @@ class TaskSidecars:
                     # changes nothing for a sidecar that still keeps it, and
                     # another sample that already did so is not repeated.
                     await self._register(sidecar, unless_since=registered)
-                    sent_to = changes()
+                    change_count_when_sent = get_registration_change_count()
                     result = await sidecar.eval_call("complete_registration", params)
-                return result.get("fixed") is True, sent_to
+                return result.get("fixed") is True, change_count_when_sent
             except SidecarCallError as ex:
                 if ex.code == UNAUTHORIZED:
                     raise SentinelProxyError(_unauthorized(sidecar, ex)) from ex
@@ -209,7 +209,10 @@ class TaskSidecars:
                 # may have taken it since this completion was sent, even one
                 # sent while it was on its way. This doesn't wait for it.
                 done = None
-            while done is None or done.sent_to != changes():
+            while (
+                done is None
+                or done.change_count_when_sent != get_registration_change_count()
+            ):
                 done = completion.done = _Completed(*await complete(completion.params))
             return done.fixed
 
@@ -286,7 +289,7 @@ class TaskSidecars:
         through = self._attempt_sidecars(sample_uuid, attempt_number)
         if not through:
             return
-        self._not_copied_if_lost(sample_uuid, attempt_number, store)
+        self._raise_if_monitor_state_lost(sample_uuid, attempt_number, store)
         # the keys earlier copies wrote: any other key of the sample store
         # the copy would overwrite is a sentinel's inside Inspect
         copies = _copied_keys(store)
@@ -355,7 +358,7 @@ class TaskSidecars:
         # A restart may have been found while the sidecars were asked, as by
         # another sample, and the attempt have gone on since: what a sidecar
         # answered may then have begun afresh.
-        self._not_copied_if_lost(sample_uuid, attempt_number, store)
+        self._raise_if_monitor_state_lost(sample_uuid, attempt_number, store)
         for key, value in copied.items():
             store.set(key, value)
         withheld = failed is not None and withheld
@@ -382,7 +385,7 @@ class TaskSidecars:
         # answer fails the sample instead, and says why
         raise SentinelProxyError(_not_scored(failed))
 
-    def _not_copied_if_lost(
+    def _raise_if_monitor_state_lost(
         self, sample_uuid: str, attempt_number: int, store: Store
     ) -> None:
         if attempt_number in self._lost.get(sample_uuid, set()):
@@ -468,7 +471,7 @@ class TaskSidecars:
             # before it is then for a registration the sidecar replaced. And
             # marked again once it is over: a completion sent meanwhile may
             # have reached the sidecar first.
-            access.registration_changes += 1
+            access.registration_change_count += 1
             params: dict[str, Any] = {
                 "eval_id": facts.eval_id,
                 "task": facts.task,
@@ -497,7 +500,7 @@ class TaskSidecars:
                         # its answer never arrive, and an attempt that
                         # completes its registration while the answer is on
                         # its way began after the restart.
-                        self._lost_with_token(sidecar)
+                        self._mark_attempts_lost(sidecar)
                         await sidecar.call(
                             "register_task", {**params, "token": access.token}
                         )
@@ -505,9 +508,9 @@ class TaskSidecars:
             except SidecarCallError as ex:
                 self._registration_failed(sidecar, ex)
             finally:
-                access.registration_changes += 1
+                access.registration_change_count += 1
 
-    def _lost_with_token(self, sidecar: Sidecar) -> None:
+    def _mark_attempts_lost(self, sidecar: Sidecar) -> None:
         # A sidecar that lost the eval's token lost everything it held for
         # the eval with it, as on a restart: the monitor state of each attempt
         # it had begun judging. Such an attempt completes its registration
@@ -542,8 +545,8 @@ class TaskSidecars:
 class _Completed(NamedTuple):
     fixed: bool
     """Whether the sidecar's admin registered the task beforehand."""
-    sent_to: int
-    """The eval's `registration_changes` for the sidecar when the completion was sent."""
+    change_count_when_sent: int
+    """The eval's `registration_change_count` for the sidecar when the completion was sent."""
 
 
 @dataclass

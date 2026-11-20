@@ -20,15 +20,15 @@ from inspect_ai.model._model_output import (
 from inspect_ai.tool._tool_call import ToolCall
 
 from ._lookup import (
+    fetch_usage,
     lost_sample,
     note_usage_incomplete,
     note_usage_unavailable,
+    record_new_usage,
     record_unasked_usage,
-    record_usage_read,
     request_result,
     unjudged_error,
     unknown_to_required,
-    usage_answer,
 )
 from ._received import (
     Judgment,
@@ -202,7 +202,7 @@ async def refusal_after_error(
         SentinelProxyError: If a send of the call was stopped because the sidecar couldn't take the sample's registration again.
     """
     if received.registration_error is not None:
-        await _end_call_registration_stopped(received)
+        await _clean_up_stopped_call(received)
         raise received.registration_error
     # as in `refused_output`: an attempt that failed unsent is never looked up,
     # though earlier attempts that were sent may still have been judged
@@ -230,7 +230,7 @@ async def refusal_after_error(
     return _refusal(received.judgment, model, bridged)
 
 
-async def _end_call_registration_stopped(received: ReceivedCall) -> None:
+async def _clean_up_stopped_call(received: ReceivedCall) -> None:
     # The sidecar couldn't take the sample's registration again as a try was
     # sent, which stopped the send. The call fails on that error, whatever
     # the error that reached Inspect, which is what the provider's SDK made
@@ -239,7 +239,7 @@ async def _end_call_registration_stopped(received: ReceivedCall) -> None:
     # sidecar may have judged them. Nothing here waits on the sidecar's
     # judging or asks a person, as the lookup of a call would, and none of
     # it replaces the registration's error.
-    from ._review import cancel_call_that_may_be_paused, cancel_paused_call
+    from ._review import cancel_call_by_id, cancel_paused_call
 
     # the attempts Inspect retried without asking about them, each on its own
     while received.unasked:
@@ -263,15 +263,15 @@ async def _end_call_registration_stopped(received: ReceivedCall) -> None:
     answer = (
         await cancel_paused_call(received)
         if paused
-        else await cancel_call_that_may_be_paused(received)
+        else await cancel_call_by_id(received)
     )
     if answer is None:
         # asked once, without waiting, as an earlier attempt is
-        answer = await usage_answer(received, request_id)
+        answer = await fetch_usage(received, request_id)
     # The sidecar gives a total for the id, so the answer adds only what it
     # has over what Inspect recorded before. A paused call was asked about
     # before, so only another call's usage can be wholly unknown.
-    if answer and record_usage_read(received, request_id, answer):
+    if answer and record_new_usage(received, request_id, answer):
         if answer.get("state") == "judging":
             # what was billed so far is recorded, and the rest may never be
             note_usage_incomplete(request_id)
