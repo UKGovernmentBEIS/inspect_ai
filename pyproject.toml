@@ -269,7 +269,7 @@ dev = [
   "pytest-xdist",
   "ruff==0.17.2",
   "textual-dev>=0.86.2",
-  "together>=2.0.0",
+  "together>=3.0.0",
   "trio",
   "trustme",
   "types-aiobotocore",
