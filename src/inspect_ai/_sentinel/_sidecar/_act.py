@@ -21,6 +21,7 @@ from inspect_ai.model._model_output import (
 from inspect_ai.tool._tool_call import ToolCall
 
 from ._lookup import (
+    Answer,
     fetch_usage,
     lost_sample,
     record_unasked_usage,
@@ -257,7 +258,7 @@ async def _settle_stopped_call(received: ReceivedCall) -> None:
     unanswered = "the sidecar didn't answer"
     with anyio.move_on_after(STOPPED_CALL_TIMEOUT, shield=True) as within:
         try:
-            answers: dict[str, dict[str, Any]] = {}
+            answers: dict[str, Answer] = {}
             if held is not None:
                 # Nothing will resend a paused call, so it is cancelled at
                 # the sidecar. A call Inspect doesn't know to be paused is

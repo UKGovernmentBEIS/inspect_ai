@@ -166,9 +166,9 @@ class TaskSidecars:
         return True
 
     async def end_sample(self, sample_uuid: str, tell: bool = True) -> None:
-        """Tell each sidecar a request of the sample was sent through that the sample has ended, after its final scoring, so it drops what it keeps for the sample.
+        """Tell each sidecar that was sent a registration of the sample that the sample has ended, after its final scoring, so it drops what it keeps for the sample.
 
-        A sidecar the sample only prepared calls for, none of which was sent, was told nothing of the sample, and isn't told it ended.
+        Such a sidecar may hold the sample's facts, whether or not a request of the sample followed, or the registration's answer arrived. A sidecar the sample only prepared calls for was sent nothing of the sample, and isn't told it ended.
 
         A sidecar that can't be told drops the sample once no request has named it for its run expiry, so a failure is logged and not raised.
 
@@ -176,14 +176,14 @@ class TaskSidecars:
             sample_uuid: The sample's uuid.
             tell: Whether to tell the sidecars. A cancelled sample's teardown can't be interrupted, so it doesn't wait on a sidecar that may not answer, and the sidecars drop the sample at its run expiry.
         """
-        # each sidecar once, as the latest attempt that sent through it
+        # each sidecar once, as the latest attempt that registered with it
         # reached it
         through = {
-            origin: registration.sent_through
+            origin: registration.registered_through
             for (origin, _), registration in self._registrations.pop(
                 sample_uuid, {}
             ).items()
-            if registration.sent_through is not None
+            if registration.registered_through is not None
         }
         self._unjudged.pop(sample_uuid, None)
         self._lost.pop(sample_uuid, None)
@@ -210,7 +210,7 @@ class TaskSidecars:
 
         Inside Inspect, a monitor's state is in the sample store, where a scorer can read it; through a sidecar, it is kept by the sidecar. After the copy, a marker in the sample store says whether it succeeded, so a scorer never reads a failed copy as a sample in which nothing was flagged.
 
-        A sidecar only an earlier attempt sent through is left out: it still keeps that attempt's monitor state, and a retry starts with an empty sample store, as in Inspect's own process. So is one the attempt only prepared calls for, none of which was sent, as when a solver cancels a call that waits for a connection: the sidecar was told nothing of the sample, and there is nothing to copy.
+        A sidecar only an earlier attempt sent through is left out: it still keeps that attempt's monitor state, and a retry starts with an empty sample store, as in Inspect's own process. So is one no request of the attempt was sent through, as when a solver cancels a call that waits for a connection, or for its sample's registration: the sidecar judged nothing of the attempt, and there is nothing to copy.
 
         An attempt whose sample a sidecar lost partway through, as on a restart, isn't copied: the marker says its monitor state was lost, since what the sidecar holds began afresh.
 
@@ -499,8 +499,8 @@ class AttemptRegistration:
         # one send at a time for the attempt
         self._lock = anyio.Lock()
         self._held: _Held | None = None
-        self.sent_through: Sidecar | None = None
-        """The sidecar as the attempt's latest request reached it, once a request of the attempt has sent it something, or None before then. The sidecar knows nothing of an attempt that only prepared calls: it is asked for no monitor state of one, and isn't told its sample ended."""
+        self.registered_through: Sidecar | None = None
+        """The sidecar as the attempt's latest request reached it, once it was sent the attempt's registration, or None before then. From then it may hold the sample's facts, whatever came of the registration, so it is told when the sample ends."""
         # the sidecar's `restarts_found` when a request of the attempt was
         # first sent to it, or None before then
         self._restarts_found_at_first_send: int | None = None
@@ -534,8 +534,8 @@ class AttemptRegistration:
             while True:
                 await access.wait_for_registration()
                 # from here the sidecar is sent the attempt's registration,
-                # or holds it and is sent the request
-                self.sent_through = sidecar
+                # or holds it already
+                self.registered_through = sidecar
                 begun = access.registrations_begun
                 held = self._held
                 if held is not None and held.registrations_begun == begun:
@@ -565,6 +565,15 @@ class AttemptRegistration:
                 # the sidecar may judge the attempt from here on
                 self._restarts_found_at_first_send = access.restarts_found
             return held.fixed
+
+    @property
+    def sent_through(self) -> Sidecar | None:
+        """The sidecar as the attempt's latest request reached it, once a request of the attempt was sent through it, or None before then.
+
+        Only then can the sidecar have judged anything of the attempt, and hold monitor state of it. A registration alone doesn't make it so: a call cancelled while its registration was on its way sent no request.
+        """
+        sent = self._restarts_found_at_first_send is not None
+        return self.registered_through if sent else None
 
     def restarted_since_first_send(self) -> bool:
         """Whether the sidecar was found to have restarted since a request of the attempt was first sent to it, so it lost what it had judged of the attempt.

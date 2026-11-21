@@ -1819,26 +1819,42 @@ def test_a_sample_refused_at_its_first_request_fails_at_once_and_isnt_scored(
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
+@pytest.mark.parametrize(
+    "cancelled", ["waiting for a connection", "as its sample registered"]
+)
 def test_a_sample_whose_only_call_was_cancelled_before_it_was_sent_is_scored(
-    backend: str, monkeypatch: pytest.MonkeyPatch
+    cancelled: str, backend: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
-    # asked of a sample it was sent nothing of, a sidecar says it knows none
+
+    def complete(_: dict[str, Any]) -> dict[str, Any]:
+        # the sidecar takes the sample's registration, and its answer never
+        # arrives
+        stand_in.answer_after = anyio.Event()
+        return {}
+
+    # asked of a sample no request of which it was sent, a sidecar says it
+    # knows none
     stand_in = StandInSidecar(
         methods={
+            "complete_registration": complete,
             "sample_result": lambda _: {
                 "error": {"code": -32002, "message": "no such sample"}
-            }
+            },
         }
     )
 
     @solver
-    def cancels_a_queued_call() -> Solver:
+    def cancels_its_call() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             model = get_model()
-            # the model's one connection is held, so the call waits for it
-            held = GenerateConfig(max_connections=1)
-            async with model._connection_concurrency(held):
+            if cancelled == "waiting for a connection":
+                # the model's one connection is held, so the call waits for it
+                held = GenerateConfig(max_connections=1)
+                async with model._connection_concurrency(held):
+                    with anyio.move_on_after(0.2):
+                        await model.generate("Hi.")
+            else:
                 with anyio.move_on_after(0.2):
                     await model.generate("Hi.")
             state.output = ModelOutput.from_content(str(model), "Hello")
@@ -1848,7 +1864,7 @@ def test_a_sample_whose_only_call_was_cancelled_before_it_was_sent_is_scored(
 
     task = Task(
         dataset=[Sample(input="Hi.", target="Hello")],
-        solver=cancels_a_queued_call(),
+        solver=cancels_its_call(),
         scorer=includes(),
     )
 
@@ -1860,15 +1876,22 @@ def test_a_sample_whose_only_call_was_cancelled_before_it_was_sent_is_scored(
         display="none",
     )
 
-    # The sidecar was sent nothing of the sample: no registration and no
-    # request. So it is asked for no monitor state, which it would answer by
-    # saying it knows no such sample, and isn't told the sample ended.
+    # No request of the sample was sent, so the sidecar judged nothing of it
+    # and is asked for no monitor state, which it would answer by saying it
+    # knows no such sample.
     assert stand_in.model_calls == []
     assert log.samples is not None
     sample = log.samples[0]
     assert sample.error is None
     assert sample.scores is not None and sample.scores["includes"].value == "C"
-    assert [call["method"] for call in stand_in.calls] == ["register_task"]
+    told = [call["method"] for call in stand_in.calls]
+    if cancelled == "waiting for a connection":
+        # the sidecar was sent nothing of the sample at all
+        assert told == ["register_task"]
+    else:
+        # the sidecar may hold the sample's facts, so it is told the sample
+        # ended
+        assert told == ["register_task", "complete_registration", "end_sample"]
 
 
 def test_a_call_that_is_never_sent_registers_nothing(
@@ -3964,6 +3987,73 @@ def test_an_earlier_attempt_still_being_judged_is_noted_as_incomplete(
         and e.data.get("judging_usage") == "incomplete"
     ]
     assert len(incomplete) == 1
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
+def test_a_restart_found_as_a_usage_report_arrives_doesnt_count_the_report_twice(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+
+    def result(params: dict[str, Any]) -> dict[str, Any]:
+        sent = [call.headers["x-irid"] for call in stand_in.model_calls]
+        if params["id"] != sent[-1]:
+            # the first attempt, which the provider failed
+            return {
+                "id": params["id"],
+                "records": "held",
+                "state": "not_judged",
+                "reason": "provider_error",
+            }
+        # The retry's report, with the judge's 1,000 tokens. Another sample
+        # finds the sidecar restarted while the report is on its way.
+        sidecars = task_sidecars(stand_in.calls[0]["params"]["eval_id"])
+        assert sidecars is not None
+        access = sidecars.access("http://proxy.test")
+        assert access is not None
+        access.restarts_found += 1
+        return {
+            "id": params["id"],
+            "records": "held",
+            "state": "decided",
+            "judgment": {"outcome": "proceed", "steps": []},
+            "judging_usage": _judge_usage(1000),
+        }
+
+    # The provider fails the first attempt, and Inspect retries the call
+    # under another request id. Asked about the retry, the sidecar reports
+    # its usage, and Inspect then asks about the first attempt.
+    stand_in = StandInSidecar(
+        turns=[Turn(status=529), Turn()], methods={"request_result": result}
+    )
+    model = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="test-key",
+        memoize=False,
+        http_client=stand_in.http_client(),
+        max_retries=0,
+    )
+    monkeypatch.setattr(model.api, "retry_wait", lambda: wait_none())
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=generate()),
+        model=model,
+        sentinel_proxy="auto",
+        display="none",
+    )
+
+    assert len(stand_in.model_calls) == 2
+    assert log.samples is not None
+    sample = log.samples[0]
+    # the attempt had sent the sidecar a request before the restart was found
+    assert sample.error is not None
+    assert "lost the sample partway" in sample.error.message
+    # the report belongs to the run of the sidecar it was asked of, whatever
+    # is asked or found after
+    judge = sample.model_usage["anthropic/claude-judge"]
+    assert judge.total_tokens == 1000
+    assert log.stats.model_usage["anthropic/claude-judge"].total_tokens == 1000
 
 
 def test_an_earlier_attempts_usage_is_recorded_when_the_last_fails_unsent(

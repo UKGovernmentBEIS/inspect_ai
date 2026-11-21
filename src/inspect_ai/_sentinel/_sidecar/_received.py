@@ -293,14 +293,6 @@ class ReceivedCall:
 
         The sidecar accepted an answer to each, or no longer holds it.
         """
-        self.answered_after_restarts = 0
-        """The sidecar's `restarts_found` when the lookup whose answer Inspect last took began.
-
-        A sidecar's running totals for a request start again when it restarts,
-        and a call can carry on under its id through a restart. So a total
-        belongs to the restart count it was asked under, taken as the lookup
-        begins: a restart found while the answer is on its way doesn't claim it.
-        """
         self.usage_recorded: dict[
             tuple[int, str], dict[tuple[str | None, str], ModelUsage]
         ] = {}
@@ -308,7 +300,10 @@ class ReceivedCall:
 
         The sidecar reports usage as a running total. Inspect asks about a paused
         call more than once under one id, so it records only what is new. A
-        restarted sidecar's total is a series of its own, counted in full.
+        sidecar's totals start again when it restarts, and a call can carry on
+        under its id through a restart, so a restarted sidecar's total is a
+        series of its own, counted in full. Each answer says which restart
+        count it was asked under.
         """
         self.unasked: list[str] = []
         """The request ids of earlier attempts that were sent and that Inspect retried without asking the sidecar about them. The sidecar may have judged their requests with its own models, and is asked for that usage once the latest attempt is asked about."""
@@ -411,12 +406,15 @@ def begin_attempt() -> None:
         received.resends = 0
         received.error_is_final = False
         received.sends = []
+        # the total of the sidecar's latest run, as an earlier run's started
+        # again
+        runs = [
+            series
+            for series in received.judging_recorded
+            if series[1] == received.reviewed_request_id
+        ]
         received.judging_before_attempt = (
-            received.judging_recorded.get(
-                (received.answered_after_restarts, received.reviewed_request_id), 0.0
-            )
-            if received.reviewed_request_id is not None
-            else 0.0
+            received.judging_recorded[max(runs)] if runs else 0.0
         )
 
 
@@ -571,7 +569,9 @@ def record_send(received: ReceivedCall) -> None:
         received.sends.append(Send(received.try_sent_at, sample_clock()))
 
 
-def record_judging_time(received: ReceivedCall, judging_time: float | None) -> None:
+def record_judging_time(
+    received: ReceivedCall, judging_time: float | None, restarts_found: int
+) -> None:
     """Add the growth in the sidecar's judging time to the call's latest send.
 
     The sidecar reports its judging time for the call as a running total. It
@@ -581,7 +581,7 @@ def record_judging_time(received: ReceivedCall, judging_time: float | None) -> N
     """
     if judging_time is None or received.request_id is None:
         return
-    series = (received.answered_after_restarts, received.request_id)
+    series = (restarts_found, received.request_id)
     if series not in received.judging_recorded:
         # a restarted sidecar's total starts again, so none of it was
         # counted by an earlier attempt
