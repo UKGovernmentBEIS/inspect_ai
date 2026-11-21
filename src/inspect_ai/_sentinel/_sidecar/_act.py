@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 from weakref import WeakKeyDictionary
 
+import anyio
 from pydantic import TypeAdapter
 
 from inspect_ai._util.exception import TerminateSampleError
@@ -20,14 +21,11 @@ from inspect_ai.model._model_output import (
 from inspect_ai.tool._tool_call import ToolCall
 
 from ._lookup import (
-    STILL_JUDGING,
     fetch_usage,
     lost_sample,
-    note_usage_incomplete,
-    note_usage_unavailable,
-    record_new_usage,
     record_unasked_usage,
     request_result,
+    settle_usage,
     unjudged_error,
     unknown_to_required,
 )
@@ -121,9 +119,10 @@ async def refused_output(
     received = current_receiving()
     if received is None or not received.sent:
         return None
-    # `finish_paused_call` has already asked the sidecar about this attempt
-    # and found nothing more to fetch or resend, so the attempt's error is
-    # final
+    # The attempt's error is final. Either `finish_paused_call` has already
+    # asked the sidecar about the attempt and found nothing more to fetch or
+    # resend, or the call was stopped, and fails on what stopped it whatever
+    # the sidecar decided: `refusal_after_error` cleans up after it.
     if received.error_is_final:
         return None
     # The attempt's first send returned an error. Record that send's time,
@@ -131,12 +130,6 @@ async def refused_output(
     # send.
     if not received.sends:
         record_send(received)
-    # A send the sample's registration stopped is acted on where Inspect
-    # stops retrying, in `refusal_after_error`. The call fails on the
-    # registration's error whatever the sidecar decided, so nobody is asked
-    # about it and nothing is fetched or resent for it here.
-    if received.registration_error is not None:
-        return None
     # Inspect doesn't look up an error it will retry, with two exceptions: a
     # call that is already paused for a person, whose state only the sidecar
     # knows, and a sidecar that can ask a person through the eval (below).
@@ -200,11 +193,11 @@ async def refusal_after_error(
     Raises:
         SampleRefusedError: If the sidecar couldn't place the sample.
         SidecarNotJudgedError: If the sidecar couldn't judge the call for another reason, or the task requires a sidecar and the call's judgment is unavailable.
-        SentinelProxyError: If a send of the call was stopped because the sidecar couldn't take the sample's registration again.
+        SentinelProxyError: If the call was stopped because the sidecar couldn't take the sample's registration as a request of it was sent.
     """
-    if received.registration_error is not None:
-        await _clean_up_stopped_call(received)
-        raise received.registration_error
+    if received.stopped_by is not None:
+        await _settle_stopped_call(received)
+        raise received.stopped_by
     # as in `refused_output`: an attempt that failed unsent is never looked up,
     # though earlier attempts that were sent may still have been judged
     if not received.sent:
@@ -231,65 +224,61 @@ async def refusal_after_error(
     return _refusal(received.judgment, model, bridged)
 
 
-async def _clean_up_stopped_call(received: ReceivedCall) -> None:
-    # The sidecar couldn't take the sample's registration again as a try was
-    # sent, which stopped the send. The call fails on that error, whatever
-    # the error that reached Inspect, which is what the provider's SDK made
-    # of the stopped send. First a call the sidecar may have paused is
-    # cancelled, and the tries that were sent are accounted for, as the
-    # sidecar may have judged them. Nothing here waits on the sidecar's
-    # judging or asks a person, as the lookup of a call would, and none of
-    # it replaces the registration's error.
+STOPPED_CALL_TIMEOUT = 10.0
+"""The longest Inspect asks a sidecar what the requests of a stopped call billed, in seconds. What it hasn't learned by then is noted as unknown."""
+
+
+async def _settle_stopped_call(received: ReceivedCall) -> None:
+    # The call was stopped, as when the sidecar couldn't take the sample's
+    # registration while a request of it was sent, and fails on what stopped
+    # it. This cleans up after it, whichever of its requests were sent,
+    # paused, retried or asked about before, and changes nothing of how the
+    # call ends: it raises nothing of its own, waits on no judging, asks no
+    # person, and gives up after `STOPPED_CALL_TIMEOUT`.
     from ._review import cancel_call_by_id, cancel_paused_call
 
-    # the attempts Inspect retried without asking about them, each on its own
-    while received.unasked:
-        try:
-            await record_unasked_usage(received)
-        except Exception as ex:
-            note_usage_unavailable(received.unasked.pop(0), str(ex))
-    # The request of the call the sidecar may still hold: one it paused for
-    # a person, or the latest attempt's, if it was sent.
+    # The request the sidecar may still hold: one it paused for a person, or
+    # the latest attempt's, if it was sent.
     paused = received.paused
-    request_id = (
+    held = (
         received.reviewed_request_id
         if paused
         else (received.request_id if received.sent else None)
     )
-    if request_id is None:
-        return
-    # Nothing will resend a paused call, so it is cancelled at the sidecar.
-    # A call Inspect doesn't know to be paused is cancelled by its id, as
-    # the sidecar may have paused it and the answer saying so been lost.
-    answer = (
-        await cancel_paused_call(received)
-        if paused
-        else await cancel_call_by_id(received)
-    )
-    if answer is None:
-        # asked once, without waiting, as an earlier attempt is
-        answer = await fetch_usage(received, request_id)
-    # The sidecar gives a total for the id, so the answer adds only what it
-    # has over what Inspect recorded before.
-    if answer and record_new_usage(received, request_id, answer):
-        if answer.get("state") == "judging":
-            # what was billed so far is recorded, and the rest may never be
-            note_usage_incomplete(request_id, STILL_JUDGING)
-        return
-    records = answer.get("records") if answer else None
-    reason = (
-        "the sidecar didn't answer"
-        if answer is None
-        else f"the sidecar's records are {records}"
-        if records != "held"
-        else "the sidecar's judging usage can't be read"
-    )
-    # A paused call's usage was read as the person was asked, and is kept,
-    # but a resend they approved may have been judged since.
-    if paused:
-        note_usage_incomplete(request_id, reason)
-    else:
-        note_usage_unavailable(request_id, reason)
+    # Each request the sidecar may have judged: the attempts Inspect retried
+    # without asking about them, and the one it may still hold.
+    owed = list(dict.fromkeys([*received.unasked, *([held] if held else [])]))
+    received.unasked.clear()
+    unanswered = "the sidecar didn't answer"
+    try:
+        answers: dict[str, dict[str, Any]] = {}
+        if held is not None:
+            # Nothing will resend a paused call, so it is cancelled at the
+            # sidecar. A call Inspect doesn't know to be paused is cancelled
+            # by its id, as the sidecar may have paused it and the answer
+            # saying so been lost. The sidecar then says what it holds.
+            answer = (
+                await cancel_paused_call(received)
+                if paused
+                else await cancel_call_by_id(received)
+            )
+            if answer is not None:
+                answers[held] = answer
+        with anyio.move_on_after(STOPPED_CALL_TIMEOUT) as within:
+            while owed:
+                request_id = owed[0]
+                answer = answers.get(request_id)
+                if answer is None:
+                    # asked once, without waiting
+                    answer = await fetch_usage(received, request_id)
+                settle_usage(received, request_id, answer)
+                owed.pop(0)
+        if within.cancelled_caught:
+            unanswered = "the sidecar didn't answer in time"
+    except Exception as ex:
+        unanswered = f"the sidecar couldn't be asked: {ex}"
+    for request_id in owed:
+        settle_usage(received, request_id, None, unanswered)
 
 
 def _note_lost(received: ReceivedCall) -> None:

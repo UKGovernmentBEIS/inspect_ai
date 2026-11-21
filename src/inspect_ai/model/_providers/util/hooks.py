@@ -443,10 +443,10 @@ class HttpxHooks(HttpHooks):
             self.update_request_time(request_id)
             if "x-inspect-context" in request.headers:
                 # An agent call through a sentinel sidecar makes sure of its
-                # sample's registration there as each try is sent: the try
-                # may have waited long, and a retry comes after a backoff.
-                # Before the try is reported sent, so a restart this finds
-                # isn't taken to have lost what the try is yet to send.
+                # sample's registration there as each request is sent, and
+                # nowhere else: a request may have waited long, and a retry
+                # comes after a backoff. A registration the sidecar can't
+                # take raises here, so the request is never sent.
                 from inspect_ai._sentinel._sidecar._call import ensure_registration
 
                 await ensure_registration(request_id)

@@ -63,8 +63,8 @@ from inspect_ai._sentinel._sidecar._lookup import (
 from inspect_ai._sentinel._sidecar._received import (
     ReceivedCall,
     begin_attempt,
+    call_stopped,
     receiving_call,
-    registration_failed,
 )
 from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
@@ -1146,7 +1146,7 @@ class Model:
                 with (
                     receiving_call(
                         through_sidecar.sidecar,
-                        through_sidecar.registered_beforehand,
+                        through_sidecar.registration,
                         through_sidecar.mode,
                         prepared.input,
                         config.timeout,
@@ -2235,9 +2235,10 @@ class Model:
         # stamped qualified name, None when absent (retries then simply
         # go unattributed in the throughput registry)
         model = self.api.qualified_model_name
-        # a send a sentinel sidecar's registration stopped fails on the
-        # registration's error, which a retry would meet again
-        if registration_failed():
+        # a call through a sentinel sidecar that was stopped, as when the
+        # sidecar can't take its sample's registration, fails on the error
+        # that stopped it, which a retry would meet again
+        if call_stopped():
             return False
         if isinstance(ex, Exception):
             # attempt/stream-idle timeouts are always retried (we rely on

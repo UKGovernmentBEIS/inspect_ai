@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
     from .._config import SentinelProxy
     from ._lookup import Looked
+    from ._task import AttemptRegistration
 
 
 class SentinelStep(BaseModel):
@@ -145,13 +146,15 @@ class ReceivedCall:
     def __init__(
         self,
         sidecar: Any = None,
-        registered_beforehand: bool = False,
+        registration: "AttemptRegistration | None" = None,
         mode: "SentinelProxy" = "auto",
         history: "list[ChatMessage] | None" = None,
         timeout: int | None = None,
     ) -> None:
         self.sidecar = sidecar
         """The sidecar the call goes through, which `request_result` asks."""
+        self.registration = registration
+        """The attempt's registration of the call's sample at the sidecar, which each request of the call makes sure of as it is sent."""
         self.timeout = timeout
         """The call's `timeout` in seconds, or None for no limit.
 
@@ -173,8 +176,11 @@ class ReceivedCall:
         Inspect shows it to a person who is asked about the call. It never leaves
         the eval's process.
         """
-        self.registered_beforehand = registered_beforehand
-        """Whether the sidecar's admin registered the call's task beforehand, so a sample the sidecar can't place was never accepted, rather than lost."""
+        self.registered_beforehand = False
+        """Whether the sidecar's admin registered the call's task beforehand, so a sample the sidecar can't place was never accepted, rather than lost.
+
+        As the sidecar said when a request of the call last made sure of the sample's registration.
+        """
         self.mode: "SentinelProxy" = mode
         """Whether the task requires a sidecar, so a call whose judgment is unavailable fails the sample."""
         self.request_id: str | None = None
@@ -235,11 +241,8 @@ class ReceivedCall:
         Set once Inspect has asked the sidecar about the attempt's last request
         and has nothing more to fetch or resend.
         """
-        self.registration_error: Exception | None = None
-        """Why the sidecar couldn't take the sample's registration again as a try of the call was sent, which stopped that send.
-
-        The call fails on it, and is not retried: no later try is sent.
-        """
+        self.stopped_by: Exception | None = None
+        """The error of Inspect's own that stopped the call, which the call fails on whatever its requests returned. Set by `stop()`."""
         self.handled_failures: set[int] = set()
         """The numbers of the failed tries that Inspect has handled.
 
@@ -317,6 +320,14 @@ class ReceivedCall:
         since the last report is the judging of the send that returned last.
         """
 
+    def stop(self, error: Exception) -> None:
+        """Stop the call on an error of Inspect's own, as when the sidecar can't take its sample's registration while a request is sent.
+
+        The call fails on the error, whatever error reaches Inspect from the request that was stopped. Nothing more of the call is sent, asked of a person, fetched or retried: the latest attempt's error is final, and Inspect cleans up after the call and raises this one where it stops retrying.
+        """
+        self.stopped_by = error
+        self.error_is_final = True
+
 
 _received: ContextVar[ReceivedCall | None] = ContextVar(
     "sentinel_sidecar_call", default=None
@@ -326,7 +337,7 @@ _received: ContextVar[ReceivedCall | None] = ContextVar(
 @contextmanager
 def receiving_call(
     sidecar: Any = None,
-    registered_beforehand: bool = False,
+    registration: "AttemptRegistration | None" = None,
     mode: "SentinelProxy" = "auto",
     history: "list[ChatMessage] | None" = None,
     timeout: int | None = None,
@@ -335,14 +346,14 @@ def receiving_call(
 
     Args:
         sidecar: The sidecar the call goes through.
-        registered_beforehand: Whether the sidecar's admin registered the call's
-            task beforehand.
+        registration: The attempt's registration of the call's sample at the
+            sidecar.
         mode: Whether the task requires a sidecar.
         history: The conversation the call is sent with. Inspect shows it to a
             person who is asked about the call.
         timeout: The call's `timeout`, in seconds, or None for no limit.
     """
-    received = ReceivedCall(sidecar, registered_beforehand, mode, history, timeout)
+    received = ReceivedCall(sidecar, registration, mode, history, timeout)
     token = _received.set(received)
     try:
         yield received
@@ -485,10 +496,10 @@ def current_receiving() -> ReceivedCall | None:
     return _received.get()
 
 
-def registration_failed() -> bool:
-    """Whether a send of the current agent call was stopped because the sidecar couldn't take its sample's registration again."""
+def call_stopped() -> bool:
+    """Whether the current agent call was stopped on an error of Inspect's own, which a retry would meet again."""
     received = _received.get()
-    return received is not None and received.registration_error is not None
+    return received is not None and received.stopped_by is not None
 
 
 def report_request_id(request_id: str) -> None:
@@ -504,22 +515,6 @@ def report_sent(request_id: str) -> None:
     if received is not None and received.request_id == request_id:
         received.sent = True
         received.try_sent_at = sample_clock()
-        _note_sent(received)
-
-
-def _note_sent(received: ReceivedCall) -> None:
-    # the sidecar may judge the attempt from here on, so a restart after
-    # this loses the attempt's monitor state
-    from inspect_ai.log._samples import sample_active
-
-    from ._task import attempt_number, task_sidecars
-
-    sidecars = task_sidecars()
-    active = sample_active()
-    if sidecars is not None and active is not None and received.sidecar is not None:
-        sidecars.request_sent(
-            active.sample_uuid, attempt_number(active), received.sidecar
-        )
 
 
 def record_send(received: ReceivedCall) -> None:

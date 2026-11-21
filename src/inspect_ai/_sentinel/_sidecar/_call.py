@@ -12,12 +12,17 @@ from .._config import SentinelProxy
 from .._scope import current_origin, is_agent_turn
 from ._endpoint import Sidecar, _origin
 from ._sign import model_request_message, now, sign
-from ._task import SampleFacts, TaskSidecars, attempt_number, task_sidecars
+from ._task import (
+    AttemptRegistration,
+    SampleFacts,
+    TaskSidecars,
+    attempt_number,
+    task_sidecars,
+)
 
 if TYPE_CHECKING:
     from inspect_ai.log._samples import ActiveSample
     from inspect_ai.model._model import Model
-    from inspect_ai.solver._task_state import TaskState
 
 logger = getLogger(__name__)
 
@@ -42,8 +47,8 @@ class SidecarCall(NamedTuple):
     header: str
     """`x-inspect-context`, naming the call's sample and attempt, before it is signed."""
     mode: SentinelProxy
-    registered_beforehand: bool = False
-    """Whether the sidecar's admin registered the task beforehand, so a sample it can't place was never accepted."""
+    registration: AttemptRegistration | None = None
+    """The attempt's registration of the call's sample at the sidecar, which each request of the call makes sure of as it is sent."""
 
     def config(self, config: GenerateConfig) -> GenerateConfig:
         """The call's config, with its `x-inspect-context` header."""
@@ -52,12 +57,14 @@ class SidecarCall(NamedTuple):
 
 
 async def sidecar_call(model: "Model") -> SidecarCall | None:
-    """The sidecar an agent call goes through, with the sample's registration complete, or None for a call no sidecar judges.
+    """The sidecar an agent call goes through, with the sample's facts taken for its registration there, or None for a call no sidecar judges.
 
     Only the agent's calls are judged, as in process: not a scorer's, an approver's, a compaction summary's or a monitor's.
 
+    The sample's registration is sent as a request of the call is, by `ensure_registration`, and not here: a call can wait long for a connection, and one that is never sent registers nothing.
+
     Raises:
-        SentinelProxyError: If a sidecar found for the call's endpoint couldn't register the task or the sample.
+        SentinelProxyError: If a sidecar found for the call's endpoint couldn't register the task.
     """
     from inspect_ai.log._samples import sample_active
     from inspect_ai.solver._task_state import sample_state
@@ -76,8 +83,16 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
         return None
 
     sidecars.called_through(active.sample_uuid, attempt_number(active), sidecar)
-    registered_beforehand = await _complete_registration(
-        sidecars, sidecar, active, state
+    registration = sidecars.attempt_registration(
+        sidecar,
+        SampleFacts(
+            sample_id=state.sample_id,
+            sample_description=active.sample.description,
+            sample_input=state.input,
+            metadata=state.metadata,
+        ),
+        active.sample_uuid,
+        attempt_number(active),
     )
     # signed as each try is sent, so the eval log records it unsigned
     header = json.dumps(
@@ -98,40 +113,23 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
             "model": str(model),
         }
     )
-    return SidecarCall(sidecar, header, sidecars.mode, registered_beforehand)
-
-
-async def _complete_registration(
-    sidecars: TaskSidecars, sidecar: Sidecar, active: "ActiveSample", state: "TaskState"
-) -> bool:
-    return await sidecars.complete_registration(
-        sidecar,
-        SampleFacts(
-            sample_id=state.sample_id,
-            sample_description=active.sample.description,
-            sample_input=state.input,
-            metadata=state.metadata,
-        ),
-        active.sample_uuid,
-        attempt_number(active),
-    )
+    return SidecarCall(sidecar, header, sidecars.mode, registration)
 
 
 async def ensure_registration(request_id: str) -> None:
-    """Complete the sample's registration again, as a try of the current agent call is sent under an `x-irid`, if the sidecar may have lost it since the call began.
+    """Make sure the sidecar holds the sample's registration, as a request of the current agent call is sent under an `x-irid`.
 
-    A request can be sent long after `sidecar_call`: once the call has a connection, after the eval was paused, or as a retry after a backoff. A sidecar that lost the task meanwhile, and that another sample registered it with again, frees the sample's facts when that sample ends, and would refuse the request as unregistered. So each try makes sure of the registration first. Nothing is sent where it is still good, and what is sent again is what the attempt first sent.
+    Every request of a call through a sidecar comes here: an attempt's first send, a retry by the provider's SDK or by Inspect, a resend of a paused call, and a fetch of what the sidecar holds for one. It is the only place a sample's registration is sent from. A request can be sent long after its call was prepared: once the call has a connection, after the eval was paused, or after a backoff. Nothing is sent where the sidecar still holds the registration.
 
     The call then goes by what the sidecar says now of whether its admin registered the task beforehand: a sidecar that restarted may have the task in its tasks folder since.
 
-    A registration the sidecar can't take stops the send, and every later try of the call: sent on, the request could be judged without the sample's facts. An error raised as a request is sent reaches the provider's caller as a failed connection, so it is kept as the call's `registration_error`, which Inspect raises in its place and doesn't retry.
+    A registration the sidecar can't take stops the call: sent on, the request could be judged without the sample's facts. An error raised as a request is sent reaches the provider's caller as a failed connection, so the call is stopped on the registration's error, which Inspect raises in its place and doesn't retry. A later try of a stopped call, as the provider's SDK makes, is stopped on the same error.
 
     Raises:
         SentinelProxyError: If the sidecar couldn't take the sample, now or at an earlier try of the call.
+        SampleRefusedError: If the sidecar takes only the samples the task's registration names, and the call's isn't one.
     """
     from inspect_ai._util.exception import SampleRefusedError
-    from inspect_ai.log._samples import sample_active
-    from inspect_ai.solver._task_state import sample_state
 
     from ._endpoint import SentinelProxyError
     from ._received import current_receiving
@@ -140,23 +138,15 @@ async def ensure_registration(request_id: str) -> None:
     if (
         received is None
         or received.request_id != request_id
-        or received.sidecar is None
+        or received.registration is None
     ):
         return
-    if received.registration_error is not None:
-        # a retry the provider's SDK makes of a send this stopped
-        raise received.registration_error
-    sidecars = task_sidecars()
-    active = sample_active()
-    state = sample_state()
-    if sidecars is None or active is None or state is None:
-        return
+    if received.stopped_by is not None:
+        raise received.stopped_by
     try:
-        received.registered_beforehand = await _complete_registration(
-            sidecars, received.sidecar, active, state
-        )
+        received.registered_beforehand = await received.registration.ensure_registered()
     except (SentinelProxyError, SampleRefusedError) as ex:
-        received.registration_error = ex
+        received.stop(ex)
         raise
 
 

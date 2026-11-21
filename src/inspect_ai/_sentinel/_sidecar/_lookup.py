@@ -135,21 +135,44 @@ async def request_result(received: ReceivedCall, replied: bool) -> Looked:
     return looked
 
 
-def record_new_usage(
-    received: ReceivedCall, request_id: str, result: dict[str, Any]
-) -> bool:
-    """Record what an answer of `request_result` adds to the judging usage recorded for a request id, and say whether the answer held a total that could be read.
+def settle_usage(
+    received: ReceivedCall,
+    request_id: str,
+    answer: dict[str, Any] | None,
+    unanswered: str = "the sidecar didn't answer",
+) -> None:
+    """Settle what judging a request billed, for a request Inspect has given up on: record what the sidecar says of it, and note what can't be known.
 
-    For an answer Inspect asked for outside `request_result`, as after it cancelled a call. The sidecar reports a total for the id, so only what was added since the last answer is recorded.
+    One rule, however the request was given up, and whether or not Inspect asked about it before:
+
+    - The sidecar reports a total for the id, so an answer adds only what it has over what Inspect recorded for the id before.
+    - An answer given while the sidecar is still judging is noted as incomplete: what was billed so far is recorded, and the rest may never be.
+    - Where no total can be read, what was recorded before is kept. It is noted as incomplete, as the request may have been judged again since. A request nothing was recorded for is noted as unavailable, so its usage reads as unknown rather than none.
+
+    Args:
+        received: What is kept of the call, with the usage recorded for each of its request ids.
+        request_id: The request's `x-irid`.
+        answer: What the sidecar answered `request_result` for the id, or None if it didn't.
+        unanswered: Why there is no answer, for the note.
     """
-    if result.get("records") != "held":
-        return False
-    try:
-        used = parse_judging_usage(result.get("judging_usage")) or None
-    except ValueError:
-        return False
-    record_judging_usage(_not_yet_recorded(received, used, request_id))
-    return True
+    if answer is None:
+        reason = unanswered
+    elif answer.get("records") != "held":
+        reason = f"the sidecar's records are {answer.get('records')}"
+    else:
+        try:
+            used = parse_judging_usage(answer.get("judging_usage")) or None
+        except ValueError:
+            reason = "the sidecar's judging usage can't be read"
+        else:
+            record_judging_usage(_not_yet_recorded(received, used, request_id))
+            if answer.get("state") == "judging":
+                note_usage_incomplete(request_id, STILL_JUDGING)
+            return
+    if request_id in received.usage_recorded:
+        note_usage_incomplete(request_id, reason)
+    else:
+        note_usage_unavailable(request_id, reason)
 
 
 async def fetch_usage(received: ReceivedCall, request_id: str) -> dict[str, Any] | None:

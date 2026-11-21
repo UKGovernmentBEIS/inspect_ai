@@ -99,6 +99,9 @@ class StandInSidecar:
     answer_after: anyio.Event | None = None
     """Set by a method as it answers, to hold that answer until the event is set: the stand-in has taken the call, and its answer is slow to arrive."""
 
+    answer_lost: bool = False
+    """Set with `answer_after`, to lose the held answer with its connection once the event is set: the stand-in has taken the call, and its answer never arrives."""
+
     now: float | None = None
     """The stand-in's clock, in seconds since the epoch, or None to read the real one."""
 
@@ -134,8 +137,11 @@ class StandInSidecar:
     async def _handle_async(self, request: httpx2.Request) -> httpx2.Response:
         response = self._handle(request)
         after, self.answer_after = self.answer_after, None
+        lost, self.answer_lost = self.answer_lost, False
         if after is not None:
             await after.wait()
+            if lost:
+                raise httpx2.ReadError("The connection was lost.", request=request)
         # held as a proxy holds a call while its sidecar judges
         hold = self._holds.pop(id(request), 0.0)
         if hold:
