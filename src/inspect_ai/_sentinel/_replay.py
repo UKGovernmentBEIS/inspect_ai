@@ -520,6 +520,15 @@ def _new_tool_results(
     return dict(sorted(results.items(), key=lambda item: item[1]))
 
 
+def _with_agent_tool_call_ids(
+    message: ChatMessageAssistant, ids: Sequence[str]
+) -> ChatMessageAssistant:
+    """A bridged model call's output message as the agent received it, under the ids the bridge recorded (`ModelEvent.agent_tool_call_ids`), rebuilt as the bridge built it, without touching provider state."""
+    from inspect_ai.agent._bridge.util import with_agent_tool_call_ids
+
+    return with_agent_tool_call_ids(message, ids, keep_provider_state=False)
+
+
 def _history_ids(current: _PooledInput, tool_rows: _ToolRows) -> set[str]:
     """The ids of the tool messages `current` holds, read from the tool rows its ranges hold (`held_from`).
 
@@ -718,7 +727,12 @@ class _BridgedCall(NamedTuple):
     """The model call's event index."""
 
     event: ModelEvent
+    message: ChatMessageAssistant
+    """The model call's output message as the agent received it: with the ids the bridge gave its calls (`ModelEvent.agent_tool_call_ids`), else the logged message."""
+
     call: ToolCall
+    """The call under the id the agent received it under."""
+
     seq: int
     """The sequence of its `tool_call` step; its `tool_result` step's follows."""
 
@@ -1666,7 +1680,9 @@ class _Driver:
 
         A call is taken from the output of a model call the bridge made for its agent, unless a native `ToolEvent` ran it (`native`, by the model call's event index and the call id). Its result is in the first later bridged request of its conversation whose new messages, against the conversation's previous bridged request (`_PooledInput.new_positions`), include a tool message under its id: the last such message, since a call's result follows every earlier message under its id (`_new_tool_results`). A call whose id no tool message in the log has, as in a log the Google bridge wrote without a sentinel before Inspect 0.3.292, never awaits one.
 
-        A call awaits a result only if the model calls of its conversation proposed no other call under its id, counted over all of them first. The log does not record the id the bridge handed each call over under, and a tool message under a shared id can answer any of its calls: one the bridge handed over under a new id, a lost response's or its cached retry's, or a concurrent loop's. Each tool message id of the conversation's starting history counts as one more call, as the bridge hands a call under such an id over under a new one (`_history_ids`). History the conversation takes up later is not read (`steps_from_events`).
+        Each call is taken under the id the agent received it under: the id the bridge recorded for it where it gave the call a new one (`ModelEvent.agent_tool_call_ids`), else the model's. That id names its steps, its result is the tool message under it, and the step's message is the output message as the agent received it, rebuilt as the bridge built it (`with_agent_tool_call_ids`). A log written before Inspect recorded these ids is read by the model's ids. A model call whose recorded ids don't match its calls in number has its calls' steps skipped, with a warning.
+
+        A call awaits a result only if the model calls of its conversation proposed no other call under its id, counted over all of them first, as a tool message under a shared id can answer any of its calls: the same call proposed again (a lost response's or its cached retry's, or a concurrent loop's), which the bridge hands over under the id it already handed, or, where the log doesn't record the ids, a call the bridge handed over under a new id. Each tool message id of the conversation's starting history counts as one more call, as the bridge hands a call under such an id over under a new one (`_history_ids`). History the conversation takes up later is not read (`steps_from_events`).
 
         A request is compared with the conversation's previous bridged request, whichever history that continued. After a request with its own history, the next request shows the earlier results it carries as new. They go to no call, since their calls no longer await one.
         """
@@ -1676,22 +1692,39 @@ class _Driver:
         # its starting history holds (`_history_ids`)
         proposals: Counter[tuple[str, str]] = Counter()
         proposing: set[int] = set()
+        misaligned: list[str] = []
         for index, event in bridged:
             if producing_message_id(event) is None:
                 continue
-            calls = event.output.choices[0].message.tool_calls or []
+            output = event.output.choices[0].message
+            calls = output.tool_calls or []
+            ids = [call.id for call in calls]
+            recorded = event.agent_tool_call_ids
+            aligned = recorded is None or len(recorded) == len(calls)
+            if recorded is not None and aligned:
+                ids = recorded
             conversation = self._conversation(event)
-            proposals.update((conversation, call.id) for call in calls)
+            proposals.update((conversation, id) for id in ids)
             if calls:
                 proposing.add(index)
             if not self._checks_calls_of(event):
                 continue
-            ids = Counter(call.id for call in calls)
-            for call in calls:
-                if ids[call.id] > 1:
+            if not aligned:
+                misaligned.append(event.uuid or str(index))
+                continue
+            received = (
+                output
+                if recorded is None
+                else _with_agent_tool_call_ids(output, recorded)
+            )
+            counts = Counter(ids)
+            for model_call, call in zip(calls, received.tool_calls or []):
+                if counts[call.id] > 1:
                     repeated.append(call.id)
-                elif (index, call.id) not in native:
-                    entry = _BridgedCall(index, event, call, self._next_seq(2))
+                elif (index, model_call.id) not in native:
+                    entry = _BridgedCall(
+                        index, event, received, call, self._next_seq(2)
+                    )
                     made.setdefault(index, []).append(entry)
                     self._bridged_call(entry)
 
@@ -1751,12 +1784,26 @@ class _Driver:
                 "response proposed several calls under each id.",
                 ", ".join(repr(id) for id in dict.fromkeys(repeated)),
             )
+        if misaligned:
+            logging.getLogger(__name__).warning(
+                "Replay skipped the tool steps of the bridged calls of model "
+                "call(s) %s: each records a different number of agent tool call "
+                "ids (`agent_tool_call_ids`) than its output has tool calls.",
+                ", ".join(repr(id) for id in misaligned),
+            )
+
+    def _bridged_producer(self, entry: _BridgedCall) -> Producer | None:
+        """A bridged call's producer, with the message as the agent received it (`_BridgedCall.message`), as live's (`Produced.message`)."""
+        producer = self._producer(entry.event)
+        if producer is None or producer.message is entry.message:
+            return producer
+        return producer._replace(message=entry.message)
 
     def _bridged_call(self, entry: _BridgedCall) -> None:
         """A bridged call's `tool_call` step, right after its model call's `model_output` step, once that step settled (`_bridged_tool_steps`)."""
-        message = entry.event.output.choices[0].message
+        message = entry.message
         conversation = self._conversation(entry.event)
-        producer = self._producer(entry.event)
+        producer = self._bridged_producer(entry)
         text = self._text(message)
         call = entry.call
 
@@ -1792,9 +1839,9 @@ class _Driver:
         """A bridged call's `tool_result` step, right before the `model_input` step of the request at `index` that carries its result (`_bridged_tool_steps`)."""
         from inspect_ai.agent._bridge._sentinel import _output
 
-        message = entry.event.output.choices[0].message
+        message = entry.message
         conversation = self._conversation(entry.event)
-        producer = self._producer(entry.event)
+        producer = self._bridged_producer(entry)
         text = self._text(message)
         call = entry.call
 
