@@ -224,18 +224,14 @@ class TestSkillInstallation:
     ) -> None:
         sandbox = _StepSandbox()
         _use_sandbox(SandboxEnvironmentProxy(sandbox))
-        with sandbox_identity("w-1"):
-            [installed] = await install_skills([self.SCRIPTED], dir="skills")
-        assert installed.location == "/work/skills/example/SKILL.md"
-        assert sandbox.steps == [
-            ("pwd", "w-1"),
-            ("write", "w-1"),
-            ("write", "w-1"),
-            ("chmod", "w-1"),
-        ]
-        # a relative dir resolves against the provider's working directory
-        assert sandbox.cwds == [None, "/"]
-        script = "/work/skills/example/scripts/run.sh"
+        with sandbox_identity("w-1", cwd="/home/w-1"):
+            [installed] = await install_skills([self.SCRIPTED])
+        # the default relative dir resolves against the scope's cwd, not the
+        # provider's working directory (/work here, /root on many images)
+        assert installed.location == "/home/w-1/skills/example/SKILL.md"
+        assert sandbox.steps == [("write", "w-1"), ("write", "w-1"), ("chmod", "w-1")]
+        assert sandbox.cwds == ["/"]
+        script = "/home/w-1/skills/example/scripts/run.sh"
         assert sandbox.owners[script] == "w-1"
         assert script in sandbox.executable
 
@@ -243,10 +239,42 @@ class TestSkillInstallation:
         legacy = _StepSandbox()
         _without_file_user(legacy, monkeypatch)
         _use_sandbox(SandboxEnvironmentProxy(legacy))
-        with sandbox_identity("w-1"):
+        with sandbox_identity("w-1", cwd="/home/w-1"):
             with pytest.raises(SandboxUserUnsupportedError, match="'w-1'"):
                 await install_skills([self.SCRIPTED], dir="skills")
         assert legacy.steps == []
+
+    async def test_install_skills_omitted_user_in_a_scope_without_cwd(
+        self,
+    ) -> None:
+        sandbox = _StepSandbox()
+        _use_sandbox(SandboxEnvironmentProxy(sandbox))
+        with sandbox_identity("w-1"):
+            [installed] = await install_skills([self.SCRIPTED], dir="skills")
+        # with no scope cwd, a relative dir resolves against the working
+        # directory of a pwd run as the member
+        assert installed.location == "/work/skills/example/SKILL.md"
+        assert sandbox.steps == [
+            ("pwd", "w-1"),
+            ("write", "w-1"),
+            ("write", "w-1"),
+            ("chmod", "w-1"),
+        ]
+        assert sandbox.cwds == [None, "/"]
+
+    async def test_install_skills_explicit_user_in_a_scope_relative_dir(
+        self,
+    ) -> None:
+        sandbox = _StepSandbox()
+        _use_sandbox(SandboxEnvironmentProxy(sandbox))
+        with sandbox_identity("w-1", cwd="/home/w-1"):
+            [installed] = await install_skills([self.SCRIPTED], user="root")
+        # an explicit user's default-user writes keep the provider's
+        # directory rather than one the member controls
+        assert installed.location == "/work/skills/example/SKILL.md"
+        assert sandbox.steps[0] == ("pwd", "root")
+        assert sandbox.cwds[0] is None
+        assert sandbox.owners["/work/skills/example/scripts/run.sh"] == "root"
 
     async def test_install_skills_raw_provider_without_file_user_in_a_scope(
         self, monkeypatch: pytest.MonkeyPatch
@@ -893,7 +921,9 @@ def _member_installs_a_scripted_skill() -> Solver:
             scripts={"run.sh": "#!/bin/sh\necho banner\n"},
         )
         with sandbox_identity("w1", cwd="/home/w1"):
-            await install_skills([banner], dir="/home/w1/skills")
+            # the default "skills" dir resolves against the scope's cwd
+            [installed] = await install_skills([banner])
+            assert installed.location == "/home/w1/skills/banner/SKILL.md"
             ran = await sandbox().exec([_MEMBER_SCRIPT])
             assert ran.stdout == "banner\n", ran
 
@@ -904,8 +934,8 @@ def _member_installs_a_scripted_skill() -> Solver:
     return solve
 
 
-# A scope member installs a skill with a script on an image whose working
-# directory (/root) is closed to it.
+# A scope member installs a skill with a script into the default directory on
+# an image whose working directory (/root) is closed to it.
 @skip_if_no_docker
 @pytest.mark.slow
 def test_member_installs_a_scripted_skill_with_a_closed_workdir(
