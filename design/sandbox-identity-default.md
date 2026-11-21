@@ -108,7 +108,8 @@ Each of the three methods runs as:
 
 The file methods raise instead when the provider cannot take a user (see
 [Providers that cannot take a file user](#providers-that-cannot-take-a-file-user)).
-The `SandboxEvent` options record the user each operation ran as. Calls a
+The `SandboxEvent` options record the user a call passed; a call that runs
+as the default user records none. Calls a
 provider makes on itself do not pass through the proxy, so they are not
 defaulted a second time. `SandboxEnvironment`'s abstract methods and provider
 implementations are unchanged. `test_operations_take_the_scope_user`,
@@ -146,7 +147,7 @@ applies wherever else a caller gives a relative path inside a scope:
   as an in-loop scorer, a relative `cwd` is kept, as `exec()` keeps it there;
   an omitted one still becomes the scope's `cwd`.
 - `sandbox_with(file)` resolves a relative `file` against the scope's `cwd`
-  for each candidate sandbox before probing it, so
+  for the scope's sandbox among the candidates before probing it, so
   `sandbox_with("result.txt")` probes the same pathname a member's
   `write_file("result.txt")` wrote. The probe itself is a framework
   operation and runs as the default user, so discovery finds the file only
@@ -301,10 +302,11 @@ where one came from, the error names the scope's user and sandbox and points
 to `exec()` (`test_provider_without_file_user_raises_in_a_scope`).
 
 In inspect_ai, Docker and `local` (current user only) take a file `user`.
-Third-party providers whose file methods cannot take one raise `SandboxUserUnsupportedError` for these calls inside a scope; all of them accept `exec(user=...)`, so `exec()` is unaffected. Outside
+Third-party providers whose file methods cannot take one raise `SandboxUserUnsupportedError` for these calls inside a scope; the abstract `SandboxEnvironment.exec()` signature takes `user`, so `exec()` is unaffected. Outside
 a scope, and for marked operations, nothing changes on any provider: a
-marked call passes no user, so the checkpoint copier and the detector keep
-working on providers without file users. Built-in tools are unaffected,
+marked call gets no user from the scope, and the checkpoint copier passes
+`user="root"` only to a provider that takes a file user, so the copier and the
+detector keep working on providers without file users. Built-in tools are unaffected,
 because none calls `read_file()` or `write_file()` inside a scope.
 
 ## `install_skills()`
@@ -556,7 +558,7 @@ root.
   default user cannot switch to the scope's user, so `bash_session()` and
   `text_editor()` cannot honour a scope there.
 - **Scorers and `exec_remote()`.** Inside in-loop scoring, `exec_remote()`
-  still takes the scope's user (its resolution is not marker-aware), while
+  still takes the scope's user (its user resolution is not marker-aware), while
   the scorer's `exec()` keeps the default user. No scorer is known to call
   `exec_remote()`.
 - **File users in third-party providers.** Kubernetes and other providers

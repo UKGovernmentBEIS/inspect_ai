@@ -439,7 +439,8 @@ changes no ownership, so it adds no root operation in a directory that user
 controls: files it creates are owned by that user, and a file it overwrites
 keeps whatever owner the provider's write leaves. On a provider whose
 `write_file()` cannot take a user, that install raises before writing
-anything. The steps and their limits are in
+anything. Inside a marked block (in-loop scoring), an install with no `user`
+takes the legacy default-user path, as at final scoring. The steps and their limits are in
 [`install_skills()`](sandbox-identity-default.md#install_skills).
 
 Docker runs system `tar` inside the container, following symlinks without
