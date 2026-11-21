@@ -2443,7 +2443,10 @@ def test_a_bridged_call_under_a_reused_id_carries_the_message_the_agent_received
 ) -> None:
     # the model reuses read_1 for another call: the bridge hands it over under
     # a fresh id and records it. Replay shows the call under that id, with
-    # its own result and the message the bridge handed over, as live does
+    # its own result and the message the bridge handed over, as live does.
+    # The first call's result under read_1 has no step: two calls were
+    # proposed under read_1, and the log doesn't show which one a result
+    # under it answers
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         log, seen = scaffold_log(
@@ -2459,14 +2462,15 @@ def test_a_bridged_call_under_a_reused_id_carries_the_message_the_agent_received
     assert fresh != "read_1"
     assert [(s.stage, s.id.split("/")[1]) for s in rebuilt] == [
         ("tool_call", "read_1"),
-        ("tool_result", "read_1"),
         ("tool_call", fresh),
         ("tool_result", fresh),
     ]
-    assert [(type(s).__name__, s.call) for s in live] == [
+    assert isinstance(live[1], AfterToolCall) and live[1].call.id == "read_1"
+    paired = [live[0], live[2], live[3]]
+    assert [(type(s).__name__, s.call) for s in paired] == [
         (type(s.step).__name__, called(s)) for s in rebuilt
     ]
-    assert [comparable(s.result) for s in live if isinstance(s, AfterToolCall)] == [
+    assert [comparable(s.result) for s in paired if isinstance(s, AfterToolCall)] == [
         comparable(resulted(s)) for s in rebuilt if s.stage == "tool_result"
     ]
     # each step carries the message live's does: for the second call, the
@@ -2475,7 +2479,7 @@ def test_a_bridged_call_under_a_reused_id_carries_the_message_the_agent_received
     handed = live[2].assistant_message
     assert handed is not None and handed.id == live[2].message_id
     assert [c.id for c in handed.tool_calls or []] == [fresh]
-    for step, check in zip(rebuilt, live):
+    for step, check in zip(rebuilt, paired):
         written = tool_step(step).assistant_message
         assert written is not None and check.assistant_message is not None
         assert written.id == check.assistant_message.id
@@ -3323,7 +3327,9 @@ def test_a_google_bridge_call_under_a_fresh_id_carries_the_message_the_agent_rec
     # the Google bridge hands calls sharing an id in one response, or reusing
     # an earlier call's, over under fresh ids, and renames their reasoning
     # anchors to match. Replay's steps carry the message the agent received,
-    # anchors included, and the result the agent sent for each call, as live
+    # anchors included, and the result the agent sent for each renamed call,
+    # as live. Across turns, the first call's result under read_1 has no step,
+    # as two calls were proposed under read_1
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     seen: dict[str, Step] = {}
     turns = (
@@ -3350,13 +3356,15 @@ def test_a_google_bridge_call_under_a_fresh_id_carries_the_message_the_agent_rec
     [renamed] = [e for e in made if e.agent_tool_call_ids is not None]
     caplog.clear()
     with caplog.at_level(logging.WARNING):
-        replay = assert_replay_rebuilds_bridge_steps(log, seen)
+        replay = assert_replay_rebuilds_bridge_steps(
+            log, seen, unbuilt=0 if reuse == "in_one_response" else 1
+        )
     assert replay_warnings(caplog) == []
     rebuilt = assert_bridged_steps_follow_the_conversation(log, replay)
     assert [s.stage for s in rebuilt] == (
         ["tool_call"] * 2 + ["tool_result"] * 2
         if reuse == "in_one_response"
-        else ["tool_call", "tool_result"] * 2
+        else ["tool_call", "tool_call", "tool_result"]
     )
     fresh = [s for s in rebuilt if s.id.startswith(f"{renamed.uuid}/")]
     assert {called(s).id for s in fresh} <= set(renamed.agent_tool_call_ids or [])
@@ -4057,8 +4065,10 @@ def test_calls_under_a_reused_id_take_their_own_result_not_a_compacted_one(
     # request carrying the fourth's. The bridge hands a read of another file
     # than the first over under a fresh id, and records it, and keeps "null"
     # for the first file read again. Each read under its fresh id has its own
-    # result; the first file's reads share "null", so they have one only
-    # where the file is read once. None takes the removed result
+    # result. The first file's reads have none: other calls were proposed
+    # under "null" (the renamed reads, by the model's id), and the log
+    # doesn't show which a result under it answers. None takes the removed
+    # result
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
@@ -4112,7 +4122,7 @@ def test_calls_under_a_reused_id_take_their_own_result_not_a_compacted_one(
         want: list[tuple[str, int]] = []
         for turn, name in enumerate(files):
             want.append(("tool_call", turn))
-            if name != "a" or kept == [0]:
+            if name != "a":
                 want.append(("tool_result", turn))
         assert [(s.stage, uuids.index(s.id.split("/")[0])) for s in steps] == want, (
             inputs
@@ -4189,10 +4199,12 @@ def test_sequential_bridges_pair_results_by_the_ids_each_handed_over(
         if isinstance(m, ChatMessageTool) and m.text == TOOL_RESULT_REMOVED
     ]
     assert removed == [(6, "null")]
-    # each a.txt read under its fresh id has its own result. "null" is one
-    # call's in each of two conversations, so each has its result, and two
-    # calls' in one conversation, so neither has one
-    want = [0, 2, 3, 4, 5] if spans == "agent" else [3, 4, 5]
+    # each a.txt read under its fresh id has its own result. In the first
+    # agent's own conversation, "null" is one call's, so it has its result.
+    # In a conversation where the model also proposed the renamed a.txt
+    # reads under "null", the call kept under it has none, as the log
+    # doesn't show which call a result under "null" answers
+    want = [0, 3, 4, 5] if spans == "agent" else [3, 4, 5]
     for inputs in ["expanded", "pooled"]:
         caplog.clear()
         with caplog.at_level(logging.WARNING):
@@ -4326,8 +4338,10 @@ def test_concurrent_different_calls_take_their_own_results(
 ) -> None:
     # two tool loops of one agent each propose a different call before either
     # sends its result, so each loop's first request looks like a retry of
-    # the other's. Under "null", the bridge hands the second call over under
-    # a fresh id and records it. Each call has its own result
+    # the other's. Each distinct call has its own result. Under "null", the
+    # bridge hands the second call over under a fresh id and records it: that
+    # call has its own result, and the first, kept under "null", has none, as
+    # the model proposed both under it
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
@@ -4349,8 +4363,10 @@ def test_concurrent_different_calls_take_their_own_results(
         with caplog.at_level(logging.WARNING):
             replay = replayed_inputs(log, inputs)
         steps = bridged_steps(log, replay)
+        results = 2 if ids[0] != ids[1] else 1
         assert (
-            sorted(s.stage for s in steps) == ["tool_call"] * 2 + ["tool_result"] * 2
+            sorted(s.stage for s in steps)
+            == ["tool_call"] * 2 + ["tool_result"] * results
         ), inputs
         assert len({s.id for s in steps}) == 2
         assert_exact_results(steps)
@@ -4463,6 +4479,100 @@ def test_a_log_without_agent_tool_call_ids_takes_no_result_under_a_reused_id(
             for s in bridged_steps(log, replay)
         ] == [("tool_call", turn, "null") for turn in range(4)], inputs
         assert replay_warnings(caplog) == []
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+def test_a_call_renamed_from_a_dropped_call_s_id_leaves_that_call_without_a_result(
+    inputs: str,
+) -> None:
+    # after the round 1 review: a bridge outside any agent span drops its call
+    # under "null"; an agent in its own span runs another call under "null";
+    # then a bridge outside any agent span continues that agent's messages,
+    # and the bridge hands its call, which the model proposed under "null",
+    # over under "fresh". The result under "null" the continued messages
+    # carry is the agent's call's, not the dropped call's. The model proposed
+    # two calls under "null" outside any agent span, so the dropped call has
+    # no result, as in a log without the recorded ids
+    from inspect_ai._sentinel import _replay
+
+    def proposing(path: str, id: str = "null") -> ChatMessageAssistant:
+        return ChatMessageAssistant(
+            id=f"msg-{path}",
+            content="",
+            tool_calls=[
+                ToolCall(id=id, function="read_file", arguments={"path": path})
+            ],
+        )
+
+    def made(
+        uuid: str,
+        input: list[ChatMessage],
+        output: ChatMessageAssistant,
+        span_id: str | None = None,
+        ids: list[str] | None = None,
+    ) -> ModelEvent:
+        return ModelEvent(
+            uuid=uuid,
+            span_id=span_id,
+            origin="agent",
+            model="mockllm/model",
+            requested_model="inspect",
+            input=input,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput.from_message(output),
+            agent_tool_call_ids=ids,
+        )
+
+    start: list[ChatMessage] = [ChatMessageUser(content="Read the files.")]
+    kept = proposing("kept.txt")
+    continued = [
+        *start,
+        kept,
+        ChatMessageTool(id="kept-result", content="kept", tool_call_id="null"),
+    ]
+    third_result = ChatMessageTool(
+        id="third-result", content="third", tool_call_id="fresh"
+    )
+    events: list[Event] = solving(
+        [
+            made("lost", start, proposing("lost.txt")),
+            SpanBeginEvent(id="agent-b", name="agent b", type="agent"),
+            made("kept", start, kept, "agent-b"),
+            made(
+                "kept-done", continued, ChatMessageAssistant(content="done"), "agent-b"
+            ),
+            SpanEndEvent(id="agent-b"),
+            made("third", continued, proposing("third.txt"), ids=["fresh"]),
+            made(
+                "third-done",
+                [*continued, proposing("third.txt", "fresh"), third_result],
+                ChatMessageAssistant(content="done"),
+            ),
+        ]
+    )
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    replay = steps_from_events(
+        [],
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version="0.3.292", sentinel=False),
+    )
+    assert [
+        (s.stage, s.id, resulted(s).id if s.stage == "tool_result" else None)
+        for s in replay
+        if s.stage.startswith("tool")
+    ] == [
+        ("tool_call", "lost/null", None),
+        ("tool_call", "kept/null", None),
+        ("tool_result", "kept/null", "kept-result"),
+        ("tool_call", "third/fresh", None),
+        ("tool_result", "third/fresh", "third-result"),
+    ]
 
 
 def test_agent_tool_call_ids_that_don_t_match_the_calls_skip_their_steps(
@@ -5293,6 +5403,8 @@ def test_a_bridge_checking_one_call_id_more_than_once_replays(case: str) -> None
     # replay rebuilds each call the model wrote, under the id the agent
     # received it under, with the result the model next received under that
     # id, whatever the bridge checked; a reused id's steps are live's checks
+    # but the first call's result: the model proposed two calls under c1, so
+    # the log doesn't show which a result under c1 answers
     steps = replayed(log)
     generates = [(stage, id) for stage, id, _ in checks if stage.startswith("model")]
     assert [
@@ -5301,7 +5413,9 @@ def test_a_bridge_checking_one_call_id_more_than_once_replays(case: str) -> None
     rebuilt = bridged_steps(log, steps)
     assert len(rebuilt) == len([s for s in steps if s.stage.startswith("tool")])
     if case.startswith("reused"):
-        assert [(s.stage, s.id.split("/")[1]) for s in rebuilt] == tool_checks
+        assert [(s.stage, s.id.split("/")[1]) for s in rebuilt] == [
+            check for check in tool_checks if check != ("tool_result", "c1")
+        ]
         fresh = tool_checks[-1][1]
         assert fresh != "c1"
     else:
@@ -5313,13 +5427,11 @@ def test_a_bridge_checking_one_call_id_more_than_once_replays(case: str) -> None
         ],
         "reused_id": [
             ("tool_call", "c1", {"text": "one"}),
-            ("tool_result", "c1", {"text": "one"}),
             ("tool_call", fresh, {"text": "two"}),
             ("tool_result", fresh, {"text": "two"}),
         ],
         "reused_by_host": [
             ("tool_call", "c1", {"text": "one"}),
-            ("tool_result", "c1", {"text": "one"}),
             ("tool_call", fresh, {"x": 1, "y": 1}),
             ("tool_result", fresh, {"x": 1, "y": 1}),
         ],
@@ -5330,8 +5442,8 @@ def test_a_bridge_checking_one_call_id_more_than_once_replays(case: str) -> None
     }[case]
     assert [resulted(s).text for s in rebuilt if s.stage == "tool_result"] == {
         "reported_twice": ["2"],
-        "reused_id": ["one", "two"],
-        "reused_by_host": ["one", "2"],
+        "reused_id": ["two"],
+        "reused_by_host": ["2"],
         "retried": ["one"],
     }[case]
 
