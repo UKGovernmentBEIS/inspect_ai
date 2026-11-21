@@ -1,5 +1,6 @@
 import contextlib
 from dataclasses import dataclass, field
+from traceback import format_exception
 from types import TracebackType
 from typing import (
     Any,
@@ -18,7 +19,7 @@ from typing import (
 import anyio
 import rich
 from pydantic import BaseModel, Field, field_validator
-from rich.console import Console
+from rich.console import Console, RenderableType
 
 from inspect_ai.log import EvalConfig, EvalResults, EvalStats
 from inspect_ai.model import GenerateConfig, ModelName
@@ -143,10 +144,49 @@ class TaskProfile:
 
 @dataclass
 class TaskError:
+    """A failed task's error.
+
+    The task screen keeps each row's result for the whole run, so the row
+    keeps a snapshot of the traceback (``rendered`` and ``text``) that holds
+    no frame. The live exception (``exc_info``) is kept only until the task's
+    display row closes, for displays that log it there (see
+    :meth:`release_exception`), so a failed task's locals, its dataset among
+    them, do not outlive it.
+    """
+
     samples_completed: int
     exc_type: Type[Any]
-    exc_value: BaseException
-    traceback: TracebackType | None
+    rendered: RenderableType
+    """The traceback as Rich renders it."""
+    text: str
+    """The traceback as ``logging.Formatter.formatException`` formats it."""
+    exc_info: tuple[Type[BaseException], BaseException, TracebackType | None] | None
+    """The live exception, until :meth:`release_exception`."""
+
+    @staticmethod
+    def from_exception(
+        samples_completed: int,
+        exc_type: Type[Any],
+        exc_value: BaseException,
+        traceback: TracebackType | None,
+    ) -> "TaskError":
+        """Snapshot an exception and its traceback, keeping the live exception for now."""
+        from inspect_ai._util.rich import rich_traceback
+
+        text = "".join(format_exception(exc_type, exc_value, traceback))
+        if text.endswith("\n"):
+            text = text[:-1]
+        return TaskError(
+            samples_completed=samples_completed,
+            exc_type=exc_type,
+            rendered=rich_traceback(exc_type, exc_value, traceback),
+            text=text,
+            exc_info=(exc_type, exc_value, traceback),
+        )
+
+    def release_exception(self) -> None:
+        """Drop the live exception, keeping the snapshot."""
+        self.exc_info = None
 
 
 @dataclass

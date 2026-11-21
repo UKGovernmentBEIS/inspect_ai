@@ -85,6 +85,8 @@ eval(
 
 This code will evaluate a total of 6 tasks (3 reasoning effort variations against 2 models each) with up to 5 tasks run in parallel.
 
+A task cancelled before it starts does not count toward `max_tasks`: it is started outside the limit and ends at once with an error log reporting the cancellation, so it never takes a slot.
+
 ## Samples per Task {#sec-max-samples}
 
 Inspect runs a task's samples in parallel. By default, the number of samples running at once follows the model's connection limit (see [Model Concurrency](models-concurrency.qmd)). Use `max_samples` to set it for every task in a run:

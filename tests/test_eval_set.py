@@ -4908,3 +4908,67 @@ def test_eval_set_grown_dataset_without_stable_ids_still_reruns() -> None:
         final = read_eval_log(logs[0].location)
         assert final.status == "success"
         assert final.eval.dataset.samples == 4
+
+
+@sandboxenv(name="eval_set_flaky_setup")
+class _FlakySetupSandbox(LocalSandboxEnvironment):
+    """A local sandbox whose first task_init fails."""
+
+    task_init_calls: ClassVar[int] = 0
+
+    @classmethod
+    async def task_init(
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None
+    ) -> None:
+        cls.task_init_calls += 1
+        if cls.task_init_calls == 1:
+            raise RuntimeError("first task_init fails")
+
+
+def test_eval_set_retries_task_whose_sandbox_setup_failed(tmp_path: Path) -> None:
+    # setup runs in the task's attempt, so a failed task_init ends only that
+    # attempt and the immediate retry sets the configuration up again
+    _FlakySetupSandbox.task_init_calls = 0
+    success, logs = eval_set(
+        [
+            Task(
+                dataset=[Sample(input="x")],
+                sandbox="eval_set_flaky_setup",
+                name="flaky_setup",
+            ),
+            Task(dataset=[Sample(input="x")], name="no_sandbox"),
+        ],
+        log_dir=str(tmp_path),
+        model="mockllm/model",
+        retry_attempts=1,
+        retry_wait=0.1,
+        max_tasks=2,
+        display="none",
+    )
+    assert success
+    assert {log.eval.task: log.status for log in logs} == {
+        "flaky_setup": "success",
+        "no_sandbox": "success",
+    }
+    assert _FlakySetupSandbox.task_init_calls == 2
+
+
+def test_eval_set_run_missing_a_requested_task_is_cancelled(
+    tmp_path: Path,
+) -> None:
+    # a requested task with no log was still queued when its run was
+    # cancelled (dispatch ended before it started), so the eval set stops as
+    # it does for a cancelled log
+    from inspect_ai._eval import evalset as evalset_module
+
+    def run_without_logs(*args: Any, **kwargs: Any) -> list[EvalLog]:
+        return []
+
+    with patch.object(evalset_module, "eval", run_without_logs):
+        with pytest.raises(KeyboardInterrupt):
+            eval_set(
+                Task(dataset=[Sample(input="x")], name="queued_at_cancel"),
+                log_dir=str(tmp_path),
+                model="mockllm/model",
+                display="none",
+            )

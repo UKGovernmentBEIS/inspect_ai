@@ -113,7 +113,7 @@ The class methods take care of various stages of initialisation, setup, and tear
 
 | Method | Lifecycle | Purpose |
 |------------------|---------------------------------|---------------------|
-| `task_init()` | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images) |
+| `task_init()` | Called once for each unique sandbox environment config in an `eval()` run, when the first task that needs it starts. | Expensive initialisation operations (e.g. pulling or building images) |
 | `sample_init()` | Called at the beginning of each `Sample`. | Create `SandboxEnvironment` instances for the sample. |
 | `sample_cleanup()` | Called at the end of each `Sample` | Cleanup `SandboxEnvironment` instances for the sample. |
 | `task_cleanup()` | Called once for each unique sandbox environment config after executing the tasks in an `eval()` run. | Last chance handler for any resources not yet cleaned up (see also discussion below). |
@@ -127,6 +127,8 @@ The class methods take care of various stages of initialisation, setup, and tear
 In the case of parallel execution of a group of tasks within the same working directory, the `task_init()` and `task_cleanup()` functions will be called once for each unique sandbox environment configuration (e.g. Docker Compose file). This is a performance optimisation derived from the fact that initialisation and cleanup are shared for tasks with identical configurations.
 
 All of these methods run in the directory the eval was launched from, with the process's own environment. Inspect does not change to the task's directory for `task_init()` or `task_cleanup()`. Instead, it makes config paths absolute before your provider sees them: a relative string config, or a relative build context in a `ComposeConfig`, that exists under the task's directory is passed as an absolute path. Other values, such as inline JSON, are passed as given.
+
+A `task_init()` call that raises gets no `task_cleanup()`, so it should release whatever it allocated before raising. The failure ends only the task that needed the configuration. `task_init()` can then be called again for the same configuration in the same run (by that task's retry, or by another task that needs it), and that call either sets it up or raises again.
 
 `task_init_environment()` is only for the Docker provider and its subclasses, which receive the variables it returns in `task_init()`. Inspect does not set them in the process environment. Any other provider that returns variables from `task_init_environment()` fails setup with a `PrerequisiteError`. Put what `task_init()` needs in the sandbox config, and pass environment variables to the subprocesses it starts with `subprocess(env=...)`.
 
