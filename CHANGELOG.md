@@ -3,7 +3,7 @@
 ## [0.3.292](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.291...0.3.292) (2026-11-21)
 
 
-### ⚠ BREAKING CHANGES
+### Breaking Changes
 
 * `exclude_samples()` and `zero_samples()` now return `None`, and `DispositionResult` is no longer exported. Read the affected samples and scores from the log instead of `result.applied` or `result.unchanged`. `inspect log exclude` and `inspect log zero` no longer accept `--json` and print a summary instead of per-sample lines; update scripts to read the log or the summary.
 * sandbox providers' `task_init`, `task_init_environment` and `task_cleanup` now run in the launch directory instead of the task directory, and a provider other than Docker (or a Docker subclass) whose `task_init_environment` returns variables now fails setup with a `PrerequisiteError`. Put what `task_init` needs in the sandbox config and pass variables to its subprocesses with `subprocess(env=...)`.
