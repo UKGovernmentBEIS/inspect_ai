@@ -34,6 +34,9 @@ REGISTRATION_REFUSED = -32001
 
 END_SAMPLE_TIMEOUT = 10.0
 
+REGISTRATION_TIMEOUT = CALL_TIMEOUT
+"""How long a request waits for the sidecar to hold its sample's registration, in seconds, all told: for a registration that is on its way, for the sidecar's answer, and for the task to be registered again where the sidecar lost it. The request holds its model's connection meanwhile, so the limit is on the clock, where a call's own is on each read of its answer."""
+
 FALLBACK_RESERVE = 5.0
 """How long before a deadline each later client a sidecar may be reached through is asked as well, in seconds, and no more than half the deadline for all of them. A client that stalls then leaves the others time to try."""
 
@@ -574,9 +577,16 @@ class AttemptRegistration:
             Whether the sidecar's admin registered the task beforehand, in its tasks folder. Such a sidecar takes only the samples the folder holds, so a sample it later says it can't place was never accepted, rather than lost.
 
         Raises:
-            SentinelProxyError: If the sidecar couldn't take the sample, or no longer kept the task and couldn't register it again.
+            SentinelProxyError: If the sidecar couldn't take the sample, or no longer kept the task and couldn't register it again, or didn't within `REGISTRATION_TIMEOUT`.
             SampleRefusedError: If the sidecar takes only the samples the task's registration names, and this isn't one.
         """
+        with anyio.move_on_after(REGISTRATION_TIMEOUT):
+            return await self._send_unless_held(sidecar)
+        raise SentinelProxyError(
+            f"The sentinel sidecar at {sidecar.origin} didn't register the sample {self._sample_id!r} of the task {self._sidecars.facts.task!r} within {REGISTRATION_TIMEOUT:g} seconds."
+        )
+
+    async def _send_unless_held(self, sidecar: Sidecar) -> bool:
         access = self._access
         assert access is not None
         # One at a time for the attempt: its calls made at once wait for the

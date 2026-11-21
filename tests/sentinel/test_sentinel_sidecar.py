@@ -2147,6 +2147,79 @@ def test_a_registration_slower_than_a_calls_timeouts_doesnt_time_the_call_out(
     assert len(stand_in.model_calls) == len(answered)
 
 
+# without the limit a registration never ends, and without its error raised
+# as it was, the error's traceback never does
+@pytest.mark.timeout(20, method="thread")
+@pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
+@pytest.mark.parametrize(
+    ("restarted", "takes"),
+    [
+        pytest.param(False, None, id="the sidecar never answers"),
+        # each call is answered in time, and together they aren't: the
+        # sample, the task again, and the sample again
+        pytest.param(True, 0.2, id="registering again after a restart"),
+    ],
+)
+def test_a_registration_that_takes_too_long_fails_the_call_and_isnt_retried(
+    restarted: bool,
+    takes: float | None,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._sentinel._sidecar import _task
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    monkeypatch.setattr(_task, "REGISTRATION_TIMEOUT", 0.5)
+    stand_in = StandInSidecar()
+    running = False
+
+    async def registers_slowly(request: httpx2.Request) -> httpx2.Response:
+        if running and request.url.path == "/sentinel/v1":
+            if json.loads(request.content)["method"] in (
+                "complete_registration",
+                "register_task",
+            ):
+                await (anyio.sleep_forever() if takes is None else anyio.sleep(takes))
+        return await stand_in._handle_async(request)
+
+    @solver
+    def calls_once_the_task_is_registered() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal running
+            running = True
+            if restarted:
+                stand_in.tokens.clear()
+            return await generate(state)
+
+        return solve
+
+    model = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="test-key",
+        memoize=False,
+        http_client=httpx2.AsyncClient(
+            transport=httpx2.MockTransport(registers_slowly)
+        ),
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.")], solver=calls_once_the_task_is_registered()
+    )
+
+    [log] = eval(task, model=model, sentinel_proxy="auto", display="none")
+
+    # the request is never sent, and the call ends on the registration's
+    # error, which gives up its model's connection
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is not None
+    assert "within 0.5 seconds" in sample.error.message
+    # the reason alone: the connection error the provider made of it, which
+    # comes of it, is no part of its history
+    assert "Connection error" not in sample.error.traceback
+    assert stand_in.model_calls == []
+
+
 def test_a_call_that_is_never_sent_registers_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

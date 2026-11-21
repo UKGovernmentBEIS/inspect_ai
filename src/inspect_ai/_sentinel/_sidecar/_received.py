@@ -554,8 +554,16 @@ def sending(
         finally:
             received.send_scope = None
             received.attempt_timeout = None
-    if received.stopped_by is not None:
-        raise received.stopped_by
+    stopped_by = received.stopped_by
+    if stopped_by is not None:
+        # Raised as it first was. Here it would take the request's error for
+        # its context, which comes of this one, as the provider's connection
+        # error does: a ring, which a traceback that follows it never ends.
+        context = stopped_by.__context__
+        try:
+            raise stopped_by
+        finally:
+            stopped_by.__context__ = context
 
 
 @contextmanager
