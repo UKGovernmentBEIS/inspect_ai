@@ -176,27 +176,24 @@ class TaskSidecars:
             sample_uuid: The sample's uuid.
             tell: Whether to tell the sidecars. A cancelled sample's teardown can't be interrupted, so it doesn't wait on a sidecar that may not answer, and the sidecars drop the sample at its run expiry.
         """
-        # Each sidecar once, over all the sample's attempts: through the
-        # client that last sent it a request, or where none did, the one that
-        # last sent it a registration. A later attempt's call that only
-        # registered doesn't replace an earlier attempt's client that sent,
-        # as its own may be gone.
-        registrations = self._registrations.pop(sample_uuid, {})
-        through: dict[str, Sidecar] = {}
-        for (origin, _), registration in registrations.items():
-            if registration.registered_through is not None:
-                through[origin] = registration.registered_through
-        for (origin, _), registration in registrations.items():
-            if registration.sent_through is not None:
-                through[origin] = registration.sent_through
+        # each sidecar once, through whichever of the sample's clients
+        # still reaches it
+        origins = dict.fromkeys(
+            origin for origin, _ in self._registrations.get(sample_uuid, {})
+        )
+        through = {origin: self._clients(sample_uuid, origin) for origin in origins}
+        self._registrations.pop(sample_uuid, None)
         self._unjudged.pop(sample_uuid, None)
         self._lost.pop(sample_uuid, None)
         if not tell:
             return
-        for sidecar in through.values():
+        for origin, clients in through.items():
+            if not clients:
+                continue
             with anyio.move_on_after(END_SAMPLE_TIMEOUT):
                 try:
-                    await sidecar.eval_call(
+                    await _call_through_any(
+                        clients,
                         "end_sample",
                         # the task finds the registration the sample's run is
                         # counted in, which a sidecar frees its facts from
@@ -204,7 +201,7 @@ class TaskSidecars:
                     )
                 except SidecarCallError as ex:
                     logger.warning(
-                        f"The sentinel sidecar at {sidecar.origin} couldn't be told the sample {sample_uuid} ended: {ex}"
+                        f"The sentinel sidecar at {origin} couldn't be told the sample {sample_uuid} ended: {ex}"
                     )
 
     async def copy_monitor_state(
@@ -246,8 +243,10 @@ class TaskSidecars:
         for sidecar in through:
             with anyio.move_on_after(CALL_TIMEOUT) as scope:
                 try:
-                    result = await sidecar.eval_call(
-                        "sample_result", {"sample_uuid": sample_uuid}
+                    result = await _call_through_any(
+                        self._clients(sample_uuid, sidecar.origin, first=sidecar),
+                        "sample_result",
+                        {"sample_uuid": sample_uuid},
                     )
                 except SidecarCallError as ex:
                     failed = _copy_failure(sidecar, ex)
@@ -362,6 +361,32 @@ class TaskSidecars:
             ).items()
             if attempt == attempt_number and registration.sent_through is not None
         ]
+
+    def _clients(
+        self, sample_uuid: str, origin: str, first: Sidecar | None = None
+    ) -> list[Sidecar]:
+        # The sidecar at an origin, as each of the sample's models that sent
+        # it anything reached it, over all the sample's attempts: each
+        # through a client of its own, which may be closed since. The
+        # likeliest to reach it still come first: `first`, then the latest to
+        # send a request, then the latest to send a registration.
+        registrations = [
+            registration
+            for (at, _), registration in self._registrations.get(
+                sample_uuid, {}
+            ).items()
+            if at == origin
+        ]
+        latest_first = list(reversed(registrations))
+        clients: list[Sidecar] = []
+        for sidecar in [
+            first,
+            *(registration.sent_through for registration in latest_first),
+            *(registration.registered_through for registration in latest_first),
+        ]:
+            if sidecar is not None and all(sidecar is not known for known in clients):
+                clients.append(sidecar)
+        return clients
 
     async def _probe(self, api: ModelAPI) -> Sidecar | NoSidecar:
         client = await proxy_client(api)
@@ -504,11 +529,11 @@ class AttemptRegistration:
         self._lock = anyio.Lock()
         self._held: _Held | None = None
         self.registered_through: Sidecar | None = None
-        """The sidecar as the request that last sent it the attempt's registration reached it, or None before any did. From then it may hold the sample's facts, whatever came of the registration, so it is told when the sample ends."""
+        """The sidecar as the request that last sent it the attempt's registration reached it, or None before any did. From then it may hold the sample's facts, whatever came of the registration, so it is told when the sample ends, through any of the sample's clients that still reaches it."""
         self.sent_through: Sidecar | None = None
         """The sidecar as the attempt's latest request to be sent reached it, or None before any was.
 
-        Only then can the sidecar have judged anything of the attempt, and hold monitor state of it. A registration alone doesn't make it so, and doesn't change this: a call cancelled while its registration was on its way sent no request, and its model's client may be gone.
+        Only then can the sidecar have judged anything of the attempt, and hold monitor state of it, which it is asked for through this client first. A registration alone doesn't make it so, and doesn't change this: a call cancelled while its registration was on its way sent no request.
         """
         # the sidecar's `restarts_found` when a request of the attempt was
         # first sent to it, or None before then
@@ -631,6 +656,30 @@ class _Once(Generic[T]):
             finally:
                 self._running.pop(key).set()
         return self._done[key]
+
+
+async def _call_through_any(
+    clients: list[Sidecar], method: str, params: dict[str, Any]
+) -> dict[str, Any]:
+    """Call a method of a sidecar for the eval through the first of a sample's clients that reaches it.
+
+    A sidecar is reached through each model's own client, and a model's client can be closed while its sample runs on. The eval signs its calls whichever client carries them, so any that still reaches the sidecar will do, in whatever order the clients were used and closed. A sidecar that answers was reached, with an error too.
+
+    Args:
+        clients: The sidecar, as each client reaches it, the likeliest to reach it first. At least one.
+        method: The method of the endpoint for evals.
+        params: The method's params.
+
+    Raises:
+        SidecarCallError: If the sidecar answered with an error, or no client reached it.
+    """
+    for sidecar in clients[:-1]:
+        try:
+            return await sidecar.eval_call(method, params)
+        except SidecarCallError as ex:
+            if ex.code is not None:
+                raise
+    return await clients[-1].eval_call(method, params)
 
 
 def _unauthorized(sidecar: Sidecar, ex: SidecarCallError) -> str:

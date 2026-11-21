@@ -1894,20 +1894,45 @@ def test_a_sample_whose_only_call_was_cancelled_before_it_was_sent_is_scored(
         assert told == ["register_task", "complete_registration", "end_sample"]
 
 
+# What each attempt at a sample does, in order: which model's call it is, and
+# whether its request is sent, or the call is cancelled while the sample's
+# registration is on its way. The task's own model keeps its client, and the
+# other model's is closed once its call is over. Then the score, which is the
+# sidecar's monitor state where the last attempt sent a request, and -1 where
+# it sent none.
+_CLIENT_LIFETIMES: dict[str, tuple[list[list[tuple[str, str]]], int]] = {
+    "a call that only registered, then closed": (
+        [[("task", "sends"), ("other", "registers")]],
+        3,
+    ),
+    "a retry that only registered, then closed": (
+        [[("task", "sends")], [("other", "registers")]],
+        -1,
+    ),
+    "a sender that closed, then a retry that only registered": (
+        [[("other", "sends")], [("task", "registers")]],
+        -1,
+    ),
+    "a retry whose sender closed": (
+        [[("task", "sends")], [("other", "sends")]],
+        3,
+    ),
+}
+
+
 @pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
-@pytest.mark.parametrize("cancelled_in", ["the same attempt", "a retry"])
-def test_a_call_that_only_registered_doesnt_replace_the_client_that_sent_a_request(
-    cancelled_in: str, backend: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("lifetimes", list(_CLIENT_LIFETIMES))
+def test_a_sidecar_is_asked_and_told_through_whichever_client_still_reaches_it(
+    lifetimes: str, backend: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
-    completions = 0
+    attempts, scored = _CLIENT_LIFETIMES[lifetimes]
+    registers_only = [False]
 
     def complete(_: dict[str, Any]) -> dict[str, Any]:
-        nonlocal completions
-        completions += 1
-        if completions == 2:
-            # sent with the other model's request, and its answer never
-            # arrives
+        if registers_only[0]:
+            # the sidecar takes the registration, and its answer never arrives
+            registers_only[0] = False
             stand_in.answer_after = anyio.Event()
         return {}
 
@@ -1926,31 +1951,32 @@ def test_a_call_that_only_registered_doesnt_replace_the_client_that_sent_a_reque
         memoize=False,
         http_client=other_client,
     )
-    attempts = 0
+    begun = 0
 
     @solver
-    def cancels_another_models_call() -> Solver:
+    def calls_as_the_attempt_says() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            nonlocal attempts
-            attempts += 1
-            if attempts == 1:
-                # the sample's one request, through the task's own model
-                state = await generate(state)
-                if cancelled_in == "a retry":
-                    raise RuntimeError("The first attempt fails.")
-            # The other model's request sends the sample's registration,
-            # again or for the retry. The call is cancelled before the
-            # answer, and its client closed.
-            with anyio.move_on_after(0.2):
-                await other.generate("Hi again.")
-            await other_client.aclose()
+            nonlocal begun
+            begun += 1
+            for model, does in attempts[begun - 1]:
+                called = get_model() if model == "task" else other
+                if does == "sends":
+                    await called.generate("Hi.")
+                else:
+                    registers_only[0] = True
+                    with anyio.move_on_after(0.2):
+                        await called.generate("Hi.")
+                if model == "other":
+                    await other_client.aclose()
+            if begun < len(attempts):
+                raise RuntimeError("The attempt fails.")
             return state
 
         return solve
 
     task = Task(
         dataset=[Sample(input="Hi.")],
-        solver=cancels_another_models_call(),
+        solver=calls_as_the_attempt_says(),
         scorer=_reads_monitor_state(),
     )
 
@@ -1962,21 +1988,15 @@ def test_a_call_that_only_registered_doesnt_replace_the_client_that_sent_a_reque
         display="none",
     )
 
-    assert len(stand_in.model_calls) == 1
+    sends = [does for attempt in attempts for _, does in attempt].count("sends")
+    assert len(stand_in.model_calls) == sends
     assert log.samples is not None
     sample = log.samples[0]
     assert sample.error is None, sample.error
     assert sample.scores is not None
     [score] = sample.scores.values()
-    if cancelled_in == "the same attempt":
-        # the attempt's request went through the task's own model, whose
-        # client asks the sidecar for the monitor state
-        assert score.value == 3
-    else:
-        # the retry sent no request, so there is no monitor state of it
-        assert score.value == -1
-    # The sidecar is told the sample ended through the client that sent it a
-    # request, in whichever attempt: the other's is gone.
+    assert score.value == scored
+    # the sidecar is told the sample ended, once, by a client that reaches it
     assert len(_registered(stand_in, "end_sample")) == 1
 
 
