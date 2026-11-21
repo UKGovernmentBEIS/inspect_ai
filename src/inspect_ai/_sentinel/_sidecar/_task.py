@@ -331,7 +331,7 @@ class TaskSidecars:
         self, sample_uuid: str, attempt_number: int, store: Store
     ) -> None:
         restarted = any(
-            registration.restarted_since_first_send()
+            registration.restarted_since_first_request()
             for (_, attempt), registration in self._registrations.get(
                 sample_uuid, {}
             ).items()
@@ -364,11 +364,11 @@ class TaskSidecars:
         # the sidecars a request of the attempt was sent through: one only an
         # earlier attempt sent through still keeps that attempt's monitor state
         return [
-            registration.sent_through
+            registration.latest_request.through
             for (_, attempt), registration in self._registrations.get(
                 sample_uuid, {}
             ).items()
-            if attempt == attempt_number and registration.sent_through is not None
+            if attempt == attempt_number and registration.latest_request is not None
         ]
 
     def _clients(
@@ -392,23 +392,27 @@ class TaskSidecars:
         ]
         latest_first = list(reversed(registrations))
         used = [
-            sidecar
+            sent.through
             for registration in latest_first
-            for sidecar in reversed(registration.clients)
+            for sent in reversed(registration.registrations)
         ]
         if not used:
             return []
         clients: list[Sidecar] = []
         for sidecar in [
             first,
-            *(registration.sent_through for registration in latest_first),
+            *(
+                registration.latest_request.through
+                for registration in latest_first
+                if registration.latest_request is not None
+            ),
             *used,
             *(found for found in self._found.kept() if isinstance(found, Sidecar)),
             *(
-                sidecar
+                sent.through
                 for others in self._registrations.values()
                 for registration in others.values()
-                for sidecar in registration.clients
+                for sent in registration.registrations
             ),
         ]:
             if (
@@ -542,10 +546,21 @@ class _Held(NamedTuple):
     """The eval's `registrations_begun` for the sidecar when the sample's registration was sent, which it counts for."""
 
 
+class Sent(NamedTuple):
+    """Something an attempt sent a sidecar, as things stood when it was sent. It never changes: what is asked of the attempt later, at scoring and when its sample ends, is read from it."""
+
+    through: Sidecar
+    """The sidecar, as the client that carried it reaches it. A model has a client of its own."""
+    restarts_found: int
+    """How many restarts of the sidecar the eval had found: which run of the sidecar it was sent to."""
+
+
 class AttemptRegistration:
     """One attempt's registration of its sample at a sidecar: the facts it registers, and whether the sidecar holds them.
 
     Every request of the attempt through the sidecar makes sure of the registration as it is sent, with `ensure_registered()`: an attempt's first send, a retry, a resend and a fetch alike. Nothing else sends a sample's registration.
+
+    Two things happen for the attempt at the sidecar, each recorded as it happens in a `Sent` that never changes: its registration is made sure of through a client, and a request of it is sent through one (`record_request()`). What is asked of the attempt later is read from those records: which clients may reach the sidecar, whether the sidecar judged anything of it, and whether the sidecar restarted since it began to.
 
     The attempt's models may reach the sidecar with different credentials, each through a client of its own, and share the one registration. So it belongs to the sidecar's origin, and each request makes sure of it through its own model's client.
     """
@@ -567,16 +582,21 @@ class AttemptRegistration:
         # one send at a time for the attempt
         self._lock = anyio.Lock()
         self._held: _Held | None = None
-        self.clients: list[Sidecar] = []
-        """The sidecar as each request that sent it anything for the attempt reached it, the latest last, each once. A model has a client of its own. Once the sidecar was sent the attempt's registration it may hold the sample's facts, whatever came of the registration, so it is told when the sample ends, through any of these that still reaches it."""
-        self.sent_through: Sidecar | None = None
-        """The sidecar as the attempt's latest request to be sent reached it, or None before any was.
+        self.registrations: list[Sent] = []
+        """The attempt's registration as each client made sure of it, the latest last, one for each client.
 
-        Only then can the sidecar have judged anything of the attempt, and hold monitor state of it, which it is asked for through this client first. A registration alone doesn't make it so, and doesn't change this: a call cancelled while its registration was on its way sent no request.
+        Recorded as the registration is sent, or found held, and before its answer: once the sidecar was sent the registration it may hold the sample's facts, whatever came of it. So it is told when the sample ends, through any of these clients that still reaches it.
         """
-        # the sidecar's `restarts_found` when a request of the attempt was
-        # first sent to it, or None before then
-        self._restarts_found_at_first_send: int | None = None
+        self.first_request: Sent | None = None
+        """The first request of the attempt to be sent through the sidecar, or None before any was.
+
+        The sidecar judges the attempt from then. If the eval has found a restart of the sidecar since, the sidecar lost what it had judged.
+        """
+        self.latest_request: Sent | None = None
+        """The latest request of the attempt to be sent through the sidecar, or None before any was.
+
+        Only once a request is sent can the sidecar have judged anything of the attempt, and hold monitor state of it, which it is asked for through this client first. A registration alone doesn't make it so: a call cancelled while its registration was on its way sent no request.
+        """
 
     async def ensure_registered(self, sidecar: Sidecar) -> bool:
         """Send the sample's facts to the sidecar unless it holds them, as a request of the attempt is sent.
@@ -615,11 +635,11 @@ class AttemptRegistration:
                 await access.wait_for_registration()
                 # from here the sidecar is sent the attempt's registration,
                 # or holds it already
-                self.clients = [
+                self.registrations = [
                     known
-                    for known in self.clients
-                    if known.client is not sidecar.client
-                ] + [sidecar]
+                    for known in self.registrations
+                    if known.through.client is not sidecar.client
+                ] + [Sent(sidecar, access.restarts_found)]
                 begun = access.registrations_begun
                 held = self._held
                 if held is not None and held.registrations_begun == begun:
@@ -645,22 +665,30 @@ class AttemptRegistration:
                     break
                 # a registration of the task began while this was on its way,
                 # and the sidecar may have taken it after: sent again
-            # the sidecar may judge the attempt from here on
-            self.sent_through = sidecar
-            if self._restarts_found_at_first_send is None:
-                self._restarts_found_at_first_send = access.restarts_found
             return held.fixed
 
-    def restarted_since_first_send(self) -> bool:
+    def record_request(self, sidecar: Sidecar) -> None:
+        """Record that a request of the attempt is being sent through the sidecar, its registration made sure of.
+
+        Args:
+            sidecar: The sidecar as the model whose request is being sent reaches it.
+        """
+        access = self._access
+        assert access is not None
+        self.latest_request = Sent(sidecar, access.restarts_found)
+        if self.first_request is None:
+            self.first_request = self.latest_request
+
+    def restarted_since_first_request(self) -> bool:
         """Whether the sidecar was found to have restarted since a request of the attempt was first sent to it, so it lost what it had judged of the attempt.
 
-        An attempt that has sent the sidecar nothing lost nothing, and neither did one whose first request found the restart: all the sidecar judges of it comes after.
+        An attempt that has sent the sidecar no request lost nothing, and neither did one whose first request found the restart: all the sidecar judges of it comes after.
         """
         access = self._access
         return (
             access is not None
-            and self._restarts_found_at_first_send is not None
-            and access.restarts_found != self._restarts_found_at_first_send
+            and self.first_request is not None
+            and access.restarts_found != self.first_request.restarts_found
         )
 
     def _refused(self, sidecar: Sidecar, ex: SidecarCallError) -> NoReturn:

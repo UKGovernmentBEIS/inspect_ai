@@ -120,6 +120,8 @@ async def ensure_registration(request_id: str) -> None:
 
     Every request of a call through a sidecar comes here: an attempt's first send, a retry by the provider's SDK or by Inspect, a resend of a paused call, and a fetch of what the sidecar holds for one. It is the only place a sample's registration is sent from. A request can be sent long after its call was prepared: once the call has a connection, after the eval was paused, or after a backoff. Nothing is sent where the sidecar still holds the registration.
 
+    The request is then recorded as sent through the sidecar for the attempt, which is what the attempt is scored from.
+
     The call then goes by what the sidecar says now of whether its admin registered the task beforehand: a sidecar that restarted may have the task in its tasks folder since.
 
     The registration has the limit of a call to the sidecar, and not the model request's: the call's timeouts don't run while it is made sure of (`registering`).
@@ -152,6 +154,11 @@ async def ensure_registration(request_id: str) -> None:
     except (SentinelProxyError, SampleRefusedError) as ex:
         received.stop(ex)
         raise
+    # Only here: a request recorded as sent through the sidecar is one whose
+    # registration was just made sure of. A provider's request that names no
+    # sample to the sidecar never comes this far, and the sidecar judges
+    # nothing of the attempt from it.
+    received.registration.record_request(received.sidecar)
 
 
 def sign_context(headers: MutableMapping[str, str], url: str) -> None:
