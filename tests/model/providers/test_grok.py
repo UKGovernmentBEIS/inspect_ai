@@ -47,6 +47,38 @@ async def test_grok_api() -> None:
     assert len(response.completion) >= 1
 
 
+def _sampling_usage(
+    prompt: int, completion: int, reasoning: int, total: int
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        prompt_tokens=prompt,
+        completion_tokens=completion,
+        total_tokens=total,
+        cached_prompt_text_tokens=0,
+        reasoning_tokens=reasoning,
+    )
+
+
+def test_grok_usage_counts_reasoning_as_output() -> None:
+    """Reasoning tokens count as output when total_tokens covers them separately."""
+    from inspect_ai.model._providers.grok import _model_usage_from_sampling_usage
+
+    # xAI's total is prompt + completion + reasoning, so completion leaves
+    # reasoning out and output_tokens must include it.
+    usage = _model_usage_from_sampling_usage(_sampling_usage(96, 27, 282, 405))
+    assert usage.output_tokens == 309
+    assert usage.reasoning_tokens == 282
+
+
+def test_grok_usage_does_not_double_count_reasoning() -> None:
+    """Reasoning already inside completion_tokens is not added again."""
+    from inspect_ai.model._providers.grok import _model_usage_from_sampling_usage
+
+    # total equals prompt + completion, so completion already includes reasoning.
+    usage = _model_usage_from_sampling_usage(_sampling_usage(10, 50, 40, 60))
+    assert usage.output_tokens == 50
+
+
 def test_grok_service_tier_model_arg() -> None:
     """The service_tier model arg is passed through to request params."""
     from inspect_ai.model._providers.grok import GrokAPI

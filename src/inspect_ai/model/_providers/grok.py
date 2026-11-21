@@ -904,9 +904,19 @@ def _logprobs_from_grok_logprobs(grok_logprobs: chat_pb2.LogProbs) -> Logprobs |
 
 def _model_usage_from_sampling_usage(usage: usage_pb2.SamplingUsage) -> ModelUsage:
     cached = usage.cached_prompt_text_tokens or 0
+    # xAI reports reasoning separately from completion tokens, and downstream
+    # metering (token_limit="output:N") and costing read output_tokens, so count
+    # reasoning there. When total_tokens already covers reasoning (it equals
+    # prompt + completion + reasoning), completion_tokens leaves it out and the
+    # addition is exact; otherwise it is already included, and adding it again
+    # would double count.
+    reasoning = usage.reasoning_tokens or 0
+    completion = usage.completion_tokens
+    if usage.total_tokens >= usage.prompt_tokens + completion + reasoning:
+        completion += reasoning
     return ModelUsage(
         input_tokens=usage.prompt_tokens - cached,
-        output_tokens=usage.completion_tokens,
+        output_tokens=completion,
         total_tokens=usage.total_tokens,
         input_tokens_cache_read=usage.cached_prompt_text_tokens,
         reasoning_tokens=usage.reasoning_tokens,
