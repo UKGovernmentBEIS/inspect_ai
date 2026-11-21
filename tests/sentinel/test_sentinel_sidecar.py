@@ -1786,7 +1786,11 @@ def test_a_retry_of_a_request_makes_sure_of_the_samples_registration_before_it_i
     assert sent == ["complete_registration", "model", "complete_registration", "model"]
 
 
-def test_a_sample_refused_at_its_first_request_fails_at_once_and_isnt_scored() -> None:
+@pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
+def test_a_sample_refused_at_its_first_request_fails_at_once_and_isnt_scored(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     stand_in = StandInSidecar(
         methods={
             "complete_registration": lambda _: {
@@ -1977,11 +1981,13 @@ def test_the_judging_usage_of_a_try_whose_retry_was_stopped_is_counted_once_or_n
     assert lookups[0] == 1
 
 
+@pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
 def test_a_sidecar_slow_to_say_what_a_stopped_call_billed_isnt_waited_for(
-    monkeypatch: pytest.MonkeyPatch,
+    backend: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from inspect_ai._sentinel._sidecar import _act
 
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     monkeypatch.setattr(_act, "STOPPED_CALL_TIMEOUT", 3.0)
 
     def result(params: dict[str, Any]) -> dict[str, Any]:

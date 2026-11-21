@@ -3486,7 +3486,20 @@ async def _task_run_sample_attempt(
                             record_cancel(ex)
 
                     except Exception as ex:
-                        record_error(ex)
+                        # A task group's errors are unwrapped where the group
+                        # ends, above. An error still in a group here left
+                        # that handler beside a cancellation, which an
+                        # enclosing scope has since taken, as when it is
+                        # raised under Trio once the sample's time limit has
+                        # run out. It is recorded as on asyncio, where it
+                        # arrives on its own.
+                        if isinstance(ex, ExceptionGroup):
+                            try:
+                                raise_unwrapped(ex, inner_exception(ex))
+                            except Exception as unwrapped:
+                                record_error(unwrapped)
+                        else:
+                            record_error(ex)
 
                     # mark completed
                     state.completed = True
