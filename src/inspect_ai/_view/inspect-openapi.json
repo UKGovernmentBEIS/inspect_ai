@@ -8129,6 +8129,20 @@
       "ModelEvent": {
         "description": "Call to a language model.",
         "properties": {
+          "agent_tool_call_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Tool Call Ids"
+          },
           "cache": {
             "anyOf": [
               {
