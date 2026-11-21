@@ -176,10 +176,11 @@ class TaskSidecars:
             sample_uuid: The sample's uuid.
             tell: Whether to tell the sidecars. A cancelled sample's teardown can't be interrupted, so it doesn't wait on a sidecar that may not answer, and the sidecars drop the sample at its run expiry.
         """
-        # each sidecar once, as the latest attempt that registered with it
-        # reached it
+        # Each sidecar once, as the latest attempt that registered with it
+        # reached it: through the client that last sent it a request, or
+        # where none did, the one that sent the registration.
         through = {
-            origin: registration.registered_through
+            origin: registration.sent_through or registration.registered_through
             for (origin, _), registration in self._registrations.pop(
                 sample_uuid, {}
             ).items()
@@ -500,7 +501,12 @@ class AttemptRegistration:
         self._lock = anyio.Lock()
         self._held: _Held | None = None
         self.registered_through: Sidecar | None = None
-        """The sidecar as the attempt's latest request reached it, once it was sent the attempt's registration, or None before then. From then it may hold the sample's facts, whatever came of the registration, so it is told when the sample ends."""
+        """The sidecar as the request that last sent it the attempt's registration reached it, or None before any did. From then it may hold the sample's facts, whatever came of the registration, so it is told when the sample ends."""
+        self.sent_through: Sidecar | None = None
+        """The sidecar as the attempt's latest request to be sent reached it, or None before any was.
+
+        Only then can the sidecar have judged anything of the attempt, and hold monitor state of it. A registration alone doesn't make it so, and doesn't change this: a call cancelled while its registration was on its way sent no request, and its model's client may be gone.
+        """
         # the sidecar's `restarts_found` when a request of the attempt was
         # first sent to it, or None before then
         self._restarts_found_at_first_send: int | None = None
@@ -561,19 +567,11 @@ class AttemptRegistration:
                     break
                 # a registration of the task began while this was on its way,
                 # and the sidecar may have taken it after: sent again
+            # the sidecar may judge the attempt from here on
+            self.sent_through = sidecar
             if self._restarts_found_at_first_send is None:
-                # the sidecar may judge the attempt from here on
                 self._restarts_found_at_first_send = access.restarts_found
             return held.fixed
-
-    @property
-    def sent_through(self) -> Sidecar | None:
-        """The sidecar as the attempt's latest request reached it, once a request of the attempt was sent through it, or None before then.
-
-        Only then can the sidecar have judged anything of the attempt, and hold monitor state of it. A registration alone doesn't make it so: a call cancelled while its registration was on its way sent no request.
-        """
-        sent = self._restarts_found_at_first_send is not None
-        return self.registered_through if sent else None
 
     def restarted_since_first_send(self) -> bool:
         """Whether the sidecar was found to have restarted since a request of the attempt was first sent to it, so it lost what it had judged of the attempt.

@@ -1894,6 +1894,73 @@ def test_a_sample_whose_only_call_was_cancelled_before_it_was_sent_is_scored(
         assert told == ["register_task", "complete_registration", "end_sample"]
 
 
+@pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
+def test_a_sample_is_scored_through_the_client_that_sent_its_request(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    completions = 0
+
+    def complete(_: dict[str, Any]) -> dict[str, Any]:
+        nonlocal completions
+        completions += 1
+        if completions == 2:
+            # sent with the other model's request, and its answer never
+            # arrives
+            stand_in.answer_after = anyio.Event()
+        return {}
+
+    stand_in = StandInSidecar(
+        methods={
+            "complete_registration": complete,
+            "sample_result": _kept({"Tally:lookups": 3}),
+        }
+    )
+    # another model reaches the same sidecar, through a client of its own
+    other_client = stand_in.http_client()
+    other = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="other-key",
+        memoize=False,
+        http_client=other_client,
+    )
+
+    @solver
+    def cancels_another_models_call() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            state = await generate(state)
+            # Finding the sidecar behind the other model registers the task
+            # again, so its request sends the sample's registration again.
+            # The call is cancelled before the answer, and its client closed.
+            with anyio.move_on_after(0.2):
+                await other.generate("Hi again.")
+            await other_client.aclose()
+            return state
+
+        return solve
+
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=cancels_another_models_call(),
+        scorer=_reads_monitor_state(),
+    )
+
+    [log] = eval(task, model=_model(stand_in), sentinel_proxy="auto", display="none")
+
+    # The sample's one request went through the task's own model, whose
+    # client asks the sidecar for the monitor state and tells it the sample
+    # ended. The call that sent no request doesn't change that.
+    assert len(stand_in.model_calls) == 1
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None, sample.error
+    assert sample.scores is not None
+    [score] = sample.scores.values()
+    assert score.value == 3
+    assert len(_registered(stand_in, "end_sample")) == 1
+
+
 def test_a_call_that_is_never_sent_registers_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
