@@ -1917,6 +1917,15 @@ _CLIENT_LIFETIMES: dict[str, tuple[list[list[tuple[str, str]]], int]] = {
         [[("task", "sends")], [("other", "sends")]],
         3,
     ),
+    "two senders in one attempt, the later closed": (
+        [[("task", "sends"), ("other", "sends")]],
+        3,
+    ),
+    # the task's own model was found behind the sidecar as the task started
+    "a sample whose only client closed": (
+        [[("other", "sends")]],
+        3,
+    ),
 }
 
 
@@ -1997,6 +2006,72 @@ def test_a_sidecar_is_asked_and_told_through_whichever_client_still_reaches_it(
     [score] = sample.scores.values()
     assert score.value == scored
     # the sidecar is told the sample ended, once, by a client that reaches it
+    assert len(_registered(stand_in, "end_sample")) == 1
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
+def test_a_client_that_stalls_leaves_time_to_reach_the_sidecar_through_another(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._sentinel._sidecar import _task
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    monkeypatch.setattr(_task, "CALL_TIMEOUT", 1.0)
+    monkeypatch.setattr(_task, "END_SAMPLE_TIMEOUT", 1.0)
+    stand_in = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 3})})
+
+    async def stalls(request: httpx2.Request) -> httpx2.Response:
+        # the other model's client reaches the sidecar for its requests, and
+        # stalls when asked for a sample's monitor state or told it ended
+        if request.url.path == "/sentinel/v1":
+            if json.loads(request.content)["method"] in ("sample_result", "end_sample"):
+                await anyio.sleep_forever()
+        return await stand_in._handle_async(request)
+
+    other = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="other-key",
+        memoize=False,
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(stalls)),
+    )
+    begun = 0
+
+    @solver
+    def retries_through_the_other_model() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal begun
+            begun += 1
+            if begun == 1:
+                await generate(state)
+                raise RuntimeError("The attempt fails.")
+            await other.generate("Hi.")
+            return state
+
+        return solve
+
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=retries_through_the_other_model(),
+        scorer=_reads_monitor_state(),
+    )
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        sentinel_proxy="auto",
+        retry_on_error=1,
+        display="none",
+    )
+
+    # the retry's own client is tried first, and the first attempt's still
+    # has time to ask and to tell
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None, sample.error
+    assert sample.scores is not None
+    [score] = sample.scores.values()
+    assert score.value == 3
     assert len(_registered(stand_in, "end_sample")) == 1
 
 

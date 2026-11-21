@@ -34,6 +34,9 @@ REGISTRATION_REFUSED = -32001
 
 END_SAMPLE_TIMEOUT = 10.0
 
+FALLBACK_RESERVE = 5.0
+"""How long of a deadline is kept back for each later client a sidecar may be reached through, in seconds, and no more than half the deadline for all of them. A client that stalls then leaves the others time to try."""
+
 UNKNOWN_SAMPLE = -32002
 UNKNOWN_TASK = -32009
 METHOD_NOT_FOUND = -32601
@@ -198,6 +201,7 @@ class TaskSidecars:
                         # the task finds the registration the sample's run is
                         # counted in, which a sidecar frees its facts from
                         {"sample_uuid": sample_uuid, "task": self.facts.task},
+                        END_SAMPLE_TIMEOUT,
                     )
                 except SidecarCallError as ex:
                     logger.warning(
@@ -247,6 +251,7 @@ class TaskSidecars:
                         self._clients(sample_uuid, sidecar.origin, first=sidecar),
                         "sample_result",
                         {"sample_uuid": sample_uuid},
+                        CALL_TIMEOUT,
                     )
                 except SidecarCallError as ex:
                     failed = _copy_failure(sidecar, ex)
@@ -365,11 +370,13 @@ class TaskSidecars:
     def _clients(
         self, sample_uuid: str, origin: str, first: Sidecar | None = None
     ) -> list[Sidecar]:
-        # The sidecar at an origin, as each of the sample's models that sent
-        # it anything reached it, over all the sample's attempts: each
-        # through a client of its own, which may be closed since. The
-        # likeliest to reach it still come first: `first`, then the latest to
-        # send a request, then the latest to send a registration.
+        # The sidecar at an origin, as each client that may reach it does:
+        # each model has a client of its own, which may be closed since. None
+        # if the sample sent the sidecar nothing. The likeliest to reach it
+        # still come first: `first`, then the latest of the sample's attempts
+        # to send a request, then every client the sample sent it anything
+        # through, the latest first, then the task's other clients for the
+        # origin, which the sample never used.
         registrations = [
             registration
             for (at, _), registration in self._registrations.get(
@@ -378,13 +385,25 @@ class TaskSidecars:
             if at == origin
         ]
         latest_first = list(reversed(registrations))
+        used = [
+            sidecar
+            for registration in latest_first
+            for sidecar in reversed(registration.clients)
+        ]
+        if not used:
+            return []
         clients: list[Sidecar] = []
         for sidecar in [
             first,
             *(registration.sent_through for registration in latest_first),
-            *(registration.registered_through for registration in latest_first),
+            *used,
+            *(found for found in self._found.kept() if isinstance(found, Sidecar)),
         ]:
-            if sidecar is not None and all(sidecar is not known for known in clients):
+            if (
+                sidecar is not None
+                and sidecar.origin == origin
+                and all(sidecar is not known for known in clients)
+            ):
                 clients.append(sidecar)
         return clients
 
@@ -528,8 +547,8 @@ class AttemptRegistration:
         # one send at a time for the attempt
         self._lock = anyio.Lock()
         self._held: _Held | None = None
-        self.registered_through: Sidecar | None = None
-        """The sidecar as the request that last sent it the attempt's registration reached it, or None before any did. From then it may hold the sample's facts, whatever came of the registration, so it is told when the sample ends, through any of the sample's clients that still reaches it."""
+        self.clients: list[Sidecar] = []
+        """The sidecar as each request that sent it anything for the attempt reached it, the latest last, each once. A model has a client of its own. Once the sidecar was sent the attempt's registration it may hold the sample's facts, whatever came of the registration, so it is told when the sample ends, through any of these that still reaches it."""
         self.sent_through: Sidecar | None = None
         """The sidecar as the attempt's latest request to be sent reached it, or None before any was.
 
@@ -569,7 +588,9 @@ class AttemptRegistration:
                 await access.wait_for_registration()
                 # from here the sidecar is sent the attempt's registration,
                 # or holds it already
-                self.registered_through = sidecar
+                self.clients = [
+                    known for known in self.clients if known is not sidecar
+                ] + [sidecar]
                 begun = access.registrations_begun
                 held = self._held
                 if held is not None and held.registrations_begun == begun:
@@ -636,6 +657,10 @@ class _Once(Generic[T]):
         self._done: dict[Hashable, T] = {}
         self._running: dict[Hashable, anyio.Event] = {}
 
+    def kept(self) -> list[T]:
+        """The results kept so far, in the order their work finished."""
+        return list(self._done.values())
+
     async def run(
         self,
         key: Hashable,
@@ -659,26 +684,32 @@ class _Once(Generic[T]):
 
 
 async def _call_through_any(
-    clients: list[Sidecar], method: str, params: dict[str, Any]
+    clients: list[Sidecar], method: str, params: dict[str, Any], within: float
 ) -> dict[str, Any]:
-    """Call a method of a sidecar for the eval through the first of a sample's clients that reaches it.
+    """Call a method of a sidecar for the eval through the first of its clients that reaches it.
 
-    A sidecar is reached through each model's own client, and a model's client can be closed while its sample runs on. The eval signs its calls whichever client carries them, so any that still reaches the sidecar will do, in whatever order the clients were used and closed. A sidecar that answers was reached, with an error too.
+    A sidecar is reached through each model's own client, and a model's client can be closed, or stall, while its sample runs on. The eval signs its calls whichever client carries them, so any that still reaches the sidecar will do, in whatever order the clients were used and closed. A sidecar that answers was reached, with an error too.
 
     Args:
         clients: The sidecar, as each client reaches it, the likeliest to reach it first. At least one.
         method: The method of the endpoint for evals.
         params: The method's params.
+        within: The caller's deadline for the whole call, in seconds. `FALLBACK_RESERVE` of it is kept back for each later client, so one that stalls leaves the others time to try. The caller enforces the deadline itself, for the last client.
 
     Raises:
         SidecarCallError: If the sidecar answered with an error, or no client reached it.
     """
+    later = len(clients) - 1
+    reserve = min(FALLBACK_RESERVE, within / (2 * later)) if later else 0.0
+    deadline = anyio.current_time() + within
     for sidecar in clients[:-1]:
-        try:
-            return await sidecar.eval_call(method, params)
-        except SidecarCallError as ex:
-            if ex.code is not None:
-                raise
+        with anyio.CancelScope(deadline=deadline - reserve * later):
+            try:
+                return await sidecar.eval_call(method, params)
+            except SidecarCallError as ex:
+                if ex.code is not None:
+                    raise
+        later -= 1
     return await clients[-1].eval_call(method, params)
 
 
