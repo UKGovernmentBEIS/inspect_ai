@@ -122,6 +122,8 @@ async def ensure_registration(request_id: str) -> None:
 
     The call then goes by what the sidecar says now of whether its admin registered the task beforehand: a sidecar that restarted may have the task in its tasks folder since.
 
+    The registration has the limit of a call to the sidecar, and not the model request's: the call's timeouts don't run while it is made sure of (`registering`).
+
     A registration the sidecar can't take stops the call: sent on, the request could be judged without the sample's facts. An error raised as a request is sent reaches the provider's caller as a failed connection, so the call is stopped on the registration's error, which Inspect raises in its place and doesn't retry. A later try of a stopped call, as the provider's SDK makes, is stopped on the same error.
 
     Raises:
@@ -131,7 +133,7 @@ async def ensure_registration(request_id: str) -> None:
     from inspect_ai._util.exception import SampleRefusedError
 
     from ._endpoint import SentinelProxyError
-    from ._received import current_receiving
+    from ._received import current_receiving, registering
 
     received = current_receiving()
     if (
@@ -143,9 +145,10 @@ async def ensure_registration(request_id: str) -> None:
     if received.stopped_by is not None:
         raise received.stopped_by
     try:
-        received.registered_beforehand = await received.registration.ensure_registered(
-            received.sidecar
-        )
+        with registering(received):
+            received.registered_beforehand = (
+                await received.registration.ensure_registered(received.sidecar)
+            )
     except (SentinelProxyError, SampleRefusedError) as ex:
         received.stop(ex)
         raise

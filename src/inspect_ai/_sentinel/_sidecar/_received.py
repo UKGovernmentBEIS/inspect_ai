@@ -4,7 +4,7 @@ import hashlib
 import math
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
@@ -171,6 +171,13 @@ class ReceivedCall:
 
         It is not the model call's time, so the call's `timeout` doesn't count it.
         """
+        self.registration_time = 0.0
+        """Seconds the call's requests took to make sure of the sample's registration at the sidecar, as each was sent.
+
+        It is not the model call's time, so the call's `timeout` doesn't count it.
+        """
+        self.attempt_timeout: anyio.CancelScope | None = None
+        """The scope of the timeout of the attempt whose request is being sent, if it has one, which stops while the request makes sure of the sample's registration."""
         self.history: "list[ChatMessage]" = history if history is not None else []
         """The conversation the call is sent with, as Inspect holds it.
 
@@ -484,14 +491,17 @@ def _body_digest(request: Any) -> bytes:
     return hashlib.sha256(content).digest()
 
 
-def time_with_a_person() -> float:
-    """Seconds that people took to answer questions about the current agent call.
+def time_apart_from_the_call() -> float:
+    """Seconds of the current agent call that weren't the model call's own, which the call's `timeout` doesn't count.
 
-    The call's `timeout` doesn't count this time. It is zero for a call that
-    nobody was asked about.
+    The time people took to answer questions about the call, and the time its requests took to make sure of the sample's registration at the sidecar. It is zero outside a call through a sidecar.
     """
     received = _received.get()
-    return received.person_time if received is not None else 0.0
+    return _time_apart(received) if received is not None else 0.0
+
+
+def _time_apart(received: ReceivedCall) -> float:
+    return received.person_time + received.registration_time
 
 
 def timeout_left(received: ReceivedCall) -> float | None:
@@ -499,15 +509,15 @@ def timeout_left(received: ReceivedCall) -> float | None:
 
     It uses the same time that Inspect's retry loop compares with `timeout` when
     it decides whether to retry: the time since the call's first attempt began,
-    less the time people took to answer. A `timeout` changed while the eval runs
-    applies here, as it does there.
+    less the time that wasn't the model call's own (`time_apart_from_the_call`).
+    A `timeout` changed while the eval runs applies here, as it does there.
     """
     from inspect_ai.model._generate_overrides import generate_config_override
 
     timeout = generate_config_override("timeout", received.timeout)
     if timeout is None or received.began is None:
         return None
-    return timeout - (time.monotonic() - received.began - received.person_time)
+    return timeout - (time.monotonic() - received.began - _time_apart(received))
 
 
 def current_receiving() -> ReceivedCall | None:
@@ -516,8 +526,13 @@ def current_receiving() -> ReceivedCall | None:
 
 
 @contextmanager
-def sending() -> Iterator[None]:
+def sending(
+    attempt_timeout: "anyio.CancelScope | AbstractContextManager[None]",
+) -> Iterator[None]:
     """Send a request of the current agent call, ending at once on the error that stops the call if it is stopped meanwhile.
+
+    Args:
+        attempt_timeout: The scope of the attempt's timeout, which the request is sent under, or a context manager that does nothing if the attempt has none.
 
     Raises:
         Exception: The error the call was stopped on, in place of whatever the stopped request came to.
@@ -526,6 +541,9 @@ def sending() -> Iterator[None]:
     if received is None:
         yield
         return
+    received.attempt_timeout = (
+        attempt_timeout if isinstance(attempt_timeout, anyio.CancelScope) else None
+    )
     with anyio.CancelScope() as scope:
         received.send_scope = scope
         try:
@@ -535,8 +553,29 @@ def sending() -> Iterator[None]:
                 raise
         finally:
             received.send_scope = None
+            received.attempt_timeout = None
     if received.stopped_by is not None:
         raise received.stopped_by
+
+
+@contextmanager
+def registering(received: ReceivedCall) -> Iterator[None]:
+    """Keep the time a request of the call takes to make sure of its sample's registration out of the call's timeouts.
+
+    The registration is a call to the sidecar with a limit of its own, made before the model request is sent. The attempt's timeout stops while it runs and carries on after with the time it had left, and the call's `timeout` doesn't count it. Otherwise a sidecar that takes longer over a registration than the attempt's timeout allows would time out every attempt before its request was sent, holding the model's connection through each retry.
+    """
+    timeout = received.attempt_timeout
+    left: float | None = None
+    if timeout is not None and timeout.deadline != math.inf:
+        left = timeout.deadline - anyio.current_time()
+        timeout.deadline = math.inf
+    began = time.monotonic()
+    try:
+        yield
+    finally:
+        received.registration_time += time.monotonic() - began
+        if timeout is not None and left is not None:
+            timeout.deadline = anyio.current_time() + left
 
 
 def call_stopped() -> bool:

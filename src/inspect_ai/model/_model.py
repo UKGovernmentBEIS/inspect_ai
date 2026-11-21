@@ -1917,8 +1917,9 @@ class Model:
                 ):
                     # innermost: a call through a sentinel sidecar that is
                     # stopped as its request is sent ends there, on the error
-                    # that stopped it
-                    with timeout_cm, idle_cm, sending():
+                    # that stopped it, and the attempt's timeout stops while
+                    # the request registers its sample with the sidecar
+                    with timeout_cm, idle_cm, sending(timeout_cm):
                         sent = await self.api.generate(
                             input=input,
                             tools=call_tools,

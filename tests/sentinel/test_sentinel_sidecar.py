@@ -2094,6 +2094,59 @@ def test_a_sidecar_is_reached_in_time_through_clients_that_stall_or_are_slow(
     assert len(_registered(stand_in, "end_sample")) == 1
 
 
+@pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
+@pytest.mark.parametrize(
+    ("limits", "answered"),
+    [
+        # the attempt's request is sent with the whole of its timeout left
+        pytest.param(
+            {"attempt_timeout": 1, "max_retries": 0},
+            [200],
+            id="the attempt's timeout",
+        ),
+        # the call's first request fails, and is still retried
+        pytest.param({"timeout": 1}, [403, 200], id="the call's timeout"),
+    ],
+)
+def test_a_registration_slower_than_a_calls_timeouts_doesnt_time_the_call_out(
+    limits: dict[str, int],
+    answered: list[int],
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    stand_in = StandInSidecar(turns=[Turn(status=status) for status in answered])
+
+    async def registers_slowly(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/sentinel/v1":
+            if json.loads(request.content)["method"] == "complete_registration":
+                await anyio.sleep(1.3)
+        return await stand_in._handle_async(request)
+
+    model = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="test-key",
+        memoize=False,
+        http_client=httpx2.AsyncClient(
+            transport=httpx2.MockTransport(registers_slowly)
+        ),
+    )
+    monkeypatch.setattr(model.api, "retry_wait", lambda: wait_none())
+    monkeypatch.setattr(model.api, "should_retry", lambda ex: True)
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate())
+
+    [log] = eval(task, model=model, sentinel_proxy="auto", display="none", **limits)
+
+    # the registration is a call to the sidecar, with a limit of its own
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None, sample.error
+    assert sample.output.completion == "Done."
+    assert len(_registered(stand_in, "complete_registration")) == 1
+    assert len(stand_in.model_calls) == len(answered)
+
+
 def test_a_call_that_is_never_sent_registers_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
