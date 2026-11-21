@@ -1,16 +1,19 @@
 import json
 import pathlib
 import re
+import shutil
 import zipfile
-from typing import Literal, NamedTuple
+from typing import Any, Callable, Literal, NamedTuple
 
 import pytest
+from pydantic import JsonValue
 from test_helpers.chunked_corpus import CORPUS_SMALL_CHUNK_SIZE, ChunkedCorpus
 
 from inspect_ai import Task
 from inspect_ai import eval as inspect_eval
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.file import filesystem, to_uri
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
@@ -23,7 +26,7 @@ from inspect_ai.event import (
     ToolEvent,
 )
 from inspect_ai.log import EvalError, EvalRetryError
-from inspect_ai.log._condense import resolve_sample_attachments
+from inspect_ai.log._condense import MAX_JSON_VALUE_DEPTH, resolve_sample_attachments
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._edit import (
     MetadataEdit,
@@ -31,9 +34,18 @@ from inspect_ai.log._edit import (
     TagsEdit,
     edit_eval_log,
 )
-from inspect_ai.log._file import read_eval_log, write_eval_log
+from inspect_ai.log._file import (
+    LogDestination,
+    contained_log_destination,
+    read_eval_log,
+    write_eval_log,
+)
 from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._recorders.chunked import convert_eval_logs_to_chunked
+from inspect_ai.log._recorders.chunked.convert import (
+    _write_chunked_sample,
+    chunked_sample,
+)
 from inspect_ai.log._recorders.chunked.format import (
     attachment_chunk_boundaries,
     boundary_ranges,
@@ -50,6 +62,7 @@ from inspect_ai.log._recorders.chunked.format import (
     skeleton_entry_name,
 )
 from inspect_ai.log._recorders.chunked.stats import event_stats
+from inspect_ai.log._recorders.eval import _parse_sample_data
 from inspect_ai.log._resolve import resolve_sample_events_data
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -133,6 +146,174 @@ def test_convert_eval_logs(
         assert model_event_call_message_content.startswith("Hey there, hipster!")
     else:
         assert model_event_call_message_content.startswith("attachment:")
+
+
+_CONVERTERS: dict[str, Callable[[str, str], None]] = {
+    "convert": lambda path, output_dir: convert_eval_logs(path, "json", output_dir),
+    "chunked": convert_eval_logs_to_chunked,
+}
+
+
+def _nested_log_dir(tmp_path: pathlib.Path) -> tuple[pathlib.Path, pathlib.Path]:
+    input_file = (
+        _TESTS_DIR
+        / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    )
+    log_dir = tmp_path / "logs"
+    (log_dir / "sub").mkdir(parents=True)
+    shutil.copy(input_file, log_dir / "sub" / input_file.name)
+    return input_file, log_dir
+
+
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_keeps_nested_names(tmp_path: pathlib.Path, converter: str):
+    input_file, log_dir = _nested_log_dir(tmp_path)
+    output_dir = tmp_path / "out"
+
+    _CONVERTERS[converter](str(log_dir), str(output_dir))
+
+    extension = ".json" if converter == "convert" else ".eval"
+    output_file = (output_dir / "sub" / input_file.name).with_suffix(extension)
+    assert output_file.exists()
+
+
+@pytest.mark.parametrize("link", ["dir", "file"])
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_refuses_symlinks_out_of_output_dir(
+    tmp_path: pathlib.Path, converter: str, link: str
+):
+    input_file, log_dir = _nested_log_dir(tmp_path)
+    output_dir = tmp_path / "out"
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    if link == "dir":
+        output_dir.mkdir()
+        (output_dir / "sub").symlink_to(elsewhere, target_is_directory=True)
+    else:
+        extension = ".json" if converter == "convert" else ".eval"
+        output_file = (output_dir / "sub" / input_file.name).with_suffix(extension)
+        output_file.parent.mkdir(parents=True)
+        output_file.symlink_to(elsewhere / "converted")
+
+    with pytest.raises(ValueError, match="would be written outside"):
+        _CONVERTERS[converter](str(log_dir), str(output_dir))
+
+    assert list(elsewhere.iterdir()) == []
+
+
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_refuses_symlinks_out_of_local_url_output_dir(
+    tmp_path: pathlib.Path, converter: str
+):
+    _, log_dir = _nested_log_dir(tmp_path)
+    output_dir = tmp_path / "out"
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    output_dir.mkdir()
+    (output_dir / "sub").symlink_to(elsewhere, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="would be written outside"):
+        _CONVERTERS[converter](str(log_dir), f"local://{output_dir}")
+
+    assert list(elsewhere.iterdir()) == []
+
+
+def _record_chunked_destinations(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    checked: list[str] = []
+
+    def record(*args: Any, **kwargs: Any) -> LogDestination:
+        destination = contained_log_destination(*args, **kwargs)
+        checked.append(destination.destination)
+        return destination
+
+    monkeypatch.setattr(
+        "inspect_ai.log._recorders.chunked.convert.contained_log_destination", record
+    )
+    return checked
+
+
+def test_chunked_convert_dir_writes_where_it_checked_tilde(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+):
+    input_file, log_dir = _nested_log_dir(tmp_path)
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.chdir(tmp_path)
+    checked = _record_chunked_destinations(monkeypatch)
+
+    convert_eval_logs_to_chunked(str(log_dir), "~/out")
+
+    written = home.resolve() / "out" / "sub" / input_file.name
+    assert checked == [str(written)]
+    assert written.is_file()
+    assert not (tmp_path / "~").exists()
+
+
+def test_chunked_convert_dir_writes_where_it_checked_file_url(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+):
+    input_file, log_dir = _nested_log_dir(tmp_path)
+    output_dir = tmp_path / "out dir"
+    checked = _record_chunked_destinations(monkeypatch)
+
+    convert_eval_logs_to_chunked(str(log_dir), to_uri(str(output_dir)))
+
+    written = output_dir.resolve() / "sub" / input_file.name
+    assert checked == [str(written)]
+    assert written.is_file()
+    assert not (tmp_path / "out%20dir").exists()
+
+
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_writes_to_remote_output_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, converter: str
+):
+    memory_fs = filesystem("memory://").fs
+    monkeypatch.setattr(type(memory_fs), "store", {})
+    monkeypatch.setattr(type(memory_fs), "pseudo_dirs", [""])
+    input_file, log_dir = _nested_log_dir(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    _CONVERTERS[converter](str(log_dir), "memory://out")
+
+    extension = ".json" if converter == "convert" else ".eval"
+    output_name = pathlib.PurePosixPath(input_file.name).with_suffix(extension).name
+    assert memory_fs.isfile(f"/out/sub/{output_name}")
+    assert not (tmp_path / "memory:").exists()
+
+
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_refuses_dot_components(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, converter: str
+):
+    memory_fs = filesystem("memory://").fs
+    monkeypatch.setattr(type(memory_fs), "store", {})
+    monkeypatch.setattr(type(memory_fs), "pseudo_dirs", [""])
+    memory_fs.pipe(
+        "/logs/sub/../../escaped/2024-01-01T00-00-00+00-00_task_abc.eval", b"log"
+    )
+    output_dir = tmp_path / "out"
+
+    with pytest.raises(ValueError, match="has an invalid path"):
+        _CONVERTERS[converter]("memory://logs", str(output_dir))
+
+    assert not (tmp_path / "escaped").exists()
+
+
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_refuses_url_chain_names(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, converter: str
+):
+    memory_fs = filesystem("memory://").fs
+    monkeypatch.setattr(type(memory_fs), "store", {})
+    monkeypatch.setattr(type(memory_fs), "pseudo_dirs", [""])
+    memory_fs.pipe("/logs/sub::x/2024-01-01T00-00-00+00-00_task_abc.eval", b"log")
+
+    with pytest.raises(ValueError, match="has an invalid path"):
+        _CONVERTERS[converter]("memory://logs", "memory://out")
+
+    assert memory_fs.find("/out") == []
 
 
 @pytest.mark.parametrize("stream", [True, 3], ids=["stream", "stream-3"])
@@ -844,6 +1025,8 @@ def test_convert_chunked_keeps_literal_reference_text(tmp_path: pathlib.Path):
     """A reply that reads like a reference survives chunking; real refs still resolve."""
     system_prompt = "You are a careful assistant who answers in full. " * 4
     literal = f"attachment://{mm3_hash(system_prompt)}"
+    # holds a reference as part of a longer string
+    quoted = f"Please explain {literal} to me."
     model = get_model(
         "mockllm/model",
         custom_outputs=[ModelOutput.from_content("mockllm/model", literal)],
@@ -853,7 +1036,7 @@ def test_convert_chunked_keeps_literal_reference_text(tmp_path: pathlib.Path):
             Sample(
                 input=[
                     ChatMessageSystem(content=system_prompt),
-                    ChatMessageUser(content="hello"),
+                    ChatMessageUser(content=quoted),
                 ]
             )
         ]
@@ -874,6 +1057,99 @@ def test_convert_chunked_keeps_literal_reference_text(tmp_path: pathlib.Path):
     [model_event] = [e for e in resolved.events if isinstance(e, ModelEvent)]
     assert model_event.input[0].text == system_prompt
     assert model_event.output.message.text == literal
+
+    # the model call payload, whose request messages are in the calls sequence
+    assert model_event.call is not None
+    request_messages = model_event.call.request["messages"]
+    assert isinstance(request_messages, list)
+    assert [
+        message["content"] for message in request_messages if isinstance(message, dict)
+    ] == [system_prompt, quoted]
+    assert model_event.call.response == {"content": literal}
+
+
+def test_chunked_sample_keeps_call_data_nested_beyond_the_walk_limit() -> None:
+    """Renumbering leaves call data nested deeper than the walk limit as written."""
+    text = "You are a careful assistant who answers in full. " * 4
+    deep: JsonValue = "deep"
+    for _ in range(MAX_JSON_VALUE_DEPTH + 1):
+        deep = [deep]
+    message: dict[str, JsonValue] = {
+        "role": "user",
+        "content": f"attachment://{mm3_hash(text)}",
+        "deep": deep,
+    }
+    sample = EvalSample(
+        id=1,
+        epoch=1,
+        input="hi",
+        target="",
+        events=[
+            ModelEvent(
+                model="mockllm/model",
+                input=[],
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput.from_content("mockllm/model", "ok"),
+                call=ModelCall(request={"messages": [message]}, response={}),
+            )
+        ],
+        attachments={mm3_hash(text): text},
+    )
+    reread = _parse_sample_data(json.dumps(sample.model_dump(mode="json")).encode())
+
+    chunked = chunked_sample(reread, 100)
+
+    assert chunked.calls == [{**message, "content": "attachment://0"}]
+
+
+def test_chunked_calls_resolve_a_reference_nested_beyond_the_walk_limit(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A pooled reference deeper than the walk limit renumbers; longer text keeps it."""
+    text = "You are a careful assistant who answers in full. " * 4
+    ref = f"attachment://{mm3_hash(text)}"
+    quoted = f"Please explain {ref} to me."
+    deep: JsonValue = {"ref": ref, "quoted": quoted}
+    for _ in range(MAX_JSON_VALUE_DEPTH + 3):
+        deep = {"nested": deep}
+    sample = EvalSample(
+        id=1,
+        epoch=1,
+        input="hi",
+        target="",
+        events=[
+            ModelEvent(
+                model="mockllm/model",
+                input=[],
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput.from_content("mockllm/model", "ok"),
+                call=ModelCall(
+                    request={"messages": [{"role": "user", "deep": deep}]},
+                    response={},
+                ),
+            )
+        ],
+        attachments={mm3_hash(text): text},
+    )
+    reread = _parse_sample_data(json.dumps(sample.model_dump(mode="json")).encode())
+
+    path = tmp_path / "chunked.zip"
+    with zipfile.ZipFile(path, "w") as zf:
+        _write_chunked_sample(zf, reread, 100)
+    with zipfile.ZipFile(path) as zf:
+        [message] = _read_chunked_sequence(zf, 1, 1, "calls")
+        attachments = _read_chunked_sequence(zf, 1, 1, "attachments")
+
+    leaf = message["deep"]
+    for _ in range(MAX_JSON_VALUE_DEPTH + 3):
+        leaf = leaf["nested"]
+    index = leaf["ref"].removeprefix("attachment://")
+    assert attachments[int(index)] == text
+    assert leaf["quoted"] == quoted
 
 
 def test_convert_chunked_keeps_raw_fields_that_read_like_references(

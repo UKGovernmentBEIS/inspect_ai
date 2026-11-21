@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, NamedTuple
@@ -12,8 +13,10 @@ from test_helpers.buffer import simulate_crashed_buffer_db
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import JsonChange
 from inspect_ai.dataset._dataset import Sample
+from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._score import ScoreEvent
@@ -41,6 +44,7 @@ from inspect_ai.log._recover import (
     recover_eval_log,
     recover_eval_log_async,
 )
+from inspect_ai.log._transcript import Transcript, _transcript, init_transcript
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -48,6 +52,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.scorer._metric import Score
 from inspect_ai.util._store import store_changes
@@ -1486,11 +1491,14 @@ async def _recover_sample(
     completed: bool = True,
     complete_kwargs: dict[str, Any] | None = None,
     before_crash: Callable[[SampleBufferDatabase], None] | None = None,
+    call_attachments: dict[str, str] | None = None,
+    input: str | list[ChatMessage] = "hi",
 ) -> str:
     """Buffer a sample with `events`, crash, recover; the output path.
 
     `complete_kwargs` are the keyword arguments to `complete_sample` (by
-    default no metadata).
+    default no metadata). `call_attachments` are what the events' model
+    calls reference. `input` is the buffered summary's input.
     """
     eval_path = os.path.join(temp_dir, "store.eval")
     output_path = os.path.join(temp_dir, "store-recovered.eval")
@@ -1508,14 +1516,18 @@ async def _recover_sample(
     summary = EvalSampleSummary(
         id="s1",
         epoch=1,
-        input="hi",
+        input=input,
         target="reply",
         started_at=datetime.now(timezone.utc).isoformat(),
     )
     db_dir = os.path.join(temp_dir, "bufferdb")
     buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
     buffer.start_sample(summary)
-    buffer.log_events([SampleEvent(id="s1", epoch=1, event=event) for event in events])
+    if events:
+        buffer.log_events(
+            [SampleEvent(id="s1", epoch=1, event=event) for event in events],
+            call_attachments,
+        )
     if completed:
         buffer.complete_sample(
             summary.model_copy(
@@ -1693,18 +1705,28 @@ class _BufferCapture(NamedTuple):
     complete_kwargs: dict[str, Any]
     """The keyword arguments the run completed the buffered sample with."""
 
+    call_attachments: dict[str, str]
+    """The attachments the run handed the sample buffer with the events."""
+
 
 def _capture_buffer(monkeypatch: pytest.MonkeyPatch) -> _BufferCapture:
     """Record what a run hands the sample buffer, to buffer it again for recovery."""
     from inspect_ai._eval.task.log import TaskLogger
 
-    capture = _BufferCapture(events=[], complete_kwargs={})
+    capture = _BufferCapture(events=[], complete_kwargs={}, call_attachments={})
     log_sample_event = TaskLogger.log_sample_event
     complete_sample = SampleBufferDatabase.complete_sample
 
-    def spy_event(self: TaskLogger, id: str | int, epoch: int, event: Any) -> None:
+    def spy_event(
+        self: TaskLogger,
+        id: str | int,
+        epoch: int,
+        event: Any,
+        call_attachments: Mapping[str, str],
+    ) -> None:
         capture.events.append(event)
-        log_sample_event(self, id, epoch, event)
+        capture.call_attachments.update(call_attachments)
+        log_sample_event(self, id, epoch, event, call_attachments)
 
     def spy_complete(
         self: SampleBufferDatabase, summary: EvalSampleSummary, **kwargs: Any
@@ -1805,6 +1827,7 @@ async def test_recovery_store_is_the_final_store(
                 buffered.events,
                 temp_dir,
                 complete_kwargs=buffered.complete_kwargs,
+                call_attachments=buffered.call_attachments,
             )
 
             recovered = await read_eval_log_async(output_path)
@@ -1886,8 +1909,117 @@ async def test_recovery_store_keeps_sidecar_monitor_state(
                 buffered.events,
                 temp_dir,
                 complete_kwargs=buffered.complete_kwargs,
+                call_attachments=buffered.call_attachments,
             )
 
             recovered = await read_eval_log_async(output_path)
             assert recovered.samples is not None
             assert recovered.samples[0].store == logged
+
+
+@pytest.mark.parametrize("input_kind", ["messages", "string"])
+@pytest.mark.parametrize("protocol", ["attachment://", "tc://"])
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_keeps_literal_reference_text(
+    buffer_kind: str, protocol: str, input_kind: str
+) -> None:
+    """A recovered sample reads text that names one of its attachments as written.
+
+    The buffer is given the events as a run's transcript gives them, with
+    the model call condensed, and recovery rebuilds the sample's input from
+    its `SampleInitEvent` and its call from the buffered call.
+    """
+    prompt = "You are a careful assistant who answers in full. " * 4
+    literal = f"{protocol}{mm3_hash(prompt)}"
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content=prompt),
+        ChatMessageUser(content=literal),
+    ]
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", literal)],
+        memoize=False,
+    )
+    events: list[Event] = []
+    call_attachments: dict[str, str] = {}
+
+    def buffered(event: Event, attachments: Mapping[str, str]) -> None:
+        events.append(event.model_copy(deep=True))
+        call_attachments.update(attachments)
+
+    transcript = Transcript(log_model_api=True)
+    transcript._subscribe_store(buffered)
+    token = _transcript.set(None)
+    try:
+        init_transcript(transcript)
+        sample_input = input if input_kind == "messages" else literal
+        transcript._event(
+            SampleInitEvent(
+                sample=Sample(id="s1", input=sample_input, target="t"), state={}
+            )
+        )
+        await model.generate(input)
+    finally:
+        _transcript.reset(token)
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = await _recover_sample(
+                buffer_kind, events, temp_dir, call_attachments=call_attachments
+            )
+            recovered = await read_eval_log_async(output_path, resolve_attachments=True)
+
+    assert recovered.samples is not None
+    sample = recovered.samples[0]
+    if input_kind == "messages":
+        assert isinstance(sample.input, list)
+        assert [message.text for message in sample.input] == [prompt, literal]
+    else:
+        assert sample.input == literal
+    assert [message.text for message in sample.messages] == [prompt, literal, literal]
+    assert sample.output.message.text == literal
+    [model_event] = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert [message.text for message in model_event.input] == [prompt, literal]
+    assert model_event.output.message.text == literal
+    assert model_event.call is not None
+    request_messages = model_event.call.request["messages"]
+    assert isinstance(request_messages, list)
+    assert [
+        message["content"] for message in request_messages if isinstance(message, dict)
+    ] == [prompt, literal]
+    assert model_event.call.response == {"content": literal}
+
+
+@pytest.mark.parametrize("protocol", ["attachment://", "tc://"])
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_keeps_literal_reference_text_in_summary_input(
+    buffer_kind: str, protocol: str
+) -> None:
+    """A sample interrupted before it recorded its `SampleInitEvent` keeps literal input text.
+
+    A run opens the buffered sample before it loads the input's media and
+    records the event, so recovery takes the input from the buffered summary.
+    """
+    prompt = "You are a careful assistant who answers in full. " * 4
+    literal = f"{protocol}{mm3_hash(prompt)}"
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = await _recover_sample(
+                buffer_kind,
+                [],
+                temp_dir,
+                completed=False,
+                input=[
+                    ChatMessageSystem(content=prompt),
+                    ChatMessageUser(content=literal),
+                ],
+            )
+            recovered = await read_eval_log_async(output_path, resolve_attachments=True)
+
+    assert recovered.samples is not None
+    sample = recovered.samples[0]
+    assert sample.error is not None
+    assert isinstance(sample.input, list)
+    # the prompt was pooled in the buffer as a genuine reference
+    assert [message.text for message in sample.input] == [prompt, literal]

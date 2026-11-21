@@ -33,7 +33,6 @@ description: List, read, write, and analyse logs.
 ### uninvalidate_samples
 ### exclude_samples
 ### zero_samples
-### DispositionResult
 ### SampleSelector
 ### LogUpdate
 ### LogEdit

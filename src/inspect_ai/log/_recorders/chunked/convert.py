@@ -7,7 +7,6 @@ too (see the "Small-sample monolith threshold" amendment in
 """
 
 import os
-import re
 import shutil
 import tempfile
 from collections.abc import Callable, Sequence
@@ -44,8 +43,13 @@ from ..._condense import (
     walk_chat_messages,
     walk_events,
     walk_input,
+    walk_json_value,
 )
-from ..._file import log_files_from_ls
+from ..._file import (
+    contained_log_destination,
+    log_files_from_ls,
+    resolve_local_path,
+)
 from ..._log import EvalSample
 from ..._skeleton import sample_skeleton
 from ..eval import (
@@ -101,6 +105,7 @@ def convert_eval_logs_to_chunked(
     if not fs.exists(path):
         raise PrerequisiteError(f"Error: path '{path}' does not exist.")
 
+    output_dir = resolve_local_path(output_dir)
     output_fs = filesystem(output_dir)
     if output_dir.endswith(output_fs.sep):
         output_dir = output_dir[: -len(output_fs.sep)]
@@ -109,7 +114,7 @@ def convert_eval_logs_to_chunked(
     path_is_dir = fs.info(path).type == "directory"
 
     # convert a single file (input file is relative to 'path' for directories)
-    def convert_file(input_file: str) -> None:
+    def convert_file(input_file: str, output_file: str | None = None) -> None:
         input_name, _ = os.path.splitext(input_file)
         input_dir = os.path.dirname(input_name.replace("\\", "/"))
 
@@ -123,7 +128,8 @@ def convert_eval_logs_to_chunked(
 
         output_fs.mkdir(target_dir, exist_ok=True)
 
-        output_file = f"{output_dir}{output_fs.sep}{output_file_basename}.eval"
+        if output_file is None:
+            output_file = f"{output_dir}{output_fs.sep}{output_file_basename}.eval"
         if exists(output_file) and not overwrite:
             raise FileExistsError(
                 f"Output file {output_file} already exists "
@@ -146,13 +152,16 @@ def convert_eval_logs_to_chunked(
     else:
         root_dir = fs.info(path).name
         eval_logs = log_files_from_ls(fs.ls(path, recursive=True), ["eval"], True)
-        input_files = [
-            eval_log.name.replace(f"{root_dir}/", "", 1) for eval_log in eval_logs
+        destinations = [
+            contained_log_destination(
+                eval_log.name, root_dir, output_dir, extension="eval"
+            )
+            for eval_log in eval_logs
         ]
         display().print("Converting log files to chunked samples...")
-        with display().progress(total=len(input_files)) as p:
-            for input_file in input_files:
-                convert_file(input_file)
+        with display().progress(total=len(destinations)) as p:
+            for destination in destinations:
+                convert_file(destination.relative, destination.destination)
                 p.update()
 
 
@@ -221,9 +230,8 @@ def chunked_sample(
     - Inline `ModelEvent` inputs/calls (logs that predate pooling) are
       condensed into the sequences.
     - Attachments become a fourth sequence (identity = sequence index;
-      refs in messages, events and the shell are renumbered from
-      `attachment://<hash>` to `attachment://<index>` here, refs in calls
-      at serialization time). They stay extracted
+      refs in messages, events, calls and the shell are renumbered from
+      `attachment://<hash>` to `attachment://<index>`). They stay extracted
       because content dedups *across containers* (pooled message, wire
       request/response, tool event, state delta, tool schema) — inlining
       measured ~5x content growth on attachment-heavy logs.
@@ -283,6 +291,11 @@ def chunked_sample(
 
     messages = walk_chat_messages(messages, renumber_fn, renumber_context())
     events = renumber_events(events)
+    calls_context = renumber_context()
+    calls = [
+        walk_json_value(call, renumber_fn, calls_context, keep_too_deep=True)
+        for call in calls
+    ]
     input = walk_input(input, renumber_fn, renumber_context())
     error_retries = (
         [
@@ -403,36 +416,6 @@ def _typed_ref_renumberer(attachment_index: dict[str, int]) -> Callable[[str], s
     return renumber
 
 
-_ATTACHMENT_REF_PATTERN = re.compile(rb"attachment://([0-9a-f]{32})")
-
-
-def _attachment_ref_renumberer(
-    attachment_index: dict[str, int],
-) -> Callable[[bytes], bytes]:
-    """Rewrite `attachment://<hash>` refs to `attachment://<index>` in JSON bytes.
-
-    For the calls sequence: raw provider payloads, whose refs sit wherever
-    the condensed request and response put them (the pattern's characters
-    are never escaped by JSON encoding). Unknown hashes are left untouched,
-    matching resolve_sample_attachments' fallback.
-    """
-    replacements = {
-        hash.encode(): b"attachment://%d" % index
-        for hash, index in attachment_index.items()
-    }
-
-    def renumber(data: bytes) -> bytes:
-        return _ATTACHMENT_REF_PATTERN.sub(
-            lambda m: replacements.get(m.group(1), m.group(0)), data
-        )
-
-    return renumber
-
-
-def _unchanged(data: bytes) -> bytes:
-    return data
-
-
 def _write_sidecar(zip: ZipFile, entry_name: str, sidecar: BaseModel) -> None:
     """Write a derived sidecar in its canonical JSON form (exclude_none)."""
     zip.writestr(
@@ -448,7 +431,6 @@ def _write_chunked_sample(
     attachments_chunk_bytes: int = DEFAULT_ATTACHMENTS_CHUNK_BYTES,
 ) -> None:
     converted = chunked_sample(sample, chunk_size, attachments_chunk_bytes)
-    renumber = _attachment_ref_renumberer(converted.attachment_index)
 
     zip.writestr(
         shell_entry_name(sample.id, sample.epoch),
@@ -481,18 +463,16 @@ def _write_chunked_sample(
         to_json_safe([event.uuid for event in converted.events], indent=None),
     )
 
-    # messages and events were renumbered by chunked_sample; calls are
-    # raw provider payloads, renumbered here
-    sequences: list[tuple[str, Sequence[Any], Callable[[bytes], bytes]]] = [
-        (MESSAGES_SEQUENCE, converted.messages, _unchanged),
-        (EVENTS_SEQUENCE, converted.events, _unchanged),
-        (CALLS_SEQUENCE, converted.calls, renumber),
+    sequences: list[tuple[str, Sequence[Any]]] = [
+        (MESSAGES_SEQUENCE, converted.messages),
+        (EVENTS_SEQUENCE, converted.events),
+        (CALLS_SEQUENCE, converted.calls),
     ]
-    for sequence, items, renumber_items in sequences:
+    for sequence, items in sequences:
         for start, end_exclusive in chunk_ranges(len(items), chunk_size):
             zip.writestr(
                 chunk_entry_name(sample.id, sample.epoch, sequence, start),
-                renumber_items(to_json_safe(items[start:end_exclusive], indent=None)),
+                to_json_safe(items[start:end_exclusive], indent=None),
             )
 
     # attachment contents are stored verbatim (no renumbering inside them)

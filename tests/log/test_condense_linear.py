@@ -930,7 +930,11 @@ def test_buffer_condense_linear_across_slot_cap(
 
     db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
     tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
-    tr._subscribe(lambda e: db.log_events([SampleEvent(id="s1", epoch=1, event=e)]))
+    tr._subscribe_store(
+        lambda e, attachments: db.log_events(
+            [SampleEvent(id="s1", epoch=1, event=e)], attachments
+        )
+    )
     n_streams = _CALL_WALK_SLOTS // 2 + cap_offset  # 2 lineages/stream
     rounds = 25
     _drive_streams(tr, n_streams, rounds)
@@ -952,14 +956,16 @@ def test_buffer_condense_linear_across_notification_shape(
 ) -> None:
     """The realistic per-turn shape: pending, registration, completion, stamping.
 
-    The buffer sees raw and transcript-condensed call forms alternately;
-    prefix reuse must hold for both lineages. This guard fails on a
-    single-slot CallPoolIndex (the 2026-08-11 timeout-storm mechanism)
-    even though per-event condensing is individually linear.
+    The buffer sees each call as the transcript condensed it, so its
+    notifications share one lineage, and prefix reuse must hold across them.
     """
     db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
     tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
-    tr._subscribe(lambda e: db.log_events([SampleEvent(id="s1", epoch=1, event=e)]))
+    tr._subscribe_store(
+        lambda e, attachments: db.log_events(
+            [SampleEvent(id="s1", epoch=1, event=e)], attachments
+        )
+    )
 
     history: list[ChatMessage] = []
     wire: list[dict[str, JsonValue]] = []

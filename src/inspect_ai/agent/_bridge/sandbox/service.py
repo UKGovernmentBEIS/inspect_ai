@@ -56,7 +56,8 @@ def _forward_provider_errors(
     Any exception from the wrapped generate is returned (not raised) under
     `PROVIDER_ERROR_KEY` so the sandbox service RPC delivers it via the `result`
     channel. This lets the model proxy emit a provider-dialect error response
-    and stay up, instead of the RPC `error` channel triggering a fatal exit.
+    with the provider's status, which an error on the RPC `error` channel does
+    not carry.
 
     A termination is re-raised: a `TerminateSampleError` (from an approver's
     `terminate` decision, too many consecutive rejections, or a request or

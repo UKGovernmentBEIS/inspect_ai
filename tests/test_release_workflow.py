@@ -843,6 +843,36 @@ def test_release_jobs_follow_the_resolved_tag() -> None:
     assert "tag" in workflow[True]["workflow_dispatch"]["inputs"]
 
 
+def test_docs_deploy_the_latest_release_after_pypi() -> None:
+    """The docs job renders the resolved tag once PyPI has the release.
+
+    The run's ref is main, so the shared workflow is passed the tag. An older
+    release finished by a recovery run does not deploy, so the site never
+    rolls back.
+    """
+    jobs = _load(".github/workflows/release.yml")["jobs"]
+    latest = jobs["docs-latest"]
+    assert latest["needs"] == ["release-please", "publish-pypi"]
+    assert latest["permissions"] == {"contents": "read"}
+    check = latest["steps"][0]
+    assert check["env"]["TAG"] == "${{ needs.release-please.outputs.tag }}"
+    assert "releases/latest" in check["run"]
+    assert '[ "$LATEST" = "$TAG" ]' in check["run"]
+    docs = jobs["docs"]
+    assert docs["needs"] == ["release-please", "docs-latest"]
+    assert docs["if"] == "needs.docs-latest.outputs.latest == 'true'"
+    assert docs["permissions"] == {
+        "contents": "read",
+        "pages": "write",
+        "id-token": "write",
+    }
+    workflow, ref = docs["uses"].split("@")
+    assert workflow == "meridianlabs-ai/actions/.github/workflows/publish-docs.yml"
+    assert re.fullmatch(r"[0-9a-f]{40}", ref), "pin a 40-character SHA"
+    assert docs["with"]["tag"] == "${{ needs.release-please.outputs.tag }}"
+    assert docs["with"]["extras"] == "doc"
+
+
 def test_release_runs_only_in_the_upstream_repository() -> None:
     # Every later job needs release-please's tag, so guarding it skips them all.
     jobs = _load(".github/workflows/release.yml")["jobs"]

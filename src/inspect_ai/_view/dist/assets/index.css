@@ -488,25 +488,27 @@
   border-top: 1px solid
     var(--vscode-widget-border, var(--vscode-editorWidget-border));
 }
-._jsonPanel_1ssvw_1 {
+._jsonPanel_uye4r_1 {
   width: 100%;
   padding: 0.5em;
 }
 
-._jsonPanel_1ssvw_1:not(._simple_1ssvw_6) {
+._jsonPanel_uye4r_1:not(._simple_uye4r_6) {
   background: var(--bs-light);
   border-radius: var(--bs-border-radius);
 }
 
 /* `source-code` is a repo-wide convention class (see packages/theme base.css
-   and SourceCodePanel/ToolInput), so it stays global here. */
-._jsonPanel_1ssvw_1 .source-code {
+   and SourceCodePanel/ToolInput), so it stays global here. !important beats
+   Prism's white-space: pre and word-wrap: normal. */
+._jsonPanel_uye4r_1 .source-code {
   font-size: var(--inspect-font-size-small);
   white-space: pre-wrap !important;
   word-wrap: anywhere !important;
 }
 
-/* Prism.js convention class on highlighted code — must stay global. */
+/* Prism.js convention class on highlighted code — must stay global.
+   !important beats Prism's code-block background. */
 .language-javascript {
   background: transparent !important;
 }
@@ -913,23 +915,24 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   outline: 1px solid var(--bs-primary);
   outline-offset: 1px;
 }
-._sourcePanel_bat6y_1 {
+._sourcePanel_zvera_1 {
   width: 100%;
   padding: 0.5em;
 }
 
-._sourcePanel_bat6y_1:not(._simple_bat6y_6) {
+._sourcePanel_zvera_1:not(._simple_zvera_6) {
   background: var(--bs-light);
   border-radius: var(--bs-border-radius);
 }
 
-._sourcePanel_bat6y_1 ._code_bat6y_11 {
+/* !important beats Prism's white-space, word-wrap and background. */
+._sourcePanel_zvera_1 ._code_zvera_12 {
   font-size: var(--inspect-font-size-small);
   white-space: pre-wrap !important;
   word-wrap: anywhere !important;
   background: transparent !important;
 }
-._container_hqi3c_1 {
+._container_1zeje_1 {
   display: grid;
   grid-template-columns: 1fr max-content;
   column-gap: 0.3em;
@@ -940,12 +943,12 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   overflow: hidden;
 }
 
-._container_hqi3c_1:focus-within {
+._container_1zeje_1:focus-within {
   outline: 2px solid var(--bs-primary);
   outline-offset: 2px;
 }
 
-._input_hqi3c_17 {
+._input_1zeje_17 {
   border: none;
   outline: none;
   background: transparent;
@@ -953,15 +956,15 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   min-width: 0;
 }
 
-._withIcon_hqi3c_25 {
+._withIcon_1zeje_25 {
   grid-template-columns: max-content 1fr max-content;
 }
 
-._icon_hqi3c_29 {
+._icon_1zeje_29 {
   margin-left: 0.3em;
 }
 
-._clearText_hqi3c_33 {
+._clearText_1zeje_33 {
   padding: 0;
   border: none;
   background: none;
@@ -971,15 +974,15 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   margin-right: 0.3em;
 }
 
-._clearText_hqi3c_33:hover {
+._clearText_1zeje_33:hover {
   cursor: pointer;
 }
 
-._clearText_hqi3c_33._hidden_hqi3c_47:hover {
-  cursor: default !important;
+._clearText_1zeje_33._hidden_1zeje_47:hover {
+  cursor: default;
 }
-._hidden_hqi3c_47 {
-  opacity: 0 !important;
+._clearText_1zeje_33._hidden_1zeje_47 {
+  opacity: 0;
 }
 ._toolButton_l4xu9_1 {
   background-color: var(--bs-light-border-subtle);
@@ -1297,12 +1300,12 @@ button._segment_116ql_10._disabled_116ql_51:hover {
 ._collapsedContent_1qksy_105 ._inlineToggleSticky_1qksy_84 {
   position: static;
 }
-._carouselThumbs_osoon_1 {
+._carouselThumbs_n5zey_1 {
   display: grid;
   grid-template-columns: auto auto auto auto;
 }
 
-._carouselThumb_osoon_1 {
+._carouselThumb_n5zey_1 {
   display: block;
   background: black;
   color: white;
@@ -1314,12 +1317,12 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   text-align: center;
 }
 
-._carouselPlayIcon_osoon_18 {
+._carouselPlayIcon_n5zey_18 {
   font-size: 4em;
 }
 
 /* The <dialog> covers the viewport and centres the slide. */
-._lightbox_osoon_23 {
+._lightbox_n5zey_23 {
   width: 100%;
   height: 100%;
   max-width: none;
@@ -1332,23 +1335,23 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   transition: opacity 0.3s ease;
 }
 
-._lightbox_osoon_23:modal {
+._lightbox_n5zey_23:modal {
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 @starting-style {
-  ._lightbox_osoon_23:modal {
+  ._lightbox_n5zey_23:modal {
     opacity: 0;
   }
 }
 
-._lightbox_osoon_23::backdrop {
+._lightbox_n5zey_23::backdrop {
   background: rgba(0, 0, 0, 0.8);
 }
 
-._lightboxButtonClose_osoon_52 {
+._lightboxButtonClose_n5zey_52 {
   position: absolute;
   top: 10px;
   right: 10px;
@@ -1362,7 +1365,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   padding-bottom: 1em;
 }
 
-._lightboxPreviewButton_osoon_66 {
+._lightboxPreviewButton_n5zey_66 {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
@@ -1374,25 +1377,25 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   cursor: pointer;
 }
 
-._lightboxPreviewButton_osoon_66._next_osoon_78 {
+._lightboxPreviewButton_n5zey_66._next_n5zey_78 {
   right: 10px;
 }
 
-._lightboxPreviewButton_osoon_66._prev_osoon_82 {
+._lightboxPreviewButton_n5zey_66._prev_n5zey_82 {
   left: 10px;
 }
 
-._lightboxContent_osoon_86 {
-  max-width: 90vw !important;
-  max-height: 90vh !important;
+._lightboxContent_n5zey_86 {
+  max-width: 90vw;
+  max-height: 90vh;
   display: flex;
   position: relative;
   overflow: hidden;
 }
 
-._lightboxContent_osoon_86 > * {
-  max-height: 90vh !important;
-  max-width: 90vw !important;
+._lightboxContent_n5zey_86 > * {
+  max-height: 90vh;
+  max-width: 90vw;
 }
 ._asciinemaPlayerStatus_1doob_1 {
   margin-right: 0.5em;
@@ -1990,6 +1993,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   [list]:not([type="date"]):not([type="datetime-local"]):not(
       [type="month"]
     ):not([type="week"]):not([type="time"])::-webkit-calendar-picker-indicator {
+    /* !important, as in Reboot, so no other rule brings the datalist arrow back. */
     display: none !important;
   }
 
@@ -2087,6 +2091,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   }
 
   [hidden] {
+    /* !important so the hidden attribute wins over any display rule. */
     display: none !important;
   }
 }
@@ -3173,16 +3178,18 @@ pre[class*="language-"] {
   border: 1px solid var(--bs-light-border-subtle);
   border-left: 3px solid var(--inspect-readable-tool-call-border);
   border-radius: var(--bs-border-radius);
+  /* !important also outranks ToolBlock's less specific padding: 0 !important,
+     so a tool card's input zone keeps this padding. Dropping it changes that. */
   padding: 0.5em !important;
 }
 
 /* Flatten a fenced code block inside a view — the surface carries the box. */
 :root[data-theme-variant="readable"] .tool-call-input pre[class*="language-"] {
-  background-color: transparent !important;
-  border: 0 !important;
+  background-color: transparent;
+  border: 0;
   border-radius: 0;
-  margin: 0 !important;
-  padding: 0 !important;
+  margin: 0;
+  padding: 0;
 }
 
 /* Nested in a message band: neutral surface with a subtle (not colored) left,
@@ -3248,7 +3255,8 @@ body:not([class^="vscode-"]) a[role="tab"] {
   grid-template-rows: max-content max-content 1fr;
 }
 
-/* Inspect Text Styles */
+/* Inspect text utilities. Like the Bootstrap utilities in utilities.css, these
+   are !important so they win over component rules whatever the stylesheet order. */
 .text-style-label {
   text-transform: uppercase !important;
 }
@@ -3261,7 +3269,7 @@ body:not([class^="vscode-"]) a[role="tab"] {
   color: var(--bs-tertiary-color) !important;
 }
 
-/* Inspect Font Size Styles */
+/* Inspect font size utilities (see above). */
 .text-size-title {
   font-size: var(--inspect-font-size-title) !important;
 }
@@ -3377,7 +3385,7 @@ html.vscode {
 
 html.vscode .sample-input {
   line-height: 1.3em;
-  -webkit-line-clamp: 4 !important;
+  -webkit-line-clamp: 4;
 }
 
 body[class^="vscode-"] code {
@@ -3396,7 +3404,7 @@ body[class^="vscode-"] .navbar-brand {
   font-size: 1.1em;
 }
 body[class^="vscode-"] .navbar-brand > div {
-  margin-top: -0.2rem !important;
+  margin-top: -0.2rem;
 }
 
 body[class^="vscode-"] .task-title {
@@ -3537,7 +3545,7 @@ body {
 
 @media (max-width: 575px) {
   .navbar .vertical-metric-label {
-    font-size: 0.7rem !important;
+    font-size: 0.7rem;
   }
 }
 
@@ -3549,7 +3557,8 @@ body {
 
 @media (max-width: 575px) {
   .navbar .vertical-metric-value {
-    margin-top: 0.2rem !important;
+    margin-top: 0.2rem;
+    /* Beats the .text-size-largest utility on the same element. */
     font-size: 0.9rem !important;
   }
 }
@@ -3594,6 +3603,7 @@ body {
   --bs-btn-hover-border-color: var(--bs-secondary-bg-subtle);
 }
 
+/* !important beats Prism's white-space: pre and word-wrap: normal. */
 .markdown-content pre > code,
 .markdown-content pre {
   white-space: pre-wrap !important;
@@ -3821,15 +3831,9 @@ pre[class*="language-"].tool-output,
 .model-call pre[class*="language-"],
 .markdown-content pre[class*="language-"],
 pre[class*="language-"].tool-output {
-  border: none !important;
-  box-shadow: none !important;
-  border-radius: var(--bs-border-radius) !important;
-}
-
-.vscode-dark pre.jsonPanel {
-  background: none !important;
-  border: none !important;
-  box-shadow: none !important;
+  border: none;
+  box-shadow: none;
+  /* Beats the dark Prism theme's 0.5em radius below (same specificity). */
   border-radius: var(--bs-border-radius) !important;
 }
 
@@ -4011,14 +4015,15 @@ ul.jsondiffpatch-textdiff {
   font-weight: bold;
 }
 
-/* prism-custom.css */
+/* prism-custom.css. !important beats the dark Prism theme's more specific
+   font-size: 1em below, and component rules that size code blocks. */
 code[class*="language-"],
 pre[class*="language-"] {
   font-size: 0.7rem !important;
 }
 
 .token {
-  font-size: 0.7rem !important;
+  font-size: 0.7rem;
 }
 
 /* PrismJS 1.29.0 https://prismjs.com/download.html#themes=prism-dark&languages=markup+css+clike+javascript+bash+python */
@@ -4610,15 +4615,15 @@ li > ul {
   }
 
   body {
-    print-color-adjust: exact !important;
+    print-color-adjust: exact;
     orphans: 3;
     widows: 3;
   }
 
   #app,
   .app-main-grid {
-    height: auto !important;
-    overflow: visible !important;
+    height: auto;
+    overflow: visible;
   }
 
   pre,
@@ -5031,28 +5036,29 @@ li > ul {
 ._preCompact_seqs2_15 {
   margin-bottom: 0;
 }
-._title_1pwo3_1 {
+._title_16xvo_1 {
   margin-bottom: 0.25em;
   display: grid;
   grid-template-columns: auto 1fr auto;
   column-gap: 0.3em;
   align-items: baseline;
-  color: var(--bs-secondary) !important;
-  font-weight: var(--bs-body-font-weight) !important;
+  color: var(--bs-secondary);
+  font-weight: var(--bs-body-font-weight);
 }
 
-._content_1pwo3_11 {
+._content_16xvo_11 {
   margin-bottom: 0.5em;
   overflow-wrap: anywhere;
 }
 
-._grid_1pwo3_16 {
+._grid_16xvo_16 {
   border: solid var(--bs-border-color) 1px;
   border-radius: var(--bs-border-radius);
   padding: 0.5em;
 }
 
-._content_1pwo3_11 ._grid_1pwo3_16 .text-style-label {
+/* Overrides the .text-style-label utility, which is !important. */
+._content_16xvo_11 ._grid_16xvo_16 .text-style-label {
   text-transform: none !important;
 }
 ._contentData_1lrx1_1 {
@@ -5128,12 +5134,12 @@ li > ul {
 a._citationLink_1gzkd_9:hover {
   text-decoration: underline;
 }
-._contentImage_a1z7v_1 {
+._contentImage_3ih9j_1 {
   max-width: 800px;
   border: solid var(--bs-border-color) 1px;
 }
 
-._reasoning_a1z7v_6 {
+._reasoning_3ih9j_6 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 1em;
   margin-bottom: 0.5em;
@@ -5142,22 +5148,23 @@ a._citationLink_1gzkd_9:hover {
   overflow-wrap: anywhere;
 }
 
-._breakable_a1z7v_15 {
+._breakable_3ih9j_15 {
   overflow-wrap: break-word;
   min-width: 0;
 }
 
-._codePanel_a1z7v_20 {
+._codePanel_3ih9j_20 {
   margin: 0rem;
   overflow-y: scroll;
   overflow-x: auto;
 }
 
-._codePanelPre_a1z7v_26 {
+._codePanelPre_3ih9j_26 {
   padding: 0;
 }
 
-._codePanelPre_a1z7v_26 code {
+/* !important beats Prism's white-space, word-wrap and word-break. */
+._codePanelPre_3ih9j_26 code {
   white-space: pre-wrap !important;
   overflow-wrap: break-word !important;
   word-break: break-all !important;
@@ -5166,7 +5173,7 @@ a._citationLink_1gzkd_9:hover {
    which are neutral by default and only colorized under the readable
    variant (the Event Colors toggle); the output well is the tool-output
    fill, hairlines/border are the subtle border token. */
-._block_1ib8l_5 {
+._block_mqpat_5 {
   border-left: var(--inspect-tool-block-edge);
 }
 
@@ -5174,7 +5181,7 @@ a._citationLink_1gzkd_9:hover {
    frame a scroll container, which traps the sticky "less…" toggle of the
    ExpandablePanels inside at the block's bottom edge — off screen for any
    output taller than the viewport. */
-._standalone_1ib8l_13 {
+._standalone_mqpat_13 {
   border-top: 1px solid var(--bs-light-border-subtle);
   border-right: 1px solid var(--bs-light-border-subtle);
   border-bottom: 1px solid var(--bs-light-border-subtle);
@@ -5182,7 +5189,7 @@ a._citationLink_1gzkd_9:hover {
   overflow: clip;
 }
 
-._header_1ib8l_21 {
+._header_mqpat_21 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -5193,17 +5200,17 @@ a._citationLink_1gzkd_9:hover {
 /* The zero bottom padding above assumes an input/output zone follows; a
    header-only block (no input, no output yet) otherwise sits flush against
    the container's bottom edge. */
-._header_1ib8l_21:last-child {
+._header_mqpat_21:last-child {
   padding-bottom: 0.5rem;
 }
 
-._icon_1ib8l_36 {
+._icon_mqpat_36 {
   flex: none;
   font-size: 13px;
   color: var(--inspect-tool-block-ink);
 }
 
-._title_1ib8l_42 {
+._title_mqpat_42 {
   flex: none;
   font-family: var(--bs-font-monospace);
   font-size: var(--inspect-font-size-smaller);
@@ -5211,7 +5218,7 @@ a._citationLink_1gzkd_9:hover {
   color: var(--inspect-tool-block-ink);
 }
 
-._summary_1ib8l_50 {
+._summary_mqpat_50 {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -5222,7 +5229,7 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-secondary-color);
 }
 
-._pill_1ib8l_61 {
+._pill_mqpat_61 {
   flex: none;
   /* Right-aligned even when there is no args summary to push it over. */
   margin-left: auto;
@@ -5236,7 +5243,7 @@ a._citationLink_1gzkd_9:hover {
   padding: 1px 7px;
 }
 
-._inputZone_1ib8l_75 {
+._inputZone_mqpat_75 {
   background-color: var(--inspect-tool-block-input-bg);
   padding: 0 0.5rem 0.2rem 0.5rem;
 }
@@ -5245,11 +5252,11 @@ a._citationLink_1gzkd_9:hover {
    inside the ExpandablePanel's content — a scroll container on the zone
    would sit between the panel and the transcript scroller and trap its
    sticky toggle (see `.standalone`). */
-._inputZone_1ib8l_75 .tool-call-input {
+._inputZone_mqpat_75 .tool-call-input {
   overflow-x: auto;
 }
 
-._outputWell_1ib8l_88 {
+._outputWell_mqpat_88 {
   border-top: 1px solid var(--bs-light-border-subtle);
   background-color: var(--inspect-tool-block-output-bg);
   padding: 12px 15px;
@@ -5261,8 +5268,8 @@ a._citationLink_1gzkd_9:hover {
    renderers (prism code blocks, tool-call-input call-outs, tool output wells)
    would otherwise stack inside them. !important outranks the readable
    variant's higher-specificity :root[data-theme-variant] surface rules. */
-._inputZone_1ib8l_75 pre.tool-call-input,
-._inputZone_1ib8l_75 div.tool-call-input {
+._inputZone_mqpat_75 pre.tool-call-input,
+._inputZone_mqpat_75 div.tool-call-input {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -5270,13 +5277,15 @@ a._citationLink_1gzkd_9:hover {
   margin: 0 !important;
 }
 
-._inputZone_1ib8l_75 .tool-call-input pre[class*="language-"] {
-  margin: 0 !important;
-  padding: 0 !important;
-  background-color: transparent !important;
+/* div.tool-call-input outranks base.css's dark .markdown-content pre background
+   (the view's root is both). */
+._inputZone_mqpat_75 div.tool-call-input pre[class*="language-"] {
+  margin: 0;
+  padding: 0;
+  background-color: transparent;
 }
 
-._outputWell_1ib8l_88 .tool-output {
+._outputWell_mqpat_88 .tool-output {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -5284,33 +5293,33 @@ a._citationLink_1gzkd_9:hover {
   padding: 0 !important;
 }
 
-._inputInsetZone_1ib8l_123,
-._outputInsetZone_1ib8l_124 {
+._inputInsetZone_mqpat_125,
+._outputInsetZone_mqpat_126 {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 0 10px 10px;
 }
 
-._inputInsetZone_1ib8l_123 {
+._inputInsetZone_mqpat_125 {
   background-color: var(--inspect-tool-block-input-bg);
 }
 
-._header_1ib8l_21 + ._inputInsetZone_1ib8l_123 {
+._header_mqpat_21 + ._inputInsetZone_mqpat_125 {
   padding-top: 6px;
 }
 
-._inputZone_1ib8l_75 + ._inputInsetZone_1ib8l_123 {
+._inputZone_mqpat_75 + ._inputInsetZone_mqpat_125 {
   padding-top: 5px;
 }
 
-._outputInsetZone_1ib8l_124 {
+._outputInsetZone_mqpat_126 {
   border-top: 1px solid var(--bs-light-border-subtle);
   background-color: var(--inspect-tool-block-output-bg);
   padding-top: 10px;
 }
 
-._outputWell_1ib8l_88 + ._outputInsetZone_1ib8l_124 {
+._outputWell_mqpat_88 + ._outputInsetZone_mqpat_126 {
   border-top: 0;
   padding-top: 0;
 }
@@ -5338,27 +5347,29 @@ a._citationLink_1gzkd_9:hover {
 ._inProgress_1t8rx_9 {
   font-weight: bold;
 }
-._outputPre_7phrr_1 {
+._outputPre_1qpr1_1 {
   padding: 0.5em;
   margin-top: 0.25em;
   margin-bottom: 0;
 }
 
-._toolView_7phrr_7 {
-  padding-top: 0 !important;
+._toolView_1qpr1_7 {
+  padding-top: 0;
 }
 
-._toolView_7phrr_7 pre {
+._toolView_1qpr1_7 pre {
   margin-bottom: 0;
 }
 
-._toolView_7phrr_7 p > code {
-  font-size: var(--inspect-text-size-small) !important;
+._toolView_1qpr1_7 p > code {
+  font-size: var(--inspect-text-size-small);
+  /* Beats base.css's more specific inline-code colour. */
   color: var(--bs-body-color) !important;
 }
 
-._outputCode_7phrr_20 {
-  font-size: var(--inspect-text-size-small) !important;
+/* !important beats Prism's white-space: pre and word-wrap: normal. */
+._outputCode_1qpr1_22 {
+  font-size: var(--inspect-text-size-small);
   overflow-wrap: anywhere !important;
   white-space: pre-wrap !important;
 }
@@ -5380,27 +5391,27 @@ a._citationLink_1gzkd_9:hover {
 ._execError_13xcg_16 {
   color: var(--inspect-tool-error-color);
 }
-._toolImage_13oj2_1 {
+._toolImage_hbh79_1 {
   max-width: 800px;
   border: solid var(--inspect-tool-output-border) 1px;
 }
 
-._output_13oj2_6 {
+._output_hbh79_6 {
   display: grid;
 }
 
-._textOutput_13oj2_10 {
+._textOutput_hbh79_10 {
   padding-left: 2px;
   padding: 0.5em 0.5em 0.5em 0.5em;
   white-space: pre-wrap;
   margin-bottom: 0;
-  font-size: 0.9em !important;
+  font-size: 0.9em;
   border-radius: var(--bs-border-radius);
 }
 
 /* A block that inherits the pre's unicode-bidi, so an untrusted output's
    `plaintext` reaches the content-visibility chunks inside a long one. */
-._textCode_13oj2_21 {
+._textCode_hbh79_21 {
   display: block;
   unicode-bidi: inherit;
   word-wrap: anywhere;
@@ -5502,17 +5513,18 @@ a._citationLink_1gzkd_9:hover {
 ._description_gx8eg_42 {
   margin: 0.25rem 0 0.25rem 1rem;
 }
-._image_1evla_1 {
+._image_1mwlb_1 {
   margin-right: 0.2rem;
   opacity: 0.4;
 }
 
-._toolTitle_1evla_6 {
+._toolTitle_1mwlb_6 {
+  /* Beats base.css's more specific inline-code colour. */
   color: unset !important;
   overflow-wrap: anywhere;
 }
 
-._description_1evla_11 {
+._description_1mwlb_12 {
   margin-left: 0.3em;
   color: var(--inspect-tool-description-color);
 }
@@ -6320,6 +6332,724 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-secondary-color);
   font-variant-numeric: tabular-nums;
 }
+._checkboxWrapper_93mzp_1 {
+  margin-bottom: 0.1rem;
+}
+
+._label_93mzp_5 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+._checkbox_93mzp_1 {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+._filterIcon_93mzp_16 {
+  margin-left: 0.5rem;
+  color: var(--bs-primary);
+}
+
+._scrollableContainer_93mzp_21 {
+  /* The popover is positioned below the trigger, so its actual visible room
+     is less than full viewport height. Cap conservatively so the scrollbar
+     kicks in before the popover extends past the viewport. */
+  max-height: min(70vh, calc(100vh - 10rem));
+  overflow-y: auto;
+  /* Reserve scrollbar space up-front so switching between view modes doesn't
+     reflow content width when a scrollbar appears/disappears. */
+  scrollbar-gutter: stable;
+}
+
+._section_93mzp_32 {
+  margin-bottom: 0.75rem;
+}
+
+._headerRow_93mzp_36 {
+  display: flex;
+  column-gap: 2rem;
+  row-gap: 1rem;
+  border-bottom: solid 1px var(--bs-border-color);
+  margin-bottom: 0.5rem;
+  justify-content: space-between;
+  align-items: center;
+}
+
+._scoresHeadingGroup_93mzp_46 {
+  display: flex;
+  align-items: center;
+  column-gap: 0.5rem;
+}
+
+._scoresViewModeControl_93mzp_52 {
+  margin-bottom: 2px;
+}
+
+._buttonContainer_93mzp_56 {
+  display: flex;
+  gap: 0.5rem;
+}
+
+._button_93mzp_56 {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--bs-link-color);
+  font: inherit;
+  text-decoration: none;
+}
+
+._button_93mzp_56:hover {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+._columnsLayout_93mzp_75 {
+  columns: 2;
+  column-gap: 2rem;
+}
+._filterButton_b38ko_1 {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: var(--bs-secondary);
+  cursor: pointer;
+}
+
+._filterButtonActive_b38ko_13 {
+  color: var(--bs-primary);
+}
+
+/* Active-filter dot — small affordance at the upper-right of the
+ * funnel, matching ag-grid's convention of indicating active filters. */
+._filterButtonActive_b38ko_13::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--bs-primary);
+}
+._headerActions_uh0qk_1 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 6px;
+}
+
+._filterPopover_uh0qk_8 {
+  min-width: 180px;
+}
+._filterContent_9ejoy_1 {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+._filterRow_9ejoy_7 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+._filterSelect_9ejoy_13,
+._filterInput_9ejoy_14 {
+  flex: 1;
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--bs-border-color);
+  background: var(--bs-body-bg);
+  color: var(--bs-body-color);
+}
+
+._filterInput_9ejoy_14:disabled,
+._filterSelect_9ejoy_13:disabled {
+  background: var(--bs-light);
+  color: var(--bs-secondary);
+}
+
+._filterButton_9ejoy_30 {
+  width: 100%;
+  padding: 0.2rem;
+}
+
+._rangeLabel_9ejoy_35 {
+  font-size: 11px;
+  color: var(--bs-secondary);
+  padding-left: 2px;
+}
+
+._joinRow_9ejoy_41 {
+  gap: 12px;
+  padding: 2px 0;
+}
+
+._joinOption_9ejoy_46 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  margin: 0;
+}
+._durationInputWrapper_tdbd6_1 {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+._durationHelper_tdbd6_8 {
+  font-size: 11px;
+  color: var(--bs-secondary);
+  padding-left: 2px;
+}
+._container_1y7u7_1 {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  overflow: auto;
+  outline: none;
+}
+
+/* Visually-hidden live region: read by screen readers, absent from layout and
+ * from pointer/scroll hit-testing. */
+._srStatus_1y7u7_11 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Keyboard focus ring for the sortable header control (mouse clicks don't
+ * trigger :focus-visible, so this stays out of the way for pointer users). */
+._headerContent_1y7u7_27:focus-visible,
+._rotatedSortTarget_1y7u7_28:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: -2px;
+  border-radius: 2px;
+}
+
+/* The table, tbody, and rows carry explicit JS-computed widths (total column
+ * width); min-width stretches each to its parent when the columns underfill
+ * the viewport, so row borders and hover highlights span the full grid width
+ * (AG parity) instead of stopping at the last column. */
+._table_1y7u7_38 {
+  position: relative;
+  min-width: 100%;
+}
+
+._thead_1y7u7_43 {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bs-light-bg-subtle);
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+._headerRow_1y7u7_51 {
+  display: flex;
+  /* Fill the thead height so cells stretch — rotated labels anchor to the
+   * header's bottom edge, and bottom-aligned normal headers sit at the base
+   * of the angled labels. */
+  height: 100%;
+}
+
+._headerCell_1y7u7_59 {
+  display: flex;
+  position: relative;
+  align-items: center;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 4px 0px 4px 8px;
+  text-align: left;
+  font-weight: 400;
+  color: var(--bs-secondary);
+  font-size: var(--inspect-font-size-smallestest);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Short vertical separator between column headers (matches the prior grid). */
+._headerCell_1y7u7_59::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 60%;
+  width: 1px;
+  background: var(--bs-border-color);
+}
+
+._headerCell_1y7u7_59:first-child::before {
+  display: none;
+}
+
+._headerContent_1y7u7_27 {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+  min-width: 0;
+}
+
+/* The whole cell is the sort target (so empty-label columns like the icon
+ * column are still clickable) — so the pointer cursor lives on the cell. */
+._headerCellSortable_1y7u7_102 {
+  cursor: pointer;
+}
+
+._sortIcon_1y7u7_106 {
+  font-size: 9px;
+  flex: 0 0 auto;
+}
+
+._sortIndicator_1y7u7_111 {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+/* Multi-sort position badge, tight against the arrow that follows it
+ * (matching the AG grid's `1↑`). */
+._sortOrder_1y7u7_119 {
+  font-size: var(--inspect-font-size-smallestest);
+}
+
+/* Filter funnel: hidden until the header is hovered, but stays visible when
+ * the column has an active filter (matches the prior grid). */
+._headerFilter_1y7u7_125 {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+._headerCell_1y7u7_59:hover ._headerFilter_1y7u7_125,
+._headerFilterActive_1y7u7_134 {
+  opacity: 1;
+}
+
+._headerText_1y7u7_138 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._headerCellCenter_1y7u7_144 {
+  justify-content: center;
+}
+
+/* Normal headers share the tall header row when score columns are rotated;
+ * bottom-align their content so the labels line up with the base of the
+ * angled labels. */
+._headerCellTall_1y7u7_151 {
+  align-items: flex-end;
+  padding-bottom: 6px;
+}
+
+/* In tall (rotated) mode the vertically-centered 60%-height separator becomes
+ * a ~69px line floating in the middle of the cell — it reaches up into the
+ * band where the previous column's angled label fans out and clashes with it.
+ * Drop it to the bottom and shorten it so it sits beside the bottom-aligned
+ * label, matching the AG grid. */
+._headerCellTall_1y7u7_151::before {
+  top: auto;
+  bottom: 0;
+  transform: none;
+  height: 22px;
+}
+
+/* Rotated (compact score) header cell: let the angled label overflow the
+ * narrow cell, and drop the vertical separator — the label's diagonal
+ * bottom border serves as the column divider instead. The cell box itself
+ * is pointer-transparent so its full-height rectangle (which tiles the
+ * header and stacks over neighbours' overflowing labels) doesn't intercept
+ * hover/clicks meant for the diagonal labels; only the labels are
+ * interactive. */
+._headerCellRotated_1y7u7_175 {
+  overflow: visible;
+  padding: 0;
+  pointer-events: none;
+}
+
+._headerCellRotated_1y7u7_175::before {
+  display: none;
+}
+
+/* ...except the first rotated header after a normal one: there's no preceding
+ * angled label whose diagonal could act as the divider (that's the job it does
+ * between adjacent rotated headers), so keep the vertical separator at the
+ * boundary — matching the prior grid. Use the bottom-aligned 22px form so it
+ * sits beside the rotated label, like the separator between two tall headers. */
+._headerCellTall_1y7u7_151 + ._headerCellRotated_1y7u7_175::before {
+  display: block;
+  top: auto;
+  bottom: 0;
+  transform: none;
+  height: 22px;
+}
+
+/* The 45° label, anchored flush to the column's right edge and rotated up
+ * from its bottom-left corner so it fans up-and-to-the-right. */
+._rotatedLabel_1y7u7_200 {
+  position: absolute;
+  bottom: 0;
+  left: 100%;
+  /* A bit taller than the text needs so the diagonal hover/click band is an
+   * easier target to land on and travel along to the funnel. */
+  height: 22px;
+  width: 130px;
+  padding-right: 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  cursor: pointer;
+  background: transparent;
+  /* Re-enable pointer events the cell box opts out of (see .headerCellRotated)
+   * so the whole diagonal label — text, sort caret, and funnel — is
+   * hoverable and clickable along its full length. */
+  pointer-events: auto;
+  /* The bottom border lies along the label's lower diagonal edge after
+   * rotation, acting as the divider between adjacent rotated headers. */
+  border-bottom: 1px solid var(--bs-border-color);
+  transform: rotate(-45deg);
+  transform-origin: bottom left;
+}
+
+/* The label's sort and drag target: everything but the filter funnel. */
+._rotatedSortTarget_1y7u7_28 {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 0.35rem;
+}
+
+._rotatedLabel_1y7u7_200:hover {
+  /* Lift above neighbouring labels so the hovered text is fully readable. */
+  background: var(--bs-tertiary-bg);
+  z-index: 2;
+}
+
+._rotatedText_1y7u7_243 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--inspect-font-size-smallestest);
+  letter-spacing: 0.05em;
+}
+
+/* Filter funnel at the end of the label: hidden until the label is hovered,
+ * but kept visible while the column has an active filter. */
+._rotatedFilter_1y7u7_254 {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+._rotatedLabel_1y7u7_200:hover ._rotatedFilter_1y7u7_254,
+._rotatedLabelFiltered_1y7u7_263 ._rotatedFilter_1y7u7_254 {
+  opacity: 1;
+}
+
+/* Hidden, non-rotated positioning anchor at the cell's bottom edge. The
+ * filter popover anchors here (not the funnel up in the rotated label) so it
+ * opens below the header, under the column, instead of over the headers. */
+._rotatedFilterAnchor_1y7u7_270 {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* --- Drag-to-reorder columns --- */
+
+/* While a header drag is in flight, rotated cells must catch dragover/drop
+ * themselves (they're pointer-transparent for hover/clicks — see
+ * .headerCellRotated), and their overflowing diagonal labels must NOT steal
+ * those events from the columns they fan across. Hit-testing for drag
+ * events follows pointer-events, so flip both for the drag's duration. */
+._theadDragging_1y7u7_286 ._headerCellRotated_1y7u7_175 {
+  pointer-events: auto;
+}
+
+._theadDragging_1y7u7_286 ._rotatedLabel_1y7u7_200 {
+  pointer-events: none;
+}
+
+._headerCellDragSource_1y7u7_294 {
+  opacity: 0.35;
+}
+
+/* Cursor-attached drag image (setDragImage). Parked offscreen — the browser
+ * snapshots it at dragstart; it never renders in place. */
+._dragGhost_1y7u7_300 {
+  position: absolute;
+  top: -1000px;
+  left: -1000px;
+  padding: 4px 10px;
+  font-size: var(--inspect-font-size-small);
+  text-transform: uppercase;
+  color: var(--bs-body-color);
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 3px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
+  white-space: nowrap;
+}
+
+/* Insertion indicator on the drop target's edge. An absolutely-positioned
+ * overlay rather than a border so the cell's layout doesn't shift while
+ * dragging. */
+._headerCellDropLeft_1y7u7_318::after,
+._headerCellDropRight_1y7u7_319::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--bs-primary);
+  z-index: 3;
+}
+
+._headerCellDropLeft_1y7u7_318::after {
+  left: -1px;
+}
+
+._headerCellDropRight_1y7u7_319::after {
+  right: -2px;
+}
+
+._tbody_1y7u7_337 {
+  position: relative;
+  min-width: 100%;
+}
+
+._row_1y7u7_342 {
+  display: flex;
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 100%;
+  border-bottom: 1px solid var(--bs-border-color);
+  background: var(--bs-body-bg);
+  cursor: pointer;
+  user-select: none;
+  /* Rows with an href render as <a>; keep them looking like plain rows. */
+  color: inherit;
+  text-decoration: none;
+}
+
+._row_1y7u7_342:hover {
+  background: var(--bs-light);
+  color: inherit;
+}
+
+._row_1y7u7_342._rowSelected_1y7u7_362 {
+  background: var(--bs-primary-bg-subtle);
+}
+
+._cell_1y7u7_366 {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  /* Re-enable text selection the row-level `user-select: none` suppresses, so
+   * cell contents can be selected and copied (parity with the AG grids'
+   * `enableCellTextSelection`). A click-drag selects text without firing the
+   * row's click handler, so this doesn't interfere with row activation. */
+  user-select: text;
+}
+
+/* Truncate a cell's content with an ellipsis (parity with the AG grid, whose
+ * `.ag-cell-value` wrapper carried these rules). `.cell` is a flex container,
+ * so `text-overflow` on it never reaches a block child's text — the child
+ * itself must clip. `min-width: 0` lets the single child shrink below its
+ * content width so the ellipsis appears; without `flex: 1` the child stays
+ * content-sized when it fits, so `justify-content` (center columns) still
+ * positions it. `white-space: nowrap` is inherited from `.cell`. */
+._cell_1y7u7_366 > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._cellCenter_1y7u7_396 {
+  justify-content: center;
+}
+
+/* Multiline (list) mode: rows are tall enough to host wrapped, line-clamped
+ * cells, so top-align content — a single-line cell then sits at the first line
+ * of its multiline neighbours instead of floating in the vertical centre of
+ * the tall row (matches the AG grid this replaced). */
+._multiline_1y7u7_404 ._cell_1y7u7_366 {
+  align-items: flex-start;
+}
+
+/* Left-pinned cells (position/left/z-index are inline — the sticky offset
+ * comes from the table's pinned-column geometry). They need an opaque
+ * background so unpinned cells sliding underneath don't show through, which
+ * must track the row's hover/selected state since the row's own background
+ * no longer reaches the viewer. The right border marks the pinned edge. */
+._headerCellPinned_1y7u7_413 {
+  background: var(--bs-light-bg-subtle);
+  border-right: 1px solid var(--bs-border-color);
+}
+
+._cellPinned_1y7u7_418 {
+  background: var(--bs-body-bg);
+  border-right: 1px solid var(--bs-border-color);
+}
+
+._row_1y7u7_342:hover ._cellPinned_1y7u7_418 {
+  background: var(--bs-light);
+}
+
+._rowSelected_1y7u7_362 ._cellPinned_1y7u7_418 {
+  background: var(--bs-primary-bg-subtle);
+}
+
+/* First normal column after a rotated block. The preceding angled label's
+ * bottom-border diagonal rises from the shared column edge at 45° (1px up
+ * per 1px right), so content flush at the default 8px inset collides with
+ * it — the label's text/line cut through the header text (~22px tall at
+ * the cell bottom). Indenting by the gap (kAfterRotatedGap + the default
+ * 8px) puts the diagonal safely above where the text starts; the cell is
+ * rendered kAfterRotatedGap wider to compensate, so the content box is
+ * unchanged. Applied to the header cell only — the diagonal overlaps just
+ * the header, so body cells keep the default inset (they still carry the
+ * matching extra render width, so the column edges stay aligned). */
+._afterRotatedGap_1y7u7_441 {
+  padding-left: 32px;
+}
+
+/* Drop the vertical separator at the gap column's left edge — it rises
+ * straight through the anchor of the preceding angled label, whose diagonal
+ * bottom border already marks the boundary (same treatment as
+ * .headerCellRotated::before). */
+._afterRotatedGap_1y7u7_441::before {
+  display: none;
+}
+
+._empty_1y7u7_453 {
+  position: absolute;
+  top: 3rem;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: var(--bs-secondary);
+}
+
+/* Column resize handle. A wide, invisible hit-strip straddling the column's
+ * right edge; a subtle accent line shows on hover / while dragging. The strip
+ * sits above cell content (z-index) and never triggers a sort (it is a sibling
+ * of .headerContent, so its clicks don't reach the sort handler). */
+._resizeHandle_1y7u7_466 {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -3px;
+  width: 7px;
+  cursor: col-resize;
+  z-index: 2;
+  touch-action: none;
+  user-select: none;
+}
+
+._resizeHandle_1y7u7_466::after {
+  content: "";
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  left: 3px;
+  width: 1px;
+  background: var(--bs-primary);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+._resizeHandle_1y7u7_466:hover::after,
+._resizeHandleActive_1y7u7_491::after,
+._resizeHandle_1y7u7_466:focus-visible::after {
+  opacity: 1;
+}
+
+/* Keyboard focus: a thicker accent line in place of an outline, which would
+ * box the invisible hit-strip rather than mark the column edge. */
+._resizeHandle_1y7u7_466:focus-visible {
+  outline: none;
+}
+._resizeHandle_1y7u7_466:focus-visible::after {
+  left: 2px;
+  width: 3px;
+}
+
+/* Forced colors drop the accent line's background; outline survives. */
+@media (forced-colors: active) {
+  ._resizeHandle_1y7u7_466:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
+/* Tall (rotated) mode: confine the hit-zone + accent line to the bottom
+ * divider band so it stays off the angled labels above. */
+._resizeHandleTall_1y7u7_516 {
+  top: auto;
+  height: 24px;
+}
+._resizeHandleTall_1y7u7_516::after {
+  top: 2px;
+  bottom: 2px;
+}
+
+/* Rotated header cells are pointer-events: none; re-enable it on the handle
+ * and pin it to the cell's bottom-right corner (below the diagonal label), so
+ * resizing lives in the divider band and the angled label stays clickable. */
+._resizeHandleRotated_1y7u7_528 {
+  top: auto;
+  bottom: 0;
+  height: 24px;
+  pointer-events: auto;
+}
+._resizeHandleRotated_1y7u7_528::after {
+  top: 2px;
+  bottom: 2px;
+}
 ._circle_17gxn_1 {
   width: 36px;
   height: 22px;
@@ -6657,84 +7387,6 @@ a._citationLink_1gzkd_9:hover {
   font-size: inherit;
   line-height: 1;
 }
-._checkboxWrapper_93mzp_1 {
-  margin-bottom: 0.1rem;
-}
-
-._label_93mzp_5 {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-._checkbox_93mzp_1 {
-  margin-right: 0.5rem;
-  cursor: pointer;
-}
-
-._filterIcon_93mzp_16 {
-  margin-left: 0.5rem;
-  color: var(--bs-primary);
-}
-
-._scrollableContainer_93mzp_21 {
-  /* The popover is positioned below the trigger, so its actual visible room
-     is less than full viewport height. Cap conservatively so the scrollbar
-     kicks in before the popover extends past the viewport. */
-  max-height: min(70vh, calc(100vh - 10rem));
-  overflow-y: auto;
-  /* Reserve scrollbar space up-front so switching between view modes doesn't
-     reflow content width when a scrollbar appears/disappears. */
-  scrollbar-gutter: stable;
-}
-
-._section_93mzp_32 {
-  margin-bottom: 0.75rem;
-}
-
-._headerRow_93mzp_36 {
-  display: flex;
-  column-gap: 2rem;
-  row-gap: 1rem;
-  border-bottom: solid 1px var(--bs-border-color);
-  margin-bottom: 0.5rem;
-  justify-content: space-between;
-  align-items: center;
-}
-
-._scoresHeadingGroup_93mzp_46 {
-  display: flex;
-  align-items: center;
-  column-gap: 0.5rem;
-}
-
-._scoresViewModeControl_93mzp_52 {
-  margin-bottom: 2px;
-}
-
-._buttonContainer_93mzp_56 {
-  display: flex;
-  gap: 0.5rem;
-}
-
-._button_93mzp_56 {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--bs-link-color);
-  font: inherit;
-  text-decoration: none;
-}
-
-._button_93mzp_56:hover {
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-._columnsLayout_93mzp_75 {
-  columns: 2;
-  column-gap: 2rem;
-}
 ._gridWrapper_nawgx_1 {
   height: 100%;
   width: 100%;
@@ -6862,646 +7514,6 @@ a._citationLink_1gzkd_9:hover {
   align-items: center;
   min-width: 0;
   flex: 1;
-}
-._filterButton_b38ko_1 {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 2px;
-  border: none;
-  background: transparent;
-  color: var(--bs-secondary);
-  cursor: pointer;
-}
-
-._filterButtonActive_b38ko_13 {
-  color: var(--bs-primary);
-}
-
-/* Active-filter dot — small affordance at the upper-right of the
- * funnel, matching ag-grid's convention of indicating active filters. */
-._filterButtonActive_b38ko_13::after {
-  content: "";
-  position: absolute;
-  top: -1px;
-  right: 0;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--bs-primary);
-}
-._headerActions_uh0qk_1 {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-right: 6px;
-}
-
-._filterPopover_uh0qk_8 {
-  min-width: 180px;
-}
-._filterContent_9ejoy_1 {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-._filterRow_9ejoy_7 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-._filterSelect_9ejoy_13,
-._filterInput_9ejoy_14 {
-  flex: 1;
-  font-size: 12px;
-  padding: 4px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--bs-border-color);
-  background: var(--bs-body-bg);
-  color: var(--bs-body-color);
-}
-
-._filterInput_9ejoy_14:disabled,
-._filterSelect_9ejoy_13:disabled {
-  background: var(--bs-light);
-  color: var(--bs-secondary);
-}
-
-._filterButton_9ejoy_30 {
-  width: 100%;
-  padding: 0.2rem;
-}
-
-._rangeLabel_9ejoy_35 {
-  font-size: 11px;
-  color: var(--bs-secondary);
-  padding-left: 2px;
-}
-
-._joinRow_9ejoy_41 {
-  gap: 12px;
-  padding: 2px 0;
-}
-
-._joinOption_9ejoy_46 {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 400;
-  margin: 0;
-}
-._durationInputWrapper_tdbd6_1 {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
-
-._durationHelper_tdbd6_8 {
-  font-size: 11px;
-  color: var(--bs-secondary);
-  padding-left: 2px;
-}
-._container_13cu0_1 {
-  position: relative;
-  height: 100%;
-  width: 100%;
-  overflow: auto;
-  outline: none;
-}
-
-/* Visually-hidden live region: read by screen readers, absent from layout and
- * from pointer/scroll hit-testing. */
-._srStatus_13cu0_11 {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  border: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-/* Keyboard focus ring for the sortable header control (mouse clicks don't
- * trigger :focus-visible, so this stays out of the way for pointer users). */
-._headerContent_13cu0_27:focus-visible,
-._rotatedSortTarget_13cu0_28:focus-visible {
-  outline: 2px solid var(--bs-primary);
-  outline-offset: -2px;
-  border-radius: 2px;
-}
-
-/* The table, tbody, and rows carry explicit JS-computed widths (total column
- * width); min-width stretches each to its parent when the columns underfill
- * the viewport, so row borders and hover highlights span the full grid width
- * (AG parity) instead of stopping at the last column. */
-._table_13cu0_38 {
-  position: relative;
-  min-width: 100%;
-}
-
-._thead_13cu0_43 {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--bs-light-bg-subtle);
-  border-bottom: 1px solid var(--bs-border-color);
-}
-
-._headerRow_13cu0_51 {
-  display: flex;
-  /* Fill the thead height so cells stretch — rotated labels anchor to the
-   * header's bottom edge, and bottom-aligned normal headers sit at the base
-   * of the angled labels. */
-  height: 100%;
-}
-
-._headerCell_13cu0_59 {
-  display: flex;
-  position: relative;
-  align-items: center;
-  box-sizing: border-box;
-  flex: 0 0 auto;
-  gap: 4px;
-  padding: 4px 0px 4px 8px;
-  text-align: left;
-  font-weight: 400;
-  color: var(--bs-secondary);
-  font-size: var(--inspect-font-size-smallestest) !important;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-/* Short vertical separator between column headers (matches the prior grid). */
-._headerCell_13cu0_59::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 60%;
-  width: 1px;
-  background: var(--bs-border-color);
-}
-
-._headerCell_13cu0_59:first-child::before {
-  display: none;
-}
-
-._headerContent_13cu0_27 {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  user-select: none;
-  min-width: 0;
-}
-
-/* The whole cell is the sort target (so empty-label columns like the icon
- * column are still clickable) — so the pointer cursor lives on the cell. */
-._headerCellSortable_13cu0_102 {
-  cursor: pointer;
-}
-
-._sortIcon_13cu0_106 {
-  font-size: 9px;
-  flex: 0 0 auto;
-}
-
-._sortIndicator_13cu0_111 {
-  display: inline-flex;
-  align-items: center;
-  flex: 0 0 auto;
-}
-
-/* Multi-sort position badge, tight against the arrow that follows it
- * (matching the AG grid's `1↑`). */
-._sortOrder_13cu0_119 {
-  font-size: var(--inspect-font-size-smallestest);
-}
-
-/* Filter funnel: hidden until the header is hovered, but stays visible when
- * the column has an active filter (matches the prior grid). */
-._headerFilter_13cu0_125 {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-._headerCell_13cu0_59:hover ._headerFilter_13cu0_125,
-._headerFilterActive_13cu0_134 {
-  opacity: 1;
-}
-
-._headerText_13cu0_138 {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-._headerCellCenter_13cu0_144 {
-  justify-content: center;
-}
-
-/* Normal headers share the tall header row when score columns are rotated;
- * bottom-align their content so the labels line up with the base of the
- * angled labels. */
-._headerCellTall_13cu0_151 {
-  align-items: flex-end;
-  padding-bottom: 6px;
-}
-
-/* In tall (rotated) mode the vertically-centered 60%-height separator becomes
- * a ~69px line floating in the middle of the cell — it reaches up into the
- * band where the previous column's angled label fans out and clashes with it.
- * Drop it to the bottom and shorten it so it sits beside the bottom-aligned
- * label, matching the AG grid. */
-._headerCellTall_13cu0_151::before {
-  top: auto;
-  bottom: 0;
-  transform: none;
-  height: 22px;
-}
-
-/* Rotated (compact score) header cell: let the angled label overflow the
- * narrow cell, and drop the vertical separator — the label's diagonal
- * bottom border serves as the column divider instead. The cell box itself
- * is pointer-transparent so its full-height rectangle (which tiles the
- * header and stacks over neighbours' overflowing labels) doesn't intercept
- * hover/clicks meant for the diagonal labels; only the labels are
- * interactive. */
-._headerCellRotated_13cu0_175 {
-  overflow: visible;
-  padding: 0;
-  pointer-events: none;
-}
-
-._headerCellRotated_13cu0_175::before {
-  display: none;
-}
-
-/* ...except the first rotated header after a normal one: there's no preceding
- * angled label whose diagonal could act as the divider (that's the job it does
- * between adjacent rotated headers), so keep the vertical separator at the
- * boundary — matching the prior grid. Use the bottom-aligned 22px form so it
- * sits beside the rotated label, like the separator between two tall headers. */
-._headerCellTall_13cu0_151 + ._headerCellRotated_13cu0_175::before {
-  display: block;
-  top: auto;
-  bottom: 0;
-  transform: none;
-  height: 22px;
-}
-
-/* The 45° label, anchored flush to the column's right edge and rotated up
- * from its bottom-left corner so it fans up-and-to-the-right. */
-._rotatedLabel_13cu0_200 {
-  position: absolute;
-  bottom: 0;
-  left: 100%;
-  /* A bit taller than the text needs so the diagonal hover/click band is an
-   * easier target to land on and travel along to the funnel. */
-  height: 22px;
-  width: 130px;
-  padding-right: 0.35rem;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-  cursor: pointer;
-  background: transparent;
-  /* Re-enable pointer events the cell box opts out of (see .headerCellRotated)
-   * so the whole diagonal label — text, sort caret, and funnel — is
-   * hoverable and clickable along its full length. */
-  pointer-events: auto;
-  /* The bottom border lies along the label's lower diagonal edge after
-   * rotation, acting as the divider between adjacent rotated headers. */
-  border-bottom: 1px solid var(--bs-border-color);
-  transform: rotate(-45deg);
-  transform-origin: bottom left;
-}
-
-/* The label's sort and drag target: everything but the filter funnel. */
-._rotatedSortTarget_13cu0_28 {
-  flex: 1;
-  min-width: 0;
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding-left: 0.35rem;
-}
-
-._rotatedLabel_13cu0_200:hover {
-  /* Lift above neighbouring labels so the hovered text is fully readable. */
-  background: var(--bs-tertiary-bg);
-  z-index: 2;
-}
-
-._rotatedText_13cu0_243 {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: var(--inspect-font-size-smallestest);
-  letter-spacing: 0.05em;
-}
-
-/* Filter funnel at the end of the label: hidden until the label is hovered,
- * but kept visible while the column has an active filter. */
-._rotatedFilter_13cu0_254 {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-._rotatedLabel_13cu0_200:hover ._rotatedFilter_13cu0_254,
-._rotatedLabelFiltered_13cu0_263 ._rotatedFilter_13cu0_254 {
-  opacity: 1;
-}
-
-/* Hidden, non-rotated positioning anchor at the cell's bottom edge. The
- * filter popover anchors here (not the funnel up in the rotated label) so it
- * opens below the header, under the column, instead of over the headers. */
-._rotatedFilterAnchor_13cu0_270 {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-}
-
-/* --- Drag-to-reorder columns --- */
-
-/* While a header drag is in flight, rotated cells must catch dragover/drop
- * themselves (they're pointer-transparent for hover/clicks — see
- * .headerCellRotated), and their overflowing diagonal labels must NOT steal
- * those events from the columns they fan across. Hit-testing for drag
- * events follows pointer-events, so flip both for the drag's duration. */
-._theadDragging_13cu0_286 ._headerCellRotated_13cu0_175 {
-  pointer-events: auto;
-}
-
-._theadDragging_13cu0_286 ._rotatedLabel_13cu0_200 {
-  pointer-events: none;
-}
-
-._headerCellDragSource_13cu0_294 {
-  opacity: 0.35;
-}
-
-/* Cursor-attached drag image (setDragImage). Parked offscreen — the browser
- * snapshots it at dragstart; it never renders in place. */
-._dragGhost_13cu0_300 {
-  position: absolute;
-  top: -1000px;
-  left: -1000px;
-  padding: 4px 10px;
-  font-size: var(--inspect-font-size-small);
-  text-transform: uppercase;
-  color: var(--bs-body-color);
-  background: var(--bs-body-bg);
-  border: 1px solid var(--bs-border-color);
-  border-radius: 3px;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
-  white-space: nowrap;
-}
-
-/* Insertion indicator on the drop target's edge. An absolutely-positioned
- * overlay rather than a border so the cell's layout doesn't shift while
- * dragging. */
-._headerCellDropLeft_13cu0_318::after,
-._headerCellDropRight_13cu0_319::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--bs-primary);
-  z-index: 3;
-}
-
-._headerCellDropLeft_13cu0_318::after {
-  left: -1px;
-}
-
-._headerCellDropRight_13cu0_319::after {
-  right: -2px;
-}
-
-._tbody_13cu0_337 {
-  position: relative;
-  min-width: 100%;
-}
-
-._row_13cu0_342 {
-  display: flex;
-  position: absolute;
-  top: 0;
-  left: 0;
-  min-width: 100%;
-  border-bottom: 1px solid var(--bs-border-color);
-  background: var(--bs-body-bg);
-  cursor: pointer;
-  user-select: none;
-  /* Rows with an href render as <a>; keep them looking like plain rows. */
-  color: inherit;
-  text-decoration: none;
-}
-
-._row_13cu0_342:hover {
-  background: var(--bs-light);
-  color: inherit;
-}
-
-._rowSelected_13cu0_362 {
-  background: var(--bs-primary-bg-subtle) !important;
-}
-
-._cell_13cu0_366 {
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  flex: 0 0 auto;
-  padding: 4px 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px !important;
-  /* Re-enable text selection the row-level `user-select: none` suppresses, so
-   * cell contents can be selected and copied (parity with the AG grids'
-   * `enableCellTextSelection`). A click-drag selects text without firing the
-   * row's click handler, so this doesn't interfere with row activation. */
-  user-select: text;
-}
-
-/* Truncate a cell's content with an ellipsis (parity with the AG grid, whose
- * `.ag-cell-value` wrapper carried these rules). `.cell` is a flex container,
- * so `text-overflow` on it never reaches a block child's text — the child
- * itself must clip. `min-width: 0` lets the single child shrink below its
- * content width so the ellipsis appears; without `flex: 1` the child stays
- * content-sized when it fits, so `justify-content` (center columns) still
- * positions it. `white-space: nowrap` is inherited from `.cell`. */
-._cell_13cu0_366 > * {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-._cellCenter_13cu0_396 {
-  justify-content: center;
-}
-
-/* Multiline (list) mode: rows are tall enough to host wrapped, line-clamped
- * cells, so top-align content — a single-line cell then sits at the first line
- * of its multiline neighbours instead of floating in the vertical centre of
- * the tall row (matches the AG grid this replaced). */
-._multiline_13cu0_404 ._cell_13cu0_366 {
-  align-items: flex-start;
-}
-
-/* Left-pinned cells (position/left/z-index are inline — the sticky offset
- * comes from the table's pinned-column geometry). They need an opaque
- * background so unpinned cells sliding underneath don't show through, which
- * must track the row's hover/selected state since the row's own background
- * no longer reaches the viewer. The right border marks the pinned edge. */
-._headerCellPinned_13cu0_413 {
-  background: var(--bs-light-bg-subtle);
-  border-right: 1px solid var(--bs-border-color);
-}
-
-._cellPinned_13cu0_418 {
-  background: var(--bs-body-bg);
-  border-right: 1px solid var(--bs-border-color);
-}
-
-._row_13cu0_342:hover ._cellPinned_13cu0_418 {
-  background: var(--bs-light);
-}
-
-._rowSelected_13cu0_362 ._cellPinned_13cu0_418 {
-  background: var(--bs-primary-bg-subtle);
-}
-
-/* First normal column after a rotated block. The preceding angled label's
- * bottom-border diagonal rises from the shared column edge at 45° (1px up
- * per 1px right), so content flush at the default 8px inset collides with
- * it — the label's text/line cut through the header text (~22px tall at
- * the cell bottom). Indenting by the gap (kAfterRotatedGap + the default
- * 8px) puts the diagonal safely above where the text starts; the cell is
- * rendered kAfterRotatedGap wider to compensate, so the content box is
- * unchanged. Applied to the header cell only — the diagonal overlaps just
- * the header, so body cells keep the default inset (they still carry the
- * matching extra render width, so the column edges stay aligned). */
-._afterRotatedGap_13cu0_441 {
-  padding-left: 32px;
-}
-
-/* Drop the vertical separator at the gap column's left edge — it rises
- * straight through the anchor of the preceding angled label, whose diagonal
- * bottom border already marks the boundary (same treatment as
- * .headerCellRotated::before). */
-._afterRotatedGap_13cu0_441::before {
-  display: none;
-}
-
-._empty_13cu0_453 {
-  position: absolute;
-  top: 3rem;
-  left: 0;
-  right: 0;
-  text-align: center;
-  color: var(--bs-secondary);
-}
-
-/* Column resize handle. A wide, invisible hit-strip straddling the column's
- * right edge; a subtle accent line shows on hover / while dragging. The strip
- * sits above cell content (z-index) and never triggers a sort (it is a sibling
- * of .headerContent, so its clicks don't reach the sort handler). */
-._resizeHandle_13cu0_466 {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: -3px;
-  width: 7px;
-  cursor: col-resize;
-  z-index: 2;
-  touch-action: none;
-  user-select: none;
-}
-
-._resizeHandle_13cu0_466::after {
-  content: "";
-  position: absolute;
-  top: 25%;
-  bottom: 25%;
-  left: 3px;
-  width: 1px;
-  background: var(--bs-primary);
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-._resizeHandle_13cu0_466:hover::after,
-._resizeHandleActive_13cu0_491::after,
-._resizeHandle_13cu0_466:focus-visible::after {
-  opacity: 1;
-}
-
-/* Keyboard focus: a thicker accent line in place of an outline, which would
- * box the invisible hit-strip rather than mark the column edge. */
-._resizeHandle_13cu0_466:focus-visible {
-  outline: none;
-}
-._resizeHandle_13cu0_466:focus-visible::after {
-  left: 2px;
-  width: 3px;
-}
-
-/* Forced colors drop the accent line's background; outline survives. */
-@media (forced-colors: active) {
-  ._resizeHandle_13cu0_466:focus-visible {
-    outline: 2px solid Highlight;
-    outline-offset: -2px;
-  }
-}
-
-/* Tall (rotated) mode: confine the hit-zone + accent line to the bottom
- * divider band so it stays off the angled labels above. */
-._resizeHandleTall_13cu0_516 {
-  top: auto;
-  height: 24px;
-}
-._resizeHandleTall_13cu0_516::after {
-  top: 2px;
-  bottom: 2px;
-}
-
-/* Rotated header cells are pointer-events: none; re-enable it on the handle
- * and pin it to the cell's bottom-right corner (below the diagonal label), so
- * resizing lives in the divider band and the angled label stays clickable. */
-._resizeHandleRotated_13cu0_528 {
-  top: auto;
-  bottom: 0;
-  height: 24px;
-  pointer-events: auto;
-}
-._resizeHandleRotated_13cu0_528::after {
-  top: 2px;
-  bottom: 2px;
 }
 ._footer_14uod_1 {
   border-top: solid var(--bs-light-border-subtle) 1px;
@@ -9565,12 +9577,12 @@ a._citationLink_1gzkd_9:hover {
 ._splitClear_15xqr_15 i {
   font-size: 0.85em;
 }
-._toolsGrid_1qqm2_1 {
+._toolsGrid_1lgnd_1 {
   display: grid;
   row-gap: 0em;
 }
 
-._tools_1qqm2_1 {
+._tools_1lgnd_1 {
   display: grid;
   grid-template-columns: max-content max-content;
   column-gap: 1rem;
@@ -9578,11 +9590,12 @@ a._citationLink_1gzkd_9:hover {
   align-items: baseline;
 }
 
-._tool_1qqm2_1 {
+._tool_1lgnd_1 {
   padding: 0;
+  /* Beats base.css's more specific inline-code colour. */
   color: inherit !important;
 }
-._root_ugt1x_1 {
+._root_u5fhd_1 {
   /* A var, not a plain 100vh, so a host whose chrome sits above the page
      (scout's ProjectBar) can shrink the root via its className without a
      cascade-order fight — an overflowing root gets its header clipped once
@@ -9595,7 +9608,7 @@ a._citationLink_1gzkd_9:hover {
 /* Fixed secondary header under the app chrome: agent-path breadcrumb on the
    left; turn label + turn/lane navigation + exit-focus on the right. A
    non-scrolling sibling of the scroll container (the column layout pins it). */
-._focusBar_ugt1x_14 {
+._focusBar_u5fhd_14 {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -9606,7 +9619,7 @@ a._citationLink_1gzkd_9:hover {
   border-bottom: 1px solid var(--bs-border-color);
 }
 
-._crumbs_ugt1x_25 {
+._crumbs_u5fhd_25 {
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
@@ -9614,13 +9627,13 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-secondary);
 }
 
-._laneName_ugt1x_33 {
+._laneName_u5fhd_33 {
   font-weight: 500;
 }
 
 /* Breadcrumb segments that act (ancestor links, lane picker) render as plain
    text in the bar's muted color; hover matches the bar's icon buttons. */
-._crumbButton_ugt1x_39 {
+._crumbButton_u5fhd_39 {
   display: inline-flex;
   align-items: center;
   gap: 0.25em;
@@ -9633,28 +9646,28 @@ a._citationLink_1gzkd_9:hover {
   cursor: pointer;
 }
 
-._crumbButton_ugt1x_39:hover {
+._crumbButton_u5fhd_39:hover {
   color: var(--bs-body-color);
   text-decoration: underline;
 }
 
-._crumbButton_ugt1x_39:focus-visible {
+._crumbButton_u5fhd_39:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }
 
-._crumbSeparator_ugt1x_62 {
+._crumbSeparator_u5fhd_62 {
   font-size: 0.7em;
   opacity: 0.6;
 }
 
-._laneMenu_ugt1x_67 {
+._laneMenu_u5fhd_67 {
   display: flex;
   flex-direction: column;
   row-gap: 0.15em;
 }
 
-._laneMenuItem_ugt1x_73 {
+._laneMenuItem_u5fhd_73 {
   display: block;
   border: none;
   background: none;
@@ -9667,27 +9680,27 @@ a._citationLink_1gzkd_9:hover {
   padding: 0.1em 0.4em;
 }
 
-._laneMenuItem_ugt1x_73:hover {
+._laneMenuItem_u5fhd_73:hover {
   background-color: var(--bs-secondary-bg);
 }
 
-._laneMenuItemCurrent_ugt1x_90 {
+._laneMenuItemCurrent_u5fhd_90 {
   font-weight: 600;
 }
 
-._controls_ugt1x_94 {
+._controls_u5fhd_94 {
   display: inline-flex;
   align-items: center;
   gap: 0.15em;
   color: var(--bs-secondary);
 }
 
-._turnLabel_ugt1x_101 {
+._turnLabel_u5fhd_101 {
   white-space: nowrap;
   margin-right: 0.35em;
 }
 
-._divider_ugt1x_106 {
+._divider_u5fhd_106 {
   display: inline-block;
   width: 1px;
   align-self: stretch;
@@ -9696,7 +9709,7 @@ a._citationLink_1gzkd_9:hover {
   opacity: 0.5;
 }
 
-._button_ugt1x_115 {
+._button_u5fhd_115 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -9709,16 +9722,16 @@ a._citationLink_1gzkd_9:hover {
   text-decoration: none;
 }
 
-._button_ugt1x_115:hover:not(:disabled) {
+._button_u5fhd_115:hover:not(:disabled) {
   color: var(--bs-body-color);
 }
 
-._button_ugt1x_115:focus-visible {
+._button_u5fhd_115:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }
 
-._button_ugt1x_115:disabled {
+._button_u5fhd_115:disabled {
   opacity: 0.3;
   cursor: default;
 }
@@ -9727,11 +9740,11 @@ a._citationLink_1gzkd_9:hover {
    shrink: an overflow:hidden header (scout's navbar) has no automatic
    min-height, so with the scroller's content-sized flex basis it would get
    crushed whenever the focused turn is taller than the viewport. */
-._root_ugt1x_1 > :not(._container_ugt1x_146) {
+._root_u5fhd_1 > :not(._container_u5fhd_146) {
   flex-shrink: 0;
 }
 
-._container_ugt1x_146 {
+._container_u5fhd_146 {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -9741,15 +9754,15 @@ a._citationLink_1gzkd_9:hover {
 /* A single focused event isn't a transcript list — drop the per-card box and
    the expanded-boundary gutter (both are transcript-row chrome). Keep the
    background so the model's sticky header stays opaque as content scrolls. */
-._container_ugt1x_146 [id^="event-panel-"] {
-  border: none !important;
-  box-shadow: none !important;
+._root_u5fhd_1 ._container_u5fhd_146 [id^="event-panel-"] {
+  border: none;
+  box-shadow: none;
   padding: 0;
 }
 
 /* Sample/transcript-level error strip: persistent on every focused turn
    (only the last turn's slice carries the actual error card). */
-._errorStrip_ugt1x_168 {
+._errorStrip_u5fhd_168 {
   display: flex;
   align-items: baseline;
   gap: 0.5em;
@@ -9764,7 +9777,7 @@ a._citationLink_1gzkd_9:hover {
   cursor: pointer;
 }
 
-._errorStripLabel_ugt1x_183 {
+._errorStripLabel_u5fhd_183 {
   font-weight: 600;
   text-transform: uppercase;
   font-size: 0.7rem;
@@ -9772,7 +9785,7 @@ a._citationLink_1gzkd_9:hover {
   flex-shrink: 0;
 }
 
-._errorStripMessage_ugt1x_191 {
+._errorStripMessage_u5fhd_191 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -10015,7 +10028,7 @@ a._citationLink_1gzkd_9:hover {
 ._chainExplanation_etmzh_45 > :last-child {
   margin-bottom: 0;
 }
-._inset_1g4dt_1 {
+._inset_szjh2_1 {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -10028,21 +10041,21 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-body-color);
 }
 
-._output_1g4dt_14 {
+._output_szjh2_14 {
   border-color: var(--inspect-check-result-border);
 }
 
-._inset_1g4dt_1._reject_1g4dt_18 {
+._inset_szjh2_1._reject_szjh2_18 {
   border-color: var(--inspect-check-reject-border);
   background-color: var(--inspect-check-reject-bg);
 }
 
-._inset_1g4dt_1._modify_1g4dt_23 {
+._inset_szjh2_1._modify_szjh2_23 {
   border-color: var(--inspect-check-modify-border);
   background-color: var(--inspect-check-modify-bg);
 }
 
-._summary_1g4dt_28 {
+._summary_szjh2_28 {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -10050,41 +10063,41 @@ a._citationLink_1gzkd_9:hover {
   min-width: 0;
 }
 
-._icon_1g4dt_36 {
+._icon_szjh2_36 {
   color: rgba(var(--bs-body-color-rgb), 0.6);
 }
 
-._verdict_1g4dt_40 {
+._verdict_szjh2_40 {
   font-weight: 600;
 }
 
-._who_1g4dt_44 {
+._who_szjh2_44 {
   color: var(--bs-secondary-color);
 }
 
-._mono_1g4dt_48 {
+._mono_szjh2_48 {
   font-family: var(--bs-font-monospace);
 }
 
-._reasonWrap_1g4dt_52,
-._error_1g4dt_53 {
+._reasonWrap_szjh2_52,
+._error_szjh2_53 {
   flex: 1 1 200px;
   min-width: 0;
 }
 
-._reasonWrap_1g4dt_52 {
+._reasonWrap_szjh2_52 {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
 }
 
-._reason_1g4dt_52 {
+._reason_szjh2_52 {
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
 }
 
-._error_1g4dt_53 {
+._error_szjh2_53 {
   margin: 0;
   font-family: var(--bs-font-monospace);
   font-size: 0.75rem;
@@ -10092,7 +10105,7 @@ a._citationLink_1gzkd_9:hover {
   overflow-wrap: anywhere;
 }
 
-._more_1g4dt_78 {
+._more_szjh2_78 {
   padding: 0;
   border: 0;
   background: none;
@@ -10101,14 +10114,14 @@ a._citationLink_1gzkd_9:hover {
   cursor: pointer;
 }
 
-._reason_1g4dt_52 p,
-._reason_1g4dt_52 > :last-child {
+._reason_szjh2_52 p,
+._reason_szjh2_52 > :last-child {
   margin-bottom: 0;
 }
 
 /* With the checks expandable, the full explanation is in the tree detail;
    "more" shows it in place. */
-._clamped_1g4dt_94 {
+._clamped_szjh2_94 {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -10116,43 +10129,43 @@ a._citationLink_1gzkd_9:hover {
   overflow: hidden;
 }
 
-._scores_1g4dt_102 {
+._scores_szjh2_102 {
   font-family: var(--bs-font-monospace);
   font-size: 0.78rem;
   color: var(--bs-secondary-color);
   white-space: nowrap;
 }
 
-._approveIcon_1g4dt_109 {
+._approveIcon_szjh2_109 {
   color: var(--inspect-check-approve-icon);
 }
 
-._approveText_1g4dt_113 {
+._approveText_szjh2_113 {
   color: var(--inspect-check-approve-text);
 }
 
-._rejectIcon_1g4dt_117 {
+._rejectIcon_szjh2_117 {
   color: var(--inspect-check-reject-icon);
 }
 
-._rejectText_1g4dt_121 {
+._rejectText_szjh2_121 {
   color: var(--inspect-check-reject-text);
 }
 
-._rejectReason_1g4dt_125 {
+._rejectReason_szjh2_125 {
   color: var(--inspect-check-reject-reason);
 }
 
-._modifyIcon_1g4dt_129 {
+._modifyIcon_szjh2_129 {
   color: var(--inspect-check-modify-icon);
 }
 
-._modifyText_1g4dt_133 {
+._modifyText_szjh2_133 {
   color: var(--inspect-check-modify-text);
 }
 
-._chip_1g4dt_137,
-._pill_1g4dt_138 {
+._chip_szjh2_137,
+._pill_szjh2_138 {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -10164,13 +10177,13 @@ a._citationLink_1gzkd_9:hover {
   white-space: nowrap;
 }
 
-._chip_1g4dt_137 {
+._chip_szjh2_137 {
   color: var(--inspect-check-modify-text);
   background-color: var(--inspect-check-flag-bg);
   border-color: var(--inspect-check-modify-border);
 }
 
-._pill_1g4dt_138 {
+._pill_szjh2_138 {
   cursor: pointer;
   font-family: inherit;
   color: var(--inspect-tool-block-ink);
@@ -10178,43 +10191,43 @@ a._citationLink_1gzkd_9:hover {
   border-color: var(--inspect-check-input-border);
 }
 
-._trailing_1g4dt_164 {
+._trailing_szjh2_164 {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   margin-left: auto;
 }
 
-._output_1g4dt_14 ._pill_1g4dt_138 {
+._output_szjh2_14 ._pill_szjh2_138 {
   color: var(--inspect-check-result-pill-text);
   background-color: var(--inspect-check-result-pill-bg);
   border-color: var(--inspect-check-result-border);
 }
 
-._reject_1g4dt_18 ._pill_1g4dt_138 {
+._reject_szjh2_18 ._pill_szjh2_138 {
   color: var(--inspect-check-reject-reason);
   background-color: var(--bs-body-bg);
   border-color: var(--inspect-check-reject-border);
 }
 
-._modify_1g4dt_23 ._pill_1g4dt_138 {
+._modify_szjh2_23 ._pill_szjh2_138 {
   color: var(--inspect-check-modify-text);
   background-color: var(--bs-body-bg);
   border-color: var(--inspect-check-modify-border);
 }
 
-._pillChevron_1g4dt_189 {
+._pillChevron_szjh2_189 {
   font-size: 0.8em;
 }
 
-._label_1g4dt_193 {
+._label_szjh2_193 {
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
 }
 
-._replaced_1g4dt_200 {
+._replaced_szjh2_200 {
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -10225,7 +10238,7 @@ a._citationLink_1gzkd_9:hover {
   background-color: var(--bs-body-bg);
 }
 
-._code_1g4dt_211 {
+._code_szjh2_211 {
   font-family: var(--bs-font-monospace);
   font-size: 0.78rem;
   line-height: 1.55;
@@ -10234,10 +10247,12 @@ a._citationLink_1gzkd_9:hover {
 }
 
 /* The proposal renders through the tool input view; flatten the boxed
-   surface the readable variant gives it. */
-._replaced_1g4dt_200 ._code_1g4dt_211 pre.tool-call-input,
-._replaced_1g4dt_200 ._code_1g4dt_211 div.tool-call-input,
-._replaced_1g4dt_200 ._code_1g4dt_211 .tool-call-input pre[class*="language-"] {
+   surface the readable variant gives it. !important overrides those surface
+   rules. Their padding is also !important at the same specificity, so for
+   padding this rule wins on stylesheet order. */
+._replaced_szjh2_200 ._code_szjh2_211 pre.tool-call-input,
+._replaced_szjh2_200 ._code_szjh2_211 div.tool-call-input,
+._replaced_szjh2_200 ._code_szjh2_211 .tool-call-input pre[class*="language-"] {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -10246,15 +10261,16 @@ a._citationLink_1gzkd_9:hover {
   font-size: inherit;
 }
 
-/* Struck through and without syntax colors, so the tool input reads as what ran. */
-._struck_1g4dt_233,
-._struck_1g4dt_233 * {
+/* Struck through and without syntax colors, so the tool input reads as what ran.
+   !important beats Prism's more specific token colours. */
+._struck_szjh2_236,
+._struck_szjh2_236 * {
   color: rgba(var(--bs-body-color-rgb), 0.6) !important;
   text-decoration: line-through;
   text-decoration-color: rgba(var(--bs-body-color-rgb), 0.35);
 }
 
-._notRun_1g4dt_240 {
+._notRun_szjh2_243 {
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -10265,7 +10281,7 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-secondary-color);
 }
 
-._notRunBody_1g4dt_251 {
+._notRunBody_szjh2_254 {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -10273,7 +10289,7 @@ a._citationLink_1gzkd_9:hover {
   min-width: 0;
 }
 
-._message_1g4dt_259 {
+._message_szjh2_262 {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   align-items: baseline;
@@ -10285,11 +10301,11 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-body-color);
 }
 
-._message_1g4dt_259 ._label_1g4dt_193 {
+._message_szjh2_262 ._label_szjh2_193 {
   color: var(--inspect-check-reject-text);
 }
 
-._messageText_1g4dt_275 {
+._messageText_szjh2_278 {
   font-family: var(--bs-font-monospace);
   font-size: 0.75rem;
   white-space: pre-wrap;
@@ -11005,44 +11021,45 @@ a._turnButton_loteg_100 {
   --srb-bg: light-dark(oklch(0.972 0.003 260), oklch(0.29 0.005 260));
   --srb-bd: light-dark(oklch(0.88 0.005 260), oklch(0.42 0.008 260));
 }
-._container_17lir_1 {
+._container_1jcqw_1 {
   margin: 0.5em 0 0 0;
   width: 100%;
 }
 
-._all_17lir_6 {
+._all_1jcqw_6 {
   display: flex;
   flex-direction: column;
   gap: 1em;
 }
 
-._tableSelection_17lir_12 {
+._tableSelection_1jcqw_12 {
   width: fit-content;
   align-self: start;
   justify-self: start;
 }
 
-._config_17lir_18 {
+._config_1jcqw_18 {
   margin-top: 0;
 }
 
-._codePre_17lir_22 {
+._codePre_1jcqw_22 {
   background: var(--bs-light);
   width: 100%;
   padding: 0.5em;
   border-radius: var(--bs-border-radius);
 }
 
-._code_17lir_22 {
+/* !important beats Prism's white-space: pre and word-wrap: normal. */
+._code_1jcqw_22 {
   white-space: pre-wrap !important;
   word-wrap: anywhere !important;
 }
 
-._progress_17lir_34 {
+._progress_1jcqw_35 {
   margin-left: 0;
 }
 
-._error_17lir_38 {
+._error_1jcqw_39 {
   color: var(--bs-danger);
   padding: 0.5em;
   border: 1px solid var(--bs-danger);
@@ -11053,7 +11070,7 @@ a._turnButton_loteg_100 {
   margin: 0.5em 0;
 }
 
-._cancelled_17lir_49 {
+._cancelled_1jcqw_50 {
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -11066,12 +11083,12 @@ a._turnButton_loteg_100 {
   margin: 0.5em 0;
 }
 
-._showAllLink_17lir_62 {
+._showAllLink_1jcqw_63 {
   text-align: center;
   padding: 0.5em 0 0.7em;
 }
 
-._showAllLink_17lir_62 button {
+._showAllLink_1jcqw_63 button {
   padding: 0;
   border: none;
   background: none;
@@ -11081,20 +11098,20 @@ a._turnButton_loteg_100 {
   text-decoration: none;
 }
 
-._showAllIcon_17lir_77 {
+._showAllIcon_1jcqw_78 {
   margin-right: 0.35em;
 }
 
-._showAllLink_17lir_62 button:hover {
+._showAllLink_1jcqw_63 button:hover {
   color: var(--bs-body-color);
   text-decoration: underline;
 }
 
-._toolConfig_17lir_86 {
+._toolConfig_1jcqw_87 {
   padding-top: 0.5em;
 }
 
-._toolChoice_17lir_90 {
+._toolChoice_1jcqw_91 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   display: grid;
   grid-template-columns: max-content minmax(0, auto);
@@ -11104,17 +11121,17 @@ a._turnButton_loteg_100 {
   overflow-wrap: anywhere;
 }
 
-._fallbackBadge_17lir_100 {
+._fallbackBadge_1jcqw_101 {
   font-style: italic;
 }
 
-._providerIds_17lir_104 {
+._providerIds_1jcqw_105 {
   display: grid;
   grid-template-columns: auto auto auto max-content;
   column-gap: 1em;
 }
 
-._providerIdRow_17lir_110 {
+._providerIdRow_1jcqw_111 {
   display: grid;
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
@@ -11123,34 +11140,34 @@ a._turnButton_loteg_100 {
   border-bottom: 1px dotted var(--bs-light-border-subtle);
 }
 
-._providerIdRow_17lir_110:last-child {
+._providerIdRow_1jcqw_111:last-child {
   border-bottom: none;
 }
 
-._providerIdRow_17lir_110 button {
+._providerIdRow_1jcqw_111 button {
   padding: 0;
   line-height: 1;
   align-self: center;
 }
 
-._providerIdLabel_17lir_129 {
+._providerIdLabel_1jcqw_130 {
   font-family: var(--bs-font-monospace);
   font-size: var(--inspect-font-size-smallest);
   color: var(--bs-secondary);
 }
 
-._providerIdValue_17lir_135 {
+._providerIdValue_1jcqw_136 {
   font-family: var(--bs-font-monospace);
   color: var(--bs-body-color);
   overflow-wrap: anywhere;
 }
 
-._providerIdStatus_17lir_141 {
+._providerIdStatus_1jcqw_142 {
   color: var(--bs-secondary);
   font-feature-settings: "tnum";
 }
 
-._providerIdFailed_17lir_146 {
+._providerIdFailed_1jcqw_147 {
   color: var(--bs-danger);
 }
 ._noMargin_1a3fk_1 {
@@ -12382,7 +12399,7 @@ a._turnButton_loteg_100 {
   -webkit-user-select: none;
   user-select: none;
 }
-._eventRow_dssp9_1 {
+._eventRow_1dh6h_1 {
   display: grid;
   grid-template-columns: 0.7em 1fr;
   column-gap: 0.25em;
@@ -12390,11 +12407,11 @@ a._turnButton_loteg_100 {
   padding-left: 0.7em;
 }
 
-._eventRow_dssp9_1._selected_dssp9_9 {
+._eventRow_1dh6h_1._selected_1dh6h_9 {
   font-weight: 800;
 }
 
-._eventRow_dssp9_1 ._toggle_dssp9_13 {
+._eventRow_1dh6h_1 ._toggle_1dh6h_13 {
   font-size: 0.7em;
   margin-top: 4px;
   padding: 0;
@@ -12406,26 +12423,26 @@ a._turnButton_loteg_100 {
   cursor: pointer;
 }
 
-._eventLink_dssp9_25,
-._eventLink_dssp9_25 a {
+._eventLink_1dh6h_25,
+._eventLink_1dh6h_25 a {
   color: var(--bs-body-color);
   text-decoration: none;
   cursor: pointer;
 }
 
-._eventLink_dssp9_25:hover,
-._eventLink_dssp9_25 a:hover {
+._eventLink_1dh6h_25:hover,
+._eventLink_1dh6h_25 a:hover {
   text-decoration: underline;
   color: var(--bs-link-hover-color);
 }
 
-._label_dssp9_38 {
+._label_1dh6h_38 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-._iconSlot_dssp9_44 {
+._iconSlot_1dh6h_44 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -12433,40 +12450,40 @@ a._turnButton_loteg_100 {
   margin-right: 0.3em;
 }
 
-._eventRow_dssp9_1._selected_dssp9_9 ._iconSlot_dssp9_44 {
+._eventRow_1dh6h_1._selected_1dh6h_9 ._iconSlot_1dh6h_44 {
   opacity: 1;
 }
 
-._progress_dssp9_56 {
-  margin-left: 0.3em !important;
+._progress_1dh6h_56 {
+  margin-left: 0.3em;
 }
 
-._loadingRow_dssp9_60 {
+._loadingRow_1dh6h_60 {
   cursor: default;
 }
 
-._spinner_dssp9_64 {
+._spinner_1dh6h_64 {
   width: 0.85em;
   height: 0.85em;
   border-radius: 50%;
   border: 1.5px solid color-mix(in oklab, currentColor 30%, transparent);
   border-top-color: currentColor;
-  animation: _outline-spin_dssp9_1 0.8s linear infinite;
+  animation: _outline-spin_1dh6h_1 0.8s linear infinite;
 }
 
-@keyframes _outline-spin_dssp9_1 {
+@keyframes _outline-spin_1dh6h_1 {
   to {
     transform: rotate(360deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  ._spinner_dssp9_64 {
+  ._spinner_1dh6h_64 {
     animation: none;
   }
 }
 
-._popover_dssp9_85 {
+._popover_1dh6h_85 {
   min-width: 300px;
   max-width: 80%;
 }
@@ -12828,7 +12845,7 @@ a._turnButton_loteg_100 {
 ._fullscreenTool_6sqvk_88 i {
   font-size: 1.05em;
 }
-._card_1bwn0_1 {
+._card_5vv4z_1 {
   flex: 1;
   border: 1px solid var(--bs-border-color);
   border-radius: 8px;
@@ -12840,15 +12857,15 @@ a._turnButton_loteg_100 {
     border-color 0.12s ease;
 }
 
-._cardCollapsed_1bwn0_13 {
+._cardCollapsed_5vv4z_13 {
   background: var(--bs-tertiary-bg);
 }
 
-._cardOpen_1bwn0_17 {
+._cardOpen_5vv4z_17 {
   background: var(--bs-body-bg);
 }
 
-._header_1bwn0_21 {
+._header_5vv4z_21 {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -12856,7 +12873,7 @@ a._turnButton_loteg_100 {
   cursor: pointer;
 }
 
-._attemptLabel_1bwn0_29 {
+._attemptLabel_5vv4z_29 {
   flex: none;
   font-weight: 700;
   font-size: 13.5px;
@@ -12866,7 +12883,7 @@ a._turnButton_loteg_100 {
 
 /* Right-aligned per-attempt metadata; tabular-nums keeps the timestamps from
    jittering as digits change. */
-._timestamp_1bwn0_39 {
+._timestamp_5vv4z_39 {
   margin-left: auto;
   flex: none;
   font-family: var(--bs-font-monospace);
@@ -12876,7 +12893,7 @@ a._turnButton_loteg_100 {
   font-variant-numeric: tabular-nums;
 }
 
-._errorChip_1bwn0_49 {
+._errorChip_5vv4z_49 {
   display: inline-flex;
   align-items: center;
   flex: none;
@@ -12891,7 +12908,7 @@ a._turnButton_loteg_100 {
   white-space: nowrap;
 }
 
-._message_1bwn0_64 {
+._message_5vv4z_64 {
   font-size: 12.5px;
   color: var(--bs-secondary-color);
   min-width: 0;
@@ -12900,7 +12917,7 @@ a._turnButton_loteg_100 {
   white-space: nowrap;
 }
 
-._chevron_1bwn0_73 {
+._chevron_5vv4z_73 {
   flex: none;
   color: var(--bs-tertiary-color);
   font-size: 14px;
@@ -12909,41 +12926,41 @@ a._turnButton_loteg_100 {
 /* No horizontal padding: the Events transcript goes edge-to-edge so its row
    borders meet the card edges. The divider band and error panel re-add their
    own inset. */
-._body_1bwn0_82 {
+._body_5vv4z_82 {
   padding: 2px 0 16px;
 }
 
 /* Centered Error/Events control on a hairline that extends to both card edges,
    reading as a labeled section divider between the header and the content. */
-._dividerBand_1bwn0_88 {
+._dividerBand_5vv4z_88 {
   display: flex;
   align-items: center;
   gap: 12px;
   margin: 0 14px;
 }
 
-._hairline_1bwn0_95 {
+._hairline_5vv4z_95 {
   flex: 1;
   height: 1px;
   background: var(--bs-border-color);
 }
 
-._toggle_1bwn0_101 {
+._toggle_5vv4z_101 {
   flex: none;
   display: flex;
 }
 
-._content_1bwn0_106 {
+._content_5vv4z_106 {
   padding-top: 14px;
 }
 
-._errorPanel_1bwn0_110 {
+._errorPanel_5vv4z_110 {
   margin: 0 14px;
 }
 
-._ansi_1bwn0_114 {
+._ansi_5vv4z_114 {
   margin: 0.5em 0;
-  font-size: clamp(0.3rem, 1.1vw, 0.8rem) !important;
+  font-size: clamp(0.3rem, 1.1vw, 0.8rem);
 }
 ._row_5mttp_1 {
   display: flex;
@@ -16849,18 +16866,19 @@ pre._value_8citi_25 {
     content: "...";
   }
 }
-._container_ovp9s_1 {
+._container_183n7_1 {
   display: grid;
   grid-template-rows: max-content 1fr;
   height: 100vh;
 }
 
-._panel_ovp9s_7 {
+._panel_183n7_7 {
   margin: 0.5rem;
   overflow-y: scroll;
 }
 
-._code_ovp9s_12 {
+._code_183n7_12 {
+  /* Beats Prism's code-block background. */
   background: transparent !important;
 }
 ._heading_1trs5_1 {
