@@ -65,6 +65,7 @@ from inspect_ai._sentinel._sidecar._received import (
     begin_attempt,
     call_stopped,
     receiving_call,
+    sending,
 )
 from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
@@ -1914,7 +1915,10 @@ class Model:
                     _observer.track_model_event(event),
                     model_stream_observer(stream_observer),
                 ):
-                    with timeout_cm, idle_cm:
+                    # innermost: a call through a sentinel sidecar that is
+                    # stopped as its request is sent ends there, on the error
+                    # that stopped it
+                    with timeout_cm, idle_cm, sending():
                         sent = await self.api.generate(
                             input=input,
                             tools=call_tools,

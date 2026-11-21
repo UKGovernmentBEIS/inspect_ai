@@ -144,7 +144,9 @@ async def ensure_registration(request_id: str) -> None:
     if received.stopped_by is not None:
         raise received.stopped_by
     try:
-        received.registered_beforehand = await received.registration.ensure_registered()
+        received.registered_beforehand = await received.registration.ensure_registered(
+            received.sidecar
+        )
     except (SentinelProxyError, SampleRefusedError) as ex:
         received.stop(ex)
         raise

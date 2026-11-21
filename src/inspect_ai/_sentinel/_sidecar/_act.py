@@ -167,9 +167,12 @@ async def refused_output(
         # keeps no question that nobody will answer, and so that the
         # question's record reaches the sample's log. Otherwise the sidecar
         # closes the call only when the sample ends, after the log is written.
-        from ._review import cancel_paused_call
+        # A call that was stopped is cancelled by its own cleanup, in
+        # `refusal_after_error`, which also settles what it billed.
+        if received.stopped_by is None:
+            from ._review import cancel_paused_call
 
-        await cancel_paused_call(received)
+            await cancel_paused_call(received)
         raise
     if after.reply is not None:
         return after.reply
@@ -225,7 +228,7 @@ async def refusal_after_error(
 
 
 STOPPED_CALL_TIMEOUT = 10.0
-"""The longest Inspect asks a sidecar what the requests of a stopped call billed, in seconds. What it hasn't learned by then is noted as unknown."""
+"""The longest Inspect spends cleaning up after a stopped call, in seconds: cancelling it at the sidecar, and asking what its requests billed. What it hasn't learned by then is noted as unknown."""
 
 
 async def _settle_stopped_call(received: ReceivedCall) -> None:
@@ -233,8 +236,10 @@ async def _settle_stopped_call(received: ReceivedCall) -> None:
     # registration while a request of it was sent, and fails on what stopped
     # it. This cleans up after it, whichever of its requests were sent,
     # paused, retried or asked about before, and changes nothing of how the
-    # call ends: it raises nothing of its own, waits on no judging, asks no
-    # person, and gives up after `STOPPED_CALL_TIMEOUT`.
+    # call ends. It raises nothing of its own, waits on no judging and asks
+    # no person. All of it has one deadline, `STOPPED_CALL_TIMEOUT`, and is
+    # shielded for that long, so a limit of the sample's that runs out
+    # meanwhile doesn't end the sample in the stopped call's place.
     from ._review import cancel_call_by_id, cancel_paused_call
 
     # The request the sidecar may still hold: one it paused for a person, or
@@ -250,21 +255,22 @@ async def _settle_stopped_call(received: ReceivedCall) -> None:
     owed = list(dict.fromkeys([*received.unasked, *([held] if held else [])]))
     received.unasked.clear()
     unanswered = "the sidecar didn't answer"
-    try:
-        answers: dict[str, dict[str, Any]] = {}
-        if held is not None:
-            # Nothing will resend a paused call, so it is cancelled at the
-            # sidecar. A call Inspect doesn't know to be paused is cancelled
-            # by its id, as the sidecar may have paused it and the answer
-            # saying so been lost. The sidecar then says what it holds.
-            answer = (
-                await cancel_paused_call(received)
-                if paused
-                else await cancel_call_by_id(received)
-            )
-            if answer is not None:
-                answers[held] = answer
-        with anyio.move_on_after(STOPPED_CALL_TIMEOUT) as within:
+    with anyio.move_on_after(STOPPED_CALL_TIMEOUT, shield=True) as within:
+        try:
+            answers: dict[str, dict[str, Any]] = {}
+            if held is not None:
+                # Nothing will resend a paused call, so it is cancelled at
+                # the sidecar. A call Inspect doesn't know to be paused is
+                # cancelled by its id, as the sidecar may have paused it and
+                # the answer saying so been lost. The sidecar then says what
+                # it holds.
+                answer = (
+                    await cancel_paused_call(received)
+                    if paused
+                    else await cancel_call_by_id(received)
+                )
+                if answer is not None:
+                    answers[held] = answer
             while owed:
                 request_id = owed[0]
                 answer = answers.get(request_id)
@@ -273,10 +279,10 @@ async def _settle_stopped_call(received: ReceivedCall) -> None:
                     answer = await fetch_usage(received, request_id)
                 settle_usage(received, request_id, answer)
                 owed.pop(0)
-        if within.cancelled_caught:
-            unanswered = "the sidecar didn't answer in time"
-    except Exception as ex:
-        unanswered = f"the sidecar couldn't be asked: {ex}"
+        except Exception as ex:
+            unanswered = f"the sidecar couldn't be asked: {ex}"
+    if within.cancelled_caught:
+        unanswered = "the sidecar didn't answer in time"
     for request_id in owed:
         settle_usage(received, request_id, None, unanswered)
 

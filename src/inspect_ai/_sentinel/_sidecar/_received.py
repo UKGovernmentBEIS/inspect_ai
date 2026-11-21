@@ -9,6 +9,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
+import anyio
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from inspect_ai._util.working import sample_clock
@@ -243,6 +244,8 @@ class ReceivedCall:
         """
         self.stopped_by: Exception | None = None
         """The error of Inspect's own that stopped the call, which the call fails on whatever its requests returned. Set by `stop()`."""
+        self.send_scope: anyio.CancelScope | None = None
+        """The scope a request of the call is being sent in, which `stop()` cancels. Set by `sending()`."""
         self.handled_failures: set[int] = set()
         """The numbers of the failed tries that Inspect has handled.
 
@@ -324,9 +327,13 @@ class ReceivedCall:
         """Stop the call on an error of Inspect's own, as when the sidecar can't take its sample's registration while a request is sent.
 
         The call fails on the error, whatever error reaches Inspect from the request that was stopped. Nothing more of the call is sent, asked of a person, fetched or retried: the latest attempt's error is final, and Inspect cleans up after the call and raises this one where it stops retrying.
+
+        A request being sent ends at once, on this error. A request stopped as it is sent raises into the provider's SDK, which would back off and try again, and a limit of the sample's that ran out meanwhile would end the sample in the stopped call's place.
         """
         self.stopped_by = error
         self.error_is_final = True
+        if self.send_scope is not None:
+            self.send_scope.cancel()
 
 
 _received: ContextVar[ReceivedCall | None] = ContextVar(
@@ -494,6 +501,30 @@ def timeout_left(received: ReceivedCall) -> float | None:
 def current_receiving() -> ReceivedCall | None:
     """What is kept of the current agent call through a sidecar, or None for any other call."""
     return _received.get()
+
+
+@contextmanager
+def sending() -> Iterator[None]:
+    """Send a request of the current agent call, ending at once on the error that stops the call if it is stopped meanwhile.
+
+    Raises:
+        Exception: The error the call was stopped on, in place of whatever the stopped request came to.
+    """
+    received = _received.get()
+    if received is None:
+        yield
+        return
+    with anyio.CancelScope() as scope:
+        received.send_scope = scope
+        try:
+            yield
+        except Exception:
+            if received.stopped_by is None:
+                raise
+        finally:
+            received.send_scope = None
+    if received.stopped_by is not None:
+        raise received.stopped_by
 
 
 def call_stopped() -> bool:

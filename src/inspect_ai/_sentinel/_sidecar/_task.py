@@ -136,7 +136,8 @@ class TaskSidecars:
             registration = registrations[(sidecar.origin, attempt)] = (
                 AttemptRegistration(
                     self,
-                    sidecar,
+                    sidecar.origin,
+                    sidecar.access,
                     sample.sample_id,
                     {
                         "task": self.facts.task,
@@ -478,19 +479,23 @@ class AttemptRegistration:
     """One attempt's registration of its sample at a sidecar: the facts it registers, and whether the sidecar holds them.
 
     Every request of the attempt through the sidecar makes sure of the registration as it is sent, with `ensure_registered()`: an attempt's first send, a retry, a resend and a fetch alike. Nothing else sends a sample's registration.
+
+    The attempt's models may reach the sidecar with different credentials, each through a client of its own, and share the one registration. So it belongs to the sidecar's origin, and each request makes sure of it through its own model's client.
     """
 
     def __init__(
         self,
         sidecars: TaskSidecars,
-        sidecar: Sidecar,
+        origin: str,
+        access: EvalAccess | None,
         sample_id: str | int,
         params: dict[str, Any],
     ) -> None:
-        self.sidecar = sidecar
+        self.origin = origin
         self.params = params
         """The sample's facts as the attempt's first call took them, which every send of the registration repeats."""
         self._sidecars = sidecars
+        self._access = access
         self._sample_id = sample_id
         # one send at a time for the attempt
         self._lock = anyio.Lock()
@@ -499,7 +504,7 @@ class AttemptRegistration:
         # first sent to it, or None before then
         self._restarts_found_at_first_send: int | None = None
 
-    async def ensure_registered(self) -> bool:
+    async def ensure_registered(self, sidecar: Sidecar) -> bool:
         """Send the sample's facts to the sidecar unless it holds them, as a request of the attempt is sent.
 
         The sidecar holds a sample's facts under the task's registration, and frees them when the last run that named the sample ends. So a sample's registration counts only for the registration of the task it was sent to: once the eval has begun to register the task again, as for another sample that found it lost, the sample's is sent again. A registration of the task that is on its way is waited for first, as the sidecar may take a sample's registration before it and lose it to it. And a sample's registration that such a registration overlapped is sent again.
@@ -508,6 +513,9 @@ class AttemptRegistration:
 
         This closes the overlaps the eval knows of. A registration of the task can still begin after this returns and before the request reaches the sidecar, as when the sidecar restarts in between and another sample finds it, and only the sidecar can refuse a request it holds no facts for.
 
+        Args:
+            sidecar: The sidecar as the model whose request is being sent reaches it, with that model's client and credentials.
+
         Returns:
             Whether the sidecar's admin registered the task beforehand, in its tasks folder. Such a sidecar takes only the samples the folder holds, so a sample it later says it can't place was never accepted, rather than lost.
 
@@ -515,8 +523,7 @@ class AttemptRegistration:
             SentinelProxyError: If the sidecar couldn't take the sample, or no longer kept the task and couldn't register it again.
             SampleRefusedError: If the sidecar takes only the samples the task's registration names, and this isn't one.
         """
-        sidecar = self.sidecar
-        access = sidecar.access
+        access = self._access
         assert access is not None
         # One at a time for the attempt: its calls made at once wait for the
         # one that sends, and a registration that raised is tried again by
@@ -544,7 +551,7 @@ class AttemptRegistration:
                             sidecar, unless_begun_since=begun
                         )
                         continue
-                    self._refused(ex)
+                    self._refused(sidecar, ex)
                 if access.registrations_begun == begun:
                     held = self._held = _Held(result.get("fixed") is True, begun)
                     break
@@ -560,15 +567,15 @@ class AttemptRegistration:
 
         An attempt that has sent the sidecar nothing lost nothing, and neither did one whose first request found the restart: all the sidecar judges of it comes after.
         """
-        access = self.sidecar.access
+        access = self._access
         return (
             access is not None
             and self._restarts_found_at_first_send is not None
             and access.restarts_found != self._restarts_found_at_first_send
         )
 
-    def _refused(self, ex: SidecarCallError) -> NoReturn:
-        sidecar, task = self.sidecar, self._sidecars.facts.task
+    def _refused(self, sidecar: Sidecar, ex: SidecarCallError) -> NoReturn:
+        task = self._sidecars.facts.task
         if ex.code == UNAUTHORIZED:
             raise SentinelProxyError(_unauthorized(sidecar, ex)) from ex
         if ex.code == REGISTRATION_REFUSED:

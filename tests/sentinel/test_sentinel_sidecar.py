@@ -76,6 +76,7 @@ from inspect_ai.scorer import (
     Score,
     Scorer,
     Target,
+    includes,
     mean,
     score,
     scorer,
@@ -682,7 +683,7 @@ async def test_a_samples_registration_is_completed_once_for_each_attempt() -> No
         [
             lambda: sidecars.attempt_registration(
                 sidecar, _sample(), "sample_123", 1
-            ).ensure_registered()
+            ).ensure_registered(sidecar)
         ]
         * 3
     )
@@ -719,7 +720,7 @@ async def test_a_sample_the_sidecar_wont_take_is_an_error() -> None:
     with pytest.raises(SampleRefusedError, match="the sample 1 of the task"):
         await sidecars.attempt_registration(
             sidecar, _sample(), "sample_123", 1
-        ).ensure_registered()
+        ).ensure_registered(sidecar)
     # a refusal isn't a forgotten task: nothing is registered again
     assert len(_registered(stand_in, "register_task")) == 1
 
@@ -741,7 +742,7 @@ async def test_a_sample_the_sidecar_cant_register_is_an_error() -> None:
     with pytest.raises(SentinelProxyError, match="couldn't register the sample 1"):
         await sidecars.attempt_registration(
             sidecar, _sample(), "sample_123", 1
-        ).ensure_registered()
+        ).ensure_registered(sidecar)
 
 
 def _forgets_the_task(times: int) -> Callable[[dict[str, Any]], dict[str, Any]]:
@@ -766,7 +767,7 @@ async def test_a_task_the_sidecar_forgot_is_registered_again() -> None:
 
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_123", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
 
     # the task's registration again, as first sent but signed rather than
     # sending the token, then the sample's again
@@ -793,11 +794,11 @@ async def test_only_a_registration_the_sidecar_holds_no_token_for_sends_it() -> 
 
     await sidecars.attempt_registration(
         sidecar, _sample(), "epoch_1", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
     stand_in.tokens.clear()
     await sidecars.attempt_registration(
         sidecar, _sample(), "epoch_2", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
 
     assert [
         (call["method"], call["params"].get("token"), "mac" in call["params"])
@@ -825,7 +826,7 @@ async def test_every_call_for_the_eval_is_signed_and_none_carries_its_token() ->
 
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_123", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
     sidecars.called_through("sample_123", 1, sidecar)
     await sidecars.copy_monitor_state("sample_123", 1, Store())
     await sidecars.end_sample("sample_123")
@@ -858,7 +859,7 @@ async def test_samples_that_find_the_task_lost_at_once_register_it_again_once() 
     def complete(uuid: str) -> Callable[[], Awaitable[bool]]:
         return lambda: sidecars.attempt_registration(
             sidecar, _sample(), uuid, 1
-        ).ensure_registered()
+        ).ensure_registered(sidecar)
 
     await tg_collect([complete(uuid) for uuid in ["sample_1", "sample_2", "sample_3"]])
 
@@ -899,7 +900,7 @@ async def test_a_signed_registration_refused_otherwise_doesnt_send_the_token(
     with pytest.raises(SentinelProxyError):
         await sidecars.attempt_registration(
             sidecar, _sample(), "sample_123", 1
-        ).ensure_registered()
+        ).ensure_registered(sidecar)
 
     assert calls == ["token", "mac"]
 
@@ -1046,7 +1047,7 @@ async def test_a_task_the_sidecar_forgets_again_is_an_error() -> None:
     with pytest.raises(SentinelProxyError, match="couldn't register the sample 1"):
         await sidecars.attempt_registration(
             sidecar, _sample(), "sample_123", 1
-        ).ensure_registered()
+        ).ensure_registered(sidecar)
     # registered again once, not on and on
     assert len(_registered(stand_in, "register_task")) == 2
 
@@ -1061,7 +1062,7 @@ async def test_each_epoch_and_retry_completes_the_samples_registration_again() -
     for sample_uuid, attempt in [("epoch_1", 1), ("epoch_1", 2), ("epoch_2", 1)]:
         await sidecars.attempt_registration(
             sidecar, _sample(), sample_uuid, attempt
-        ).ensure_registered()
+        ).ensure_registered(sidecar)
 
     assert len(_registered(stand_in, "complete_registration")) == 3
 
@@ -1083,12 +1084,12 @@ async def test_a_later_epoch_registers_a_task_the_sidecar_lost_again() -> None:
     assert sidecar is not None
     await sidecars.attempt_registration(
         sidecar, _sample(), "epoch_1", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
 
     lost[0] = True
     await sidecars.attempt_registration(
         sidecar, _sample(), "epoch_2", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
 
     assert len(_registered(stand_in, "register_task")) == 2
     assert len(_registered(stand_in, "complete_registration")) == 3
@@ -1114,18 +1115,18 @@ async def test_an_attempt_completes_its_registration_again_once_its_task_was_reg
     assert sidecar is not None
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_a", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
     lost[0] = True
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_b", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
 
     # the first sample's next calls: its completion was for the registration
     # the sidecar lost, so it is sent again, once
     for sample_uuid in ["sample_a", "sample_a", "sample_b"]:
         await sidecars.attempt_registration(
             sidecar, _sample(), sample_uuid, 1
-        ).ensure_registered()
+        ).ensure_registered(sidecar)
 
     completed = _registered(stand_in, "complete_registration")
     assert [params["sample_uuid"] for params in completed] == [
@@ -1159,7 +1160,7 @@ async def test_a_completion_on_its_way_when_the_task_is_registered_again_is_sent
     for _ in range(2):
         await sidecars.attempt_registration(
             sidecar, _sample(), "sample_123", 1
-        ).ensure_registered()
+        ).ensure_registered(sidecar)
 
     assert len(_registered(stand_in, "complete_registration")) == 2
 
@@ -1175,7 +1176,7 @@ async def test_an_attempt_sends_again_what_it_first_sent() -> None:
     )
     await sidecars.attempt_registration(
         sidecar, sample, "sample_123", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
 
     # The task is registered again, as when another of its models' endpoints
     # is found at the same sidecar. The sample's input and metadata have
@@ -1185,11 +1186,51 @@ async def test_an_attempt_sends_again_what_it_first_sent() -> None:
     sample.metadata["desk"]["city"] = "Oslo"
     await sidecars.attempt_registration(
         sidecar, sample, "sample_123", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
 
     first, again = _registered(stand_in, "complete_registration")
     assert _unsigned(again) == _unsigned(first)
     assert first["metadata"] == {"desk": {"city": "Tokyo"}}
+
+
+def test_each_of_an_attempts_models_makes_sure_of_the_registration_with_its_own_credentials() -> (
+    None
+):
+    stand_in = StandInSidecar()
+    # another model reaches the same sidecar, through a client of its own
+    # and with other credentials
+    other = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="other-key",
+        memoize=False,
+        http_client=stand_in.http_client(),
+    )
+
+    @solver
+    def calls_both_models() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            state = await generate(state)
+            # Finding the sidecar behind this model registers the task with
+            # it again, so the attempt's registration is sent again, with
+            # this model's request.
+            await other.generate("Hi again.")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="Hi.")], solver=calls_both_models())
+
+    [log] = eval(task, model=_model(stand_in), sentinel_proxy="auto", display="none")
+
+    assert log.status == "success"
+    credentials = [
+        request.headers["authorization"]
+        for request in stand_in.requests
+        if request.url.path == "/sentinel/v1"
+        and json.loads(request.content)["method"] == "complete_registration"
+    ]
+    assert [given.split()[-1] for given in credentials] == ["test-key", "other-key"]
 
 
 @pytest.mark.parametrize("restarted", [True, False])
@@ -1216,7 +1257,7 @@ async def test_an_attempt_a_restarted_sidecar_had_begun_judging_isnt_scored_on_w
     sidecars.called_through("sample_a", 1, sidecar)
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_a", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
     if restarted:
         # the sidecar loses the eval's token, and with it all it held of the
         # eval: the monitor state of the first sample's calls it had judged
@@ -1230,10 +1271,10 @@ async def test_an_attempt_a_restarted_sidecar_had_begun_judging_isnt_scored_on_w
     sidecars.called_through("sample_b", 1, sidecar)
     await sidecars.attempt_registration(
         sidecar, _sample(2), "sample_b", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_a", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
     first, other = Store(), Store()
 
     if restarted:
@@ -1276,7 +1317,7 @@ async def test_a_restart_whose_registrations_answer_is_lost_still_isnt_scored_on
     sidecars.called_through("sample_a", 1, sidecar)
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_a", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
 
     # the sidecar restarts, and the sample that finds the task lost never
     # hears that the sidecar took it again
@@ -1285,14 +1326,14 @@ async def test_a_restart_whose_registrations_answer_is_lost_still_isnt_scored_on
     with pytest.raises(SentinelProxyError, match="couldn't register the task"):
         await sidecars.attempt_registration(
             sidecar, _sample(2), "sample_b", 1
-        ).ensure_registered()
+        ).ensure_registered(sidecar)
     # its retry finds the task registered, as does the first sample's next call
     await sidecars.attempt_registration(
         sidecar, _sample(2), "sample_b", 2
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_a", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
 
     # the first sample completed its registration again, for the sidecar that
     # lost it, and isn't scored on what that sidecar holds since
@@ -1335,7 +1376,7 @@ async def test_a_sample_that_first_sends_while_a_restarts_registration_is_on_its
     assert sidecar is not None
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_a", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
     stand_in.tokens.clear()
     restarted[0] = True
     failed: list[Exception] = []
@@ -1344,7 +1385,7 @@ async def test_a_sample_that_first_sends_while_a_restarts_registration_is_on_its
         try:
             await sidecars.attempt_registration(
                 sidecar, _sample(2), "sample_b", 1
-            ).ensure_registered()
+            ).ensure_registered(sidecar)
         except SentinelProxyError as ex:
             failed.append(ex)
 
@@ -1361,7 +1402,7 @@ async def test_a_sample_that_first_sends_while_a_restarts_registration_is_on_its
         # replacing what the sidecar holds, so it waits.
         sidecars.called_through("sample_c", 1, sidecar)
         first = sidecars.attempt_registration(sidecar, _sample(3), "sample_c", 1)
-        tg.start_soon(first.ensure_registered)
+        tg.start_soon(first.ensure_registered, sidecar)
         await anyio.wait_all_tasks_blocked()
         assert registered_for("sample_c") == 0
         answered.set()
@@ -1411,14 +1452,14 @@ async def test_a_samples_registration_waits_for_a_registration_of_the_task_and_i
         # A request of a sample is sent while that registration is on its
         # way. The sample's registration could reach the sidecar first, and
         # be lost to the one replacing what the sidecar holds, so it waits.
-        tg.start_soon(registration.ensure_registered)
+        tg.start_soon(registration.ensure_registered, sidecar)
         await anyio.wait_all_tasks_blocked()
         assert _registered(stand_in, "complete_registration") == []
         answered.set()
 
     # sent once the task's registration was over, and by no request after
     for _ in range(2):
-        await registration.ensure_registered()
+        await registration.ensure_registered(sidecar)
 
     assert len(_registered(stand_in, "complete_registration")) == 1
 
@@ -1441,20 +1482,20 @@ async def test_a_restart_loses_the_sample_whose_request_was_sent_and_not_the_one
         sidecars.attempt_registration(sidecar, sample, sample_uuid, 1)
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_sent", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
 
     # the sidecar restarts, and another sample registers the task again
     stand_in.tokens.clear()
     await sidecars.attempt_registration(
         sidecar, _sample(2), "sample_b", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
     # The waiting sample has its connection, its metadata changed since the
     # call was prepared. Its registration is sent with its first request,
     # as the call took the sample's facts.
     waiting_sample.metadata["desk"]["city"] = "Oslo"
     await sidecars.attempt_registration(
         sidecar, waiting_sample, "sample_waiting", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
 
     [completed] = [
         params
@@ -1510,7 +1551,7 @@ def _waits_for_a_connection_through_a_restart(
             restart()
             await sidecars.attempt_registration(
                 sidecar, _sample(2), "other", 1
-            ).ensure_registered()
+            ).ensure_registered(sidecar)
             answered.set()
         if failed:
             raise failed[0]
@@ -1636,7 +1677,7 @@ async def test_a_restart_found_while_monitor_state_is_copied_stops_the_copy() ->
     sidecars.called_through("sample_a", 1, sidecar)
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_a", 1
-    ).ensure_registered()
+    ).ensure_registered(sidecar)
     store = Store()
     failed: list[Exception] = []
 
@@ -1654,7 +1695,7 @@ async def test_a_restart_found_while_monitor_state_is_copied_stops_the_copy() ->
         stand_in.tokens.clear()
         await sidecars.attempt_registration(
             sidecar, _sample(2), "sample_b", 1
-        ).ensure_registered()
+        ).ensure_registered(sidecar)
         answered.set()
 
     # the answer may hold what began after the restart, so it isn't copied
@@ -1694,13 +1735,13 @@ async def test_an_attempt_whose_first_registration_was_still_on_its_way_at_a_res
 
     async with anyio.create_task_group() as tg:
         first = sidecars.attempt_registration(sidecar, _sample(), "sample_a", 1)
-        tg.start_soon(first.ensure_registered)
+        tg.start_soon(first.ensure_registered, sidecar)
         await taken.wait()
         # another sample registers the task again, and then the sidecar
         # restarts, before the first sample's completion has returned
         await sidecars.attempt_registration(
             sidecar, _sample(2), "sample_b", 1
-        ).ensure_registered()
+        ).ensure_registered(sidecar)
         stand_in.tokens.clear()
         answered.set()
 
@@ -1743,6 +1784,42 @@ def test_a_retry_of_a_request_makes_sure_of_the_samples_registration_before_it_i
         )
     ]
     assert sent == ["complete_registration", "model", "complete_registration", "model"]
+
+
+def test_a_sample_refused_at_its_first_request_fails_at_once_and_isnt_scored() -> None:
+    stand_in = StandInSidecar(
+        methods={
+            "complete_registration": lambda _: {
+                "error": {"code": -32001, "message": "not a registered sample"}
+            }
+        }
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.", target="Hello")],
+        solver=generate(),
+        scorer=includes(),
+    )
+
+    # The registration's error raises into the provider's SDK as the request
+    # is sent. The SDK would back off and try again, for longer than the
+    # sample's time limit, and a sample that ends on a limit is scored.
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        sentinel_proxy="required",
+        time_limit=1,
+        display="none",
+    )
+
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.limit is None
+    assert sample.error is not None
+    assert "SampleRefusedError" in sample.error.message
+    assert not sample.scores
+    assert stand_in.model_calls == []
+    # the request is stopped once, and no try after it reaches the sidecar
+    assert len(_registered(stand_in, "complete_registration")) == 1
 
 
 def test_a_call_that_is_never_sent_registers_nothing(
@@ -1905,7 +1982,7 @@ def test_a_sidecar_slow_to_say_what_a_stopped_call_billed_isnt_waited_for(
 ) -> None:
     from inspect_ai._sentinel._sidecar import _act
 
-    monkeypatch.setattr(_act, "STOPPED_CALL_TIMEOUT", 0.2)
+    monkeypatch.setattr(_act, "STOPPED_CALL_TIMEOUT", 3.0)
 
     def result(params: dict[str, Any]) -> dict[str, Any]:
         # the sidecar takes the lookup, and its answer never arrives
@@ -1918,16 +1995,18 @@ def test_a_sidecar_slow_to_say_what_a_stopped_call_billed_isnt_waited_for(
     stand_in.turns[0].then = _registration_fills(stand_in)
     task = Task(dataset=[Sample(input="Hi.")], solver=generate())
 
+    # the sample's time limit runs out while the sidecar is asked
     [log] = eval(
         task,
         model=_model(stand_in),
         sentinel_proxy="required",
-        time_limit=30,
+        time_limit=2,
         display="none",
     )
 
-    # The call fails on the registration's error all the same, and what the
-    # try that was sent billed reads as unknown.
+    # The call fails on the registration's error all the same, and not on
+    # the limit, which would have the sample scored. What the try that was
+    # sent billed reads as unknown.
     assert log.samples is not None
     sample = log.samples[0]
     assert sample.limit is None
