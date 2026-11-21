@@ -2,6 +2,7 @@
 
 from collections.abc import Awaitable, Callable, Hashable
 from contextvars import ContextVar
+from dataclasses import replace
 from logging import Filter, LogRecord, getLogger
 from typing import TYPE_CHECKING, Any, Generic, NamedTuple, NoReturn, TypeVar
 from weakref import WeakValueDictionary
@@ -378,8 +379,10 @@ class TaskSidecars:
         # if the sample sent the sidecar nothing. The likeliest to reach it
         # still come first: `first`, then the latest of the sample's attempts
         # to send a request, then every client the sample sent it anything
-        # through, the latest first, then the task's other clients for the
-        # origin, which the sample never used.
+        # through, the latest first, then the clients the sample never used:
+        # those the task found the sidecar through, and those its other
+        # samples in progress use. One client is one way to the sidecar,
+        # whichever call it was taken for.
         registrations = [
             registration
             for (at, _), registration in self._registrations.get(
@@ -401,11 +404,17 @@ class TaskSidecars:
             *(registration.sent_through for registration in latest_first),
             *used,
             *(found for found in self._found.kept() if isinstance(found, Sidecar)),
+            *(
+                sidecar
+                for others in self._registrations.values()
+                for registration in others.values()
+                for sidecar in registration.clients
+            ),
         ]:
             if (
                 sidecar is not None
                 and sidecar.origin == origin
-                and all(sidecar is not known for known in clients)
+                and all(sidecar.client is not known.client for known in clients)
             ):
                 clients.append(sidecar)
         return clients
@@ -432,6 +441,14 @@ class TaskSidecars:
             probe_and_register,
             keep=lambda found: isinstance(found, Sidecar) or found.definite,
         )
+        if isinstance(found, Sidecar) and found.client is not client.sdk:
+            # Another client with the same address and key: a second model
+            # of the service, or a client that replaced one since closed.
+            # The probe's answer holds for it, and it shares the eval's
+            # access to the sidecar. Only the client differs, so each
+            # model's calls to the sidecar go through its own. Nothing is
+            # kept of it here: a sample may bring a client and close it.
+            found = replace(found, client=client.sdk)
         if isinstance(found, NoSidecar) and not found.definite:
             if self.mode == "auto" and client.base_url not in self._warned:
                 self._warned.add(client.base_url)
@@ -599,7 +616,9 @@ class AttemptRegistration:
                 # from here the sidecar is sent the attempt's registration,
                 # or holds it already
                 self.clients = [
-                    known for known in self.clients if known is not sidecar
+                    known
+                    for known in self.clients
+                    if known.client is not sidecar.client
                 ] + [sidecar]
                 begun = access.registrations_begun
                 held = self._held

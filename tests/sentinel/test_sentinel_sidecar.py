@@ -33,7 +33,11 @@ from inspect_ai._sentinel._sidecar._endpoint import (
 )
 from inspect_ai._sentinel._sidecar._events import SIDECAR_METADATA
 from inspect_ai._sentinel._sidecar._lookup import RESULT_WAIT, request_result
-from inspect_ai._sentinel._sidecar._received import ReceivedCall, receiving_call
+from inspect_ai._sentinel._sidecar._received import (
+    ReceivedCall,
+    receiving_call,
+    sending,
+)
 from inspect_ai._sentinel._sidecar._sign import model_request_message, sign
 from inspect_ai._sentinel._sidecar._task import (
     MONITOR_STATE_COPY,
@@ -2145,6 +2149,13 @@ def test_a_registration_slower_than_a_calls_timeouts_doesnt_time_the_call_out(
     assert sample.output.completion == "Done."
     assert len(_registered(stand_in, "complete_registration")) == 1
     assert len(stand_in.model_calls) == len(answered)
+    # and isn't timed as the model's
+    times = [
+        event.call.time
+        for event in _model_events(log)
+        if event.call is not None and event.call.time is not None
+    ]
+    assert times and max(times) < 1.0
 
 
 # without the limit a registration never ends, and without its error raised
@@ -2214,10 +2225,140 @@ def test_a_registration_that_takes_too_long_fails_the_call_and_isnt_retried(
     sample = log.samples[0]
     assert sample.error is not None
     assert "within 0.5 seconds" in sample.error.message
-    # the reason alone: the connection error the provider made of it, which
-    # comes of it, is no part of its history
-    assert "Connection error" not in sample.error.traceback
     assert stand_in.model_calls == []
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
+def test_a_client_that_replaced_a_closed_one_with_the_same_key_reaches_the_sidecar(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    stand_in = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 3})})
+
+    def with_the_same_key(client: httpx2.AsyncClient) -> Model:
+        return get_model(
+            _MODELS["anthropic"],
+            base_url="http://proxy.test",
+            api_key="test-key",
+            memoize=False,
+            http_client=client,
+        )
+
+    first_client = stand_in.http_client()
+    first = with_the_same_key(first_client)
+    replacement = with_the_same_key(stand_in.http_client())
+
+    @solver
+    def calls_through_one_client_then_its_replacement() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await first.generate("Hi.")
+            await first_client.aclose()
+            await replacement.generate("Hi.")
+            return state
+
+        return solve
+
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=calls_through_one_client_then_its_replacement(),
+        scorer=_reads_monitor_state(),
+    )
+
+    [log] = eval(task, model=first, sentinel_proxy="auto", display="none")
+
+    # the sidecar was found once, for the address and key, and each client
+    # reaches it in its own right
+    assert len(stand_in.probes) == 1
+    assert len(stand_in.model_calls) == 2
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None, sample.error
+    assert sample.scores is not None
+    [score] = sample.scores.values()
+    assert score.value == 3
+    assert len(_registered(stand_in, "end_sample")) == 1
+
+
+def test_a_client_a_sample_brought_and_closed_isnt_kept_for_the_samples_after_it() -> (
+    None
+):
+    stand_in = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 3})})
+    reached_through: list[int] = []
+
+    @solver
+    def calls_through_a_client_of_its_own() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await generate(state)
+            client = stand_in.http_client()
+            own = get_model(
+                _MODELS["anthropic"],
+                base_url="http://proxy.test",
+                api_key="test-key",
+                memoize=False,
+                http_client=client,
+            )
+            await own.generate("Hi.")
+            await client.aclose()
+            sidecars = task_sidecars()
+            assert sidecars is not None
+            reached_through.append(
+                len(sidecars._clients(state.uuid, "http://proxy.test"))
+            )
+            return state
+
+        return solve
+
+    task = Task(
+        dataset=[Sample(input="Hi.") for _ in range(4)],
+        solver=calls_through_a_client_of_its_own(),
+        scorer=_reads_monitor_state(),
+    )
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        sentinel_proxy="auto",
+        max_samples=1,
+        display="none",
+    )
+
+    # each sample may reach the sidecar through the task's client and its
+    # own, and not through those the samples before it closed
+    assert log.samples is not None
+    assert [sample.error for sample in log.samples] == [None] * 4
+    assert reached_through == [2, 2, 2, 2]
+
+
+async def test_a_stopped_calls_error_never_leads_back_to_itself() -> None:
+    # As the provider's SDK and a task of nested asyncio leave it: the SDK
+    # raises its connection error from the error a request hook raised, and
+    # the error is raised again while that connection error is being handled.
+    stopped_by = SentinelProxyError("The sidecar couldn't register the sample.")
+    connection_error: RuntimeError | None = None
+    with receiving_call(Sidecar("http://proxy.test", "whole", None)) as received:
+        with pytest.raises(SentinelProxyError):
+            with sending(contextlib.nullcontext()):
+                received.stop(stopped_by)
+                try:
+                    raise stopped_by
+                except SentinelProxyError as ex:
+                    connection_error = RuntimeError("Connection error.")
+                    raise connection_error from ex
+    assert connection_error is not None
+    try:
+        raise connection_error
+    except RuntimeError:
+        with pytest.raises(SentinelProxyError):
+            raise stopped_by
+
+    seen: list[BaseException] = []
+    error: BaseException | None = stopped_by
+    while error is not None:
+        assert all(error is not known for known in seen), (
+            "the error's history is a ring"
+        )
+        seen.append(error)
+        error = error.__cause__ or error.__context__
 
 
 def test_a_call_that_is_never_sent_registers_nothing(

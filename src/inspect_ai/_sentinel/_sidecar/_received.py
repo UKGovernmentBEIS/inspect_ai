@@ -544,26 +544,55 @@ def sending(
     received.attempt_timeout = (
         attempt_timeout if isinstance(attempt_timeout, anyio.CancelScope) else None
     )
+    request_error: BaseException | None = None
     with anyio.CancelScope() as scope:
         received.send_scope = scope
         try:
             yield
-        except Exception:
-            if received.stopped_by is None:
+        except BaseException as ex:
+            request_error = ex
+            if received.stopped_by is None or not isinstance(ex, Exception):
                 raise
         finally:
             received.send_scope = None
             received.attempt_timeout = None
     stopped_by = received.stopped_by
     if stopped_by is not None:
-        # Raised as it first was. Here it would take the request's error for
-        # its context, which comes of this one, as the provider's connection
-        # error does: a ring, which a traceback that follows it never ends.
+        # The request's error comes of this one, as the provider's connection
+        # error does, and this one is raised again from here on, by whatever
+        # holds it. Raised while the request's error is being handled, it
+        # takes that for its context: a ring, which a traceback that follows
+        # it never ends. So the request's error, which ends here, forgets
+        # where it came from.
+        if request_error is not None:
+            _forget(request_error, stopped_by)
+        # raised as it first was, and not as a result of the request's error
         context = stopped_by.__context__
         try:
             raise stopped_by
         finally:
             stopped_by.__context__ = context
+
+
+def _forget(error: BaseException, origin: BaseException) -> None:
+    # cut each link to `origin` from `error` and all its history, through
+    # the errors of a group too
+    seen: set[int] = set()
+    pending = [error]
+    while pending:
+        node = pending.pop()
+        if node is origin or id(node) in seen:
+            continue
+        seen.add(id(node))
+        if node.__cause__ is origin:
+            node.__cause__ = None
+        if node.__context__ is origin:
+            node.__context__ = None
+        pending.extend(
+            linked for linked in (node.__cause__, node.__context__) if linked
+        )
+        if isinstance(node, BaseExceptionGroup):
+            pending.extend(node.exceptions)
 
 
 @contextmanager
