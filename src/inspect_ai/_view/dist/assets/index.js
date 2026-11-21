@@ -1,7 +1,7 @@
 const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AnsiDisplayRich.js","./rolldown-runtime.js","./compiler-runtime.js","./ToolButton.js","./ToolButton.css","./AnsiDisplayRich.css","./AsciinemaPlayerImpl.js","./useLatestRef.js","./AsciinemaPlayerImpl.css","./prismHighlighter.js","./type.js","./markdownPipeline.js","./markdownText.js","./preload-helper.js","./markdownPipeline.css"])))=>i.map(i=>d[i]);
 import { i as __toESM, t as __commonJSMin } from "./rolldown-runtime.js";
 import { n as require_react, r as require_jsx_runtime, t as require_compiler_runtime } from "./compiler-runtime.js";
-import { a as logLevelIcon, c as nullProtoRecord, i as iconForMimeType, l as printObject, n as AnsiDisplay_module_default, o as clsx, r as Icon, s as getOwn, t as ToolButton } from "./ToolButton.js";
+import { a as logLevelIcon, c as getOwn, i as iconForMimeType, l as nullProtoRecord, n as AnsiDisplay_module_default, o as clsx, r as Icon, s as fillPersistedDefaults, t as ToolButton, u as printObject } from "./ToolButton.js";
 import { t as useLatestRef } from "./useLatestRef.js";
 import { t as __vitePreload } from "./preload-helper.js";
 import { i as toArray, n as isReadonlyArray, r as isRecord, t as isNumeric } from "./type.js";
@@ -61610,11 +61610,46 @@ var cleanCodexAnswer = (text) => {
 	}
 	return visibleAnswer.trimEnd();
 };
+var kTodoStatuses = [
+	"pending",
+	"in_progress",
+	"completed"
+];
+var isTodoStatus = (value) => kTodoStatuses.some((status) => status === value);
+var toToolTodo = (item) => {
+	if (!isRecord(item)) return void 0;
+	const text = [item["content"], item["step"]].find((value) => typeof value === "string");
+	if (text === void 0) return void 0;
+	return {
+		content: text,
+		status: isTodoStatus(item["status"]) ? item["status"] : "pending"
+	};
+};
+var toToolTodos = (obj) => Array.isArray(obj) ? obj.map(toToolTodo).filter((todo) => todo !== void 0) : [];
+var isValidView = (view) => {
+	if (view.content === "```bash\nbash\n```\n") return false;
+	return true;
+};
+/** The args portion of the rendered function call with formatting preserved;
+* collapse whitespace for the single-line header summary. */ var fullArgs = (functionCall, tool) => {
+	if (functionCall.startsWith(`${tool}(`) && functionCall.endsWith(")")) {
+		const inner = functionCall.slice(tool.length + 1, -1).trim();
+		return inner.length > 0 ? inner : void 0;
+	}
+	return functionCall !== tool ? functionCall : void 0;
+};
+var argumentText = (value) => {
+	try {
+		return String(value);
+	} catch {
+		return JSON.stringify(value);
+	}
+};
 /**
 * Substitutes `{{param_name}}` placeholders in tool call content
 * with actual values from the tool call arguments.
 */ var substituteToolCallContent = (content, args) => {
-	const replace = (text) => text.replace(/\{\{(\w+)\}\}/g, (match, key) => Object.hasOwn(args, key) ? String(args[key]) : match);
+	const replace = (text) => text.replace(/\{\{(\w+)\}\}/g, (match, key) => Object.hasOwn(args, key) ? argumentText(args[key]) : match);
 	return {
 		...content,
 		title: content.title ? replace(content.title) : content.title,
@@ -66225,22 +66260,6 @@ var TodoWriteInput_module_default = {
 	inProgress: "_inProgress_1t8rx_9"
 };
 // ../../packages/inspect-components/src/chat/tools/tool-input/TodoWriteInput.tsx
-var kTodoStatuses = [
-	"pending",
-	"in_progress",
-	"completed"
-];
-var isTodoStatus = (value) => kTodoStatuses.some((status) => status === value);
-var toToolTodo = (item) => {
-	if (!isRecord(item)) return void 0;
-	const text = [item["content"], item["step"]].find((value) => typeof value === "string");
-	if (text === void 0) return void 0;
-	return {
-		content: text,
-		status: isTodoStatus(item["status"]) ? item["status"] : "pending"
-	};
-};
-var toToolTodos = (obj) => Array.isArray(obj) ? obj.map(toToolTodo).filter((todo) => todo !== void 0) : [];
 var TodoWriteInput = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(10);
 	const { contents, parentRef } = t0;
@@ -66421,10 +66440,6 @@ var RenderTool = (t0) => {
 		$[17] = t7;
 	} else t7 = $[17];
 	return t7;
-};
-var isValidView = (view) => {
-	if (view.content === "```bash\nbash\n```\n") return false;
-	return true;
 };
 var ServerToolCall_module_default = {
 	tool: "_tool_13xcg_1",
@@ -68012,14 +68027,6 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 };
 /** Args longer than this can't meaningfully summarize on the single header
 * line; they render in the input zone instead. */ var kMaxSummaryArgs = 120;
-/** The args portion of the rendered function call with formatting preserved;
-* collapse whitespace for the single-line header summary. */ var fullArgs = (functionCall, tool) => {
-	if (functionCall.startsWith(`${tool}(`) && functionCall.endsWith(")")) {
-		const inner = functionCall.slice(tool.length + 1, -1).trim();
-		return inner.length > 0 ? inner : void 0;
-	}
-	return functionCall !== tool ? functionCall : void 0;
-};
 /** Whether the tool output has anything worth an output well. */ var hasOutputContent = (output) => {
 	if (typeof output === "string") return output.trim().length > 0;
 	if (typeof output === "number" || typeof output === "boolean") return true;
@@ -71999,7 +72006,6 @@ var createAppSlice = (set, get, _store) => {
 var initializeAppSlice = (set, capabilities) => {
 	set((state) => {
 		state.capabilities = capabilities;
-		if (!state.app) state.app = initialState$3;
 	});
 };
 // src/state/logSlice.ts
@@ -72070,7 +72076,6 @@ var createLogSlice = (set, get, _store) => {
 };
 var initalializeLogSlice = (set) => {
 	set((state) => {
-		if (!state.log) state.log = initialState$2;
 		if ("selectedSampleHandle" in state.log) {
 			const legacy = state.log.selectedSampleHandle;
 			if (isRecord(legacy) && (typeof legacy.id === "string" || typeof legacy.id === "number") && typeof legacy.epoch === "number" && typeof legacy.logFile === "string") state.log.highlightedSample ??= {
@@ -72083,6 +72088,26 @@ var initalializeLogSlice = (set) => {
 		if ("loadedLog" in state.log) delete state.log.loadedLog;
 	});
 };
+// src/app/samples/list/samplesView.ts
+/**
+* The default view applied when neither the user nor the eval author
+* has specified anything. `columns` and `sort` are intentionally empty —
+* the SampleList consumer fills them from the live column registry
+* (`buildSampleColumns`) and seeds visibility from per-scope predicates
+* (e.g. `samplesPanel`'s error/limit/retries auto-promotion).
+*/ var defaultSamplesView = () => ({
+	name: "Default",
+	columns: [],
+	sort: [],
+	filters: {
+		dsl: "",
+		extraColumnFilters: {}
+	},
+	multiline: true,
+	compactScores: false,
+	colorScalesEnabled: true,
+	userOverrides: {}
+});
 // src/state/logsSlice.ts
 var initialState$1 = {
 	listing: {
@@ -72160,8 +72185,9 @@ var createLogsSlice = (set, get, _store) => {
 };
 var initializeLogsSlice = (set) => {
 	set((state) => {
-		if (!state.logs) state.logs = initialState$1;
 		if ("selectedLogFile" in state.logs) delete state.logs.selectedLogFile;
+		const byLog = state.logs.samplesListState.byLog;
+		for (const [logFile, view] of Object.entries(byLog)) byLog[logFile] = fillPersistedDefaults(view, defaultSamplesView());
 	});
 };
 var displaySamplesEqual = (a, b) => {
@@ -73737,6 +73763,7 @@ var initializeStore = (capabilities, storage) => {
 			logs: state.logs
 		}),
 		version: 4,
+		merge: fillPersistedDefaults,
 		onRehydrateStorage: (state) => {
 			return (hydrationState, error) => {
 				log$1.debug("REHYDRATING STATE");
@@ -100505,6 +100532,46 @@ var CommunicationEventView_module_default = {
 	line: "_line_nut6q_7",
 	refused: "_refused_nut6q_21"
 };
+// ../../packages/inspect-components/src/transcript/recentInputMessages.ts
+/**
+* The user/system messages which immediately preceded a model call — the
+* "recent messages" panel of ModelEventView. Walks backward from the end of
+* the input, collecting trailing user/system messages (and tool messages no
+* tool event shows), stopping at the first assistant/tool message. Everything earlier is hidden behind "show all messages".
+*/ function recentInputMessages(input, options) {
+	const result = [];
+	if (!options.agentResultsFiltered) {
+		let offset = void 0;
+		const lastMessage = input.at(-1);
+		if (lastMessage?.role === "assistant") {
+			result.push(lastMessage);
+			offset = -1;
+		}
+		for (const msg of input.slice(offset).reverse()) if (msg.role === "user" && !msg.tool_call_id || msg.role === "system" || msg.role === "tool" && !shownByToolEvent(msg, options)) result.push(msg);
+		else if (msg.role === "tool" && options.toolEventIds !== void 0) continue;
+		else break;
+		result.reverse();
+	}
+	if (result.length === input.length && result.length > 0) {
+		const lastHandoff = result.findLastIndex(isAgentHandoffMessage);
+		if (lastHandoff > 0) return result.slice(lastHandoff);
+	}
+	return result;
+}
+var shownByToolEvent = (message, options) => {
+	if (options.hasToolEvents === false) return false;
+	if (options.toolEventIds === void 0) return true;
+	return !!message.tool_call_id && options.toolEventIds.has(message.tool_call_id);
+};
+/**
+* A user message the agent bridge synthesized from a Codex Multi-Agent V2
+* `agent_message` item (inter-agent handoff). The bridge preserves the raw
+* item on ContentText.internal for native replay; its presence marks the
+* message as the start of the receiving agent's turn.
+*/ function isAgentHandoffMessage(message) {
+	if (message.role !== "user" || typeof message.content === "string") return false;
+	return message.content.some((content) => content.type === "text" && typeof content.internal === "object" && content.internal !== null && !Array.isArray(content.internal) && "agent_message" in content.internal);
+}
 // ../../packages/inspect-components/src/transcript/eventText.ts
 var SANITIZED_CONTENT_KEYS = {
 	image: "image",
@@ -100542,32 +100609,68 @@ var sanitizeStringify = (v) => {
 		return replacement !== void 0 ? replacement : val;
 	});
 };
+var withoutCodeFences = (markdown) => markdown.replace(/^[ \t]*(```|~~~).*$/gm, "");
+var drawnCall = (call) => {
+	const { name, title, functionCall, input, description, contentType } = resolveToolInput(call.function, call.arguments);
+	const view = call.view ? substituteToolCallContent(call.view, call.arguments) : void 0;
+	const displayName = view?.title || title || name;
+	const fields = [["function", displayName]];
+	if (!(input != null && input !== "" || !!view?.content)) {
+		const args = fullArgs(functionCall, displayName);
+		if (args) fields.push(["arguments", args]);
+	} else {
+		const drawn = view && isValidView(view) ? withoutCodeFences(view.content) : contentType === "agent/todo-list" ? toToolTodos(input).map((todo) => todo.content).join("\n") : input;
+		const text = typeof drawn === "string" ? drawn : typeof drawn === "object" && drawn !== null ? sanitizeStringify(drawn) : "";
+		if (text) fields.push(["arguments", text]);
+	}
+	if (description) fields.push(["description", description]);
+	return {
+		name: displayName,
+		fields
+	};
+};
 /**
 * Extracts labeled fields from an event for search and text serialization.
-*/ var extractEventFields = (event) => {
+* Given `find` (the sample's tool events, as Find passes), a model call and a
+* tool call yield what their panels draw rather than all they record.
+*/ var extractEventFields = (event, find) => {
 	const fields = [];
 	switch (event.event) {
 		case "model": {
 			const modelEvent = event;
 			if (modelEvent.model) fields.push(["model", modelEvent.model]);
-			for (const choice of modelEvent.output.choices) for (const text of contentTexts(choice.message.content)) fields.push(["output", text]);
-			for (const msg of modelEvent.input) if (msg.role === "user" || msg.role === "system") for (const text of contentTexts(msg.content)) fields.push([msg.role, text]);
+			for (const choice of modelEvent.output.choices) {
+				for (const text of contentTexts(choice.message.content)) fields.push(["output", text]);
+				if (!find) continue;
+				for (const call of choice.message.tool_calls ?? []) if (!find.proposals.has(call.id)) fields.push(...drawnCall(call).fields);
+			}
+			const input = find ? recentInputMessages(modelEvent.input, {
+				agentResultsFiltered: false,
+				hasToolEvents: void 0,
+				toolEventIds: find.events
+			}) : modelEvent.input.filter((msg) => msg.role === "user" || msg.role === "system");
+			for (const msg of input) for (const text of contentTexts(msg.content)) fields.push([msg.role, text]);
 			if (modelEvent.error) fields.push(["error", modelEvent.error]);
 			if (modelEvent.traceback) fields.push(["traceback", modelEvent.traceback]);
 			break;
 		}
 		case "tool": {
 			const toolEvent = event;
-			if (toolEvent.view?.title) {
-				const resolvedTitle = toolEvent.view.title.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-					if (!Object.hasOwn(toolEvent.arguments, key)) return match;
-					const val = toolEvent.arguments[key];
-					return typeof val === "string" ? val : JSON.stringify(val);
-				});
-				fields.push(["title", resolvedTitle]);
+			if (find) {
+				const { name, fields: drawn } = drawnCall(toolEvent);
+				fields.push(["title", name], ...drawn);
+			} else {
+				if (toolEvent.view?.title) {
+					const resolvedTitle = toolEvent.view.title.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+						if (!Object.hasOwn(toolEvent.arguments, key)) return match;
+						const val = toolEvent.arguments[key];
+						return typeof val === "string" ? val : JSON.stringify(val);
+					});
+					fields.push(["title", resolvedTitle]);
+				}
+				if (toolEvent.function) fields.push(["function", toolEvent.function]);
+				fields.push(["arguments", JSON.stringify(toolEvent.arguments)]);
 			}
-			if (toolEvent.function) fields.push(["function", toolEvent.function]);
-			fields.push(["arguments", JSON.stringify(toolEvent.arguments)]);
 			if (toolEvent.result) {
 				if (typeof toolEvent.result === "string") fields.push(["result", toolEvent.result]);
 				else for (const text of extractToolResultText(toolEvent.result)) fields.push(["result", text]);
@@ -101868,45 +101971,6 @@ var ModelEventView_module_default = {
 	providerIdStatus: "_providerIdStatus_1jcqw_142",
 	providerIdFailed: "_providerIdFailed_1jcqw_147"
 };
-// ../../packages/inspect-components/src/transcript/recentInputMessages.ts
-/**
-* The user/system messages which immediately preceded a model call — the
-* "recent messages" panel of ModelEventView. Walks backward from the end of
-* the input, collecting trailing user/system messages (and tool messages no
-* tool event shows), stopping at the first assistant/tool message. Everything earlier is hidden behind "show all messages".
-*/ function recentInputMessages(input, options) {
-	const result = [];
-	if (!options.agentResultsFiltered) {
-		let offset = void 0;
-		const lastMessage = input.at(-1);
-		if (lastMessage?.role === "assistant") {
-			result.push(lastMessage);
-			offset = -1;
-		}
-		for (const msg of input.slice(offset).reverse()) if (msg.role === "user" && !msg.tool_call_id || msg.role === "system" || msg.role === "tool" && !shownByToolEvent(msg, options)) result.unshift(msg);
-		else if (msg.role === "tool" && options.toolEventIds !== void 0) continue;
-		else break;
-	}
-	if (result.length === input.length && result.length > 0) {
-		const lastHandoff = result.findLastIndex(isAgentHandoffMessage);
-		if (lastHandoff > 0) return result.slice(lastHandoff);
-	}
-	return result;
-}
-var shownByToolEvent = (message, options) => {
-	if (options.hasToolEvents === false) return false;
-	if (options.toolEventIds === void 0) return true;
-	return !!message.tool_call_id && options.toolEventIds.has(message.tool_call_id);
-};
-/**
-* A user message the agent bridge synthesized from a Codex Multi-Agent V2
-* `agent_message` item (inter-agent handoff). The bridge preserves the raw
-* item on ContentText.internal for native replay; its presence marks the
-* message as the start of the receiving agent's turn.
-*/ function isAgentHandoffMessage(message) {
-	if (message.role !== "user" || typeof message.content === "string") return false;
-	return message.content.some((content) => content.type === "text" && typeof content.internal === "object" && content.internal !== null && !Array.isArray(content.internal) && "agent_message" in content.internal);
-}
 // ../../packages/inspect-components/src/transcript/timeline/retryGrouping.ts
 /**
 * Group consecutive failed-then-successful ModelEvent retries inside the
@@ -117241,22 +117305,26 @@ function recordRowEvents(agent, rowKey, out) {
 /**
 * Find every occurrence of `term` across the sample's events.
 *
-* Reuses `extractEventFields` so the searchable text exactly matches what
-* `eventSearchText` (the per-row counter) would extract. Events whose uuid
-* isn't in `eventToRow` are skipped (they're not addressable by row switch).
+* Reuses `extractEventFields`, given the sample's tool events so a model call
+* counts what its panel draws. Events whose uuid isn't in `eventToRow` are
+* skipped (they're not addressable by row switch).
 *
 * Order: events in input order, fields in `extractEventFields` order,
 * occurrences left-to-right. Stable across calls with the same inputs.
-*/ function findAllMatches(events, term, eventToRow) {
+*
+* `recordsExecutions` is `recordsExecutionIds` of the sample's unfiltered
+* events: a type filter on `events` can hide the ones that record them.
+*/ function findAllMatches(events, term, eventToRow, recordsExecutions = recordsExecutionIds(events)) {
 	if (!term) return [];
 	const variants = searchVariants(term);
 	const out = [];
+	const toolEvents = toolEventIdsOf(events, recordsExecutions);
 	for (const event of events) {
 		const uuid = event.uuid;
 		if (!uuid) continue;
 		const rowKey = eventToRow.get(uuid);
 		if (rowKey === void 0) continue;
-		const fields = extractEventFields(event);
+		const fields = extractEventFields(event, toolEvents);
 		let fieldIndex = 0;
 		for (const [fieldKey, text] of fields) {
 			const hits = findVariantHits(normalizeFindText(text), variants);
@@ -117272,6 +117340,19 @@ function recordRowEvents(agent, rowKey, out) {
 	}
 	return out;
 }
+function toolEventIdsOf(events, recordsExecutions) {
+	const ids = /* @__PURE__ */ new Set();
+	const proposals = /* @__PURE__ */ new Set();
+	for (const event of events) {
+		if (event.event !== "tool") continue;
+		ids.add(event.id);
+		proposals.add(proposalIdOf(event));
+	}
+	return {
+		events: ids,
+		proposals: recordsExecutions ? proposals : ids
+	};
+}
 // ../../packages/inspect-components/src/transcript/search/useTranscriptSearchSource.ts
 var DEFAULT_ID = "transcript-sample";
 var sameEvent = (eventId) => eventId;
@@ -117283,7 +117364,7 @@ var SETTLE_LIMIT = 90;
 *
 * Preconditions: must be mounted inside an `ExtendedFindProvider`.
 */ function useTranscriptSearchSource(options) {
-	const { events, rows, selected, onSelect, viewNodesRef, onHeadroomResetAnchor, onHeadroomSetHidden, id = DEFAULT_ID } = options;
+	const { events, rows, selected, onSelect, viewNodesRef, onHeadroomResetAnchor, onHeadroomSetHidden, recordsExecutionIds, id = DEFAULT_ID } = options;
 	const { registerFindSource } = useExtendedFind();
 	const latest = useLatestRef({
 		selected,
@@ -117300,7 +117381,7 @@ var SETTLE_LIMIT = 90;
 		const root = () => viewNodesRef.current?.getElement() ?? null;
 		const countByItem = cacheLastCall((term, rowEventId) => {
 			const counts = /* @__PURE__ */ new Map();
-			for (const match of findAllMatches(events, term, eventToRow)) {
+			for (const match of findAllMatches(events, term, eventToRow, recordsExecutionIds)) {
 				const index = eventIndex.get(rowEventId(match.eventId)) ?? eventIndex.get(match.eventId);
 				counts.set(index, (counts.get(index) ?? 0) + 1);
 			}
@@ -117357,7 +117438,8 @@ var SETTLE_LIMIT = 90;
 		events,
 		rows,
 		viewNodesRef,
-		latest
+		latest,
+		recordsExecutionIds
 	]);
 	(0, import_react.useEffect)(() => registerFindSource(id, source), [
 		id,
@@ -117915,7 +117997,7 @@ function renderAgentCard(node, agentCardClassName) {
 	});
 }
 var TranscriptLayout = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(235);
+	const $ = (0, import_compiler_runtime.c)(236);
 	const { events, hiddenEventTypes, running: t1, backfilling: t2, scrollToTopOnFinish, scrollRef, offsetTop: t3, embedded: t4, timeline, deepLink, headroom, empty, listId, eventsListRef, getEventUrl, linkingEnabled, getEventFocusUrl, onOpenEventFocus, onNavigatedToEvent, keyboardNavDisabled, selection, bulkCollapse, collapseState, outline, rightRail, eventNodeContext, className } = t0;
 	const running = t1 === void 0 ? false : t1;
 	const backfilling = t2 === void 0 ? false : t2;
@@ -117989,7 +118071,7 @@ var TranscriptLayout = (t0) => {
 	} else t15 = $[18];
 	const t16 = eventsListRef ?? nullViewNodesRef;
 	let t17;
-	if ($[19] !== listId || $[20] !== onHeadroomResetAnchor || $[21] !== onHeadroomSetHidden || $[22] !== searchableEvents || $[23] !== t14 || $[24] !== t15 || $[25] !== t16 || $[26] !== timelineState.rows) {
+	if ($[19] !== listId || $[20] !== mergedEventNodeContext.recordsExecutionIds || $[21] !== onHeadroomResetAnchor || $[22] !== onHeadroomSetHidden || $[23] !== searchableEvents || $[24] !== t14 || $[25] !== t15 || $[26] !== t16 || $[27] !== timelineState.rows) {
 		t17 = {
 			id: listId,
 			events: searchableEvents,
@@ -117998,68 +118080,70 @@ var TranscriptLayout = (t0) => {
 			onSelect: t15,
 			viewNodesRef: t16,
 			onHeadroomResetAnchor,
-			onHeadroomSetHidden
+			onHeadroomSetHidden,
+			recordsExecutionIds: mergedEventNodeContext.recordsExecutionIds
 		};
 		$[19] = listId;
-		$[20] = onHeadroomResetAnchor;
-		$[21] = onHeadroomSetHidden;
-		$[22] = searchableEvents;
-		$[23] = t14;
-		$[24] = t15;
-		$[25] = t16;
-		$[26] = timelineState.rows;
-		$[27] = t17;
-	} else t17 = $[27];
+		$[20] = mergedEventNodeContext.recordsExecutionIds;
+		$[21] = onHeadroomResetAnchor;
+		$[22] = onHeadroomSetHidden;
+		$[23] = searchableEvents;
+		$[24] = t14;
+		$[25] = t15;
+		$[26] = t16;
+		$[27] = timelineState.rows;
+		$[28] = t17;
+	} else t17 = $[28];
 	useTranscriptSearchSource(t17);
 	const { stickySwimLaneHeight, isSwimLaneSticky, swimLaneStickyContentRef, handleSwimLaneStickyChange } = useStickySwimLaneHeight();
 	const effectiveOffsetTop = offsetTop + stickySwimLaneHeight;
 	let t18;
-	if ($[28] !== initialEventId || $[29] !== initialMessageId || $[30] !== scrollRef || $[31] !== timelineState) {
+	if ($[29] !== initialEventId || $[30] !== initialMessageId || $[31] !== scrollRef || $[32] !== timelineState) {
 		t18 = {
 			timelineState,
 			scrollRef,
 			initialEventId,
 			initialMessageId
 		};
-		$[28] = initialEventId;
-		$[29] = initialMessageId;
-		$[30] = scrollRef;
-		$[31] = timelineState;
-		$[32] = t18;
-	} else t18 = $[32];
+		$[29] = initialEventId;
+		$[30] = initialMessageId;
+		$[31] = scrollRef;
+		$[32] = timelineState;
+		$[33] = t18;
+	} else t18 = $[33];
 	const { spanSelectKeys, selectByRowKey: baseSelectByRowKey, hasScrollTarget } = useSelectionActions(t18);
 	const { effectiveListId } = useListPositionManager(listId, timelineState.selected, scrollRef, hasScrollTarget);
 	let t19;
-	if ($[33] !== transcriptTimeline.timeline.root) {
+	if ($[34] !== transcriptTimeline.timeline.root) {
 		t19 = countUtilitySpans(transcriptTimeline.timeline.root);
-		$[33] = transcriptTimeline.timeline.root;
-		$[34] = t19;
-	} else t19 = $[34];
+		$[34] = transcriptTimeline.timeline.root;
+		$[35] = t19;
+	} else t19 = $[35];
 	const hiddenUtilityCount = t19;
 	let keys;
-	if ($[35] !== timelineState.rows) {
+	if ($[36] !== timelineState.rows) {
 		keys = /* @__PURE__ */ new Set();
 		for (const row of timelineState.rows) if (row.depth === 0 || row.spans.some(_temp3$24)) keys.add(row.key);
-		$[35] = timelineState.rows;
-		$[36] = keys;
-	} else keys = $[36];
+		$[36] = timelineState.rows;
+		$[37] = keys;
+	} else keys = $[37];
 	const agentLaneKeys = keys;
 	let t20;
-	if ($[37] !== agentLaneKeys || $[38] !== timelineLayouts) {
+	if ($[38] !== agentLaneKeys || $[39] !== timelineLayouts) {
 		let t21;
-		if ($[40] !== agentLaneKeys) {
+		if ($[41] !== agentLaneKeys) {
 			t21 = (l) => agentLaneKeys.has(l.key);
-			$[40] = agentLaneKeys;
-			$[41] = t21;
-		} else t21 = $[41];
+			$[41] = agentLaneKeys;
+			$[42] = t21;
+		} else t21 = $[42];
 		t20 = timelineLayouts.filter(t21).map(_temp4$21);
-		$[37] = agentLaneKeys;
-		$[38] = timelineLayouts;
-		$[39] = t20;
-	} else t20 = $[39];
+		$[38] = agentLaneKeys;
+		$[39] = timelineLayouts;
+		$[40] = t20;
+	} else t20 = $[40];
 	const laneKeys = t20;
 	let byLaneKey;
-	if ($[42] !== laneKeys[0] || $[43] !== spanSelectKeys || $[44] !== timelineData.root) {
+	if ($[43] !== laneKeys[0] || $[44] !== spanSelectKeys || $[45] !== timelineData.root) {
 		const byAgentSpan = computeLaneFirstAnchors(timelineData.root);
 		byLaneKey = /* @__PURE__ */ new Map();
 		const rootKey = laneKeys[0];
@@ -118067,14 +118151,14 @@ var TranscriptLayout = (t0) => {
 			const laneKey = agentSpanId === null ? rootKey : spanSelectKeys.get(agentSpanId)?.key;
 			if (laneKey) byLaneKey.set(laneKey, eventId);
 		}
-		$[42] = laneKeys[0];
-		$[43] = spanSelectKeys;
-		$[44] = timelineData.root;
-		$[45] = byLaneKey;
-	} else byLaneKey = $[45];
+		$[43] = laneKeys[0];
+		$[44] = spanSelectKeys;
+		$[45] = timelineData.root;
+		$[46] = byLaneKey;
+	} else byLaneKey = $[46];
 	const laneFirstAnchor = byLaneKey;
 	let t21;
-	if ($[46] !== laneFirstAnchor || $[47] !== laneKeys[0] || $[48] !== onHeadroomResetAnchor || $[49] !== onNavigatedToEvent || $[50] !== timelineState) {
+	if ($[47] !== laneFirstAnchor || $[48] !== laneKeys[0] || $[49] !== onHeadroomResetAnchor || $[50] !== onNavigatedToEvent || $[51] !== timelineState) {
 		t21 = (laneKey_0) => {
 			const current = timelineState.selected;
 			if (laneKey_0 === laneKeys[0] ? current === null || current === laneKeys[0] : current === laneKey_0) return;
@@ -118084,54 +118168,54 @@ var TranscriptLayout = (t0) => {
 			else timelineState.select(laneKey_0, { preserveDeepLink: targetEvent !== void 0 });
 			if (targetEvent) onNavigatedToEvent?.(targetEvent);
 		};
-		$[46] = laneFirstAnchor;
-		$[47] = laneKeys[0];
-		$[48] = onHeadroomResetAnchor;
-		$[49] = onNavigatedToEvent;
-		$[50] = timelineState;
-		$[51] = t21;
-	} else t21 = $[51];
+		$[47] = laneFirstAnchor;
+		$[48] = laneKeys[0];
+		$[49] = onHeadroomResetAnchor;
+		$[50] = onNavigatedToEvent;
+		$[51] = timelineState;
+		$[52] = t21;
+	} else t21 = $[52];
 	const selectLaneByKey = t21;
 	let t22;
-	if ($[52] !== laneKeys || $[53] !== selectLaneByKey || $[54] !== timelineState) {
+	if ($[53] !== laneKeys || $[54] !== selectLaneByKey || $[55] !== timelineState) {
 		t22 = (key, options) => {
 			if (key !== null && laneKeys.includes(key)) selectLaneByKey(key);
 			else timelineState.select(key, options);
 		};
-		$[52] = laneKeys;
-		$[53] = selectLaneByKey;
-		$[54] = timelineState;
-		$[55] = t22;
-	} else t22 = $[55];
+		$[53] = laneKeys;
+		$[54] = selectLaneByKey;
+		$[55] = timelineState;
+		$[56] = t22;
+	} else t22 = $[56];
 	const laneAwareSelect = t22;
 	let t23;
-	if ($[56] !== laneAwareSelect || $[57] !== timelineState.clearSelection || $[58] !== timelineState.node || $[59] !== timelineState.selected) {
+	if ($[57] !== laneAwareSelect || $[58] !== timelineState.clearSelection || $[59] !== timelineState.node || $[60] !== timelineState.selected) {
 		t23 = {
 			node: timelineState.node,
 			selected: timelineState.selected,
 			select: laneAwareSelect,
 			clearSelection: timelineState.clearSelection
 		};
-		$[56] = laneAwareSelect;
-		$[57] = timelineState.clearSelection;
-		$[58] = timelineState.node;
-		$[59] = timelineState.selected;
-		$[60] = t23;
-	} else t23 = $[60];
+		$[57] = laneAwareSelect;
+		$[58] = timelineState.clearSelection;
+		$[59] = timelineState.node;
+		$[60] = timelineState.selected;
+		$[61] = t23;
+	} else t23 = $[61];
 	const swimlaneNav = t23;
 	let t24;
-	if ($[61] !== activeTimelineIndex || $[62] !== timelineData.root || $[63] !== timelineState.rows || $[64] !== timelineState.selected || $[65] !== timelines) {
+	if ($[62] !== activeTimelineIndex || $[63] !== timelineData.root || $[64] !== timelineState.rows || $[65] !== timelineState.selected || $[66] !== timelines) {
 		t24 = deriveFocusLanes(timelineState.rows, timelineData.root, timelines, activeTimelineIndex, timelineState.selected);
-		$[61] = activeTimelineIndex;
-		$[62] = timelineData.root;
-		$[63] = timelineState.rows;
-		$[64] = timelineState.selected;
-		$[65] = timelines;
-		$[66] = t24;
-	} else t24 = $[66];
+		$[62] = activeTimelineIndex;
+		$[63] = timelineData.root;
+		$[64] = timelineState.rows;
+		$[65] = timelineState.selected;
+		$[66] = timelines;
+		$[67] = t24;
+	} else t24 = $[67];
 	const navLanes = t24;
 	let t25;
-	if ($[67] !== activeTimelineIndex || $[68] !== onHeadroomResetAnchor || $[69] !== onNavigatedToEvent || $[70] !== selectLaneByKey) {
+	if ($[68] !== activeTimelineIndex || $[69] !== onHeadroomResetAnchor || $[70] !== onNavigatedToEvent || $[71] !== selectLaneByKey) {
 		t25 = (lane) => {
 			if (!lane) return;
 			if (lane.timelineIndex === activeTimelineIndex && lane.laneKey) selectLaneByKey(lane.laneKey);
@@ -118140,70 +118224,70 @@ var TranscriptLayout = (t0) => {
 				onNavigatedToEvent?.(lane.firstAnchorId);
 			}
 		};
-		$[67] = activeTimelineIndex;
-		$[68] = onHeadroomResetAnchor;
-		$[69] = onNavigatedToEvent;
-		$[70] = selectLaneByKey;
-		$[71] = t25;
-	} else t25 = $[71];
+		$[68] = activeTimelineIndex;
+		$[69] = onHeadroomResetAnchor;
+		$[70] = onNavigatedToEvent;
+		$[71] = selectLaneByKey;
+		$[72] = t25;
+	} else t25 = $[72];
 	const goToNavLane = t25;
 	let t26;
-	if ($[72] !== activeTimelineIndex || $[73] !== navLanes.laneIndex || $[74] !== navLanes.lanes) {
+	if ($[73] !== activeTimelineIndex || $[74] !== navLanes.laneIndex || $[75] !== navLanes.lanes) {
 		t26 = (delta) => {
 			for (let i = navLanes.laneIndex + delta; i >= 0 && i < navLanes.lanes.length; i = i + delta) {
 				const lane_0 = navLanes.lanes[i];
 				if (lane_0?.firstAnchorId || lane_0?.timelineIndex === activeTimelineIndex && lane_0.laneKey) return lane_0;
 			}
 		};
-		$[72] = activeTimelineIndex;
-		$[73] = navLanes.laneIndex;
-		$[74] = navLanes.lanes;
-		$[75] = t26;
-	} else t26 = $[75];
+		$[73] = activeTimelineIndex;
+		$[74] = navLanes.laneIndex;
+		$[75] = navLanes.lanes;
+		$[76] = t26;
+	} else t26 = $[76];
 	const adjacentNavLane = t26;
 	let t27;
-	if ($[76] !== adjacentNavLane) {
+	if ($[77] !== adjacentNavLane) {
 		t27 = adjacentNavLane(-1);
-		$[76] = adjacentNavLane;
-		$[77] = t27;
-	} else t27 = $[77];
+		$[77] = adjacentNavLane;
+		$[78] = t27;
+	} else t27 = $[78];
 	const prevNavLane = t27;
 	let t28;
-	if ($[78] !== adjacentNavLane) {
+	if ($[79] !== adjacentNavLane) {
 		t28 = adjacentNavLane(1);
-		$[78] = adjacentNavLane;
-		$[79] = t28;
-	} else t28 = $[79];
+		$[79] = adjacentNavLane;
+		$[80] = t28;
+	} else t28 = $[80];
 	const nextNavLane = t28;
 	let t29;
-	if ($[80] !== goToNavLane || $[81] !== prevNavLane) {
+	if ($[81] !== goToNavLane || $[82] !== prevNavLane) {
 		t29 = () => goToNavLane(prevNavLane);
-		$[80] = goToNavLane;
-		$[81] = prevNavLane;
-		$[82] = t29;
-	} else t29 = $[82];
+		$[81] = goToNavLane;
+		$[82] = prevNavLane;
+		$[83] = t29;
+	} else t29 = $[83];
 	const onLanePrev = t29;
 	let t30;
-	if ($[83] !== goToNavLane || $[84] !== nextNavLane) {
+	if ($[84] !== goToNavLane || $[85] !== nextNavLane) {
 		t30 = () => goToNavLane(nextNavLane);
-		$[83] = goToNavLane;
-		$[84] = nextNavLane;
-		$[85] = t30;
-	} else t30 = $[85];
+		$[84] = goToNavLane;
+		$[85] = nextNavLane;
+		$[86] = t30;
+	} else t30 = $[86];
 	const onLaneNext = t30;
 	let t31;
-	if ($[86] !== laneAwareSelect || $[87] !== spanSelectKeys) {
+	if ($[87] !== laneAwareSelect || $[88] !== spanSelectKeys) {
 		t31 = (spanId) => {
 			const key_0 = spanSelectKeys.get(spanId);
 			if (key_0) laneAwareSelect(key_0.key);
 		};
-		$[86] = laneAwareSelect;
-		$[87] = spanSelectKeys;
-		$[88] = t31;
-	} else t31 = $[88];
+		$[87] = laneAwareSelect;
+		$[88] = spanSelectKeys;
+		$[89] = t31;
+	} else t31 = $[89];
 	const selectBySpanId = t31;
 	let t32;
-	if ($[89] !== baseSelectByRowKey || $[90] !== laneKeys || $[91] !== selectLaneByKey) {
+	if ($[90] !== baseSelectByRowKey || $[91] !== laneKeys || $[92] !== selectLaneByKey) {
 		t32 = (rowKey, anchorEl) => {
 			if (laneKeys.includes(rowKey)) {
 				selectLaneByKey(rowKey);
@@ -118211,14 +118295,14 @@ var TranscriptLayout = (t0) => {
 			}
 			baseSelectByRowKey(rowKey, anchorEl);
 		};
-		$[89] = baseSelectByRowKey;
-		$[90] = laneKeys;
-		$[91] = selectLaneByKey;
-		$[92] = t32;
-	} else t32 = $[92];
+		$[90] = baseSelectByRowKey;
+		$[91] = laneKeys;
+		$[92] = selectLaneByKey;
+		$[93] = t32;
+	} else t32 = $[93];
 	const selectByRowKey = t32;
 	let t33;
-	if ($[93] !== hiddenUtilityCount || $[94] !== minimap || $[95] !== multiTimeline || $[96] !== onHeadroomResetAnchor || $[97] !== onScrollToTop || $[98] !== scrollRef || $[99] !== timelineConfig || $[100] !== views) {
+	if ($[94] !== hiddenUtilityCount || $[95] !== minimap || $[96] !== multiTimeline || $[97] !== onHeadroomResetAnchor || $[98] !== onScrollToTop || $[99] !== scrollRef || $[100] !== timelineConfig || $[101] !== views) {
 		t33 = {
 			scrollRef,
 			onScrollToTop,
@@ -118229,19 +118313,19 @@ var TranscriptLayout = (t0) => {
 			multiTimeline,
 			views
 		};
-		$[93] = hiddenUtilityCount;
-		$[94] = minimap;
-		$[95] = multiTimeline;
-		$[96] = onHeadroomResetAnchor;
-		$[97] = onScrollToTop;
-		$[98] = scrollRef;
-		$[99] = timelineConfig;
-		$[100] = views;
-		$[101] = t33;
-	} else t33 = $[101];
+		$[94] = hiddenUtilityCount;
+		$[95] = minimap;
+		$[96] = multiTimeline;
+		$[97] = onHeadroomResetAnchor;
+		$[98] = onScrollToTop;
+		$[99] = scrollRef;
+		$[100] = timelineConfig;
+		$[101] = views;
+		$[102] = t33;
+	} else t33 = $[102];
 	const swimlaneHeader = useSwimlaneHeader(t33);
 	let t34;
-	if ($[102] !== initialEventId || $[103] !== initialMessageId || $[104] !== nodeFeed.events || $[105] !== onHeadroomResetAnchor || $[106] !== showSwimlanes || $[107] !== spanSelectKeys || $[108] !== timelineConfig.includeUtility || $[109] !== timelineConfig.setIncludeUtility || $[110] !== transcriptTimeline) {
+	if ($[103] !== initialEventId || $[104] !== initialMessageId || $[105] !== nodeFeed.events || $[106] !== onHeadroomResetAnchor || $[107] !== showSwimlanes || $[108] !== spanSelectKeys || $[109] !== timelineConfig.includeUtility || $[110] !== timelineConfig.setIncludeUtility || $[111] !== transcriptTimeline) {
 		t34 = {
 			initialEventId,
 			initialMessageId,
@@ -118253,20 +118337,20 @@ var TranscriptLayout = (t0) => {
 			includeUtility: timelineConfig.includeUtility,
 			setIncludeUtility: timelineConfig.setIncludeUtility
 		};
-		$[102] = initialEventId;
-		$[103] = initialMessageId;
-		$[104] = nodeFeed.events;
-		$[105] = onHeadroomResetAnchor;
-		$[106] = showSwimlanes;
-		$[107] = spanSelectKeys;
-		$[108] = timelineConfig.includeUtility;
-		$[109] = timelineConfig.setIncludeUtility;
-		$[110] = transcriptTimeline;
-		$[111] = t34;
-	} else t34 = $[111];
+		$[103] = initialEventId;
+		$[104] = initialMessageId;
+		$[105] = nodeFeed.events;
+		$[106] = onHeadroomResetAnchor;
+		$[107] = showSwimlanes;
+		$[108] = spanSelectKeys;
+		$[109] = timelineConfig.includeUtility;
+		$[110] = timelineConfig.setIncludeUtility;
+		$[111] = transcriptTimeline;
+		$[112] = t34;
+	} else t34 = $[112];
 	const { effectiveInitialEventId } = useDeepLinkResolution(t34);
 	let t35;
-	if ($[112] !== bulkCollapse || $[113] !== collapseState || $[114] !== defaultCollapsedIds || $[115] !== eventNodes || $[116] !== events.length) {
+	if ($[113] !== bulkCollapse || $[114] !== collapseState || $[115] !== defaultCollapsedIds || $[116] !== eventNodes || $[117] !== events.length) {
 		t35 = {
 			eventNodes,
 			defaultCollapsedIds,
@@ -118274,91 +118358,91 @@ var TranscriptLayout = (t0) => {
 			bulkCollapse,
 			eventCount: events.length
 		};
-		$[112] = bulkCollapse;
-		$[113] = collapseState;
-		$[114] = defaultCollapsedIds;
-		$[115] = eventNodes;
-		$[116] = events.length;
-		$[117] = t35;
-	} else t35 = $[117];
+		$[113] = bulkCollapse;
+		$[114] = collapseState;
+		$[115] = defaultCollapsedIds;
+		$[116] = eventNodes;
+		$[117] = events.length;
+		$[118] = t35;
+	} else t35 = $[118];
 	const { onCollapseTranscript, onExpandNodes } = useTranscriptCollapse(t35);
 	const t36 = !!outline;
 	const t37 = outline?.collapsed;
 	let t38;
-	if ($[118] !== eventNodes || $[119] !== t36 || $[120] !== t37) {
+	if ($[119] !== eventNodes || $[120] !== t36 || $[121] !== t37) {
 		t38 = {
 			eventNodes,
 			hasOutline: t36,
 			outlineCollapsed: t37
 		};
-		$[118] = eventNodes;
-		$[119] = t36;
-		$[120] = t37;
-		$[121] = t38;
-	} else t38 = $[121];
+		$[119] = eventNodes;
+		$[120] = t36;
+		$[121] = t37;
+		$[122] = t38;
+	} else t38 = $[122];
 	const { isOutlineCollapsed, outlineHasNodes, onOutlineHasNodesChange } = useOutlineAutoHide(t38);
 	const hasMatchingEvents = eventNodes.length > 0;
 	let t39;
-	if ($[122] !== onHeadroomResetAnchor) {
+	if ($[123] !== onHeadroomResetAnchor) {
 		t39 = (debounce) => onHeadroomResetAnchor?.(debounce);
-		$[122] = onHeadroomResetAnchor;
-		$[123] = t39;
-	} else t39 = $[123];
+		$[123] = onHeadroomResetAnchor;
+		$[124] = t39;
+	} else t39 = $[124];
 	const handleLayoutShift = t39;
 	const railPanelScrollRef = (0, import_react.useRef)(null);
 	const t40 = outline?.scrollRef;
 	const t41 = outline?.collapsed ?? null;
 	let t42;
-	if ($[124] !== effectiveOffsetTop || $[125] !== t40 || $[126] !== t41) {
+	if ($[125] !== effectiveOffsetTop || $[126] !== t40 || $[127] !== t41) {
 		t42 = {
 			scrollRef: t40,
 			stickyTop: effectiveOffsetTop,
 			remountKey: t41
 		};
-		$[124] = effectiveOffsetTop;
-		$[125] = t40;
-		$[126] = t41;
-		$[127] = t42;
-	} else t42 = $[127];
+		$[125] = effectiveOffsetTop;
+		$[126] = t40;
+		$[127] = t41;
+		$[128] = t42;
+	} else t42 = $[128];
 	const t43 = rightRail?.panel != null;
 	let t44;
-	if ($[128] !== offsetTop || $[129] !== t43) {
+	if ($[129] !== offsetTop || $[130] !== t43) {
 		t44 = {
 			scrollRef: railPanelScrollRef,
 			stickyTop: offsetTop,
 			remountKey: t43
 		};
-		$[128] = offsetTop;
-		$[129] = t43;
-		$[130] = t44;
-	} else t44 = $[130];
+		$[129] = offsetTop;
+		$[130] = t43;
+		$[131] = t44;
+	} else t44 = $[131];
 	let t45;
-	if ($[131] !== t42 || $[132] !== t44) {
+	if ($[132] !== t42 || $[133] !== t44) {
 		t45 = [t42, t44];
-		$[131] = t42;
-		$[132] = t44;
-		$[133] = t45;
-	} else t45 = $[133];
+		$[132] = t42;
+		$[133] = t44;
+		$[134] = t45;
+	} else t45 = $[134];
 	let t46;
-	if ($[134] !== scrollRef || $[135] !== t45) {
+	if ($[135] !== scrollRef || $[136] !== t45) {
 		t46 = {
 			mainScrollRef: scrollRef,
 			sidebars: t45
 		};
-		$[134] = scrollRef;
-		$[135] = t45;
-		$[136] = t46;
-	} else t46 = $[136];
+		$[135] = scrollRef;
+		$[136] = t45;
+		$[137] = t46;
+	} else t46 = $[137];
 	useSidebarScrollCoupling(t46);
 	const scrollerHeight = useElementHeight(scrollRef);
 	let t47;
-	if ($[137] !== className) {
+	if ($[138] !== className) {
 		t47 = clsx(TranscriptLayout_module_default.root, className);
-		$[137] = className;
-		$[138] = t47;
-	} else t47 = $[138];
+		$[138] = className;
+		$[139] = t47;
+	} else t47 = $[139];
 	let t48;
-	if ($[139] !== handleLayoutShift || $[140] !== handleSwimLaneStickyChange || $[141] !== headroomHidden || $[142] !== highlightedKeys || $[143] !== isSwimLaneSticky || $[144] !== offsetTop || $[145] !== onMarkerNavigate || $[146] !== regionCounts || $[147] !== scrollRef || $[148] !== showSwimlanes || $[149] !== swimLaneStickyContentRef || $[150] !== swimlaneHeader || $[151] !== swimlaneNav || $[152] !== swimlanesDefaultCollapsed || $[153] !== timelineLayouts || $[154] !== views) {
+	if ($[140] !== handleLayoutShift || $[141] !== handleSwimLaneStickyChange || $[142] !== headroomHidden || $[143] !== highlightedKeys || $[144] !== isSwimLaneSticky || $[145] !== offsetTop || $[146] !== onMarkerNavigate || $[147] !== regionCounts || $[148] !== scrollRef || $[149] !== showSwimlanes || $[150] !== swimLaneStickyContentRef || $[151] !== swimlaneHeader || $[152] !== swimlaneNav || $[153] !== swimlanesDefaultCollapsed || $[154] !== timelineLayouts || $[155] !== views) {
 		t48 = showSwimlanes && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StickyScroll, {
 			scrollRef,
 			offsetTop,
@@ -118383,49 +118467,49 @@ var TranscriptLayout = (t0) => {
 				})
 			})
 		});
-		$[139] = handleLayoutShift;
-		$[140] = handleSwimLaneStickyChange;
-		$[141] = headroomHidden;
-		$[142] = highlightedKeys;
-		$[143] = isSwimLaneSticky;
-		$[144] = offsetTop;
-		$[145] = onMarkerNavigate;
-		$[146] = regionCounts;
-		$[147] = scrollRef;
-		$[148] = showSwimlanes;
-		$[149] = swimLaneStickyContentRef;
-		$[150] = swimlaneHeader;
-		$[151] = swimlaneNav;
-		$[152] = swimlanesDefaultCollapsed;
-		$[153] = timelineLayouts;
-		$[154] = views;
-		$[155] = t48;
-	} else t48 = $[155];
+		$[140] = handleLayoutShift;
+		$[141] = handleSwimLaneStickyChange;
+		$[142] = headroomHidden;
+		$[143] = highlightedKeys;
+		$[144] = isSwimLaneSticky;
+		$[145] = offsetTop;
+		$[146] = onMarkerNavigate;
+		$[147] = regionCounts;
+		$[148] = scrollRef;
+		$[149] = showSwimlanes;
+		$[150] = swimLaneStickyContentRef;
+		$[151] = swimlaneHeader;
+		$[152] = swimlaneNav;
+		$[153] = swimlanesDefaultCollapsed;
+		$[154] = timelineLayouts;
+		$[155] = views;
+		$[156] = t48;
+	} else t48 = $[156];
 	const t49 = embedded && TranscriptLayout_module_default.embedded;
 	const t50 = !outline && TranscriptLayout_module_default.noOutline;
 	const t51 = outline && isOutlineCollapsed && TranscriptLayout_module_default.outlineCollapsed;
 	let t52;
-	if ($[156] !== t49 || $[157] !== t50 || $[158] !== t51) {
+	if ($[157] !== t49 || $[158] !== t50 || $[159] !== t51) {
 		t52 = clsx(TranscriptLayout_module_default.container, t49, t50, t51);
-		$[156] = t49;
-		$[157] = t50;
-		$[158] = t51;
-		$[159] = t52;
-	} else t52 = $[159];
+		$[157] = t49;
+		$[158] = t50;
+		$[159] = t51;
+		$[160] = t52;
+	} else t52 = $[160];
 	const t53 = `${effectiveOffsetTop}px`;
 	const t54 = scrollerHeight ? `${scrollerHeight}px` : "100vh";
 	let t55;
-	if ($[160] !== t53 || $[161] !== t54) {
+	if ($[161] !== t53 || $[162] !== t54) {
 		t55 = cssVars$1({
 			"--outline-top": t53,
 			"--scroller-height": t54
 		});
-		$[160] = t53;
-		$[161] = t54;
-		$[162] = t55;
-	} else t55 = $[162];
+		$[161] = t53;
+		$[162] = t54;
+		$[163] = t55;
+	} else t55 = $[163];
 	let t56;
-	if ($[163] !== backfilling || $[164] !== collapseState || $[165] !== defaultCollapsedIds || $[166] !== effectiveOffsetTop || $[167] !== eventNodes || $[168] !== getEventUrl || $[169] !== isOutlineCollapsed || $[170] !== listId || $[171] !== onOutlineHasNodesChange || $[172] !== outline || $[173] !== outlineHasNodes || $[174] !== running || $[175] !== scrollRef || $[176] !== selectedRowName || $[177] !== showSwimlanes) {
+	if ($[164] !== backfilling || $[165] !== collapseState || $[166] !== defaultCollapsedIds || $[167] !== effectiveOffsetTop || $[168] !== eventNodes || $[169] !== getEventUrl || $[170] !== isOutlineCollapsed || $[171] !== listId || $[172] !== onOutlineHasNodesChange || $[173] !== outline || $[174] !== outlineHasNodes || $[175] !== running || $[176] !== scrollRef || $[177] !== selectedRowName || $[178] !== showSwimlanes) {
 		t56 = outline && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(OutlineSidebar, {
 			outline,
 			isCollapsed: isOutlineCollapsed,
@@ -118442,25 +118526,25 @@ var TranscriptLayout = (t0) => {
 			collapseState,
 			getEventUrl
 		});
-		$[163] = backfilling;
-		$[164] = collapseState;
-		$[165] = defaultCollapsedIds;
-		$[166] = effectiveOffsetTop;
-		$[167] = eventNodes;
-		$[168] = getEventUrl;
-		$[169] = isOutlineCollapsed;
-		$[170] = listId;
-		$[171] = onOutlineHasNodesChange;
-		$[172] = outline;
-		$[173] = outlineHasNodes;
-		$[174] = running;
-		$[175] = scrollRef;
-		$[176] = selectedRowName;
-		$[177] = showSwimlanes;
-		$[178] = t56;
-	} else t56 = $[178];
+		$[164] = backfilling;
+		$[165] = collapseState;
+		$[166] = defaultCollapsedIds;
+		$[167] = effectiveOffsetTop;
+		$[168] = eventNodes;
+		$[169] = getEventUrl;
+		$[170] = isOutlineCollapsed;
+		$[171] = listId;
+		$[172] = onOutlineHasNodesChange;
+		$[173] = outline;
+		$[174] = outlineHasNodes;
+		$[175] = running;
+		$[176] = scrollRef;
+		$[177] = selectedRowName;
+		$[178] = showSwimlanes;
+		$[179] = t56;
+	} else t56 = $[179];
 	let t57;
-	if ($[179] !== backfilling || $[180] !== collapseState?.transcript || $[181] !== defaultCollapsedIds || $[182] !== effectiveInitialEventId || $[183] !== effectiveListId || $[184] !== effectiveOffsetTop || $[185] !== emptyBusy || $[186] !== emptyText || $[187] !== eventNodes || $[188] !== eventsListRef || $[189] !== getEventFocusUrl || $[190] !== getEventUrl || $[191] !== hasMatchingEvents || $[192] !== initialFollowRequested || $[193] !== initialMessageId || $[194] !== keyboardNavDisabled || $[195] !== linkingEnabled || $[196] !== mergedEventNodeContext || $[197] !== navLanes.lanes || $[198] !== onCollapseTranscript || $[199] !== onExpandNodes || $[200] !== onHeadroomResetAnchor || $[201] !== onHeadroomSetHidden || $[202] !== onLaneNext || $[203] !== onLanePrev || $[204] !== onNavigatedToEvent || $[205] !== onOpenEventFocus || $[206] !== running || $[207] !== scrollRef || $[208] !== scrollToTopOnFinish || $[209] !== selection || $[210] !== showSwimlanes) {
+	if ($[180] !== backfilling || $[181] !== collapseState?.transcript || $[182] !== defaultCollapsedIds || $[183] !== effectiveInitialEventId || $[184] !== effectiveListId || $[185] !== effectiveOffsetTop || $[186] !== emptyBusy || $[187] !== emptyText || $[188] !== eventNodes || $[189] !== eventsListRef || $[190] !== getEventFocusUrl || $[191] !== getEventUrl || $[192] !== hasMatchingEvents || $[193] !== initialFollowRequested || $[194] !== initialMessageId || $[195] !== keyboardNavDisabled || $[196] !== linkingEnabled || $[197] !== mergedEventNodeContext || $[198] !== navLanes.lanes || $[199] !== onCollapseTranscript || $[200] !== onExpandNodes || $[201] !== onHeadroomResetAnchor || $[202] !== onHeadroomSetHidden || $[203] !== onLaneNext || $[204] !== onLanePrev || $[205] !== onNavigatedToEvent || $[206] !== onOpenEventFocus || $[207] !== running || $[208] !== scrollRef || $[209] !== scrollToTopOnFinish || $[210] !== selection || $[211] !== showSwimlanes) {
 		t57 = hasMatchingEvents ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptViewNodes, {
 			ref: eventsListRef,
 			id: effectiveListId,
@@ -118495,65 +118579,65 @@ var TranscriptLayout = (t0) => {
 			text: emptyText,
 			busy: emptyBusy
 		}) : null;
-		$[179] = backfilling;
-		$[180] = collapseState?.transcript;
-		$[181] = defaultCollapsedIds;
-		$[182] = effectiveInitialEventId;
-		$[183] = effectiveListId;
-		$[184] = effectiveOffsetTop;
-		$[185] = emptyBusy;
-		$[186] = emptyText;
-		$[187] = eventNodes;
-		$[188] = eventsListRef;
-		$[189] = getEventFocusUrl;
-		$[190] = getEventUrl;
-		$[191] = hasMatchingEvents;
-		$[192] = initialFollowRequested;
-		$[193] = initialMessageId;
-		$[194] = keyboardNavDisabled;
-		$[195] = linkingEnabled;
-		$[196] = mergedEventNodeContext;
-		$[197] = navLanes.lanes;
-		$[198] = onCollapseTranscript;
-		$[199] = onExpandNodes;
-		$[200] = onHeadroomResetAnchor;
-		$[201] = onHeadroomSetHidden;
-		$[202] = onLaneNext;
-		$[203] = onLanePrev;
-		$[204] = onNavigatedToEvent;
-		$[205] = onOpenEventFocus;
-		$[206] = running;
-		$[207] = scrollRef;
-		$[208] = scrollToTopOnFinish;
-		$[209] = selection;
-		$[210] = showSwimlanes;
-		$[211] = t57;
-	} else t57 = $[211];
+		$[180] = backfilling;
+		$[181] = collapseState?.transcript;
+		$[182] = defaultCollapsedIds;
+		$[183] = effectiveInitialEventId;
+		$[184] = effectiveListId;
+		$[185] = effectiveOffsetTop;
+		$[186] = emptyBusy;
+		$[187] = emptyText;
+		$[188] = eventNodes;
+		$[189] = eventsListRef;
+		$[190] = getEventFocusUrl;
+		$[191] = getEventUrl;
+		$[192] = hasMatchingEvents;
+		$[193] = initialFollowRequested;
+		$[194] = initialMessageId;
+		$[195] = keyboardNavDisabled;
+		$[196] = linkingEnabled;
+		$[197] = mergedEventNodeContext;
+		$[198] = navLanes.lanes;
+		$[199] = onCollapseTranscript;
+		$[200] = onExpandNodes;
+		$[201] = onHeadroomResetAnchor;
+		$[202] = onHeadroomSetHidden;
+		$[203] = onLaneNext;
+		$[204] = onLanePrev;
+		$[205] = onNavigatedToEvent;
+		$[206] = onOpenEventFocus;
+		$[207] = running;
+		$[208] = scrollRef;
+		$[209] = scrollToTopOnFinish;
+		$[210] = selection;
+		$[211] = showSwimlanes;
+		$[212] = t57;
+	} else t57 = $[212];
 	let t58;
-	if ($[212] !== t52 || $[213] !== t55 || $[214] !== t56 || $[215] !== t57) {
+	if ($[213] !== t52 || $[214] !== t55 || $[215] !== t56 || $[216] !== t57) {
 		t58 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t52,
 			style: t55,
 			children: [t56, t57]
 		});
-		$[212] = t52;
-		$[213] = t55;
-		$[214] = t56;
-		$[215] = t57;
-		$[216] = t58;
-	} else t58 = $[216];
+		$[213] = t52;
+		$[214] = t55;
+		$[215] = t56;
+		$[216] = t57;
+		$[217] = t58;
+	} else t58 = $[217];
 	let t59;
-	if ($[217] !== t48 || $[218] !== t58) {
+	if ($[218] !== t48 || $[219] !== t58) {
 		t59 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: TranscriptLayout_module_default.main,
 			children: [t48, t58]
 		});
-		$[217] = t48;
-		$[218] = t58;
-		$[219] = t59;
-	} else t59 = $[219];
+		$[218] = t48;
+		$[219] = t58;
+		$[220] = t59;
+	} else t59 = $[220];
 	let t60;
-	if ($[220] !== offsetTop || $[221] !== rightRail || $[222] !== scrollRef || $[223] !== scrollerHeight) {
+	if ($[221] !== offsetTop || $[222] !== rightRail || $[223] !== scrollRef || $[224] !== scrollerHeight) {
 		t60 = rightRail && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RailDock, {
 			rail: rightRail.rail,
 			panel: rightRail.panel,
@@ -118568,43 +118652,43 @@ var TranscriptLayout = (t0) => {
 			panelMaxWidth: rightRail.panelMaxWidth,
 			label: rightRail.label
 		});
-		$[220] = offsetTop;
-		$[221] = rightRail;
-		$[222] = scrollRef;
-		$[223] = scrollerHeight;
-		$[224] = t60;
-	} else t60 = $[224];
+		$[221] = offsetTop;
+		$[222] = rightRail;
+		$[223] = scrollRef;
+		$[224] = scrollerHeight;
+		$[225] = t60;
+	} else t60 = $[225];
 	let t61;
-	if ($[225] !== t47 || $[226] !== t59 || $[227] !== t60) {
+	if ($[226] !== t47 || $[227] !== t59 || $[228] !== t60) {
 		t61 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t47,
 			children: [t59, t60]
 		});
-		$[225] = t47;
-		$[226] = t59;
-		$[227] = t60;
-		$[228] = t61;
-	} else t61 = $[228];
+		$[226] = t47;
+		$[227] = t59;
+		$[228] = t60;
+		$[229] = t61;
+	} else t61 = $[229];
 	let t62;
-	if ($[229] !== selectByRowKey || $[230] !== t61) {
+	if ($[230] !== selectByRowKey || $[231] !== t61) {
 		t62 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineRowSelectContext.Provider, {
 			value: selectByRowKey,
 			children: t61
 		});
-		$[229] = selectByRowKey;
-		$[230] = t61;
-		$[231] = t62;
-	} else t62 = $[231];
+		$[230] = selectByRowKey;
+		$[231] = t61;
+		$[232] = t62;
+	} else t62 = $[232];
 	let t63;
-	if ($[232] !== selectBySpanId || $[233] !== t62) {
+	if ($[233] !== selectBySpanId || $[234] !== t62) {
 		t63 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineSelectContext.Provider, {
 			value: selectBySpanId,
 			children: t62
 		});
-		$[232] = selectBySpanId;
-		$[233] = t62;
-		$[234] = t63;
-	} else t63 = $[234];
+		$[233] = selectBySpanId;
+		$[234] = t62;
+		$[235] = t63;
+	} else t63 = $[235];
 	return t63;
 };
 function _temp$45() {}
@@ -120374,26 +120458,6 @@ var targetText = (row) => {
 		};
 	});
 }
-// src/app/samples/list/samplesView.ts
-/**
-* The default view applied when neither the user nor the eval author
-* has specified anything. `columns` and `sort` are intentionally empty —
-* the SampleList consumer fills them from the live column registry
-* (`buildSampleColumns`) and seeds visibility from per-scope predicates
-* (e.g. `samplesPanel`'s error/limit/retries auto-promotion).
-*/ var defaultSamplesView = () => ({
-	name: "Default",
-	columns: [],
-	sort: [],
-	filters: {
-		dsl: "",
-		extraColumnFilters: {}
-	},
-	multiline: true,
-	compactScores: false,
-	colorScalesEnabled: true,
-	userOverrides: {}
-});
 // src/app/samples/list/samplesView.converters.ts
 /**
 * Pure converters between the on-the-wire `TaskSamplesView` and the runtime
@@ -120462,7 +120526,7 @@ var targetText = (row) => {
 */ var resolveSamplesView = (stored, evalDefault) => {
 	if (!stored) return liftEvalView(evalDefault);
 	const lifted = liftEvalView(evalDefault);
-	const overrides = stored.userOverrides ?? {};
+	const overrides = stored.userOverrides;
 	return {
 		...stored,
 		multiline: overrides.multiline ?? lifted.multiline,
@@ -130123,7 +130187,7 @@ var kNoMessageRows = [];
 		$[263] = sampleTabHref;
 		$[264] = t74;
 	} else t74 = $[264];
-	const t75 = effectiveSelectedTab === "transcript" || effectiveSelectedTab === "activity" && !hasActivityTab || effectiveSelectedTab === void 0;
+	const t75 = effectiveSelectedTab === "transcript" || effectiveSelectedTab === "activity" && !hasActivityTab;
 	let t76;
 	if ($[265] !== defaultExcludeEvents || $[266] !== filterButtonEl || $[267] !== isShowing || $[268] !== setShowing) {
 		t76 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptFilterPopover, {
@@ -131487,11 +131551,10 @@ var useErrorTabConfig = (evalError) => {
 			id: kLogViewErrorTabId,
 			label: "Error",
 			scrollable: true,
-			component: ErrorTab,
-			componentProps: {
+			content: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ErrorTab, {
 				evalError,
 				scrollRef
-			},
+			}),
 			scrollRef
 		};
 		$[0] = evalError;
@@ -133182,38 +133245,35 @@ function _temp2$22(col) {
 	return t7;
 };
 // src/app/log-view/tabs/InfoTab.tsx
-var useInfoTabConfig = (evalSpec, evalPlan, evalError, evalResults, evalStatus, metadata) => {
-	const $ = (0, import_compiler_runtime.c)(8);
+var useInfoTabConfig = (evalSpec, evalPlan, evalResults, evalStatus, metadata) => {
+	const $ = (0, import_compiler_runtime.c)(7);
 	const scrollRef = (0, import_react.useRef)(null);
 	const totalSampleCount = useTotalSampleCount();
 	let t0;
-	if ($[0] !== evalError || $[1] !== evalPlan || $[2] !== evalResults || $[3] !== evalSpec || $[4] !== evalStatus || $[5] !== metadata || $[6] !== totalSampleCount) {
+	if ($[0] !== evalPlan || $[1] !== evalResults || $[2] !== evalSpec || $[3] !== evalStatus || $[4] !== metadata || $[5] !== totalSampleCount) {
 		t0 = {
 			id: kLogViewInfoTabId,
 			label: "Info",
 			scrollable: true,
-			component: InfoTab,
-			componentProps: {
+			content: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InfoTab, {
 				evalSpec,
 				evalPlan,
-				evalError,
 				evalResults,
 				evalStatus,
 				metadata,
 				sampleCount: totalSampleCount,
 				scrollRef
-			},
+			}),
 			scrollRef
 		};
-		$[0] = evalError;
-		$[1] = evalPlan;
-		$[2] = evalResults;
-		$[3] = evalSpec;
-		$[4] = evalStatus;
-		$[5] = metadata;
-		$[6] = totalSampleCount;
-		$[7] = t0;
-	} else t0 = $[7];
+		$[0] = evalPlan;
+		$[1] = evalResults;
+		$[2] = evalSpec;
+		$[3] = evalStatus;
+		$[4] = metadata;
+		$[5] = totalSampleCount;
+		$[6] = t0;
+	} else t0 = $[6];
 	return t0;
 };
 var InfoTab = (t0) => {
@@ -133382,11 +133442,11 @@ var useJsonTabConfig = (logDetails) => {
 	const t2 = selectedTab === kLogViewJsonTabId;
 	let t3;
 	if ($[4] !== json || $[5] !== selectedLogFile || $[6] !== t2) {
-		t3 = {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JsonTab, {
 			logFile: selectedLogFile,
 			json,
 			selected: t2
-		};
+		});
 		$[4] = json;
 		$[5] = selectedLogFile;
 		$[6] = t2;
@@ -133404,8 +133464,7 @@ var useJsonTabConfig = (logDetails) => {
 			id: kLogViewJsonTabId,
 			label: "JSON",
 			scrollable: true,
-			component: JsonTab,
-			componentProps: t3,
+			content: t3,
 			tools: t4
 		};
 		$[10] = t3;
@@ -133611,13 +133670,12 @@ var useModelsTab = (evalSpec, evalStats, evalStatus, configUpdates) => {
 			id: kLogViewModelsTabId,
 			label: "Models",
 			scrollable: true,
-			component: ModelTab,
-			componentProps: {
+			content: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelTab, {
 				evalSpec,
 				evalStats,
 				evalStatus,
 				configUpdates
-			}
+			})
 		};
 		$[0] = configUpdates;
 		$[1] = evalSpec;
@@ -156380,13 +156438,13 @@ var useSamplesTabConfig = (evalStatus, refreshLog) => {
 	const t2 = evalStatus === "started";
 	let t3;
 	if ($[1] !== columnButtonEl || $[2] !== showColumnSelector || $[3] !== t2) {
-		t3 = {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SamplesTab, {
 			running: t2,
 			scrollRef,
 			showColumnSelector,
 			setShowColumnSelector,
 			columnButtonEl
-		};
+		});
 		$[1] = columnButtonEl;
 		$[2] = showColumnSelector;
 		$[3] = t2;
@@ -156426,8 +156484,7 @@ var useSamplesTabConfig = (evalStatus, refreshLog) => {
 			scrollable: false,
 			scrollRef,
 			label: t1,
-			component: SamplesTab,
-			componentProps: t3,
+			content: t3,
 			tools: t4
 		};
 		$[12] = t1;
@@ -157574,14 +157631,13 @@ var useTaskTabConfig = (evalSpec, evalStats, earlyStopping, tags, configUpdates)
 			id: kLogViewTaskTabId,
 			label: "Task",
 			scrollable: true,
-			component: TaskTab,
-			componentProps: {
+			content: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TaskTab, {
 				evalSpec,
 				evalStats,
 				earlyStopping,
 				tags,
 				configUpdates
-			}
+			})
 		};
 		$[0] = configUpdates;
 		$[1] = earlyStopping;
@@ -160275,8 +160331,7 @@ var useTimelineTab = (evalSpec, evalStats, evalStatus, configUpdates, logUpdates
 			label: "Activity",
 			scrollable: true,
 			scrollRef,
-			component: TimelineTab,
-			componentProps: {
+			content: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineTab, {
 				evalSpec,
 				evalStats,
 				evalStatus,
@@ -160284,7 +160339,7 @@ var useTimelineTab = (evalSpec, evalStats, evalStatus, configUpdates, logUpdates
 				logUpdates,
 				earlyStopping,
 				scrollRef
-			}
+			})
 		};
 		$[0] = configUpdates;
 		$[1] = earlyStopping;
@@ -163557,7 +163612,7 @@ var LogView = () => {
 		$[1] = t0;
 	} else t0 = $[1];
 	const samplesTabConfig = useSamplesTabConfig(selectedLogDetails?.status, t0);
-	const intoTabConfig = useInfoTabConfig(evalSpec, selectedLogDetails?.plan, selectedLogDetails?.error, selectedLogDetails?.results, selectedLogDetails?.status, selectedLogDetails?.metadata);
+	const intoTabConfig = useInfoTabConfig(evalSpec, selectedLogDetails?.plan, selectedLogDetails?.results, selectedLogDetails?.status, selectedLogDetails?.metadata);
 	const errorTabConfig = useErrorTabConfig(selectedLogDetails?.error);
 	const taskTabConfig = useTaskTabConfig(evalSpec, selectedLogDetails?.stats, selectedLogDetails?.results?.early_stopping, selectedLogDetails?.tags, selectedLogDetails?.config_updates);
 	const modelsTabConfig = useModelsTab(evalSpec, selectedLogDetails?.stats, selectedLogDetails?.status, selectedLogDetails?.config_updates);
@@ -163687,7 +163742,7 @@ var LogView = () => {
 							scrollRef: tab_2.scrollable ? tab_2.scrollRef : void 0,
 							className: clsx(tab_2.className),
 							style: { height: tab_2.scrollable ? "100%" : void 0 },
-							children: /*#__PURE__*/ (0, import_react.createElement)(tab_2.component, tab_2.componentProps)
+							children: tab_2.content
 						}, tab_2.id);
 					})
 				})

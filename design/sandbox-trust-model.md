@@ -437,7 +437,8 @@ is given a `user`: a write with the default user's authority, then `chown` to
 that user. Given no `user`, it installs with the scope's user's authority and
 changes no ownership, so it adds no root operation in a directory that user
 controls: files it creates are owned by that user, and a file it overwrites
-keeps whatever owner the provider's write leaves. On a provider whose
+keeps whatever owner the provider's write leaves. In a scope with a `cwd`, a
+relative skills directory resolves against that `cwd`. On a provider whose
 `write_file()` cannot take a user, that install raises before writing
 anything. Inside a marked block (in-loop scoring), an install with no `user`
 takes the legacy default-user path, as at final scoring. The steps and their limits are in

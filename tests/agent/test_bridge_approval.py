@@ -187,7 +187,7 @@ from inspect_ai.util._span import (
     span,
     span_id_provider,
 )
-from inspect_ai.util._store import Store, _subtask_store
+from inspect_ai.util._store import Store, _subtask_store, store
 from inspect_ai.util._subprocess import ExecResult
 
 if TYPE_CHECKING:
@@ -6390,9 +6390,7 @@ class _HostConversation:
         )
         self.returned_ids: list[str] = []
 
-    async def request(
-        self, bridge: SandboxAgentBridge
-    ) -> list[tuple[str, dict[str, Any]]]:
+    async def request(self, bridge: AgentBridge) -> list[tuple[str, dict[str, Any]]]:
         """Send the conversation; append the reply and return its (call id or name, arguments).
 
         With `javascript`, the reply and its arguments are kept as a JavaScript
@@ -6405,9 +6403,7 @@ class _HostConversation:
             calls = [(id, _javascript_json(arguments)) for id, arguments in calls]
         return calls
 
-    async def _request(
-        self, bridge: SandboxAgentBridge
-    ) -> list[tuple[str, dict[str, Any]]]:
+    async def _request(self, bridge: AgentBridge) -> list[tuple[str, dict[str, Any]]]:
         infos = self.infos
         match self.dialect:
             case "completions":
@@ -14607,3 +14603,305 @@ def test_live_anthropic_pending_server_work_ids(filtered: bool, tmp_path: Path) 
         assert all(any(id in v for id in kept_output_ids) for v in violations)
     else:
         assert not violations
+
+
+# ---------------------------------------------------------------------------
+# agent tool call ids: the log records the id the agent received for each call
+# ---------------------------------------------------------------------------
+
+BridgeKind = Literal["in_process", "sandbox"]
+CallIdShape = Literal[
+    "sequential",
+    "retried",
+    "retried_same_call",
+    "concurrent",
+    "concurrent_same_call",
+    "two_bridges",
+]
+
+
+def _read(path: str, id: str = "null") -> ModelOutput:
+    return tool_calls_output(
+        ToolCall(id=id, function="read_file", arguments={"path": path})
+    )
+
+
+def _shape_bridge(kind: BridgeKind, model: Model) -> AgentBridge:
+    if kind == "sandbox":
+        return _counted_host_bridge(model)
+    return AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
+
+
+class _ReceivingScaffold:
+    """A scaffold answering each call itself with `<path> result`, noting the id it received each path's call under."""
+
+    def __init__(self, dialect: HostDialect) -> None:
+        self.dialect = dialect
+        self.received: dict[str, set[str]] = {}
+
+    def conversation(self, prompt: str = "Read.") -> _HostConversation:
+        return _HostConversation(self.dialect, prompt, declare("read_file")[0])
+
+    async def turn(
+        self, conversation: _HostConversation, bridge: AgentBridge, answer: bool = True
+    ) -> bool:
+        """Send `conversation`; unless `answer`, drop the reply, as a client does a lost response."""
+        history = list(conversation.history)
+        calls = await conversation.request(bridge)
+        if self.dialect == "google":
+            parts = conversation.history[-1]["parts"]
+            ids = [p["functionCall"]["id"] for p in parts if "functionCall" in p]
+        else:
+            ids = [call_id for call_id, _ in calls]
+        for call_id, (_, arguments) in zip(ids, calls, strict=True):
+            self.received.setdefault(arguments["path"], set()).add(call_id)
+        if not answer:
+            conversation.history = history
+        elif calls:
+            conversation.results(calls, [f"{a['path']} result" for _, a in calls])
+        return bool(calls)
+
+    async def loop(self, conversation: _HostConversation, bridge: AgentBridge) -> None:
+        while await self.turn(conversation, bridge):
+            pass
+
+
+async def _run_shape(
+    shape: CallIdShape, scaffold: _ReceivingScaffold, kind: BridgeKind
+) -> None:
+    def bridge(*outputs: ModelOutput) -> AgentBridge:
+        model = get_model("mockllm/model", custom_outputs=list(outputs))
+        return _shape_bridge(kind, model)
+
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    match shape:
+        case "sequential":
+            # "null" again for another call in a later turn
+            await scaffold.loop(
+                scaffold.conversation(), bridge(_read("a"), _read("b"), done)
+            )
+        case "retried" | "retried_same_call":
+            # each request sent twice, the first response lost
+            retry = _read("a") if shape == "retried_same_call" else _read("b")
+            shared_bridge = bridge(_read("a"), retry, done, done)
+            conversation = scaffold.conversation()
+            await scaffold.turn(conversation, shared_bridge, answer=False)
+            await scaffold.turn(conversation, shared_bridge)
+            await scaffold.turn(conversation, shared_bridge, answer=False)
+            await scaffold.turn(conversation, shared_bridge)
+        case "concurrent" | "concurrent_same_call":
+            # two of the agent's conversations proposing under "null" at once
+            other = _read("a") if shape == "concurrent_same_call" else _read("b")
+            shared_bridge = bridge(_read("a"), other, done, done)
+            first, second = scaffold.conversation(), scaffold.conversation()
+            await tg_collect(
+                [
+                    partial(scaffold.loop, first, shared_bridge),
+                    partial(scaffold.loop, second, shared_bridge),
+                ]
+            )
+        case "two_bridges":
+            # agents run one after the other, each with its own bridge
+            await scaffold.loop(
+                scaffold.conversation("Read, first."), bridge(_read("a"), done)
+            )
+            await scaffold.loop(
+                scaffold.conversation("Read, second."),
+                bridge(_read("b"), _read("c"), _read("d"), done),
+            )
+
+
+def _assert_logged_as_received(
+    events: Sequence[Event], received: dict[str, set[str]]
+) -> list[ModelEvent]:
+    """Each logged call's id as the agent received it (`agent_tool_call_ids`, else the model's) is the id the scaffold noted for it, and a tool message under it in its conversation (by prompt) answers it; returns the events that record `agent_tool_call_ids`."""
+    model_events = [e for e in events if isinstance(e, ModelEvent)]
+    received_paths: dict[tuple[str, str], set[str]] = {}
+    recorded: list[ModelEvent] = []
+    for event in model_events:
+        calls = event.output.message.tool_calls or []
+        model_ids = [call.id for call in calls]
+        if event.agent_tool_call_ids is not None:
+            recorded.append(event)
+            assert len(event.agent_tool_call_ids) == len(calls)
+            assert event.agent_tool_call_ids != model_ids
+        for call, received_id in zip(calls, event.agent_tool_call_ids or model_ids):
+            path = call.arguments["path"]
+            assert received_id in received[path]
+            received_paths.setdefault((event.input[0].text, received_id), set()).add(
+                path
+            )
+    for event in model_events:
+        for message in event.input:
+            if isinstance(message, ChatMessageTool) and message.error is None:
+                assert message.tool_call_id is not None
+                [path] = received_paths[(event.input[0].text, message.tool_call_id)]
+                assert f"{path} result" in message.text
+    return recorded
+
+
+@pytest.mark.parametrize("shape", get_args(CallIdShape))
+@pytest.mark.parametrize("kind", get_args(BridgeKind))
+@pytest.mark.parametrize("dialect", get_args(HostDialect))
+async def test_the_log_records_the_id_the_agent_received_for_each_call(
+    dialect: HostDialect, kind: BridgeKind, shape: CallIdShape
+) -> None:
+    """A call the agent received under a fresh id, as when the model reused `"null"` for another call, is logged with that id (`ModelEvent.agent_tool_call_ids`); the result under it is that call's.
+
+    The same call proposed again under its id reaches the agent under it, so
+    the log records nothing for it: the agent received the model's id.
+    """
+    scaffold = _ReceivingScaffold(dialect)
+    with recorded_transcript() as recorded:
+        await _run_shape(shape, scaffold, kind)
+    renamed = _assert_logged_as_received(recorded.events, scaffold.received)
+    renamed_paths = [
+        (event.output.message.tool_calls or [])[0].arguments["path"]
+        for event in renamed
+    ]
+    match shape:
+        case "sequential" | "retried":
+            assert renamed_paths == ["b"]
+        case "concurrent":
+            # whichever was proposed second
+            assert renamed_paths in (["a"], ["b"])
+        case "two_bridges":
+            # the first bridge keeps "null" for a, the second for b
+            assert renamed_paths == ["c", "d"]
+        case "retried_same_call" | "concurrent_same_call":
+            assert renamed_paths == [] and scaffold.received == {"a": {"null"}}
+    assert all(len(ids) == 1 for ids in scaffold.received.values()) or shape in (
+        "retried_same_call",
+        "concurrent_same_call",
+    )
+
+
+@approver(name="test_bridge_reject_path")
+def path_rejecting_approver(path: str) -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        if call.arguments.get("path") == path:
+            return Approval(decision="reject", explanation="Not that file.")
+        return Approval(decision="approve")
+
+    return approve
+
+
+@pytest.mark.parametrize("dialect", get_args(HostDialect))
+async def test_a_rejected_turn_records_the_ids_its_rejections_carry(
+    dialect: HostDialect,
+) -> None:
+    """A rejected call under a fresh id is logged with it: the rejection the model is sent next carries that id, though the agent never received the call."""
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            _read("a"),
+            _read("b"),
+            ModelOutput.from_content("mockllm/model", "Done."),
+        ],
+    )
+    bridge = AgentBridge(
+        AgentState(messages=[]),
+        model_aliases={"inspect": model},
+        approval=[ApprovalPolicy(path_rejecting_approver("b"), "*")],
+    )
+    scaffold = _ReceivingScaffold(dialect)
+    with recorded_transcript() as recorded:
+        await scaffold.loop(scaffold.conversation(), bridge)
+    first, rejected, retried = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    assert first.agent_tool_call_ids is None
+    assert rejected.agent_tool_call_ids is not None
+    [rejected_id] = rejected.agent_tool_call_ids
+    assert rejected_id != "null" and "b" not in scaffold.received
+    [rejection] = [
+        m
+        for m in retried.input
+        if isinstance(m, ChatMessageTool) and m.tool_call_id == rejected_id
+    ]
+    assert rejection.error is not None
+    assert "Not that file." in rejection.error.message
+
+
+@agent
+def receiving_scaffold(dialect: HostDialect) -> Agent:
+    """The `sequential` shape through an in-process bridge in a sample."""
+
+    async def execute(state: AgentState) -> AgentState:
+        scaffold = _ReceivingScaffold(dialect)
+        async with agent_bridge(state) as bridge:
+            await scaffold.loop(scaffold.conversation(), bridge)
+        store().set(
+            "received", {path: sorted(ids) for path, ids in scaffold.received.items()}
+        )
+        return state
+
+    return execute
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_agent_tool_call_ids_round_trip_through_the_log(
+    log_format: Literal["eval", "json"], tmp_path: Path
+) -> None:
+    """The agent tool call ids are read back as written, and an event recording none is written without the field."""
+    [log] = eval(
+        Task(dataset=[Sample(input="Read.")], solver=receiving_scaffold("completions")),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                _read("a"),
+                _read("b"),
+                ModelOutput.from_content("mockllm/model", "Done."),
+            ],
+        ),
+        log_dir=str(tmp_path),
+        log_format=log_format,
+    )
+    assert log.status == "success", log.error
+    assert log.samples
+    written = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = resolve_sample_attachments(read.samples[0], "full")
+    events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert [e.agent_tool_call_ids for e in events] == [
+        e.agent_tool_call_ids for e in written
+    ]
+    [_, renamed, _] = events
+    assert renamed.agent_tool_call_ids is not None
+    [received_id] = renamed.agent_tool_call_ids
+    received = {
+        path: set(ids)
+        for path, ids in cast(dict[str, list[str]], sample.store["received"]).items()
+    }
+    assert received == {"a": {"null"}, "b": {received_id}}
+    _assert_logged_as_received(sample.events, received)
+    for event in events:
+        dumped = event.model_dump(exclude_none=True)
+        assert ("agent_tool_call_ids" in dumped) is (event is renamed)
+
+
+def test_logs_written_before_agent_tool_call_ids_read_without_them() -> None:
+    """A log written before the field reads with no agent tool call ids, and its model events serialize as they were written."""
+    path = (
+        Path(__file__).parents[1]
+        / "sentinel"
+        / "fixtures"
+        / "bridged_approval_scaffold_name_modify.json"
+    )
+    raw = json.loads(path.read_text())
+    log = read_eval_log(str(path))
+    assert log.samples
+    [raw_sample] = raw["samples"]
+    raw_events = [e for e in raw_sample["events"] if e["event"] == "model"]
+    events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert events and len(events) == len(raw_events)
+    assert any(e.requested_model is not None for e in events)
+    for event, raw_event in zip(events, raw_events):
+        assert event.agent_tool_call_ids is None
+        assert (
+            event.model_dump(mode="json", exclude_none=True).keys() == raw_event.keys()
+        )

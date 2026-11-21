@@ -216,9 +216,9 @@ The marker affects only the boundary default. For the user, it changes only
 calls that pass none: an explicit user is kept, and the model-facing tools
 still pass their strictly resolved users. For paths, it suppresses the
 scope's `cwd` and relative-path resolution for every call in the block,
-including calls that name a user (the member's `pwd` in `install_skills()`
-is one). A misplaced marker can therefore change the user only of calls that
-pass none, and the working directory of any call in the block.
+including calls that name a user (the `pwd` of an explicit-user
+`install_skills()` is one). A misplaced marker can therefore change the user
+only of calls that pass none, and the working directory of any call in the block.
 
 ### Default identity and root probes
 
@@ -335,16 +335,18 @@ take at the boundary:
   every step runs with the member's authority. On a provider whose
   `write_file()` cannot take a user it fails with
   `SandboxUserUnsupportedError` before writing anything. Given an absolute
-  `dir`, it works on a [closed working directory](#closed-working-directories)
-  (see below for a relative one); companion packages detect this capability
-  through the `INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT`
+  `dir`, or a relative one in a scope with a `cwd`, it works on a
+  [closed working directory](#closed-working-directories) (see below for a
+  relative one in a scope with no `cwd`); companion packages detect this
+  capability through the `INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT`
   flag in `install.py`. It changes no ownership: files it creates belong to the
   member, like every other file the member's scaffold creates, while a file
   it overwrites keeps whatever owner the provider's write leaves (Docker
   keeps the existing owner); it can overwrite only a file the member may
   write. The rule applies whether the caller passes the sample's proxy or the
   provider behind it. `test_install_skills_omitted_user_in_a_scope`,
-  `test_install_skills_omitted_user_in_a_scope_relative_dir` and
+  `test_install_skills_omitted_user_in_a_scope_relative_dir`,
+  `test_install_skills_omitted_user_in_a_scope_without_cwd` and
   `test_install_skills_raw_provider_without_file_user_in_a_scope`
   (`tests/tools/test_skill.py`) and, with Docker,
   `test_member_installs_a_scripted_skill_with_a_closed_workdir` pin this
@@ -355,13 +357,21 @@ take at the boundary:
   scorer does at final scoring
   (`test_install_skills_omitted_user_under_marker_matches_final_scoring`).
 
-A relative `dir`, including the default `skills`, resolves against the
-provider's working directory, not the scope's `cwd`, because its `pwd` is a
-marked operation; the file operations then receive absolute paths. Inside a
-scope with no `user`,
-the member must therefore be able to enter the provider's working directory
-(for `pwd`) and write the skills directory under it; otherwise the caller
-passes an absolute directory.
+A relative `dir`, including the default `skills`, resolves in one of two
+ways; the file operations then receive absolute paths. In the member branch,
+when the scope has a `cwd`, it resolves against that `cwd`, as the member's own
+relative `write_file()` path would (`sandbox_operation_file()`), and no `pwd`
+runs. Otherwise it resolves against the working directory of a `pwd` run as
+the install's user. That `pwd` is a marked operation, so it runs in the
+provider's working directory, not the scope's `cwd`. In a scope with no
+`cwd`, the member must therefore be able to enter the provider's working
+directory and write the skills directory under it; otherwise the caller
+passes an absolute directory. An explicit-user install keeps the provider's
+working directory even in a scope with a `cwd`
+(`test_install_skills_explicit_user_in_a_scope_relative_dir`): its writes run
+with the default user's authority and its `chown` as root, so resolving into
+a directory the member controls, typically its home, would let a symbolic
+link the member planted there redirect them to a protected file.
 
 ## Requirements on companion packages
 
