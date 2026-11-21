@@ -4575,6 +4575,227 @@ def test_a_call_renamed_from_a_dropped_call_s_id_leaves_that_call_without_a_resu
     ]
 
 
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("bridges", ["one", "two"])
+def test_a_call_the_model_proposes_under_an_id_handed_out_before_takes_its_result(
+    bridges: str, inputs: str
+) -> None:
+    # after the round 2 review: a bridge hands a call the model proposed
+    # under "null" (an id its starting history holds) over under a new id,
+    # and then the model proposes a call under that new id: the same call
+    # again in the same bridge, which keeps the id, or, with "two", another
+    # call in a second bridge outside any agent span, whose model read the id.
+    # The ids come from the bridge's own renaming (`_fresh_call_ids`). The
+    # later call takes its result, as in a log without the recorded ids; the
+    # renamed call has none, as its id is the later call's too
+    from inspect_ai._sentinel import _replay
+    from inspect_ai.agent._bridge.util import _fresh_call_ids
+
+    def proposing(path: str, id: str) -> ChatMessageAssistant:
+        return ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(id=id, function="read_file", arguments={"path": path})
+            ],
+        )
+
+    def made(
+        uuid: str,
+        input: list[ChatMessage],
+        output: ChatMessageAssistant,
+        ids: list[str] | None = None,
+    ) -> ModelEvent:
+        return ModelEvent(
+            uuid=uuid,
+            origin="agent",
+            model="mockllm/model",
+            requested_model="inspect",
+            input=input,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput.from_message(output),
+            agent_tool_call_ids=ids,
+        )
+
+    def handed_over(
+        bridge: AgentBridge, output: ChatMessageAssistant, history: set[str]
+    ) -> ChatMessageAssistant:
+        handed = _fresh_call_ids(bridge, ModelOutput.from_message(output), history)
+        calls = handed.message.tool_calls or []
+        bridge._handouts.propose(calls)
+        bridge._handouts.hand_over(calls, calls, None)
+        return handed.message
+
+    start_a: list[ChatMessage] = [
+        ChatMessageUser(content="Read a file."),
+        proposing("old.txt", "null"),
+        ChatMessageTool(content="old", tool_call_id="null"),
+    ]
+    bridge_a = AgentBridge(AgentState(messages=list(start_a)))
+    first = proposing("a.txt", "null")
+    handed_first = handed_over(bridge_a, first, {"null"})
+    assert handed_first.tool_calls
+    fresh = handed_first.tool_calls[0].id
+    assert fresh != "null"
+    continued_a = [
+        *start_a,
+        handed_first,
+        ChatMessageTool(id="result-a", content="a", tool_call_id=fresh),
+    ]
+    if bridges == "one":
+        bridge_b, start_b, later = bridge_a, continued_a, proposing("a.txt", fresh)
+    else:
+        start_b = [ChatMessageUser(content=f"Read b.txt under the call id {fresh}.")]
+        bridge_b = AgentBridge(AgentState(messages=list(start_b)))
+        later = proposing("b.txt", fresh)
+    held = {"null", fresh} if bridges == "one" else set()
+    assert handed_over(bridge_b, later, held) == later
+    events: list[Event] = solving(
+        [
+            made("a", start_a, first, [fresh]),
+            made("a-done", continued_a, ChatMessageAssistant(content="done")),
+            made("b", start_b, later),
+            made(
+                "b-done",
+                [
+                    *start_b,
+                    later,
+                    ChatMessageTool(id="result-b", content="b", tool_call_id=fresh),
+                ],
+                ChatMessageAssistant(content="done"),
+            ),
+        ]
+    )
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    replay = steps_from_events(
+        [],
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version="0.3.292", sentinel=False),
+    )
+    assert [
+        (s.stage, s.id, resulted(s).id if s.stage == "tool_result" else None)
+        for s in replay
+        if s.stage.startswith("tool")
+    ] == [
+        ("tool_call", f"a/{fresh}", None),
+        ("tool_call", f"b/{fresh}", None),
+        ("tool_result", f"b/{fresh}", "result-b"),
+    ]
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("other", ["bridged", "native"])
+def test_a_renamed_call_takes_no_result_under_an_id_another_conversation_proposed(
+    other: str, inputs: str
+) -> None:
+    # a bridge outside any agent span hands a call over under a new id, and
+    # the agent drops the response; an agent in its own span, bridged or
+    # native, whose model was given that id, proposes another call under it;
+    # then a bridge outside any agent span continues that agent's messages.
+    # The result under the id is the other agent's call's, not the dropped
+    # call's, so the dropped call has none, as in a log without the
+    # recorded ids
+    from inspect_ai._sentinel import _replay
+
+    fresh = "call_fresh"
+
+    def proposing(path: str, id: str) -> ChatMessageAssistant:
+        return ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(id=id, function="read_file", arguments={"path": path})
+            ],
+        )
+
+    def made(
+        uuid: str,
+        input: list[ChatMessage],
+        output: ChatMessageAssistant,
+        span_id: str | None = None,
+        ids: list[str] | None = None,
+        bridged: bool = True,
+    ) -> ModelEvent:
+        return ModelEvent(
+            uuid=uuid,
+            span_id=span_id,
+            origin="agent",
+            model="mockllm/model",
+            requested_model="inspect" if bridged else None,
+            input=input,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput.from_message(output),
+            agent_tool_call_ids=ids,
+        )
+
+    start: list[ChatMessage] = [
+        ChatMessageUser(content="Read a file."),
+        proposing("old.txt", "null"),
+        ChatMessageTool(content="old", tool_call_id="null"),
+    ]
+    given: list[ChatMessage] = [
+        ChatMessageUser(content=f"Read b.txt under the call id {fresh}.")
+    ]
+    later = proposing("b.txt", fresh)
+    continued = [
+        *given,
+        later,
+        ChatMessageTool(id="result-b", content="b", tool_call_id=fresh),
+    ]
+    events: list[Event] = solving(
+        [
+            made("lost", start, proposing("a.txt", "null"), ids=[fresh]),
+            SpanBeginEvent(id="agent-b", name="agent b", type="agent"),
+            made("b", given, later, "agent-b", bridged=other == "bridged"),
+            made(
+                "b-done",
+                continued,
+                ChatMessageAssistant(content="done"),
+                "agent-b",
+                bridged=other == "bridged",
+            ),
+            SpanEndEvent(id="agent-b"),
+            made(
+                "c",
+                [*continued, ChatMessageUser(content="Go on.")],
+                ChatMessageAssistant(content="done"),
+            ),
+        ]
+    )
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    replay = steps_from_events(
+        [],
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version="0.3.292", sentinel=False),
+    )
+    bridged_steps = [
+        (s.stage, s.id, resulted(s).id if s.stage == "tool_result" else None)
+        for s in replay
+        if s.stage.startswith("tool") and s.id.startswith(("lost/", "b/"))
+    ]
+    assert bridged_steps == [
+        ("tool_call", f"lost/{fresh}", None),
+        *(
+            [
+                ("tool_call", f"b/{fresh}", None),
+                ("tool_result", f"b/{fresh}", "result-b"),
+            ]
+            if other == "bridged"
+            else []
+        ),
+    ]
+
+
 def test_agent_tool_call_ids_that_don_t_match_the_calls_skip_their_steps(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,

@@ -484,14 +484,19 @@ These steps follow the conversation, not the checks a sentinel made live, so the
 | A host tool a sandbox bridge ran | The tool under the name the model used (e.g. `mcp__host__addition`) |
 | The bridge never handed the call to the agent (e.g. a token limit, or a rejected call in the same response) | The call, and whatever result the model next received |
 | The result never reached the model (e.g. a limit or a sentinel ended the sample) | The call, with no result |
-| The agent received more than one call in its conversation under the same id (e.g. the same call proposed again, as when a retry is answered from the model cache) | Each of those calls, with no result |
+| The model gave more than one call in the agent's conversation the same id (e.g. the same call proposed again, as when a retry is answered from the model cache, or Mistral's `"null"`) | Each of those calls the agent received under that id, with no result |
 | The bridge handed the call over under a new id, as it does when the model reuses an id (e.g. Mistral's `"null"`) | The call under its new id, with its result, in the message the agent received |
-| The agent received the call under an id the model also gave another call in its conversation, which the bridge handed over under a new id (e.g. the first of several calls under Mistral's `"null"`) | The call, with no result |
-| An agent run without its own agent span makes a call that gets no result there (e.g. in a response it dropped to retry it), an agent in its own span makes a call under the same id, and a later agent run without its own span continues that agent's messages | The first call, possibly with the later call's result |
+| The bridge handed the call over under a new id, and another call in the log uses that id (e.g. the model proposed the same call again under it) | The call, with no result |
+| The model proposed the call under an id the bridge had handed another call over under (e.g. the same call again), and the earlier call's result shows as new later (e.g. after compaction) | The call, possibly with the earlier call's result |
+| A call under the model's id gets no result in an agent run without its own agent span (e.g. the agent dropped the response to retry it), an agent in its own span makes a call under the same id, and a later run without its own span continues that agent's messages | The first call, possibly with the later call's result |
 
 Replay pairs each call with its result by the id the agent received the call under. Where the bridge gave a call a new id, the log records it (`agent_tool_call_ids`, see [Transcript](agent-bridge.qmd#transcript)), so calls the bridge renamed because the model reused an id (e.g. Mistral's `"null"`) show with their own results.
 
-Some calls still can't be paired. If the agent received two calls in its conversation under one id, a result under that id can answer either call, so replay leaves both without one rather than risk showing another call's result. The same applies to a call the agent received under an id the model also gave another call in its conversation: the bridge renames a call whose id names another call it knows of, which can be in another conversation, so a result under that id may be that call's. If a request or response filter returned a copy of the model's response, the log doesn't record the ids the agent received, so replay reads that response's calls by the model's ids.
+Some calls still can't be paired. If the model gave two calls in the agent's conversation the same id, a result under that id can answer either call, so replay leaves each call the agent received under that id without one rather than risk showing another call's result. This is the same rule replay applies to logs that don't record the ids.
+
+A new id the bridge gives a call is made for that call alone. If another call in the log uses it (e.g. the model proposed the same call again under it, or another agent's model was told the id), that call's result can reach the conversation through messages taken up from another agent, so replay shows the renamed call without a result.
+
+If a request or response filter returned a copy of the model's response, the log doesn't record the ids the agent received, so replay reads that response's calls by the model's ids.
 
 In logs written before Inspect 0.3.292, which don't record the ids the agent received, replay reads every call by the model's id:
 
