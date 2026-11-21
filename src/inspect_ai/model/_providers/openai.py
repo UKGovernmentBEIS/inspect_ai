@@ -16,7 +16,7 @@ from openai import (
 )
 from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
-from openai.types.responses import Response
+from openai.types.responses import ComputerToolParam, Response
 from openai.types.shared_params.reasoning import Reasoning
 from typing_extensions import override
 
@@ -49,7 +49,9 @@ from .._openai import (
 )
 from .._openai_responses import (
     chat_messages_from_compact_response,
+    is_computer_call_output,
     is_native_tool_configured,
+    is_response_computer_tool_call,
     model_usage_from_compact_response,
     openai_responses_inputs,
     pad_tool_messages_for_token_counting,
@@ -431,11 +433,20 @@ class OpenAIAPI(ModelAPI):
         # Apply padding to handle orphaned tool calls for per-message counting
         padded_items = pad_tool_messages_for_token_counting(input_items)
 
+        # The endpoint validates computer use items against the request's tools
+        # ('You provided computer_output, but the "computer" tool is not
+        # enabled.'), so declare the computer tool when the input has them.
+        has_computer_items = any(
+            is_response_computer_tool_call(item) or is_computer_call_output(item)
+            for item in padded_items
+        )
+
         # Call the input_tokens endpoint with reasoning settings
         response = await self.client.responses.input_tokens.count(
             model=self.api_model_name(),
             input=padded_items,
             reasoning=self._get_reasoning_params_for_config(config),
+            tools=[ComputerToolParam(type="computer")] if has_computer_items else omit,
         )
 
         return response.input_tokens
