@@ -1,29 +1,37 @@
 import asyncio
+import builtins
 import math
 import os
 import re
 import time
 from typing import Any, Callable
+from unittest.mock import patch
 
 import pytest
 
 from inspect_ai import Task, eval, score
+from inspect_ai._eval.loader import scorer_from_spec
 from inspect_ai._eval.score import resolve_scorers
 from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.registry import registry_params
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._sources.json import json_dataset
 from inspect_ai.log._condense import resolve_sample_attachments
+from inspect_ai.log._file import read_eval_log
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageUser,
     GenerateConfig,
     Model,
+    ModelConfig,
     ModelName,
     ModelRole,
 )
 from inspect_ai.model._model import get_model, init_active_model, init_model_roles
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
@@ -40,6 +48,7 @@ from inspect_ai.scorer._model import (
     _trailing_verdict_disagrees,
     neutralize_structural_delimiters,
 )
+from inspect_ai.scorer._scorer import ScorerSpec, as_scorer_spec
 from inspect_ai.solver._task_state import TaskState
 
 
@@ -407,6 +416,283 @@ async def _score_in_contexts(
     return [
         await _score_in_context(scorer, active, roles) for active, roles in contexts
     ]
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+@pytest.mark.parametrize("panel", [False, True])
+@pytest.mark.parametrize("configured", [False, True])
+async def test_model_role_default_is_unused_when_bound(
+    scorer_factory: Callable[..., Scorer], panel: bool, configured: bool
+) -> None:
+    default = "nonexistent-provider/default"
+    role = ModelRole(
+        "judge",
+        default=ModelConfig(model=default) if configured else default,
+    )
+    judge = scorer_factory(model_role=role)
+    graders = [
+        _repeating_grader("GRADE: I"),
+        _repeating_grader("GRADE: C"),
+        _repeating_grader("GRADE: C"),
+    ]
+    result = await _score_in_context(
+        judge,
+        _repeating_grader("active\nGRADE: I"),
+        {"judge": graders if panel else graders[1]},
+    )
+    assert result.value == CORRECT
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+async def test_model_argument_overrides_role_default(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    judge = scorer_factory(
+        model=_repeating_grader("model argument\nGRADE: I"),
+        model_role=ModelRole("grader", default="nonexistent-provider/default"),
+    )
+    result = await _score_in_context(
+        judge,
+        _repeating_grader("active\nGRADE: C"),
+        {"grader": [_repeating_grader("GRADE: C"), _repeating_grader("GRADE: C")]},
+    )
+    assert result.value == INCORRECT
+    assert result.explanation == "model argument\nGRADE: I"
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+async def test_model_role_default_resolves_again_for_each_context(
+    scorer_factory: Callable[..., Scorer], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(MockLLM, "default_output", "fallback\nGRADE: C")
+    judge = scorer_factory(model_role=ModelRole("grader", default="mockllm/default"))
+    active = _repeating_grader("active\nGRADE: I")
+    results = await _score_in_contexts(
+        judge,
+        [
+            (active, {}),
+            (active, {"grader": _repeating_grader("override\nGRADE: I")}),
+            (
+                active,
+                {
+                    "grader": [
+                        _repeating_grader("GRADE: C"),
+                        _repeating_grader("GRADE: I"),
+                        _repeating_grader("GRADE: I"),
+                    ]
+                },
+            ),
+            (active, {}),
+        ],
+    )
+    assert [result.value for result in results] == [
+        CORRECT,
+        INCORRECT,
+        INCORRECT,
+        CORRECT,
+    ]
+    assert results[0].explanation == results[3].explanation == "fallback\nGRADE: C"
+
+
+async def test_invalid_model_role_default_fails_only_when_needed() -> None:
+    judge = model_graded_qa(
+        model_role=ModelRole("grader", default="nonexistent-provider/default")
+    )
+    with pytest.raises(ValueError, match="not recognized"):
+        await _score_in_context(judge, _repeating_grader("GRADE: C"), {})
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+@pytest.mark.parametrize("panel", [False, True])
+async def test_model_role_default_does_not_require_unused_provider_library(
+    scorer_factory: Callable[..., Scorer], panel: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original_import = builtins.__import__
+
+    def import_without_openai(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name == "openai":
+            raise ModuleNotFoundError("No module named 'openai'", name="openai")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_openai)
+    monkeypatch.setattr("inspect_ai.model._model._models", {})
+    init_model_roles({})
+    with pytest.raises(
+        PrerequisiteError, match="OpenAI API requires optional dependencies"
+    ):
+        Task(model_roles={"grader": "openai/gpt-4.1"})
+
+    judge = scorer_factory(model_role=ModelRole("grader", default="openai/gpt-4.1"))
+    task = Task(scorer=judge)
+    assert task.scorer
+    graders = [
+        _repeating_grader("GRADE: I"),
+        _repeating_grader("GRADE: C"),
+        _repeating_grader("GRADE: C"),
+    ]
+    result = await _score_in_context(
+        judge,
+        _repeating_grader("GRADE: I"),
+        {"grader": graders if panel else graders[1]},
+    )
+    assert result.value == CORRECT
+    with pytest.raises(
+        PrerequisiteError, match="OpenAI API requires optional dependencies"
+    ):
+        await _score_in_context(judge, _repeating_grader("GRADE: C"), {})
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+@pytest.mark.parametrize("configured", [False, True])
+def test_model_role_default_round_trips_through_log(
+    scorer_factory: Callable[..., Scorer],
+    configured: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(MockLLM, "default_output", "fallback\nGRADE: C")
+    default: str | ModelConfig = (
+        ModelConfig(
+            model="mockllm/fallback",
+            config=GenerateConfig(temperature=0, max_tokens=42),
+            base_url="https://example.test/v1",
+            args={"api_key": "test-secret", "test_argument": "preserved"},
+        )
+        if configured
+        else "mockllm/fallback"
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=scorer_factory(model_role=ModelRole("judge", default=default)),
+    )
+    with patch.object(
+        MockLLM, "generate", autospec=True, side_effect=MockLLM.generate
+    ) as generate:
+        log = eval(task, model=_repeating_grader("active\nGRADE: I"))[0]
+    if configured:
+        provider = next(
+            call.args[0]
+            for call in generate.call_args_list
+            if call.args[0].model_name == "fallback"
+        )
+        assert provider.base_url == "https://example.test/v1"
+        assert provider.api_key == "test-secret"
+        assert provider.model_args["test_argument"] == "preserved"
+    assert log.status == "success"
+    assert "test-secret" not in log.model_dump_json()
+    assert log.location is not None
+    saved_log = read_eval_log(log.location)
+
+    for checked in [
+        saved_log,
+        score(saved_log, resolve_scorers(saved_log), action="overwrite"),
+    ]:
+        assert checked.status == "success"
+        assert checked.samples and checked.samples[0].scores
+        assert next(iter(checked.samples[0].scores.values())).value == CORRECT
+        event = next(
+            event
+            for event in checked.samples[0].events
+            if event.event == "model" and event.role == "judge"
+        )
+        assert event.model == "mockllm/fallback"
+        if configured:
+            assert event.config.temperature == 0
+            assert event.config.max_tokens == 42
+
+    rescored = score(
+        saved_log,
+        resolve_scorers(saved_log),
+        model_roles={
+            "judge": [
+                _repeating_grader("GRADE: C"),
+                _repeating_grader("GRADE: I"),
+                _repeating_grader("GRADE: I"),
+            ]
+        },
+        action="overwrite",
+    )
+    assert rescored.status == "success"
+    assert rescored.samples and rescored.samples[0].scores
+    assert next(iter(rescored.samples[0].scores.values())).value == INCORRECT
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+@pytest.mark.parametrize("construction", ["keyword", "positional", "spec"])
+def test_model_role_dictionary_default_filters_credentials(
+    scorer_factory: Callable[..., Scorer],
+    construction: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(MockLLM, "default_output", "GRADE: C")
+    role: dict[str, Any] = {
+        "name": "grader",
+        "default": {
+            "model": "mockllm/fallback",
+            "args": {
+                "api_key": "test-secret",
+                "aws_session_token": "test-token",
+                "test_argument": "preserved",
+            },
+        },
+    }
+    if construction == "keyword":
+        judge = scorer_factory(model_role=role)
+    elif construction == "positional":
+        judge = scorer_factory(None, None, None, False, False, None, role)
+    else:
+        judge = scorer_from_spec(
+            ScorerSpec(scorer=scorer_factory.__name__),
+            task_path=None,
+            model_role=role,
+        )
+
+    expected_args = {"test_argument": "preserved"}
+    assert registry_params(judge)["model_role"]["default"]["args"] == expected_args
+    assert as_scorer_spec(judge).args["model_role"]["default"]["args"] == expected_args
+    assert role["default"]["args"]["api_key"] == "test-secret"
+    assert role["default"]["args"]["aws_session_token"] == "test-token"
+
+    with patch.object(
+        MockLLM, "generate", autospec=True, side_effect=MockLLM.generate
+    ) as generate:
+        log = eval(
+            Task(dataset=[Sample(input="What is 1 + 1?", target="2")], scorer=judge),
+            model=_repeating_grader("GRADE: I"),
+        )[0]
+    assert log.status == "success"
+    assert "test-secret" not in log.model_dump_json()
+    assert "test-token" not in log.model_dump_json()
+    provider = next(
+        call.args[0]
+        for call in generate.call_args_list
+        if call.args[0].model_name == "fallback"
+    )
+    assert provider.api_key == "test-secret"
+    assert provider.model_args["aws_session_token"] == "test-token"
+
+
+async def test_role_override_does_not_inherit_default_config() -> None:
+    override = _repeating_grader("GRADE: C")
+    override.config = GenerateConfig(temperature=0.7, max_tokens=99)
+    judge = model_graded_qa(
+        model_role=ModelRole(
+            "grader",
+            default=ModelConfig(
+                model="nonexistent-provider/default",
+                config=GenerateConfig(temperature=0, max_tokens=42),
+            ),
+        )
+    )
+    with patch.object(
+        override.api, "generate", wraps=override.api.generate
+    ) as generate:
+        result = await _score_in_context(
+            judge, _repeating_grader("GRADE: I"), {"grader": override}
+        )
+    assert result.value == CORRECT
+    assert generate.call_args.kwargs["config"].temperature == 0.7
+    assert generate.call_args.kwargs["config"].max_tokens == 99
+    assert override.config == GenerateConfig(temperature=0.7, max_tokens=99)
 
 
 @pytest.mark.parametrize(

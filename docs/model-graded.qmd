@@ -31,7 +31,38 @@ Model selection follows this precedence:
 
 2. Else if `model_role` is provided (default: `"grader"`), the model bound to that role (via `eval(..., model_roles={...})` or `--model-role grader=...`) is used (a list of models bound to the role is combined by `reducer`, as when a list is passed for `model`). Pass `ModelRole("grader", required=True)` (from `inspect_ai.model`) to raise an error when the role is not bound instead of falling back to the model being evaluated.
 
-3. Else the model currently being evaluated is used.
+3. Else if `model_role` has a `default`, that model is used. The default is resolved at scoring time, only when the role is not bound.
+
+4. Else the model currently being evaluated is used.
+
+For a grader that runners can override, provide a default on the role:
+
+```python
+from inspect_ai.model import ModelRole
+from inspect_ai.scorer import model_graded_qa
+
+grader = model_graded_qa(
+    model_role=ModelRole("grader", default="openai/gpt-4.1"),
+)
+```
+
+If the runner binds `grader` to a model or a panel, the scorer uses that binding without constructing the default provider. Use `ModelConfig` when the default needs generation settings, a base URL, or provider arguments:
+
+```python
+from inspect_ai.model import GenerateConfig, ModelConfig
+
+grader = model_graded_qa(
+    model_role=ModelRole(
+        "grader",
+        default=ModelConfig(
+            model="openai/gpt-4.1",
+            config=GenerateConfig(temperature=0, max_tokens=1024),
+        ),
+    ),
+)
+```
+
+These settings apply only to the default. A runner-supplied model keeps its own settings. `required=True` and `default` cannot be combined: use a required role when the runner must supply a grader. Saved scorer options include the default configuration but omit authentication arguments, following the model logging policy. Credentials for rescoring must be available in the runtime environment.
 
 There are a few ways you can customise the default behaviour:
 

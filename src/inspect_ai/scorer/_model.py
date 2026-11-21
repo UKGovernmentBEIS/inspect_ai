@@ -1,14 +1,16 @@
 import logging
 import re
 import secrets
-from functools import partial
-from typing import Any, Callable
+from functools import partial, wraps
+from inspect import signature
+from typing import Any, Callable, ParamSpec
 
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.dict import omit
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.list import remove_last_match_and_after
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.registry import registry_info
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -17,6 +19,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._model import Model, get_model, model_roles
+from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._model_role import ModelRole, as_model_role
 from inspect_ai.solver._task_state import TaskState
@@ -27,13 +30,36 @@ from ._metric import Score
 from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
 from ._reducer.types import ScoreReducer
-from ._scorer import Scorer, scorer
+from ._scorer import Scorer, scorer, scorer_register
 from ._target import Target
 
 logger = logging.getLogger(__name__)
 
+P = ParamSpec("P")
 
-@scorer(metrics=[accuracy(), stderr()])
+
+def _model_graded_scorer(factory: Callable[P, Scorer]) -> Callable[P, Scorer]:
+    """Normalize role specs before the scorer decorator records arguments.
+
+    ModelRole's serializer filters credentials from configured defaults.
+    Register the normalizing wrapper so scorer reconstruction uses it too.
+    """
+    registered = scorer(metrics=[accuracy(), stderr()])(factory)
+    factory_signature = signature(factory)
+
+    @wraps(registered)
+    def create(*args: P.args, **kwargs: P.kwargs) -> Scorer:
+        bound = factory_signature.bind(*args, **kwargs)
+        role = bound.arguments.get("model_role")
+        if isinstance(role, dict):
+            bound.arguments["model_role"] = as_model_role(role)
+        return registered(*bound.args, **bound.kwargs)
+
+    info = registry_info(registered)
+    return scorer_register(create, name=info.name, metadata=info.metadata)
+
+
+@_model_graded_scorer
 def model_graded_fact(
     template: str | None = None,
     instructions: str | None = None,
@@ -92,9 +118,11 @@ def model_graded_fact(
         is bound to this role (e.g. via the `model_roles` argument to `eval()`),
         that model is used. If a list of models is bound to this role, each
         model grades independently and the grades are combined by `reducer`
-        (as when a list is passed for `model`). If no role-bound model is
-        available and the role is not required, the model being evaluated (the
-        default model) is used.
+        (as when a list is passed for `model`). Pass `ModelRole(name, default=...)`
+        to specify a model name or `ModelConfig` used only when the role is not
+        bound, resolved at scoring time. The default cannot be combined with
+        `required=True`. Without a default or required role, the model being
+        evaluated is used.
       reducer: How the grades of a grader panel are combined (used when
         `model` — or the binding of `model_role` — is a list). Defaults to
         `"majority"`: a grade must be returned by more than half of the
@@ -115,7 +143,7 @@ def model_graded_fact(
     )
 
 
-@scorer(metrics=[accuracy(), stderr()])
+@_model_graded_scorer
 def model_graded_qa(
     template: str | None = None,
     instructions: str | None = None,
@@ -175,9 +203,11 @@ def model_graded_qa(
         is bound to this role (e.g. via the `model_roles` argument to `eval()`),
         that model is used. If a list of models is bound to this role, each
         model grades independently and the grades are combined by `reducer`
-        (as when a list is passed for `model`). If no role-bound model is
-        available and the role is not required, the model being evaluated (the
-        default model) is used.
+        (as when a list is passed for `model`). Pass `ModelRole(name, default=...)`
+        to specify a model name or `ModelConfig` used only when the role is not
+        bound, resolved at scoring time. The default cannot be combined with
+        `required=True`. Without a default or required role, the model being
+        evaluated is used.
       reducer: How the grades of a grader panel are combined (used when
         `model` — or the binding of `model_role` — is a list). Defaults to
         `"majority"`: a grade must be returned by more than half of the
@@ -242,7 +272,21 @@ def model_graded_qa(
         if isinstance(role_models, list):
             graders = [get_scorer(m) for m in role_models]
             return await multi_scorer(graders, reducer)(state, target)
-        grader = get_model(role=role.name, required=role.required)
+        if role_models is None and role.default is not None:
+            default = (
+                ModelConfig(model=role.default)
+                if isinstance(role.default, str)
+                else role.default
+            )
+            grader = get_model(
+                model=default.model,
+                role=role.name,
+                config=default.config,
+                base_url=default.base_url,
+                **default.args,
+            )
+        else:
+            grader = get_model(role=role.name, required=role.required)
         return await get_scorer(grader)(state, target)
 
     return score
