@@ -167,15 +167,19 @@ async def fetch_usage(received: ReceivedCall, request_id: str) -> dict[str, Any]
     return answer
 
 
-def note_usage_incomplete(request_id: str) -> None:
-    """Note in the transcript that the sidecar was still judging a request Inspect gave up on, so what was recorded of its judging usage may not be all of it."""
+STILL_JUDGING = "the sidecar was still judging the attempt"
+"""Why usage is incomplete for a request Inspect gave up on while the sidecar judged it."""
+
+
+def note_usage_incomplete(request_id: str, reason: str) -> None:
+    """Note in the transcript that what was recorded of a request's judging usage may not be all of it."""
     from inspect_ai.log._transcript import transcript
 
     transcript().info(
         {
             "request": request_id,
             "judging_usage": "incomplete",
-            "reason": "the sidecar was still judging the attempt",
+            "reason": reason,
         },
         source="sentinel sidecar",
     )
@@ -273,7 +277,7 @@ async def record_unasked_usage(received: ReceivedCall) -> None:
                     # on, and isn't waited for: what was billed so far is
                     # recorded, and the rest may never be
                     if result.get("state") == "judging":
-                        note_usage_incomplete(request_id)
+                        note_usage_incomplete(request_id, STILL_JUDGING)
                     continue
                 reason = f"the sidecar's records are {records}"
             note_usage_unavailable(request_id, reason)

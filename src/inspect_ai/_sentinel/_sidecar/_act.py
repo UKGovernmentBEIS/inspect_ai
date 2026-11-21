@@ -20,6 +20,7 @@ from inspect_ai.model._model_output import (
 from inspect_ai.tool._tool_call import ToolCall
 
 from ._lookup import (
+    STILL_JUDGING,
     fetch_usage,
     lost_sample,
     note_usage_incomplete,
@@ -269,22 +270,26 @@ async def _clean_up_stopped_call(received: ReceivedCall) -> None:
         # asked once, without waiting, as an earlier attempt is
         answer = await fetch_usage(received, request_id)
     # The sidecar gives a total for the id, so the answer adds only what it
-    # has over what Inspect recorded before. A paused call was asked about
-    # before, so only another call's usage can be wholly unknown.
+    # has over what Inspect recorded before.
     if answer and record_new_usage(received, request_id, answer):
         if answer.get("state") == "judging":
             # what was billed so far is recorded, and the rest may never be
-            note_usage_incomplete(request_id)
-    elif not paused:
-        records = answer.get("records") if answer else None
-        note_usage_unavailable(
-            request_id,
-            "the sidecar didn't answer"
-            if answer is None
-            else f"the sidecar's records are {records}"
-            if records != "held"
-            else "the sidecar's judging usage can't be read",
-        )
+            note_usage_incomplete(request_id, STILL_JUDGING)
+        return
+    records = answer.get("records") if answer else None
+    reason = (
+        "the sidecar didn't answer"
+        if answer is None
+        else f"the sidecar's records are {records}"
+        if records != "held"
+        else "the sidecar's judging usage can't be read"
+    )
+    # A paused call's usage was read as the person was asked, and is kept,
+    # but a resend they approved may have been judged since.
+    if paused:
+        note_usage_incomplete(request_id, reason)
+    else:
+        note_usage_unavailable(request_id, reason)
 
 
 def _note_lost(received: ReceivedCall) -> None:

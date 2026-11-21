@@ -2696,6 +2696,52 @@ def test_a_resent_call_isnt_waited_on_once_its_samples_registration_stops_a_retr
     assert stand_in.cancelled == [stand_in.model_calls[0].headers["x-irid"]]
 
 
+def test_a_resent_calls_usage_that_cant_be_read_once_its_retry_is_stopped_is_noted_incomplete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    stand_in = ReviewingSidecar(
+        pauses=["model_input"],
+        turns=[Turn()],
+        provider_busy_lookups=1,
+        judge_usage={"input_tokens": 1000, "output_tokens": 0, "total_tokens": 1000},
+    )
+    fill = _registration_fills(stand_in)
+
+    def fills_and_stops_answering() -> None:
+        # The approved request is resent, and may be judged again. Its
+        # connection is lost, the registration fills before the provider's
+        # SDK tries again, and the sidecar can't then say what the call billed.
+        fill()
+        stand_in.lookups_refused = 10
+
+    stand_in.when_resend_lost = fills_and_stops_answering
+
+    log = _run(stand_in, solver=generate(), sentinel_proxy="required")
+
+    # What was read while the person was asked is kept, and the rest is
+    # noted as missing rather than read as none.
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is not None
+    assert "the registrations are full" in sample.error.message
+    assert sample.model_usage["mockllm/judge"].total_tokens == 1000
+    paused_id = stand_in.model_calls[0].headers["x-irid"]
+    assert [
+        e.data
+        for e in sample.events
+        if isinstance(e, InfoEvent)
+        and isinstance(e.data, dict)
+        and "judging_usage" in e.data
+    ] == [
+        {
+            "request": paused_id,
+            "judging_usage": "incomplete",
+            "reason": "the sidecar didn't answer",
+        }
+    ]
+
+
 @pytest.mark.parametrize("stopped", ["the resend", "Inspect's retry"])
 def test_a_paused_call_whose_samples_registration_stops_it_is_cancelled_at_once(
     stopped: str, monkeypatch: pytest.MonkeyPatch
