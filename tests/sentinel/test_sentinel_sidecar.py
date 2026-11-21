@@ -1895,8 +1895,9 @@ def test_a_sample_whose_only_call_was_cancelled_before_it_was_sent_is_scored(
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
-def test_a_sample_is_scored_through_the_client_that_sent_its_request(
-    backend: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("cancelled_in", ["the same attempt", "a retry"])
+def test_a_call_that_only_registered_doesnt_replace_the_client_that_sent_a_request(
+    cancelled_in: str, backend: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     completions = 0
@@ -1925,14 +1926,21 @@ def test_a_sample_is_scored_through_the_client_that_sent_its_request(
         memoize=False,
         http_client=other_client,
     )
+    attempts = 0
 
     @solver
     def cancels_another_models_call() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            state = await generate(state)
-            # Finding the sidecar behind the other model registers the task
-            # again, so its request sends the sample's registration again.
-            # The call is cancelled before the answer, and its client closed.
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                # the sample's one request, through the task's own model
+                state = await generate(state)
+                if cancelled_in == "a retry":
+                    raise RuntimeError("The first attempt fails.")
+            # The other model's request sends the sample's registration,
+            # again or for the retry. The call is cancelled before the
+            # answer, and its client closed.
             with anyio.move_on_after(0.2):
                 await other.generate("Hi again.")
             await other_client.aclose()
@@ -1946,18 +1954,29 @@ def test_a_sample_is_scored_through_the_client_that_sent_its_request(
         scorer=_reads_monitor_state(),
     )
 
-    [log] = eval(task, model=_model(stand_in), sentinel_proxy="auto", display="none")
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        sentinel_proxy="auto",
+        retry_on_error=1,
+        display="none",
+    )
 
-    # The sample's one request went through the task's own model, whose
-    # client asks the sidecar for the monitor state and tells it the sample
-    # ended. The call that sent no request doesn't change that.
     assert len(stand_in.model_calls) == 1
     assert log.samples is not None
     sample = log.samples[0]
     assert sample.error is None, sample.error
     assert sample.scores is not None
     [score] = sample.scores.values()
-    assert score.value == 3
+    if cancelled_in == "the same attempt":
+        # the attempt's request went through the task's own model, whose
+        # client asks the sidecar for the monitor state
+        assert score.value == 3
+    else:
+        # the retry sent no request, so there is no monitor state of it
+        assert score.value == -1
+    # The sidecar is told the sample ended through the client that sent it a
+    # request, in whichever attempt: the other's is gone.
     assert len(_registered(stand_in, "end_sample")) == 1
 
 

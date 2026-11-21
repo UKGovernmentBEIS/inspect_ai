@@ -176,16 +176,19 @@ class TaskSidecars:
             sample_uuid: The sample's uuid.
             tell: Whether to tell the sidecars. A cancelled sample's teardown can't be interrupted, so it doesn't wait on a sidecar that may not answer, and the sidecars drop the sample at its run expiry.
         """
-        # Each sidecar once, as the latest attempt that registered with it
-        # reached it: through the client that last sent it a request, or
-        # where none did, the one that sent the registration.
-        through = {
-            origin: registration.sent_through or registration.registered_through
-            for (origin, _), registration in self._registrations.pop(
-                sample_uuid, {}
-            ).items()
-            if registration.registered_through is not None
-        }
+        # Each sidecar once, over all the sample's attempts: through the
+        # client that last sent it a request, or where none did, the one that
+        # last sent it a registration. A later attempt's call that only
+        # registered doesn't replace an earlier attempt's client that sent,
+        # as its own may be gone.
+        registrations = self._registrations.pop(sample_uuid, {})
+        through: dict[str, Sidecar] = {}
+        for (origin, _), registration in registrations.items():
+            if registration.registered_through is not None:
+                through[origin] = registration.registered_through
+        for (origin, _), registration in registrations.items():
+            if registration.sent_through is not None:
+                through[origin] = registration.sent_through
         self._unjudged.pop(sample_uuid, None)
         self._lost.pop(sample_uuid, None)
         if not tell:
