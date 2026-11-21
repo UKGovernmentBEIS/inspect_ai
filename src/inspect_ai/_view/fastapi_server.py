@@ -22,6 +22,7 @@ from starlette.status import (
     HTTP_304_NOT_MODIFIED,
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
+    HTTP_502_BAD_GATEWAY,
 )
 from starlette.types import ASGIApp, Receive, Scope, Send
 from typing_extensions import override
@@ -32,7 +33,11 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem, bind_async_filesystem
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.error import WriteConflictError
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.file import (
+    HTTPRedirectError,
+    filesystem,
+    refuse_http_redirects,
+)
 from inspect_ai._util.local_server import get_machine_ip
 from inspect_ai.log import EvalLog
 from inspect_ai.log._edit import LogUpdate
@@ -175,10 +180,19 @@ def view_server_app(
             every log's content as plain text; None defers to each log.
     """
     app = FastAPI()
+    app.add_middleware(RefuseHttpRedirectsMiddleware)
 
     @app.exception_handler(FileNotFoundError)
-    async def _file_not_found(_request: Request, _exc: FileNotFoundError) -> Response:
+    async def _file_not_found(_request: Request, exc: FileNotFoundError) -> Response:
+        # fsspec reports a failed HTTP lookup (here, a refused redirect) as
+        # FileNotFoundError, keeping the original error as its cause
+        if _redirect_error(exc) is not None:
+            return _redirect_refused_response(exc)
         return Response(status_code=HTTP_404_NOT_FOUND)
+
+    @app.exception_handler(HTTPRedirectError)
+    async def _redirect_refused(_request: Request, exc: HTTPRedirectError) -> Response:
+        return _redirect_refused_response(exc)
 
     async def _map_file(request: Request, file: str) -> str:
         if mapping_policy is not None:
@@ -722,6 +736,48 @@ class AsyncFilesystemMiddleware:
             await self.app(scope, receive, send)
 
 
+HTTP_REDIRECT_REFUSED_MESSAGE = (
+    "The log URL returned an HTTP redirect. The log viewer does not follow "
+    "redirects: use the final URL of the log."
+)
+
+
+def _redirect_error(exc: BaseException) -> HTTPRedirectError | None:
+    """The `HTTPRedirectError` that `exc` is or was raised from, if any."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        if isinstance(current, HTTPRedirectError):
+            return current
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return None
+
+
+def _redirect_refused_response(exc: BaseException) -> Response:
+    logger.warning(f"Log read refused: {_redirect_error(exc)}")
+    return JSONResponse(
+        status_code=HTTP_502_BAD_GATEWAY,
+        content={"detail": HTTP_REDIRECT_REFUSED_MESSAGE},
+    )
+
+
+class RefuseHttpRedirectsMiddleware:
+    """Make every HTTP(S) read in a request fail on a redirect.
+
+    The server authorizes the URL a request names, so the bytes it returns
+    must come from that URL and not from wherever it redirects. Pure ASGI, so
+    the setting reaches the route handler and its streamed response body.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        with refuse_http_redirects():
+            await self.app(scope, receive, send)
+
+
 class _InspectStaticFiles(StaticFiles):
     """StaticFiles with no-cache headers to avoid stale assets."""
 
@@ -882,10 +938,11 @@ def view_server(
     )
 
     # get filesystem and resolve log_dir to full path
-    fs = filesystem(log_dir)
-    if not fs.exists(log_dir):
-        fs.mkdir(log_dir, True)
-    log_dir = fs.info(log_dir).name
+    with refuse_http_redirects():
+        fs = filesystem(log_dir)
+        if not fs.exists(log_dir):
+            fs.mkdir(log_dir, True)
+        log_dir = fs.info(log_dir).name
 
     app = standalone_view_app(
         log_dir=log_dir,

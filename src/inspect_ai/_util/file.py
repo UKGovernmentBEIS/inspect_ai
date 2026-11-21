@@ -10,11 +10,22 @@ import tempfile
 import unicodedata
 import weakref
 from contextlib import contextmanager
+from contextvars import ContextVar
 from copy import deepcopy
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from pathlib import Path
-from typing import Any, BinaryIO, Callable, Iterator, Literal, TextIO, cast, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    BinaryIO,
+    Callable,
+    Iterator,
+    Literal,
+    TextIO,
+    cast,
+    overload,
+)
 from urllib.parse import quote_from_bytes, urlparse
 from urllib.request import url2pathname
 
@@ -36,7 +47,11 @@ from inspect_ai._util.error import (
     WriteConflictError,
     pip_dependency_error,
 )
+from inspect_ai._util.git import redact_url_credentials
 from inspect_ai._util.trace import trace_message
+
+if TYPE_CHECKING:
+    import aiohttp
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
 # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.generic.GenericFileSystem
@@ -577,6 +592,10 @@ def local_path(filename: str) -> str:
 
 def default_fs_options(file: str) -> dict[str, Any]:
     scheme = urlparse(file).scheme
+    if _refuse_http_redirects.get() and _is_chained_http_url(file):
+        raise ValueError(
+            f"Chained URLs over HTTP(S) are not supported when HTTP redirects are refused: {file}"
+        )
     if (
         scheme == "s3"
         and configured_async_backend() == "trio"
@@ -594,6 +613,8 @@ def default_fs_options(file: str) -> dict[str, Any]:
     # on demand rather than for every filesystem.
     if scheme in AZURE_SCHEMES:
         apply_azure_fs_options(options)
+    if scheme in ("http", "https") and _refuse_http_redirects.get():
+        options["get_client"] = _redirect_refusing_client
     # disable caching for all filesystems
     options.update(
         dict(
@@ -602,6 +623,83 @@ def default_fs_options(file: str) -> dict[str, Any]:
         )
     )
     return options
+
+
+class HTTPRedirectError(Exception):
+    """An HTTP(S) read got a redirect while redirects were refused."""
+
+
+_refuse_http_redirects: ContextVar[bool] = ContextVar(
+    "_refuse_http_redirects", default=False
+)
+
+
+@contextmanager
+def refuse_http_redirects() -> Iterator[None]:
+    """Fail HTTP(S) reads that get a redirect, rather than following it.
+
+    Applies to filesystems created in this context. A redirect raises
+    `HTTPRedirectError` before any request goes to its target, so the bytes
+    read always come from the URL that was asked for. Chained URLs with an
+    HTTP(S) link (`simplecache::https://...`) raise `ValueError`, since their
+    inner HTTP filesystem would not get this setting.
+    """
+    token = _refuse_http_redirects.set(True)
+    try:
+        yield
+    finally:
+        _refuse_http_redirects.reset(token)
+
+
+def _is_chained_http_url(file: str) -> bool:
+    """Whether `file` is an fsspec chained URL with an inner HTTP(S) link.
+
+    fsspec splits a URL on `::` and gives the filesystem options only to the
+    first link, so an HTTP(S) link after it (`simplecache::https://...`)
+    would not get them. A direct HTTP(S) URL with `::` in its host (an IPv6
+    address) or path keeps HTTP(S) as its first link and gets the options.
+    """
+    return any(
+        (split_protocol(link)[0] or link) in ("http", "https")
+        for link in file.split("::")[1:]
+    )
+
+
+def http_redirects_refused() -> bool:
+    """Whether `refuse_http_redirects()` is active in this context."""
+    return _refuse_http_redirects.get()
+
+
+def _url_without_secrets(url: str) -> str:
+    """`url` without userinfo, query or fragment, which can carry credentials."""
+    return redact_url_credentials(url).split("#", 1)[0].split("?", 1)[0]
+
+
+async def _redirect_refusing_client(**kwargs: Any) -> "aiohttp.ClientSession":
+    """Create the aiohttp session for `HTTPFileSystem` (its `get_client` option).
+
+    aiohttp has no session-wide redirect setting, and fsspec chooses
+    `allow_redirects` per request, so a trace hook stops every redirect.
+    """
+    import aiohttp
+
+    async def on_redirect(
+        _session: aiohttp.ClientSession,
+        _ctx: Any,
+        params: aiohttp.TraceRequestRedirectParams,
+    ) -> None:
+        location = params.response.headers.get("Location")
+        params.response.close()
+        target = _url_without_secrets(location) if location else "an unknown URL"
+        raise HTTPRedirectError(
+            f"HTTP redirect from {_url_without_secrets(str(params.url))} "
+            f"to {target} was not followed."
+        )
+
+    trace_config = aiohttp.TraceConfig()
+    trace_config.on_request_redirect.append(on_redirect)
+    trace_configs = [*kwargs.pop("trace_configs", []), trace_config]
+    return aiohttp.ClientSession(trace_configs=trace_configs, **kwargs)
 
 
 def _ensure_hf_filesystem_dependencies() -> None:
