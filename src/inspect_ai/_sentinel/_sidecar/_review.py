@@ -58,7 +58,7 @@ from ._endpoint import (
     SentinelProxyError,
     SidecarCallError,
 )
-from ._lookup import SAMPLE_FAILURES, Looked, request_result
+from ._lookup import SAMPLE_FAILURES, Looked, ask_request_result, request_result
 from ._received import ReceivedCall, record_send
 
 if TYPE_CHECKING:
@@ -994,9 +994,7 @@ async def _cancel(received: ReceivedCall, request_id: str) -> dict[str, Any] | N
     with anyio.CancelScope(shield=True), anyio.move_on_after(CANCEL_TIMEOUT):
         try:
             await sidecar.eval_call("cancel_paused_request", {"id": request_id})
-            result: dict[str, Any] = await sidecar.eval_call(
-                "request_result", {"id": request_id, "wait": 0}
-            )
+            result = await ask_request_result(received, request_id, wait=0)
             if result.get("records") == "held":
                 log_reviews(received, result)
             return result

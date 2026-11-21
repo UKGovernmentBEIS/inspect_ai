@@ -293,11 +293,22 @@ class ReceivedCall:
 
         The sidecar accepted an answer to each, or no longer holds it.
         """
-        self.usage_recorded: dict[str, dict[tuple[str | None, str], ModelUsage]] = {}
-        """The judge models' usage already recorded, by request id, then role and model.
+        self.answered_after_restarts = 0
+        """The sidecar's `restarts_found` when the lookup whose answer Inspect last took began.
+
+        A sidecar's running totals for a request start again when it restarts,
+        and a call can carry on under its id through a restart. So a total
+        belongs to the restart count it was asked under, taken as the lookup
+        begins: a restart found while the answer is on its way doesn't claim it.
+        """
+        self.usage_recorded: dict[
+            tuple[int, str], dict[tuple[str | None, str], ModelUsage]
+        ] = {}
+        """The judge models' usage already recorded, by the sidecar's restart count and the request id, then role and model.
 
         The sidecar reports usage as a running total. Inspect asks about a paused
-        call more than once under one id, so it records only what is new.
+        call more than once under one id, so it records only what is new. A
+        restarted sidecar's total is a series of its own, counted in full.
         """
         self.unasked: list[str] = []
         """The request ids of earlier attempts that were sent and that Inspect retried without asking the sidecar about them. The sidecar may have judged their requests with its own models, and is asked for that usage once the latest attempt is asked about."""
@@ -316,11 +327,12 @@ class ReceivedCall:
 
         Earlier attempts already counted that time as waiting.
         """
-        self.judging_recorded: dict[str, float] = {}
-        """The sidecar's judging time as last reported, by request id.
+        self.judging_recorded: dict[tuple[int, str], float] = {}
+        """The sidecar's judging time as last reported, by the sidecar's restart count and the request id.
 
         The sidecar reports a running total for the call. So the amount added
-        since the last report is the judging of the send that returned last.
+        since the last report is the judging of the send that returned last. A
+        restarted sidecar's total is a series of its own.
         """
 
     def stop(self, error: Exception) -> None:
@@ -400,7 +412,9 @@ def begin_attempt() -> None:
         received.error_is_final = False
         received.sends = []
         received.judging_before_attempt = (
-            received.judging_recorded.get(received.reviewed_request_id, 0.0)
+            received.judging_recorded.get(
+                (received.answered_after_restarts, received.reviewed_request_id), 0.0
+            )
             if received.reviewed_request_id is not None
             else 0.0
         )
@@ -567,8 +581,13 @@ def record_judging_time(received: ReceivedCall, judging_time: float | None) -> N
     """
     if judging_time is None or received.request_id is None:
         return
-    before = received.judging_recorded.get(received.request_id, 0.0)
-    received.judging_recorded[received.request_id] = max(before, judging_time)
+    series = (received.answered_after_restarts, received.request_id)
+    if series not in received.judging_recorded:
+        # a restarted sidecar's total starts again, so none of it was
+        # counted by an earlier attempt
+        received.judging_before_attempt = 0.0
+    before = received.judging_recorded.get(series, 0.0)
+    received.judging_recorded[series] = max(before, judging_time)
     if judging_time > before and received.sends:
         received.sends[-1].judging += judging_time - before
 

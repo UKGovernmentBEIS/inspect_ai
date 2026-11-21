@@ -94,9 +94,6 @@ class TaskSidecars:
         # other credentials reach the same sidecar, which keeps one token for
         # the eval
         self._access: dict[str, EvalAccess] = {}
-        # the sidecars each sample's calls went through, by the sample's uuid,
-        # with the attempt that last called each
-        self._through: dict[str, dict[str, tuple[Sidecar, int]]] = {}
         # the models each attempt at a sample called with no sidecar behind
         # them, by the sample's uuid, so each is noted in its transcript once
         self._unjudged: dict[str, set[tuple[int, str]]] = {}
@@ -168,17 +165,10 @@ class TaskSidecars:
         noted.add((attempt_number, model))
         return True
 
-    def called_through(
-        self, sample_uuid: str, attempt_number: int, sidecar: Sidecar
-    ) -> None:
-        """Note that a call of an attempt at a sample went through a sidecar, which is told when the sample ends."""
-        self._through.setdefault(sample_uuid, {})[sidecar.origin] = (
-            sidecar,
-            attempt_number,
-        )
-
     async def end_sample(self, sample_uuid: str, tell: bool = True) -> None:
-        """Tell each sidecar a sample's calls went through that the sample has ended, after its final scoring, so it drops what it keeps for the sample.
+        """Tell each sidecar a request of the sample was sent through that the sample has ended, after its final scoring, so it drops what it keeps for the sample.
+
+        A sidecar the sample only prepared calls for, none of which was sent, was told nothing of the sample, and isn't told it ended.
 
         A sidecar that can't be told drops the sample once no request has named it for its run expiry, so a failure is logged and not raised.
 
@@ -186,13 +176,20 @@ class TaskSidecars:
             sample_uuid: The sample's uuid.
             tell: Whether to tell the sidecars. A cancelled sample's teardown can't be interrupted, so it doesn't wait on a sidecar that may not answer, and the sidecars drop the sample at its run expiry.
         """
-        through = self._through.pop(sample_uuid, {}).values()
-        self._registrations.pop(sample_uuid, None)
+        # each sidecar once, as the latest attempt that sent through it
+        # reached it
+        through = {
+            origin: registration.sent_through
+            for (origin, _), registration in self._registrations.pop(
+                sample_uuid, {}
+            ).items()
+            if registration.sent_through is not None
+        }
         self._unjudged.pop(sample_uuid, None)
         self._lost.pop(sample_uuid, None)
         if not tell:
             return
-        for sidecar, _ in through:
+        for sidecar in through.values():
             with anyio.move_on_after(END_SAMPLE_TIMEOUT):
                 try:
                     await sidecar.eval_call(
@@ -209,11 +206,11 @@ class TaskSidecars:
     async def copy_monitor_state(
         self, sample_uuid: str, attempt_number: int, store: Store
     ) -> None:
-        """Copy the monitor state each sidecar the attempt's calls went through keeps into the sample store, before Inspect's scorers read it.
+        """Copy the monitor state each sidecar a request of the attempt was sent through keeps into the sample store, before Inspect's scorers read it.
 
         Inside Inspect, a monitor's state is in the sample store, where a scorer can read it; through a sidecar, it is kept by the sidecar. After the copy, a marker in the sample store says whether it succeeded, so a scorer never reads a failed copy as a sample in which nothing was flagged.
 
-        A sidecar only an earlier attempt called is left out: it still keeps that attempt's monitor state, and a retry starts with an empty sample store, as in Inspect's own process.
+        A sidecar only an earlier attempt sent through is left out: it still keeps that attempt's monitor state, and a retry starts with an empty sample store, as in Inspect's own process. So is one the attempt only prepared calls for, none of which was sent, as when a solver cancels a call that waits for a connection: the sidecar was told nothing of the sample, and there is nothing to copy.
 
         An attempt whose sample a sidecar lost partway through, as on a restart, isn't copied: the marker says its monitor state was lost, since what the sidecar holds began afresh.
 
@@ -352,12 +349,14 @@ class TaskSidecars:
             )
 
     def _attempt_sidecars(self, sample_uuid: str, attempt_number: int) -> list[Sidecar]:
-        # the sidecars the attempt's calls went through: one only an earlier
-        # attempt called still keeps that attempt's monitor state
+        # the sidecars a request of the attempt was sent through: one only an
+        # earlier attempt sent through still keeps that attempt's monitor state
         return [
-            sidecar
-            for sidecar, called_in in self._through.get(sample_uuid, {}).values()
-            if called_in == attempt_number
+            registration.sent_through
+            for (_, attempt), registration in self._registrations.get(
+                sample_uuid, {}
+            ).items()
+            if attempt == attempt_number and registration.sent_through is not None
         ]
 
     async def _probe(self, api: ModelAPI) -> Sidecar | NoSidecar:
@@ -500,6 +499,8 @@ class AttemptRegistration:
         # one send at a time for the attempt
         self._lock = anyio.Lock()
         self._held: _Held | None = None
+        self.sent_through: Sidecar | None = None
+        """The sidecar as the attempt's latest request reached it, once a request of the attempt has sent it something, or None before then. The sidecar knows nothing of an attempt that only prepared calls: it is asked for no monitor state of one, and isn't told its sample ended."""
         # the sidecar's `restarts_found` when a request of the attempt was
         # first sent to it, or None before then
         self._restarts_found_at_first_send: int | None = None
@@ -532,6 +533,9 @@ class AttemptRegistration:
             registered_again = False
             while True:
                 await access.wait_for_registration()
+                # from here the sidecar is sent the attempt's registration,
+                # or holds it and is sent the request
+                self.sent_through = sidecar
                 begun = access.registrations_begun
                 held = self._held
                 if held is not None and held.registrations_begun == begun:

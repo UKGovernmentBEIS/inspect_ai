@@ -42,6 +42,7 @@ from inspect_ai._sentinel._sidecar._received import (
     JUDGED_REPLY_PATH,
     ReceivedCall,
     _received,
+    current_receiving,
     receiving_call,
     request_id_to_reuse,
     route_fetch_to_sidecar,
@@ -51,7 +52,7 @@ from inspect_ai._sentinel._sidecar._review import (
     MAX_ERROR_FETCHES,
     MAX_RESENDS,
 )
-from inspect_ai._sentinel._sidecar._task import task_sidecars
+from inspect_ai._sentinel._sidecar._task import SampleFacts, task_sidecars
 from inspect_ai._util.working import sample_wait
 from inspect_ai.approval import Approval
 from inspect_ai.approval._approval import ApprovalDecision
@@ -2793,6 +2794,83 @@ def test_a_paused_call_whose_samples_registration_stops_it_is_cancelled_at_once(
     assert error is not None and "the registrations are full" in error.message
     [sent] = stand_in.model_calls
     assert cancelled_as_the_call_ended == [[sent.headers["x-irid"]]]
+
+
+def _restarts_and_another_sample_registers(
+    stand_in: ReviewingSidecar,
+) -> Callable[[], Awaitable[None]]:
+    # The sidecar restarts while the person decides, and another sample
+    # finds it lost and registers the task again. The approved call carries
+    # on under its id, and the restarted sidecar's running totals for it
+    # start again.
+    async def restart() -> None:
+        stand_in.tokens.clear()
+        for paused in stand_in.paused.values():
+            paused.judging_time = 0.0
+        received = current_receiving()
+        sidecars = task_sidecars()
+        assert received is not None and sidecars is not None
+        another = sidecars.attempt_registration(
+            received.sidecar,
+            SampleFacts(
+                sample_id=2, sample_description=None, sample_input="Hi.", metadata={}
+            ),
+            "another_sample",
+            1,
+        )
+        await another.ensure_registered(received.sidecar)
+
+    return restart
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
+def test_a_paused_calls_judging_usage_after_a_sidecar_restart_is_counted_in_full(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    # every `request_result` about the call returns the same usage: before
+    # the restart, the total of the call's first judging, and after it, the
+    # total of its judging since
+    stand_in = ReviewingSidecar(
+        pauses=["model_input"],
+        turns=[Turn()],
+        judge_usage={"input_tokens": 1000, "output_tokens": 0, "total_tokens": 1000},
+    )
+    Person(
+        "approve", meanwhile=_restarts_and_another_sample_registers(stand_in)
+    ).install(monkeypatch)
+
+    log = _run(stand_in, solver=generate(), sentinel_proxy="required")
+
+    assert log.samples is not None
+    judge = log.samples[0].model_usage["mockllm/judge"]
+    assert judge.total_tokens == 2000
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
+def test_a_paused_calls_judging_time_after_a_sidecar_restart_counts_as_waiting(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    # The sentinel judges the first request for 0.3 seconds before it asks.
+    # The restarted sidecar holds the resend 0.5 seconds, 0.4 of them judging.
+    stand_in = ReviewingSidecar(
+        pauses=["model_input"],
+        turns=[Turn(text="Sunny.")],
+        holds=[(0.3, 0.3), (0.5, 0.4)],
+    )
+    Person(
+        "approve", meanwhile=_restarts_and_another_sample_registers(stand_in)
+    ).install(monkeypatch)
+
+    log = _run(stand_in, solver=generate(), sentinel_proxy="required")
+
+    assert stand_in.holds == []
+    assert log.samples is not None
+    event = _model_events(log.samples[0])[-1]
+    # both sends' judging count as waiting, the resend's from the restarted
+    # sidecar's own total
+    assert _event_waiting(event) >= 0.3 + 0.4 - 0.05
 
 
 def test_a_call_whose_replies_keep_being_cut_off_isnt_resent_without_end(

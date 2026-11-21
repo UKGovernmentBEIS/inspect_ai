@@ -135,6 +135,31 @@ async def request_result(received: ReceivedCall, replied: bool) -> Looked:
     return looked
 
 
+async def ask_request_result(
+    received: ReceivedCall, request_id: str, wait: float | None = None
+) -> dict[str, Any]:
+    """Ask the call's sidecar what it holds of a request, with `request_result`, noting which run of the sidecar the answer's running totals belong to.
+
+    Every `request_result` goes through here. The sidecar's restart count is taken as the lookup begins, and kept as the call's `answered_after_restarts` once the answer is in.
+
+    Args:
+        received: What is kept of the call.
+        request_id: The request's `x-irid`.
+        wait: How long the sidecar holds the answer while it is still judging, in seconds, or None for its default.
+
+    Raises:
+        SidecarCallError: If the call failed, or was answered with an error.
+    """
+    access = getattr(received.sidecar, "access", None)
+    restarts_found: int = access.restarts_found if access is not None else 0
+    params: dict[str, Any] = {"id": request_id}
+    if wait is not None:
+        params["wait"] = wait
+    answer: dict[str, Any] = await received.sidecar.eval_call("request_result", params)
+    received.answered_after_restarts = restarts_found
+    return answer
+
+
 def settle_usage(
     received: ReceivedCall,
     request_id: str,
@@ -145,7 +170,7 @@ def settle_usage(
 
     One rule, however the request was given up, and whether or not Inspect asked about it before:
 
-    - The sidecar reports a total for the id, so an answer adds only what it has over what Inspect recorded for the id before.
+    - The sidecar reports a total for the id, so an answer adds only what it has over what Inspect recorded for the id before, from the same run of the sidecar. A restarted sidecar's total is counted in full.
     - An answer given while the sidecar is still judging is noted as incomplete: what was billed so far is recorded, and the rest may never be.
     - Where no total can be read, what was recorded before is kept. It is noted as incomplete, as the request may have been judged again since. A request nothing was recorded for is noted as unavailable, so its usage reads as unknown rather than none.
 
@@ -169,7 +194,7 @@ def settle_usage(
             if answer.get("state") == "judging":
                 note_usage_incomplete(request_id, STILL_JUDGING)
             return
-    if request_id in received.usage_recorded:
+    if any(recorded == request_id for _, recorded in received.usage_recorded):
         note_usage_incomplete(request_id, reason)
     else:
         note_usage_unavailable(request_id, reason)
@@ -182,12 +207,9 @@ async def fetch_usage(received: ReceivedCall, request_id: str) -> dict[str, Any]
         return None
     with suspend_limits():
         try:
-            answer: dict[str, Any] = await sidecar.eval_call(
-                "request_result", {"id": request_id, "wait": 0}
-            )
+            return await ask_request_result(received, request_id, wait=0)
         except SidecarCallError:
             return None
-    return answer
 
 
 STILL_JUDGING = "the sidecar was still judging the attempt"
@@ -229,11 +251,15 @@ def _not_yet_recorded(
 ) -> list[JudgingUsage] | None:
     # The sidecar reports usage for a request id as a total over every attempt
     # under that id. Inspect asks about a paused call more than once under one
-    # id, so it records only the usage added since it last asked.
+    # id, so it records only the usage added since it last asked. A sidecar's
+    # totals start again when it restarts, so each restart count has a series
+    # of its own.
     request_id = request_id or received.request_id
     if not used or request_id is None:
         return used
-    recorded = received.usage_recorded.setdefault(request_id, {})
+    recorded = received.usage_recorded.setdefault(
+        (received.answered_after_restarts, request_id), {}
+    )
     new: list[JudgingUsage] = []
     for entry in used:
         key = (entry.role, entry.model)
@@ -286,7 +312,7 @@ async def record_unasked_usage(received: ReceivedCall) -> None:
         while received.unasked:
             request_id = received.unasked[0]
             try:
-                result = await sidecar.eval_call("request_result", {"id": request_id})
+                result = await ask_request_result(received, request_id)
             except SidecarCallError as ex:
                 reason = str(ex)
             else:
@@ -337,17 +363,15 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
             asked = time.monotonic()
             with anyio.move_on_after(left) as within:
                 try:
-                    result = await sidecar.eval_call(
-                        "request_result",
-                        {
-                            "id": received.request_id,
-                            # The sidecar holds its answer only while it is
-                            # judging. While the provider has the request,
-                            # Inspect asks with no wait. So it learns at once
-                            # when the judging has begun, which means the
-                            # provider has replied.
-                            "wait": 0 if provider_has_request else RESULT_WAIT,
-                        },
+                    result = await ask_request_result(
+                        received,
+                        received.request_id,
+                        # The sidecar holds its answer only while it is
+                        # judging. While the provider has the request,
+                        # Inspect asks with no wait. So it learns at once
+                        # when the judging has begun, which means the
+                        # provider has replied.
+                        wait=0 if provider_has_request else RESULT_WAIT,
                     )
                 except SidecarCallError as ex:
                     if ex.code == UNAUTHORIZED:
@@ -388,6 +412,7 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
             from ._review import log_reviews
 
             log_reviews(received, result)
+            _record_totals_so_far(received, result)
             state = result.get("state")
             if state == "decided":
                 listed = result.get("reviews")
@@ -512,6 +537,21 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
             # isn't asked again at once
             if time.monotonic() - asked < UNHELD_PAUSE:
                 await anyio.sleep(UNHELD_PAUSE)
+
+
+def _record_totals_so_far(received: ReceivedCall, result: dict[str, Any]) -> None:
+    # The running totals of an answer, recorded as it arrives, under the run
+    # of the sidecar that gave it. Inspect may go on asking from here, as
+    # while a person decides, and the next answer may come from a restarted
+    # sidecar, whose totals start again: what this run billed is then kept.
+    # Recording a total again adds nothing. Totals that can't be read are
+    # left for the answer Inspect acts on, which raises.
+    try:
+        totals = _judging(Looked("unavailable"), result)
+    except ValueError:
+        return
+    record_judging_time(received, totals.judging_time)
+    record_judging_usage(_not_yet_recorded(received, totals.judging_usage))
 
 
 async def _cancel_timed_out_call(

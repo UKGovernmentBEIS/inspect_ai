@@ -82,7 +82,6 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
             _unjudged(sidecars, active, str(model))
         return None
 
-    sidecars.called_through(active.sample_uuid, attempt_number(active), sidecar)
     registration = sidecars.attempt_registration(
         sidecar,
         SampleFacts(

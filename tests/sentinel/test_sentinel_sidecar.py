@@ -827,7 +827,6 @@ async def test_every_call_for_the_eval_is_signed_and_none_carries_its_token() ->
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_123", 1
     ).ensure_registered(sidecar)
-    sidecars.called_through("sample_123", 1, sidecar)
     await sidecars.copy_monitor_state("sample_123", 1, Store())
     await sidecars.end_sample("sample_123")
 
@@ -1254,7 +1253,6 @@ async def test_an_attempt_a_restarted_sidecar_had_begun_judging_isnt_scored_on_w
     sidecars = TaskSidecars("required", _FACTS)
     sidecar = await sidecars.sidecar(_model(stand_in).api)
     assert sidecar is not None
-    sidecars.called_through("sample_a", 1, sidecar)
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_a", 1
     ).ensure_registered(sidecar)
@@ -1268,7 +1266,6 @@ async def test_an_attempt_a_restarted_sidecar_had_begun_judging_isnt_scored_on_w
 
     # another sample finds the task lost and registers it again, and the
     # first sample goes on, completing its registration again
-    sidecars.called_through("sample_b", 1, sidecar)
     await sidecars.attempt_registration(
         sidecar, _sample(2), "sample_b", 1
     ).ensure_registered(sidecar)
@@ -1314,7 +1311,6 @@ async def test_a_restart_whose_registrations_answer_is_lost_still_isnt_scored_on
     sidecars = TaskSidecars("required", _FACTS)
     sidecar = await sidecars.sidecar(_model(stand_in).api)
     assert sidecar is not None
-    sidecars.called_through("sample_a", 1, sidecar)
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_a", 1
     ).ensure_registered(sidecar)
@@ -1400,7 +1396,6 @@ async def test_a_sample_that_first_sends_while_a_restarts_registration_is_on_its
         # Another sends its first request while that registration is on its
         # way. Its own could reach the sidecar first, and be lost to the one
         # replacing what the sidecar holds, so it waits.
-        sidecars.called_through("sample_c", 1, sidecar)
         first = sidecars.attempt_registration(sidecar, _sample(3), "sample_c", 1)
         tg.start_soon(first.ensure_registered, sidecar)
         await anyio.wait_all_tasks_blocked()
@@ -1478,7 +1473,6 @@ async def test_a_restart_loses_the_sample_whose_request_was_sent_and_not_the_one
         ("sample_sent", _sample()),
         ("sample_waiting", waiting_sample),
     ]:
-        sidecars.called_through(sample_uuid, 1, sidecar)
         sidecars.attempt_registration(sidecar, sample, sample_uuid, 1)
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_sent", 1
@@ -1674,7 +1668,6 @@ async def test_a_restart_found_while_monitor_state_is_copied_stops_the_copy() ->
     sidecars = TaskSidecars("required", _FACTS)
     sidecar = await sidecars.sidecar(_model(stand_in).api)
     assert sidecar is not None
-    sidecars.called_through("sample_a", 1, sidecar)
     await sidecars.attempt_registration(
         sidecar, _sample(), "sample_a", 1
     ).ensure_registered(sidecar)
@@ -1731,7 +1724,6 @@ async def test_an_attempt_whose_first_registration_was_still_on_its_way_at_a_res
     sidecars = TaskSidecars("required", _FACTS)
     sidecar = await sidecars.sidecar(_model(stand_in).api)
     assert sidecar is not None
-    sidecars.called_through("sample_a", 1, sidecar)
 
     async with anyio.create_task_group() as tg:
         first = sidecars.attempt_registration(sidecar, _sample(), "sample_a", 1)
@@ -1824,6 +1816,59 @@ def test_a_sample_refused_at_its_first_request_fails_at_once_and_isnt_scored(
     assert stand_in.model_calls == []
     # the request is stopped once, and no try after it reaches the sidecar
     assert len(_registered(stand_in, "complete_registration")) == 1
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
+def test_a_sample_whose_only_call_was_cancelled_before_it_was_sent_is_scored(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    # asked of a sample it was sent nothing of, a sidecar says it knows none
+    stand_in = StandInSidecar(
+        methods={
+            "sample_result": lambda _: {
+                "error": {"code": -32002, "message": "no such sample"}
+            }
+        }
+    )
+
+    @solver
+    def cancels_a_queued_call() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model()
+            # the model's one connection is held, so the call waits for it
+            held = GenerateConfig(max_connections=1)
+            async with model._connection_concurrency(held):
+                with anyio.move_on_after(0.2):
+                    await model.generate("Hi.")
+            state.output = ModelOutput.from_content(str(model), "Hello")
+            return state
+
+        return solve
+
+    task = Task(
+        dataset=[Sample(input="Hi.", target="Hello")],
+        solver=cancels_a_queued_call(),
+        scorer=includes(),
+    )
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        sentinel_proxy="required",
+        max_connections=1,
+        display="none",
+    )
+
+    # The sidecar was sent nothing of the sample: no registration and no
+    # request. So it is asked for no monitor state, which it would answer by
+    # saying it knows no such sample, and isn't told the sample ended.
+    assert stand_in.model_calls == []
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None
+    assert sample.scores is not None and sample.scores["includes"].value == "C"
+    assert [call["method"] for call in stand_in.calls] == ["register_task"]
 
 
 def test_a_call_that_is_never_sent_registers_nothing(
@@ -2094,7 +2139,9 @@ async def test_a_sample_is_ended_with_its_task_named() -> None:
     sidecars = TaskSidecars("auto", _FACTS)
     sidecar = await sidecars.sidecar(_model(stand_in).api)
     assert sidecar is not None
-    sidecars.called_through("sample_123", 1, sidecar)
+    await sidecars.attempt_registration(
+        sidecar, _sample(), "sample_123", 1
+    ).ensure_registered(sidecar)
 
     await sidecars.end_sample("sample_123")
 
@@ -3439,9 +3486,13 @@ def test_a_required_sample_the_restarted_sidecar_lost_isnt_scored_on_what_it_hol
 
 
 @pytest.mark.parametrize("sentinel_proxy", ["auto", "required"])
+@pytest.mark.parametrize(
+    "sent_before", [False, True], ids=["the sample's first call", "a later call"]
+)
 def test_an_error_before_a_call_is_sent_stands_and_is_never_looked_up(
     monkeypatch: pytest.MonkeyPatch,
     sentinel_proxy: Literal["auto", "required"],
+    sent_before: bool,
 ) -> None:
     # The provider allocates the call's request id, then fails as it builds
     # the request, as for a setting the model doesn't take. Nothing was sent,
@@ -3450,19 +3501,40 @@ def test_an_error_before_a_call_is_sent_stands_and_is_never_looked_up(
     # monitor state isn't taken for lost.
     from inspect_ai.model._providers.anthropic import AnthropicAPI
 
+    built = AnthropicAPI.completion_config
+    calls = 0
+
     def completion_config(self: AnthropicAPI, config: GenerateConfig) -> Any:
+        nonlocal calls
+        calls += 1
+        if sent_before and calls == 1:
+            return built(self, config)
         raise ValueError("The model doesn't take this setting.")
 
     monkeypatch.setattr(AnthropicAPI, "completion_config", completion_config)
+    # asked of the call that wasn't sent, the sidecar would know nothing of it
+    unknown_if_asked = _answers({"records": "unknown"})
+
+    def result(params: dict[str, Any]) -> dict[str, Any]:
+        sent = [call.headers["x-irid"] for call in stand_in.model_calls]
+        if params["id"] in sent:
+            return {
+                "id": params["id"],
+                "records": "held",
+                "state": "decided",
+                "judgment": {"outcome": "proceed", "steps": []},
+            }
+        return unknown_if_asked(params)
+
     stand_in = StandInSidecar(
         methods={
-            "request_result": _answers({"records": "unknown"}),
+            "request_result": result,
             "sample_result": _kept({"Tally:lookups": 3}),
         }
     )
     task = Task(
         dataset=[Sample(input="Hi.")],
-        solver=generate(),
+        solver=[generate(), generate()] if sent_before else generate(),
         scorer=_reads_monitor_state(),
     )
 
@@ -3480,12 +3552,20 @@ def test_an_error_before_a_call_is_sent_stands_and_is_never_looked_up(
     assert "The model doesn't take this setting." in sample.error.message
     assert "SidecarNotJudgedError" not in sample.error.traceback
     assert "a sidecar is required" not in sample.error.traceback
-    assert _looked_up(stand_in) == []
-    assert stand_in.model_calls == []
-    # scored on the monitor state the sidecar keeps, which wasn't lost
+    # only a call that was sent is looked up
+    sent = [call.headers["x-irid"] for call in stand_in.model_calls]
+    assert len(sent) == (1 if sent_before else 0)
+    assert _looked_up(stand_in) == sent
     assert sample.scores is not None
     [score] = sample.scores.values()
-    assert score.value == 3
+    if sent_before:
+        # scored on the monitor state the sidecar keeps, which wasn't lost
+        assert score.value == 3
+    else:
+        # The sidecar was sent nothing of the sample, so it keeps no monitor
+        # state of it, and isn't asked for any.
+        assert score.value == -1
+        assert _registered(stand_in, "sample_result") == []
 
 
 @pytest.mark.parametrize("retry_on_error", [0, 1], ids=["no retries", "retries spent"])
@@ -5026,7 +5106,9 @@ async def test_a_copy_cut_short_keeps_the_record_of_what_earlier_copies_wrote() 
     sidecars = TaskSidecars("required", _FACTS)
     sidecar = await sidecars.sidecar(_model(stand_in).api)
     assert sidecar is not None
-    sidecars.called_through("sample_123", 1, sidecar)
+    await sidecars.attempt_registration(
+        sidecar, _sample(), "sample_123", 1
+    ).ensure_registered(sidecar)
     store = Store()
 
     await sidecars.copy_monitor_state("sample_123", 1, store)
