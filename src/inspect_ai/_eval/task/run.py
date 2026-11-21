@@ -379,6 +379,22 @@ SampleTerminalOutcome = Literal["completed", "errored", "cancelled"]
 # One sample run's scores, keyed by scorer name.
 ScoresByScorer: TypeAlias = dict[str, SampleScore]
 
+
+def _single_failure(ex: BaseException) -> bool:
+    """Whether `ex` is an exception group that holds exactly one failure, through any groups nested in it."""
+    if not isinstance(ex, BaseExceptionGroup):
+        return False
+    failures = 0
+    pending: list[BaseException] = [ex]
+    while pending:
+        node = pending.pop()
+        if isinstance(node, BaseExceptionGroup):
+            pending.extend(node.exceptions)
+        else:
+            failures += 1
+    return failures == 1
+
+
 # A generated id for a dynamic sample added without one:
 # dyn-<attempt token>-<admission counter> (see `dynamic_id_token`).
 
@@ -3487,13 +3503,14 @@ async def _task_run_sample_attempt(
 
                     except Exception as ex:
                         # A task group's errors are unwrapped where the group
-                        # ends, above. An error still in a group here left
-                        # that handler beside a cancellation, which an
+                        # ends, above. A single error still in a group here
+                        # left that handler beside a cancellation, which an
                         # enclosing scope has since taken, as when it is
                         # raised under Trio once the sample's time limit has
                         # run out. It is recorded as on asyncio, where it
-                        # arrives on its own.
-                        if isinstance(ex, ExceptionGroup):
+                        # arrives on its own. A group of several failures is
+                        # recorded whole, so none is lost from the traceback.
+                        if _single_failure(ex):
                             try:
                                 raise_unwrapped(ex, inner_exception(ex))
                             except Exception as unwrapped:
