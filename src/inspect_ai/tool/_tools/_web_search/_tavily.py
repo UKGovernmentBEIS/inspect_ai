@@ -10,10 +10,12 @@ from inspect_ai.tool._tool import ToolError
 from ._base_http_provider import BaseHttpProvider
 from ._web_search_provider import SearchProvider
 
+DEFAULT_TAVILY_BASE_URL = "https://api.tavily.com"
+
 
 class TavilyOptions(BaseModel):
     topic: Literal["general", "news"] | None = None
-    search_depth: Literal["basic", "advanced"] | None = None
+    search_depth: Literal["basic", "advanced", "fast", "ultra-fast"] | None = None
     chunks_per_source: Literal[1, 2, 3] | None = None
     max_results: int | None = None
     time_range: Literal["day", "week", "month", "year", "d", "w", "m", "y"] | None = (
@@ -26,8 +28,11 @@ class TavilyOptions(BaseModel):
     include_image_descriptions: bool | None = None
     include_domains: list[str] | None = None
     exclude_domains: list[str] | None = None
-    # max_connections is not a Tavily API option, but an inspect option
+    # max_connections, base_url and extra_headers are inspect options, not
+    # Tavily API options, and are not sent in the request body
     max_connections: int | None = None
+    base_url: str | None = None
+    extra_headers: dict[str, str] | None = None
 
 
 class TavilySearchResult(BaseModel):
@@ -49,17 +54,25 @@ class TavilySearchProvider(BaseHttpProvider):
     """Tavily-specific implementation of HttpSearchProvider."""
 
     def __init__(self, options: dict[str, Any] | None = None):
+        options = dict(options or {})
+        base_url = options.pop("base_url", None) or DEFAULT_TAVILY_BASE_URL
+        self.extra_headers: dict[str, str] = options.pop("extra_headers", None) or {}
         super().__init__(
             env_key_name="TAVILY_API_KEY",
-            api_endpoint="https://api.tavily.com/search",
+            api_endpoint=f"{base_url.rstrip('/')}/search",
             provider_name="Tavily",
             concurrency_key="tavily_web_search",
             options=options,
         )
 
     def prepare_headers(self, api_key: str) -> dict[str, str]:
+        # an extra_headers entry replaces the default header of the same name
+        # (compared case-insensitively), so a proxy can replace Authorization
+        headers = {"Authorization": f"Bearer {api_key}"}
+        overridden = {name.lower() for name in self.extra_headers}
         return {
-            "Authorization": f"Bearer {api_key}",
+            **{k: v for k, v in headers.items() if k.lower() not in overridden},
+            **self.extra_headers,
         }
 
     def set_default_options(self, options: dict[str, Any]) -> dict[str, Any]:

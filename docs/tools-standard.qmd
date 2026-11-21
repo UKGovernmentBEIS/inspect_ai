@@ -123,11 +123,13 @@ Tavily supports the following options:
 | Option | Description |
 |------------------------------------|------------------------------------|
 | `max_results` | Number of results to return |
-| `search_depth` | Can be "basic" or "advanced" |
+| `search_depth` | Can be "basic", "advanced", "fast" or "ultra-fast" |
 | `topic` | Can be "general" or "news" |
 | `include_domains` / `exclude_domains` | Lists of domains to include or exclude |
 | `time_range` | Time range for search results (e.g., "day", "week", "month") |
 | `max_connections` | Maximum number of concurrent connections |
+| `base_url` | Tavily API base URL, for example a proxy (defaults to `https://api.tavily.com`); requests go to `<base_url>/search` |
+| `extra_headers` | Additional HTTP request headers, for example `{"X-Snapshot-Id": "<id>"}`; an `Authorization` entry (any letter case) replaces the default `Bearer $TAVILY_API_KEY` one |
 
 For more options, see the [Tavily API Documentation](https://docs.tavily.com/documentation/api-reference/endpoint/search).
 
