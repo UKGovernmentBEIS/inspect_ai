@@ -1598,14 +1598,18 @@ async def test_bridged_tool_fatal_group_member_is_not_mapped_from_its_context(
 class _IdleProxy:
     """A model proxy process that runs until killed and emits nothing."""
 
+    def __init__(self) -> None:
+        self._killed = anyio.Event()
+
     def __aiter__(self) -> "_IdleProxy":
         return self
 
     async def __anext__(self) -> None:
-        await anyio.sleep_forever()
+        await self._killed.wait()
+        raise StopAsyncIteration
 
     async def kill(self) -> None:
-        pass
+        self._killed.set()
 
 
 async def test_bridged_termination_survives_the_scaffold_exiting_on_its_reply(
@@ -1946,6 +1950,14 @@ async def test_bridge_exit_keeps_a_termination_the_scaffold_outran(
     replies: list[str | None] = []
 
     class Proxy:
+        """A proxy with no output that ends when killed."""
+
+        def __aiter__(self) -> "Proxy":
+            return self
+
+        async def __anext__(self) -> object:
+            raise StopAsyncIteration
+
         async def kill(self) -> None:
             proxy_killed.set()
             if not service_cancelled:
@@ -1960,7 +1972,7 @@ async def test_bridge_exit_keeps_a_termination_the_scaffold_outran(
     async def sandbox_with_injected_tools(**kwargs: object) -> Sandbox:
         return Sandbox()
 
-    async def monitor_proxy(proxy: Proxy, listening: object = None) -> None:
+    async def monitor_proxy(*args: object) -> None:
         await anyio.sleep_forever()
 
     async def run_model_service(

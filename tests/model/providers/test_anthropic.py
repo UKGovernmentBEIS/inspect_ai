@@ -2362,6 +2362,9 @@ def test_anthropic_claude_4_0_base_name_uses_extended_thinking(model_name: str) 
         "bedrock/anthropic.claude-saga-5",
         "vertex/claude-saga-5",
         "azure/claude-saga-5",
+        "bedrock/anthropic.claude-mythos-5-2",
+        "vertex/claude-mythos-5-2",
+        "azure/claude-mythos-5-2",
     ],
 )
 def test_anthropic_no_binding_off_first_party(model_name: str) -> None:
@@ -2435,11 +2438,30 @@ def test_anthropic_sonnet_5_5_binding_on_bedrock(model_name: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "model_name", ["claude-mythos-5-1", "claude-mythos-5-2", "claude-mythos-preview"]
+    "model_name",
+    [
+        "claude-mythos-5-1",
+        "claude-mythos-5-2",
+        "claude-mythos-5-2-20261101",
+        "claude-mythos-preview",
+    ],
 )
-def test_anthropic_mythos_no_binding(model_name: str) -> None:
-    """Mythos does not run the binding check, so no opt-in is sent."""
+def test_anthropic_mythos_binding(model_name: str) -> None:
+    """Mythos 5.2 binds thinking blocks; the others accept the opt-in."""
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    request = _request_with_thinking_history()
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {
+        "type": "adaptive",
+        "block_binding": {"prefix_mismatch_behavior": "drop_block"},
+    }
+
+
+def test_anthropic_mythos_5_no_binding() -> None:
+    """Base Mythos 5 does not bind and, like Fable 5, gets no opt-in."""
+    api = AnthropicAPI(model_name="claude-mythos-5", api_key="test-key")
     request = _request_with_thinking_history()
     betas: list[str] = []
     api.apply_thinking_block_binding(request, betas)

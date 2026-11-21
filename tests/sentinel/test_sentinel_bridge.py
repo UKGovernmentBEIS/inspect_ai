@@ -1492,8 +1492,8 @@ async def test_cancellation_during_the_tool_call_stage_propagates() -> None:
     ]
 
 
-def openai_scaffold() -> Agent:
-    """A minimal tool loop over the OpenAI client, running its tools itself."""
+def openai_scaffold(result: str = "file contents", **bridge_options: Any) -> Agent:
+    """A minimal tool loop over the OpenAI client, running its tools itself (each returns `result`), through `agent_bridge(state, **bridge_options)`."""
 
     @agent(name="openai_scaffold")
     def scaffold() -> Agent:
@@ -1502,7 +1502,7 @@ def openai_scaffold() -> Agent:
 
             from inspect_ai.model._openai import messages_to_openai
 
-            async with agent_bridge(state) as bridge:
+            async with agent_bridge(state, **bridge_options) as bridge:
                 messages: list[Any] = await messages_to_openai(state.messages)
                 async with AsyncOpenAI(api_key="sk-test") as client:
                     for _ in range(3):
@@ -1532,7 +1532,7 @@ def openai_scaffold() -> Agent:
                                 {
                                     "role": "tool",
                                     "tool_call_id": call.id,
-                                    "content": "file contents",
+                                    "content": result,
                                 }
                             )
                 return bridge.state

@@ -72,18 +72,18 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Google Gemini 3 and later
 
-Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1, Gemini 3.7 Flash and later, and Gemini 4 Argon, Carbon and Hydrogen omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`. Gemini 4 Hydrogen adds an `XHIGH` level, which Inspect sends for `xhigh` and `max`. Argon and Carbon reject `XHIGH`, and Inspect sends `HIGH` to every model it has not confirmed accepts it.
+Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1, Gemini 3.7 Flash and later, and Gemini 4 Argon, Carbon, Hydrogen and Neon omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`. Gemini 4 Hydrogen and Neon add an `XHIGH` level, which Inspect sends for `xhigh` and `max`. Argon and Carbon reject `XHIGH`, and Inspect sends `HIGH` to every model it has not confirmed accepts it.
 
 | Inspect input            | API value (Flash ≤ 3.6, Flash-Lite ≤ 3.5) | API value (other Gemini 3+)                |
 |--------------------------|-------------------------------------------|--------------------------------------------|
-| `none`                   | thinking disabled                         | thinking disabled (Pro, Hydrogen: stays on, warning) |
+| `none`                   | thinking disabled                         | thinking disabled (Pro, Hydrogen, Neon: stays on, warning) |
 | `minimal`                | `MINIMAL`                                 | `LOW`                                      |
 | `low`                    | `LOW`                                     | `LOW`                                      |
 | `medium`                 | `MEDIUM`                                  | `MEDIUM`                                   |
 | `high`                   | `HIGH`                                    | `HIGH`                                     |
-| `xhigh` / `max`          | `HIGH`                                    | `HIGH` (Hydrogen: `XHIGH`)                 |
+| `xhigh` / `max`          | `HIGH`                                    | `HIGH` (Hydrogen, Neon: `XHIGH`)           |
 
-Pro models and Gemini 4 Hydrogen cannot disable thinking, so for them `none` leaves thinking on and logs a warning. Inspect also treats Pro names it has not verified (such as a future Gemini 4 Pro) this way.
+Pro models, Gemini 4 Hydrogen and Gemini 4 Neon cannot disable thinking, so for them `none` leaves thinking on and logs a warning. Inspect also treats Pro names it has not verified (such as a future Gemini 4 Pro) this way.
 
 #### Google Gemini 2.5
 
