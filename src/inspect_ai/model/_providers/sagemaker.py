@@ -693,20 +693,25 @@ class SagemakerAPI(ModelAPI):
             if fr is not None:
                 final_finish_reason = fr
 
+        def handle_line(line: str) -> None:
+            # vLLM's OpenAI server streams SSE ("data: {...}"); DJL Serving LMI streams
+            # application/jsonlines, one chunk object per line with no "data:" prefix.
+            if line.startswith("data:"):
+                handle_data_line(line[len("data:") :].strip())
+            elif line.startswith("{"):
+                handle_data_line(line)
+
         def process_buffer(flush: bool = False) -> None:
             nonlocal line_buffer
             # Normalize CRLF then split complete lines off the buffer.
             line_buffer = line_buffer.replace("\r\n", "\n")
             while "\n" in line_buffer:
                 line, line_buffer = line_buffer.split("\n", 1)
-                line = line.strip()
-                if line.startswith("data:"):
-                    handle_data_line(line[len("data:") :].strip())
+                handle_line(line.strip())
             if flush:
                 line = line_buffer.strip()
                 line_buffer = ""
-                if line.startswith("data:"):
-                    handle_data_line(line[len("data:") :].strip())
+                handle_line(line)
 
         async def report_pending_deltas() -> None:
             for delta in pending_deltas:
