@@ -45,6 +45,11 @@ from inspect_ai.log import (
     EvalStatus,
     HeadlineMetric,
 )
+from inspect_ai.log._addonly import (
+    AddOnlyStoreError,
+    EvalRecordWriter,
+    addonly_store_location,
+)
 from inspect_ai.log._condense import resolved_sample_summary
 from inspect_ai.log._log import (
     EvalLog,
@@ -373,6 +378,9 @@ class TaskLogger:
 
         # sample buffer db
         self._buffer_db: SampleBufferDatabase | None = None
+
+        # add-only store writer (tamper-evident logs prototype)
+        self.addonly: EvalRecordWriter | None = None
 
         # how many of the run's process-scoped ctl config updates this log
         # has recorded (see record_inherited_config_updates)
@@ -705,10 +713,22 @@ class TaskLogger:
         self._record_sample_outcome(sample)
 
     async def log_start(self, plan: EvalPlan) -> None:
+        await self._start_addonly(plan)
         await self.recorder.log_start(self.eval, plan)
         # the first destination write: for a seeded retry attempt it already
         # carries the complete prior sample set
         await self.recorder.flush(self.eval)
+
+    async def _start_addonly(self, plan: EvalPlan) -> None:
+        """Start the eval's add-only store records, when a store is configured."""
+        location = addonly_store_location()
+        if location is None:
+            return
+        if self._buffer_db is None:
+            raise AddOnlyStoreError(
+                "Writing to an add-only store requires log_realtime (the sample buffer)."
+            )
+        self.addonly = await EvalRecordWriter.start(location, self.eval, plan)
 
     async def start_sample(self, sample: EvalSampleSummary) -> None:
         if self._buffer_db is not None:
@@ -1312,6 +1332,10 @@ class TaskLogger:
             # not while holding _flush_lock, since the stop awaits any in-flight
             # timer flush, which takes that lock.
             await self._stop_stale_flush_timer()
+
+        # after the .eval copy is finished, so a store outage still leaves it
+        if self.addonly is not None:
+            await self.addonly.close(status, stats, results)
 
         # return log
         return log

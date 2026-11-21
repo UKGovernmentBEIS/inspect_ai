@@ -1,5 +1,7 @@
 from inspect_ai._util.error import EvalError
+from inspect_ai.log._addonly._store import AddOnlyStoreError
 from inspect_ai.log._log import eval_error
+from inspect_ai.util._anyio import inner_exception
 
 
 def _should_eval_fail(
@@ -71,8 +73,13 @@ class SampleErrorHandler:
                 ex, type(ex), ex, ex.__traceback__
             ), ex if raise_error else None
 
-        # check against limits
-        if self.defer_fractional and self._is_fractional():
+        # check against limits (a failed add-only store write always stops
+        # the eval)
+        if isinstance(ex, Exception) and isinstance(
+            inner_exception(ex), AddOnlyStoreError
+        ):
+            raise_error = True
+        elif self.defer_fractional and self._is_fractional():
             raise_error = False
         else:
             raise_error = _should_eval_fail(

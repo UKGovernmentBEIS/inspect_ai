@@ -108,6 +108,7 @@ from inspect_ai.log import (
     EvalStats,
     HeadlineMetric,
 )
+from inspect_ai.log._addonly import AddOnlyStoreError, init_sample_record_writer
 from inspect_ai.log._condense import (
     SampleSerializationError,
     condense_event_calls,
@@ -2872,11 +2873,28 @@ async def _task_run_sample_attempt(
         if sample_id is None:
             raise ValueError("sample must have id to run")
 
+        sample_record_writer = (
+            logger.addonly.sample_writer(
+                logger.buffer_db, sample_id, state.epoch, attempt.number
+            )
+            if logger and logger.addonly and logger.buffer_db
+            else None
+        )
+
         def on_sample_event_buffered(
             event: Event, call_attachments: Mapping[str, str]
         ) -> None:
             if logger:
-                logger.log_sample_event(sample_id, state.epoch, event, call_attachments)
+                try:
+                    logger.log_sample_event(
+                        sample_id, state.epoch, event, call_attachments
+                    )
+                except Exception as ex:
+                    # the transcript logs a subscriber's error and goes on;
+                    # with the add-only store on, the sample must stop
+                    if sample_record_writer is not None:
+                        sample_record_writer.insert_failed(ex)
+                    raise
 
         def on_sample_event(event: Event) -> None:
             emit_sample_event(
@@ -2903,6 +2921,7 @@ async def _task_run_sample_attempt(
         init_subtask_store(state.store)
         sample_transcript._subscribe_store(on_sample_event_buffered)
         sample_transcript._subscribe(on_sample_event)
+        init_sample_record_writer(sample_record_writer)
         if scorers:
             init_scoring_context(scorers, Target(sample.target))
         init_sample_assistant_internal()
@@ -2953,6 +2972,11 @@ async def _task_run_sample_attempt(
             inner = inner_exception(ex) if isinstance(ex, Exception) else ex
             if isinstance(inner, SentinelFailure):
                 ex = decisive_sentinel_exception(inner.error)
+
+            # a failed add-only store write stops the eval: no retry, no score
+            if isinstance(inner, AddOnlyStoreError):
+                attempt = replace(attempt, retry_limit=len(attempt.errors))
+                score_on_error = False
 
             # a refused sample would be refused again, and never ran
             if isinstance(inner, SampleRefusedError):
@@ -3672,6 +3696,11 @@ async def _task_run_sample_attempt(
 
                 if not isinstance(outcome, _AttemptRetry):
                     reporter.progress()
+
+                    if sample_record_writer is not None:
+                        await sample_record_writer.close(
+                            results, failure.error.message if failure else None
+                        )
 
                     # a sample saved without being scored keeps its monitor
                     # state too, as in process, for `inspect score` to read
