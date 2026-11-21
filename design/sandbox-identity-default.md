@@ -108,8 +108,8 @@ Each of the three methods runs as:
 
 The file methods raise instead when the provider cannot take a user (see
 [Providers that cannot take a file user](#providers-that-cannot-take-a-file-user)).
-The `SandboxEvent` options record the user a call passed; a call that runs
-as the default user records none. Calls a
+The `SandboxEvent` options record the user the proxy passes to the provider,
+given or from the scope; a call that runs as the default user records none. Calls a
 provider makes on itself do not pass through the proxy, so they are not
 defaulted a second time. `SandboxEnvironment`'s abstract methods and provider
 implementations are unchanged. `test_operations_take_the_scope_user`,
@@ -337,8 +337,8 @@ take at the boundary:
   `SandboxUserUnsupportedError` before writing anything. Given an absolute
   `dir`, or a relative one in a scope with a `cwd`, it works on a
   [closed working directory](#closed-working-directories) (see below for a
-  relative one in a scope with no `cwd`); companion packages detect this
-  capability through the `INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT`
+  relative one in a scope with no `cwd`); companion packages detect that its
+  `chmod +x` runs from `/` through the `INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT`
   flag in `install.py`. It changes no ownership: files it creates belong to the
   member, like every other file the member's scaffold creates, while a file
   it overwrites keeps whatever owner the provider's write leaves (Docker
