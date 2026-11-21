@@ -315,3 +315,10 @@
     Regression verdict from two eval logs — reads a baseline and a candidate Inspect JSON log (epochs as rounds) and returns PASS, BLOCK or INCONCLUSIVE from a rule file fixed before the runs, with an exact sequential test. The error bound is stated only under its conditions; a rule written after the logs exist is labelled descriptive.
   author: "[Ajay Surya Senthilrajan](https://github.com/ajaysurya1221)"
   categories: ["Analysis"]
+
+- name: "[tattlescan](https://github.com/Vidushi2709/tattletale/tree/main/tattlescan)"
+  description: |
+    Scanners for Inspect Scout that flag when an agent tells the user one thing and its tool calls do another: false success,
+    no consent, wrong details, unmentioned actions and wrong amounts. Built for τ²-bench airline transcripts.
+  author: "[Vidushi Anand](https://github.com/Vidushi2709)"
+  categories: ["Analysis"]
