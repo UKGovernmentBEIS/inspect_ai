@@ -4,11 +4,12 @@ import hashlib
 import math
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
+import anyio
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from inspect_ai._util.working import sample_clock
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
 
     from .._config import SentinelProxy
     from ._lookup import Looked
+    from ._task import AttemptRegistration
 
 
 class SentinelStep(BaseModel):
@@ -145,13 +147,15 @@ class ReceivedCall:
     def __init__(
         self,
         sidecar: Any = None,
-        registered_beforehand: bool = False,
+        registration: "AttemptRegistration | None" = None,
         mode: "SentinelProxy" = "auto",
         history: "list[ChatMessage] | None" = None,
         timeout: int | None = None,
     ) -> None:
         self.sidecar = sidecar
         """The sidecar the call goes through, which `request_result` asks."""
+        self.registration = registration
+        """The attempt's registration of the call's sample at the sidecar, which each request of the call makes sure of as it is sent."""
         self.timeout = timeout
         """The call's `timeout` in seconds, or None for no limit.
 
@@ -167,14 +171,24 @@ class ReceivedCall:
 
         It is not the model call's time, so the call's `timeout` doesn't count it.
         """
+        self.registration_time = 0.0
+        """Seconds the call's requests took to make sure of the sample's registration at the sidecar, as each was sent.
+
+        It is not the model call's time, so the call's `timeout` doesn't count it.
+        """
+        self.attempt_timeout: anyio.CancelScope | None = None
+        """The scope of the timeout of the attempt whose request is being sent, if it has one, which stops while the request makes sure of the sample's registration."""
         self.history: "list[ChatMessage]" = history if history is not None else []
         """The conversation the call is sent with, as Inspect holds it.
 
         Inspect shows it to a person who is asked about the call. It never leaves
         the eval's process.
         """
-        self.registered_beforehand = registered_beforehand
-        """Whether the sidecar's admin registered the call's task beforehand, so a sample the sidecar can't place was never accepted, rather than lost."""
+        self.registered_beforehand = False
+        """Whether the sidecar's admin registered the call's task beforehand, so a sample the sidecar can't place was never accepted, rather than lost.
+
+        As the sidecar said when a request of the call last made sure of the sample's registration.
+        """
         self.mode: "SentinelProxy" = mode
         """Whether the task requires a sidecar, so a call whose judgment is unavailable fails the sample."""
         self.request_id: str | None = None
@@ -235,6 +249,10 @@ class ReceivedCall:
         Set once Inspect has asked the sidecar about the attempt's last request
         and has nothing more to fetch or resend.
         """
+        self.stopped_by: Exception | None = None
+        """The error of Inspect's own that stopped the call, which the call fails on whatever its requests returned. Set by `stop()`."""
+        self.send_scope: anyio.CancelScope | None = None
+        """The scope a request of the call is being sent in, which `stop()` cancels. Set by `sending()`."""
         self.handled_failures: set[int] = set()
         """The numbers of the failed tries that Inspect has handled.
 
@@ -282,11 +300,17 @@ class ReceivedCall:
 
         The sidecar accepted an answer to each, or no longer holds it.
         """
-        self.usage_recorded: dict[str, dict[tuple[str | None, str], ModelUsage]] = {}
-        """The judge models' usage already recorded, by request id, then role and model.
+        self.usage_recorded: dict[
+            tuple[int, str], dict[tuple[str | None, str], ModelUsage]
+        ] = {}
+        """The judge models' usage already recorded, by the sidecar's restart count and the request id, then role and model.
 
         The sidecar reports usage as a running total. Inspect asks about a paused
-        call more than once under one id, so it records only what is new.
+        call more than once under one id, so it records only what is new. A
+        sidecar's totals start again when it restarts, and a call can carry on
+        under its id through a restart, so a restarted sidecar's total is a
+        series of its own, counted in full. Each answer says which restart
+        count it was asked under.
         """
         self.unasked: list[str] = []
         """The request ids of earlier attempts that were sent and that Inspect retried without asking the sidecar about them. The sidecar may have judged their requests with its own models, and is asked for that usage once the latest attempt is asked about."""
@@ -305,12 +329,25 @@ class ReceivedCall:
 
         Earlier attempts already counted that time as waiting.
         """
-        self.judging_recorded: dict[str, float] = {}
-        """The sidecar's judging time as last reported, by request id.
+        self.judging_recorded: dict[tuple[int, str], float] = {}
+        """The sidecar's judging time as last reported, by the sidecar's restart count and the request id.
 
         The sidecar reports a running total for the call. So the amount added
-        since the last report is the judging of the send that returned last.
+        since the last report is the judging of the send that returned last. A
+        restarted sidecar's total is a series of its own.
         """
+
+    def stop(self, error: Exception) -> None:
+        """Stop the call on an error of Inspect's own, as when the sidecar can't take its sample's registration while a request is sent.
+
+        The call fails on the error, whatever error reaches Inspect from the request that was stopped. Nothing more of the call is sent, asked of a person, fetched or retried: the latest attempt's error is final, and Inspect cleans up after the call and raises this one where it stops retrying.
+
+        A request being sent ends at once, on this error. A request stopped as it is sent raises into the provider's SDK, which would back off and try again, and a limit of the sample's that ran out meanwhile would end the sample in the stopped call's place.
+        """
+        self.stopped_by = error
+        self.error_is_final = True
+        if self.send_scope is not None:
+            self.send_scope.cancel()
 
 
 _received: ContextVar[ReceivedCall | None] = ContextVar(
@@ -321,7 +358,7 @@ _received: ContextVar[ReceivedCall | None] = ContextVar(
 @contextmanager
 def receiving_call(
     sidecar: Any = None,
-    registered_beforehand: bool = False,
+    registration: "AttemptRegistration | None" = None,
     mode: "SentinelProxy" = "auto",
     history: "list[ChatMessage] | None" = None,
     timeout: int | None = None,
@@ -330,14 +367,14 @@ def receiving_call(
 
     Args:
         sidecar: The sidecar the call goes through.
-        registered_beforehand: Whether the sidecar's admin registered the call's
-            task beforehand.
+        registration: The attempt's registration of the call's sample at the
+            sidecar.
         mode: Whether the task requires a sidecar.
         history: The conversation the call is sent with. Inspect shows it to a
             person who is asked about the call.
         timeout: The call's `timeout`, in seconds, or None for no limit.
     """
-    received = ReceivedCall(sidecar, registered_beforehand, mode, history, timeout)
+    received = ReceivedCall(sidecar, registration, mode, history, timeout)
     token = _received.set(received)
     try:
         yield received
@@ -376,10 +413,15 @@ def begin_attempt() -> None:
         received.resends = 0
         received.error_is_final = False
         received.sends = []
+        # the total of the sidecar's latest run, as an earlier run's started
+        # again
+        runs = [
+            series
+            for series in received.judging_recorded
+            if series[1] == received.reviewed_request_id
+        ]
         received.judging_before_attempt = (
-            received.judging_recorded.get(received.reviewed_request_id, 0.0)
-            if received.reviewed_request_id is not None
-            else 0.0
+            received.judging_recorded[max(runs)] if runs else 0.0
         )
 
 
@@ -449,14 +491,17 @@ def _body_digest(request: Any) -> bytes:
     return hashlib.sha256(content).digest()
 
 
-def time_with_a_person() -> float:
-    """Seconds that people took to answer questions about the current agent call.
+def time_apart_from_the_call() -> float:
+    """Seconds of the current agent call that weren't the model call's own, which the call's `timeout` doesn't count.
 
-    The call's `timeout` doesn't count this time. It is zero for a call that
-    nobody was asked about.
+    The time people took to answer questions about the call, and the time its requests took to make sure of the sample's registration at the sidecar. It is zero outside a call through a sidecar.
     """
     received = _received.get()
-    return received.person_time if received is not None else 0.0
+    return _time_apart(received) if received is not None else 0.0
+
+
+def _time_apart(received: ReceivedCall) -> float:
+    return received.person_time + received.registration_time
 
 
 def timeout_left(received: ReceivedCall) -> float | None:
@@ -464,20 +509,116 @@ def timeout_left(received: ReceivedCall) -> float | None:
 
     It uses the same time that Inspect's retry loop compares with `timeout` when
     it decides whether to retry: the time since the call's first attempt began,
-    less the time people took to answer. A `timeout` changed while the eval runs
-    applies here, as it does there.
+    less the time that wasn't the model call's own (`time_apart_from_the_call`).
+    A `timeout` changed while the eval runs applies here, as it does there.
     """
     from inspect_ai.model._generate_overrides import generate_config_override
 
     timeout = generate_config_override("timeout", received.timeout)
     if timeout is None or received.began is None:
         return None
-    return timeout - (time.monotonic() - received.began - received.person_time)
+    return timeout - (time.monotonic() - received.began - _time_apart(received))
 
 
 def current_receiving() -> ReceivedCall | None:
     """What is kept of the current agent call through a sidecar, or None for any other call."""
     return _received.get()
+
+
+@contextmanager
+def sending(
+    attempt_timeout: "anyio.CancelScope | AbstractContextManager[None]",
+) -> Iterator[None]:
+    """Send a request of the current agent call, ending at once on the error that stops the call if it is stopped meanwhile.
+
+    Args:
+        attempt_timeout: The scope of the attempt's timeout, which the request is sent under, or a context manager that does nothing if the attempt has none.
+
+    Raises:
+        Exception: The error the call was stopped on, in place of whatever the stopped request came to.
+    """
+    received = _received.get()
+    if received is None:
+        yield
+        return
+    received.attempt_timeout = (
+        attempt_timeout if isinstance(attempt_timeout, anyio.CancelScope) else None
+    )
+    request_error: BaseException | None = None
+    with anyio.CancelScope() as scope:
+        received.send_scope = scope
+        try:
+            yield
+        except BaseException as ex:
+            request_error = ex
+            if received.stopped_by is None or not isinstance(ex, Exception):
+                raise
+        finally:
+            received.send_scope = None
+            received.attempt_timeout = None
+    stopped_by = received.stopped_by
+    if stopped_by is not None:
+        # The request's error comes of this one, as the provider's connection
+        # error does, and this one is raised again from here on, by whatever
+        # holds it. Raised while the request's error is being handled, it
+        # takes that for its context: a ring, which a traceback that follows
+        # it never ends. So the request's error, which ends here, forgets
+        # where it came from.
+        if request_error is not None:
+            _forget(request_error, stopped_by)
+        # raised as it first was, and not as a result of the request's error
+        context = stopped_by.__context__
+        try:
+            raise stopped_by
+        finally:
+            stopped_by.__context__ = context
+
+
+def _forget(error: BaseException, origin: BaseException) -> None:
+    # cut each link to `origin` from `error` and all its history, through
+    # the errors of a group too
+    seen: set[int] = set()
+    pending = [error]
+    while pending:
+        node = pending.pop()
+        if node is origin or id(node) in seen:
+            continue
+        seen.add(id(node))
+        if node.__cause__ is origin:
+            node.__cause__ = None
+        if node.__context__ is origin:
+            node.__context__ = None
+        pending.extend(
+            linked for linked in (node.__cause__, node.__context__) if linked
+        )
+        if isinstance(node, BaseExceptionGroup):
+            pending.extend(node.exceptions)
+
+
+@contextmanager
+def registering(received: ReceivedCall) -> Iterator[None]:
+    """Keep the time a request of the call takes to make sure of its sample's registration out of the call's timeouts.
+
+    The registration is a call to the sidecar with a limit of its own, made before the model request is sent. The attempt's timeout stops while it runs and carries on after with the time it had left, and the call's `timeout` doesn't count it. Otherwise a sidecar that takes longer over a registration than the attempt's timeout allows would time out every attempt before its request was sent, holding the model's connection through each retry.
+    """
+    timeout = received.attempt_timeout
+    left: float | None = None
+    if timeout is not None and timeout.deadline != math.inf:
+        left = timeout.deadline - anyio.current_time()
+        timeout.deadline = math.inf
+    began = time.monotonic()
+    try:
+        yield
+    finally:
+        received.registration_time += time.monotonic() - began
+        if timeout is not None and left is not None:
+            timeout.deadline = anyio.current_time() + left
+
+
+def call_stopped() -> bool:
+    """Whether the current agent call was stopped on an error of Inspect's own, which a retry would meet again."""
+    received = _received.get()
+    return received is not None and received.stopped_by is not None
 
 
 def report_request_id(request_id: str) -> None:
@@ -504,7 +645,9 @@ def record_send(received: ReceivedCall) -> None:
         received.sends.append(Send(received.try_sent_at, sample_clock()))
 
 
-def record_judging_time(received: ReceivedCall, judging_time: float | None) -> None:
+def record_judging_time(
+    received: ReceivedCall, judging_time: float | None, restarts_found: int
+) -> None:
     """Add the growth in the sidecar's judging time to the call's latest send.
 
     The sidecar reports its judging time for the call as a running total. It
@@ -514,8 +657,13 @@ def record_judging_time(received: ReceivedCall, judging_time: float | None) -> N
     """
     if judging_time is None or received.request_id is None:
         return
-    before = received.judging_recorded.get(received.request_id, 0.0)
-    received.judging_recorded[received.request_id] = max(before, judging_time)
+    series = (restarts_found, received.request_id)
+    if series not in received.judging_recorded:
+        # a restarted sidecar's total starts again, so none of it was
+        # counted by an earlier attempt
+        received.judging_before_attempt = 0.0
+    before = received.judging_recorded.get(series, 0.0)
+    received.judging_recorded[series] = max(before, judging_time)
     if judging_time > before and received.sends:
         received.sends[-1].judging += judging_time - before
 
