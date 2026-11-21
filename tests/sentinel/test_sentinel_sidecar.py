@@ -2010,8 +2010,19 @@ def test_a_sidecar_is_asked_and_told_through_whichever_client_still_reaches_it(
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
-def test_a_client_that_stalls_leaves_time_to_reach_the_sidecar_through_another(
-    backend: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("first_tried", "tried_next"),
+    [
+        # of a deadline of one second: forever, or most of it
+        pytest.param(None, 0.0, id="the first never answers"),
+        pytest.param(0.6, 0.6, id="each is slow to answer"),
+    ],
+)
+def test_a_sidecar_is_reached_in_time_through_clients_that_stall_or_are_slow(
+    first_tried: float | None,
+    tried_next: float,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from inspect_ai._sentinel._sidecar import _task
 
@@ -2020,21 +2031,29 @@ def test_a_client_that_stalls_leaves_time_to_reach_the_sidecar_through_another(
     monkeypatch.setattr(_task, "END_SAMPLE_TIMEOUT", 1.0)
     stand_in = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 3})})
 
-    async def stalls(request: httpx2.Request) -> httpx2.Response:
-        # the other model's client reaches the sidecar for its requests, and
-        # stalls when asked for a sample's monitor state or told it ended
-        if request.url.path == "/sentinel/v1":
-            if json.loads(request.content)["method"] in ("sample_result", "end_sample"):
-                await anyio.sleep_forever()
-        return await stand_in._handle_async(request)
+    def reaches_after(hold: float | None, api_key: str) -> Model:
+        # a model whose client reaches the sidecar for its requests, and
+        # takes this long when asked for a sample's monitor state or told it
+        # ended
+        async def held(request: httpx2.Request) -> httpx2.Response:
+            if request.url.path == "/sentinel/v1":
+                if json.loads(request.content)["method"] in (
+                    "sample_result",
+                    "end_sample",
+                ):
+                    await (anyio.sleep_forever() if hold is None else anyio.sleep(hold))
+            return await stand_in._handle_async(request)
 
-    other = get_model(
-        _MODELS["anthropic"],
-        base_url="http://proxy.test",
-        api_key="other-key",
-        memoize=False,
-        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(stalls)),
-    )
+        return get_model(
+            _MODELS["anthropic"],
+            base_url="http://proxy.test",
+            api_key=api_key,
+            memoize=False,
+            http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(held)),
+        )
+
+    # the retry's own client is tried first, then the first attempt's
+    other = reaches_after(first_tried, "other-key")
     begun = 0
 
     @solver
@@ -2058,14 +2077,14 @@ def test_a_client_that_stalls_leaves_time_to_reach_the_sidecar_through_another(
 
     [log] = eval(
         task,
-        model=_model(stand_in),
+        model=reaches_after(tried_next, "test-key"),
         sentinel_proxy="auto",
         retry_on_error=1,
         display="none",
     )
 
-    # the retry's own client is tried first, and the first attempt's still
-    # has time to ask and to tell
+    # one that stalls leaves the next time to ask and to tell, and one that
+    # is slow isn't cut off for the next
     assert log.samples is not None
     sample = log.samples[0]
     assert sample.error is None, sample.error

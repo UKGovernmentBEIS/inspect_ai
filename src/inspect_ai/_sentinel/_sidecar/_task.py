@@ -35,7 +35,7 @@ REGISTRATION_REFUSED = -32001
 END_SAMPLE_TIMEOUT = 10.0
 
 FALLBACK_RESERVE = 5.0
-"""How long of a deadline is kept back for each later client a sidecar may be reached through, in seconds, and no more than half the deadline for all of them. A client that stalls then leaves the others time to try."""
+"""How long before a deadline each later client a sidecar may be reached through is asked as well, in seconds, and no more than half the deadline for all of them. A client that stalls then leaves the others time to try."""
 
 UNKNOWN_SAMPLE = -32002
 UNKNOWN_TASK = -32009
@@ -686,31 +686,55 @@ class _Once(Generic[T]):
 async def _call_through_any(
     clients: list[Sidecar], method: str, params: dict[str, Any], within: float
 ) -> dict[str, Any]:
-    """Call a method of a sidecar for the eval through the first of its clients that reaches it.
+    """Call a method of a sidecar for the eval through its clients, and take the first answer the sidecar gives.
 
-    A sidecar is reached through each model's own client, and a model's client can be closed, or stall, while its sample runs on. The eval signs its calls whichever client carries them, so any that still reaches the sidecar will do, in whatever order the clients were used and closed. A sidecar that answers was reached, with an error too.
+    A sidecar is reached through each model's own client, and a model's client can be closed, or stall, while its sample runs on. The eval signs its calls whichever client carries them, so any that still reaches the sidecar will do, in whatever order the clients were used and closed.
+
+    The first client is asked alone at first. Each later one is asked as well once the one before it can't reach the sidecar, or `FALLBACK_RESERVE` before the deadline for each client still to come. A client already asked is left to finish: one that is slow to answer keeps the whole deadline, and one that stalls doesn't use it up. A sidecar that answers was reached, with an error too, and its first answer is the call's. Two clients may both reach it, so this is only for a method that can be called again: reading a sample's monitor state, and ending a sample, which has no effect the second time.
 
     Args:
         clients: The sidecar, as each client reaches it, the likeliest to reach it first. At least one.
         method: The method of the endpoint for evals.
         params: The method's params.
-        within: The caller's deadline for the whole call, in seconds. `FALLBACK_RESERVE` of it is kept back for each later client, so one that stalls leaves the others time to try. The caller enforces the deadline itself, for the last client.
+        within: The caller's deadline for the whole call, in seconds, which the caller enforces itself.
 
     Raises:
         SidecarCallError: If the sidecar answered with an error, or no client reached it.
     """
+    if len(clients) == 1:
+        return await clients[0].eval_call(method, params)
     later = len(clients) - 1
-    reserve = min(FALLBACK_RESERVE, within / (2 * later)) if later else 0.0
+    reserve = min(FALLBACK_RESERVE, within / (2 * later))
     deadline = anyio.current_time() + within
-    for sidecar in clients[:-1]:
-        with anyio.CancelScope(deadline=deadline - reserve * later):
-            try:
-                return await sidecar.eval_call(method, params)
-            except SidecarCallError as ex:
-                if ex.code is not None:
-                    raise
-        later -= 1
-    return await clients[-1].eval_call(method, params)
+    answers: list[dict[str, Any] | SidecarCallError] = []
+    unreached: list[SidecarCallError] = []
+
+    async def ask(sidecar: Sidecar, unreachable: anyio.Event) -> None:
+        answer: dict[str, Any] | SidecarCallError
+        try:
+            answer = await sidecar.eval_call(method, params)
+        except SidecarCallError as ex:
+            if ex.code is None:
+                unreached.append(ex)
+                unreachable.set()
+                return
+            answer = ex
+        answers.append(answer)
+        asking.cancel_scope.cancel()
+
+    async with anyio.create_task_group() as asking:
+        for index, sidecar in enumerate(clients):
+            unreachable = anyio.Event()
+            asking.start_soon(ask, sidecar, unreachable)
+            if index < later:
+                with anyio.CancelScope(deadline=deadline - reserve * (later - index)):
+                    await unreachable.wait()
+    if not answers:
+        raise unreached[-1]
+    # raised here, outside the task group, so it arrives on its own
+    if isinstance(answers[0], SidecarCallError):
+        raise answers[0]
+    return answers[0]
 
 
 def _unauthorized(sidecar: Sidecar, ex: SidecarCallError) -> str:
