@@ -775,6 +775,22 @@ class TestGetModelInputTokens:
         assert str(info.knowledge_cutoff_date) == "2026-06-01"
         assert info.reasoning_effort_default == "high"
 
+    def test_claude_mythos_5_2(self):
+        """Test that Claude Mythos 5.2 resolves to its own registration."""
+        model = get_model("anthropic/claude-mythos-5-2")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        info = get_model_info("anthropic/claude-mythos-5-2")
+        assert info is not None
+        # not a fuzzy match onto Mythos 5 (snapshot 20260609, cutoff 2026-01-01)
+        assert info.model == "Claude Mythos 5.2"
+        assert info.snapshot == "20261109"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.reasoning_effort_default == "high"
+        bedrock_info = get_model_info("anthropic/bedrock/anthropic.claude-mythos-5-2")
+        assert bedrock_info is not None
+        assert bedrock_info.model == "Claude Mythos 5.2"
+
     def test_claude_mythos_preview(self):
         """Test that Claude Mythos Preview reports 1MM input tokens."""
         model = get_model("anthropic/claude-mythos-preview")
