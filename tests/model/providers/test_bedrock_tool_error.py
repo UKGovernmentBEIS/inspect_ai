@@ -13,8 +13,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import pytest
-
 from inspect_ai._util.content import ContentText
 from inspect_ai.model._chat_message import ChatMessageTool
 from inspect_ai.model._providers.bedrock import converse_chat_message
@@ -37,43 +35,35 @@ def _texts(tool_result: Any) -> list[str]:
     return [part.text for part in tool_result.content or [] if part.text is not None]
 
 
-@pytest.mark.parametrize(
-    "error,expected_status,expected_texts",
-    [
-        (None, "success", []),
-        (
-            ToolCallError("unknown", "file not found: /etc/x"),
-            "error",
-            ["file not found: /etc/x"],
-        ),
-    ],
-)
-async def test_bedrock_tool_error_message_is_sent(
-    error: ToolCallError | None,
-    expected_status: str,
-    expected_texts: list[str],
-) -> None:
-    result = await _tool_result(error)
-    assert result.status == expected_status
-    texts = _texts(result)
-    for text in expected_texts:
-        assert text in texts
+async def test_bedrock_tool_success_sends_content_only() -> None:
+    """A successful tool result is unchanged."""
+    result = await _tool_result(None, "result text")
+    assert result.status == "success"
+    assert _texts(result) == ["result text"]
 
 
-async def test_bedrock_tool_error_keeps_reported_content() -> None:
-    """Content the tool did produce is still sent alongside the error."""
+async def test_bedrock_tool_error_sends_the_error_message() -> None:
+    """A failed tool result carries the reason, not just the status."""
     result = await _tool_result(
-        ToolCallError("timeout", "timed out after 30s"), "partial output"
+        ToolCallError("unknown", "file not found: /etc/x"), "partial output"
     )
-    texts = _texts(result)
-    assert "timed out after 30s" in texts
-    assert "partial output" in texts
+    assert result.status == "error"
+    # Exactly one part: the error replaces the content, as it does for Anthropic.
+    assert _texts(result) == ["file not found: /etc/x"]
 
 
-async def test_bedrock_tool_error_without_message_falls_back_to_content_text() -> None:
-    """An empty error message falls back to the text content the tool kept."""
+async def test_bedrock_tool_error_does_not_duplicate_text_content() -> None:
+    """Text the error already repeats is not sent twice."""
     result = await _tool_result(
-        ToolCallError("unknown", ""), [ContentText(type="text", text="kept text")]
+        ToolCallError("timeout", "timed out after 30s"),
+        [ContentText(type="text", text="timed out after 30s")],
     )
+    assert _texts(result) == ["timed out after 30s"]
+
+
+async def test_bedrock_tool_error_without_message_uses_a_placeholder() -> None:
+    """An error with no message and no content still sends a non-empty part."""
+    result = await _tool_result(ToolCallError("unknown", ""))
     texts = _texts(result)
-    assert "kept text" in texts
+    assert len(texts) == 1
+    assert texts[0].strip() != ""

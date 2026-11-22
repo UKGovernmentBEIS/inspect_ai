@@ -1654,13 +1654,19 @@ async def converse_chat_message(
         tool_result_content: list[ConverseToolResultContent] = []
         if message.error is not None:
             # Converse marks the result failed with status="error" but does not
-            # carry the reason, so send the message alongside it: otherwise a
-            # model whose tool call failed cannot tell a timeout from a bad path
-            # and cannot recover. message.text falls back to any text content.
+            # carry the reason, so send it as the result: otherwise a model whose
+            # tool call failed cannot tell a timeout from a bad path and cannot
+            # recover. Like the Anthropic provider, the error message replaces
+            # the content rather than joining it, since the content of a failed
+            # call is usually the truncated output the error already describes.
+            # A tool message must have content, so an empty error still sends a
+            # placeholder.
             tool_result_content.append(
-                ConverseToolResultContent(text=message.error.message or message.text)
+                ConverseToolResultContent(
+                    text=message.error.message or message.text or "error"
+                )
             )
-        if isinstance(message.content, str):
+        elif isinstance(message.content, str):
             tool_result_content.append(ConverseToolResultContent(text=message.content))
         else:
             for c in message.content:
