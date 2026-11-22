@@ -137,7 +137,6 @@ from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.event._tree import EventTreeSpan, event_tree
 from inspect_ai.log import EvalLog, read_eval_log, resolve_sample_attachments
-from inspect_ai.log._addonly import ADDONLY_STORE_ENV
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._log import EvalSample
 from inspect_ai.log._samples import _sample_active
@@ -9693,6 +9692,7 @@ def _run_host_scaffold(
     dialect: HostDialect,
     tmp_path: Path,
     outputs: list[ModelOutput] | None = None,
+    tamper_evident_store: str | None = None,
 ) -> EvalSample:
     log = eval(
         Task(
@@ -9701,6 +9701,7 @@ def _run_host_scaffold(
         ),
         model=get_model("mockllm/model", custom_outputs=outputs or _host_outputs()),
         log_dir=str(tmp_path),
+        tamper_evident_store=tamper_evident_store,
     )[0]
     assert log.status == "success", log.error
     read = read_eval_log(log.location)
@@ -9750,8 +9751,9 @@ def test_host_tools_against_addonly_store(
     with moto_addonly_store() as store:
         for key, value in store.env(store.evalhost).items():
             monkeypatch.setenv(key, value)
-        monkeypatch.setenv(ADDONLY_STORE_ENV, store.url)
-        _run_host_scaffold("plain", "completions", tmp_path)
+        _run_host_scaffold(
+            "plain", "completions", tmp_path, tamper_evident_store=store.url
+        )
         report = store.validate(tmp_path)
     assert report.samples_compared == 1
     assert [f.kind for f in report.findings] == (

@@ -4,7 +4,6 @@ PROTOTYPE (tamper-evident eval logs, step 1). See
 design/prototype-tamper-evident-logs-findings.md.
 """
 
-import os
 from itertools import count
 from typing import Any, NamedTuple
 from urllib.parse import quote
@@ -12,9 +11,6 @@ from urllib.parse import quote
 import anyio
 import anyio.to_thread
 from botocore.exceptions import ClientError, ConnectionError, HTTPClientError
-
-ADDONLY_STORE_ENV = "INSPECT_ADDONLY_STORE"
-"""``s3://bucket/prefix`` of the add-only store the eval writes to."""
 
 PUT_RETRY_SECONDS = 60.0
 """How long a put is retried before the write fails (the plan leaves the limit open)."""
@@ -51,11 +47,6 @@ class StoreLocation(NamedTuple):
 
     def key(self, *parts: str) -> str:
         return "/".join([self.prefix, *parts] if self.prefix else parts)
-
-
-def addonly_store_location() -> StoreLocation | None:
-    url = os.environ.get(ADDONLY_STORE_ENV)
-    return StoreLocation.parse(url) if url else None
 
 
 def sample_key_part(sample_id: str | int, epoch: int) -> str:

@@ -48,7 +48,7 @@ from inspect_ai.log import (
 from inspect_ai.log._addonly import (
     AddOnlyStoreError,
     EvalRecordWriter,
-    addonly_store_location,
+    StoreLocation,
 )
 from inspect_ai.log._condense import resolved_sample_summary
 from inspect_ai.log._log import (
@@ -233,6 +233,7 @@ class TaskLogger:
         header_only: bool,
         dynamic_dataset: bool = False,
         prior_created: str | None = None,
+        tamper_evident_store: str | None = None,
     ) -> None:
         packages = {
             PKG_NAME: importlib_metadata.version(PKG_NAME),
@@ -336,6 +337,9 @@ class TaskLogger:
         self.recorder = recorder
         # the prior log's `eval.created`, which this attempt's must follow
         self._prior_created = prior_created
+        self._tamper_evident_store = (
+            StoreLocation.parse(tamper_evident_store) if tamper_evident_store else None
+        )
         self.header_only = header_only
 
         # number of samples logged without error / distinct samples logged
@@ -721,7 +725,7 @@ class TaskLogger:
 
     async def _start_addonly(self, plan: EvalPlan) -> None:
         """Start the eval's add-only store records, when a store is configured."""
-        location = addonly_store_location()
+        location = self._tamper_evident_store
         if location is None:
             return
         if self._buffer_db is None:

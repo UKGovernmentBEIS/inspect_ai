@@ -43,7 +43,6 @@ from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
 from inspect_ai.event import Event, InfoEvent, ScoreEvent, ToolEvent
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log, write_eval_log
-from inspect_ai.log._addonly import ADDONLY_STORE_ENV
 from inspect_ai.log._addonly._records import (
     CLOSING,
     START,
@@ -103,11 +102,13 @@ def moto_store() -> Iterator[MotoStore]:
 
 @pytest.fixture
 def evalhost_env(moto_store: MotoStore, monkeypatch: pytest.MonkeyPatch) -> MotoStore:
-    """The eval host's environment, with a store prefix of the test's own."""
+    """The eval host's environment, with a store prefix of the test's own.
+
+    Evals write to the store when given ``tamper_evident_store=store.url``.
+    """
     store = replace(moto_store, url=f"s3://{BUCKET}/{uuid.uuid4().hex}")
     for key, value in store.env(store.evalhost).items():
         monkeypatch.setenv(key, value)
-    monkeypatch.setenv(ADDONLY_STORE_ENV, store.url)
     return store
 
 
@@ -207,7 +208,7 @@ FORGED_NONCE = "0" * 64
 
 @pytest.fixture
 def clean_run(evalhost_env: MotoStore, tmp_path: Path) -> CleanRun:
-    log = run(agent_task(samples=1), tmp_path)
+    log = run(agent_task(samples=1), tmp_path, tamper_evident_store=evalhost_env.url)
     assert log.status == "success", log.error
     assert validate(evalhost_env, tmp_path).findings == []
     return CleanRun(evalhost_env, tmp_path, log)
@@ -250,6 +251,7 @@ def test_plain_eval_validates(
         model="mockllm/model",
         log_dir=str(tmp_path),
         display="none",
+        tamper_evident_store=evalhost_env.url,
     )[0]
     assert log.status == "success", log.error
 
@@ -273,11 +275,23 @@ def test_plain_eval_validates(
         assert f"{evalhost_env.prefix}/{log.eval.eval_id}/{key}\n" in result.output
 
 
+def test_eval_without_store_writes_nothing(
+    evalhost_env: MotoStore, tmp_path: Path
+) -> None:
+    """Without tamper_evident_store, an eval writes nothing to the store."""
+    log = run(agent_task(samples=1), tmp_path)
+    assert log.status == "success", log.error
+    listing = evalhost_env.client(evalhost_env.admin).list_object_versions(
+        Bucket=BUCKET, Prefix=evalhost_env.prefix
+    )
+    assert "Versions" not in listing and "DeleteMarkers" not in listing
+
+
 def test_agent_eval_validates(
     evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
 ) -> None:
     """An agent with tool calls and sub-agents; the paths ran."""
-    log = run(agent_task(samples=1), tmp_path)
+    log = run(agent_task(samples=1), tmp_path, tamper_evident_store=evalhost_env.url)
     assert log.status == "success", log.error
     assert log.samples
     tools = {e.function for e in log.samples[0].events if isinstance(e, ToolEvent)}
@@ -298,7 +312,12 @@ def test_samples_at_once_validate(
     evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
 ) -> None:
     """3 samples x 2 epochs, all at once."""
-    log = run(agent_task(epochs=2, samples=3), tmp_path, max_samples=6)
+    log = run(
+        agent_task(epochs=2, samples=3),
+        tmp_path,
+        max_samples=6,
+        tamper_evident_store=evalhost_env.url,
+    )
     assert log.status == "success", log.error
 
     result = validate_cli(evalhost_env, tmp_path)
@@ -340,6 +359,7 @@ def test_streaming_eval_validates(evalhost_env: MotoStore, tmp_path: Path) -> No
             model="mockstream/model",
             log_dir=str(tmp_path),
             display="none",
+            tamper_evident_store=evalhost_env.url,
         )[0]
     finally:
         del _registry["modelapi:mockstream"]
@@ -376,12 +396,13 @@ def one_score() -> Scorer:
     return score
 
 
-def numeric_score_run(log_dir: Path) -> EvalLog:
+def numeric_score_run(store: MotoStore, log_dir: Path) -> EvalLog:
     log = eval(
         Task(dataset=[Sample(input="hi")], scorer=[nan_score(), one_score()]),
         model="mockllm/model",
         log_dir=str(log_dir),
         display="none",
+        tamper_evident_store=store.url,
     )[0]
     assert log.status == "success", log.error
     return log
@@ -391,7 +412,7 @@ def test_nan_score_validates(
     evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
 ) -> None:
     """A NaN score and metric match the store (NaN equals NaN in JSON text)."""
-    log = numeric_score_run(tmp_path)
+    log = numeric_score_run(evalhost_env, tmp_path)
     assert log.results
     assert any(m.value != m.value for m in log.results.scores[0].metrics.values())
 
@@ -429,6 +450,7 @@ def test_retry_on_error_validates(
         log_dir=str(tmp_path),
         display="none",
         retry_on_error=1,
+        tamper_evident_store=evalhost_env.url,
     )[0]
     assert log.status == "success", log.error
 
@@ -583,7 +605,11 @@ def test_swap_eval_file(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
     """The .eval file replaced by the file of another run of the same task."""
-    other = run(agent_task(samples=1), tmp_path_factory.mktemp("other"))
+    other = run(
+        agent_task(samples=1),
+        tmp_path_factory.mktemp("other"),
+        tamper_evident_store=clean_run.store.url,
+    )
     shutil.copyfile(other.location, clean_run.location)
     result = validate_cli(clean_run.store, clean_run.log_dir)
     assert_fails_with(result, "missing_eval_file")
@@ -594,10 +620,8 @@ def test_swap_eval_file_keep_eval_id(
     clean_run: CleanRun,
     validate_cli: ValidateCli,
     tmp_path_factory: pytest.TempPathFactory,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """As above, with the other run's eval id changed to this run's."""
-    monkeypatch.delenv(ADDONLY_STORE_ENV)
     other = run(agent_task(samples=1), tmp_path_factory.mktemp("other"))
     other.eval.eval_id = clean_run.eval_id
     write_eval_log(other, clean_run.location)
@@ -608,11 +632,8 @@ def test_swap_eval_file_keep_eval_id(
     assert result.kinds() - {"eval_mismatch"} == {"event_mismatch"}, result.output
 
 
-def test_extra_eval_file(
-    clean_run: CleanRun, validate_cli: ValidateCli, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_extra_eval_file(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
     """A .eval file from a run without the store, put in the log dir."""
-    monkeypatch.delenv(ADDONLY_STORE_ENV)
     extra = run(agent_task(samples=1), clean_run.log_dir)
     result = validate_cli(clean_run.store, clean_run.log_dir)
     assert_fails_with(result, "unstored_eval")
@@ -692,7 +713,7 @@ def test_edit_score_one_to_true(
 
     1 == True in Python; in JSON they differ.
     """
-    log = numeric_score_run(tmp_path)
+    log = numeric_score_run(evalhost_env, tmp_path)
     assert validate(evalhost_env, tmp_path).findings == []
     log = read_eval_log(log.location)
     assert log.samples
@@ -876,7 +897,11 @@ def test_malformed_buffer_row(
         rows=rows,
     )
     clean_run.put(clean_run.sample_key(seq), forged.model_dump_json())
-    other = run(agent_task(samples=1), clean_run.log_dir)
+    other = run(
+        agent_task(samples=1),
+        clean_run.log_dir,
+        tamper_evident_store=clean_run.store.url,
+    )
     assert other.status == "success", other.error
 
     result = validate_cli(clean_run.store, clean_run.log_dir)
@@ -1137,13 +1162,12 @@ def test_policy_removed(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
 
 
 def test_prefix_per_log_dir_scopes_validation(
-    evalhost_env: MotoStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    evalhost_env: MotoStore, tmp_path: Path
 ) -> None:
     """Two log dirs share the bucket, each with its own store prefix."""
     other = replace(evalhost_env, url=f"{evalhost_env.url}x")
-    run(agent_task(samples=1), tmp_path / "a")
-    monkeypatch.setenv(ADDONLY_STORE_ENV, other.url)
-    run(agent_task(samples=1), tmp_path / "b")
+    run(agent_task(samples=1), tmp_path / "a", tamper_evident_store=evalhost_env.url)
+    run(agent_task(samples=1), tmp_path / "b", tamper_evident_store=other.url)
 
     assert validate(evalhost_env, tmp_path / "a").findings == []
     assert validate(other, tmp_path / "b").findings == []
@@ -1200,8 +1224,7 @@ def test_store_settings_checked_before_samples(
         )
         for key, value in store.env(store.evalhost).items():
             monkeypatch.setenv(key, value)
-        monkeypatch.setenv(ADDONLY_STORE_ENV, store.url)
-        log = run(agent_task(samples=1), tmp_path)
+        log = run(agent_task(samples=1), tmp_path, tamper_evident_store=store.url)
         assert log.status == "error"
         assert log.error and "COMPLIANCE" in log.error.message
         assert not log.samples
@@ -1233,7 +1256,6 @@ def test_failed_write_stops_eval(
 
         for key, value in store.env(store.evalhost).items():
             monkeypatch.setenv(key, value)
-        monkeypatch.setenv(ADDONLY_STORE_ENV, store.url)
         log = eval(
             Task(
                 dataset=[Sample(input="go", target="42")],
@@ -1245,6 +1267,7 @@ def test_failed_write_stops_eval(
             display="none",
             fail_on_error=False,
             retry_on_error=2,
+            tamper_evident_store=store.url,
         )[0]
         assert log.status == "error"
         assert log.error and "AccessDenied" in log.error.message
@@ -1344,6 +1367,7 @@ def test_failed_buffer_insert_stops_sample(
         log_dir=str(tmp_path),
         display="none",
         fail_on_error=False,
+        tamper_evident_store=evalhost_env.url,
     )[0]
     # the sample stops; the eval goes on (unlike a failed write)
     assert log.status == "success", log.error

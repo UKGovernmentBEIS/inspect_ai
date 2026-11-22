@@ -199,6 +199,7 @@ def eval(
     task_retry_attempts: int | None = None,
     sentinel: SentinelSpec | None = None,
     sentinel_proxy: SentinelProxy | None = None,
+    tamper_evident_store: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model.
@@ -343,6 +344,7 @@ def eval(
             A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
             Overrides the task's sentinel. Defaults to no sentinel.
         sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, which then judges the agent's model calls. Off unless set: `off` (the default) never looks, `auto` uses a sidecar it finds, and `required` fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.
+        tamper_evident_store: `s3://bucket/prefix` of the add-only store for tamper-evident logs. Each sample writes its events there as it runs. Unset (the default) turns tamper-evident logs off. Experimental: not yet a stable API; may change without notice.
         **kwargs: Model generation options.
 
     Returns:
@@ -378,6 +380,7 @@ def eval(
                 review=review,
                 sentinel=sentinel,
                 sentinel_proxy=sentinel_proxy,
+                tamper_evident_store=tamper_evident_store,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -506,6 +509,7 @@ async def eval_async(
     task_retry_attempts: int | None = None,
     sentinel: SentinelSpec | None = None,
     sentinel_proxy: SentinelProxy | None = None,
+    tamper_evident_store: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
@@ -621,6 +625,7 @@ async def eval_async(
             A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
             Overrides the task's sentinel. Defaults to no sentinel.
         sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, which then judges the agent's model calls. Off unless set: `off` (the default) never looks, `auto` uses a sidecar it finds, and `required` fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.
+        tamper_evident_store: `s3://bucket/prefix` of the add-only store for tamper-evident logs. Each sample writes its events there as it runs. Unset (the default) turns tamper-evident logs off. Experimental: not yet a stable API; may change without notice.
         **kwargs: Model generation options.
 
     Returns:
@@ -669,6 +674,7 @@ async def eval_async(
                 review=review,
                 sentinel=sentinel,
                 sentinel_proxy=sentinel_proxy,
+                tamper_evident_store=tamper_evident_store,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -754,6 +760,7 @@ async def _eval_async_inner(
     review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
     sentinel: SentinelSpec | None = None,
     sentinel_proxy: SentinelProxy | None = None,
+    tamper_evident_store: str | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -1150,6 +1157,7 @@ async def _eval_async_inner(
                         review=review,
                         sentinel=eval_sentinel,
                         sentinel_proxy=sentinel_proxy,
+                        tamper_evident_store=tamper_evident_store,
                         solver=solver,
                         scanner=scanner,
                         scan_id=scan_id,
@@ -1420,6 +1428,7 @@ def eval_retry(
     incomplete_max: int | float | None = None,
     model_cost_config: str | dict[str, ModelCost] | None = None,
     sentinel_proxy: SentinelProxy | None = None,
+    tamper_evident_store: str | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1524,6 +1533,7 @@ def eval_retry(
             `<name>-recovered.eval` alongside the crashed log rather than in
             `log_dir`, so read its location from `EvalLog.location`.
         sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
+        tamper_evident_store: `s3://bucket/prefix` of the add-only store for tamper-evident logs, as `eval()` takes it. The log doesn't record it, so a retry is told again.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
@@ -1583,6 +1593,7 @@ def eval_retry(
             incomplete_max=incomplete_max,
             model_cost_config=model_cost_config,
             sentinel_proxy=sentinel_proxy,
+            tamper_evident_store=tamper_evident_store,
         )
 
     result = task_display().run_task_app(with_async_fs(run_task_app))
@@ -1676,6 +1687,7 @@ async def eval_retry_async(
     incomplete_max: int | float | None = None,
     model_cost_config: str | dict[str, ModelCost] | None = None,
     sentinel_proxy: SentinelProxy | None = None,
+    tamper_evident_store: str | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1755,6 +1767,7 @@ async def eval_retry_async(
             `<name>-recovered.eval` alongside the crashed log rather than in
             `log_dir`, so read its location from `EvalLog.location`.
         sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
+        tamper_evident_store: `s3://bucket/prefix` of the add-only store for tamper-evident logs, as `eval()` takes it. The log doesn't record it, so a retry is told again.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
@@ -2068,6 +2081,7 @@ async def eval_retry_async(
                 review=review,
                 sentinel=sentinel,
                 sentinel_proxy=sentinel_proxy,
+                tamper_evident_store=tamper_evident_store,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,

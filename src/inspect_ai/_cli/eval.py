@@ -490,6 +490,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="Whether to look for a sentinel sidecar behind each model's proxy: off (the default) never looks, auto uses one it finds, and required fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed.",
     )
     @click.option(
+        "--tamper-evident-store",
+        type=str,
+        default=None,
+        help="s3://bucket/prefix of the add-only store for tamper-evident logs. Each sample writes its events there as it runs. Unset (the default) turns tamper-evident logs off. Experimental.",
+    )
+    @click.option(
         "--notification",
         "notification",
         is_flag=False,
@@ -1227,6 +1233,7 @@ def _eval_command_impl(
     sentinel: str | None,
     sentinel_arg: tuple[str, ...] | None,
     sentinel_proxy: SentinelProxy | None,
+    tamper_evident_store: str | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
@@ -1367,6 +1374,7 @@ def _eval_command_impl(
         sentinel=sentinel,
         sentinel_arg=sentinel_arg,
         sentinel_proxy=sentinel_proxy,
+        tamper_evident_store=tamper_evident_store,
         notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
@@ -1530,6 +1538,7 @@ def eval_set_command(
     sentinel: str | None,
     sentinel_arg: tuple[str, ...] | None,
     sentinel_proxy: SentinelProxy | None,
+    tamper_evident_store: str | None,
     notification: bool | str | None,
     model: str | None,
     model_base_url: str | None,
@@ -1716,6 +1725,7 @@ def eval_set_command(
             sentinel=sentinel,
             sentinel_arg=sentinel_arg,
             sentinel_proxy=sentinel_proxy,
+            tamper_evident_store=tamper_evident_store,
             notification=notification,
             sandbox=sandbox,
             no_sandbox_cleanup=no_sandbox_cleanup,
@@ -2075,6 +2085,7 @@ def eval_exec(
     sentinel: str | None,
     sentinel_arg: tuple[str, ...] | None,
     sentinel_proxy: SentinelProxy | None,
+    tamper_evident_store: str | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
@@ -2252,6 +2263,7 @@ def eval_exec(
             review=review,
             sentinel=eval_sentinel,
             sentinel_proxy=sentinel_proxy,
+            tamper_evident_store=tamper_evident_store,
             notification=notification,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
@@ -2762,6 +2774,12 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     hidden=True,
     help="Whether to look for a sentinel sidecar behind each model's proxy, as for eval. The log doesn't record it, so a retry is told again.",
 )
+@click.option(
+    "--tamper-evident-store",
+    type=str,
+    default=None,
+    help="s3://bucket/prefix of the add-only store for tamper-evident logs, as for eval. The log doesn't record it, so a retry is told again.",
+)
 @scanner_options
 @common_options
 def eval_retry_command(
@@ -2803,6 +2821,7 @@ def eval_retry_command(
     incomplete_max: float | None,
     model_cost_config: str | None,
     sentinel_proxy: SentinelProxy | None,
+    tamper_evident_store: str | None,
     scanner: str | None,
     scanner_arg: tuple[str, ...] | None,
     scans: str | None,
@@ -2960,6 +2979,7 @@ def eval_retry_command(
                 incomplete_max=incomplete_max,
                 model_cost_config=model_cost_config,
                 sentinel_proxy=sentinel_proxy,
+                tamper_evident_store=tamper_evident_store,
             )
 
         if json_output:

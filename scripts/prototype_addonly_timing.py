@@ -29,7 +29,6 @@ from unittest.mock import patch
 from test_helpers.addonly_agents import agent_task, run
 from test_helpers.addonly_moto import BUCKET, moto_addonly_store
 
-from inspect_ai.log._addonly import ADDONLY_STORE_ENV
 from inspect_ai.log._addonly._records import SampleRecord
 from inspect_ai.log._addonly._store import AddOnlyStore
 from inspect_ai.log._addonly._validate import validate_store
@@ -108,10 +107,12 @@ def main() -> None:
         run(agent_task(args.epochs, args.samples), Path(tmp, "plain"), max_samples=10)
         plain_seconds = time.perf_counter() - start
 
-        os.environ[ADDONLY_STORE_ENV] = store.url
         start = time.perf_counter()
         log = run(
-            agent_task(args.epochs, args.samples), Path(tmp, "store"), max_samples=10
+            agent_task(args.epochs, args.samples),
+            Path(tmp, "store"),
+            max_samples=10,
+            tamper_evident_store=store.url,
         )
         store_seconds = time.perf_counter() - start
         assert log.status == "success", log.error
