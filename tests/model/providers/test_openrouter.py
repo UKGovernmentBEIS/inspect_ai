@@ -1040,6 +1040,14 @@ def test_on_response_choice_error_400_raises_without_retry() -> None:
     assert api.should_retry(ex) == RetryDecision.no()
 
 
+def test_openrouter_error_str_includes_message() -> None:
+    assert str(OpenRouterError({"code": 400, "message": "bad"})) == "Error 400 - bad"
+    with_metadata = OpenRouterError(
+        {"code": 400, "message": "bad", "metadata": {"raw": "x"}}
+    )
+    assert str(with_metadata) == 'Error 400 - bad\n{\n  "raw": "x"\n}'
+
+
 def test_on_response_top_level_error_wins_over_choice_error() -> None:
     api = _make_api("openai/gpt-4o")
     response = _choice_error(429) | {"error": {"code": 400, "message": "bad"}}

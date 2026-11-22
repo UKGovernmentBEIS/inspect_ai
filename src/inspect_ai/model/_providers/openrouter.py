@@ -71,8 +71,8 @@ class OpenRouterError(Exception):
         return f"Error {self.response['code']} - {self.response['message']}"
 
     def __str__(self) -> str:
-        return (
-            self.message + ("\n" + json.dumps(self.response["metadata"], indent=2))
+        return self.message + (
+            "\n" + json.dumps(self.response["metadata"], indent=2)
             if "metadata" in self.response
             else ""
         )
