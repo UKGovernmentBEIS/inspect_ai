@@ -50,17 +50,15 @@ async def score(conversation: ModelConversation) -> list[Score]:
 
     # get current scorers and target
     scorers = _scorers.get(None)
+    scorer_names = _scorer_names.get(None)
     target = _target.get(None)
-    if scorers is None or target is None:
+    if scorers is None or scorer_names is None or target is None:
         raise RuntimeError(
             "The score() function can only be called while executing a task with a scorer."
         )
 
     scores: list[Score] = []
-    used_names: list[str] = []
-    for scorer in scorers:
-        scorer_name = unique_scorer_name(scorer, used_names)
-        used_names.append(scorer_name)
+    for scorer, scorer_name in zip(scorers, scorer_names, strict=True):
         with sentinel_scope(AgentScope.OFF, final=True):
             score = await scorer(state, target)
         if score is not None:
@@ -82,10 +80,24 @@ async def score(conversation: ModelConversation) -> list[Score]:
     return scores
 
 
-def init_scoring_context(scorers: list[Scorer], target: Target) -> None:
+def init_scoring_context(
+    scorers: list[Scorer], target: Target, scorer_names: list[str] | None = None
+) -> None:
+    """Bind the scorers `score()` runs, with the score name of each.
+
+    `scorer_names` are the names final scoring uses, so intermediate score
+    events carry the same names as the sample's scores. Names are generated
+    from the scorers when it is omitted.
+    """
+    if scorer_names is None:
+        scorer_names = []
+        for scorer in scorers:
+            scorer_names.append(unique_scorer_name(scorer, scorer_names))
     _scorers.set(scorers)
+    _scorer_names.set(scorer_names)
     _target.set(target)
 
 
 _scorers: ContextVar[list[Scorer]] = ContextVar("scorers")
+_scorer_names: ContextVar[list[str]] = ContextVar("scorer_names")
 _target: ContextVar[Target] = ContextVar("target")

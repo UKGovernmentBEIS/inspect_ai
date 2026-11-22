@@ -1576,3 +1576,66 @@ async def test_score_streamed_name_conflict_cancels_running_scorers() -> None:
     assert samples[1].id not in cancelled
     assert 1 in opened
     assert sorted(closed) == sorted(opened)
+
+
+async def _dict_scored_log(tmp_path: pathlib.Path, *, score: bool = True) -> EvalLog:
+    """A two-sample log of a task whose scorers were passed as a dict."""
+    task = Task(
+        dataset=[
+            Sample(input="a", target="a", id=1),
+            Sample(input="b", target="b", id=2),
+        ],
+        scorer={"strict": match(location="end"), "loose": match(location="any")},
+    )
+    (log,) = await eval_async(
+        task, model="mockllm/model", log_dir=str(tmp_path), score=score
+    )
+    return log
+
+
+def _header_score_name_pairs(log: EvalLog) -> list[tuple[str, str | None]]:
+    """Scorer name and recorded score name of each header scorer."""
+    return [(s.name, s.score_name) for s in log.eval.scorers or []]
+
+
+@pytest.mark.parametrize("scored", [True, False], ids=["scored", "unscored"])
+async def test_score_keeps_score_names_of_dict_scored_eval(
+    tmp_path: pathlib.Path, scored: bool
+) -> None:
+    """Scorers rebuilt from a dict-scored eval's header are rescored under its names."""
+    log = await _dict_scored_log(tmp_path, score=scored)
+    assert _header_score_name_pairs(log) == [("match", "strict"), ("match", "loose")]
+
+    rebuilt = named_scorers_from_log_header(log, resolve_scorers(log))
+    assert isinstance(rebuilt, dict)
+    assert list(rebuilt) == ["strict", "loose"]
+
+    rescored = await score_async(log, rebuilt, action="overwrite")
+    assert _sample_score_keys(rescored) == [["strict", "loose"]] * 2
+    assert [entry["name"] for entry in _score_entries(rescored)] == ["strict", "loose"]
+    assert [r["scorer"] for r in _reductions(rescored)] == ["strict", "loose"]
+    assert _header_score_name_pairs(rescored) == [
+        ("match", "strict"),
+        ("match", "loose"),
+    ]
+
+
+async def test_score_appends_to_dict_scored_eval(tmp_path: pathlib.Path) -> None:
+    """Appended scorers can't take a dict-scored eval's names; a list gets its own."""
+    log = await _dict_scored_log(tmp_path)
+
+    with pytest.raises(ValueError, match="already in the log: strict"):
+        await score_async(log, {"strict": match()}, action="append")
+
+    appended = await score_async(log, [match()], action="append")
+    assert _sample_score_keys(appended) == [["strict", "loose", "match"]] * 2
+    assert [entry["name"] for entry in _score_entries(appended)] == [
+        "strict",
+        "loose",
+        "match",
+    ]
+    assert _header_score_name_pairs(appended) == [
+        ("match", "strict"),
+        ("match", "loose"),
+        ("match", "match"),
+    ]

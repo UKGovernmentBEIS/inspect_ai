@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import copy
 from dataclasses import dataclass
 from logging import getLogger
 from typing import (
@@ -17,7 +18,7 @@ from typing import (
 from inspect_ai.util._early_stopping import EarlyStopping
 
 if TYPE_CHECKING:
-    from inspect_ai.scorer._scorers import Scorers
+    from inspect_ai.scorer._scorers import NamedScorers, Scorers
     from inspect_ai.util._checkpoint.config import (
         OnCheckpointCallback,
         OnResumeCallback,
@@ -92,7 +93,7 @@ class Task:
         setup: Solver | list[Solver] | None = None,
         solver: Solver | Agent | list[Solver] = generate(),
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
-        scorer: "Scorers" | None = None,
+        scorer: "NamedScorers" | None = None,
         metrics: list[Metric | dict[str, list[Metric]]]
         | dict[str, list[Metric]]
         | None = None,
@@ -138,7 +139,10 @@ class Task:
             cleanup: Optional cleanup function for task. Called after
                 all solvers and scorers have run for each sample (including if an
                 exception occurs during the run)
-            scorer: Scorer used to evaluate model output.
+            scorer: Scorer used to evaluate model output: a scorer, a list of
+                scorers, or a dict of scorers keyed by score name. Scores are
+                named for their dict key, or for their scorer when no dict is
+                passed.
             metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
             model: Default model for task (Optional, defaults to eval model).
             config: Model generation config for default model (does not apply to model roles)
@@ -249,7 +253,11 @@ class Task:
         self.cleanup = cleanup
         self.on_checkpoint = on_checkpoint
         self.on_resume = on_resume
-        self.scorer = resolve_scorer_metrics(resolve_scorer(scorer), metrics)
+        named_scorers = resolve_named_scorers(scorer)
+        self._scorer: list[Scorer] | None = resolve_scorer_metrics(
+            named_scorers.scorers, metrics
+        )
+        self._score_names: list[str] | None = named_scorers.score_names
         self.metrics = metrics
         self.model = resolve_model(model)
         self.config = config
@@ -282,6 +290,23 @@ class Task:
         self.tags = tags
         self.viewer = viewer
         self.headline_metric = resolve_headline_metric_spec(headline_metric)
+
+    @property
+    def scorer(self) -> list[Scorer] | None:
+        """Scorers for the task, as a list whether passed as a list or a dict.
+
+        The list doesn't carry score names. Assign a dict of scorers to name the
+        scores; assigning a scorer or a list of scorers names them for their scorers.
+        """
+        return self._scorer
+
+    @scorer.setter
+    def scorer(self, scorer: "NamedScorers" | None) -> None:
+        # A dict names the scores, as in the constructor. Anything else clears
+        # the names: they are positional, so they can't describe another list.
+        named_scorers = resolve_named_scorers(scorer)
+        self._scorer = named_scorers.scorers
+        self._score_names = named_scorers.score_names
 
     @property
     def name(self) -> str:
@@ -325,7 +350,7 @@ def task_with(
     setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
     solver: Solver | Agent | list[Solver] | NotGiven = NOT_GIVEN,
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
-    scorer: "Scorers" | None | NotGiven = NOT_GIVEN,
+    scorer: "NamedScorers" | None | NotGiven = NOT_GIVEN,
     metrics: list[Metric | dict[str, list[Metric]]]
     | dict[str, list[Metric]]
     | None
@@ -378,7 +403,10 @@ def task_with(
         cleanup: Optional cleanup function for task. Called after
             all solvers and scorers have run for each sample (including if an
             exception occurs during the run)
-        scorer: Scorer used to evaluate model output.
+        scorer: Scorer used to evaluate model output: a scorer, a list of
+            scorers, or a dict of scorers keyed by score name. Scores are
+            named for their dict key, or for their scorer when no dict is
+            passed.
         metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
         model: Default model for task (Optional, defaults to eval model).
         config: Model generation config for default model (does not apply to model roles)
@@ -471,7 +499,7 @@ def task_with(
     if not isinstance(on_resume, NotGiven):
         task.on_resume = on_resume
     if not isinstance(scorer, NotGiven):
-        task.scorer = resolve_scorer(scorer)
+        task.scorer = scorer
     if not isinstance(metrics, NotGiven):
         task.metrics = metrics
     if not isinstance(model, NotGiven):
@@ -686,14 +714,106 @@ def resolve_scorer(
 ) -> list[Scorer] | None:
     if scorer is None:
         return scorer
-    if isinstance(scorer, Mapping):
-        raise TypeError(
-            "A dict of scorers is only supported by score() and score_async(); "
-            "pass a scorer or a list of scorers."
-        )
-
     scorers = list(scorer) if isinstance(scorer, Sequence) else [scorer]
     return [to_scorer(s) for s in scorers]
+
+
+class NamedScorerList(NamedTuple):
+    """Scorers resolved from a `NamedScorers` value."""
+
+    scorers: list[Scorer] | None
+    score_names: list[str] | None
+    """Score name of each scorer when passed as a dict, otherwise `None`."""
+
+
+def resolve_named_scorers(scorer: "NamedScorers" | None) -> NamedScorerList:
+    """Resolve the scorers for a task, splitting a dict into scorers and score names.
+
+    Raises `ValueError` for a dict key that isn't a non-empty string.
+    """
+    if not isinstance(scorer, Mapping):
+        return NamedScorerList(scorers=resolve_scorer(scorer), score_names=None)
+
+    # score.py imports this module, so the shared name check is imported here
+    from inspect_ai._eval.score import _validate_score_names
+
+    score_names = list(scorer.keys())
+    _validate_score_names(score_names, existing=set())
+    return NamedScorerList(
+        scorers=resolve_scorer(list(scorer.values())), score_names=score_names
+    )
+
+
+def task_score_names(task: Task) -> list[str] | None:
+    """Score name of each of the task's scorers, if they were passed as a dict.
+
+    Names are in `task.scorer` order. `None` means the scorers were passed as a
+    scorer or list (or there are none), so their score names are generated.
+
+    Raises `ValueError` if `task.scorer` was changed in place and no longer has
+    one scorer per name, rather than pairing the names with the wrong scorers.
+    """
+    score_names = task._score_names
+    if score_names is None:
+        return None
+    scorers = task.scorer or []
+    if len(scorers) != len(score_names):
+        raise ValueError(
+            f"Task '{task.name}' has {len(scorers)} scorers but {len(score_names)} "
+            f"score names ({', '.join(score_names)}): task.scorer was changed "
+            "in place after a dict of scorers was passed. Assign the new "
+            "scorers to task.scorer instead."
+        )
+    return score_names
+
+
+def with_previous_score_names(task: Task, previous_log: EvalLog) -> Task:
+    """`task` with the score names of the run recorded in `previous_log`.
+
+    A retried log carries the previous run's samples, and their scores keep the
+    names they were recorded under. Scores of the remaining samples are reduced
+    and aggregated with them only under the same names. The task's own names
+    can differ: a retry reloads the task from its definition, which loses names
+    applied with `task_with()`, and the definition may have changed. The previous
+    names (generated ones, if the log records none) therefore replace them.
+
+    Names are positional, so they are kept only when the task has the scorers
+    the previous log's header records. Otherwise the task's own names are used,
+    as they are when scorers change between a run and its retry.
+
+    Returns a copy when the names change. The task object can be shared with
+    other evals (another model in an eval set, a later `eval()`), which keep
+    the task's own names.
+    """
+    header_scorers = previous_log.eval.scorers
+    if not header_scorers or not task.scorer:
+        return task
+
+    # score.py imports this module, so the header name helper is imported here
+    from inspect_ai._eval.score import score_names_from_log_header
+
+    previous_names = score_names_from_log_header(previous_log)
+    if previous_names == task._score_names:
+        return task
+
+    previous_scorers = [eval_scorer.name for eval_scorer in header_scorers]
+    scorers = [
+        registry_unqualified_name(scorer) if is_registry_object(scorer) else None
+        for scorer in task.scorer
+    ]
+    if scorers != previous_scorers:
+        if previous_names is not None:
+            logger.warning(
+                f"Task '{task.name}' is retried with scorers that differ from "
+                "those in the previous log, so its score names "
+                f"({', '.join(previous_names)}) are not kept. Scores recorded "
+                "under those names are not included in the results of this retry."
+            )
+        return task
+
+    task = copy(task)
+    task._score_names = previous_names
+    return task
 
 
 def to_scorer(s: Any) -> Scorer:

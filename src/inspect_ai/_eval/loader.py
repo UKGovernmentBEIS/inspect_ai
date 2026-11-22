@@ -56,6 +56,7 @@ from .task import PreviousTask, Task, TaskInfo
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 from .task.hf import task_create_from_hf
 from .task.run import eval_log_sample_source
+from .task.task import with_previous_score_names
 from .task.task_source import TaskSource
 from .task.tasks import Tasks
 
@@ -345,6 +346,7 @@ def resolve_previous_task(
     )
 
     _retain_untrusted_content(loaded_task, previous_task.log)
+    loaded_task = with_previous_score_names(loaded_task, previous_task.log)
 
     return ResolvedTask(
         task=loaded_task,

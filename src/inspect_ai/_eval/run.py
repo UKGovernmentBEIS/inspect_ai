@@ -115,7 +115,7 @@ from .task.sandbox import (
     resolve_sandbox,
     resolve_sandbox_for_task_and_sample,
 )
-from .task.task import Task
+from .task.task import Task, task_score_names
 from .task.task_source import TaskSource
 from .task.util import resolve_task_sample_ids, slice_dataset, task_run_dir
 
@@ -432,6 +432,7 @@ async def eval_run(
                     model_roles=resolved_task.model_roles,
                     dataset=task.dataset,
                     scorer=eval_scorer_specs,
+                    score_names=task_score_names(task),
                     metrics=eval_metrics,
                     headline_metric=task.headline_metric,
                     sandbox=resolved_task.sandbox,

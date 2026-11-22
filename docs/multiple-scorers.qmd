@@ -88,6 +88,30 @@ This is useful when there is more than one way to score a result and you would l
 
 With multiple scorers, tools that show a single number for the eval default to the first metric of the first scorer. Use [`headline_metric`](metrics.qmd#headline-metric) on the `Task` to nominate a different one.
 
+### Naming Scores
+
+By default each score is named for its scorer, with a number added when a scorer is used more than once (the two graders above are recorded as `model_graded_qa` and `model_graded_qa1`). To choose the names yourself, pass a dict of scorers keyed by score name:
+
+``` python
+Task(
+    dataset=dataset,
+    solver=[
+        system_message(SYSTEM_MESSAGE),
+        generate()
+    ],
+    scorer={
+        "gpt4": model_graded_qa(model="openai/gpt-4"),
+        "gemini": model_graded_qa(model="google/gemini-2.5-pro")
+    },
+)
+```
+
+The scores for each sample and the results for the eval are then recorded as `gpt4` and `gemini`. Use the same names to refer to a score elsewhere (e.g. `headline_metric="gemini"`).
+
+The names are saved in the log, so they are kept when you [re-score it](scoring-workflow.qmd#score-command) with `inspect score`. A retry (`inspect eval-retry`, or `eval_set()` resuming a log) also scores under the names in the log it continues, so that all of the samples are aggregated together. Names must be non-empty strings.
+
+To name the scores of an existing task, pass a dict to `task_with()` or assign one to `task.scorer`. Reading `task.scorer` always gives a list of scorers, which doesn't include the names: `Task(scorer=other_task.scorer)` records default names, and assigning a scorer or a list to `task.scorer` drops the names of the dict it replaces.
+
 ## Scorer with Multiple Values
 
 You may also create a scorer which yields multiple scores. This is useful when the scores use data that is shared or expensive to compute. For example:
