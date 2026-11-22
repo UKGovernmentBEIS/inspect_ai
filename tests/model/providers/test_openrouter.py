@@ -1,15 +1,25 @@
-"""Tests for the OpenRouter provider's Anthropic prompt-caching support."""
+"""Tests for the OpenRouter provider.
+
+Covers Anthropic prompt caching, reasoning replay, sticky session routing, and
+errors returned in a 200 response.
+"""
 
 import json
 from typing import Any
 
+import httpx2
 import pytest
+from openai import DefaultAsyncHttpxClient
 
+from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import RetryDecision
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
+from inspect_ai.model._openai import OpenAIResponseError
 from inspect_ai.model._providers.openrouter import (
     OpenRouterAPI,
+    OpenRouterError,
     _add_anthropic_cache_markers,
     _apply_cache_creation_usage,
 )
@@ -962,3 +972,111 @@ async def test_openrouter_responses_api_does_not_send_explicit_cache_fields(
         if isinstance(content, list):
             for block in content:
                 assert "prompt_cache_breakpoint" not in block
+
+
+# -- Errors in a 200 response ---------------------------------------------------
+
+
+def _completion(
+    content: str = "ok",
+    finish_reason: str = "stop",
+    error: Any = None,
+) -> dict[str, Any]:
+    choice: dict[str, Any] = {
+        "index": 0,
+        "finish_reason": finish_reason,
+        "message": {"role": "assistant", "content": content},
+    }
+    if error is not None:
+        choice["error"] = error
+    return {
+        "id": "gen-1",
+        "object": "chat.completion",
+        "created": 0,
+        "model": "openai/gpt-4o",
+        "choices": [choice],
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+    }
+
+
+def _choice_error(code: int) -> dict[str, Any]:
+    """A mid-generation failure: the error sits on the choice, beside partial text."""
+    return _completion(
+        content="partial",
+        finish_reason="error",
+        error={
+            "code": code,
+            "message": "openai/gpt-4o is temporarily rate-limited upstream",
+            "metadata": {"provider_name": "OpenAI"},
+        },
+    )
+
+
+def _raised(api: OpenRouterAPI, response: dict[str, Any]) -> BaseException:
+    with pytest.raises(Exception) as excinfo:
+        api.on_response(response)
+    return excinfo.value
+
+
+def test_on_response_choice_error_429_retries_as_rate_limit() -> None:
+    api = _make_api("openai/gpt-4o")
+    ex = _raised(api, _choice_error(429))
+    assert isinstance(ex, OpenAIResponseError)
+    assert api.should_retry(ex) == RetryDecision.rate_limit()
+
+
+@pytest.mark.parametrize("code", [408, 500, 502, 504])
+def test_on_response_choice_error_server_codes_retry_as_transient(code: int) -> None:
+    api = _make_api("openai/gpt-4o")
+    ex = _raised(api, _choice_error(code))
+    assert isinstance(ex, OpenAIResponseError)
+    assert api.should_retry(ex) == RetryDecision.transient()
+
+
+def test_on_response_choice_error_400_raises_without_retry() -> None:
+    api = _make_api("openai/gpt-4o")
+    ex = _raised(api, _choice_error(400))
+    assert isinstance(ex, OpenRouterError)
+    assert api.should_retry(ex) == RetryDecision.no()
+
+
+def test_on_response_top_level_error_wins_over_choice_error() -> None:
+    api = _make_api("openai/gpt-4o")
+    response = _choice_error(429) | {"error": {"code": 400, "message": "bad"}}
+    assert isinstance(_raised(api, response), OpenRouterError)
+
+
+@pytest.mark.parametrize(
+    "error",
+    ["upstream exploded", {"message": "boom"}, {"code": 502}, None, {}],
+    ids=["string", "no-code", "no-message", "none", "empty"],
+)
+def test_on_response_ignores_malformed_choice_error(error: Any) -> None:
+    response = _completion(content="partial", finish_reason="error")
+    response["choices"][0]["error"] = error
+    _make_api("openai/gpt-4o").on_response(response)
+
+
+def test_on_response_accepts_normal_completion() -> None:
+    _make_api("openai/gpt-4o").on_response(_completion())
+
+
+async def test_generate_retries_choice_error_and_returns_next_completion() -> None:
+    responses = [_choice_error(429), _completion("ok")]
+    requests: list[httpx2.Request] = []
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        requests.append(request)
+        return httpx2.Response(200, json=responses[len(requests) - 1])
+
+    model = get_model(
+        "openrouter/openai/gpt-4o",
+        api_key="test",
+        base_url="http://test/v1",
+        http_client=DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler)),
+        memoize=False,
+    )
+    output = await model.generate("hello", config=GenerateConfig(max_retries=1))
+
+    assert len(requests) == 2
+    assert output.completion == "ok"
