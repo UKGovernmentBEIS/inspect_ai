@@ -1097,3 +1097,67 @@ async def test_generate_retries_choice_error_and_returns_next_completion() -> No
 
     assert len(requests) == 2
     assert output.completion == "ok"
+
+
+def _streamed(response: dict[str, Any]) -> httpx2.Response:
+    """Stream a completion's choice, including any error, in a single chunk."""
+    choice = response["choices"][0]
+    chunk = {
+        "id": response["id"],
+        "object": "chat.completion.chunk",
+        "created": response["created"],
+        "model": response["model"],
+        "choices": [
+            {k: v for k, v in choice.items() if k != "message"}
+            | {"delta": choice["message"]}
+        ],
+    }
+    body = f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n"
+    return httpx2.Response(
+        200, headers={"content-type": "text/event-stream"}, content=body.encode()
+    )
+
+
+async def test_generate_streamed_retries_choice_error_and_returns_next_completion() -> (
+    None
+):
+    responses = [_response_with_choice_error(429), _completion("ok")]
+    requests: list[httpx2.Request] = []
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        requests.append(request)
+        return _streamed(responses[len(requests) - 1])
+
+    model = get_model(
+        "openrouter/openai/gpt-4o",
+        api_key="test",
+        base_url="http://test/v1",
+        http_client=DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler)),
+        stream=True,
+        memoize=False,
+    )
+    output = await model.generate("hello", config=GenerateConfig(max_retries=1))
+
+    assert len(requests) == 2
+    assert output.completion == "ok"
+
+
+async def test_generate_streamed_choice_error_400_raises_without_retry() -> None:
+    requests: list[httpx2.Request] = []
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        requests.append(request)
+        return _streamed(_response_with_choice_error(400))
+
+    model = get_model(
+        "openrouter/openai/gpt-4o",
+        api_key="test",
+        base_url="http://test/v1",
+        http_client=DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler)),
+        stream=True,
+        memoize=False,
+    )
+    with pytest.raises(OpenRouterError):
+        await model.generate("hello", config=GenerateConfig(max_retries=1))
+
+    assert len(requests) == 1
