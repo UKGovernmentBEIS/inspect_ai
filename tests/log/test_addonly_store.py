@@ -521,6 +521,19 @@ def test_extra_eval_file(
     assert f"unstored_eval {extra.eval.eval_id}:" in result.output
 
 
+def test_duplicate_eval_id(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """An edited copy of the .eval file next to the original, with its eval id."""
+    log = read_eval_log(clean_run.location)
+    assert log.samples
+    tool_event = next(e for e in log.samples[0].events if isinstance(e, ToolEvent))
+    tool_event.result = "harmless"
+    # the copy's name sorts after the original's (a date), which is compared
+    write_eval_log(log, clean_run.log_dir / "copy.eval")
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "duplicate_eval_file")
+    assert f"duplicate_eval_file {clean_run.eval_id}:" in result.output
+
+
 # ---------------------------------------------- tampering, add-only store
 #
 # The eval host can add keys (put with If-None-Match) and nothing else. Its

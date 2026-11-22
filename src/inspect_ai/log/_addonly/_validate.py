@@ -59,6 +59,7 @@ FindingKind = Literal[
     "event_mismatch",
     "malformed_record",
     "unstored_eval",
+    "duplicate_eval_file",
 ]
 
 
@@ -174,8 +175,18 @@ def validate_store(
             eval_id=eval_id,
             message=f"{eval_file} has no records in the store.",
         )
-        for eval_id, eval_file in sorted(eval_files.items())
+        for eval_id, (eval_file, *_) in sorted(eval_files.items())
         if eval_id not in evals
+    )
+    findings.extend(
+        Finding(
+            kind="duplicate_eval_file",
+            eval_id=eval_id,
+            message=f"{len(names)} .eval files have this eval id: {names}. "
+            "The first is compared.",
+        )
+        for eval_id, names in sorted(eval_files.items())
+        if len(names) > 1
     )
     samples_compared = 0
     for eval_id, keys in sorted(evals.items()):
@@ -183,7 +194,7 @@ def validate_store(
             eval_id,
             keys,
             lambda rel: read(location.key(rel)),
-            eval_files.get(eval_id),
+            eval_files.get(eval_id, [None])[0],
         )
         findings.extend(eval_findings)
         samples_compared += compared
@@ -239,12 +250,12 @@ def _requires_if_none_match(statement: dict[str, Any]) -> bool:
     )
 
 
-def _eval_files(log_dir: str) -> dict[str, str]:
-    """Map eval id to .eval file in ``log_dir``."""
-    return {
-        read_eval_log(info.name, header_only=True).eval.eval_id: info.name
-        for info in list_eval_logs(log_dir, formats=["eval"])
-    }
+def _eval_files(log_dir: str) -> dict[str, list[str]]:
+    """Map eval id to the .eval files in ``log_dir`` that have it, sorted."""
+    files: dict[str, list[str]] = defaultdict(list)
+    for info in list_eval_logs(log_dir, formats=["eval"]):
+        files[read_eval_log(info.name, header_only=True).eval.eval_id].append(info.name)
+    return {eval_id: sorted(names) for eval_id, names in files.items()}
 
 
 def _validate_eval(
