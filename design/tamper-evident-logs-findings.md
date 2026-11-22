@@ -76,7 +76,9 @@ review as a feature.
   attempts (listed, not findings), and samples an eval retry reused
   (compared with the earlier eval's records). Review round 2 changed how
   reused samples are found (the start record's `prior_eval_id`), and added
-  reused samples missing from a retry's .eval. It exits non-zero on any
+  reused samples missing from a retry's .eval. Review round 3 applied the
+  retry's own selection to that check, and lists evals with no .eval file
+  that a later eval names. It exits non-zero on any
   finding. `--verbose` lists each record
   with its arrival time. The scope for matching eval ids to .eval files is
   the `--store` prefix: one prefix per log directory.
@@ -305,8 +307,9 @@ and its own commit.
 3. **A deleted reused sample** (19bcb1ee7). Change 2 lost a check: a
    reused sample deleted from a retry's .eval gave 0 findings (the reused
    list had given `missing_sample`). Restored without the list: a retry
-   copies every sample of its prior eval into its log before any sample
-   runs (`TaskLogger.seed_from_prior`, `log.py:595`; called at
+   copies every sample of its prior eval that it selects (its sample ids
+   and epochs; review round 3, fix 1 corrects this) into its log before
+   any sample runs (`TaskLogger.seed_from_prior`, `log.py:595`; called at
    `run.py:1231`). So each sample that the prior evals closed without an
    error, and that the retry has no records of, must be in the retry's
    .eval; else `missing_sample`. Test: `test_delete_reused_sample`. The
@@ -333,6 +336,7 @@ and its own commit.
    file is not a finding when a later eval's start record names it as
    `prior_eval_id`. Its records are still read and used for the reused
    samples. Deleting such a file is then not reported; the docs say so.
+   (Review round 3 lists such an eval as `prior_without_file`.)
    Test: `test_eval_set_retry_validates[True]`.
 6. **A bad attempt in a key** (e50504901). `<eval>/s0.1/bad/closing`
    stopped the validator at `int(attempt)`. The key check now needs a
@@ -352,6 +356,53 @@ of start records; a retry's .eval must hold each sample that the prior
 evals closed without an error; and an eval whose .eval file is gone is a
 finding unless a later eval names it. One mechanism (the start record's
 `prior_eval_id`) serves all three.
+
+## Review round 3: fixes
+
+Two fresh-context reviews (Claude Opus 5.5; Codex gpt-6.1-sol) found
+these. Each fix has a test that failed first, and its own commit.
+
+1. **False `missing_sample` for a narrower retry** (65f1b61bc). An
+   eval_set retried with `sample_id=["s0"]`, or with fewer epochs, gave
+   `missing_sample` for each sample of the prior chain that the retry
+   does not select. The seed copies only the selected samples
+   (`seed_from_prior`, `log.py:608`; `run.py:1237`: the dataset sample ids
+   and the epoch count). The check now applies the retry's own selection,
+   from its start record's eval spec (`_selects`). The eval spec replaces
+   the `started` flag of `_StoredEval`. Tests:
+   `test_eval_set_narrower_retry_validates[sample_id]`, `[epochs]`.
+2. **A visible list for evals with no .eval file that a later eval
+   names** (8f313aa41). This keeps decision D2 (not a finding), but the
+   eval now shows: `inspect validate` prints
+   `prior_without_file <eval id>: No .eval file; <later eval id> names it
+   as its prior eval.` before the count, as for `retried`
+   (`ValidationReport.prior_without_file`). The exit code does not
+   change. Eval-host keys can forge a later eval that names any eval, so a
+   deleted .eval file of any eval, successful or not, shows only in this
+   list. A forged later eval with its own records of the same samples
+   replaces their records in the comparison. The docs say both. Test:
+   `test_forged_successor_lists_deleted_eval_file`; also
+   `test_eval_set_retry_validates[True]` shows the line.
+3. **An eval that names itself as prior** (8a26474f0). Its missing .eval
+   file was not reported. The check now looks only at the other evals.
+   Test: `test_eval_names_itself_as_prior`.
+4. **Docs.** The early-stop limit now says that a retry must keep only
+   the samples it selects. New known limit: a retry also copies the
+   samples that the prior eval closed with an error; if the retry stops
+   before it runs one again, and someone deletes the copy from the
+   retry's .eval, the validator does not report it (the check covers
+   samples closed without an error only). An eval_set run again later to
+   retry an earlier run needs the store option again.
+
+Not changed: rescore (on hold with Eric).
+
+After these changes, the retry guarantees are: a retry's reused sample
+must match a closed attempt of the eval that ran it, found along the chain
+of start records; a retry's .eval must hold each sample that the prior
+evals closed without an error and that the retry selects; and an eval
+whose .eval file is gone is a finding unless another eval names it, and
+then it is listed. The start record (its `prior_eval_id` and eval spec)
+serves all three.
 
 ## The evals that were run
 
@@ -797,8 +848,11 @@ At 408cf8bd0, moto server only:
   checked against them; a wrong id gives a finding for each reused sample.
 - A retry that stops early can give a false `missing_sample` (review
   round 2, fix 3, cases a to c).
-- A deleted .eval file of an eval that a later eval names is not reported
-  (review round 2, fix 5).
+- A deleted .eval file of an eval that a later eval names is not a
+  finding (review round 2, fix 5); it is listed as `prior_without_file`
+  (review round 3, fix 2). Eval-host keys can forge such a later eval.
+- A copied errored sample deleted from a retry's .eval, before the retry
+  runs it again, is not reported (review round 3, fix 4).
 
 ## Not tested
 
