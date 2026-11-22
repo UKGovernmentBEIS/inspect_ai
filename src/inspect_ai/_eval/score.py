@@ -373,7 +373,7 @@ async def score_async(
                 # which means that metrics below are being computed
                 # only for the new scores (not all scores on the sample)
                 #
-                # We need to capture the the full sample score here
+                # We need to capture the full sample score here
                 # since the sample score carries the scorer name that generated
                 # it (so using sample.scores directly isn't enough)
                 sample_score, names = await _run_score_task(
