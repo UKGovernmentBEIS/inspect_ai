@@ -74,7 +74,9 @@ review as a feature.
   records. Review round 1 added: samples found by zip member name, values
   compared as JSON text, rows that stop the sample rebuild, retried
   attempts (listed, not findings), and samples an eval retry reused
-  (compared with the earlier eval's records). It exits non-zero on any
+  (compared with the earlier eval's records). Review round 2 changed how
+  reused samples are found (the start record's `prior_eval_id`), and added
+  reused samples missing from a retry's .eval. It exits non-zero on any
   finding. `--verbose` lists each record
   with its arrival time. The scope for matching eval ids to .eval files is
   the `--store` prefix: one prefix per log directory.
@@ -248,7 +250,8 @@ Changes after the run (plan v83), with Eric's go:
   validator reported `missing_closing`. Now, when a later attempt of the
   same sample has a closing record, the attempt is listed as `retried`
   and is not a finding. With no later closed attempt, it is still
-  `missing_closing`. Test: `test_retry_on_error_validates`.
+  `missing_closing`. Test: `test_retry_on_error_validates`. *Review round
+  2:* also only when `retry_on_error` allows the attempt (fix 4).
 - **eval_retry.** A sample the retry reused from an earlier eval has no
   records under the retry's eval id, so the validator reported
   `unstored_sample`. The retry's .eval does not say which eval the sample
@@ -259,7 +262,9 @@ Changes after the run (plan v83), with Eric's go:
   that eval's records, and follows the list when the earlier eval is a
   retry too. An earlier eval with no closed attempt of the sample gives
   `unstored_sample`. Tests: `test_eval_retry_validates` (two retries),
-  `test_edit_reused_sample`.
+  `test_edit_reused_sample`. *Replaced in review round 2* by the start
+  record's `prior_eval_id` (fixes 1 to 3): the list crashed
+  `task_retry_attempts` and eval_set retries.
 - **Rescore (`inspect score`).** Not changed; the design is pending with
   Eric. Plan v83 expects a rescore to change only scores and the header.
   But `inspect score` also writes the sample's events again: it builds the
@@ -272,6 +277,81 @@ Changes after the run (plan v83), with Eric's go:
 Also: the store location is now the eval option `tamper_evident_store`
 (see [What was built](#what-was-built)); the environment variable is
 gone.
+
+## Review round 2: fixes
+
+Two fresh-context reviews (Claude Opus 5.5; Codex gpt-6.1-sol) of the
+branch at 482060faa found these. Each fix has a test that failed first,
+and its own commit.
+
+1. **Crash on task_retry_attempts and eval_set retries** (7789f1c04). The
+   retry crashed at its first reused sample (`assert self.prior_eval_id is
+   not None` in `note_reused`), because `TaskLogger.reinit` did not change
+   the prior eval id. eval_set retries by default with
+   `task_retry_attempts`, so every eval_set retry with a reused sample
+   crashed. Tests: `test_task_retry_attempts_validates`,
+   `test_eval_set_retry_validates`.
+2. **One prior eval per eval, not a list per sample** (same commit). Every
+   sample that one eval reuses comes from the same earlier eval. The start
+   record now has `prior_eval_id`, from the retry's
+   `EvalSampleSource.prior_eval_id` (`task_run` passes it to
+   `TaskLogger.log_start`); no copy is kept in `TaskLogger` or the writer.
+   Removed: `ReusedSampleRef`, `EvalClosingRecord.reused`, `note_reused`
+   and its call in `task_run`. The validator treats a .eval sample with no
+   records under the eval as reused, and finds its closed attempt along the
+   chain of start records (`_earlier_attempt`, `_prior_evals`). With no
+   prior eval, or no closed attempt in the chain, it is `unstored_sample`
+   (`test_add_sample_to_retry`).
+3. **A deleted reused sample** (19bcb1ee7). Change 2 lost a check: a
+   reused sample deleted from a retry's .eval gave 0 findings (the reused
+   list had given `missing_sample`). Restored without the list: a retry
+   copies every sample of its prior eval into its log before any sample
+   runs (`TaskLogger.seed_from_prior`, `log.py:595`; called at
+   `run.py:1231`). So each sample that the prior evals closed without an
+   error, and that the retry has no records of, must be in the retry's
+   .eval; else `missing_sample`. Test: `test_delete_reused_sample`. The
+   reuse rule itself (`classify`, `run.py:4246`) also needs no
+   invalidation, which the store does not hold; this does not matter,
+   since the seed copies those samples too. False `missing_sample` is
+   possible when a retry stops before it runs the sample and has no copy of
+   it: (a) the retry is unseeded (the prior .eval was gone at start, or
+   `log_samples` is off; `log.py:630`), (b) a limited dynamic sample feed
+   is cancelled during admission (`log.py:614`), (c) the prior eval put the
+   sample's closing record and stopped before the sample reached its .eval
+   (`run.py:3706`). A later retry that completes holds the samples, and
+   eval_set's cleanup then removes the stopped retry's .eval.
+4. **Retried only when retry_on_error allows it** (8df86b887). An attempt
+   with no closing record was `retried` whenever a later attempt was
+   closed. Now the attempt number must also be at most the start record's
+   `eval.config.retry_on_error`; else `missing_closing`. Test:
+   `test_retried_needs_retry_on_error`. With `retry_on_error` on, a
+   compromised process can still write a later attempt so that an earlier
+   attempt's events are not compared; the docs say so.
+5. **eval_set retry cleanup** (231a7f0b5; Eric's decision D2, option b).
+   `retry_cleanup` (on by default) deletes the failed attempt's .eval file,
+   so the validator reported `missing_eval_file`. Now an eval with no .eval
+   file is not a finding when a later eval's start record names it as
+   `prior_eval_id`. Its records are still read and used for the reused
+   samples. Deleting such a file is then not reported; the docs say so.
+   Test: `test_eval_set_retry_validates[True]`.
+6. **A bad attempt in a key** (e50504901). `<eval>/s0.1/bad/closing`
+   stopped the validator at `int(attempt)`. The key check now needs a
+   decimal attempt, so the key is `malformed_record` and validation goes
+   on. Test: `test_malformed_record[bad_attempt_closing]`,
+   `[bad_attempt_record]`.
+7. **Docs** (ef6e2ddbc): bucket setup wording, `--region` on
+   create-bucket, where the nonce is, the shortened record list, retries
+   by eval_set and `task_retry_attempts`, "Experimental" in the
+   `eval_retry` docstrings.
+
+Not changed: rescore (on hold with Eric).
+
+After these changes, the retry guarantees are: a retry's reused sample
+must match a closed attempt of the eval that ran it, found along the chain
+of start records; a retry's .eval must hold each sample that the prior
+evals closed without an error; and an eval whose .eval file is gone is a
+finding unless a later eval names it. One mechanism (the start record's
+`prior_eval_id`) serves all three.
 
 ## The evals that were run
 
@@ -648,6 +728,29 @@ for each other, validator scope). These remain or are new:
 - Test compliance mode, the If-None-Match policy and real put latency in a
   sandbox AWS account.
 
+## Validation runs (review round 2)
+
+Code at ef6e2ddbc, plus the test fix in the next commit (one stub in
+`tests/test_eval_set.py`). moto server only:
+
+- `pytest tests/log/test_addonly_store.py -n 4` (with
+  `ADDONLY_EVIDENCE_DIR` set): 75 passed, 4 skipped (trio variants); with
+  `--runtrio`, the 4 trio variants pass. 59 output files.
+- `pytest tests/log -n 4` (with `.venv/bin` on `PATH`): 2,374 passed, 510
+  skipped, 0 failed.
+- `pytest tests/agent/test_bridge_approval.py tests/test_retry.py
+  tests/test_eval_set.py tests/test_eval_set_overrides.py tests/test_eval.py
+  tests/test_task_cancel.py -n 4`: 1,937 passed, 1,312 skipped, 0 failed,
+  after the stub fix. Before it: 1 failed
+  (`test_retry_abandoned_during_seed_never_starts_the_log`, a `log_start`
+  stub with two arguments).
+- `ruff check .`, `ruff format --check .`, `mypy --exclude
+  tests/test_package src tests`, mypy on the two scripts: clean.
+- eval_set with a retry against moto: `test_eval_set_retry_validates[False]`
+  (`retry_cleanup=False`) gives 2 evals, 4 samples compared, 0 findings;
+  `[True]` (the default cleanup) gives 2 evals, 2 samples compared, 0
+  findings.
+
 ## Validation runs (review round 1)
 
 At 408cf8bd0, moto server only:
@@ -682,16 +785,20 @@ At 408cf8bd0, moto server only:
 
 - **Rescore fails validation today; design pending with Eric.** See
   [Review round 1](#review-round-1-fixes-and-changes-after-the-run).
-- A retry's reused-sample list is a claim by the retry's eval host. The
-  earlier eval's records are protected, so the .eval sample is still
-  checked against them; a list that names the wrong eval gives a finding.
+- A retry's `prior_eval_id` is a claim by the retry's eval host. The
+  earlier eval's records are protected, so a reused sample is still
+  checked against them; a wrong id gives a finding for each reused sample.
+- A retry that stops early can give a false `missing_sample` (review
+  round 2, fix 3, cases a to c).
+- A deleted .eval file of an eval that a later eval names is not reported
+  (review round 2, fix 5).
 
 ## Not tested
 
 - Real S3 (by instruction).
-- `eval_set()` and the `--tamper-evident-store` CLI flag: the option is
-  passed through (mypy-checked), but no eval set or CLI eval ran with it;
-  the tests use `eval()` and `eval_retry()`.
+- The `--tamper-evident-store` CLI flag: passed through (mypy-checked),
+  but no CLI eval ran with it. `eval_set()` ran with a retry in review
+  round 2.
 - Trio: the unit tests of the writer and the store run under trio; no eval
   ran under trio.
 - The sentinel sidecar, sandboxed bridged agents (the bridge runs in
