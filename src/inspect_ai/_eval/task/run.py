@@ -346,12 +346,15 @@ class EvalSampleSource(NamedTuple):
     `prior_created` is the prior log's `eval.created` (None with no prior
     log): the attempt's own `created` is made later than it, which keeps
     generated sample ids from repeating (see `dynamic_id_token`).
+    `prior_eval_id` is the prior log's eval id: the eval a reused sample
+    comes from (the add-only store lists it with the sample).
     """
 
     lookup: SampleLookup
     seed: SeedSource | None = None
     prior_checkpoints_dir: str | None = None
     prior_created: str | None = None
+    prior_eval_id: str | None = None
 
 
 # Bound on concurrent checkpoint-dir probes/deletes in `run_sample` (a retry
@@ -1723,6 +1726,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
                     if isinstance(previous_sample, EvalSample):
                         reporter.progress()
+                        if logger.addonly is not None:
+                            logger.addonly.note_reused(
+                                previous_sample.id, previous_sample.epoch
+                            )
                         if logger.prior_seeded:
                             logger.note_reused_sample(previous_sample)
                         elif log_samples:
@@ -4326,6 +4333,7 @@ def eval_log_sample_source(
             ),
             prior_checkpoints_dir=eval_checkpoints_dir,
             prior_created=eval_log.eval.created,
+            prior_eval_id=eval_log.eval.eval_id,
         )
     else:
 
@@ -4349,6 +4357,7 @@ def eval_log_sample_source(
             ),
             prior_checkpoints_dir=eval_checkpoints_dir,
             prior_created=eval_log.eval.created,
+            prior_eval_id=eval_log.eval.eval_id,
         )
 
 

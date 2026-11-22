@@ -101,10 +101,22 @@ class ValidationReport(BaseModel):
 _record_adapter: TypeAdapter[StoreRecord] = TypeAdapter(StoreRecord)
 
 
-class _EvalResult(NamedTuple):
+_FinalAttempt = tuple[SampleClosingRecord, list[SampleRecord]]
+
+
+class _StoredEval(NamedTuple):
+    """One eval's records, checked; what the .eval comparison needs."""
+
     findings: list[Finding]
-    samples_compared: int
     retried: list[str]
+    started: bool
+    closing: EvalClosingRecord | None
+    sample_parts: set[str]
+    """``<sample-id>.<epoch>`` of every attempt in the store."""
+    final_attempts: dict[str, _FinalAttempt]
+    """The last closed attempt of each sample, by ``<sample-id>.<epoch>``."""
+    reused: dict[str, str]
+    """Earlier eval id of each sample the eval reused, by ``<sample-id>.<epoch>``."""
 
 
 class _Version(NamedTuple):
@@ -205,16 +217,19 @@ def validate_store(
         for eval_id, names in sorted(eval_files.items())
         if len(names) > 1
     )
-    results = [
-        _validate_eval(
-            eval_id,
-            keys,
-            lambda rel: read(location.key(rel)),
-            eval_files.get(eval_id, [None])[0],
-        )
+    stored = {
+        eval_id: _read_eval(eval_id, keys, lambda rel: read(location.key(rel)))
         for eval_id, keys in sorted(evals.items())
-    ]
-    findings.extend(f for result in results for f in result.findings)
+    }
+    compared = {
+        eval_id: _compare_eval_file(eval_id, stored, eval_files.get(eval_id, [None])[0])
+        for eval_id in stored
+    }
+    findings.extend(
+        f
+        for eval_id in stored
+        for f in [*stored[eval_id].findings, *compared[eval_id].findings]
+    )
 
     return ValidationReport(
         evals=sorted(evals),
@@ -227,8 +242,8 @@ def validate_store(
             key=lambda r: (r.arrival, r.key),
         ),
         findings=findings,
-        samples_compared=sum(result.samples_compared for result in results),
-        retried=[key for result in results for key in result.retried],
+        samples_compared=sum(c.samples_compared for c in compared.values()),
+        retried=[key for e in stored.values() for key in e.retried],
     )
 
 
@@ -276,12 +291,7 @@ def _eval_files(log_dir: str) -> dict[str, list[str]]:
     return {eval_id: sorted(names) for eval_id, names in files.items()}
 
 
-def _validate_eval(
-    eval_id: str,
-    keys: list[str],
-    read: Any,
-    eval_file: str | None,
-) -> _EvalResult:
+def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
     findings: list[Finding] = []
     retried: list[str] = []
 
@@ -311,7 +321,7 @@ def _validate_eval(
     start = stored.get(f"{eval_id}/{START}")
     if start is None:
         finding("missing_start", "No start record.")
-        return _EvalResult(findings, 0, retried)
+        return _StoredEval(findings, retried, False, None, set(), {}, {})
     assert isinstance(start, StartRecord)
     nonce = start.nonce
 
@@ -339,9 +349,7 @@ def _validate_eval(
         for (sample_part, attempt), records in attempts.items()
         if CLOSING in records
     }
-    final_attempts: dict[
-        tuple[str, int], tuple[SampleClosingRecord, list[SampleRecord]]
-    ] = {}
+    final_attempts: dict[str, _FinalAttempt] = {}
     for (sample_part, attempt), records in sorted(attempts.items()):
         prefix = f"{eval_id}/{sample_part}/{attempt}"
         if eval_closing is not None and (sample_part, attempt) not in listed:
@@ -370,26 +378,57 @@ def _validate_eval(
                     f"store has {seqs}.",
                     prefix,
                 )
-            ref = closing.sample
-            current = final_attempts.get((str(ref.sample_id), ref.epoch))
-            if current is None or current[0].sample.attempt < ref.attempt:
-                final_attempts[(str(ref.sample_id), ref.epoch)] = (
-                    closing,
-                    sample_records,
-                )
+            current = final_attempts.get(sample_part)
+            if current is None or current[0].sample.attempt < closing.sample.attempt:
+                final_attempts[sample_part] = (closing, sample_records)
         for message in _event_version_problems(sample_records):
             finding(*message, key=prefix)
 
+    return _StoredEval(
+        findings,
+        retried,
+        True,
+        eval_closing,
+        {sample_part for sample_part, _ in attempts},
+        final_attempts,
+        {
+            sample_key_part(r.sample_id, r.epoch): r.eval_id
+            for r in (eval_closing.reused if eval_closing else [])
+        },
+    )
+
+
+class _Compared(NamedTuple):
+    findings: list[Finding]
+    samples_compared: int
+
+
+def _compare_eval_file(
+    eval_id: str, evals: Mapping[str, _StoredEval], eval_file: str | None
+) -> _Compared:
+    """Compare the eval's .eval file with its records.
+
+    A sample that an eval retry reused is compared with the records of the
+    eval that ran it.
+    """
+    findings: list[Finding] = []
+
+    def finding(kind: FindingKind, message: str, key: str | None = None) -> None:
+        findings.append(Finding(kind=kind, eval_id=eval_id, key=key, message=message))
+
+    stored = evals[eval_id]
+    if not stored.started:
+        return _Compared(findings, 0)
     if eval_file is None:
         finding("missing_eval_file", "No .eval file in the log dir has this eval id.")
-        return _EvalResult(findings, 0, retried)
+        return _Compared(findings, 0)
 
-    if eval_closing is not None:
+    if stored.closing is not None:
         fields = {"status", "stats", "results"}
         header = read_eval_log(eval_file, header_only=True).model_dump(
             mode="json", include=fields
         )
-        closing_fields = eval_closing.model_dump(mode="json", include=fields)
+        closing_fields = stored.closing.model_dump(mode="json", include=fields)
         if changed := sorted(
             f for f in fields if not _same_json(header.get(f), closing_fields.get(f))
         ):
@@ -398,20 +437,43 @@ def _validate_eval(
                 f"The .eval file's {changed} differ from the eval closing record's.",
             )
 
-    stored_samples = {sample_part for sample_part, _ in attempts}
-    for sample_part in sorted(_eval_file_samples(eval_file) - stored_samples):
+    for sample_part in sorted(
+        _eval_file_samples(eval_file) - stored.sample_parts - stored.reused.keys()
+    ):
         finding(
             "unstored_sample",
             "In the .eval file, with no records in the store.",
             f"{eval_id}/{sample_part}",
         )
 
-    compared = 0
-    for closing, sample_records in final_attempts.values():
-        ref = closing.sample
-        attempt_key = (
-            f"{eval_id}/{sample_key_part(ref.sample_id, ref.epoch)}/{ref.attempt}"
+    # (key for findings, note for messages, closing, records)
+    to_compare: list[tuple[str, str, SampleClosingRecord, list[SampleRecord]]] = [
+        (f"{eval_id}/{sample_part}/{closing.sample.attempt}", "", closing, records)
+        for sample_part, (closing, records) in stored.final_attempts.items()
+    ]
+    for sample_part, earlier_id in sorted(stored.reused.items()):
+        earlier = _earlier_attempt(evals, earlier_id, sample_part)
+        if earlier is None:
+            finding(
+                "unstored_sample",
+                f"Reused from {earlier_id}, which has no closed attempt of it "
+                "in the store.",
+                f"{eval_id}/{sample_part}",
+            )
+            continue
+        source, closing, records = earlier
+        to_compare.append(
+            (
+                f"{eval_id}/{sample_part}",
+                f" (reused from {source}/{sample_part}/{closing.sample.attempt})",
+                closing,
+                records,
+            )
         )
+
+    compared = 0
+    for key, note, closing, sample_records in to_compare:
+        ref = closing.sample
         try:
             logged = read_eval_log_sample(
                 eval_file, ref.sample_id, ref.epoch, resolve_attachments="full"
@@ -419,15 +481,16 @@ def _validate_eval(
         except IndexError:
             finding(
                 "missing_sample",
-                f"Sample {ref.sample_id} epoch {ref.epoch} is not in {eval_file}.",
+                f"Sample {ref.sample_id} epoch {ref.epoch} is not in {eval_file}"
+                f"{note}.",
             )
             continue
         stored_scores = {k: v.score for k, v in closing.scores.items()}
         if changed := _changed_keys(logged.scores or {}, stored_scores):
             finding(
                 "score_mismatch",
-                f"Scores {changed} differ from the sample closing record's.",
-                attempt_key,
+                f"Scores {changed} differ from the sample closing record's{note}.",
+                key,
             )
         # a row the eval could not have written (a pool row that is not JSON,
         # a key stored twice) fails here, not when its record is read
@@ -436,18 +499,34 @@ def _validate_eval(
         except (ValueError, sqlite3.IntegrityError) as ex:
             finding(
                 "malformed_record",
-                f"Cannot rebuild the sample's events: {_first_error(ex)}",
-                attempt_key,
+                f"Cannot rebuild the sample's events{note}: {_first_error(ex)}",
+                key,
             )
             continue
         compared += 1
         if difference is not None:
-            finding(
-                "event_mismatch",
-                difference,
-                attempt_key,
-            )
-    return _EvalResult(findings, compared, retried)
+            finding("event_mismatch", f"{difference}{note}", key)
+    return _Compared(findings, compared)
+
+
+def _earlier_attempt(
+    evals: Mapping[str, _StoredEval], eval_id: str, sample_part: str
+) -> tuple[str, SampleClosingRecord, list[SampleRecord]] | None:
+    """The eval that ran a reused sample, and its last closed attempt.
+
+    Follows each eval's reused list, since a retry of a retry reuses the
+    sample from the first retry, which reused it in turn.
+    """
+    seen: set[str] = set()
+    while eval_id in evals and eval_id not in seen:
+        seen.add(eval_id)
+        stored = evals[eval_id]
+        if sample_part in stored.final_attempts:
+            return (eval_id, *stored.final_attempts[sample_part])
+        if sample_part not in stored.reused:
+            return None
+        eval_id = stored.reused[sample_part]
+    return None
 
 
 def _changed_keys(

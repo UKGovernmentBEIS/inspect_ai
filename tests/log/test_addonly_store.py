@@ -36,7 +36,7 @@ from test_helpers.addonly_moto import (
     moto_addonly_store,
 )
 
-from inspect_ai import Task, eval
+from inspect_ai import Task, eval, eval_retry, task
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent import react
@@ -422,15 +422,15 @@ def test_nan_score_validates(
 
 
 @solver
-def fail_first_attempt(attempts: dict[str, int]) -> Solver:
-    """Generate, then raise on the sample's first attempt only."""
+def fail_attempts(failures: dict[str, int]) -> Solver:
+    """Generate, then raise while ``failures`` has attempts left for the sample id."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         state = await generate(state)
         key = str(state.sample_id)
-        attempts[key] = attempts.get(key, 0) + 1
-        if attempts[key] == 1:
-            raise RuntimeError("first attempt fails")
+        if failures.get(key, 0) > 0:
+            failures[key] -= 1
+            raise RuntimeError("attempt fails")
         return state
 
     return solve
@@ -443,7 +443,7 @@ def test_retry_on_error_validates(
     log = eval(
         Task(
             dataset=[Sample(id="s0", input="hi", target="Default")],
-            solver=fail_first_attempt({}),
+            solver=fail_attempts({"s0": 1}),
             scorer=includes(),
         ),
         model="mockllm/model",
@@ -461,6 +461,110 @@ def test_retry_on_error_validates(
         f"retried {log.eval.eval_id}/s0.1/1: No closing record; a later attempt "
         "has one.\n" in result.output
     )
+
+
+@solver
+def fail_attempts_in_file(path: str) -> Solver:
+    """As `fail_attempts`, with the counts in a JSON file.
+
+    eval_retry imports the task file again, so module state does not carry
+    over to the retry; the file and its path (a task arg) do.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state = await generate(state)
+        failures = json.loads(Path(path).read_text())
+        key = str(state.sample_id)
+        if failures.get(key, 0) > 0:
+            failures[key] -= 1
+            Path(path).write_text(json.dumps(failures))
+            raise RuntimeError("attempt fails")
+        return state
+
+    return solve
+
+
+@task
+def retried_task(failures: str) -> Task:
+    return Task(
+        dataset=[
+            Sample(id="s1", input="hi", target="Default"),
+            Sample(id="s0", input="hi", target="Default"),
+        ],
+        solver=fail_attempts_in_file(failures),
+        scorer=includes(),
+    )
+
+
+def retried_task_run(store: MotoStore, log_dir: Path, s0_failures: int) -> EvalLog:
+    """First eval of `retried_task`: s1 succeeds, then s0 fails and stops the eval.
+
+    One sample at a time, so the error cannot cancel s1.
+    """
+    failures = log_dir / "failures.json"
+    failures.write_text(json.dumps({"s0": s0_failures}))
+    log = eval(
+        retried_task(str(failures)),
+        model="mockllm/model",
+        log_dir=str(log_dir),
+        display="none",
+        max_samples=1,
+        tamper_evident_store=store.url,
+    )[0]
+    assert log.status == "error"
+    return log
+
+
+def test_eval_retry_validates(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """eval_retry twice: s0 fails twice, s1 is reused from the first eval each time.
+
+    Each retry's eval closing record lists s1 with the eval its .eval sample
+    came from; the second retry's points to the first retry, which points
+    to the first eval, where the records are.
+    """
+    log = retried_task_run(evalhost_env, tmp_path, s0_failures=2)
+    for status in ["error", "success"]:
+        log = eval_retry(
+            log,
+            log_dir=str(tmp_path),
+            display="none",
+            tamper_evident_store=evalhost_env.url,
+        )[0]
+        assert log.status == status, log.error
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
+    assert "3 eval(s), 6 sample(s) compared, 0 finding(s)." in result.output
+
+
+def test_edit_reused_sample(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """A retry's reused sample edited: compared with the earlier eval's records."""
+    log = retried_task_run(evalhost_env, tmp_path, s0_failures=1)
+    retry = eval_retry(
+        log,
+        log_dir=str(tmp_path),
+        display="none",
+        tamper_evident_store=evalhost_env.url,
+    )[0]
+    assert retry.status == "success", retry.error
+    assert validate(evalhost_env, tmp_path).findings == []
+
+    retry = read_eval_log(retry.location)
+    assert retry.samples
+    sample = next(s for s in retry.samples if s.id == "s1")
+    score_event = next(e for e in sample.events if isinstance(e, ScoreEvent))
+    score_event.score.value = "I"
+    write_eval_log(retry, retry.location)
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert_fails_with(result, "event_mismatch")
+    assert f"event_mismatch {retry.eval.eval_id}/s1.1:" in result.output
+    assert f"reused from {log.eval.eval_id}" in result.output
 
 
 class StreamingMockLLM(MockLLM):

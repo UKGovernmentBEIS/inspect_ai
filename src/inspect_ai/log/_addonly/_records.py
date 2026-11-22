@@ -34,6 +34,15 @@ class SampleAttemptRef(BaseModel):
         )
 
 
+class ReusedSampleRef(BaseModel):
+    """A sample an eval retry reused from an earlier eval, with no records of its own."""
+
+    sample_id: str | int
+    epoch: int
+    eval_id: str
+    """The eval the retry read the sample from (itself a retry, possibly)."""
+
+
 class StartRecord(BaseModel):
     type: Literal["start"] = "start"
     eval_id: str
@@ -73,6 +82,8 @@ class EvalClosingRecord(BaseModel):
     results: EvalResults | None = None
     samples: list[SampleAttemptRef]
     """Every sample attempt the eval started."""
+    reused: list[ReusedSampleRef] = []
+    """Every sample the eval reused from an earlier eval (eval_retry)."""
 
 
 StoreRecord = Annotated[
