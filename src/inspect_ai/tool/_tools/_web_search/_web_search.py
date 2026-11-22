@@ -34,7 +34,7 @@ valid_providers = set(get_args(WebSearchProvider))
 # It would have been nice if the values below were TypedDicts. The problem is
 # that if the caller creates a literal dict variable (rather than passing the
 # dict inline), the type checker will erase the type of the literal to something
-# that doesn't conform the the required TypedDict when passed. This is lame, but
+# that doesn't conform the required TypedDict when passed. This is lame, but
 # we'll do runtime validation instead.
 #
 # If the caller uses this dict form and uses a value of `None`, it means that
