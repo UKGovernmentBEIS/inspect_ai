@@ -779,6 +779,28 @@ for each other, validator scope). These remain or are new:
 - Test compliance mode, the If-None-Match policy and real put latency in a
   sandbox AWS account.
 
+## Validation runs (review round 3)
+
+Code at 144b3b161 (the last commit before this note changes only docs).
+moto server only:
+
+- Each fix's test failed before the fix: `missing_sample` for s1.1
+  (`test_eval_set_narrower_retry_validates[sample_id]`) and s1.2
+  (`[epochs]`); exit 0 with no `prior_without_file` line
+  (`test_forged_successor_lists_deleted_eval_file`); exit 0, no
+  `missing_eval_file` (`test_eval_names_itself_as_prior`).
+- `pytest tests/log/test_addonly_store.py -n 4` (with
+  `ADDONLY_EVIDENCE_DIR` set): 79 passed, 4 skipped (trio variants); with
+  `--runtrio`, the 4 trio variants pass. 63 output files.
+- `pytest tests/sentinel/test_sentinel_config.py -n 4`: 63 passed.
+- `pytest tests/log -n 4` (with `.venv/bin` on `PATH`): 2,378 passed, 510
+  skipped, 0 failed.
+- `pytest tests/test_retry.py tests/test_eval_set.py
+  tests/test_eval_set_overrides.py tests/test_sample_source.py
+  tests/test_eval.py -n 4`: 535 passed, 44 skipped, 0 failed.
+- `ruff check .`, `ruff format --check .`, `mypy --exclude
+  tests/test_package src tests`, mypy on the two scripts: clean.
+
 ## Validation runs (review round 2)
 
 Code at ef6e2ddbc, plus the test fix in the next commit (one stub in
