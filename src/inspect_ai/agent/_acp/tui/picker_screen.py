@@ -496,7 +496,8 @@ class PickerScreen(Screen[None]):
                 "inspect eval <task> --acp-server\n"
                 "```\n\n"
                 "To use ACP with a remote machine, pass a host/port "
-                "to `--acp-server`:\n\n"
+                "to `--acp-server`. The server has no authentication, "
+                "so only do this on a trusted network:\n\n"
                 "```bash\n"
                 "# start server\n"
                 'inspect eval <task> --acp-server "0.0.0.0:4545"\n\n'

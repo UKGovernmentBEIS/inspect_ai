@@ -39,7 +39,9 @@ def score_to_float(
 
         df_copy = df.copy()
         for col in column_list:
-            df_copy[col] = df_copy[col].apply(to_float)
+            # pandas >= 3.1 keeps the Arrow dtype through apply() (yielding
+            # pd.NA for NaN), so cast to float64 explicitly
+            df_copy[col] = df_copy[col].apply(to_float).astype("float64")
 
         return df_copy
 

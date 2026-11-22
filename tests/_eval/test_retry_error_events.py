@@ -243,7 +243,17 @@ def test_eval_retry_error_uses_provider_when_transcript_resident_tail_truncated(
     assert [event.uuid for event in retry.events] == ["model-2", "info-2"]
 
 
+def _init_truncated_transcript() -> None:
+    """A transcript that no longer holds all its events, so retries read the buffer."""
+    bounded = Transcript(bounded=True, resident_tail=1)
+    init_transcript(bounded)
+    bounded._event(InfoEvent(uuid="evicted", data="evicted"))
+    bounded._event(InfoEvent(uuid="resident", data="resident"))
+    assert bounded.history.resident_events_truncated is True
+
+
 def test_eval_retry_error_preserves_epoch_zero(tmp_path) -> None:
+    _init_truncated_transcript()
     db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
     db.log_events(
         [
@@ -260,6 +270,7 @@ def test_eval_retry_error_preserves_epoch_zero(tmp_path) -> None:
 
 
 def test_eval_retry_error_requires_epoch_for_buffer_history(tmp_path) -> None:
+    _init_truncated_transcript()
     logger = _TaskLoggerShim(
         SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
     )
@@ -268,6 +279,19 @@ def test_eval_retry_error_requires_epoch_for_buffer_history(tmp_path) -> None:
         ValueError, match="epoch is required when reading retry events from buffer DB"
     ):
         _eval_retry_error(_error(), logger, "sample")
+
+
+def test_eval_retry_error_prefers_complete_transcript_over_buffer(tmp_path) -> None:
+    # the buffer keeps literal reference text in model calls as a reference
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=0, event=_model("buffered", "x"))])
+    resident = _model("resident", "y")
+    init_transcript(Transcript([resident]))
+
+    retry = _eval_retry_error(_error(), _TaskLoggerShim(db), "sample", 0)
+
+    assert retry.events is not None
+    assert [event.uuid for event in retry.events] == ["resident"]
 
 
 def test_sample_transcript_config_requires_buffer_for_bounded_mode(

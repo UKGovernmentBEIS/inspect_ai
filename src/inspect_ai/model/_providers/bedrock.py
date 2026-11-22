@@ -63,6 +63,7 @@ from .._stream import (
 )
 from .util import (
     forced_tool_choice_degraded_metadata,
+    is_claude_4_0_model,
     is_claude_fable_5_1_model,
     is_claude_opus_5_5_model,
     is_forced_tool_choice,
@@ -528,7 +529,8 @@ class BedrockAPI(ModelAPI):
         """Canonical model name for model info database lookup.
 
         Bedrock model names use the format: provider.model-name-version:variant
-        e.g., anthropic.claude-3-5-sonnet-20241022-v2:0
+        e.g., anthropic.claude-3-5-sonnet-20241022-v2:0, optionally with a
+        cross-region inference profile prefix (us., eu., global., ...)
 
         Returns the canonical format: provider/model-name
         e.g., anthropic/claude-3-5-sonnet-20241022
@@ -539,16 +541,9 @@ class BedrockAPI(ModelAPI):
     def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
         # a prompt router serves a request with one of its models, reported
         # as the output model (see model_output_from_response)
-        from ._litellm_proxy_names import BEDROCK_CROSS_REGIONS
-
         if output.usage is None or output.model == self.model_name:
             return None
-        # routers invoke cross-region inference profiles (e.g.
-        # `.../inference-profile/us.amazon.nova-lite-v1:0`)
         model_id = output.model.split("/")[-1]
-        region, dot, rest = model_id.partition(".")
-        if dot and region in BEDROCK_CROSS_REGIONS:
-            model_id = rest
         return [ServedModelUsage(_bedrock_canonical_name(model_id), output.usage)]
 
     @override
@@ -628,32 +623,21 @@ class BedrockAPI(ModelAPI):
         misclassify them as 4.6+/4.7+ and emit adaptive thinking on a model
         that only accepts `budget_tokens`.
         """
-        return self._is_claude_4_x(0) or (
-            re.search(r"claude-[a-zA-Z]+-4[-@]20\d{6}", self.model_family()) is not None
-        )
+        return is_claude_4_0_model(self.model_family())
 
     def is_claude_4_6_or_later(self) -> bool:
         """Mirrors `is_claude_frontier` in the native anthropic provider.
 
         Claude 4.6 was the first Claude on which Bedrock supports adaptive
         thinking (`{"thinking": {"type": "adaptive"}}` + `output_config`).
-        Assume future unrecognised claude-4 minor versions keep adaptive.
+        Everything `is_claude_4_7_or_later` matches (4.7, Claude 5 and
+        unrecognised future claude-4 minors) keeps adaptive.
         """
         if not self.is_claude():
             return False
-        if self._is_claude_4_x(6) or self._is_claude_4_x(7):
-            return True
-        # future claude 4 minor not yet recognised
-        if re.search(r"claude-[a-zA-Z]+-4-", self.model_family()):
-            recognised = self.is_claude_4_0() or any(
-                self._is_claude_4_x(x) for x in (1, 5, 6, 7)
-            )
-            if not recognised:
-                return True
-        return False
+        return self._is_claude_4_x(6) or self.is_claude_4_7_or_later()
 
     def is_claude_4_7_or_later(self) -> bool:
-        # mirrors the gating used in the native anthropic provider:
         # claude 4.7+ runs adaptive-thinking-only and rejects temperature /
         # top_p / top_k. assume future minor versions of claude 4 keep the
         # 4.7 capability set unless a specific older minor is matched.
@@ -801,9 +785,7 @@ class BedrockAPI(ModelAPI):
 
                 # Claude 4.7+ runs adaptive-thinking-only and rejects sampling
                 # parameters; other thinking-enabled Claude models also reject
-                # sampling params while thinking is on. Mirror the gating used
-                # in the native anthropic provider (see anthropic.py L773-L775).
-                # See issues #3765, #3766.
+                # sampling params while thinking is on. See issues #3765, #3766.
                 forbid_sampling_params = self.is_claude_4_7_or_later() or (
                     self.is_claude() and self.is_using_thinking(config)
                 )
@@ -1226,6 +1208,8 @@ async def converse_response_from_stream(
                     totalTokens=event_usage.get(
                         "totalTokens", input_tokens + output_tokens
                     ),
+                    cacheReadInputTokens=event_usage.get("cacheReadInputTokens"),
+                    cacheWriteInputTokens=event_usage.get("cacheWriteInputTokens"),
                 )
             metrics = metadata.get("metrics")
             if metrics is not None:
@@ -1369,7 +1353,10 @@ def add_cache_points(
 
 def _bedrock_canonical_name(name: str) -> str:
     """Model info database name for a Bedrock model id."""
+    from ._litellm_proxy_names import strip_bedrock_cross_region
+
     provider: str | None = None
+    name = strip_bedrock_cross_region(name)
 
     # Extract provider prefix (e.g., "anthropic." or "meta.")
     if "." in name:

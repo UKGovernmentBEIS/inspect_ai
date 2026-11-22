@@ -1,13 +1,8 @@
 from contextvars import ContextVar
-from logging import getLogger
 from typing import Any, NamedTuple
 
-from inspect_ai._util.logger import warn_once
-
 from ._config import SentinelRoot
-from ._scope import AgentScope, current_scope, in_final_scope, solving
-
-logger = getLogger(__name__)
+from ._scope import current_origin, in_final_scope, is_agent_turn
 
 
 class SentinelFailure(Exception):
@@ -54,21 +49,8 @@ def active_task_description() -> str | None:
     return active.task_description if active is not None else None
 
 
-def warn_sentinel_bridged() -> None:
-    if active_sentinel() is not None:
-        warn_once(
-            logger,
-            "Sentinels do not yet run at the tool stages for bridged agents "
-            "(agent_bridge() and sandbox_agent_bridge()), so their tool calls are not "
-            "monitored; their model calls are. See "
-            "https://github.com/UKGovernmentBEIS/inspect_ai/issues/5759.",
-        )
-
-
 def is_agent_generate() -> bool:
-    return (
-        active_sentinel() is not None and solving() and current_scope() is AgentScope.ON
-    )
+    return active_sentinel() is not None and is_agent_turn(current_origin())
 
 
 def checks_tool_calls() -> bool:

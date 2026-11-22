@@ -545,12 +545,15 @@ def test_rerun_after_failure_before_dispatching_dispatches_all() -> None:
 
 def test_rerun_after_only_the_first_dispatches_succeeded_dispatches_the_last() -> None:
     gh = FakeGitHub()
-    gh.fail = lambda args: args[:4] == [
-        "gh",
-        "workflow",
-        "run",
-        "release-pr-checks.yml",
-    ]
+    gh.fail = lambda args: (
+        args[:4]
+        == [
+            "gh",
+            "workflow",
+            "run",
+            "release-pr-checks.yml",
+        ]
+    )
     with pytest.raises(ReleaseError, match="release-pr-checks.yml"):
         _dispatch(gh)
     assert gh.dispatches() == ["build.yml", "changelog-lint.yml"]
@@ -840,6 +843,49 @@ def test_release_jobs_follow_the_resolved_tag() -> None:
     assert "tag" in workflow[True]["workflow_dispatch"]["inputs"]
 
 
+def test_docs_deploy_the_latest_release_after_pypi() -> None:
+    """The docs job renders the resolved tag once PyPI has the release.
+
+    The run's ref is main, so the shared workflow is passed the tag. An older
+    release finished by a recovery run does not deploy, so the site never
+    rolls back.
+    """
+    jobs = _load(".github/workflows/release.yml")["jobs"]
+    latest = jobs["docs-latest"]
+    assert latest["needs"] == ["release-please", "publish-pypi"]
+    assert latest["permissions"] == {"contents": "read"}
+    check = latest["steps"][0]
+    assert check["env"]["TAG"] == "${{ needs.release-please.outputs.tag }}"
+    assert "releases/latest" in check["run"]
+    assert '[ "$LATEST" = "$TAG" ]' in check["run"]
+    docs = jobs["docs"]
+    assert docs["needs"] == ["release-please", "docs-latest"]
+    assert docs["if"] == "needs.docs-latest.outputs.latest == 'true'"
+    assert docs["permissions"] == {
+        "contents": "read",
+        "pages": "write",
+        "id-token": "write",
+    }
+    workflow, ref = docs["uses"].split("@")
+    assert workflow == "meridianlabs-ai/actions/.github/workflows/publish-docs.yml"
+    assert re.fullmatch(r"[0-9a-f]{40}", ref), "pin a 40-character SHA"
+    assert docs["with"]["tag"] == "${{ needs.release-please.outputs.tag }}"
+    assert docs["with"]["extras"] == "doc"
+
+
+def test_release_runs_only_in_the_upstream_repository() -> None:
+    # Every later job needs release-please's tag, so guarding it skips them all.
+    jobs = _load(".github/workflows/release.yml")["jobs"]
+    assert jobs["release-please"]["if"] == (
+        "github.repository == 'UKGovernmentBEIS/inspect_ai' "
+        "&& github.ref == 'refs/heads/main'"
+    )
+    for name, job in jobs.items():
+        if name != "release-please":
+            assert "release-please" in job["needs"], name
+            assert not re.search("always|cancelled|failure", job.get("if", "")), name
+
+
 def test_completeness_check_runs_last_when_nothing_was_resolved() -> None:
     steps = _load(".github/workflows/release.yml")["jobs"]["release-please"]["steps"]
     last = steps[-1]
@@ -892,6 +938,60 @@ def test_publish_steps_skip_what_the_registries_already_have() -> None:
         )
         assert dist < upload
         assert steps[upload]["if"] == "steps.dist.outputs.count != '0'"
+
+
+def test_build_dist_builds_with_the_hashed_toolchain() -> None:
+    # Without isolation, the build backend is the one installed from the
+    # hashed requirements rather than whatever PyPI serves at build time.
+    action_dir = REPO / ".github" / "actions" / "build-dist"
+    steps = _load(".github/actions/build-dist/action.yml")["runs"]["steps"]
+    runs = [s.get("run", "").strip() for s in steps]
+    installs = [r for r in runs if "pip install" in r]
+    assert installs == [
+        'python -m pip install --require-hashes --only-binary :all: --no-deps -r "$REQUIREMENTS"'
+    ]
+    # The wheel is built from the checkout, not the sdist, so it keeps the
+    # sandbox tools binaries that MANIFEST.in leaves out of the sdist.
+    assert "python -m build --no-isolation --sdist --wheel" in runs
+
+    # The action's own revision supplies the requirements, wherever the source is.
+    (install,) = [s for s in steps if "pip install" in s.get("run", "")]
+    path = install["env"]["REQUIREMENTS"].replace(
+        "${{ github.action_path }}", str(action_dir)
+    )
+    assert (
+        Path(path).resolve()
+        == (REPO / "scripts" / "build-dist" / "requirements.txt").resolve()
+    )
+
+    # The documented refresh must not keep existing pins as preferences.
+    action = (action_dir / "action.yml").read_text()
+    refresh = re.search(r"#\s+(uv pip compile .*?-o requirements\.txt)", action, re.S)
+    assert refresh
+    assert "--upgrade " in refresh.group(1)
+    assert '--exclude-newer "7 days"' in refresh.group(1)
+
+    requirements = (REPO / "scripts" / "build-dist" / "requirements.txt").read_text()
+    pins = re.findall(r"^([A-Za-z0-9_.-]+)==\S+ \\$", requirements, re.MULTILINE)
+    assert {"build", "setuptools", "setuptools-scm"} <= set(pins)
+    requirement_lines = [
+        line
+        for line in requirements.splitlines()
+        if line and not line.startswith(("#", " "))
+    ]
+    assert len(requirement_lines) == len(pins)
+
+
+def test_dependabot_updates_the_build_toolchain_with_a_cooldown() -> None:
+    updates = _load(".github/dependabot.yml")["updates"]
+    (update,) = [u for u in updates if u["directory"] == "/scripts/build-dist"]
+    assert update["package-ecosystem"] == "uv"
+    # Dependabot can't open PRs that change files under .github/ for any
+    # ecosystem but github-actions (dependabot/dependabot-core#15237).
+    assert not update["directory"].startswith("/.github/")
+    assert update["cooldown"]["default-days"] == 7
+    assert update["schedule"]["interval"] == "weekly"
+    assert [group["patterns"] for group in update["groups"].values()] == [["*"]]
 
 
 def test_no_composite_action_runs_the_pypi_publish_docker_action() -> None:
@@ -948,6 +1048,158 @@ def test_heading_is_renamed_before_the_release_pr_checks_are_dispatched() -> Non
     assert rename["continue-on-error"] is True
     assert rename["env"] == {"GH_TOKEN": "${{ github.token }}"}
     assert 'breaking-changes-heading --branch "$RELEASE_BRANCH"' in rename["run"]
+
+
+# ---------------------------------------------------------------------------
+# Slack announcement
+# ---------------------------------------------------------------------------
+
+SLACK_ACTION = "meridianlabs-ai/actions/slack-release-announce@"
+NOTES_STEP = "Read the release notes"
+
+
+def test_announce_runs_only_after_pypi_publishing_succeeds() -> None:
+    jobs = _load(".github/workflows/release.yml")["jobs"]
+    announce = jobs["announce"]
+    # A rejected or failed PyPI publish skips it; npm does not hold it back.
+    assert announce["needs"] == ["release-please", "publish-pypi"]
+    # No condition beyond the implicit success() of its needs, as in
+    # inspect_flow and inspect_swarm.
+    assert "if" not in announce
+    assert announce["permissions"] == {"contents": "read"}
+    assert announce["timeout-minutes"] <= 10
+
+    steps = announce["steps"]
+    assert not any(s.get("uses", "").startswith("actions/checkout@") for s in steps)
+    (slack,) = [s for s in steps if s.get("uses", "").startswith(SLACK_ACTION)]
+    assert re.fullmatch(r"[0-9a-f]{40}", slack["uses"].removeprefix(SLACK_ACTION))
+    assert slack["with"] == {
+        "webhook": "${{ secrets.SLACK_WEBHOOK_URL }}",
+        "title": ":rocket: inspect-ai ${{ needs.release-please.outputs.tag }} released",
+        "release-url": "${{ steps.notes.outputs.url }}",
+        "release-body": "${{ steps.notes.outputs.body }}",
+    }
+    notes = next(s for s in steps if s.get("name") == NOTES_STEP)
+    assert notes["env"]["TAG"] == "${{ needs.release-please.outputs.tag }}"
+    # Untrusted text reaches the script only through the environment.
+    assert "${{" not in notes["run"]
+
+
+def test_only_the_announce_job_gets_the_slack_webhook() -> None:
+    for path in (REPO / ".github").rglob("*.y*ml"):
+        text = path.read_text()
+        if path.name != "release.yml":
+            assert "SLACK_WEBHOOK_URL" not in text, path
+    jobs = _load(".github/workflows/release.yml")["jobs"]
+    users = [name for name, job in jobs.items() if "SLACK_WEBHOOK_URL" in str(job)]
+    assert users == ["announce"]
+
+
+def _parse_github_output(text: str) -> dict[str, str]:
+    """Parse a $GITHUB_OUTPUT file the way the runner does."""
+    outputs: dict[str, str] = {}
+    lines = iter(text.split("\n"))
+    for line in lines:
+        if "<<" in line and ("=" not in line or line.index("<<") < line.index("=")):
+            key, delimiter = line.split("<<", 1)
+            value: list[str] = []
+            for body_line in lines:
+                if body_line == delimiter:
+                    break
+                value.append(body_line)
+            else:
+                raise AssertionError(f"unterminated output {key}")
+            outputs[key] = "\n".join(value)
+        elif line:
+            key, value_text = line.split("=", 1)
+            outputs[key] = value_text
+    return outputs
+
+
+def _run_notes_step(
+    tmp_path: Path, gh_script: str
+) -> tuple[subprocess.CompletedProcess[str], Path]:
+    """Run the announce job's notes step with a fake `gh`; return its $GITHUB_OUTPUT."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    gh = bin_dir / "gh"
+    gh.write_text(f"#!/bin/bash\n{gh_script}\n")
+    gh.chmod(0o755)
+    output = tmp_path / "github-output"
+    output.write_text("")
+    runner_temp = tmp_path / "runner-temp"
+    runner_temp.mkdir()
+    steps = _load(".github/workflows/release.yml")["jobs"]["announce"]["steps"]
+    step = next(s for s in steps if s.get("name") == NOTES_STEP)
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "GH_TOKEN": "token",
+        "TAG": "0.3.300",
+        "GITHUB_REPOSITORY": GH_REPO,
+        "GITHUB_OUTPUT": str(output),
+        "RUNNER_TEMP": str(runner_temp),
+    }
+    # The runner's default shell for `run:` steps.
+    result = subprocess.run(
+        ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    return result, output
+
+
+needs_notes_tools = pytest.mark.skipif(
+    any(shutil.which(tool) is None for tool in ("bash", "jq", "openssl")),
+    reason="needs bash, jq and openssl",
+)
+
+
+@needs_notes_tools
+@pytest.mark.parametrize("trailing_newline", [True, False])
+def test_announce_reads_the_notes_of_the_resolved_tag(
+    tmp_path: Path, trailing_newline: bool
+) -> None:
+    """The notes reach the step output intact, however hostile their text."""
+    body = (
+        "## [0.3.300](https://github.com/x/y/compare/0.3.299...0.3.300)\n"
+        "\n"
+        "* fix: $(touch pwned) `touch pwned` ${HOME} <!channel>\n"
+        "EOF\n"
+        "body<<EOF\n"
+        "url=https://evil.example"
+    ) + ("\n" if trailing_newline else "")
+    url = f"https://github.com/{GH_REPO}/releases/tag/0.3.300"
+    release = tmp_path / "release.json"
+    release.write_text(json.dumps({"url": url, "body": body}))
+    gh_args = tmp_path / "gh-args"
+
+    result, output = _run_notes_step(tmp_path, f'echo "$@" > {gh_args}\ncat {release}')
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert gh_args.read_text().split() == [
+        "release",
+        "view",
+        "0.3.300",
+        "--repo",
+        GH_REPO,
+        "--json",
+        "url,body",
+    ]
+    assert _parse_github_output(output.read_text()) == {
+        "url": url,
+        "body": body,
+    }
+    assert not (tmp_path / "pwned").exists()
+
+
+@needs_notes_tools
+def test_announce_fails_when_the_release_cannot_be_read(tmp_path: Path) -> None:
+    result, output = _run_notes_step(tmp_path, "echo 'release not found' >&2\nexit 1")
+    assert result.returncode != 0
+    assert output.read_text() == ""
 
 
 # ---------------------------------------------------------------------------

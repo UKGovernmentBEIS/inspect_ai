@@ -245,6 +245,95 @@ def test_chinese_large_units() -> None:
     )
 
 
+def test_chinese_compound_large_units() -> None:
+    # A smaller large unit's value is the coefficient of a following larger
+    # unit: 一万亿 = 一万 * 亿, not 万 alone.
+    assert unicode_number_to_float("一万亿") == 1_000_000_000_000.0
+    assert unicode_number_to_float("十二万亿") == 12_000_000_000_000.0
+    assert unicode_number_to_float("三万亿") == 3_000_000_000_000.0
+    assert unicode_number_to_float("一万二千亿") == 1_200_000_000_000.0
+    assert unicode_number_to_float("一万亿二千万") == 1_000_020_000_000.0
+    # Traditional forms and higher compounds use the same rule.
+    assert unicode_number_to_float("一萬億") == 1_000_000_000_000.0
+    assert unicode_number_to_float("一万兆") == 10_000_000_000_000_000.0
+    # Descending-then-ascending sequences stay additive, not multiplicative.
+    assert unicode_number_to_float("一兆一万亿") == 2_000_000_000_000.0
+
+
+def test_chinese_long_repeated_large_units() -> None:
+    # Long repeated-unit input must not recurse once per unit: the
+    # compound-unit split used to recurse on every "万", so "万" * 1100
+    # raised RecursionError instead of returning a score.
+    assert unicode_number_to_float("万" * 1100) == 0.0
+    assert unicode_number_to_float("一万" * 1100) == 11_000_000.0
+    # Malformed trailing content still fails as unparseable, not as a crash.
+    with pytest.raises(ValueError):
+        unicode_number_to_float("万" * 1100 + "x")
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        # Digits before a unit are a run, not a single digit.
+        ("12万", 120_000.0),
+        ("10万", 100_000.0),
+        ("007万", 70_000.0),
+        ("25億", 2_500_000_000.0),
+        ("12兆", 12_000_000_000_000.0),
+        ("１２３万", 1_230_000.0),  # fullwidth digits
+        ("٣٠万", 300_000.0),  # Arabic-Indic digits
+        # A unit ends the run, so later digits start a new one.
+        ("12万34", 120_034.0),
+        ("12万034", 120_034.0),
+        ("1亿2345万6789", 123_456_789.0),
+        ("12万3千4百5十6", 123_456.0),
+        # Signs, spaces and a fractional tail leave the run intact.
+        ("-12万", -120_000.0),
+        ("12 万", 120_000.0),
+        ("12万.5", 120_000.5),
+    ],
+)
+def test_digit_run_before_chinese_unit(value: str, expected: float) -> None:
+    assert unicode_number_to_float(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        # Chinese digit characters keep their place-value reading.
+        ("十二万", 120_000.0),
+        ("1万2千", 12_000.0),
+        ("三千2", 3_002.0),
+        ("2千3百", 2_300.0),
+    ],
+)
+def test_chinese_units_with_chinese_digits(value: str, expected: float) -> None:
+    assert unicode_number_to_float(value) == expected
+
+
+@pytest.mark.parametrize("value", ["12.5万", "1,000万"])
+def test_chinese_unit_forms_still_rejected(value: str) -> None:
+    # A decimal or a grouped number before a unit is not parsed; pin it so a
+    # later change to this path cannot start accepting them silently.
+    with pytest.raises(ValueError):
+        unicode_number_to_float(value)
+
+
+def test_digit_run_at_the_float_limit_still_parses() -> None:
+    # 300 nines times 10⁴ is 1e304, well inside the float range: the run has to
+    # join, and the result has to survive the conversion.
+    assert unicode_number_to_float("9" * 300 + "万") == float(int("9" * 300) * 10_000)
+
+
+@pytest.mark.parametrize("value", ["9" * 305 + "万", "9" * 400 + "万"])
+def test_digit_run_beyond_the_float_range_is_unparseable(value: str) -> None:
+    # Joining the digits can build an integer with no float counterpart.
+    # Converting it raised OverflowError out of the scorer; unparseable input
+    # has to stay a ValueError so the comparison answers instead of crashing.
+    with pytest.raises(ValueError):
+        unicode_number_to_float(value)
+
+
 def test_error_cases() -> None:
     with pytest.raises(ValueError):
         unicode_number_to_float("abc")

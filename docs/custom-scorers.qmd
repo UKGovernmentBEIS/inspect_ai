@@ -106,15 +106,20 @@ Score(
 
 `Score.value` may be any `Value` that your metrics know how to interpret. Built-in correctness scorers use the constants `CORRECT` (`"C"`), `INCORRECT` (`"I"`), `PARTIAL` (`"P"`), and `NOANSWER` (`"N"`). The default `value_to_float()` converter used by metrics such as `accuracy()` maps these values to `1.0`, `0.0`, `0.5`, and `0.0` respectively. It also converts numeric values, numeric strings, and common boolean strings such as `"yes"` / `"no"` and `"true"` / `"false"`.
 
-You can return other strings, but aggregate metrics need a converter that understands them. For example:
+You can return other strings, but the default epoch reducer converts each value with `value_to_float()` before metrics run, including when there is only one epoch.
+A string it does not map, such as `"pass"`, becomes `0.0` unless you pass a converter to the reducer:
 
 ``` python
-from inspect_ai.scorer import accuracy, value_to_float
+from inspect_ai import Epochs
+from inspect_ai.scorer import accuracy, mean_score, value_to_float
 
-accuracy(
-    to_float=value_to_float(correct="pass", incorrect="fail")
-)
+to_float = value_to_float(correct="pass", incorrect="fail")
+
+accuracy(to_float=to_float)
+Epochs(1, mean_score(value_to_float=to_float))
 ```
+
+The metric converter still applies when reducers are disabled (`Epochs(n, [])`), because those metrics see the original string.
 
 If you are extracting an answer from within a completion (e.g. looking for text using a regex pattern, looking at the beginning or end of the completion, etc.) you should strive to *always* return an `answer` as part of your `Score`, as this makes it much easier to understand the details of scoring when viewing the eval log file.
 
@@ -221,6 +226,7 @@ def includes(ignore_case: bool = True):
 Here's a somewhat simplified version of the code for the `model_graded_qa()` scorer:
 
 ``` python
+import secrets
 
 @scorer(metrics=[accuracy(), stderr()])
 def model_graded_qa(
@@ -245,6 +251,7 @@ def model_graded_qa(
             answer=state.output.completion,
             criterion=target.text,
             instructions=instructions,
+            grader_nonce=secrets.token_hex(4),
         )
 
         # query the model for the score

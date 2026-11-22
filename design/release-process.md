@@ -19,17 +19,22 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
 2. **Release PR.** On every push to `main`, `release.yml` runs Release Please,
    which opens or updates the release PR (branch
    `release-please--branches--main`, title `chore(main): release X.Y.Z`). The
-   PR bumps the manifest and adds the version's section to `CHANGELOG.md` (see
-   [Changelog](#changelog)). `release.yml` then renames the breaking changes
+   PR bumps the manifest and `fallback_version` in `pyproject.toml`, and adds
+   the version's section to `CHANGELOG.md` (see [Changelog](#changelog)).
+   setuptools-scm uses `fallback_version` only in a checkout with no release
+   tags, such as Dependabot's, so that it still satisfies the co-released
+   packages' `inspect-ai` floors. `release.yml` then renames the breaking changes
    heading (see [Changelog](#changelog)) and dispatches `build.yml`,
    `changelog-lint.yml` and `release-pr-checks.yml` on the branch. `build.yml`
    and `changelog-lint.yml` provide `main`'s required status checks, which
    every release PR needs.
 3. **Checks.** `release-pr-checks.yml` fails the release PR if the version is
    not newer than PyPI's latest or is already tagged, if any sandbox-tools
-   artifact pinned in `SHA256SUMS` is not on S3 with its digest, if the PR head
-   fails the build gates (`build-dist`), or if rebuilding PyPI's latest version
-   no longer matches PyPI (`publish-parity.yml`).
+   artifact pinned in `SHA256SUMS` is not on S3 with its digest, or if the PR
+   head fails the build gates (`build-dist`). `publish-parity.yml`, which
+   rebuilds PyPI's latest version and compares it with PyPI, runs on PRs that
+   change the build or publish files, not on the release PR, whose only
+   build-file change is `fallback_version`, which tagged builds don't read.
 4. **Merge on Monday** by default; merge sooner for an urgent fix. To refresh
    the changelog date first, run the Release workflow from the Actions tab. The
    release PR changes `.release-please-manifest.json`, which
@@ -39,7 +44,33 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
    notes are the version's changelog section. In the same `release.yml` run,
    `build` builds and gates the distributions, and `publish-pypi` (environment
    `pypi`) and `publish-npm` (environment `npm`, via `npm-publish.yml`) each
-   wait for an environment reviewer's approval.
+   wait for an environment reviewer's approval. Once `publish-pypi` succeeds,
+   `announce` posts the release to Slack (see [Slack
+   announcement](#slack-announcement)), and `docs` renders the docs site at
+   the tag and deploys it to GitHub Pages (`inspect.aisi.org.uk`), using
+   meridianlabs-ai/actions' `publish-docs.yml`. It deploys only when the tag
+   is the latest GitHub Release, so a recovery run for an older release never
+   rolls the site back.
+
+## Slack announcement
+
+The `announce` job in `release.yml` posts ":rocket: inspect-ai X.Y.Z
+released" with the GitHub Release notes and a link to the release, using the
+shared `meridianlabs-ai/actions/slack-release-announce` action. It runs only
+after `publish-pypi` succeeds, so a rejected or failed PyPI publish is never
+announced; it does not wait for npm. It reads the notes and URL with `gh
+release view` for the tag the run resolved, because Release Please reports
+the release only in the run that creates it, not in a re-run or recovery run.
+
+The webhook is the `SLACK_WEBHOOK_URL` repository secret, a Slack incoming
+webhook for the announcement channel; only `announce` reads it. While the
+secret is unset, the job succeeds without posting anything.
+
+Every run whose `publish-pypi` job succeeds announces, as in `inspect_flow`
+and `inspect_swarm`, even when PyPI already had every file. So re-running
+all jobs, or a recovery dispatch, after PyPI already has the release may post
+a duplicate announcement. If only the announcement failed, re-run the failed
+jobs: that re-runs only `announce`. The break-glass paths do not announce.
 
 ## Changelog
 
@@ -114,11 +145,21 @@ uppercase); that is how the 0.3.279 publish failed.
 (a second checkout into `.ci/`), not from the tag, so a recovery dispatch on
 `main` publishes an older tag with the current publish steps.
 
+Both registries build in a job without `id-token`, so the dependencies and
+build tools never run where they could publish. The PyPI `build` job uploads
+the sdist and wheel; `npm-publish.yml`'s `build` job installs the ts-mono
+workspace, runs the viewer's checks and `prepublishOnly`, and uploads the
+packed tarball. Each publish job only checks the downloaded files against the
+release tag and uploads them; neither builds anything or installs the
+project's dependencies. A tarball publish runs no npm lifecycle scripts.
+
 Trusted publishers: PyPI matches the workflow file that runs the publishing
 job, so `release.yml` and `publish.yml` each need a PyPI publisher. npm matches
 the calling workflow, so `release.yml` and `npm-publish.yml` each need an npm
 publisher. The `pypi` and `npm` environments must allow deployments from
-`main` (release.yml) and from version tags (break-glass).
+`main` (release.yml) and from version tags (break-glass). The `github-pages`
+environment must allow `main`, and the Pages source must be "GitHub Actions".
+`publish-docs.yml` refuses any tag that is not a published release's.
 
 ## Minor or major release
 
@@ -141,8 +182,8 @@ Re-running the Release workflow is safe at any point.
   job, or run the Release workflow on `main` with no `tag`. It dispatches each
   check workflow that has no run yet on the release PR's head commit. Closing
   and reopening the release PR also runs them, as the person who reopened it.
-- **Release created, then a later job failed or was cancelled** (build or
-  either publish). In order of preference:
+- **Release created, then a later job failed or was cancelled** (build,
+  either publish, or docs). In order of preference:
   1. *Re-run failed jobs.* This keeps the original run's tag, and when only a
      publish job failed, it re-publishes the build job's original artifact.
   2. *Re-run all jobs*, or re-run a run that failed inside Release Please
@@ -173,12 +214,16 @@ Re-running the Release workflow is safe at any point.
 - **A resumed release** rebuilds from the tag (except when only a publish job
   is re-run) and publishes behind the same environment approvals. Its GitHub
   Release notes are the ones Release Please wrote when it created the
-  release.
+  release. It is announced in Slack again once its PyPI job succeeds, even
+  if PyPI already had the release (see [Slack
+  announcement](#slack-announcement)); to retry only a failed announcement,
+  re-run the failed jobs.
 - **Files PyPI already has** are skipped when they match: the same SHA256, or,
   for a rebuild (archive metadata such as timestamps differs between builds),
   the same members with the same contents under the parity rules
   (`compare_archives`, which ignores only the sdist's recorded checkout
-  branch). A same-named file with different contents fails the job, since
+  branch and the wheel's build tool: the `Generator` line in WHEEL and
+  WHEEL's hash and size in RECORD). A same-named file with different contents fails the job, since
   PyPI never replaces a file. npm skips a version it already has.
 - **A queued Release run can be replaced by a newer push**, so the run that
   creates a release may be on a later commit than the release PR merge. If
@@ -197,10 +242,15 @@ Re-running the Release workflow is safe at any point.
   broken (such as 0.3.279); use the recovery dispatch of `release.yml`. Dispatch `npm-publish.yml` on the tag
   with dry-run unchecked.
 - **Local:** `python scripts/pypi-release.py release X.Y.Z` (PyPI only; its
-  tag push no longer triggers npm, so dispatch `npm-publish.yml`).
+  tag push no longer triggers npm, so dispatch `npm-publish.yml` on the tag).
+
+None of these deploy the docs; the next release's deploy includes their
+changes.
 
 After any release made outside the release PR, open a PR that sets
-`.release-please-manifest.json` to the released version; otherwise the next
+`.release-please-manifest.json` and `fallback_version` in `pyproject.toml` to
+the released version (`tests/test_dependency_cooldown.py` checks that they
+match); otherwise the next
 release PR proposes the same version and its checks fail. `CHANGELOG.md` gets
 no section for that version: its notes are only in the GitHub Release, and
 the next release's section lists the commits since its tag.

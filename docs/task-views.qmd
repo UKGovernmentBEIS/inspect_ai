@@ -247,7 +247,7 @@ Keys are fnmatch-style globs (`"*"`, `"audit_*"`, or exact scanner names). As a 
 
 ## Untrusted Content
 
-By default the viewer renders log content richly: model output and scores are shown as markdown (with math and syntax highlighting), terminal output keeps its colors, and images, audio, and video are displayed. When the content comes from a model you can't trust (for example, during pre-deployment testing of a model without safeguards), set `trust_content=False` to have the viewer show all of the log's content as plain text instead:
+By default the viewer renders log content richly: model output and scores are shown as markdown (with math and syntax highlighting), terminal output keeps its colors, and images, audio, and video are displayed. When the content comes from a model you can't trust (for example, during pre-deployment testing of a model without safeguards), set `trust_content=False` to have the viewer show the log's content as literal text and replace media with placeholders:
 
 ``` python
 @task
@@ -298,7 +298,7 @@ This option applies only to the `inspect view` server. Bundled and embedded view
 The viewer option only lowers trust. Leaving it unset, or passing `--trust-content`, defers to each log, and a log that sets `trust_content=False` is never shown richly.
 
 ::: {.callout-note}
-`trust_content` is applied by the viewer when it reads the log. Viewers that predate the setting (including older versions of the VS Code extension) ignore it, and older versions of Inspect drop it if they rewrite the log. Scout does not yet honor it. The setting controls rendering only; it doesn't make the content safe to copy or act on.
+`trust_content` is applied by the viewer when it reads the log. Viewers that predate the setting (including older versions of the VS Code extension) ignore it, and older versions of Inspect drop it if they rewrite the log. Scout honors it from version 0.5.5, including for results of scanners run during `eval_set()`. The setting controls rendering only; it doesn't make the content safe to copy or act on.
 :::
 
 ## Reference

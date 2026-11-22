@@ -93,12 +93,14 @@ After a crash, the complete set of sample data is split across two sources:
 **What IS recoverable:**
 - All **completed** samples: those flushed to `.eval` + those completed but unflushed (in buffer DB)
 - `EvalSpec` and `EvalPlan` from `start.json`
-- For unflushed completed samples: scores, input, target, messages (via events)
+- For unflushed completed samples: scores, input, target and messages (via events), and the final store, which `complete_sample()` buffers (`sample_store` column, `store.*.json` in the filestore) because not every write to it has a `StoreEvent` (returned forks or copies of the state, task cleanup, the sidecar monitor-state copy)
+- For in-progress samples, and buffers written before the store was buffered: the store replayed from `StoreEvent`s, as of the last top-level span (`init`, `solvers`, `scorers`) that ended, since a span records its `StoreEvent` when it ends
 
 **What is NOT recoverable:**
-- In-progress samples at crash time (started but `complete_sample()` never called — no scores)
+- Final scores for samples still in progress at crash time (`complete_sample()` was never called)
 - `EvalResults` / `EvalStats` (would need recomputation from recovered samples)
 - Any `reductions` data
+- The retry history (`error_retries`) of unflushed samples: the buffer keeps only the final attempt's events and the retry count
 
 ### 4. Key Distinction: EvalSample vs EvalSampleSummary
 
@@ -112,7 +114,7 @@ The `.eval` file stores full `EvalSample` objects which include `messages` (full
 
 ### Overview
 
-Recovery takes a crashed `.eval` log (status `"started"`, missing `header.json`) and produces a new recovered `.eval` file that combines:
+Recovery takes a crashed `.eval` log (status `"started"`: no `header.json`, or one still saying `"started"` because the crashed log was written again, e.g. edited) and produces a new recovered `.eval` file that combines:
 
 1. **Flushed samples** already in the `.eval` file
 2. **Unflushed samples** from the sample buffer database (both completed and in-progress)
@@ -194,8 +196,7 @@ Creates a new file alongside the original: `<name>-recovered.eval`. The original
 1. **Validate** the input `.eval` file:
    - Must exist and be a valid ZIP
    - Must have `_journal/start.json`
-   - Must NOT have `header.json` (i.e., status is effectively `"started"` — the eval never finished)
-   - If `header.json` exists, the eval completed normally and recovery is not needed
+   - Must NOT have a `header.json` with a status other than `"started"` — such an eval finished and recovery is not needed. A `"started"` header comes from writing the crashed log again (e.g. after `edit_eval_log()`); its `log_updates` and `invalidated` carry over to the recovered log
 
 2. **Read from `.eval` file:**
    - `start.json` → `EvalSpec` + `EvalPlan`
@@ -205,6 +206,7 @@ Creates a new file alongside the original: `<name>-recovered.eval`. The original
 3. **Find and read from buffer DB:**
    - Locate DB at `inspect_data_dir("samplebuffer") / <log_dir_hash> / <filename>.*.db`
    - Use existing `SampleBufferDatabase(location, create=False)` to open it
+   - No buffer raises `RecoveryNotAvailable`, unless `allow_no_buffer=True`: the log is then recovered from its flushed samples alone (still refused while a live process on this host owns a buffer DB for it, or when the file it writes is already a finished log)
    - Read all remaining samples and their events
    - Distinguish completed vs in-progress samples (completed samples have `completed_at` set and scores populated)
 
@@ -220,8 +222,9 @@ Creates a new file alongside the original: `<name>-recovered.eval`. The original
    - Write all samples (flushed + recovered from buffer DB)
    - Write consolidated `summaries.json`
    - Write `header.json` with:
-     - `status = "error"`
-     - `error` = `EvalError` indicating crash recovery
+     - `status = "error"` (or the caller's `status`, e.g. `"cancelled"`; `"success"` when `incomplete_action="error"` finalizes it)
+     - `error` = `EvalError` indicating crash recovery (or the caller's `error_message`); none for `"cancelled"`
+     - `log_updates` = the crashed log's, plus the caller's `log_update`
      - `results` = computed from all completed samples (re-run score reduction/aggregation)
      - `stats` = computed from all samples
 
@@ -276,7 +279,7 @@ This mirrors the streaming pattern already used by `ZipLogFile` during eval exec
 
 ### Edge Cases
 
-- **No buffer DB found**: Recover what's in the `.eval` file only (flushed samples). Warn that unflushed samples are lost.
+- **No buffer found**: Raise `RecoveryNotAvailable`. With `allow_no_buffer=True`, recover what's in the `.eval` file only (flushed samples).
 - **Buffer DB has no additional samples**: Just finalize the `.eval` file with proper header/summaries.
 - **Multiple buffer DBs** (from retried evals): Use the most recent one (by file modification time or PID).
 - **`.eval` file has no samples at all** (crash before first flush): All data comes from buffer DB.

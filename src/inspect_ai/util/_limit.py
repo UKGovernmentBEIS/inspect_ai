@@ -697,7 +697,11 @@ def record_model_cost(cost: float) -> None:
     """Record model cost against any active cost limits.
 
     Does not check if the limit has been exceeded.
+
+    No-op when cost limits are suspended (see `suspend_cost_limit()`).
     """
+    if cost_limit_tree.is_suspended():
+        return
     node = cost_limit_tree.get()
     if node is None:
         return
@@ -711,14 +715,46 @@ def check_cost_limit(raise_for_equal: bool = False) -> None:
 
     Note that all active cost limits are checked, not just the most recent one.
 
+    No-op when cost limits are suspended (see `suspend_cost_limit()`).
+
     Args:
       raise_for_equal: If True, also raise when cost equals a limit (used before a
         model call, which is guaranteed to exceed a limit that has been reached).
     """
+    if cost_limit_tree.is_suspended():
+        return
     node = cost_limit_tree.get()
     if node is None:
         return
     node.check(raise_for_equal)
+
+
+def suspend_cost_limit() -> AbstractContextManager[None]:
+    """Suspend cost limit metering within a block of code.
+
+    While this context manager is open:
+
+    - Model cost is not recorded against any active `cost_limit()` scope
+      (including sample-level, agent-scoped, and arbitrary block limits).
+    - Calls to `check_cost_limit()` are no-ops.
+    - This applies to any `cost_limit()` contexts opened inside the block
+      as well — suspension wins over nested limits.
+
+    Cost is still recorded in model and role usage. Useful for running
+    code whose spend should not count against an agent's budget, e.g.
+    monitoring or auxiliary judge calls.
+
+    Example:
+        with cost_limit(5.0):
+            # cost counts against the $5 budget
+            await generate()
+            with suspend_cost_limit():
+                # cost here does not count
+                await judge()
+            # cost counts again
+            await generate()
+    """
+    return cost_limit_tree.suspended()
 
 
 def message_limit(limit: int | None) -> _MessageLimit:
@@ -876,9 +912,12 @@ def working_limit(limit: float | None) -> _WorkingLimit:
 
     Working time is the wall clock time minus any waiting time e.g. waiting before
     retrying in response to rate limits or waiting on a semaphore. The sample
-    counts as waiting while any known wait is open, so work done during a wait
-    (for example by a parallel tool call or sub-agent) is not charged and working
-    time can undercount. Set a `time_limit()` as well to bound wall clock time.
+    counts as waiting while any known wait is open and no model call, sandbox
+    command or tool call is running (not counting commands run with
+    `exec_remote()` or inside `sandbox_agent_bridge()`), so other work done
+    during a wait (for example a sub-agent's own code or a background process)
+    is not charged and working time can undercount. Set a `time_limit()` as well to bound wall
+    clock time.
 
     The timer starts when the context manager is opened and stops when it is closed.
 
@@ -896,11 +935,12 @@ def working_limit(limit: float | None) -> _WorkingLimit:
 def suspend_working_limit() -> AbstractContextManager[None]:
     """Count the time spent in a block of code as waiting time.
 
-    While this context manager is open, the whole sample counts as waiting, for
-    `working_limit()` and for the sample's logged working time. This includes
-    work done by other tasks in the sample during the block, unlike
-    `suspend_token_limit()` and `suspend_turn_limit()`, which only affect code
-    inside the block.
+    While this context manager is open, the sample counts as waiting, for
+    `working_limit()` and for the sample's logged working time, except while
+    another task in the sample runs a model call, a sandbox command or a tool
+    call (not counting commands run with `exec_remote()` or inside
+    `sandbox_agent_bridge()`). Model calls, sandbox commands and tool calls made inside the block
+    are not charged.
 
     Useful for time the agent should not be charged for, such as waiting on a
     person or running a monitor. Inspect already does this for tool approval
@@ -918,6 +958,29 @@ def suspend_working_limit() -> AbstractContextManager[None]:
             await wait_for_operator()
     """
     return sample_wait()
+
+
+@contextmanager
+def suspend_limits() -> Iterator[None]:
+    """Suspend cost, token, turn and working limits within a block of code.
+
+    Combines `suspend_cost_limit()`, `suspend_token_limit()`,
+    `suspend_turn_limit()` and `suspend_working_limit()`. Useful for work
+    that should not be charged to the agent's budget, such as a monitor or
+    judge that makes its own model calls.
+
+    Example:
+        with suspend_limits():
+            # cost, tokens, turns and working time here are not charged
+            await run_monitor()
+    """
+    with (
+        suspend_cost_limit(),
+        suspend_token_limit(),
+        suspend_turn_limit(),
+        suspend_working_limit(),
+    ):
+        yield
 
 
 def check_working_limit() -> None:

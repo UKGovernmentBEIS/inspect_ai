@@ -636,7 +636,8 @@ async def wait_generate_dispatch(
 
     The hold and the slot reacquire after it are an open sample wait (see
     design/working-time-concurrency.md), so held time counts as waiting time
-    for ``working_limit`` and the sample's reported working time. ``time_limit``
+    for ``working_limit`` and the sample's reported working time, unless other
+    known work runs in the sample. ``time_limit``
     deadlines deliberately keep running while held — explicitly the
     operator's risk with ``pause --now``.
 
@@ -760,7 +761,7 @@ def fire_dispatch_wakers() -> None:
 def wake_pause_waiters() -> None:
     """Wake every gate waiter so escape predicates get re-checked.
 
-    Called at the cancel-stamp choke point (the ``cancel_task`` closure in
+    Called from ``TaskCancel.apply`` (the ``apply_cancel`` closure in
     ``_eval/run.py``): a sample parked at the pause gate must observe a
     graceful (score/error) resolution and proceed to the queue-exit abandon
     check — the gate holds starts, not terminal transitions. Waking on

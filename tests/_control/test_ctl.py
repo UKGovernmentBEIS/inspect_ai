@@ -3864,9 +3864,16 @@ def test_every_json_option_help_sketches_payload_keys() -> None:
         json_options = [
             p for p in cmd.params if isinstance(p, click.Option) and p.name == "as_json"
         ]
-        if isinstance(cmd, click.Group) and "list" not in cmd.commands:
-            # a group without a bare-noun list default (e.g. `model`) carries
-            # no mirrored --json of its own; groups with one must mirror it
+        if isinstance(cmd, click.Group) and (
+            "list" not in cmd.commands
+            or any(
+                isinstance(p, click.Argument) and p.required
+                for p in cmd.commands["list"].params
+            )
+        ):
+            # a group without a bare-noun list default (e.g. `model`, or
+            # `sample agent`, whose list needs a sample) carries no mirrored
+            # --json of its own; groups with one must mirror it
             continue
         assert json_options, f"`{path}` has no --json option"
         help_text = json_options[0].help or ""
@@ -9447,6 +9454,89 @@ def test_event_summary_sanitizes_every_wire_field() -> None:
     assert "\r" not in summary
     assert "gpt-4" in summary
     assert "stop" in summary
+
+
+def test_event_summary_communication_and_swarm() -> None:
+    from inspect_ai._cli.ctl._render import _event_summary
+
+    sent = {
+        "event": "communication",
+        "kind": "sent",
+        "agent": "counter-6",
+        "channel": "shared_memory",
+        "record_ids": ["w-1"],
+        "rejected": "rate",
+    }
+    assert _event_summary(sent) == (
+        "counter-6 → shared_memory: sent w-1 · refused (rate)"
+    )
+    assert _event_summary({**sent, "reason": "slow down", "content": "hi"}) == (
+        "counter-6 → shared_memory: sent w-1 · refused (rate) · slow down · hi"
+    )
+    assert _event_summary({**sent, "rejected": ""}) == (
+        "counter-6 → shared_memory: sent w-1 · refused ()"
+    )
+    assert _event_summary({k: v for k, v in sent.items() if k != "rejected"}) == (
+        "counter-6 → shared_memory: sent w-1"
+    )
+    waited = {
+        "event": "communication",
+        "kind": "waited",
+        "agent": "counter-5",
+        "channel": None,
+        "record_ids": [],
+        "channels": ["shared_memory", "bus"],
+        "outcome": "news",
+        "duration": 4.25,
+    }
+    assert _event_summary(waited) == "counter-5 waited 4.2s on shared_memory, bus: news"
+    assert _event_summary({**waited, "data": '{"idle": 1}'}) == (
+        "counter-5 waited 4.2s on shared_memory, bus: news"
+    )
+
+    swarm = {"event": "swarm", "kind": "final", "member": "counter-5"}
+    assert _event_summary(swarm) == "final · counter-5"
+    assert _event_summary({**swarm, "data": '{"mode": "first"}'}) == (
+        'final · counter-5 · {"mode": "first"}'
+    )
+
+
+def test_event_summary_communication_and_swarm_sanitize_fields() -> None:
+    from inspect_ai._cli.ctl._render import _event_summary
+
+    summary = _event_summary(
+        {
+            "event": "communication",
+            "kind": "sent",
+            "agent": "counter-6\x1b]0;evil\x07",
+            "channel": "shared_memory\x1b[2K",
+            "record_ids": ["w-1\r"],
+            "rejected": "rate\x1b]",
+            "content": "hello\x1b]",
+        }
+    )
+    assert "\x1b" not in summary and "\r" not in summary and "\x07" not in summary
+    assert summary.startswith("counter-6 → shared_memory: sent w-1")
+    assert "refused (rate)" in summary and "hello" in summary
+
+    summary = _event_summary(
+        {
+            "event": "communication",
+            "kind": "waited",
+            "agent": "counter-5",
+            "channels": ["shared_memory\x1b]"],
+            "outcome": "news\x1b[2K",
+            "duration": 1.0,
+        }
+    )
+    assert "\x1b" not in summary
+    assert summary == "counter-5 waited 1.0s on shared_memory: news"
+
+    summary = _event_summary(
+        {"event": "swarm", "kind": "final\x1b]", "member": "m", "data": "d"}
+    )
+    assert "\x1b" not in summary
+    assert "m · d" in summary
 
 
 def test_task_header_sanitizes_and_flattens_all_parts() -> None:

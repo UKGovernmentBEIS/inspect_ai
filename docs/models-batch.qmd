@@ -21,20 +21,20 @@ Pass the `--batch` CLI option or `batch=True` to `eval()` in order to enable bat
 
 ``` bash
 # Enable batching with default configuration
-inspect eval arc.py --model openai/gpt-4o --batch
+inspect eval arc.py --model openai/gpt-6-luna --batch
 
 # Specify a batch size (e.g. 1000 requests per batch)
-inspect eval arc.py --model openai/gpt-4o --batch 1000
+inspect eval arc.py --model openai/gpt-6-luna --batch 1000
 
 # Pass a YAML or JSON config file with batch configuration
-inspect eval arc.py --model openai/gpt-4o --batch batch.yml
+inspect eval arc.py --model openai/gpt-6-luna --batch batch.yml
 ```
 
 Or from Python:
 
 ``` python
-eval("arc.py", model="openai/gpt-4o", batch=True)
-eval("arc.py", model="openai/gpt-4o", batch=1000)
+eval("arc.py", model="openai/gpt-6-luna", batch=True)
+eval("arc.py", model="openai/gpt-6-luna", batch=1000)
 ```
 
 If a provider does not support batch processing the `batch` option is ignored for that provider.
@@ -46,7 +46,7 @@ For more advanced batch processing configuration, you can specify a `BatchConfig
 ``` python
 from inspect_ai.model import BatchConfig
 eval(
-    "arc.py", model="openai/gpt-4o", 
+    "arc.py", model="openai/gpt-6-luna", 
     batch=BatchConfig(size=200, send_delay=60)
 )
 ```

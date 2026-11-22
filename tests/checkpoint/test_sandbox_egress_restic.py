@@ -29,6 +29,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import IO, Any, Callable
 from unittest.mock import patch
@@ -40,6 +41,7 @@ from test_helpers.local_shell_sandbox import LocalShellSandbox
 from inspect_ai.util._checkpoint._copy import copy_out, copy_out_partial_path
 from inspect_ai.util._checkpoint._layout.schemas import SnapshotDetails
 from inspect_ai.util._checkpoint._repo_ops import (
+    drop_orphan_snapshots,
     forget_unrecorded_snapshots,
     list_snapshots,
     walk_snapshot_nodes,
@@ -435,10 +437,11 @@ async def test_egress_rejects_snapshot_with_foreign_tag(repos: _Repos) -> None:
     assert repos.dest_files() == files_after_1
 
 
-async def test_egress_rejects_malformed_snapshot_id(repos: _Repos) -> None:
+@pytest.mark.parametrize("bad", ["latest", "--password-command=echo forged"])
+async def test_egress_rejects_malformed_snapshot_id(repos: _Repos, bad: str) -> None:
     repos.backup("ckpt-00001")
     with pytest.raises(EgressVerificationError, match="malformed"):
-        await repos.egress("ckpt-00001", "latest")
+        await repos.egress("ckpt-00001", bad)
 
 
 async def test_egress_refuses_oversized_delta_before_tarring(repos: _Repos) -> None:
@@ -531,6 +534,27 @@ async def test_egress_first_cycle_writes_keys_before_config(repos: _Repos) -> No
 # --- resume side ------------------------------------------------------
 
 
+@pytest.mark.parametrize("recorded", [False, True])
+async def test_forget_terminates_options(repos: _Repos, recorded: bool) -> None:
+    id1 = repos.backup("ckpt-00001")
+    id2 = repos.backup("ckpt-00002")
+    with patch("anyio.run_process", wraps=anyio.run_process) as run:
+        if recorded:
+            await forget_unrecorded_snapshots(
+                repos.restic,
+                str(repos.repo),
+                PASSWORD,
+                recorded_ids=[id1],
+                required_id=id1,
+            )
+        else:
+            await drop_orphan_snapshots(repos.restic, str(repos.repo), PASSWORD, 1)
+    assert run.call_args.args[0][3:] == ["forget", "--", id2]
+    assert {
+        s["id"] for s in await list_snapshots(repos.restic, str(repos.repo), PASSWORD)
+    } == {id1}
+
+
 async def test_forget_unrecorded_snapshots_keeps_only_recorded(repos: _Repos) -> None:
     id1 = repos.backup("ckpt-00001")
     (repos.src / "notes.txt").write_text("v2\n")
@@ -601,7 +625,7 @@ async def test_forget_unrecorded_snapshots_rejects_malformed_ids(
     repos: _Repos,
 ) -> None:
     id1 = repos.backup("ckpt-00001")
-    for bad in ("", "latest", "ABCDEF01"):
+    for bad in ("", "latest", "ABCDEF01", "--password-command=echo forged"):
         with pytest.raises(RuntimeError, match="malformed"):
             await forget_unrecorded_snapshots(
                 repos.restic,
@@ -626,7 +650,9 @@ class _FreshSandbox:
         (self.sandbox_dir / "restic").symlink_to(repos.restic)
         self.env = _CountingSandbox()
 
-    async def ingress(self, snapshot_id: str, *roots: Path) -> None:
+    async def ingress(
+        self, snapshot_id: str, *roots: Path, chunk_size: int = CHUNK
+    ) -> None:
         await ingress_sandbox(
             self.env,
             str(self.host_repo),
@@ -636,16 +662,18 @@ class _FreshSandbox:
                 [str(r) for r in (roots or (self.repos.src,))], label="test"
             ),
             host_restic=self.repos.restic,
+            chunk_size=chunk_size,
             sandbox_dir=str(self.sandbox_dir),
         )
 
 
 class _CountingSandbox(LocalShellSandbox):
-    """Counts ``exec`` calls: a refused ingress must run none."""
+    """Counts ``exec`` calls and records input sizes: a refused ingress must run none."""
 
     def __init__(self) -> None:
         super().__init__()
         self.execs = 0
+        self.input_sizes: list[int] = []
 
     async def exec(
         self,
@@ -659,6 +687,8 @@ class _CountingSandbox(LocalShellSandbox):
         concurrency: bool = True,
     ) -> ExecResult[str]:
         self.execs += 1
+        if input is not None:
+            self.input_sizes.append(len(input))
         return await super().exec(
             cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
         )
@@ -672,7 +702,13 @@ async def test_ingress_restores_recorded_snapshot_not_latest(
     repos.backup("ckpt-00002")
     fresh = _FreshSandbox(repos, tmp_path)
 
-    await fresh.ingress(id1)
+    with patch.object(fresh.env, "exec", wraps=fresh.env.exec) as run:
+        await fresh.ingress(id1)
+    restore = next(
+        call.args[0] for call in run.call_args_list if "restore" in call.args[0]
+    )
+    assert restore[-2:] == ["--", f"{id1}:{repos.src.parent}"]
+    assert restore[restore.index("--target") + 1] == str(repos.src.parent)
 
     # The recorded snapshot's file is back at its absolute path.
     assert (repos.src / "notes.txt").read_text() == "v1\n"
@@ -685,12 +721,102 @@ async def test_ingress_restores_recorded_snapshot_not_latest(
     }
 
 
+async def test_ingress_copies_repo_in_chunks(repos: _Repos, tmp_path: Path) -> None:
+    (repos.src / "blob.bin").write_bytes(os.urandom(3 * CHUNK))
+    id1 = repos.backup("ckpt-00001")
+    (repos.src / "notes.txt").write_text("v2\n")
+    fresh = _FreshSandbox(repos, tmp_path)
+
+    await fresh.ingress(id1)
+
+    assert (repos.src / "notes.txt").read_text() == "v1\n"
+    assert len(fresh.env.input_sizes) > 3
+    assert max(fresh.env.input_sizes) <= CHUNK
+    assert not (fresh.sandbox_dir / "staging" / "ingress.tar").exists()
+
+
+@pytest.fixture
+def host_tmp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The host temp dir, where ingress writes its tarball."""
+    host_tmp = tmp_path / "host-tmp"
+    host_tmp.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(host_tmp))
+    return host_tmp
+
+
+class _SecondChunkSandbox(_CountingSandbox):
+    """Fails, or stalls until cancelled, on the second ``copy_in`` chunk."""
+
+    def __init__(self, host_tmp: Path, *, stall: bool) -> None:
+        super().__init__()
+        self.host_tmp = host_tmp
+        self.stall = stall
+        self.reached = anyio.Event()
+        self.tarball_present = False
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        if input is not None and len(self.input_sizes) == 1:
+            self.tarball_present = any(self.host_tmp.rglob("ingress.tar"))
+            self.reached.set()
+            if self.stall:
+                await anyio.sleep_forever()
+            return ExecResult(
+                success=False, returncode=1, stdout="", stderr="disk full"
+            )
+        return await super().exec(
+            cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
+        )
+
+
+async def test_ingress_failed_copy_in_removes_host_tarball(
+    repos: _Repos, tmp_path: Path, host_tmp: Path
+) -> None:
+    (repos.src / "blob.bin").write_bytes(os.urandom(3 * CHUNK))
+    id1 = repos.backup("ckpt-00001")
+    fresh = _FreshSandbox(repos, tmp_path)
+    env = fresh.env = _SecondChunkSandbox(host_tmp, stall=False)
+
+    with pytest.raises(RuntimeError, match="copy-in failed: disk full"):
+        await fresh.ingress(id1)
+
+    assert env.tarball_present
+    assert not any(host_tmp.rglob("ingress.tar"))
+
+
+async def test_ingress_cancelled_mid_copy_in_removes_host_tarball(
+    repos: _Repos, tmp_path: Path, host_tmp: Path
+) -> None:
+    (repos.src / "blob.bin").write_bytes(os.urandom(3 * CHUNK))
+    id1 = repos.backup("ckpt-00001")
+    fresh = _FreshSandbox(repos, tmp_path)
+    env = fresh.env = _SecondChunkSandbox(host_tmp, stall=True)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(fresh.ingress, id1)
+        await env.reached.wait()
+        tg.cancel_scope.cancel()
+
+    assert env.tarball_present
+    assert not any(host_tmp.rglob("ingress.tar"))
+
+
+@pytest.mark.parametrize("bad", ["latest; rm -rf /", "--password-command=echo forged"])
 async def test_ingress_rejects_malformed_recorded_id(
-    repos: _Repos, tmp_path: Path
+    repos: _Repos, tmp_path: Path, bad: str
 ) -> None:
     fresh = _FreshSandbox(repos, tmp_path)
     with pytest.raises(RuntimeError, match="malformed"):
-        await fresh.ingress("latest; rm -rf /")
+        await fresh.ingress(bad)
     assert fresh.env.execs == 0
 
 
@@ -1012,6 +1138,28 @@ def _fake_restic(tmp_path: Path, body: str) -> Path:
 
 async def _walk(restic: Path, visit: Callable[[dict[str, Any]], None]) -> str:
     return await walk_snapshot_nodes(restic, "repo", PASSWORD, _FAKE_ID, visit)
+
+
+async def test_walk_snapshot_nodes_terminates_options(tmp_path: Path) -> None:
+    args_file = tmp_path / "args"
+    restic = _fake_restic(
+        tmp_path,
+        f'printf "%s\\n" "$@" > "{args_file}"\necho \'{_SNAPSHOT_RECORD}\'',
+    )
+    bad = "--password-command=echo forged"
+    assert (
+        await walk_snapshot_nodes(restic, "repo", PASSWORD, bad, lambda _: None)
+        == _FAKE_ID
+    )
+    assert args_file.read_text().splitlines() == [
+        "-r",
+        "repo",
+        "ls",
+        "--json",
+        "--no-lock",
+        "--",
+        bad,
+    ]
 
 
 async def test_walk_snapshot_nodes_kills_restic_on_a_rejected_node(

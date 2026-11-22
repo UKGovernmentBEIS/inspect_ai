@@ -1,5 +1,5 @@
 # base image
-FROM aisiuk/inspect-tool-support
+FROM python:3.12-bookworm
 
 # nodejs (required by mcp server)
 RUN apt-get update && apt-get install -y --no-install-recommends \

@@ -1,10 +1,10 @@
 """Resume detection: does a sample's own checkpoints dir hold a committed checkpoint?
 
-Shared by ``run_sample`` (task retries and in-eval requeues) and the
-control channel's requeue advisory, so all three answer the question
-the same way. Detection consults only this attempt's *own* eval
-checkpoints dir — the retry startup copy replicated every sample dir
-the retried attempt had (see ``_resume_copy``), so a sample either has
+Shared by ``run_sample`` (task retries and in-eval requeues), sample-level
+error retries, and the control channel's requeue advisory, so every retry
+answers the question the same way. Detection consults only this attempt's
+*own* eval checkpoints dir — the retry startup copy replicated every sample
+dir the retried attempt had (see ``_resume_copy``), so a sample either has
 a committed checkpoint here or it runs fresh.
 """
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import functools
+import inspect
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Literal, NamedTuple
 
@@ -165,3 +167,22 @@ def retry_error_summary(retry_state: RetryCallState) -> str:
     if code is not None and not isinstance(code, int):
         parts.append(str(code))
     return f" [{' '.join(parts)}]"
+
+
+def backoff_multiplier(value: float) -> dict[str, float]:
+    """Backoff multiplier argument for tenacity's `wait_exponential_jitter`.
+
+    Use as `wait_exponential_jitter(**backoff_multiplier(3), ...)`. tenacity
+    9.2.1 added `multiplier` and deprecated `initial` (a DeprecationWarning is
+    emitted when `initial` is not 1); earlier releases accept only `initial`.
+    Both names give the same waits.
+    """
+    return {_backoff_multiplier_keyword(): value}
+
+
+@functools.cache
+def _backoff_multiplier_keyword() -> str:
+    from tenacity import wait_exponential_jitter
+
+    parameters = inspect.signature(wait_exponential_jitter).parameters
+    return "multiplier" if "multiplier" in parameters else "initial"

@@ -8,6 +8,7 @@ register custom model information for models not in the database.
 from __future__ import annotations
 
 import re
+from logging import getLogger
 from typing import TYPE_CHECKING
 
 from inspect_ai.model._model_data.model_data import (
@@ -17,7 +18,10 @@ from inspect_ai.model._model_data.model_data import (
 )
 
 if TYPE_CHECKING:
+    from inspect_ai.model._generate_config import GenerateConfig
     from inspect_ai.model._model import Model  # noqa: F401
+
+logger = getLogger(__name__)
 
 # Placeholder api key passed when a provider is instantiated purely to
 # canonicalize a model name (see _get_model_info). It exists so that providers
@@ -425,6 +429,33 @@ def get_model_input_tokens(model: Model) -> int | None:
         return DEFAULT_CONTEXT_WINDOW
     else:
         return None
+
+
+def get_model_input_budget(model: Model, config: GenerateConfig | None = None) -> int:
+    """Input tokens a generate can use after inspect_ai's output reserve.
+
+    The model's context window (`get_model_input_tokens`) minus the output
+    headroom inspect_ai reserves for a `generate` with this `config`. The
+    reserve follows the `max_tokens` that `Model.generate` would use, so the
+    config is resolved with `model._resolve_config(config)` (which merges the
+    active generate config when the model is the active model). When the window
+    is unknown, falls back to `DEFAULT_CONTEXT_WINDOW` and warns once for the
+    model.
+    """
+    from inspect_ai._util.logger import warn_once
+    from inspect_ai.model._compaction._compaction import DEFAULT_CONTEXT_WINDOW
+    from inspect_ai.model._compaction.summary import _output_reserve
+
+    context_window = get_model_input_tokens(model)
+    if context_window is None:
+        warn_once(
+            logger,
+            f"Unable to determine context window for {model} (falling back to default of {DEFAULT_CONTEXT_WINDOW})",
+        )
+        context_window = DEFAULT_CONTEXT_WINDOW
+    return context_window - _output_reserve(
+        model, context_window, model._resolve_config(config)
+    )
 
 
 def set_model_info(model: str, info: ModelInfo) -> None:

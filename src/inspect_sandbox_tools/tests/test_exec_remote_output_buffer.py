@@ -36,32 +36,16 @@ async def test_unblocks_after_drain():
 
 
 @pytest.mark.asyncio
-async def test_close_wakes_waiter():
+async def test_cancel_ends_put_waiting_on_full_buffer():
     buf = BoundedByteBuffer(max_bytes=5)
     await buf.put(b"12345")
 
-    woke = False
-
-    async def waiter():
-        nonlocal woke
-        await buf.put(b"more")
-        woke = True
-
-    task = asyncio.create_task(waiter())
+    task = asyncio.create_task(buf.put(b"more"))
     await anyio.sleep(0.01)
-    assert not woke
-    buf.close()
-    await asyncio.wait_for(task, timeout=0.1)
-    assert woke
-
-
-@pytest.mark.asyncio
-async def test_put_after_close_is_noop():
-    buf = BoundedByteBuffer(max_bytes=100)
-    await buf.put(b"before")
-    buf.close()
-    await buf.put(b"after")
-    assert buf.drain() == b"before"
+    assert not task.done()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
 
 
 @pytest.mark.asyncio

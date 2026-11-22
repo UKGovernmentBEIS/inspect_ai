@@ -34,6 +34,7 @@ import anyio
 import inspect_ai.util._checkpoint._resume_copy as resume_copy
 from checkpoint.docker_projects import record_docker_projects
 from checkpoint.resume_kill_harness import crash_signal, run_eval
+from checkpoint.transcript_store_cache import redirect_transcript_store_cache_dir
 
 _original_copy_payload_data = resume_copy._copy_payload_data
 _fired = False
@@ -62,7 +63,7 @@ HOOK_NEVER_FIRED_EXIT_CODE = 17
 
 def main() -> None:
     resume_copy._copy_payload_data = _interrupting_copy_payload_data
-    with record_docker_projects():
+    with redirect_transcript_store_cache_dir(), record_docker_projects():
         run_eval(sys.argv[1], sys.argv[2])
     # only a run that returned normally without the hook firing is the
     # "seam moved" case; an exception before any copy propagates with its

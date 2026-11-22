@@ -2,6 +2,7 @@
 
 import asyncio
 import gc
+import json
 import os
 import socket
 import ssl
@@ -40,8 +41,12 @@ from inspect_ai._util.http_defaults import (
     POOL_KEEPALIVE_CONNECTIONS_ENV,
     REQUEST_TIMEOUT_ENV,
 )
+from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._providers.anthropic import AnthropicAPI
+from inspect_ai.model._providers.anthropic import (
+    ANTHROPIC_GENERATE_TIMEOUT,
+    AnthropicAPI,
+)
 from inspect_ai.model._providers.google import GoogleGenAIAPI
 from inspect_ai.model._providers.groq import GroqAPI
 from inspect_ai.model._providers.openai import OpenAIAPI
@@ -1041,6 +1046,58 @@ async def anthropic_transport_timeout(api: AnthropicAPI) -> dict[str, float]:
     return seen
 
 
+_STREAM_EVENTS: list[dict[str, Any]] = [
+    {"type": "message_start", "message": {**_MESSAGE, "content": []}},
+    {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {"type": "text", "text": ""},
+    },
+    {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {"type": "text_delta", "text": "hi"},
+    },
+    {"type": "content_block_stop", "index": 0},
+    {
+        "type": "message_delta",
+        "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+        "usage": {"output_tokens": 1},
+    },
+    {"type": "message_stop"},
+]
+_STREAM = "".join(
+    f"event: {event['type']}\ndata: {json.dumps(event)}\n\n" for event in _STREAM_EVENTS
+)
+
+
+async def anthropic_generate_timeout(
+    api: AnthropicAPI, *, streaming: bool, max_tokens: int = 1024
+) -> dict[str, float]:
+    """Deadlines a `generate()` call hands the transport."""
+    seen: dict[str, float] = {}
+
+    def handler(request: Any) -> Any:
+        seen.update(request.extensions.get("timeout") or {})
+        if json.loads(request.content).get("stream"):
+            return httpx2.Response(
+                200,
+                content=_STREAM.encode(),
+                headers={"content-type": "text/event-stream"},
+            )
+        return httpx2.Response(200, json=_MESSAGE)
+
+    api.client._client._transport = httpx2.MockTransport(handler)
+    api.streaming = streaming
+    await api.generate(
+        input=[ChatMessageUser(content="hi")],
+        tools=[],
+        tool_choice="none",
+        config=GenerateConfig(max_tokens=max_tokens),
+    )
+    return seen
+
+
 class TestAnthropicDefaults:
     def test_client_gets_the_defaults(self) -> None:
         client = anthropic_api().client
@@ -1083,6 +1140,58 @@ class TestAnthropicDefaults:
         # operator asked for it, so their value must win.
         monkeypatch.setenv(REQUEST_TIMEOUT_ENV, "123")
         assert timeout_of(anthropic_api().client).read == 123.0
+
+    @pytest.mark.parametrize("streaming", [False, True])
+    async def test_generate_gets_the_long_budget(self, streaming: bool) -> None:
+        # A non-streaming response (or a stream behind a buffering proxy)
+        # sends nothing until it is complete, so a long input outlasts the
+        # 10 minute default on every retry.
+        seen = await anthropic_generate_timeout(anthropic_api(), streaming=streaming)
+        assert seen["read"] == ANTHROPIC_GENERATE_TIMEOUT
+        assert seen["connect"] == DEFAULT_CONNECT_TIMEOUT
+
+    @pytest.mark.parametrize("streaming", [False, True])
+    @pytest.mark.parametrize(
+        "model_args, env, expected",
+        [
+            ({"timeout": 42.0}, None, 42.0),
+            ({}, "123", 123.0),
+            # Equal to the SDK default, so the client keeps its DEFAULT_TIMEOUT
+            # object; the operator still asked for 600s.
+            ({}, "600", 600.0),
+            ({"timeout": 600.0}, None, 600.0),
+        ],
+        ids=["model-arg", "env", "env-equal-to-sdk-default", "model-arg-600"],
+    )
+    async def test_generate_keeps_a_caller_budget(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        streaming: bool,
+        model_args: dict[str, Any],
+        env: str | None,
+        expected: float,
+    ) -> None:
+        if env is not None:
+            monkeypatch.setenv(REQUEST_TIMEOUT_ENV, env)
+        seen = await anthropic_generate_timeout(
+            anthropic_api(**model_args), streaming=streaming
+        )
+        assert seen["read"] == expected
+
+    async def test_generate_raises_only_the_read_deadline(self) -> None:
+        seen = await anthropic_generate_timeout(anthropic_api(), streaming=True)
+        assert seen["write"] == anthropic.DEFAULT_TIMEOUT.write
+        assert seen["pool"] == anthropic.DEFAULT_TIMEOUT.pool
+
+    async def test_non_streaming_generate_keeps_the_sdk_long_request_guard(
+        self,
+    ) -> None:
+        # With an explicit timeout the SDK skips this check, and a request
+        # whose output can outlast any read deadline would retry forever.
+        with pytest.raises(ValueError, match="Streaming is required"):
+            await anthropic_generate_timeout(
+                anthropic_api(), streaming=False, max_tokens=64_000
+            )
 
     def test_skipped_when_sdk_is_not_httpx_based(
         self, monkeypatch: pytest.MonkeyPatch

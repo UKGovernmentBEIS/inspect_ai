@@ -78,12 +78,7 @@ class _FakeTaskCancel(TaskCancel):
 
     def __init__(self, can_retry: bool = False) -> None:
         self.fired: list[CancelType] = []
-
-        def _fire(cancel_type: CancelType) -> None:
-            self.fired.append(cancel_type)
-            self.cancel_type = cancel_type
-
-        super().__init__(can_retry=can_retry, cancel_task=_fire)
+        super().__init__(can_retry=can_retry, apply=self.fired.append)
 
 
 class _FakeActiveSample:
@@ -188,7 +183,7 @@ def test_cancel_task_pending_retry_abandons_requested_retry() -> None:
     """
     handle = _FakeTaskCancel(can_retry=True)
     register_eval("e1", 5, task_id="t1", task_cancel=handle)
-    handle.cancel_task("retry")
+    handle.request("retry")
 
     result = cancel_task("t1")
     assert result is not None
@@ -220,7 +215,7 @@ def test_cancel_task_pending_retry_score_error_stay_noop() -> None:
     """
     handle = _FakeTaskCancel(can_retry=True)
     register_eval("e1", 5, task_id="t1", task_cancel=handle)
-    handle.cancel_task("retry")
+    handle.request("retry")
 
     result = cancel_task("t1", action="score")
     assert result is not None
@@ -239,7 +234,7 @@ def test_cancel_task_pending_retry_without_budget_is_noop() -> None:
     """
     handle = _FakeTaskCancel(can_retry=False)
     register_eval("e1", 5, task_id="t1", task_cancel=handle)
-    handle.cancel_task("retry")
+    handle.request("retry")
 
     result = cancel_task("t1")
     assert result is not None
@@ -832,7 +827,7 @@ def test_drain_task_pending_retry_abandons_requested_retry() -> None:
     """Drain in the tearing-down window (pending "retry" stamp) sticks."""
     handle = _FakeTaskCancel(can_retry=True)
     register_eval("e1", 5, task_id="t1", task_cancel=handle)
-    handle.cancel_task("retry")
+    handle.request("retry")
 
     result = drain_task("t1")
     assert result is not None and result["ok"] is True
@@ -1839,11 +1834,11 @@ async def test_cancel_drain_abandoned_sample_reads_cancelled(
     record renders), so the hook no-ops for them.
     """
     _patch_active_samples(monkeypatch, [])
-    cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
+    cancel = TaskCancel(can_retry=False, apply=lambda _: None)
     handle = _register_queued_eval(task_cancel=cancel)
     run = _arrive(handle, "s2")
     handle.queue_depart(run)
-    cancel.cancel_type = "score"  # the graceful drain is in flight
+    cancel.request("score")  # the graceful drain is in flight
     # the runner's drain-abandon path fires the queue_abandon hook
     handle.queue_abandoned(run)
     assert handle.sample_view("s2", 1).cancelled == "discarded"
@@ -1875,11 +1870,11 @@ async def test_cancel_departed_task_gates_before_retry_advice(
     a readable record.
     """
     _patch_active_samples(monkeypatch, [])
-    cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
+    cancel = TaskCancel(can_retry=False, apply=lambda _: None)
     handle = _register_queued_eval(task_cancel=cancel)
     run = _arrive(handle, "s2")
     handle.queue_depart(run)
-    cancel.cancel_type = "abort"
+    cancel.request("abort")
 
     result = await cancel_sample("e1", "s2", 1, action="cancel")
     assert result is not None
@@ -1909,8 +1904,8 @@ async def test_cancel_queued_rows_task_level_gates(
 ) -> None:
     """A stamped task cancel closes the queued accept rows."""
     _patch_active_samples(monkeypatch, [])
-    cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
-    cancel.cancel_type = "abort"
+    cancel = TaskCancel(can_retry=False, apply=lambda _: None)
+    cancel.request("abort")
     handle = _register_queued_eval(task_cancel=cancel)
     _arrive(handle, "s2")
 

@@ -126,6 +126,10 @@ The class methods take care of various stages of initialisation, setup, and tear
 
 In the case of parallel execution of a group of tasks within the same working directory, the `task_init()` and `task_cleanup()` functions will be called once for each unique sandbox environment configuration (e.g. Docker Compose file). This is a performance optimisation derived from the fact that initialisation and cleanup are shared for tasks with identical configurations.
 
+All of these methods run in the directory the eval was launched from, with the process's own environment. Inspect does not change to the task's directory for `task_init()` or `task_cleanup()`. Instead, it makes config paths absolute before your provider sees them: a relative string config, or a relative build context in a `ComposeConfig`, that exists under the task's directory is passed as an absolute path. Other values, such as inline JSON, are passed as given.
+
+`task_init_environment()` is only for the Docker provider and its subclasses, which receive the variables it returns in `task_init()`. Inspect does not set them in the process environment. Any other provider that returns variables from `task_init_environment()` fails setup with a `PrerequisiteError`. Put what `task_init()` needs in the sandbox config, and pass environment variables to the subprocesses it starts with `subprocess(env=...)`.
+
 ::: {.callout-note appearance="simple"}
 The "default" `SandboxEnvironment` i.e. that named "default" or marked as default in some other provider-specific way, **must** be the first key/value in the dictionary returned from `sample_init()`.
 :::
@@ -164,7 +168,7 @@ Note if a provider's `config_files()` method returns `compose.yaml` in its list,
 If a provider is docker compatible, then the `config` argument passed to it's method may be one of the following (in addition to whatever native configuration the provider supports):
 
 1.  A path to a `Dockerfile`
-2.  A path to a `compose.yaml` file.
+2.  A path to a Compose file with a filename recognized by `is_compose_yaml()`, such as `compose.yaml` or `task-compose.yaml`.
 3.  An instance of the `ComposeConfig` class.
 
 These input for `config` might be handled as follows:
@@ -231,7 +235,7 @@ Task(
 )
 ```
 
-Sandbox environments can be invoked with an optional configuration parameter, which is passed as the `config` argument to the `startup()` and `setup()` methods. In Python this is done with a tuple
+Sandbox environments can be invoked with an optional configuration parameter, which is passed as the `config` argument to the `task_init()`, `sample_init()`, `sample_cleanup()` and `task_cleanup()` methods. In Python this is done with a tuple
 
 ``` python
 Task(

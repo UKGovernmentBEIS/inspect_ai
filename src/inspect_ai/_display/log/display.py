@@ -2,9 +2,7 @@ import contextlib
 import logging
 from typing import AsyncIterator, Callable, Coroutine, Iterator
 
-import anyio
-
-from inspect_ai._util._async import configured_async_backend, run_coroutine
+from inspect_ai._util._async import run_coroutine, run_main
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.log import EvalStats
@@ -49,7 +47,7 @@ class LogDisplay(Display):
         if running_in_notebook():
             return run_coroutine(main())
         else:
-            return anyio.run(main, backend=configured_async_backend())
+            return run_main(main)
 
     @contextlib.contextmanager
     def suspend_task_app(self) -> Iterator[None]:
@@ -70,7 +68,15 @@ class LogDisplay(Display):
         # Create and yield task display
         task = TaskWithResult(profile, None)
         self.tasks.append(task)
-        yield LogTaskDisplay(task)
+        try:
+            yield LogTaskDisplay(task)
+        except BaseException:
+            # a row completed before the exception (e.g. an abandoned retry)
+            # still reports its result
+            if task.result is not None:
+                self._log_result(task)
+                self._log_status()
+            raise
         self._log_result(task)
         self._log_status()
 

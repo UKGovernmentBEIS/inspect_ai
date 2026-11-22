@@ -1,3 +1,4 @@
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from logging import getLogger
@@ -14,8 +15,9 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
 
+from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.registry import (
@@ -53,14 +55,18 @@ ScoreReason = Literal[
     # measurement instrument
     "grader_failed",  # grader model failed (unparseable verdict, refusal, schema mismatch)
     "scoring_failed",  # scorer could not run (missing logprobs, invalid config, no subscores)
+    # operator decision
+    "excluded",  # excluded from scoring; the value is NaN
+    "zeroed",  # scored as an empty attempt
 ]
 """Standard machine-readable reasons for abnormal scores.
 
 The first group attributes the failure to the model under test (kept
 fine-grained — refusal rate is a first-class quantity, distinct from format
 violations); the second to the measurement instrument, split by whether a
-grader model failed or the scorer itself could not run. Any custom string
-is also legal; the detail behind a coarse value belongs in `explanation`.
+grader model failed or the scorer itself could not run; the third to an
+operator who edited the score after the eval. Any custom string is also
+legal; the detail behind a coarse value belongs in `explanation`.
 """
 
 
@@ -107,6 +113,25 @@ class ScoreEdit(BaseModel):
 
     provenance: ProvenanceData | None = None
     """Provenance data for this edit. None indicates this is the original score."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _missing_field_is_none(cls, data: Any, info: ValidationInfo) -> Any:
+        """Read a field missing from a persisted edit as None, not UNCHANGED.
+
+        Logs are written with ``exclude_none``, which drops None fields, while
+        UNCHANGED is always written out. So when deserializing a log, a missing
+        ``answer`` or ``explanation`` can only have been None. ``reason`` is
+        left alone: edits written before it existed (#4629) have no ``reason``
+        key and mean UNCHANGED, which a dropped None can't be told apart from.
+        """
+        if (
+            isinstance(data, dict)
+            and isinstance(info.context, dict)
+            and info.context.get(DESERIALIZING, False)
+        ):
+            return {"answer": None, "explanation": None} | data
+        return data
 
 
 class Score(BaseModel):
@@ -218,6 +243,19 @@ class Score(BaseModel):
             return self.value
         else:
             raise ValueError("This score is not a scalar")
+
+
+def score_is_excluded(score: Score) -> bool:
+    """Whether an operator excluded the score.
+
+    True when `reason` is `"excluded"` and the value is a float NaN at the
+    root. Epoch reduction leaves such scores out.
+    """
+    return (
+        score.reason == "excluded"
+        and isinstance(score.value, float)
+        and math.isnan(score.value)
+    )
 
 
 class Reference(BaseModel):
