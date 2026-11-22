@@ -771,7 +771,9 @@ def _common_prefix(old: list[tuple[Any, ...]], new: list[tuple[Any, ...]]) -> in
 # ----------------------------------------------------------------------
 
 
-def compose_content_item(item: object, *, context_id: str = "") -> ComposeResult:
+def compose_content_item(
+    item: object, *, context_id: str = "", clip_characters: bool = True
+) -> ComposeResult:
     """Dispatch one ACP ``ToolCallContent`` variant to its renderer.
 
     Three ACP variants per ``ToolCallUpdate.content``:
@@ -784,6 +786,8 @@ def compose_content_item(item: object, *, context_id: str = "") -> ComposeResult
       the terminal id (full streaming-terminal rendering is deferred).
 
     ``context_id`` is logged on unknown content types for debugging.
+    ``clip_characters`` is passed to :class:`CollapsibleContent`; the
+    approval section turns it off.
     """
     type_name = getattr(item, "type", None)
     if type_name == "diff":
@@ -803,7 +807,11 @@ def compose_content_item(item: object, *, context_id: str = "") -> ComposeResult
         # include ANSI escapes / NUL bytes that confuse rich's
         # measurement pass.
         cleaned = clean_control_characters(text)
-        yield CollapsibleContent(cleaned, max_lines=_DEFAULT_TOOL_OUTPUT_MAX_LINES)
+        yield CollapsibleContent(
+            cleaned,
+            max_lines=_DEFAULT_TOOL_OUTPUT_MAX_LINES,
+            clip_characters=clip_characters,
+        )
         return
     logger.warning(
         "compose_content_item: unknown content item type %r (context_id=%s)",
@@ -975,8 +983,10 @@ class _ApprovalContent(Vertical):
             else:
                 wrapper_class = "approval-content"
             with Vertical(classes=wrapper_class):
+                # no silent character clip: the person approving must be
+                # able to see the whole call (lines over the limit are noted)
                 yield from compose_content_item(
-                    block, context_id=self._state.tool_call_id
+                    block, context_id=self._state.tool_call_id, clip_characters=False
                 )
 
 

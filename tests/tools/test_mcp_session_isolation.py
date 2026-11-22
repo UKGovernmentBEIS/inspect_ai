@@ -13,12 +13,19 @@ bookkeeping directly so the isolation guarantees are easy to verify.
 
 from __future__ import annotations
 
+from contextlib import AsyncExitStack
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 
-from inspect_ai.tool._mcp._local import MCPServerLocal, MCPServerLocalSession
+from inspect_ai.tool import Tool, ToolDef
+from inspect_ai.tool._mcp._local import (
+    MCPServerLocal,
+    MCPServerLocalSession,
+    _Connection,
+)
 
 
 def _make_server(name: str = "s") -> MCPServerLocal:
@@ -67,58 +74,101 @@ async def test_task_sessions_independent_across_instances_with_same_name() -> No
     assert sa is not sb
 
 
-async def test_cached_tool_list_cleared_on_close() -> None:
-    """A session whose refcount drops to zero must clear its cached tool list.
+def _mcp_tool(name: str) -> Any:
+    from mcp.types import Tool as MCPTool
 
-    Otherwise a reused session object would serve stale tools to the next
-    caller without contacting the server.
-    """
+    return MCPTool.model_validate(
+        {
+            "name": name,
+            "description": name,
+            "inputSchema": {"type": "object", "properties": {}},
+        }
+    )
+
+
+def _tool_names(tools: list[Tool]) -> list[str]:
+    return [ToolDef(t).name for t in tools]
+
+
+def _local_session(
+    monkeypatch: pytest.MonkeyPatch, connections: list[str]
+) -> MCPServerLocalSession:
+    """A session whose connects pop `connections`, each listing one tool so named."""
     session = MCPServerLocalSession(
         client=lambda: (_ for _ in ()).throw(AssertionError("unused")),
         name="s",
         events=False,
     )
 
-    # Simulate an active session with a populated cache.
-    sentinel_tools: list[Any] = [object()]
-    session._cached_tool_list = sentinel_tools
-    session._refcount = 1
-    fake_exit_stack = AsyncMock()
-    fake_exit_stack.aclose = AsyncMock(return_value=None)
-    session._exit_stack = fake_exit_stack
-    session._session = (
-        AsyncMock()
-    )  # any non-None placeholder satisfying ClientSession | None
+    async def connect(exit_stack: AsyncExitStack) -> Any:
+        client = AsyncMock()
+        client.list_tools.return_value = SimpleNamespace(
+            tools=[_mcp_tool(connections.pop(0))]
+        )
+        return client
 
-    await session.__aexit__(None, None, None)
+    monkeypatch.setattr(session, "_connect", connect)
+    return session
 
-    assert session._refcount == 0
-    assert session._session is None
-    assert session._exit_stack is None
-    assert session._cached_tool_list is None, (
-        "cache must be dropped on close so a reused session re-fetches tools"
+
+@pytest.mark.parametrize("teardown_raises", [False, True])
+async def test_tool_list_not_served_after_close(
+    monkeypatch: pytest.MonkeyPatch, teardown_raises: bool
+) -> None:
+    """A connection's tool list is not served once its refcount drops to zero.
+
+    Otherwise a reused session would serve stale tools to the next connection
+    without contacting the server. This holds when a tools() call during
+    teardown lists over a temporary connection, and when teardown raises.
+    """
+    session = _local_session(monkeypatch, ["temporary", "reconnected"])
+
+    async def teardown() -> None:
+        assert _tool_names(await session.tools()) == ["temporary"]
+        if teardown_raises:
+            raise RuntimeError("teardown failed")
+
+    closed = AsyncMock(side_effect=teardown)
+    exit_stack = AsyncExitStack()
+    exit_stack.push_async_callback(closed)
+    session._conn = _Connection(
+        AsyncMock(), exit_stack, tool_list=[_mcp_tool("closed")]
     )
 
+    if teardown_raises:
+        with pytest.raises(RuntimeError, match="teardown failed"):
+            await session.__aexit__(None, None, None)
+    else:
+        await session.__aexit__(None, None, None)
 
-async def test_cached_tool_list_preserved_when_still_referenced() -> None:
-    """Closing one holder must NOT invalidate the cache while others remain.
+    closed.assert_awaited_once()
+    assert session._conn is None
+    assert _tool_names(await session.tools()) == ["temporary"]
+    async with session:
+        assert _tool_names(await session.tools()) == ["reconnected"]
+
+
+async def test_tool_list_preserved_when_still_referenced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Closing one holder must NOT drop the tool list while others remain.
 
     If the session is still held by another caller (refcount > 0), the
-    remaining holder still expects its tools.
+    remaining holder still expects its tools without listing them again.
     """
-    session = MCPServerLocalSession(
-        client=lambda: (_ for _ in ()).throw(AssertionError("unused")),
-        name="s",
-        events=False,
-    )
-    sentinel_tools: list[Any] = [object()]
-    session._cached_tool_list = sentinel_tools
-    session._refcount = 2  # two holders
+    session = _local_session(monkeypatch, [])
+    client = AsyncMock()
+    conn = _Connection(
+        client, AsyncExitStack(), refcount=2, tool_list=[_mcp_tool("held")]
+    )  # two holders
+    session._conn = conn
 
     await session.__aexit__(None, None, None)
 
-    assert session._refcount == 1
-    assert session._cached_tool_list is sentinel_tools
+    assert session._conn is conn
+    assert conn.refcount == 1
+    assert _tool_names(await session.tools()) == ["held"]
+    client.list_tools.assert_not_called()
 
 
 if __name__ == "__main__":  # pragma: no cover

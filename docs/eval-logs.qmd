@@ -8,7 +8,7 @@ llms-description: Getting the most out of evaluation logs for developing, debugg
 Every time you use `inspect eval` or call the `eval()` function, an evaluation log is written for each task evaluated. By default, logs are written to the `./logs` sub-directory of the current working directory (we'll cover how to change this below). You will find a link to the log at the bottom of the results for each task:
 
 ``` bash
-$ inspect eval security_guide.py --model openai/gpt-4
+$ inspect eval security_guide.py --model openai/gpt-6-luna
 ```
 
 ![](images/eval-log.png){fig-alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display."}
@@ -42,13 +42,13 @@ This article will focus primarily on configuring Inspect's logging behavior (loc
 By default, logs are written to the `./logs` sub-directory of the current working directory You can change where logs are written using eval options or an environment variable:
 
 ``` bash
-$ inspect eval popularity.py --model openai/gpt-4 --log-dir ./experiment-log
+$ inspect eval popularity.py --model openai/gpt-6-luna --log-dir ./experiment-log
 ```
 
 Or:
 
 ``` python
-log = eval(popularity, model="openai/gpt-4", log_dir = "./experiment-log")
+log = eval(popularity, model="openai/gpt-6-luna", log_dir = "./experiment-log")
 ```
 
 Note that in addition to logging the `eval()` function also returns an `EvalLog` object for programmatic access to the details of the evaluation. We'll talk more about how to use this object below.
@@ -197,6 +197,7 @@ The `EvalLog` object returned from `eval()` provides programmatic interface to t
 | `eval` | `EvalSpec` | Top level eval details including task, model, creation time, etc. |
 | `plan` | `EvalPlan` | List of solvers and model generation config used for the eval. |
 | `results` | `EvalResults` | Aggregate results computed by scorer metrics. |
+| `total_samples` | `int \| None` | Sample/epoch runs accepted for this attempt, saved when the eval finishes, even when `results` is absent. `None` means unknown. |
 | `stats` | `EvalStats` | Model usage statistics (input and output tokens) |
 | `error` | `EvalError` | Error information (if `status == "error`) including traceback. |
 | `tags` | `list[str]` | Current tags (eval-time tags merged with any post-eval edits). |
@@ -208,7 +209,7 @@ The `EvalLog` object returned from `eval()` provides programmatic interface to t
 Before analysing results from a log, you should always check their status to ensure they represent a successful run:
 
 ``` python
-log = eval(popularity, model="openai/gpt-4")
+log = eval(popularity, model="openai/gpt-6-luna")
 if log.status == "success":
    ...
 ```
@@ -246,7 +247,7 @@ for log in logs:
     write_eval_log(log)
 ```
 
-Note that the `EvalLog.location` is a URI rather than a traditional file path(e.g. it could be a `file://` URI, an `s3://` URI or any other URI supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
+Note that the `EvalLog.location` is a URI rather than a traditional file path (e.g. it could be a `file://` URI, an `s3://` URI or any other URI supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
 
 ### Functions
 
@@ -268,8 +269,8 @@ A common workflow is to define an `INSPECT_LOG_DIR` for running a set of evaluat
 os.environ["INSPECT_LOG_DIR"] = "./experiment-logs"
 
 # do a bunch of evals
-eval(popularity, model="openai/gpt-4")
-eval(security_guide, model="openai/gpt-4")
+eval(popularity, model="openai/gpt-6-luna")
+eval(security_guide, model="openai/gpt-6-luna")
 
 # analyze the results in the logs
 logs = list_eval_logs()
@@ -306,7 +307,7 @@ You can also use `read_eval_log_sample_summaries()` as means of filtering which 
 ```python
 errors: list[EvalSample] = []
 for sample in read_eval_log_sample_summaries(log_file):
-    if sample.error is not None
+    if sample.error is not None:
         errors.append(
             read_eval_log_sample(log_file, sample.id, sample.epoch)
         )
@@ -459,9 +460,127 @@ recompute_metrics(log)
 write_eval_log(log)
 ```
 
+Metrics and epoch reducers are rebuilt from the registry. If the eval used a custom metric defined in its task file, import that file before you edit or recompute (in the process that ran the eval this is already done):
+
+``` python
+import my_task  # registers the custom metrics defined in my_task.py
+
+edit_score(log, sample_id, "accuracy", edit)
+```
+
+Otherwise `edit_score()` and `recompute_metrics()` raise a `LookupError` that names the metric, and the log is not changed.
+
+### Logs from Others
+
+Reading, viewing, editing, recomputing and recovering a log do not import any file that the log names. Whoever wrote a log controls every field in it, including the task file it records and the options of its metrics. These operations do not import the task file, and they refuse metric options that would create a model or any object other than a metric or reducer (a `ValueError` naming the option).
+
+If you trust a log, pass `trust_log=True` to `edit_score()`, `recompute_metrics()` or `recover_eval_log()` (`--trust-log` for `inspect log recover`). This imports the task file the log records for metrics that are not registered, and rebuilds metric options as recorded. It runs the task file's code, so use it only for logs you trust.
+
+Retrying a log (`inspect eval-retry`) and rescoring it (`inspect score`) are different: they run code and use settings named by the log. Only run them on logs you trust (see [Eval Retries](#eval-retries) and [Scoring Workflow](scoring-workflow.qmd)).
+
 ### Score Edit Events
 
 When you edit a score, a `ScoreEditEvent` is automatically added to the sample's event log. This provides a complete audit trail of all score modifications that can be viewed in the log viewer.
+
+### Excluding Samples
+
+To leave samples out of a finished log's metrics, use `exclude_samples()`. Each score the sample holds becomes an unscored `NaN` with the reason `"excluded"`, and the earlier score stays in the score history. A sample that holds no score (for example, one that errored before it was scored) gets one under the log's first scorer. Metrics are then recomputed:
+
+``` python
+from inspect_ai.log import (
+    read_eval_log, write_eval_log, exclude_samples, ProvenanceData
+)
+
+log = read_eval_log("my_eval.eval")
+
+exclude_samples(
+    log,
+    ["sample-3", ("sample-7", 2)],  # every epoch of sample-3, epoch 2 of sample-7
+    ProvenanceData(author="alice", reason="task environment was broken"),
+)
+
+write_eval_log(log)
+```
+
+The reason is required, and is also the score's explanation.
+
+The same edit is available from the command line. It rewrites the log in place:
+
+``` bash
+$ inspect log exclude logs/my_eval.eval --sample sample-3 --sample sample-7 \
+    --epoch 2 --reason "task environment was broken"
+```
+
+`--epoch` applies to every `--sample`. `--author` defaults to your git identity, else your user name.
+
+An excluded epoch takes no part in epoch reduction: a sample reduces as if that epoch had not run, and a sample with every epoch excluded counts as unscored. Epochs are reduced with the reducers the log records, rebuilt by name, so a custom reducer configured with other arguments is rebuilt with its defaults.
+
+Some things to keep in mind:
+
+-   Exclusion does not change the sample's transcript, output or error. An errored sample that you exclude is still re-run by `inspect eval-retry` and eval set retries, and the new result replaces the exclusion.
+
+-   Rescoring with `inspect score --action append` keeps the excluded scores, but the appended scores count in their own metrics. Apply the exclusion again to exclude them too. `--action overwrite` replaces the sample's scores, so apply the exclusion again afterwards.
+
+-   As with `edit_score()`, the log's task file is not imported. If the eval used a metric or reducer defined in its task file, import that module before calling `exclude_samples()`; otherwise a `LookupError` names it and the log is not changed. `inspect log exclude` works only when every metric and reducer is part of Inspect or an installed package.
+
+-   The log must have finished. To exclude a sample of a running eval, cancel it with `inspect ctl sample cancel --action cancel`, then exclude it once the log is written.
+
+### Zeroing Samples
+
+To count samples of a finished log as failures, zero them. What a failure is depends on the task's scorers (`I` for `match()`, `0` for a numeric scorer, a failed test in a sandbox), so zeroing takes two steps.
+
+First, run the samples again with the `empty_attempt()` solver, which does nothing. `Task.setup` still runs, so the sample's environment is prepared, and the task's scorers then score the untouched state:
+
+``` bash
+$ inspect eval my_task.py --solver inspect_ai/empty_attempt \
+    --sample-id sample-3,sample-7 --log-dir logs/empty
+```
+
+Then copy those verdicts into the log with `zero_samples()`. Each score of the empty-attempt sample replaces the score of the same name, with the reason `"zeroed"`, and the earlier score stays in the score history. Metrics are then recomputed:
+
+``` python
+from inspect_ai.log import (
+    read_eval_log, write_eval_log, zero_samples, ProvenanceData
+)
+
+log = read_eval_log("logs/my_eval.eval")
+empty = read_eval_log("logs/empty/my_empty_attempt.eval")
+
+zero_samples(
+    log,
+    empty,
+    ["sample-3", ("sample-7", 2)],  # every epoch of sample-3, epoch 2 of sample-7
+    ProvenanceData(author="alice", reason="the agent was given the answer"),
+)
+
+write_eval_log(log)
+```
+
+Or from the command line, which rewrites the log in place:
+
+``` bash
+$ inspect log zero logs/my_eval.eval --from logs/empty/my_empty_attempt.eval \
+    --sample sample-3 --reason "the agent was given the answer"
+```
+
+When running the empty attempt:
+
+-   Write its log to its own log directory. An eval set's log directory is also where it looks for logs to reuse.
+
+-   Pass the settings the original run had (model, task arguments, sandbox). The verdict reflects the task and settings of the empty-attempt run; `zero_samples()` compares only the task name and scorer names of the two logs.
+
+-   `--sample-id` selects samples by pattern and may include a task prefix. Samples it selects that you do not zero are ignored; a sample you zero that it did not run is refused.
+
+-   The run uses the task's epochs (or `--epochs`), and every epoch you zero must be in its log.
+
+A zero must count in the metrics, so `zero_samples()` refuses, and edits nothing, when:
+
+-   The sample id is an integer. Inspect numbers samples without ids by position, so an integer id need not name the same sample in another run.
+-   The empty attempt errored, hit a limit, or holds no score.
+-   A verdict is a dict or list, is unscored (`NaN`, for example when a grader failed), or cites messages or events of the empty attempt's transcript.
+-   The sample holds a score the empty attempt does not produce (from a scorer that returned nothing, a solver, or `inspect score --action append`).
+
+Exclude such samples instead. As with exclusion, zeroing does not change the sample's transcript, output or error, so `inspect eval-retry` still re-runs a zeroed errored sample, and rescoring with `inspect score` scores the original transcript, not the empty attempt. `inspect score --action overwrite` replaces the sample's scores, so apply the zero again afterwards.
 
 ### Tags & Metadata Editing
 
@@ -516,6 +635,8 @@ AWS_DEFAULT_REGION=eu-west-2
 
 One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a [FUSE filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily browse the S3 logs locally.
 
+Large `.eval` logs on S3 use multipart uploads. With the default asyncio backend, later writes can copy existing log data server-side and upload only new data and the ZIP directory. If Inspect is killed during a write, the unfinished upload stays in the bucket, and is billed as storage, until it is removed. We recommend a [lifecycle rule](https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpu-abort-incomplete-mpu-lifecycle-config.html) on the log bucket that aborts incomplete multipart uploads after a day.
+
 ## Hugging Face Storage Buckets {#sec-hugging-face-storage-buckets}
 
 You can store evaluation logs in [Hugging Face Storage Buckets](https://huggingface.co/docs/hub/storage-buckets) using the `hf://buckets/<owner>/<bucket>/<path>` URI scheme. Storage buckets are useful for durable, shared log storage and are accessed through the `huggingface_hub` filesystem integration.
@@ -538,7 +659,7 @@ HF_TOKEN=hf_...
 You can then run evaluations and view logs directly from the bucket:
 
 ``` bash
-inspect eval popularity.py --model openai/gpt-4
+inspect eval popularity.py --model openai/gpt-6-luna
 inspect view --log-dir hf://buckets/my-org/inspect-logs/runs
 ```
 
@@ -593,7 +714,7 @@ Also set `AZURE_STORAGE_ANON=false` here—leaving it empty reverts to anonymous
 **Running Evaluations & Viewer**
 
 ```
-inspect eval popularity.py --model openai/gpt-4
+inspect eval popularity.py --model openai/gpt-6-luna
 inspect view  # streams directly from Azure
 ```
 
@@ -628,6 +749,8 @@ We've shown a number of Python functions that let you work with eval logs from c
 | `inspect log dump`           | Print log file contents as JSON.                   |
 | `inspect log convert`        | Convert between log file formats.                  |
 | `inspect log export-config`  | Export a run config YAML from a log file.          |
+| `inspect log exclude`        | [Exclude samples](#excluding-samples) from a log's metrics. |
+| `inspect log zero`           | [Zero samples](#zeroing-samples) of a log.         |
 | `inspect log schema`         | Print JSON schema for log files.                   |
 
 ### Listing Logs

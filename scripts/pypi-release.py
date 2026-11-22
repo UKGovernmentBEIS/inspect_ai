@@ -26,7 +26,9 @@ Usage:
 """
 
 import argparse
+import csv
 import hashlib
+import io
 import json
 import logging
 import os
@@ -496,7 +498,8 @@ def verify_dist(dist_dir: Path, version: str, sandbox_version: str) -> None:
 
     Raises:
         RuntimeError: If dist/ holds anything other than exactly one sdist
-            and one wheel of `version`, or the wheel fails
+            and one wheel of `version`, the sdist contains a file under
+            `src/inspect_ai/binaries/`, or the wheel fails
             `verify_wheel_contents`.
     """
     files = sorted(f.name for f in dist_dir.iterdir()) if dist_dir.is_dir() else []
@@ -515,6 +518,17 @@ def verify_dist(dist_dir: Path, version: str, sandbox_version: str) -> None:
                 f"{filename} has version {built_version}, expected {version}"
             )
 
+    with tarfile.open(dist_dir / sdist) as archive:
+        binaries = [
+            name
+            for name in archive.getnames()
+            if name.partition("/")[2].startswith("src/inspect_ai/binaries/")
+        ]
+    if binaries:
+        raise RuntimeError(
+            f"{sdist} must not contain the sandbox tools binaries; found "
+            f"{binaries}. Check MANIFEST.in."
+        )
     verify_wheel_contents(dist_dir / wheel, sandbox_version)
     logging.info(f"✓ Distributions verified for version {version}: {files}")
 
@@ -536,7 +550,7 @@ def _normalize_scm_version(content: bytes) -> bytes:
 # Archive members (path below the sdist's top-level directory) whose content
 # legitimately differs between release builders, with the normalization
 # applied to both sides before comparing. Every other member must match byte
-# for byte.
+# for byte, except a wheel's WHEEL and RECORD (see `_ignore_wheel_generator`).
 PARITY_NORMALIZERS: Dict[str, Callable[[bytes], bytes]] = {
     "src/inspect_ai.egg-info/scm_version.json": _normalize_scm_version,
 }
@@ -591,18 +605,85 @@ def archive_member_digests(path: Path) -> Dict[str, str]:
     return digests
 
 
+class _WheelMetadata(NamedTuple):
+    generators: List[str]
+    other_lines: List[str]
+
+
+def _split_generator(wheel_metadata: bytes) -> _WheelMetadata:
+    lines = wheel_metadata.decode().splitlines()
+    return _WheelMetadata(
+        generators=[line for line in lines if line.startswith("Generator:")],
+        other_lines=[line for line in lines if not line.startswith("Generator:")],
+    )
+
+
+def _record_rows_without_metadata_hashes(
+    record: bytes, dist_info: str
+) -> List[List[str]]:
+    ignored = {f"{dist_info}/WHEEL", f"{dist_info}/RECORD"}
+    return [
+        row[:1] if row and row[0] in ignored else row
+        for row in csv.reader(io.StringIO(record.decode()))
+    ]
+
+
+def _ignore_wheel_generator(
+    published: Path, built: Path, differing: List[str]
+) -> List[str]:
+    """Drop a wheel's WHEEL and RECORD from `differing` when only the build tool differs.
+
+    WHEEL's `Generator:` line names the build backend and its version (e.g.
+    "setuptools (84.0.0)"), which changes with backend releases rather than
+    with the source. RECORD then differs only in WHEEL's hash and size. Any
+    other difference in either file is kept.
+    """
+    wheel_files = [n for n in differing if re.fullmatch(r"[^/]+\.dist-info/WHEEL", n)]
+    if len(wheel_files) != 1:
+        return differing
+    wheel_file = wheel_files[0]
+    dist_info = wheel_file.rsplit("/", 1)[0]
+    record_file = f"{dist_info}/RECORD"
+
+    with zipfile.ZipFile(published) as old, zipfile.ZipFile(built) as new:
+        old_wheel = _split_generator(old.read(wheel_file))
+        new_wheel = _split_generator(new.read(wheel_file))
+        if (
+            len(old_wheel.generators) != 1
+            or len(new_wheel.generators) != 1
+            or old_wheel.other_lines != new_wheel.other_lines
+        ):
+            return differing
+        ignored = [wheel_file]
+        if record_file in differing and _record_rows_without_metadata_hashes(
+            old.read(record_file), dist_info
+        ) == _record_rows_without_metadata_hashes(new.read(record_file), dist_info):
+            ignored.append(record_file)
+
+    logging.info(
+        f"{built.name}: ignoring build tool difference in {' and '.join(ignored)}: "
+        f"'{old_wheel.generators[0]}' on PyPI, '{new_wheel.generators[0]}' built"
+    )
+    return [n for n in differing if n not in ignored]
+
+
 def compare_archives(published: Path, built: Path) -> ParityResult:
-    """Compare member lists and per-member content of two archives."""
+    """Compare member lists and per-member content of two archives.
+
+    A wheel whose WHEEL and RECORD differ only in the build tool's identity
+    matches (see `_ignore_wheel_generator`).
+    """
     expected = archive_member_digests(published)
     actual = archive_member_digests(built)
+    differing = sorted(
+        name for name in set(expected) & set(actual) if expected[name] != actual[name]
+    )
+    if built.name.endswith(".whl"):
+        differing = _ignore_wheel_generator(published, built, differing)
     return ParityResult(
         missing=sorted(set(expected) - set(actual)),
         extra=sorted(set(actual) - set(expected)),
-        differing=sorted(
-            name
-            for name in set(expected) & set(actual)
-            if expected[name] != actual[name]
-        ),
+        differing=differing,
         compared=len(set(expected) | set(actual)),
     )
 
@@ -881,9 +962,12 @@ def get_confirmation(
 
 
 def remove_directories(dry_run: bool = False) -> None:
-    """Remove build directories (but not binaries)."""
-    # Only remove dist directory, not binaries
-    dirs_to_remove = ["dist"]
+    """Remove build outputs (but not binaries).
+
+    The wheel is built from the checkout, so a stale `build/` would be copied
+    into it (e.g. old binaries or deleted modules under `build/lib`).
+    """
+    dirs_to_remove = ["dist", "build"]
 
     for dir_path in dirs_to_remove:
         if os.path.exists(dir_path):
@@ -1071,19 +1155,14 @@ def release_command(args):
             except RuntimeError as e:
                 logging.error(f"Pre-build sandbox tools gate failed: {e}")
                 raise
-        run_command(["python3", "-m", "build"], dry_run=dry_run)
+        run_command(["python3", "-m", "build", "--sdist", "--wheel"], dry_run=dry_run)
         if dry_run:
-            logging.info("[DRY RUN] Would verify built wheel contents")
+            logging.info("[DRY RUN] Would verify built distributions")
         else:
-            wheels = list(Path("dist").glob("*.whl"))
-            if not wheels:
-                logging.error("No wheel found in dist/ after build")
-                sys.exit(1)
             try:
-                for wheel in wheels:
-                    verify_wheel_contents(wheel, sandbox_version)
+                verify_dist(Path("dist"), tag_name, sandbox_version)
             except RuntimeError as e:
-                logging.error(f"Post-build wheel gate failed: {e}")
+                logging.error(f"Post-build distribution gate failed: {e}")
                 raise
         logging.info("   ✓ Package built successfully")
 

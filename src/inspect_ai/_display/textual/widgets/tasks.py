@@ -531,10 +531,10 @@ class CancelLink(Link):
                     task_name=self._profile.name,
                     model_name=str(self._profile.model),
                 ),
-                callback=self._task_cancel.cancel_task,
+                callback=self._task_cancel.request,
             )
         else:
-            self._task_cancel.cancel_task("abort")
+            self._task_cancel.request("abort")
 
     def action_open_link(self) -> None:
         return None

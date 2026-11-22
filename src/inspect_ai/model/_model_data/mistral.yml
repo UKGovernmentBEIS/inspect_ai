@@ -1,6 +1,11 @@
 mistral:
   display_name: Mistral
   models:
+    mistral-large-4:
+      display_name: Mistral Large 4
+      context_length: 1048576
+      aliases:
+        - mistral-large-4-0
     mistral-medium-2604:
       display_name: Mistral Medium 3.5
       release_date: 2026-04-29

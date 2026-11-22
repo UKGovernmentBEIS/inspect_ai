@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Callable
+from typing import Any, Callable
 
 import pytest
+from textual.pilot import Pilot
+from textual.widget import Widget
 
 from inspect_ai.agent._acp.discovery import TargetAddress
 from inspect_ai.agent._acp.tui.client import SessionRow
+from inspect_ai.agent._acp.tui.picker_screen import PickerScreen
+from inspect_ai.agent._acp.tui.session_screen import SessionScreen
 
 
 @pytest.fixture
@@ -163,3 +167,32 @@ def make_fake_client(
 def fake_client_factory() -> Callable[..., SimpleNamespace]:
     """Returns the :func:`make_fake_client` builder for parametrized use."""
     return make_fake_client
+
+
+async def open_session_screen(
+    pilot: Pilot[Any], rows: list[SessionRow]
+) -> SessionScreen:
+    """Select ``rows[0]`` in the picker and return the mounted SessionScreen.
+
+    The attach worker pushes SessionScreen onto the stack before its
+    ``on_mount`` handlers, and those of its widgets, have run. Tests that
+    read state set there must wait until the screen and every descendant
+    widget is mounted.
+    """
+    app = pilot.app
+    await pilot.pause()
+    picker = app.screen
+    assert isinstance(picker, PickerScreen)
+    picker._on_select(rows[0])
+    for _ in range(20):
+        await pilot.pause()
+        if isinstance(app.screen, SessionScreen):
+            break
+    screen = app.screen
+    assert isinstance(screen, SessionScreen)
+    for _ in range(20):
+        if all(w.is_mounted for w in screen.walk_children(Widget, with_self=True)):
+            break
+        await pilot.pause()
+    assert all(w.is_mounted for w in screen.walk_children(Widget, with_self=True))
+    return screen

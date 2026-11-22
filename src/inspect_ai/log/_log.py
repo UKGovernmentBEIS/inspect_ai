@@ -183,8 +183,9 @@ class EvalConfig(BaseModel):
     working_limit: int | None = Field(default=None)
     """Maximum working time per sample.
 
-    Work done while any wait is open is not charged, so working time can
-    undercount; set `time_limit` as well to bound clock time.
+    While a wait is open, only model calls, sandbox commands and tool calls
+    are charged, so working time can undercount; set `time_limit` as well to
+    bound clock time.
     """
 
     cost_limit: float | None = Field(default=None)
@@ -345,10 +346,12 @@ class EvalSampleSummary(BaseModel):
     working_time: float | None = Field(default=None)
     """Time spent working (model generation, sandbox calls, etc.)
 
-    Clock time minus the time when any wait (retries, rate limits, shared
-    resources, approval, human input) was open in the sample. Other work done
-    during a wait, such as concurrent tool calls or sub-agents, is not counted,
-    so set `time_limit` alongside `working_limit` to bound clock time.
+    Clock time minus the time when a wait (retries, rate limits, shared
+    resources, approval, human input) was open in the sample and no model
+    call, sandbox command or tool call was running (not counting commands run
+    with `exec_remote()` or inside `sandbox_agent_bridge()`). Other work done
+    during a wait is not counted, so set `time_limit` alongside `working_limit` to
+    bound clock time.
     """
 
     uuid: str | None = Field(default=None)
@@ -444,7 +447,17 @@ class EvalRetryError(BaseModel):
 
 
 class EvalSample(BaseModel):
-    """Sample from evaluation task."""
+    """Sample from evaluation task.
+
+    A sample remembers whether its attachment references have been resolved:
+    `resolve_sample_attachments()` (and reading a log with
+    `resolve_attachments`) marks the sample it returns, and writing a log
+    uses the mark to tell literal text that begins with `attachment://` or
+    `tc://` from a reference. The mark is not serialized. A sample without
+    it (built by hand, or passed through `model_dump()` and
+    `model_validate()`) is taken to hold references, as read from a log
+    without resolving attachments.
+    """
 
     id: int | str
     """Unique id for sample."""
@@ -556,10 +569,12 @@ class EvalSample(BaseModel):
     working_time: float | None = Field(default=None)
     """Time spent working (model generation, sandbox calls, etc.)
 
-    Clock time minus the time when any wait (retries, rate limits, shared
-    resources, approval, human input) was open in the sample. Other work done
-    during a wait, such as concurrent tool calls or sub-agents, is not counted,
-    so set `time_limit` alongside `working_limit` to bound clock time.
+    Clock time minus the time when a wait (retries, rate limits, shared
+    resources, approval, human input) was open in the sample and no model
+    call, sandbox command or tool call was running (not counting commands run
+    with `exec_remote()` or inside `sandbox_agent_bridge()`). Other work done
+    during a wait is not counted, so set `time_limit` alongside `working_limit` to
+    bound clock time.
     """
 
     uuid: str | None = Field(default=None)
@@ -604,6 +619,13 @@ class EvalSample(BaseModel):
 
     time_limit: int | None = Field(default=None)
     """Time limit ceiling in seconds the sample ran under (None when no limit); reflects mid-run (`inspect ctl config`) retunes."""
+
+    _attachment_state: Literal["condensed", "core", "full"] = PrivateAttr(
+        default="condensed"
+    )
+    """How far attachment references have been resolved: "condensed" (not
+    at all), "core" (all but `ModelEvent.call` and the call pool) or "full".
+    Set by `resolve_sample_attachments()`; read when condensing."""
 
     def summary(self) -> EvalSampleSummary:
         """Summary of sample.
@@ -689,10 +711,11 @@ class EvalSample(BaseModel):
             del values["score"]
 
         if "transcript" in values:
-            # promote 'transcript' up to 'events' and 'attachments'
-            eval_events = EvalEvents(**values["transcript"])
-            values["events"] = eval_events.events
-            values["attachments"] = eval_events.content
+            # promote 'transcript' up to 'events' and 'attachments' (left
+            # unvalidated so they are validated with this read's context)
+            transcript = values["transcript"]
+            values["events"] = transcript.get("events", [])
+            values["attachments"] = transcript.get("content", {})
 
             # get rid of transcript (property accessor w/ deprecation
             # warning will handle this)
@@ -1352,6 +1375,15 @@ class EvalLog(BaseModel):
 
     config_updates: list[ConfigUpdate] | None = Field(default=None)
     """Mid-run configuration changes applied via the control channel (`inspect ctl config`)."""
+
+    total_samples: int | None = Field(default=None)
+    """Sample/epoch runs accepted for this attempt, saved when the eval finishes.
+
+    Includes the selected seed runs and runs accepted later, even when they
+    never start. Equals ``results.total_samples`` when evaluation results are
+    written; later rescoring can change the results count. Does not predict
+    what a source adds later. ``None`` means unknown, including logs from
+    older versions and running, crashed and recovered logs."""
 
     tags: list[str] = Field(default_factory=list)
     """Current tags (eval-time + edits). Do not set directly; use edit_eval_log()."""

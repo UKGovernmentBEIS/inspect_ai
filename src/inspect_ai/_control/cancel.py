@@ -114,17 +114,6 @@ rewording here can't silently degrade the rendering.
 """
 
 
-# The escalation ladder, ordered by invasiveness: a request strictly
-# *stronger* than the pending resolution applies (the stamp is overwritten
-# and, for score/error, the interrupt sweep runs; for abort, the scope
-# fires); anything equal or weaker is the idempotent no-op. Score and error
-# are unordered peers. See design/ctl/task-drain.md "Escalation ladder and
-# idempotence" (generalizes the original abort-over-score/error rule —
-# teardown must always remain reachable, e.g. a draining task stalled on a
-# hung sample, and score/error is drain's "stop waiting" relief valve).
-_ESCALATION_LADDER: dict[str, int] = {"drain": 0, "score": 1, "error": 1, "abort": 2}
-
-
 class CancelTaskRejected(TypedDict):
     """A rejection from the decision table (the route maps it to a 409)."""
 
@@ -366,7 +355,7 @@ def _task_cancel_directive(
         if not dry_run:
             abandon_task_retry(state.task_id)
         return {**result, "changed": True, "retry_abandoned": True}
-    if pending is not None and _ESCALATION_LADDER[stamp] <= _ESCALATION_LADDER[pending]:
+    if not state.task_cancel.escalates(stamp):
         # "drain" is pending only when the request is itself a repeat drain
         # (any other stamp outranks it on the ladder), so speak the
         # operator's verb rather than the cancel machinery's
@@ -399,7 +388,7 @@ def _task_cancel_directive(
         # "Read-surface additions")
         state.will_retry = False
         if stamp == "abort":
-            state.task_cancel.cancel_task("abort")
+            state.task_cancel.request("abort")
         elif stamp == "drain":
             # a graceful resolution finishes with a success log deliberately
             # holding fewer samples than planned — record the task so
@@ -409,7 +398,7 @@ def _task_cancel_directive(
             # the stamp alone: queued samples check it as they leave the
             # queue, initializing samples as they start; in-flight samples
             # are never touched and finish naturally
-            state.task_cancel.cancel_task("drain")
+            state.task_cancel.request("drain")
         else:
             # graceful like drain — record for the completeness check
             mark_task_gracefully_resolved(state.task_id)
@@ -427,7 +416,7 @@ def _task_cancel_directive(
             # before limit_exceeded_error, so interrupting such a sample
             # would hijack the limit outcome (and re-fire on_interrupt on
             # top of the limit's own firing).
-            state.task_cancel.cancel_task(stamp)
+            state.task_cancel.request(stamp)
             for sample in in_flight:
                 if (
                     sample.interrupt_action is None

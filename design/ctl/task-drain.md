@@ -231,6 +231,10 @@ score/error resolution" — generalizes to an ordering by invasiveness:
 drain  <  score / error  <  cancel (abort)
 ```
 
+`TaskCancel.request` enforces the ladder for every caller, including the
+task display's cancel dialog, whose retry ranks between score/error and
+abort: a retry chosen after an operator's cancel does not re-run the task.
+
 A request strictly *stronger* than the pending resolution applies (the stamp
 is overwritten and, for score/error, the interrupt sweep runs — already-
 interrupted samples keep their resolution, per the first-resolution-wins
@@ -646,9 +650,9 @@ Implementation review surfaced three gaps the sketch missed; all are closed:
   `started` log would win the end-of-run retry-cleanup sweep by mtime,
   deleting the errored attempt's log the abandon promised would stand.
   `task_run` consults the registry once more before `log_start` — and
-  before `display().task()` opens a task row, since an abandoned row with no
-  result would become the last row for its task id and make the rich
-  header's task count read the task as incomplete for the rest of the run,
+  before `display().task()` opens a task row, so an attempt abandoned
+  there opens no row (one abandoned at the pre-register check completes its
+  row as cancelled, so the displays still count the task as finished),
   and before the dataset is paged to disk, since an abandon raised past the
   end of `task_run` would otherwise leave the paged store's temp file behind
   (best-effort; the pre-register check stays the race-free backstop, and the

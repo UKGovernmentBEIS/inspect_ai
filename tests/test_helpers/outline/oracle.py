@@ -480,8 +480,10 @@ _TRANSFORMERS: list[_Transformer] = [
     (_matches_handoff, _skip_this_node),
     # collapse_same_name_spans
     (
-        lambda n: _is_agent_or_solver_span(n)
-        and any(_is_same_name_span_child(n, c) for c in n.children),
+        lambda n: (
+            _is_agent_or_solver_span(n)
+            and any(_is_same_name_span_child(n, c) for c in n.children)
+        ),
         _collapse_same_name_spans,
     ),
     # discard_solvers_span / discard_checkpoint_span
@@ -577,8 +579,8 @@ def _remove_node_visitor(event: str) -> _Visitor:
 
 
 def _remove_step_span_name_visitor(name: str) -> _Visitor:
-    return (
-        lambda node: []
+    return lambda node: (
+        []
         if node.event.event in ("step", "span_begin") and node.event.name == name
         else [node]
     )

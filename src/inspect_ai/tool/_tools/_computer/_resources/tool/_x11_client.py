@@ -25,6 +25,14 @@ class X11ClientError(Exception):
         self.message = message
 
 
+class X11CoordinateError(X11ClientError):
+    """The model sent a coordinate or region outside the screen.
+
+    Unlike other `X11ClientError`s, the model can fix this by retrying, so
+    `computer_tool.main()` reports it back as a tool error.
+    """
+
+
 class Resolution(TypedDict):
     width: int
     height: int
@@ -105,11 +113,16 @@ class X11Client:
 
     async def type(self, text: str) -> ToolResult:
         results: list[ToolResult] = []
-        for chunk in chunks(text, TYPING_GROUP_SIZE):
-            cmd = (
-                f"{self.xdotool} type --delay {TYPING_DELAY_MS} -- {shlex.quote(chunk)}"
-            )
-            results.append(await self._shell(cmd, take_screenshot=False))
+        # xdotool types "\n" as the Linefeed key, which LibreOffice and Firefox
+        # ignore, so line breaks are sent as separate Return key presses.
+        lines = text.replace("\r\n", "\n").split("\n")
+        for i, line in enumerate(lines):
+            if i > 0:
+                cmd = f"{self.xdotool} key Return"
+                results.append(await self._shell(cmd, take_screenshot=False))
+            for chunk in chunks(line, TYPING_GROUP_SIZE):
+                cmd = f"{self.xdotool} type --delay {TYPING_DELAY_MS} -- {shlex.quote(chunk)}"
+                results.append(await self._shell(cmd, take_screenshot=False))
 
         screenshot_base64 = await self._take_screenshot_after_delay()
         return ToolResult(
@@ -238,7 +251,8 @@ class X11Client:
         await self._activate_browser()
         await run(f"{self.xdotool} key ctrl+l")
         await asyncio.sleep(0.5)
-        await self.type(url)
+        # type() presses Return at line breaks, which would load a partial URL
+        await self.type("".join(url.splitlines()))
         await run(f"{self.xdotool} key Return")
         await asyncio.sleep(1)
         return await self.screenshot()
@@ -260,11 +274,13 @@ class X11Client:
             or region[2] <= region[0]
             or region[3] <= region[1]
         ):
-            raise X11ClientError("Invalid region")
+            raise X11CoordinateError("Invalid region")
 
         # Scale coordinates from API space to native screen space
         x0, y0 = self._scale_coordinates("api_to_native", region[0], region[1])
-        x1, y1 = self._scale_coordinates("api_to_native", region[2], region[3])
+        x1, y1 = self._scale_coordinates(
+            "api_to_native", region[2], region[3], region_end=True
+        )
 
         return await self._screenshot(zoom_region=(x0, y0, x1, y1))
 
@@ -374,7 +390,13 @@ class X11Client:
         await asyncio.sleep(self._screenshot_delay)
         return (await self._screenshot()).base64_image
 
-    def _scale_coordinates(self, direction: ScaleDirection, x: int, y: int):
+    def _scale_coordinates(
+        self,
+        direction: ScaleDirection,
+        x: int,
+        y: int,
+        region_end: bool = False,
+    ):
         """Scale coordinates between API and native coordinate spaces.
 
         Args:
@@ -383,29 +405,47 @@ class X11Client:
                 - "native_to_api": Scale DOWN for reporting (native → API)
             x: X coordinate
             y: Y coordinate
+            region_end: For "api_to_native", treat the coordinate as the exclusive
+                far corner of a region (e.g. zoom), so the screen width/height
+                themselves are valid rather than one past the last pixel.
+
+        Raises:
+            X11CoordinateError: If an "api_to_native" coordinate lies outside the
+                screen as advertised to the model.
         """
-        if not self._scaling_enabled:
-            return x, y
-        ratio = self.width / self.height
-        target_dimension = None
-        for dimension in MAX_SCALING_TARGETS.values():
-            # allow some error in the aspect ratio - not ratios are exactly 16:9
-            if abs(dimension["width"] / dimension["height"] - ratio) < 0.02:
-                if dimension["width"] < self.width:
-                    target_dimension = dimension
-                break
+        api_width, api_height, target_dimension = self._api_dimensions()
+        if direction == "api_to_native":
+            if region_end:
+                out_of_bounds = x < 0 or y < 0 or x > api_width or y > api_height
+            else:
+                out_of_bounds = x < 0 or y < 0 or x >= api_width or y >= api_height
+            if out_of_bounds:
+                raise X11CoordinateError(
+                    f"Coordinates {x}, {y} are out of bounds "
+                    f"for a {api_width}x{api_height} screen"
+                )
         if target_dimension is None:
             return x, y
         # should be less than 1
         x_scaling_factor = target_dimension["width"] / self.width
         y_scaling_factor = target_dimension["height"] / self.height
         if direction == "api_to_native":
-            if x > self.width or y > self.height:
-                raise X11ClientError(f"Coordinates {x}, {y} are out of bounds")
             # scale up
             return round(x / x_scaling_factor), round(y / y_scaling_factor)
         # scale down
         return round(x * x_scaling_factor), round(y * y_scaling_factor)
+
+    def _api_dimensions(self) -> tuple[int, int, Resolution | None]:
+        """Screen size advertised to the model, plus the scaling target (if any)."""
+        if self._scaling_enabled:
+            ratio = self.width / self.height
+            for dimension in MAX_SCALING_TARGETS.values():
+                # allow some error in the aspect ratio - not ratios are exactly 16:9
+                if abs(dimension["width"] / dimension["height"] - ratio) < 0.02:
+                    if dimension["width"] < self.width:
+                        return dimension["width"], dimension["height"], dimension
+                    break
+        return self.width, self.height, None
 
 
 def _key_arg_for_text(text: str) -> str:

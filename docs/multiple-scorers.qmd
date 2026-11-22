@@ -78,7 +78,7 @@ Task(
         generate()
     ],
     scorer=[
-        model_graded_qa(model="openai/gpt-4"),
+        model_graded_qa(model="openai/gpt-6-luna"),
         model_graded_qa(model="google/gemini-2.5-pro")
     ],
 )

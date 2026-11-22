@@ -56,13 +56,13 @@ def main():
     )
 
     print("Running Inspect AI eval with MLflow tracking + tracing...")
-    print("Model: openai/gpt-4o-mini")
+    print("Model: openai/gpt-6-luna")
     print(f"Samples: {len(dataset)}")
     print()
 
     logs = eval(
         task,
-        model="openai/gpt-4o-mini",
+        model="openai/gpt-6-luna",
         log_dir="/tmp/inspect-mlflow-demo-logs",
     )
 

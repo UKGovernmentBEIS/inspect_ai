@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
 from inspect_ai.util._limit import Limit, apply_limits
@@ -30,7 +31,8 @@ def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> So
 
     Args:
        agent: Agent to convert.
-       limits: List of limits to apply to the agent. Should a limit
+       limits: List of limits to apply to the agent. Each Sample
+          applies a fresh copy of the limits. Should a limit
           be exceeded, the Sample ends and proceeds to scoring.
        **agent_kwargs: Arguments to curry to Agent function (required
           if the agent has parameters without default values).
@@ -65,8 +67,9 @@ def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> So
             agent_state = AgentState(messages=state.messages)
 
             try:
-                # run the agent with limits
-                with apply_limits(limits):
+                # run the agent with limits (copied, as a Limit can only be entered
+                # once and this solver runs once per sample)
+                with apply_limits(deepcopy(limits)):
                     async with span(name=agent_name, type=AGENT_SPAN_TYPE):
                         agent_state = await agent(agent_state, **agent_kwargs)
             # if an exception occurs, we still want to update the TaskState with the

@@ -2,6 +2,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import pytest
 import yaml
 from pydantic import BaseModel
 
@@ -11,7 +12,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log._config import eval_log_to_run_config_dict
 from inspect_ai.log._file import list_eval_logs, read_eval_log
 from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
-from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.model import CachePolicy, GenerateConfig, get_model
 from inspect_ai.solver import SolverSpec, solver
 from inspect_ai.util._limit import TokenLimit
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
@@ -227,3 +228,22 @@ def test_exported_output_token_limit_round_trips() -> None:
     params = RunConfigInput.model_validate(exported).to_params()
     assert params["token_limit"] == TokenLimit(tokens=1000, type="output")
     assert "token_limit_type" not in params
+
+
+def test_exported_cache_policy_without_expiry_round_trips(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A cache that never expires survives export and run-config parsing."""
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    log = eval(
+        config_test_task,
+        model="mockllm/model",
+        cache=CachePolicy(expiry=None),
+        limit=1,
+        log_dir=str(tmp_path / "logs"),
+    )[0]
+    log = read_eval_log(log.location)
+
+    exported = yaml.safe_load(yaml.dump(eval_log_to_run_config_dict(log)))
+    params = RunConfigInput.model_validate(exported).to_params()
+    assert CachePolicy.model_validate(params["cache"]).expiry is None

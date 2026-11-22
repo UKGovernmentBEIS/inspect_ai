@@ -12,7 +12,7 @@ Each tool should have its own subdirectory that contains the following files:
 
 -   `json_rpc_methods.py`
 
-    This module contains all of the JSON RPC `@method` functions — one for each tool (e.g. the web browser tool is actually a set of distinct tools). It is responsible for unpacking the JSON RPC request and forwarding the call to a transport-agnostic, strongly typed, stateful controller.
+    This module contains all of the JSON RPC `@method` functions — one for each tool operation. It is responsible for unpacking the JSON RPC request and forwarding the call to a transport-agnostic, strongly typed, stateful controller.
 
 -   `tool_types.py`
 
@@ -24,10 +24,7 @@ Each tool should have its own subdirectory that contains the following files:
 
 ## Architecture Overview
 
-The `inspect_sandbox_tools` package is part of a split architecture that separates tool support into two independent systems:
-
-- **Legacy system** (`inspect_tool_support`): Temporarily handles web browser functionality. Uses JSON-RPC communication but deploys code via Docker images built from Dockerfiles until the engineering to get Playwright included in the PyInstaller bundled executable works robustly.
-- **This system** (`inspect_sandbox_tools`): Handles all other tools (bash_session, text_editor, MCP). Uses JSON-RPC communication with runtime executable injection for deployment.
+The `inspect_sandbox_tools` package supports tools such as `bash_session()`, `text_editor()` and sandbox MCP servers. It uses JSON-RPC communication with runtime executable injection for deployment.
 
 ### Build Process
 
@@ -38,7 +35,8 @@ Linux executables are built via PyInstaller `--onedir` and packaged as a gzipped
 When a tool needs to run in a container, the system automatically injects the appropriate executable:
 
 1. Tool requests a sandbox via `sandbox_with_injected_tools()`
-2. System checks for a trustworthy existing installation: `/var/tmp/.da7be258e003d428`
+2. System checks for a trustworthy existing installation: `/var/tmp/.da7be258e003d428-v<version>`
+   (one tree per `sandbox_tools_version.txt` value, so a tree another version installed is never adopted)
    must be a real directory owned by the tools user with mode 0700, in a parent that
    other users cannot use to replace it, and must hold `inspect-sandbox-tools` as a
    regular file. The check runs as root when the root-access verdict is usable,
@@ -51,7 +49,7 @@ When a tool needs to run in a container, the system automatically injects the ap
 3. If missing, the injection process:
    - Detects container architecture (amd64/arm64) and libc (glibc/musl)
    - Selects the matching pre-built artifact from local binaries, S3, or a local Docker build
-   - Creates `/var/tmp/.da7be258e003d428` with mode 0700 as the tools user through the
+   - Creates `/var/tmp/.da7be258e003d428-v<version>` with mode 0700 as the tools user through the
      verified framework-directory helper (`inspect_ai/util/_sandbox/_framework_directory.py`).
      A pre-existing entry that is a symlink, not a directory, or owned by another uid
      fails injection with an error naming the path and the reason; it is never adopted
@@ -73,7 +71,7 @@ Tools communicate through a two-layer RPC architecture:
 
 **Layer 1 - Host to Container (stateless):**
 1. Tool creates JSON-RPC request on host
-2. `SandboxJSONRPCTransport` executes: `sandbox.exec(["/var/tmp/.da7be258e003d428/inspect-sandbox-tools", "exec"], input=json_rpc_request)`
+2. `SandboxJSONRPCTransport` executes: `sandbox.exec(["/var/tmp/.da7be258e003d428-v<version>/inspect-sandbox-tools", "exec"], input=json_rpc_request)`
 3. JSON-RPC payload passed via stdin to the injected executable
 4. Response returns via stdout. A response larger than the host's exec output limit is
    spilled to a chunk file in `.server/chunks` (private to the tools user) and fetched
@@ -84,7 +82,7 @@ Tools communicate through a two-layer RPC architecture:
 **Layer 2 - Container Internal (stateful operations):**
 1. When stateful execution is needed, the injected executable acts as a client
 2. It starts a server process if not already running
-3. Sends JSON-RPC requests to the server via HTTP over a Unix socket in the server's private state directory (`.server/sandbox-tools.sock` beside the launcher; `INSPECT_SANDBOX_TOOLS_DIR` overrides the location, as the `local` sandbox does)
+3. Sends JSON-RPC requests to the server via HTTP over a Unix socket in the server's private state directory (`.server/sandbox-tools.sock` beside the launcher; `INSPECT_SANDBOX_TOOLS_DIR` overrides the location, as the `local` sandbox does). `INSPECT_SANDBOX_TOOLS_DIR` is an internal setting, not a user setting, and must be unique per sandbox instance: a fixed value shared across tools versions (set in an image, for example) would let a newer launcher reuse an older version's server, which the per-version install directories do not prevent
 4. Server maintains state across requests and returns responses
 5. The stateless executable forwards the response back through Layer 1
 
@@ -94,8 +92,12 @@ See [RELEASING.md](design/RELEASING.md) for the end-to-end process for building,
 
 ## Testing
 
-When running `pytest` with inspect to test interactions with this package, you may wish to test your _local_ version of the `inspect_tool_support` code instead of the latest published package. Passing the flag `--local-inspect-tools` to pytest when running tests from `test_inspect_container_tools.py` will build and install the package from source, for example:
+An editable install whose sandbox tools build inputs differ from `main` uses the `-dev` binary, not the published binary. The build inputs are the paths in `src/inspect_ai/tool/_sandbox_tools_utils/injectable_paths.txt`. A change to `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt` also selects the `-dev` binary. Build the `-dev` binaries before you run the tests. Use the architecture of your Docker host (`amd64` or `arm64`):
 
 ```sh
-pytest tests/tools/test_inspect_container_tools.py --runslow --local-inspect-tools
+python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64
+python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64 --musl
+pytest tests/tools/sandbox_tools_utils/test_sandbox_tools.py --runslow
 ```
+
+The tests reuse the existing `-dev` binaries and do not check that they are current. Rebuild both after each change. Without a `-dev` binary, the tests stop with a `PrerequisiteError`.

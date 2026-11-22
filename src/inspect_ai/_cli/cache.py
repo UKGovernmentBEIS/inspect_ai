@@ -63,7 +63,7 @@ def cache_command() -> None:
     metavar="MODEL",
     multiple=True,
     type=str,
-    help="Clear the cache for a specific model (e.g. --model=openai/gpt-4). Can be passed multiple times.",
+    help="Clear the cache for a specific model (e.g. --model=openai/gpt-6-luna). Can be passed multiple times.",
 )
 def clear(all: bool, model: tuple[str, ...], log_level: str) -> None:
     """Clear all cache files. Requires either --all or --model flags."""
@@ -118,7 +118,7 @@ def list_caches(pruneable: bool) -> None:
     metavar="MODEL",
     multiple=True,
     type=str,
-    help="Only prune a specific model (e.g. --model=openai/gpt-4). Can be passed multiple times.",
+    help="Only prune a specific model (e.g. --model=openai/gpt-6-luna). Can be passed multiple times.",
 )
 def prune(log_level: str, model: tuple[str, ...]) -> None:
     """Prune all expired cache entries

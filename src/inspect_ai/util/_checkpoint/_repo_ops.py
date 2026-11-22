@@ -21,6 +21,7 @@ import anyio.abc
 from anyio.streams.buffered import BufferedByteReceiveStream
 
 from inspect_ai.util._restic.ops import restic_env
+from inspect_ai.util._restic.summary import SNAPSHOT_ID_PATTERN
 
 _MAX_LS_LINE_BYTES = 1024 * 1024
 """Longest ``restic ls --json`` record accepted: a node record is its
@@ -78,7 +79,7 @@ async def drop_orphan_snapshots(
                 break
     if orphan_ids:
         await _run_restic(
-            [str(restic), "-r", repo, "forget", *orphan_ids], password=password
+            [str(restic), "-r", repo, "forget", "--", *orphan_ids], password=password
         )
 
 
@@ -101,7 +102,7 @@ async def _run_restic(
     return proc
 
 
-SNAPSHOT_ID_RE = re.compile(r"^[0-9a-f]{8,64}$")
+SNAPSHOT_ID_RE = re.compile(SNAPSHOT_ID_PATTERN)
 """A restic snapshot id as reported by ``restic backup`` (full 64-hex in
 practice; a unique prefix is accepted the way restic's CLI accepts one)."""
 
@@ -148,6 +149,7 @@ async def walk_snapshot_nodes(
         "ls",
         "--json",
         "--no-lock",
+        "--",
         snapshot_id,
     ]
     full_id: str | None = None
@@ -319,7 +321,14 @@ async def forget_unrecorded_snapshots(
     orphans = [snap for snap in snapshots if snap["id"] not in keep]
     if orphans:
         await _run_restic(
-            [str(restic), "-r", repo, "forget", *(snap["id"] for snap in orphans)],
+            [
+                str(restic),
+                "-r",
+                repo,
+                "forget",
+                "--",
+                *(snap["id"] for snap in orphans),
+            ],
             password=password,
         )
     return [tag for snap in orphans for tag in (snap.get("tags") or [])]

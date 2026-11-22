@@ -32,6 +32,7 @@ concurrent lineages exceed CallWalkCache's slot cap.
 import json
 import tempfile
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Generator, Iterator
@@ -42,16 +43,29 @@ from pydantic import JsonValue
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._validate import validate_chat_messages
-from inspect_ai.log._condense import condense_events, condense_sample, expand_events
+from inspect_ai.log._condense import (
+    condense_events,
+    condense_sample,
+    expand_events,
+    resolve_sample_attachments,
+)
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
+from inspect_ai.log._recorders.eval import _parse_sample_data
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._transcript import Transcript
 from inspect_ai.log._transcript_store import TranscriptEventStore
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageBase, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageBase,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import _snapshot_messages
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool_call import ToolCall
 
 N_EVENTS = 100
 ATTACHABLE = "x" * 150  # > events_attachment_fn's 100-char attachment threshold
@@ -504,15 +518,15 @@ def test_condense_sample_rewritten_history_condenses_correctly() -> None:
     The walk cache and pool dedup are tuned for the common scaffold shape
     where each event's input extends the previous one with the same objects.
     A history rewritten mid-conversation (messages dropped/reordered, fresh
-    objects with equal content) must still dedup equal content into the same
-    pool entry and round-trip every event's input.
+    objects copying a message) must still dedup copies into the same pool
+    entry and round-trip every event's input.
     """
     # content < 100 chars so the events walk leaves it inline and the
     # round-tripped inputs compare equal to the originals
     m0 = ChatMessageUser(content="message zero")
     m1 = ChatMessageUser(content="message one")
-    # fresh object, equal content to m0 (new id): pool dedup must merge them
-    m2 = ChatMessageUser(content="message zero")
+    # fresh object copying m0: pool dedup must merge them
+    m2 = ChatMessageUser(id=m0.id, content="message zero")
     m3 = ChatMessageUser(content="message three")
     m4 = ChatMessageUser(content="message four")
 
@@ -557,9 +571,105 @@ def test_condense_sample_rewritten_history_condenses_correctly() -> None:
     restored = expand_events(condensed.events, condensed.events_data)
     for original_input, restored_event in zip(inputs, restored):
         assert isinstance(restored_event, ModelEvent)
-        assert [(m.role, m.content) for m in restored_event.input] == [
-            (m.role, m.content) for m in original_input
+        assert [(m.id, m.role, m.content) for m in restored_event.input] == [
+            (m.id, m.role, m.content) for m in original_input
         ]
+
+
+@pytest.mark.parametrize("before,after", [(True, 1), (0, 0.0), (0.0, -0.0)])
+def test_condense_sample_keeps_json_distinct_message_versions(
+    before: JsonValue, after: JsonValue
+) -> None:
+    """Two versions of one message that are == but serialize differently stay apart.
+
+    Model events snapshot each version of a message edited in place, so a
+    sample can hold same-id messages such as True vs 1, 0 vs 0.0 or 0.0 vs
+    -0.0.
+    Writing (condense), resolving, and reading the written JSON back with
+    the log parser must keep both versions, and the final conversation must
+    keep its own.
+    """
+    first = ChatMessageAssistant(
+        content="",
+        tool_calls=[ToolCall(id="c1", function="f", arguments={"flag": before})],
+        metadata={"flag": before},
+    )
+    second = first.model_copy(deep=True)
+    assert second.tool_calls is not None and second.metadata is not None
+    second.tool_calls[0].arguments["flag"] = after
+    second.metadata["flag"] = after
+    assert first == second
+
+    sample = EvalSample(
+        id="s1",
+        epoch=1,
+        input="start",
+        target="done",
+        messages=[second],
+        events=[_model_event([first], []), _model_event([second], [])],
+    )
+
+    condensed = condense_sample(sample)
+    assert condensed.events_data is not None
+    assert len(condensed.events_data["messages"]) == 2
+
+    resolved = resolve_sample_attachments(condensed, "full")
+    parsed = _parse_sample_data(condensed.model_dump_json().encode())
+
+    def flags(message: ChatMessage) -> list[str]:
+        assert isinstance(message, ChatMessageAssistant)
+        assert message.tool_calls is not None and message.metadata is not None
+        values = [message.tool_calls[0].arguments["flag"], message.metadata["flag"]]
+        return [json.dumps(v) for v in values]
+
+    expected_before = [json.dumps(before)] * 2
+    expected_after = [json.dumps(after)] * 2
+    for read in (resolved, parsed):
+        inputs = [e.input[0] for e in read.events if isinstance(e, ModelEvent)]
+        assert [flags(m) for m in inputs] == [expected_before, expected_after]
+        assert flags(read.messages[0]) == expected_after
+    # the parser's message cache still shares identical messages
+    parsed_inputs = [e.input[0] for e in parsed.events if isinstance(e, ModelEvent)]
+    assert parsed.messages[0] is parsed_inputs[1]
+
+
+@dataclass(slots=True)
+class _SlottedState:
+    step: int
+
+
+def test_condense_sample_output_then_snapshot_input_with_object_metadata() -> None:
+    """A model's output message and its snapshot in the next input share an id.
+
+    The walker compares them by their logged JSON, so metadata that
+    serializes but can't be compared structurally (a slotted dataclass)
+    condenses and resolves without error.
+    """
+    output = ModelOutput.from_content("test", "response")
+    reply = output.message
+    reply.metadata = {"state": _SlottedState(step=1)}
+    [snapshot] = _snapshot_messages([reply])
+    assert snapshot is not reply and snapshot.id == reply.id
+
+    first = _model_event([ChatMessageUser(content="start")], [])
+    first.output = output
+    sample = EvalSample(
+        id="s1",
+        epoch=1,
+        input="start",
+        target="done",
+        messages=[reply],
+        events=[first, _model_event([snapshot], [])],
+    )
+
+    condensed = condense_sample(sample)
+    resolved = resolve_sample_attachments(condensed, "full")
+    parsed = _parse_sample_data(condensed.model_dump_json().encode())
+
+    for read, state in ((resolved, _SlottedState(step=1)), (parsed, {"step": 1})):
+        second = [e for e in read.events if isinstance(e, ModelEvent)][1]
+        assert second.input[0].metadata is not None
+        assert second.input[0].metadata["state"] == state
 
 
 def test_condense_sample_messages_stay_inline() -> None:
@@ -820,7 +930,11 @@ def test_buffer_condense_linear_across_slot_cap(
 
     db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
     tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
-    tr._subscribe(lambda e: db.log_events([SampleEvent(id="s1", epoch=1, event=e)]))
+    tr._subscribe_store(
+        lambda e, attachments: db.log_events(
+            [SampleEvent(id="s1", epoch=1, event=e)], attachments
+        )
+    )
     n_streams = _CALL_WALK_SLOTS // 2 + cap_offset  # 2 lineages/stream
     rounds = 25
     _drive_streams(tr, n_streams, rounds)
@@ -842,14 +956,16 @@ def test_buffer_condense_linear_across_notification_shape(
 ) -> None:
     """The realistic per-turn shape: pending, registration, completion, stamping.
 
-    The buffer sees raw and transcript-condensed call forms alternately;
-    prefix reuse must hold for both lineages. This guard fails on a
-    single-slot CallPoolIndex (the 2026-08-11 timeout-storm mechanism)
-    even though per-event condensing is individually linear.
+    The buffer sees each call as the transcript condensed it, so its
+    notifications share one lineage, and prefix reuse must hold across them.
     """
     db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
     tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
-    tr._subscribe(lambda e: db.log_events([SampleEvent(id="s1", epoch=1, event=e)]))
+    tr._subscribe_store(
+        lambda e, attachments: db.log_events(
+            [SampleEvent(id="s1", epoch=1, event=e)], attachments
+        )
+    )
 
     history: list[ChatMessage] = []
     wire: list[dict[str, JsonValue]] = []

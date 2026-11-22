@@ -6,8 +6,7 @@ name: Release PR checks
 #   - every sandbox-tools artifact pinned in SHA256SUMS is published on S3
 #     with its pinned digest;
 #   - the release PR head builds, and passes the pre-build sandbox tools gate
-#     and the post-build wheel gate (the shared build-dist action);
-#   - the publish-parity rebuild of PyPI's latest version still matches PyPI.
+#     and the post-build wheel gate (the shared build-dist action).
 #
 # Release Please pushes the release PR with GITHUB_TOKEN, which does not
 # trigger pull_request workflows, so release.yml dispatches this workflow
@@ -22,8 +21,6 @@ on:
 permissions:
   contents: read
 
-# Distinct from publish-parity.yml's group: a called workflow sees this
-# workflow's name in github.workflow, and equal groups would deadlock.
 concurrency:
   group: release-pr-checks-${{ github.ref }}
   cancel-in-progress: true
@@ -71,10 +68,3 @@ jobs:
       - uses: ./.github/actions/build-dist
         with:
           version: ${{ env.VERSION }}
-
-  parity:
-    name: Publish parity
-    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'release-please--branches--main'
-    permissions:
-      contents: read
-    uses: ./.github/workflows/publish-parity.yml

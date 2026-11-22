@@ -118,6 +118,7 @@ inspect-docs:
       contents:
         - href: eval-sets.qmd
         - href: parallelism.qmd
+        - href: sharding.qmd
         - href: handling-errors.qmd
         - href: setting-limits.qmd
         - href: control-channel.qmd

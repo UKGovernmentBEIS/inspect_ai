@@ -1,0 +1,163 @@
+{
+  "description": "The summary call is the first call in its conversation, and the one call after the summary CompactionEvent continues nothing. No call continues another, so continuity gives the other calls no answer, but the summary call's output appears in the next call's input, which is evidence enough: it is the summarizer, utility.",
+  "events": [
+    {
+      "event": "span_begin",
+      "id": "solvers",
+      "name": "solvers",
+      "type": "solvers",
+      "parent_id": null,
+      "timestamp": "2026-01-01T00:00:00Z",
+      "uuid": "sb-solvers"
+    },
+    {
+      "event": "span_begin",
+      "id": "agent",
+      "name": "agent",
+      "type": "agent",
+      "parent_id": "solvers",
+      "timestamp": "2026-01-01T00:00:00Z",
+      "uuid": "sb-agent"
+    },
+    {
+      "event": "model",
+      "uuid": "sm",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:01Z",
+      "completed": "2026-01-01T00:00:02Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        },
+        {
+          "role": "user",
+          "content": "Summarize the conversation."
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "Summary text"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "compaction",
+      "uuid": "cmp",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:03Z",
+      "type": "summary",
+      "source": "inspect"
+    },
+    {
+      "event": "model",
+      "uuid": "m1",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:04Z",
+      "completed": "2026-01-01T00:00:05Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        },
+        {
+          "role": "user",
+          "content": "[COMPACTED] Summary text"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "2"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "agent",
+      "timestamp": "2026-01-01T01:00:00Z",
+      "uuid": "se-agent"
+    },
+    {
+      "event": "span_end",
+      "id": "solvers",
+      "timestamp": "2026-01-01T01:00:00Z",
+      "uuid": "se-solvers"
+    }
+  ],
+  "expected": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
+        "sm",
+        "cmp",
+        "m1"
+      ],
+      "children": []
+    },
+    "scoring": null
+  },
+  "expected_continuity": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
+        "cmp",
+        "m1"
+      ],
+      "children": [
+        {
+          "id": "utility-sm",
+          "name": "utility",
+          "utility": true,
+          "event_uuids": [
+            "sm"
+          ]
+        }
+      ]
+    },
+    "scoring": null
+  }
+}

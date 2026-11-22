@@ -7,7 +7,7 @@ from inspect_ai._util.registry import (
 from inspect_ai.tool._tool_call import ToolCallModelInput, ToolCallViewer
 
 from ._tool import TOOL_MODEL_INPUT, TOOL_PARALLEL, TOOL_VIEWER, Tool
-from ._tool_description import ToolDescription, set_tool_description
+from ._tool_description import ToolDescription, set_tool_description, tool_description
 from ._tool_info import parse_tool_info
 
 
@@ -43,6 +43,9 @@ def tool_with(
     """
     # get the existing tool info
     tool_info = parse_tool_info(tool)
+    existing = tool_description(tool)
+    if existing.parameters is not None:
+        tool_info.parameters = existing.parameters.model_copy(deep=True)
 
     # provide parameter overrides
     if parameters:
@@ -61,9 +64,9 @@ def tool_with(
     info = registry_info(tool).model_copy()
     if parallel is not None:
         info.metadata[TOOL_PARALLEL] = parallel
-    elif viewer is not None:
+    if viewer is not None:
         info.metadata[TOOL_VIEWER] = viewer
-    elif model_input is not None:
+    if model_input is not None:
         info.metadata[TOOL_MODEL_INPUT] = model_input
 
     # set attributes
@@ -72,7 +75,9 @@ def tool_with(
     set_tool_description(
         tool,
         ToolDescription(
-            name=name, description=description, parameters=tool_info.parameters
+            name=name or existing.name,
+            description=description or existing.description,
+            parameters=tool_info.parameters,
         ),
     )
     return tool

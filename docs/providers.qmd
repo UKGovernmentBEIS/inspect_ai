@@ -16,7 +16,7 @@ To use the [OpenAI](https://platform.openai.com/) provider, install the `openai`
 ``` bash
 pip install openai
 export OPENAI_API_KEY=your-openai-api-key
-inspect eval arc.py --model openai/gpt-4o-mini
+inspect eval arc.py --model openai/gpt-6-luna
 ```
 
 The following environment variables are supported by the OpenAI provider
@@ -39,7 +39,7 @@ The `openai` provider supports the following custom model args (other model args
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
 | `responses_phase` | Synthesize missing assistant message `phase` values when replaying Responses API histories. |
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
-| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` models and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
+| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `-pro` models such as `gpt-5.5-pro`, for `deep-research` models, and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `streaming` | Whether to use streaming responses. The default ("auto") streams when the caller passes an `on_stream` callback to `generate()` — except Azure chat-completions requests, which never auto-stream (accumulated streamed responses would lose content-filter stop details); pass `true` or `false` to override. If the server rejects the streaming request itself (a 400 naming the `stream` param — e.g. reasoning models on organizations that haven't completed verification), auto mode retries the request non-streamed. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
@@ -51,8 +51,8 @@ The `openai` provider supports the following custom model args (other model args
 For example:
 
 ``` bash
-inspect eval arc.py --model openai/gpt-4o-mini \ 
-   -M responses_api=true
+inspect eval arc.py --model openai/gpt-6-luna \
+   -M service_tier=flex
 ```
 
 Or from Python:
@@ -61,22 +61,22 @@ Or from Python:
 from inspect_ai import eval
 
 eval(
-    "arc.py", model=" openai/gpt-4o-mini", 
-    model_args= { "responses_api": True }
+    "arc.py", model="openai/gpt-6-luna",
+    model_args= { "service_tier": "flex" }
 )
 ```
 
 ### Responses API
 
-By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and later (including GPT-6), o-series models, and the `computer_use_preview` model.
+By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and later (including GPT-6) and o-series models.
 
 If you want to manually enable or disable the Responses API you can use the `responses_api` model argument. For example:
 
 ``` bash
-inspect eval math.py --model openai/gpt-4o -M responses_api=true
+inspect eval math.py --model openai/gpt-6-luna -M responses_api=false
 ```
 
-Note that certain models including `o1-pro` and `computer_use_preview` *require* the use of the Responses API. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
+Note that certain models including `gpt-5.5-pro` *require* the use of the Responses API. On Chat Completions, GPT-6 Luna supports function calling only with reasoning off, so set `reasoning_effort="none"` when using tools with `responses_api=false`. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
 
 ### Responses Phase
 
@@ -93,16 +93,16 @@ When enabled, assistant messages with tool calls are labeled `commentary`; other
 By default, Inspect's implementation of the Responses API does not store messages on the server. Reasoning content (which is intended to be opaque to clients) is handled using encrypted payloads (via the "reasoning.encrypted_content" include option). To control this behavior explicitly use the `responses_store` model argument. For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini -M responses_store=True
+inspect eval math.py --model openai/gpt-6-luna -M responses_store=True
 ```
 
 ### Responses Metadata
 
-You can attach [`metadata`](https://platform.openai.com/docs/api-reference/responses/create#responses-create-metadata) key-value pairs to Responses API requests via the `extra_body` generation config. For example:
+You can attach [`metadata`](https://developers.openai.com/api/reference/resources/responses/methods/create) key-value pairs to Responses API requests via the `extra_body` generation config (`--extra-body` on the command line). For example:
 
 ``` bash
 inspect eval math.py --model openai/gpt-5.4 \
-    -M extra_body='{"metadata": {"experiment": "baseline"}}'
+    --extra-body '{"metadata": {"experiment": "baseline"}}'
 ```
 
 The `metadata` returned on responses (the echoed request metadata, which some models augment with additional fields) is surfaced as `ModelOutput.metadata`. Note that request metadata is not sent when `responses_store=True`.
@@ -111,18 +111,18 @@ The `metadata` returned on responses (the echoed request metadata, which some mo
 
 [Flex processing](https://platform.openai.com/docs/guides/flex-processing) provides significantly lower costs for requests in exchange for slower response times and occasional resource unavailability (input and output tokens are priced using [batch API rates](https://platform.openai.com/docs/guides/batch) for flex requests).
 
-Note that flex processing is in beta, and currently **only available for o3 and o4-mini models**.
+Note that flex processing is in beta with limited model availability. The OpenAI [pricing page](https://platform.openai.com/docs/pricing) lists the supported models.
 
 To enable flex processing, use the `service_tier` model argument, setting it to "flex". For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini -M service_tier=flex
+inspect eval math.py --model openai/gpt-6-luna -M service_tier=flex
 ```
 
 OpenAI recommends using a [higher client timeout](https://platform.openai.com/docs/guides/flex-processing#api-request-timeouts) when making flex requests (15 minutes rather than the standard 10). Inspect automatically increases the client timeout to 15 minutes (900 seconds) for flex requests. To specify another value, use the `client_timeout` model argument. For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini \
+inspect eval math.py --model openai/gpt-6-luna \
     -M service_tier=flex -M client_timeout=1200
 ```
 
@@ -138,13 +138,13 @@ The `openai` provider supports OpenAI models deployed on the [Azure AI Foundry](
 | `AZUREAI_OPENAI_API_VERSION` | OpenAI API version (optional) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
 
-You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (e.g. `gpt-4o-mini`). For example:
+You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (e.g. `gpt-6-luna`). For example:
 
 ``` bash
 export AZUREAI_OPENAI_API_KEY=your-api-key
 export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
 export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
-inspect eval math.py --model openai/azure/gpt-4o-mini
+inspect eval math.py --model openai/azure/gpt-6-luna
 ```
 
 If using managed identity for authentication, install the `azure-identity` package and do not specify `AZUREAI_API_KEY`.
@@ -154,7 +154,7 @@ pip install azure-identity
 export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
 export AZUREAI_AUDIENCE=https://cognitiveservices.azure.com/.default
 export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
-inspect eval math.py --model openai/azure/gpt-4o-mini
+inspect eval math.py --model openai/azure/gpt-6-luna
 ```
 
 Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect will generally default to the latest deployed version, which as of this writing is `2025-03-01-preview`. When using managed identity for authentication, install the `azure-identity` package and leave `AZUREAI_OPENAI_API_KEY` undefined.
@@ -211,10 +211,12 @@ To use the [Anthropic](https://www.anthropic.com/api) provider, install the `ant
 ``` bash
 pip install anthropic
 export ANTHROPIC_API_KEY=your-anthropic-api-key
-inspect eval arc.py --model anthropic/claude-sonnet-4-0
+inspect eval arc.py --model anthropic/claude-sonnet-5-5
 ```
 
 For the `anthropic` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncAnthropic` class.
+
+The `anthropic` provider does not pass `temperature`, `top_p`, or `top_k` to the model, because the Anthropic API rejects them as of API version `2026-10-21` (sent by `anthropic>=2.0`). It logs a warning when one of them is set.
 
 The following environment variables are supported by the Anthropic provider
 
@@ -227,11 +229,17 @@ The following environment variables are supported by the Anthropic provider
 
 Some Anthropic features require that you include a beta identifier in the `betas` field of model requests. Inspect automatically includes the requisite identifier for beta features it utilizes (e.g. "mcp-client-2025-04-04", "computer-use-2025-01-24", etc.).
 
-If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://platform.claude.com/docs/en/build-with-claude/context-windows) for Sonnet 4.5 and Opus 4.6 models:
+If there are other beta features you want to enable, use the `betas` model arg (`-M`), as in the cache diagnostics example below.
+
+#### Cache Diagnostics {#anthropic-cache-diagnostics}
+
+Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt caching. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
 
 ``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
+inspect eval arc.py --model anthropic/claude-sonnet-5-5 -M betas=cache-diagnosis-2026-04-07
 ```
+
+Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics>.
 
 ### Refusal Fallback {#anthropic-refusal-fallback}
 
@@ -251,16 +259,6 @@ This is a feature of the first-party Anthropic API only — it is not supported 
 
 See the [Fallbacks](fallbacks.qmd) article for complete documentation, including what gets recorded in logs, dataframes, and the viewer when fallbacks occur.
 
-#### Cache Diagnostics {#anthropic-cache-diagnostics}
-
-Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt caching. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
-
-``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M betas=cache-diagnosis-2026-04-07
-```
-
-Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics>.
-
 ### Cache TTL {#anthropic-cache-ttl}
 
 Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) by default. Use the `cache_ttl` model arg (`-M`) to control the cache TTL. Valid values are:
@@ -270,7 +268,7 @@ Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/b
 - "5m" or "1h": pin the TTL for all requests (disables automatic escalation).
 
 ``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M cache_ttl=1h
+inspect eval arc.py --model anthropic/claude-sonnet-5-5 -M cache_ttl=1h
 ```
 
 Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart. Automatic escalation applies only on the first-party Claude API (not Bedrock, Vertex, or Azure) and does not apply in [batch mode](models-batch.qmd).
@@ -280,16 +278,16 @@ Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1
 The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when the caller passes an `on_stream` callback to `generate()`, when thinking is enabled, or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
 
 ``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
+inspect eval arc.py --model anthropic/claude-sonnet-5-5 -M streaming=true
 ```
 
 ### Computer Use {#anthropic-computer-use}
 
-When the [`computer()`](tools-standard.qmd#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic's native computer use support. On the Claude API and Vertex, Claude Opus 5.5, Sonnet 5.5, and Haiku 5.5 (which reject the earlier tool there), Fable 5/5.1, and Mythos 5/5.1 use Anthropic's [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, so on Bedrock and Foundry every model (Opus 5.5, Sonnet 5.5, Haiku 5.5, and Fable/Mythos included) uses the legacy tool.
+When the [`computer()`](tools-standard.qmd#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic's native computer use support. On the Claude API and Vertex, Claude Opus 5.5, Sonnet 5.5, and Haiku 5.5 (which reject the earlier tool there), and Fable/Mythos 5.x use Anthropic's [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, with one exception: Fable 5.2 rejects the earlier tool everywhere except Bedrock, so it uses the toolset on Foundry too. Otherwise, on Bedrock and Foundry every model (Opus 5.5, Sonnet 5.5, Haiku 5.5, and Fable/Mythos included) uses the legacy tool.
 
 With the toolset, each computer action arrives as its own tool call. Inspect executes the actions in one assistant turn in order and stops at the first failure, reporting the remaining actions to the model as not executed. Logs record each action as a `computer` tool call with an `action` argument, exactly as with the legacy tool.
 
-Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected only for Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API or Vertex, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
+Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected for Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API or Vertex, and for Fable 5.2 everywhere except Bedrock, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
 
 ``` bash
 inspect eval computer.py --model anthropic/claude-opus-5 -M computer_toolset=true
@@ -303,19 +301,19 @@ To use Anthropic models on Bedrock, use the normal `anthropic` provider with the
 export AWS_ACCESS_KEY_ID=your-aws-access-key-id
 export AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
 export AWS_DEFAULT_REGION=us-east-1
-inspect eval arc.py --model anthropic/bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
+inspect eval arc.py --model anthropic/bedrock/global.anthropic.claude-sonnet-4-6
 ```
 
 You can also optionally set the `ANTHROPIC_BEDROCK_BASE_URL` environment variable to set a custom base URL for Bedrock API requests.
 
 ### Anthropic on Vertex AI {#anthropic-on-vertex-ai}
 
-To use Anthropic models on Vertex, you can use the standard `anthropic` model provider with the `vertex` qualifier (e.g. `anthropic/vertex/claude-3-5-sonnet-v2@20241022`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
+To use Anthropic models on Vertex, you can use the standard `anthropic` model provider with the `vertex` qualifier (e.g. `anthropic/vertex/claude-sonnet-5-5`). You should also set two environment variables indicating your project ID and region. Regional endpoints (e.g. `us-east5`) serve Claude Sonnet 4.6 and earlier models only, so for newer models set the region to `global` or a multi-region (`us` or `eu`). Here is a complete example:
 
 ``` bash
 export ANTHROPIC_VERTEX_PROJECT_ID=project-12345
-export ANTHROPIC_VERTEX_REGION=us-east5
-inspect eval ctf.py --model anthropic/vertex/claude-3-5-sonnet-v2@20241022
+export ANTHROPIC_VERTEX_REGION=global
+inspect eval ctf.py --model anthropic/vertex/claude-sonnet-5-5
 ```
 
 Authentication is doing using the standard Google Cloud CLI (i.e. if you have authorised the CLI then no additional auth is needed for the model API).
@@ -359,6 +357,7 @@ The following environment variables are supported by the Google provider
 | `GOOGLE_BASE_URL` | Base URL for requests (optional) |
 | `GOOGLE_USE_ADC` | Set to `true` to authenticate Gemini Developer API models with OAuth/ADC by default (optional). |
 | `GOOGLE_CLOUD_QUOTA_PROJECT` | Quota/billing project sent as `x-goog-user-project` when using OAuth/ADC (optional). |
+| `GOOGLE_GENAI_API_VERSION` | API version (optional; `-M api_version` takes precedence). Defaults to `v1beta` for the Gemini Developer API and to the SDK default (`v1beta1`) on Vertex. |
 
 ### Gemini Developer API with OAuth / ADC {#gemini-oauth}
 
@@ -394,18 +393,18 @@ in this mode (the batch client is long-lived and cannot refresh the token).
 
 ### Gemini on Vertex AI {#gemini-on-vertex-ai}
 
-To use Google Gemini models on Vertex, you can use the standard `google` model provider with the `vertex` qualifier (e.g. `google/vertex/gemini-2.0-flash`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
+To use Google Gemini models on Vertex, you can use the standard `google` model provider with the `vertex` qualifier (e.g. `google/vertex/gemini-3.6-flash`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
 
 ``` bash
 export GOOGLE_CLOUD_PROJECT=project-12345
 export GOOGLE_CLOUD_LOCATION=us-east5
-inspect eval ctf.py --model google/vertex/gemini-2.0-flash
+inspect eval ctf.py --model google/vertex/gemini-3.6-flash
 ```
 
 You can alternatively pass the project and location as custom model args (`-M`). For example:
 
 ``` bash
-inspect eval ctf.py --model google/vertex/gemini-2.0-flash \
+inspect eval ctf.py --model google/vertex/gemini-3.6-flash \
    -M project=project-12345 -M location=us-east5
 ```
 
@@ -558,7 +557,7 @@ export MOONSHOT_API_KEY=your-moonshot-api-key
 inspect eval arc.py --model moonshot/kimi-k3
 ```
 
-Note that Kimi K3 uses fixed sampling (Moonshot recommends omitting sampling parameters), so the `moonshot` provider does not pass `temperature`, `top_p`, or penalty options to K3 models. Similarly, K3's thinking effort currently only accepts `max`, so other `--reasoning-effort` values are submitted as `max`.
+Note that Kimi K3 uses fixed sampling (Moonshot recommends omitting sampling parameters), so the `moonshot` provider does not pass `temperature`, `top_p`, or penalty options to K3 models. K3's thinking effort accepts `low`, `high`, and `max` (the default): `none` and `minimal` are submitted as `low`, `medium` as `high`, and `xhigh` as `max`. K3 always reasons, so `none` uses the lowest effort rather than the default.
 
 The following environment variables are supported by the Moonshot AI provider
 
@@ -569,7 +568,7 @@ The following environment variables are supported by the Moonshot AI provider
 
 ## Meta {#meta}
 
-To use the [Meta](https://dev.meta.ai/docs) provider (Muse Spark models on the Meta Model API), install the `openai` package (which the Meta Model API provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+To use the [Meta](https://dev.meta.ai/docs) provider (Muse models on the Meta Model API), install the `openai` package (which the Meta Model API provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
@@ -579,7 +578,7 @@ inspect eval arc.py --model meta/muse-spark-1.3
 
 The provider uses the [Responses API](https://dev.meta.ai/docs/protocols/responses), which is the only Meta endpoint that preserves the model's reasoning across turns (as encrypted reasoning items that are replayed automatically). Pass `-M responses_api=false` to use Chat Completions instead.
 
-Muse Spark always reasons. Use `--reasoning-effort` (`minimal` through `max`) to control how much. `none` is not supported and is ignored with a warning. `max` is available on standard-tier `muse-spark-1.3` only; for the `-contributor` tier and older versions it is submitted as `xhigh`. The API only accepts `tool_choice="auto"`, so forced tool choices are submitted as `"auto"`. Log probabilities, stop sequences, and logit bias are not supported and are dropped with a warning.
+Muse models always reason. Use `--reasoning-effort` (`minimal` through `max`) to control how much. `none` is not supported and is ignored with a warning. `max` is available on `muse-wonder-1.0`, `muse-ember-1.0`, and standard-tier `muse-spark-1.3`; for the `-contributor` tier and older Muse Spark versions it is submitted as `xhigh`. Muse Wonder and Muse Ember default to `max` and Muse Spark to `high`. The API only accepts `tool_choice="auto"`, so forced tool choices are submitted as `"auto"`. Log probabilities, stop sequences, and logit bias are not supported and are dropped with a warning.
 
 Prompts blocked by Meta's content policy are reported as `stop_reason="content_filter"` with `stop_details`. The API signals such a block three different ways depending on protocol and streaming (an HTTP 400 with a `content_policy_violation` code, a `content_filter` finish reason, or a `refusal` content part), and the provider normalizes all of them. Note that a refusal the model writes itself, rather than one the policy layer blocks, carries no signal at all and arrives as an ordinary completion. Score those from the completion text. Meta also restricts API keys after repeated policy violations (HTTP 403 with code `user_blocked`); while a key is restricted, streamed requests return a refusal for every prompt, so an eval where every sample stops with `content_filter` is more likely hitting that restriction than the content policy.
 
@@ -590,6 +589,10 @@ The following environment variables are supported by the Meta provider
 | `META_API_KEY` | API key credentials (required unless `MODEL_API_KEY` is set). |
 | `MODEL_API_KEY` | API key credentials (Meta's official variable name; used when `META_API_KEY` is not set). |
 | `META_BASE_URL` | Base URL for requests (optional, defaults to `https://api.meta.ai/v1`). |
+
+### Prompt Caching {#meta-prompt-caching}
+
+Inspect sets Meta's [`prompt_cache_key`](https://dev.meta.ai/docs/prompt-caching#prompt-cache-key) to the running sample's unique id (no key is sent outside a sample) and, on the Responses API, sets `prompt_cache_retention` to `"24h"`. Use the `prompt_cache_key` and `prompt_cache_retention` model args to override these (e.g. `-M prompt_cache_retention=in_memory`). Values supplied in `GenerateConfig(extra_body=...)` take precedence. Cached tokens are reported as `input_tokens_cache_read`.
 
 ## Grok {#grok}
 
@@ -659,6 +662,8 @@ For the `bedrock` provider, custom model args (`-M`) are forwarded to the `creat
 Note that all models on AWS Bedrock require that you [request model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).
 
 You should be also sure that you have the appropriate AWS credentials before accessing models on Bedrock. You aren't likely to need to, but you can also specify a custom base URL for AWS Bedrock using the `BEDROCK_BASE_URL` environment variable.
+
+You can also authenticate with a named AWS profile instead of static access keys: set `AWS_PROFILE` to the profile name — aiobotocore picks it up from the environment via the standard AWS credential chain.
 
 If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access. If you are using OpenAI models on Bedrock, access them via the `openai` provider with the `bedrock` qualifier — see [OpenAI on AWS Bedrock](#openai-on-aws-bedrock).
 
@@ -846,7 +851,7 @@ To use the [Together AI](https://www.together.ai/) provider, install the `openai
 ``` bash
 pip install openai
 export TOGETHER_API_KEY=your-together-api-key
-inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M3.1-Flash
 ```
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
@@ -854,7 +859,7 @@ For the `together` provider, you can enable [Tool Emulation](#tool-emulation-ope
 The `together` provider supports a `stream` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()`. Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
-inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7 -M stream=true
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M3.1-Flash -M stream=true
 ```
 
 The following environment variables are supported by the Together AI provider
@@ -980,9 +985,13 @@ The following environment variables are supported by the Perplexity provider
 | Variable | Description |
 |----------------------------|--------------------------------------------|
 | `PERPLEXITY_API_KEY` | API key credentials (required). |
-| `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai`) |
+| `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai/v1`) |
 
-Perplexity responses include citations when available. These are surfaced as `UrlCitation`s attached to the assistant message. Additional usage metrics such as `reasoning_tokens` and `citation_tokens` are recorded in `ModelOutput.metadata`.
+The provider uses Perplexity's [Agent API](https://docs.perplexity.ai/docs/agent-api/quickstart). Name models as `perplexity/<provider>/<model>`, using the ids in Perplexity's [model list](https://docs.perplexity.ai/docs/agent-api/models) (for example `perplexity/openai/gpt-5.6-luna`). Perplexity's own models can omit the provider, so `perplexity/sonar` is the same as `perplexity/perplexity/sonar`. Perplexity retired `sonar-pro`, `sonar-reasoning-pro`, and `sonar-deep-research` with its Sonar API; use another Agent API model instead.
+
+Perplexity models search the web only when you pass the [`web_search()`](tools-standard.qmd#perplexity-options) tool, which also takes the search options. This is true for `perplexity/sonar` as well: Sonar searched on every request, but the Agent API does not. Add `web_search()` to keep search-grounded answers and citations. Other Agent API request fields can be passed with `extra_body`. Fields that Inspect sets from the generation config, such as `include` and `text`, are not replaced. From a `reasoning` object, only fields that the config has no option for, such as `context`, are sent. Set the effort, mode and summary with `reasoning_effort`, `reasoning_mode` and `reasoning_summary`. The `tools` in `extra_body` can include Perplexity's [`fetch_url`](https://docs.perplexity.ai/docs/agent-api/tools/fetch-url) tool; `web_search()` adds its tool to that list. Inspect's `tool_choice` does not apply to the tools in `extra_body`. To turn them off, set `tool_choice` in `extra_body`. The request has a single tool choice, so that value applies to the `web_search()` tool as well. A `tool_choice` that forces a search raises an error if `extra_body` sets a different `tool_choice`. Inspect cannot read the results of Perplexity's other tools, so a response with them raises an error.
+
+When the model searches or fetches a page, the results are recorded in `ModelOutput.metadata["search_results"]` or `ModelOutput.metadata["fetch_url_results"]` and attached as `UrlCitation`s to the assistant message. The number of searches, which Perplexity bills per search, is recorded in `ModelOutput.metadata["num_search_queries"]`.
 
 ## Hugging Face {#hugging-face}
 
@@ -1081,6 +1090,36 @@ eval("arc.py", model="hf/some-org/custom-arch-model", model_args=dict(trust_remo
 ```
 
 The flag is applied to both the model and tokenizer `from_pretrained()` calls.
+
+### Generation Config
+
+`transformers` applies the model repository's `generation_config.json` to every generation. Inspect sets `do_sample`, `max_new_tokens`, and any of `temperature`, `top_p`, `top_k`, and stop sequences that your `GenerateConfig` specifies; every other field (for example `repetition_penalty`, `num_beams`, or `sequence_bias`) comes from the repository. Use the `generation_config` model arg to change this:
+
+| Value | Behavior |
+|---|---|
+| `auto` (default) | Use the repository's `generation_config.json`. |
+| `default` | Use the `transformers` defaults. Unless your `GenerateConfig` sets them, this means sampling at `temperature=1.0` with `top_k=50`, which may differ from the settings the model was tuned for. |
+| path or Hub id | Load the generation config from that location instead (for example, the model the repository was fine-tuned from), using the model's generation config class. |
+| `transformers.GenerationConfig` (Python only) | Passed to `from_pretrained()`, which uses it in place of the repository's config. Recorded with source `object`. |
+
+`default` is not available for models that use a `GenerationConfig` subclass (for example, diffusion models), since their settings have no defaults; use a path instead. With `default` or a path, the BOS, EOS, PAD and decoder start token ids are still taken from the repository, because they refer to its tokenizer's vocabulary and generation needs the EOS token to stop.
+
+``` bash
+inspect eval gsm8k.py --model hf/some-org/fine-tuned-model -M generation_config=default
+```
+
+Each `ModelOutput` records the model's configuration in `metadata["hf_model_config"]`: the chat template's source (`tokenizer` or `model_arg`), the name of the tokenizer template selected by `chat_template` (if any), and the SHA-256 of the template text, the model's generation config fields that differ from the `transformers` defaults, and whether `trust_remote_code` was set. The recorded generation config is the model's own; values your `GenerateConfig` sets (such as `temperature`) override it at generation time.
+
+### Untrusted Model Repositories {#hf-untrusted-repos}
+
+A model repository contains more than weights. Its chat template determines the prompt the model receives, and its `generation_config.json` controls decoding. Both can change evaluation results without any change to the weights: a template can insert text such as known answers into every prompt, and a generation config can bias decoding toward particular tokens. With `trust_remote_code=true`, the repository's Python code runs in the evaluation process and can modify scorers, read sample targets, or rewrite the log.
+
+When you evaluate a repository you do not trust, take the prompt format and decoding settings from a source you do trust:
+
+- Pass a chat template you have reviewed with `-M chat_template=...` (for example, the template of the model the repository was fine-tuned from).
+- Use `-M generation_config=default`, or load the config from a repository you trust with `-M generation_config=<base-model>`, and set sampling parameters explicitly in your `GenerateConfig`. The special token ids, including EOS, still come from the repository.
+- Do not set `trust_remote_code`. If the model requires it, run the evaluation in an isolated environment (for example a container with no access to other logs or credentials) and treat its results as unverified.
+- Check `metadata["hf_model_config"]` in the log to confirm which template and generation settings were used.
 
 ### Model Class
 
@@ -1287,6 +1326,18 @@ inspect eval gsm8k.py --model vllm/Qwen/Qwen3-1.7B-Base -M use_chat_template=fal
 ::: {.callout-note}
 `use_chat_template` only takes effect when Inspect starts the vLLM server. When connecting to an existing server via `VLLM_BASE_URL`, set `--chat-template` when starting the server instead.
 :::
+
+### Untrusted Model Repositories {#vllm-untrusted-repos}
+
+The vLLM server also applies the model repository's chat template and `generation_config.json` by default, so both can affect results independently of the weights (see [Untrusted Model Repositories](#hf-untrusted-repos) for the Hugging Face provider). When Inspect starts the server, model args are passed to `vllm serve`, so you can take these from a trusted source instead:
+
+``` bash
+inspect eval gsm8k.py --model vllm/some-org/fine-tuned-model \
+  -M generation_config=vllm \
+  -M chat_template=/path/to/reviewed-template.jinja
+```
+
+`generation_config=vllm` uses vLLM's defaults rather than the repository's file, and `chat_template` replaces the repository's template. With `trust_remote_code`, the repository's code runs in the vLLM server process rather than the evaluation process, but as the same user, with the same environment variables (including API keys) and filesystem access, so it is not isolated from the evaluation.
 
 ### Raw Text Completions {#sec-vllm-completions}
 
@@ -1563,6 +1614,19 @@ export DEEPSEEK_BASE_URL=https://api.deepseek.com
 inspect eval arc.py --model openai-api/deepseek/deepseek-flash
 ```
 
+### Apple Silicon via mlx-lm
+
+You can run models locally on Apple Silicon with [mlx-lm](https://github.com/ml-explore/mlx-lm), which serves an OpenAI-compatible API. Start its server, then point the `openai-api` provider at it:
+
+``` bash
+mlx_lm.server --model mlx-community/Qwen3-30B-A3B-Instruct-2507-4bit --host 127.0.0.1 --port 8080 --max-tokens 4096
+export MLX_BASE_URL=http://127.0.0.1:8080/v1
+export MLX_API_KEY=not-needed
+inspect eval inspect_evals/gsm8k --model openai-api/mlx/mlx-community/Qwen3-30B-A3B-Instruct-2507-4bit --limit 10
+```
+
+The local server does not authenticate requests, so any value works for `MLX_API_KEY`. Note that `mlx_lm.server` defaults to 512 max tokens, so set `--max-tokens` high enough for the task — longer step-by-step reasoning would otherwise be cut off.
+
 ### Responses API
 
 You can enable the use of the Responses API with the `openai-api` provider by passing the `responses_api` model arg. For example:
@@ -1653,7 +1717,7 @@ For the `openrouter` provider, the following custom model args (`-M`) are suppor
 
 | Argument | Example |
 |------------------------------------|------------------------------------|
-| [`models`](https://openrouter.ai/docs/guides/routing/model-fallbacks) | `-M "models=anthropic/claude-3.5-sonnet, gryphe/mythomax-l2-13b"` |
+| [`models`](https://openrouter.ai/docs/guides/routing/model-fallbacks) | `-M "models=anthropic/claude-sonnet-5.5, gryphe/mythomax-l2-13b"` |
 | [`provider`](https://openrouter.ai/docs/features/provider-routing) | `-M "provider={ 'quantizations': ['int8'] }"` |
 | [`transforms`](https://openrouter.ai/docs/features/message-transforms) | `-M "transforms=['middle-out']"` |
 | [`reasoning_enabled`](https://openrouter.ai/docs/use-cases/reasoning-tokens) | `-M "reasoning_enabled=false"` |
@@ -1662,7 +1726,7 @@ For the `openrouter` provider, the following custom model args (`-M`) are suppor
 
 In addition, [Tool Emulation](#tool-emulation-openai) is available for models that don't yet support tool calling in their API.
 
-For `openrouter/anthropic/*` models, Anthropic [prompt caching](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) is enabled by default: per-block `cache_control` markers are inserted on the last system block, the last tool definition, and a rolling pair of message-level breakpoints (mirroring the placement used by the direct `anthropic` provider). The markers are accepted by OpenRouter across Anthropic-direct, Bedrock, and Vertex routing. Cache writes returned upstream are surfaced as `ModelUsage.input_tokens_cache_write`. Pass `--cache-prompt=false` (or set `cache_prompt=False` in `GenerateConfig`) to disable. Single-turn evaluations that never re-issue the same prefix pay a small premium (Anthropic charges ~1.25× for cache writes) with no offsetting cache reads — disable caching for those workloads.
+For `openrouter/anthropic/*` models, Anthropic [prompt caching](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) is enabled by default: per-block `cache_control` markers are inserted on the last system block, the last tool definition, and the last two non-system text blocks of the conversation (a rolling pair of history breakpoints, so later turns can read the history cached by earlier ones). The markers are accepted by OpenRouter across Anthropic-direct, Bedrock, and Vertex routing. Cache writes returned upstream are surfaced as `ModelUsage.input_tokens_cache_write`. Pass `--cache-prompt=false` (or set `cache_prompt=False` in `GenerateConfig`) to disable. Single-turn evaluations that never re-issue the same prefix pay a premium on the whole prompt (Anthropic charges ~1.25× for cache writes) with no offsetting cache reads — disable caching for those workloads.
 
 Note that OpenRouter may distribute consecutive requests for the same model across multiple backends (for Anthropic models: Anthropic-direct, Bedrock, Vertex), and each backend maintains its own prompt cache. To keep a sample on one backend, Inspect sends OpenRouter's [`x-session-id`](https://openrouter.ai/docs/guides/best-practices/prompt-caching) header set to the running sample's unique id: OpenRouter uses it as the sticky routing key, so every turn of a sample returns to the backend holding its warm cache, from the first request rather than only after a cache hit is observed. Override it by setting your own value in `GenerateConfig(extra_headers={"x-session-id": ...})`. For stricter control you can still pin routing to a single backend via the `provider` model-arg, for example `-M provider='{"order":["anthropic"],"allow_fallbacks":false}'`.
 
@@ -1681,9 +1745,9 @@ To use models served by a [LiteLLM proxy](https://docs.litellm.ai/docs/simple_pr
 
 ``` yaml
 model_list:
-  - model_name: claude-sonnet-5
+  - model_name: claude-sonnet-5-5
     litellm_params:
-      model: anthropic/claude-sonnet-5
+      model: anthropic/claude-sonnet-5-5
       api_key: os.environ/ANTHROPIC_API_KEY
 ```
 
@@ -1691,7 +1755,7 @@ model_list:
 pip install openai
 export LITELLM_PROXY_BASE_URL=https://litellm.example.com
 export LITELLM_PROXY_API_KEY=your-litellm-key
-inspect eval arc.py --model litellm-proxy/claude-sonnet-5
+inspect eval arc.py --model litellm-proxy/claude-sonnet-5-5
 ```
 
 The `model_name` is chosen by the proxy's operator and need not be a model id. Inspect reads the proxy's `/model/info` listing to find the upstream model behind it (`litellm_params.model`, or `model_info.base_model` when set), and uses that model to look up the context window and cost and to shape requests. Virtual keys work; the listing shows only the models a key may use. Aliases defined on your key or its team are resolved to the model they route to.

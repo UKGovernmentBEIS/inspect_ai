@@ -308,6 +308,28 @@ def isolate_active_model():
 
 
 @pytest.fixture(autouse=True)
+def isolate_request_had_retry():
+    """Keep the retried-request contextvar from leaking across tests.
+
+    `report_http_retry` marks the request in flight as retried by setting the
+    `_request_had_retry` contextvar, and only a generate under an adaptive
+    connections controller clears it. A test that reports a retry
+    *synchronously* in its own context (calling `report_http_retry`, or a
+    model's `should_retry`, directly) keeps the mark after it returns, so it
+    leaks into later tests. A later test that reads the contextvar during a
+    generate with no controller then finds its request already marked as
+    retried. Restore the contextvar after each test.
+    """
+    from inspect_ai.util._concurrency import _request_had_retry
+
+    token = _request_had_retry.set(_request_had_retry.get())
+    try:
+        yield
+    finally:
+        _request_had_retry.reset(token)
+
+
+@pytest.fixture(autouse=True)
 def fresh_concurrency_registry():
     """Reset the process-global concurrency registry before each test.
 
@@ -396,6 +418,55 @@ def protect_registrations(
             f"same worker. Restore exactly what you removed, and leave in "
             f"place anything registered while you held the registry open."
         )
+
+
+@pytest.fixture
+def isolated_hooks_registry() -> Iterator[None]:
+    """Temporarily hide existing hooks; tests must clean up their own registrations."""
+    from inspect_ai._util import registry as registry_mod
+    from inspect_ai._util.entrypoints import ensure_entry_points
+
+    # Load extensions first so an empty registry cannot load their hooks mid-test.
+    ensure_entry_points()
+    saved = {
+        key: value
+        for key, value in registry_mod._registry.items()
+        if key.startswith("hooks:")
+    }
+    for key in saved:
+        del registry_mod._registry[key]
+    try:
+        yield
+    finally:
+        registry_mod._registry.update(saved)
+        # Direct dict updates don't invalidate get_all_hooks()'s cache.
+        registry_mod._registry_version += 1
+
+
+@pytest.fixture
+def fresh_display(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Start with no display, display type or Rich console settings, as a new process does.
+
+    Earlier tests leave these set (a quiet console, a cached display), which
+    would hide or redirect the output a test captures; restoring them keeps
+    this test's display from leaking into later ones. The console is reset in
+    place, as `rich.reconfigure()` does, so a logging handler bound to it by an
+    earlier test still writes to it. It is wide enough not to wrap long
+    temporary paths in that output.
+    """
+    import rich
+    from rich.console import Console
+
+    from inspect_ai._display.core import active
+    from inspect_ai._display.core import rich as display_rich
+    from inspect_ai.util import _display
+
+    monkeypatch.setattr(active, "_active_display", None)
+    monkeypatch.setattr(_display, "_display_type", None)
+    monkeypatch.setattr(display_rich, "_console_settings", None)
+    monkeypatch.setattr(display_rich, "_reconfigure_in_place", False)
+    monkeypatch.setenv("COLUMNS", "1000")
+    monkeypatch.setattr(rich.get_console(), "__dict__", Console().__dict__)
 
 
 @pytest.fixture
@@ -929,7 +1000,31 @@ def _report_oom_kills(exitstatus: int) -> None:
         return
 
 
+@pytest.fixture
+def fake_sentinel(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Install `test_helpers.fake_sentinel` as `inspect_sentinel` for the test, reporting `SENTINEL_MIN_VERSION`."""
+    from test_helpers import fake_sentinel as fake
+
+    import inspect_ai._sentinel
+
+    monkeypatch.setitem(sys.modules, "inspect_sentinel", fake)
+    monkeypatch.setitem(sys.modules, "inspect_sentinel._integration", fake)
+    fake.report_version(monkeypatch)
+    yield
+    # _dispatch binds the fake's names when it is imported, so forget it: a
+    # later import meets the block on inspect_sentinel again
+    sys.modules.pop("inspect_ai._sentinel._dispatch", None)
+    vars(inspect_ai._sentinel).pop("_dispatch", None)
+
+
 def pytest_configure(config):
+    # inspect_ai must never load inspect_sentinel for a user who configures no
+    # sentinel, so any import of it in a test raises ImportError. Tests of the
+    # sentinel code install a fake with the `fake_sentinel` fixture.
+    block_sentinel = pytest.MonkeyPatch()
+    block_sentinel.setitem(sys.modules, "inspect_sentinel", None)
+    config.add_cleanup(block_sentinel.undo)
+
     config.addinivalue_line("markers", "slow: mark test as slow to run")
     config.addinivalue_line("markers", "api: mark test as requiring API access")
     config.addinivalue_line("markers", "flaky: mark test as flaky/unreliable")
@@ -945,6 +1040,9 @@ def pytest_configure(config):
         "is the live control surface)",
     )
     os.environ["INSPECT_EVAL_LOG_MODEL_API"] = "1"
+    # verify every composed S3 log flush against a digest of the temp file's
+    # prefix (off in production; see design/s3-incremental-log-flush.md)
+    os.environ["INSPECT_VERIFY_COMPOSE_PREFIX"] = "1"
     # Dummy provider keys so tests that only construct a client (not call the
     # API) work without real credentials. Real keys (when present) win via
     # setdefault. api-marked tests are gated behind --runapi and skip when the

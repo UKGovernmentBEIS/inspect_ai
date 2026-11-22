@@ -1,4 +1,5 @@
 import re
+from copy import deepcopy
 from typing import Any
 
 from shortuuid import uuid as shortuuid
@@ -38,7 +39,8 @@ def as_tool(
     Args:
        agent: Agent to convert.
        description: Tool description (defaults to agent description)
-       limits: List of limits to apply to the agent. Should a limit
+       limits: List of limits to apply to the agent. Each tool call
+          applies a fresh copy of the limits. Should a limit
           be exceeded, the tool call ends and returns an error
           explaining that a limit was exceeded.
        max_output: Maximum size (in bytes) of the agent's response before
@@ -69,8 +71,9 @@ def as_tool(
         # pre-generate span ID so call_tool can read it after execution
         agent_span_id = shortuuid()
 
-        # run the agent with limits
-        with apply_limits(limits):
+        # run the agent with limits (copied, as a Limit can only be entered once
+        # and this tool may be invoked many times)
+        with apply_limits(deepcopy(limits)):
             async with span(
                 name=agent_display_name(agent), type=AGENT_SPAN_TYPE, id=agent_span_id
             ):

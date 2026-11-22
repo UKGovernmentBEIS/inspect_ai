@@ -139,15 +139,34 @@ def _find_crashed_buffer_db(
     location: str, db_dir: str | Path | None = None
 ) -> Path | None:
     """Find the buffer DB for a crashed eval, filtering out live processes."""
+    candidates = [
+        db_file
+        for db_file, pid in _buffer_dbs(location, db_dir)
+        if not psutil.pid_exists(pid)
+    ]
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return candidates[0]
+
+
+def live_buffer_db_exists(location: str, db_dir: str | Path | None = None) -> bool:
+    """Whether a running process on this host owns a buffer DB for the log."""
+    return any(psutil.pid_exists(pid) for _, pid in _buffer_dbs(location, db_dir))
+
+
+def _buffer_dbs(location: str, db_dir: str | Path | None) -> list[tuple[Path, int]]:
+    """Buffer DBs for the log, with the pid of the process that owns each."""
     resolved_dir = resolve_db_dir(Path(db_dir) if db_dir is not None else None)
     uri = filesystem(location).path_as_uri(location)
     dir_hash, file = location_dir_and_file(uri)
     log_subdir = resolved_dir / dir_hash
 
     if not log_subdir.exists():
-        return None
+        return []
 
-    candidates: list[Path] = []
+    dbs: list[tuple[Path, int]] = []
     for db_file in log_subdir.glob(f"{file}.*.db"):
         parts = db_file.name.rsplit(".", 2)
         if len(parts) != 3:
@@ -155,15 +174,5 @@ def _find_crashed_buffer_db(
         pid_str = parts[1]
         if not pid_str.isdigit():
             continue
-
-        pid = int(pid_str)
-        if psutil.pid_exists(pid):
-            continue
-
-        candidates.append(db_file)
-
-    if not candidates:
-        return None
-
-    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return candidates[0]
+        dbs.append((db_file, int(pid_str)))
+    return dbs

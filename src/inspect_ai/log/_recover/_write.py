@@ -5,12 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from logging import getLogger
-from typing import Iterator
+from typing import Iterator, Literal
 
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import EvalError
 from inspect_ai.log._condense import condense_sample
+from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._log import (
     EvalLog,
     EvalResults,
@@ -21,6 +22,7 @@ from inspect_ai.log._log import (
     EvalStats,
     EvalStatus,
 )
+from inspect_ai.log._metric import LogMetrics
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.eval import EvalRecorder, _sample_filename
 from inspect_ai.model._model_output import ModelUsage
@@ -97,6 +99,12 @@ async def write_recovered_eval_log(
     no_events: bool = False,
     incomplete_action: IncompleteAction = "retry",
     stats: RecoveryStats | None = None,
+    metrics: LogMetrics | None,
+    status: Literal["error", "cancelled"] = "error",
+    error_message: str | None = None,
+    completed_at: datetime | None = None,
+    log_update: LogUpdate | None = None,
+    has_buffer: bool = True,
 ) -> EvalLog:
     """Write a recovered .eval file with true streaming.
 
@@ -127,15 +135,19 @@ async def write_recovered_eval_log(
         stats: If provided, populated with sample and failed counts so
             callers can report progress without re-reading the just-written
             file (which would trigger lazy loading of all samples).
+        metrics: Reducers and metrics resolved from the crashed log's header
+            (`resolve_log_metrics()`), or `None` to write the log without
+            results.
+        status: Status of the log when it is not finalized as "success".
+        error_message: Message of the `EvalError` of a log with status
+            "error" (default: "Eval recovered from crash").
+        completed_at: `stats.completed_at` of the log (default: now).
+        log_update: Appended to the crashed log's `log_updates`.
+        has_buffer: Whether a sample buffer was found for the log.
 
     Returns:
         The written EvalLog (header only, samples on disk).
     """
-    from inspect_ai._eval.score import (
-        metrics_from_log_header,
-        reducers_from_log_header,
-        resolve_scorers_info,
-    )
     from inspect_ai._eval.task.results import eval_results
     from inspect_ai._util.file import dirname
     from inspect_ai.scorer._metric import SampleScore
@@ -219,7 +231,7 @@ async def write_recovered_eval_log(
                     f"Recovering sample {processed}/{total_streaming} "
                     f"id={summary.id} epoch={summary.epoch} segments={seg_count}"
                 )
-                written_summary, sample_metadata = _write_sample_streaming(
+                written = _write_sample_streaming(
                     zip_log,
                     streaming_buffer,
                     summary,
@@ -230,19 +242,19 @@ async def write_recovered_eval_log(
                     include_events=not no_events,
                 )
                 written_keys.add(entry)
-                stats_acc.add_summary(written_summary)
-                if is_in_progress or written_summary.error is not None:
+                stats_acc.add_summary(written.summary)
+                if is_in_progress or written.summary.error is not None:
                     failed_count += 1
-                zip_log._summaries.append(written_summary)
-                if written_summary.scores:
+                zip_log._summaries.append(written.summary)
+                if written.scores:
                     scores_acc.append(
                         {
                             name: SampleScore(
                                 score=score,
-                                sample_id=written_summary.id,
-                                sample_metadata=sample_metadata,
+                                sample_id=written.summary.id,
+                                sample_metadata=written.metadata,
                             )
-                            for name, score in written_summary.scores.items()
+                            for name, score in written.scores.items()
                         }
                     )
                 sample_count += 1
@@ -268,23 +280,21 @@ async def write_recovered_eval_log(
         status="error",
     )
 
-    try:
-        reducers = reducers_from_log_header(header)
-        metrics = metrics_from_log_header(header)
-        scorers_info = resolve_scorers_info(header)
-        results, reductions = eval_results(
-            samples=sample_count,
-            scores=scores_acc,
-            reducers=reducers,
-            scorers=scorers_info,
-            metrics=metrics,
-            # failed_count covers errored and still-in-progress samples, so
-            # the remainder is exactly the samples that completed cleanly
-            completed_samples=sample_count - failed_count,
-            headline_metric=header.eval.headline_metric,
-        )
-    except Exception as ex:
-        logger.warning(f"Unable to recompute metrics for recovered log: {ex}")
+    if metrics is not None:
+        try:
+            results, reductions = eval_results(
+                samples=sample_count,
+                scores=scores_acc,
+                reducers=metrics.reducers,
+                scorers=metrics.scorers,
+                metrics=metrics.metrics,
+                # failed_count covers errored and still-in-progress samples, so
+                # the remainder is exactly the samples that completed cleanly
+                completed_samples=sample_count - failed_count,
+                headline_metric=header.eval.headline_metric,
+            )
+        except Exception as ex:
+            logger.warning(f"Unable to recompute metrics for recovered log: {ex}")
 
     # A resolving disposition finalizes the log with status "success" when
     # every expected sample is final (present in the recovered log: flushed,
@@ -335,21 +345,27 @@ async def write_recovered_eval_log(
             logger.warning(
                 "Recovered log not finalized: every expected sample is final "
                 "but metrics could not be recomputed, so the log keeps status "
-                "'error' and a retry will re-run the samples resolved during "
+                f"'{status}' and a retry will re-run the samples resolved during "
                 "recovery."
             )
 
-    status: EvalStatus
+    final_status: EvalStatus
+    error: EvalError | None = None
     if finalized:
-        status = "success"
-        error = None
+        final_status = "success"
     else:
-        status = "error"
-        error = EvalError(
-            message="Eval recovered from crash",
-            traceback="Eval process crashed; log recovered from sample buffer database.\n",
-            traceback_ansi="Eval process crashed; log recovered from sample buffer database.\n",
-        )
+        final_status = status
+        if status == "error":
+            # Only the default error describes the recovery, and its text names
+            # the buffer, so it is left out when there was none.
+            traceback = ""
+            if error_message is None:
+                error_message = "Eval recovered from crash"
+                if has_buffer:
+                    traceback = "Eval process crashed; log recovered from sample buffer database.\n"
+            error = EvalError(
+                message=error_message, traceback=traceback, traceback_ansi=traceback
+            )
 
     if stats is not None:
         stats.sample_count = sample_count
@@ -357,13 +373,16 @@ async def write_recovered_eval_log(
         stats.in_progress_count = in_progress_count
         stats.not_finalized_reason = not_finalized_reason
 
+    log_updates = crashed.log_updates + ([log_update] if log_update else [])
     return await recorder.log_finish(
         crashed.eval,
-        status,
-        stats_acc.stats(),
+        final_status,
+        stats_acc.stats(completed_at),
         results,
         reductions,
         error=error,
+        invalidated=crashed.invalidated,
+        log_updates=log_updates or None,
         config_updates=crashed.config_updates or None,
     )
 
@@ -407,10 +426,10 @@ class _StatsAccumulator:
                 self._role_usage[role] = ModelUsage()
             self._role_usage[role] += usage
 
-    def stats(self) -> EvalStats:
+    def stats(self, completed_at: datetime | None = None) -> EvalStats:
         return EvalStats(
             started_at=self._started_at or "",
-            completed_at=datetime.now(timezone.utc).isoformat(),
+            completed_at=(completed_at or datetime.now(timezone.utc)).isoformat(),
             model_usage=self._model_usage,
             role_usage=self._role_usage,
         )

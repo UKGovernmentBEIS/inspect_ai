@@ -2,15 +2,27 @@
 
 import os
 import tempfile
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Callable, NamedTuple
 
 import pytest
 from test_helpers.buffer import simulate_crashed_buffer_db
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.hash import mm3_hash
+from inspect_ai._util.json import JsonChange
+from inspect_ai.dataset._dataset import Sample
+from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.event._score import ScoreEvent
+from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+from inspect_ai.event._store import StoreEvent
+from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
@@ -20,7 +32,11 @@ from inspect_ai.log._log import (
     EvalSampleSummary,
     EvalSpec,
 )
-from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer.database import (
+    SampleBufferDatabase,
+    sync_to_filestore,
+)
+from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._recover import (
@@ -28,6 +44,7 @@ from inspect_ai.log._recover import (
     recover_eval_log,
     recover_eval_log_async,
 )
+from inspect_ai.log._transcript import Transcript, _transcript, init_transcript
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -35,8 +52,10 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.scorer._metric import Score
+from inspect_ai.util._store import store_changes
 
 
 def _make_eval_spec(task: str = "e2e_test", num_samples: int = 6) -> EvalSpec:
@@ -94,7 +113,9 @@ def _simulate_crashed_buffer(buffer: SampleBufferDatabase) -> None:
     simulate_crashed_buffer_db(buffer)
 
 
-def _make_model_event(input_msgs: list[ChatMessage], output_content: str) -> ModelEvent:
+def _make_model_event(
+    input_msgs: list[ChatMessage], output_content: str | list[Content]
+) -> ModelEvent:
     return ModelEvent(
         model="mockllm/model",
         input=input_msgs,
@@ -1235,3 +1256,770 @@ async def test_streaming_recovery_output_message_stays_inline_in_messages() -> N
                 "events walk did not pool long output content as attachment: "
                 f"content={output_content!r}"
             )
+
+
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_restores_full_input_target_and_scores(
+    buffer_kind: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A completed but unflushed sample is rebuilt from its events.
+
+    The buffered summary is thinned (images dropped, long text truncated, score
+    answer/explanation/metadata shortened), so recovering from it would lose
+    data a normal run keeps.
+    """
+    png = (
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlE"
+        "QVR4nGNgAAAAAgABVKJPXQAAAABJRU5ErkJggg=="
+    )
+    sample = Sample(
+        id="s1",
+        input=[
+            ChatMessageUser(
+                content=[ContentText(text="T" * 6000), ContentImage(image=png)]
+            )
+        ],
+        target="X" * 6000,
+        choices=["yes", "no"],
+    )
+    score = Score(
+        value=1.0,
+        answer="A" * 3000,
+        explanation="word " * 400,
+        metadata={"grading": "G" * 2000},
+    )
+    started_at = datetime.now(timezone.utc).isoformat()
+    completed = EvalSampleSummary(
+        id="s1",
+        epoch=1,
+        input=sample.input,
+        target=sample.target,
+        choices=sample.choices,
+        scores={"long_scorer": score},
+        started_at=started_at,
+        completed_at=datetime.now(timezone.utc).isoformat(),
+    )
+    assert completed.scores is not None
+    assert completed.scores["long_scorer"].answer != score.answer  # thinned
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "thinned.eval")
+            output_path = os.path.join(temp_dir, "thinned-recovered.eval")
+            zip_log = ZipLogFile(eval_path)
+            await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+            await zip_log.start(
+                LogStart(
+                    version=LOG_SCHEMA_VERSION,
+                    eval=_make_eval_spec(num_samples=1),
+                    plan=EvalPlan(),
+                )
+            )
+            await zip_log.flush()
+
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
+            buffer.start_sample(
+                EvalSampleSummary(
+                    id="s1",
+                    epoch=1,
+                    input=sample.input,
+                    target=sample.target,
+                    choices=sample.choices,
+                    started_at=started_at,
+                )
+            )
+            buffer.log_events(
+                [
+                    SampleEvent(
+                        id="s1", epoch=1, event=SampleInitEvent(sample=sample, state={})
+                    ),
+                    SampleEvent(
+                        id="s1",
+                        epoch=1,
+                        event=ScoreEvent(
+                            score=score, target=sample.target, scorer="long_scorer"
+                        ),
+                    ),
+                    # an intermediate score is not the sample's score
+                    SampleEvent(
+                        id="s1",
+                        epoch=1,
+                        event=ScoreEvent(
+                            score=Score(value=0.0),
+                            intermediate=True,
+                            scorer="long_scorer",
+                        ),
+                    ),
+                ]
+            )
+            buffer.complete_sample(completed, sample_metadata=None)
+
+            if buffer_kind == "filestore":
+                sync_to_filestore(buffer, SampleBufferFilestore(eval_path, create=True))
+                db_dir = os.path.join(temp_dir, "empty_db_dir")
+            else:
+                _simulate_crashed_buffer(buffer)
+
+            from inspect_ai._eval.task import results as results_module
+
+            metric_scores: list[Score] = []
+            original_eval_results = results_module.eval_results
+
+            def capture_eval_results(*args: Any, **kwargs: Any) -> Any:
+                metric_scores.extend(s["long_scorer"].score for s in kwargs["scores"])
+                return original_eval_results(*args, **kwargs)
+
+            monkeypatch.setattr(results_module, "eval_results", capture_eval_results)
+
+            await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+            assert metric_scores == [score]
+
+            # long input text stays inline, as in a normal run's log
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            input = recovered.samples[0].input
+            assert isinstance(input, list)
+            assert isinstance(input[0].content, list)
+            assert input[0].content[0] == ContentText(text="T" * 6000)
+
+            recovered = await read_eval_log_async(output_path, resolve_attachments=True)
+            assert recovered.samples is not None
+            recovered_sample = recovered.samples[0]
+            assert recovered_sample.input == sample.input
+            assert recovered_sample.target == sample.target
+            assert recovered_sample.choices == sample.choices
+            assert recovered_sample.scores == {"long_scorer": score}
+
+
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_keeps_messages_and_output_inline(buffer_kind: str) -> None:
+    """Recovered messages and output match a normal run's log.
+
+    The buffer condenses long text and images in model events into
+    attachments; a normal run's log keeps message text and the whole output,
+    images included, inline, and turns only message images into attachments.
+    """
+    png = (
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlE"
+        "QVR4nGNgAAAAAgABVKJPXQAAAABJRU5ErkJggg=="
+    )
+    user = ChatMessageUser(
+        content=[ContentText(text="Q" * 2000), ContentImage(image=png)]
+    )
+    model_event = _make_model_event(
+        [user], [ContentText(text="R" * 2000), ContentImage(image=png)]
+    )
+    started_at = datetime.now(timezone.utc).isoformat()
+    summary = EvalSampleSummary(
+        id="s1", epoch=1, input="hi", target="reply", started_at=started_at
+    )
+    # what a normal run writes for this sample
+    expected = condense_sample(
+        EvalSample(
+            id="s1",
+            epoch=1,
+            input="hi",
+            target="reply",
+            messages=[user, model_event.output.message],
+            output=model_event.output,
+        )
+    )
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "inline.eval")
+            output_path = os.path.join(temp_dir, "inline-recovered.eval")
+            zip_log = ZipLogFile(eval_path)
+            await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+            await zip_log.start(
+                LogStart(
+                    version=LOG_SCHEMA_VERSION,
+                    eval=_make_eval_spec(num_samples=1),
+                    plan=EvalPlan(),
+                )
+            )
+            await zip_log.flush()
+
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
+            buffer.start_sample(summary)
+            buffer.log_events([SampleEvent(id="s1", epoch=1, event=model_event)])
+            buffer.complete_sample(
+                summary.model_copy(
+                    update={"completed_at": datetime.now(timezone.utc).isoformat()}
+                ),
+                sample_metadata=None,
+            )
+
+            if buffer_kind == "filestore":
+                sync_to_filestore(buffer, SampleBufferFilestore(eval_path, create=True))
+                db_dir = os.path.join(temp_dir, "empty_db_dir")
+            else:
+                _simulate_crashed_buffer(buffer)
+
+            await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+
+            recovered = await read_eval_log_async(
+                output_path, resolve_attachments=False
+            )
+            assert recovered.samples is not None
+            recovered_sample = recovered.samples[0]
+            assert recovered_sample.messages == expected.messages
+            assert recovered_sample.output == expected.output
+            assert expected.attachments.items() <= recovered_sample.attachments.items()
+
+
+def _store_span(id: str, before: dict[str, Any], after: dict[str, Any]) -> list[Any]:
+    """A top-level span holding the StoreEvent for its store changes."""
+    return [
+        SpanBeginEvent(id=id, name=id),
+        StoreEvent(changes=store_changes(before, after) or [], span_id=id),
+        SpanEndEvent(id=id),
+    ]
+
+
+async def _recover_sample(
+    buffer_kind: str,
+    events: list[Any],
+    temp_dir: str,
+    *,
+    completed: bool = True,
+    complete_kwargs: dict[str, Any] | None = None,
+    before_crash: Callable[[SampleBufferDatabase], None] | None = None,
+    call_attachments: dict[str, str] | None = None,
+    input: str | list[ChatMessage] = "hi",
+) -> str:
+    """Buffer a sample with `events`, crash, recover; the output path.
+
+    `complete_kwargs` are the keyword arguments to `complete_sample` (by
+    default no metadata). `call_attachments` are what the events' model
+    calls reference. `input` is the buffered summary's input.
+    """
+    eval_path = os.path.join(temp_dir, "store.eval")
+    output_path = os.path.join(temp_dir, "store-recovered.eval")
+    zip_log = ZipLogFile(eval_path)
+    await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+    await zip_log.start(
+        LogStart(
+            version=LOG_SCHEMA_VERSION,
+            eval=_make_eval_spec(num_samples=1),
+            plan=EvalPlan(),
+        )
+    )
+    await zip_log.flush()
+
+    summary = EvalSampleSummary(
+        id="s1",
+        epoch=1,
+        input=input,
+        target="reply",
+        started_at=datetime.now(timezone.utc).isoformat(),
+    )
+    db_dir = os.path.join(temp_dir, "bufferdb")
+    buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
+    buffer.start_sample(summary)
+    if events:
+        buffer.log_events(
+            [SampleEvent(id="s1", epoch=1, event=event) for event in events],
+            call_attachments,
+        )
+    if completed:
+        buffer.complete_sample(
+            summary.model_copy(
+                update={"completed_at": datetime.now(timezone.utc).isoformat()}
+            ),
+            **(complete_kwargs or {"sample_metadata": None}),
+        )
+    if before_crash is not None:
+        before_crash(buffer)
+
+    if buffer_kind == "filestore":
+        sync_to_filestore(buffer, SampleBufferFilestore(eval_path, create=True))
+        db_dir = os.path.join(temp_dir, "empty_db_dir")
+    else:
+        _simulate_crashed_buffer(buffer)
+
+    await recover_eval_log_async(
+        eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+    )
+    return output_path
+
+
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_restores_store(buffer_kind: str) -> None:
+    """A completed but unflushed sample's store is replayed from its StoreEvents."""
+    solved = {
+        "answer_key": {"id": "s1", "values": [1, 2, None]},
+        # long enough for the buffer to condense it into an attachment
+        "long": "L" * 5000,
+        "tmp": 1,
+    }
+    # nested changes, which replay must not apply to the earlier event's value
+    scored = {
+        "answer_key": {"id": "s1-scored", "values": [1, 2, None, 3]},
+        "long": solved["long"],
+        "scored": True,
+    }
+    events = _store_span("solvers", {}, solved) + _store_span("scorers", solved, scored)
+    store_events = [event for event in events if isinstance(event, StoreEvent)]
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = await _recover_sample(buffer_kind, events, temp_dir)
+
+            # the store stays inline, as in a normal run's log
+            recovered = await read_eval_log_async(
+                output_path, resolve_attachments=False
+            )
+            assert recovered.samples is not None
+            assert recovered.samples[0].store == scored
+
+            recovered = await read_eval_log_async(output_path, resolve_attachments=True)
+            assert recovered.samples is not None
+            recovered_store_events = [
+                event
+                for event in recovered.samples[0].events
+                if isinstance(event, StoreEvent)
+            ]
+            assert [event.changes for event in recovered_store_events] == [
+                event.changes for event in store_events
+            ]
+
+
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_store_from_a_buffer_without_the_store(buffer_kind: str) -> None:
+    """A buffer from a version that didn't keep the store falls back to replay."""
+    import sqlite3
+
+    def drop_store_columns(buffer: SampleBufferDatabase) -> None:
+        with sqlite3.connect(buffer.db_path) as conn:
+            conn.execute("ALTER TABLE samples DROP COLUMN sample_store")
+            conn.execute("ALTER TABLE samples DROP COLUMN sample_store_hash")
+
+    events = _store_span("solvers", {}, {"a": 1})
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = await _recover_sample(
+                buffer_kind,
+                events,
+                temp_dir,
+                complete_kwargs={"sample_metadata": None, "sample_store": {"b": 2}},
+                before_crash=drop_store_columns,
+            )
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].store == {"a": 1}
+
+
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_store_changes_that_dont_replay(
+    buffer_kind: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A sample whose store changes don't replay is recovered with an empty store."""
+    events = _store_span("solvers", {}, {"a": 1}) + [
+        SpanBeginEvent(id="scorers", name="scorers"),
+        # older versions could record moves that don't replay
+        StoreEvent(
+            changes=[
+                JsonChange.model_validate(
+                    {"op": "move", "from": "/missing", "path": "/b"}
+                )
+            ],
+            span_id="scorers",
+        ),
+        SpanEndEvent(id="scorers"),
+    ]
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = await _recover_sample(buffer_kind, events, temp_dir)
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].store == {}
+            assert "Could not replay the store changes of sample s1" in caplog.text
+
+
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_store_with_interim_scoring(buffer_kind: str) -> None:
+    """An interim scorer's span overlapping `solvers` isn't replayed twice.
+
+    The control channel scores a live sample in a fresh context, so a span
+    the scorer opens is top-level; the `solvers` StoreEvent already includes
+    its writes.
+    """
+    begin = {"items": ["begin"]}
+    interim = {"items": ["begin", "interim"]}
+    solved = {"items": ["begin", "interim", "solver"]}
+    events = _store_span("init", {}, begin) + [
+        SpanBeginEvent(id="solvers", name="solvers"),
+        *_store_span("interim", begin, interim),
+        StoreEvent(changes=store_changes(begin, solved) or [], span_id="solvers"),
+        SpanEndEvent(id="solvers"),
+    ]
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = await _recover_sample(buffer_kind, events, temp_dir)
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].store == solved
+
+
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_store_of_in_progress_sample(buffer_kind: str) -> None:
+    """An in-progress sample's store comes from the top-level spans that ended."""
+    events = _store_span("init", {}, {"a": 1}) + [
+        SpanBeginEvent(id="solvers", name="solvers"),
+        SpanBeginEvent(id="agent", parent_id="solvers", name="agent"),
+        StoreEvent(
+            changes=store_changes({"a": 1}, {"a": 2, "b": 3}) or [], span_id="agent"
+        ),
+        SpanEndEvent(id="agent"),
+    ]
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = await _recover_sample(
+                buffer_kind, events, temp_dir, completed=False
+            )
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].error is not None
+            assert recovered.samples[0].store == {"a": 1}
+
+
+class _BufferCapture(NamedTuple):
+    events: list[Any]
+    """The events the run handed the sample buffer."""
+
+    complete_kwargs: dict[str, Any]
+    """The keyword arguments the run completed the buffered sample with."""
+
+    call_attachments: dict[str, str]
+    """The attachments the run handed the sample buffer with the events."""
+
+
+def _capture_buffer(monkeypatch: pytest.MonkeyPatch) -> _BufferCapture:
+    """Record what a run hands the sample buffer, to buffer it again for recovery."""
+    from inspect_ai._eval.task.log import TaskLogger
+
+    capture = _BufferCapture(events=[], complete_kwargs={}, call_attachments={})
+    log_sample_event = TaskLogger.log_sample_event
+    complete_sample = SampleBufferDatabase.complete_sample
+
+    def spy_event(
+        self: TaskLogger,
+        id: str | int,
+        epoch: int,
+        event: Any,
+        call_attachments: Mapping[str, str],
+    ) -> None:
+        capture.events.append(event)
+        capture.call_attachments.update(call_attachments)
+        log_sample_event(self, id, epoch, event, call_attachments)
+
+    def spy_complete(
+        self: SampleBufferDatabase, summary: EvalSampleSummary, **kwargs: Any
+    ) -> None:
+        capture.complete_kwargs.update(kwargs)
+        complete_sample(self, summary, **kwargs)
+
+    monkeypatch.setattr(TaskLogger, "log_sample_event", spy_event)
+    monkeypatch.setattr(SampleBufferDatabase, "complete_sample", spy_complete)
+    return capture
+
+
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "returns_fork",
+        "returns_forked_chain",
+        "returns_copy",
+        "cleanup",
+        "cleanup_failed",
+    ],
+)
+async def test_recovery_store_is_the_final_store(
+    buffer_kind: str, case: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A completed sample recovers the store its log has, however it was written.
+
+    A solver that returns a fork or a copy of its state hands back a store no
+    span tracked, and task cleanup runs after the spans close.
+    """
+    from copy import deepcopy
+
+    from inspect_ai import Task, eval_async
+    from inspect_ai.scorer import match
+    from inspect_ai.solver import Generate, TaskState, chain, fork, solver
+    from inspect_ai.util import store
+
+    @solver
+    def answers() -> Any:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            store().set("selected_answer", "from fork")
+            return state
+
+        return solve
+
+    @solver
+    def solves() -> Any:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if case == "returns_fork":
+                return await fork(state, answers())
+            if case == "returns_forked_chain":
+                return await fork(state, chain(answers()))
+            if case == "returns_copy":
+                copied = deepcopy(state)
+                copied.store.set("selected_answer", "from copy")
+                return copied
+            store().set("temporary", "scratch")
+            if case == "cleanup_failed":
+                raise RuntimeError("The sample fails.")
+            return state
+
+        return solve
+
+    async def cleanup(state: TaskState) -> None:
+        if state.store.get("temporary") is not None:
+            state.store.delete("temporary")
+            state.store.set("artifact", "submission.tar.gz")
+
+    buffered = _capture_buffer(monkeypatch)
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            [log] = await eval_async(
+                Task(
+                    dataset=[Sample(id="s1", input="hi", target="reply")],
+                    solver=solves(),
+                    scorer=match(),
+                    cleanup=cleanup,
+                ),
+                model="mockllm/model",
+                log_dir=os.path.join(temp_dir, "logs"),
+            )
+            assert log.samples is not None
+            logged = log.samples[0].store
+            assert (
+                logged
+                == {
+                    "returns_fork": {"selected_answer": "from fork"},
+                    "returns_forked_chain": {"selected_answer": "from fork"},
+                    "returns_copy": {"selected_answer": "from copy"},
+                    "cleanup": {"artifact": "submission.tar.gz"},
+                    "cleanup_failed": {"artifact": "submission.tar.gz"},
+                }[case]
+            )
+
+            output_path = await _recover_sample(
+                buffer_kind,
+                buffered.events,
+                temp_dir,
+                complete_kwargs=buffered.complete_kwargs,
+                call_attachments=buffered.call_attachments,
+            )
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].store == logged
+
+
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+@pytest.mark.parametrize("case", ["copied", "copy_failed", "sample_failed"])
+async def test_recovery_store_keeps_sidecar_monitor_state(
+    buffer_kind: str, case: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Monitor state copied from a sentinel sidecar outside any span is recovered.
+
+    Final scoring copies it between `solvers` and `scorers`, and a failed
+    sample saves it after both, so no span's StoreEvent has it; recovery must
+    still restore the store the log has, including a failed copy's marker.
+    """
+    from test_helpers.stand_in_sidecar import StandInSidecar
+
+    from inspect_ai import Task, eval_async
+    from inspect_ai._sentinel._sidecar._state import monitor_state_missing
+    from inspect_ai.model import get_model
+    from inspect_ai.scorer import match
+    from inspect_ai.solver import Generate, TaskState, generate, solver
+    from inspect_ai.util._store import Store
+
+    for name in ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"]:
+        monkeypatch.delenv(name, raising=False)
+
+    def sample_result(params: dict[str, Any]) -> dict[str, Any]:
+        if case == "copy_failed":
+            return {"error": {"code": -32002, "message": "nothing for the sample"}}
+        return {
+            "sample_uuid": params["sample_uuid"],
+            "outcome": "proceed",
+            "store": {"Tally:lookups": 2},
+        }
+
+    stand_in = StandInSidecar(methods={"sample_result": sample_result})
+
+    buffered = _capture_buffer(monkeypatch)
+
+    @solver
+    def calls_and_fails() -> Any:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await generate(state)
+            raise RuntimeError("The sample fails.")
+
+        return solve
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            [log] = await eval_async(
+                Task(
+                    dataset=[Sample(id="s1", input="Hi.", target="Sunny.")],
+                    solver=calls_and_fails() if case == "sample_failed" else generate(),
+                    scorer=match(),
+                ),
+                model=get_model(
+                    "anthropic/claude-haiku-4-5",
+                    base_url="http://proxy.test",
+                    api_key="test-key",
+                    memoize=False,
+                    http_client=stand_in.http_client(),
+                ),
+                sentinel_proxy="auto",
+                log_dir=os.path.join(temp_dir, "logs"),
+            )
+            assert log.samples is not None
+            logged = log.samples[0].store
+            assert ("Tally:lookups" in logged) == (case != "copy_failed")
+            assert (monitor_state_missing(Store(logged)) is None) == (
+                case != "copy_failed"
+            )
+
+            output_path = await _recover_sample(
+                buffer_kind,
+                buffered.events,
+                temp_dir,
+                complete_kwargs=buffered.complete_kwargs,
+                call_attachments=buffered.call_attachments,
+            )
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].store == logged
+
+
+@pytest.mark.parametrize("input_kind", ["messages", "string"])
+@pytest.mark.parametrize("protocol", ["attachment://", "tc://"])
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_keeps_literal_reference_text(
+    buffer_kind: str, protocol: str, input_kind: str
+) -> None:
+    """A recovered sample reads text that names one of its attachments as written.
+
+    The buffer is given the events as a run's transcript gives them, with
+    the model call condensed, and recovery rebuilds the sample's input from
+    its `SampleInitEvent` and its call from the buffered call.
+    """
+    prompt = "You are a careful assistant who answers in full. " * 4
+    literal = f"{protocol}{mm3_hash(prompt)}"
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content=prompt),
+        ChatMessageUser(content=literal),
+    ]
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", literal)],
+        memoize=False,
+    )
+    events: list[Event] = []
+    call_attachments: dict[str, str] = {}
+
+    def buffered(event: Event, attachments: Mapping[str, str]) -> None:
+        events.append(event.model_copy(deep=True))
+        call_attachments.update(attachments)
+
+    transcript = Transcript(log_model_api=True)
+    transcript._subscribe_store(buffered)
+    token = _transcript.set(None)
+    try:
+        init_transcript(transcript)
+        sample_input = input if input_kind == "messages" else literal
+        transcript._event(
+            SampleInitEvent(
+                sample=Sample(id="s1", input=sample_input, target="t"), state={}
+            )
+        )
+        await model.generate(input)
+    finally:
+        _transcript.reset(token)
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = await _recover_sample(
+                buffer_kind, events, temp_dir, call_attachments=call_attachments
+            )
+            recovered = await read_eval_log_async(output_path, resolve_attachments=True)
+
+    assert recovered.samples is not None
+    sample = recovered.samples[0]
+    if input_kind == "messages":
+        assert isinstance(sample.input, list)
+        assert [message.text for message in sample.input] == [prompt, literal]
+    else:
+        assert sample.input == literal
+    assert [message.text for message in sample.messages] == [prompt, literal, literal]
+    assert sample.output.message.text == literal
+    [model_event] = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert [message.text for message in model_event.input] == [prompt, literal]
+    assert model_event.output.message.text == literal
+    assert model_event.call is not None
+    request_messages = model_event.call.request["messages"]
+    assert isinstance(request_messages, list)
+    assert [
+        message["content"] for message in request_messages if isinstance(message, dict)
+    ] == [prompt, literal]
+    assert model_event.call.response == {"content": literal}
+
+
+@pytest.mark.parametrize("protocol", ["attachment://", "tc://"])
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_keeps_literal_reference_text_in_summary_input(
+    buffer_kind: str, protocol: str
+) -> None:
+    """A sample interrupted before it recorded its `SampleInitEvent` keeps literal input text.
+
+    A run opens the buffered sample before it loads the input's media and
+    records the event, so recovery takes the input from the buffered summary.
+    """
+    prompt = "You are a careful assistant who answers in full. " * 4
+    literal = f"{protocol}{mm3_hash(prompt)}"
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = await _recover_sample(
+                buffer_kind,
+                [],
+                temp_dir,
+                completed=False,
+                input=[
+                    ChatMessageSystem(content=prompt),
+                    ChatMessageUser(content=literal),
+                ],
+            )
+            recovered = await read_eval_log_async(output_path, resolve_attachments=True)
+
+    assert recovered.samples is not None
+    sample = recovered.samples[0]
+    assert sample.error is not None
+    assert isinstance(sample.input, list)
+    # the prompt was pooled in the buffer as a genuine reference
+    assert [message.text for message in sample.input] == [prompt, literal]
