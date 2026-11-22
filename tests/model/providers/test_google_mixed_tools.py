@@ -1335,6 +1335,214 @@ async def test_gemini_dangling_anchor_does_not_crash() -> None:
     assert len(function_call_parts) == 1
     assert function_call_parts[0].function_call is not None
     assert function_call_parts[0].function_call.id == "real-id"
+    # the orphan anchor's signature is another call's
+    assert function_call_parts[0].thought_signature is None
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("logged_before_functions", [False, True])
+async def test_gemini_anchor_replays_only_with_a_call_to_its_function(
+    logged_before_functions: bool,
+) -> None:
+    """An anchor's signature and position go only on a call to the function it was parsed for.
+
+    A call to another function under the anchor's id (a filter changed the
+    function and kept the id) replays unsigned, after the content. For an
+    anchor logged before its function was recorded, the function is derived
+    from the output as generated, before a filter changes its call.
+    """
+    from dataclasses import replace
+
+    from inspect_ai.model._assistant_internal import derive_recorded_functions
+
+    candidate = Candidate(
+        finish_reason=FinishReason.STOP,
+        content=Content(
+            role="model",
+            parts=[
+                Part(
+                    thought_signature=b"sig",
+                    function_call=FunctionCall(
+                        id="f-1", name="bash_session", args={"command": "ls"}
+                    ),
+                ),
+                Part(text="Listing."),
+            ],
+        ),
+    )
+    message = completion_choice_from_candidate(
+        "gemini-3.1-pro-preview", candidate
+    ).message
+    assert not isinstance(message.content, str) and message.tool_calls
+    if logged_before_functions:
+        for part in message.content:
+            if isinstance(part, ContentReasoning) and isinstance(part.internal, dict):
+                part.internal.pop("gemini_function")
+        message = derive_recorded_functions(ModelOutput.from_message(message)).message
+
+    async def replayed(call: ToolCall) -> list[tuple[str | None, bytes | None]]:
+        parts = (
+            await content(
+                MagicMock(),
+                message.model_copy(update={"tool_calls": [call]}),
+                emulate_reasoning=False,
+            )
+        ).parts or []
+        return [
+            (
+                part.function_call.name if part.function_call else None,
+                part.thought_signature,
+            )
+            for part in parts
+        ]
+
+    [parsed] = message.tool_calls or []
+    assert await replayed(parsed) == [("bash_session", b"sig"), (None, None)]
+    changed = replace(parsed, function="read_file", arguments={"path": "a"})
+    assert await replayed(changed) == [(None, None), ("read_file", None)]
+
+
+# computer calls as `main` (0.3.290) parsed them: the anchor names the
+# provider's id, and the call has an id of its own naming the action
+MAIN_COMPUTER_CALLS: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
+    (
+        "type_text_at",
+        {
+            "action": "type",
+            "text": "hello",
+            "coordinate": [14, 15],
+            "press_enter": True,
+            "clear_before_typing": True,
+        },
+        {
+            "text": "hello",
+            "x": 10,
+            "y": 20,
+            "press_enter": True,
+            "clear_before_typing": True,
+        },
+    ),
+    ("go_back", {"action": "key", "text": "alt+Left"}, {}),
+    ("search", {"action": "navigate", "text": "a query"}, {"query": "a query"}),
+]
+
+MAIN_IDS = {
+    "type_text_at": "39K4cbGp6e7votXKQGjgjK",
+    "go_back": "3zg65QoAs29mvQvSVKZ8JD",
+    "search": "77CYu5EeEg2VkbceXi3iSM",
+}
+
+
+def _main_computer_message(
+    *actions: str, anchors: int | None = None
+) -> ChatMessageAssistant:
+    """A message of `main` computer calls, each after its signed anchor.
+
+    With `anchors`, that many anchors (the first ones), for calls removed or
+    added since.
+    """
+    calls = [
+        ToolCall(id=f"{name}_{MAIN_IDS[name]}", function="computer", arguments=args)
+        for name in actions
+        for action, args, _ in MAIN_COMPUTER_CALLS
+        if action == name
+    ]
+    return ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                reasoning=base64.b64encode(f"sig-{i}".encode()).decode(),
+                redacted=True,
+                internal={"gemini_function_call_id": f"provider_{i}"},
+            )
+            for i in range(len(actions) if anchors is None else anchors)
+        ],
+        tool_calls=calls,
+        model="gemini-3-flash-preview",
+    )
+
+
+async def _replayed_calls(
+    message: ChatMessageAssistant,
+) -> list[tuple[str | None, str | None, dict[str, Any] | None, bytes | None]]:
+    parts = (await content(MagicMock(), message)).parts or []
+    return [
+        (
+            part.function_call.id,
+            part.function_call.name,
+            part.function_call.args,
+            part.thought_signature,
+        )
+        for part in parts
+        if part.function_call
+    ]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("action", [action for action, _, _ in MAIN_COMPUTER_CALLS])
+async def test_gemini_computer_call_logged_by_main_replays_with_its_signature(
+    action: str,
+) -> None:
+    """A computer call as `main` logged it replays as `main` replayed it.
+
+    `main` gave the call an id of its own, naming the action, and its anchor
+    the provider's id. The anchor is the call's: the call replays with its
+    signature, natively, from the log or from a cached output.
+    """
+    from inspect_ai.model._assistant_internal import derive_recorded_functions
+
+    [native] = [args for name, _, args in MAIN_COMPUTER_CALLS if name == action]
+    expected = [(f"{action}_{MAIN_IDS[action]}", action, native, b"sig-0")]
+    logged = _main_computer_message(action)
+    assert await _replayed_calls(logged) == expected
+    cached = derive_recorded_functions(ModelOutput.from_message(logged)).message
+    assert await _replayed_calls(cached) == expected
+
+
+@pytest.mark.anyio
+async def test_gemini_computer_calls_logged_by_main_keep_their_own_signatures() -> None:
+    """Parallel `main` computer calls each replay with their own anchor's signature."""
+    message = _main_computer_message("type_text_at", "go_back")
+    assert [
+        (call_id, signature)
+        for call_id, _, _, signature in await _replayed_calls(message)
+    ] == [
+        (f"type_text_at_{MAIN_IDS['type_text_at']}", b"sig-0"),
+        (f"go_back_{MAIN_IDS['go_back']}", b"sig-1"),
+    ]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("change", ["function", "removed", "added"])
+async def test_gemini_computer_call_logged_by_main_lends_no_signature(
+    change: str,
+) -> None:
+    """A `main` computer call's anchor lends its signature to no other call.
+
+    A filter changes the cached call to another function under its id, or an
+    anchor is left without its call, or a call without its anchor: no call
+    replays with another call's signature.
+    """
+    from dataclasses import replace
+
+    from inspect_ai.model._assistant_internal import derive_recorded_functions
+
+    if change == "function":
+        cached = derive_recorded_functions(
+            ModelOutput.from_message(_main_computer_message("go_back"))
+        ).message
+        cached.tool_calls = [
+            replace(call, function="bash_session", arguments={"command": "ls"})
+            for call in cached.tool_calls or []
+        ]
+        message = cached
+    elif change == "removed":
+        message = _main_computer_message("type_text_at", "go_back")
+        message.tool_calls = (message.tool_calls or [])[1:]
+    else:
+        message = _main_computer_message("type_text_at", "go_back", anchors=1)
+    assert [signature for *_, signature in await _replayed_calls(message)] == [
+        None
+    ] * len(message.tool_calls or [])
 
 
 @pytest.mark.anyio

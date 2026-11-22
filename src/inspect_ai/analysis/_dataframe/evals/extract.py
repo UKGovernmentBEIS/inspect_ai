@@ -57,6 +57,16 @@ def eval_log_headline_name(log: EvalLog) -> str | None:
     return resolved.score.scorer if resolved is not None else None
 
 
+def eval_log_total_samples(log: EvalLog) -> int | None:
+    # results carries the count for ordinary logs; an eval that errored or was
+    # cancelled before results were written leaves it absent, so fall back to
+    # the header's running count (#5814). None on logs written before the
+    # header field existed means unknown.
+    if log.results is not None:
+        return log.results.total_samples
+    return log.total_samples
+
+
 def eval_log_headline_score(log: EvalLog) -> str | None:
     resolved = headline_metric(log)
     return resolved.score.name if resolved is not None else None

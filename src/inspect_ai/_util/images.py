@@ -137,7 +137,7 @@ async def file_as_data(file: str, mime_type: str | None = None) -> tuple[bytes, 
             )
 
     if resolved_mime_type in _GENERIC_MIME_TYPES:
-        resolved_mime_type = _sniff_image_mime_type(file_bytes) or resolved_mime_type
+        resolved_mime_type = sniff_image_mime_type(file_bytes) or resolved_mime_type
 
     # return bytes and type
     return file_bytes, resolved_mime_type
@@ -215,7 +215,7 @@ def _validated_provider_inline_image(image: str) -> str:
 
 
 def _provider_image_bytes_data_uri(image_bytes: bytes) -> str:
-    mime_type = _sniff_image_mime_type(image_bytes)
+    mime_type = sniff_image_mime_type(image_bytes)
     if mime_type is None:
         raise ValueError("Provider image is not a recognized raster image.")
     return as_data_uri(
@@ -277,7 +277,7 @@ def _inline_media_mime_type(
         mime_type = _normalize_mime_type(mime_type_hint)
     if mime_type is None and expected_kind == "image":
         mime_type = (
-            _sniff_image_mime_type(
+            sniff_image_mime_type(
                 file_bytes if file_bytes is not None else _decode_inline_media(file)
             )
             or "image/png"
@@ -302,7 +302,7 @@ def _mime_matches_kind(mime_type: str, kind: MediaKind) -> bool:
     return mime_type.startswith(f"{kind}/")
 
 
-def _sniff_image_mime_type(data: bytes) -> str | None:
+def sniff_image_mime_type(data: bytes) -> str | None:
     if data.startswith(b"\x89PNG\r\n\x1a\n"):
         return "image/png"
     if data.startswith(b"\xff\xd8\xff"):

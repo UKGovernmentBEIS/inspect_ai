@@ -407,6 +407,17 @@ def _bedrock_candidates(rest: str) -> list[str]:
     return candidates + ([known] if known else [])
 
 
+def strip_bedrock_cross_region(model_id: str) -> str:
+    """A Bedrock model id without its cross-region inference profile prefix.
+
+    `us.anthropic.claude-opus-5-5` and `global.anthropic.claude-fable-5-2`
+    name the same model as `anthropic.claude-...`; ids without a prefix are
+    returned unchanged.
+    """
+    region, dot, rest = model_id.partition(".")
+    return rest if dot and region in BEDROCK_CROSS_REGIONS else model_id
+
+
 def _is_bedrock_id(name: str) -> bool:
     """Whether a bare id has a Bedrock `[region.]vendor.model` form."""
     for region in BEDROCK_CROSS_REGIONS:

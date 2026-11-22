@@ -201,6 +201,11 @@
       "undescribed": 1
     }
   },
+  "src/inspect_ai/_util/asyncfiles.py": {
+    "type: ignore[import-untyped]": {
+      "count": 1
+    }
+  },
   "src/inspect_ai/_util/download.py": {
     "type: ignore[import-not-found]": {
       "count": 1,
@@ -1153,12 +1158,6 @@
       "count": 1
     }
   },
-  "tests/agent/test_acp/test_active_sample_link.py": {
-    "type: ignore[attr-defined]": {
-      "count": 2,
-      "undescribed": 2
-    }
-  },
   "tests/agent/test_acp/test_elicitation.py": {
     "type: ignore[attr-defined]": {
       "count": 1,
@@ -1406,12 +1405,6 @@
     "type: ignore[arg-type]": {
       "count": 4,
       "undescribed": 4
-    }
-  },
-  "tests/agent/test_monitor_proxy.py": {
-    "type: ignore[arg-type]": {
-      "count": 2,
-      "undescribed": 2
     }
   },
   "tests/analysis/test_validate.py": {
@@ -1844,6 +1837,11 @@
     "type: ignore[import-untyped]": {
       "count": 1,
       "undescribed": 1
+    }
+  },
+  "tests/util/test_asyncfiles.py": {
+    "type: ignore[import-untyped]": {
+      "count": 1
     }
   },
   "tests/util/test_file.py": {

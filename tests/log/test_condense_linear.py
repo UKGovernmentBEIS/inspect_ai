@@ -518,15 +518,15 @@ def test_condense_sample_rewritten_history_condenses_correctly() -> None:
     The walk cache and pool dedup are tuned for the common scaffold shape
     where each event's input extends the previous one with the same objects.
     A history rewritten mid-conversation (messages dropped/reordered, fresh
-    objects with equal content) must still dedup equal content into the same
-    pool entry and round-trip every event's input.
+    objects copying a message) must still dedup copies into the same pool
+    entry and round-trip every event's input.
     """
     # content < 100 chars so the events walk leaves it inline and the
     # round-tripped inputs compare equal to the originals
     m0 = ChatMessageUser(content="message zero")
     m1 = ChatMessageUser(content="message one")
-    # fresh object, equal content to m0 (new id): pool dedup must merge them
-    m2 = ChatMessageUser(content="message zero")
+    # fresh object copying m0: pool dedup must merge them
+    m2 = ChatMessageUser(id=m0.id, content="message zero")
     m3 = ChatMessageUser(content="message three")
     m4 = ChatMessageUser(content="message four")
 
@@ -571,8 +571,8 @@ def test_condense_sample_rewritten_history_condenses_correctly() -> None:
     restored = expand_events(condensed.events, condensed.events_data)
     for original_input, restored_event in zip(inputs, restored):
         assert isinstance(restored_event, ModelEvent)
-        assert [(m.role, m.content) for m in restored_event.input] == [
-            (m.role, m.content) for m in original_input
+        assert [(m.id, m.role, m.content) for m in restored_event.input] == [
+            (m.id, m.role, m.content) for m in original_input
         ]
 
 
@@ -930,7 +930,11 @@ def test_buffer_condense_linear_across_slot_cap(
 
     db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
     tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
-    tr._subscribe(lambda e: db.log_events([SampleEvent(id="s1", epoch=1, event=e)]))
+    tr._subscribe_store(
+        lambda e, attachments: db.log_events(
+            [SampleEvent(id="s1", epoch=1, event=e)], attachments
+        )
+    )
     n_streams = _CALL_WALK_SLOTS // 2 + cap_offset  # 2 lineages/stream
     rounds = 25
     _drive_streams(tr, n_streams, rounds)
@@ -952,14 +956,16 @@ def test_buffer_condense_linear_across_notification_shape(
 ) -> None:
     """The realistic per-turn shape: pending, registration, completion, stamping.
 
-    The buffer sees raw and transcript-condensed call forms alternately;
-    prefix reuse must hold for both lineages. This guard fails on a
-    single-slot CallPoolIndex (the 2026-08-11 timeout-storm mechanism)
-    even though per-event condensing is individually linear.
+    The buffer sees each call as the transcript condensed it, so its
+    notifications share one lineage, and prefix reuse must hold across them.
     """
     db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
     tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
-    tr._subscribe(lambda e: db.log_events([SampleEvent(id="s1", epoch=1, event=e)]))
+    tr._subscribe_store(
+        lambda e, attachments: db.log_events(
+            [SampleEvent(id="s1", epoch=1, event=e)], attachments
+        )
+    )
 
     history: list[ChatMessage] = []
     wire: list[dict[str, JsonValue]] = []

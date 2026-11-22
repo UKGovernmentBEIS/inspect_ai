@@ -120,6 +120,26 @@ class TestGetModelInfo:
         assert info.knowledge_cutoff_date == knowledge_cutoff
         assert info.release_date == release_date
 
+    @pytest.mark.parametrize(
+        "model_name,display_name,knowledge_cutoff",
+        [
+            ("gpt-6.2-astra", "GPT-6.2 Astra", date(2026, 5, 18)),
+            ("gpt-6.2-sol", "GPT-6.2 Sol", date(2026, 6, 1)),
+        ],
+    )
+    def test_gpt_6_2_model_info(self, model_name, display_name, knowledge_cutoff):
+        info = get_model_info(f"openai/{model_name}")
+        assert info is not None
+        assert info.model == display_name
+        assert info.context_length == 1050000
+        assert info.output_tokens == 128000
+        assert info.input_tokens == 922000
+        assert info.reasoning is True
+        # OpenAI doesn't document a default effort for GPT-6.2
+        assert info.reasoning_effort_default is None
+        assert info.knowledge_cutoff_date == knowledge_cutoff
+        assert info.release_date == date(2026, 11, 17)
+
     def test_known_kimi_model(self):
         """Test lookup of a known Moonshot AI Kimi model."""
         info = get_model_info("moonshotai/kimi-k3")
@@ -160,6 +180,15 @@ class TestGetModelInfo:
         info = get_model_info("azureai/kimi-k3")
         assert info is not None
         assert info.organization == "Moonshot AI"
+        assert info.context_length == 1048576
+
+    @pytest.mark.parametrize("model", ["mistral-large-4", "mistral-large-4-0"])
+    def test_known_mistral_large_4_model(self, model):
+        """Test lookup of Mistral Large 4 and its alias."""
+        info = get_model_info(f"mistral/{model}")
+        assert info is not None
+        assert info.organization == "Mistral"
+        assert info.model == "Mistral Large 4"
         assert info.context_length == 1048576
 
     def test_known_deepseek_v4_model(self):
@@ -734,6 +763,34 @@ class TestGetModelInputTokens:
         assert info.snapshot == "20260901"
         assert str(info.knowledge_cutoff_date) == "2026-06-01"
 
+    def test_claude_fable_5_2(self):
+        """Test that Claude Fable 5.2 resolves to its own registration."""
+        model = get_model("anthropic/claude-fable-5-2")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        info = get_model_info("anthropic/claude-fable-5-2")
+        assert info is not None
+        assert info.model == "Claude Fable 5.2"
+        assert info.snapshot == "20261109"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.reasoning_effort_default == "high"
+
+    def test_claude_mythos_5_2(self):
+        """Test that Claude Mythos 5.2 resolves to its own registration."""
+        model = get_model("anthropic/claude-mythos-5-2")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        info = get_model_info("anthropic/claude-mythos-5-2")
+        assert info is not None
+        # not a fuzzy match onto Mythos 5 (snapshot 20260609, cutoff 2026-01-01)
+        assert info.model == "Claude Mythos 5.2"
+        assert info.snapshot == "20261109"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.reasoning_effort_default == "high"
+        bedrock_info = get_model_info("anthropic/bedrock/anthropic.claude-mythos-5-2")
+        assert bedrock_info is not None
+        assert bedrock_info.model == "Claude Mythos 5.2"
+
     def test_claude_mythos_preview(self):
         """Test that Claude Mythos Preview reports 1MM input tokens."""
         model = get_model("anthropic/claude-mythos-preview")
@@ -775,6 +832,45 @@ class TestGetModelInputTokens:
         assert info.output_tokens == 65_536
         assert info.reasoning is True
         assert info.reasoning_effort_default == "medium"
+
+    def test_gemini_4_carbon(self) -> None:
+        """Gemini 4 Carbon resolves to its own entry (1M context, 64K output)."""
+        model = get_model("google/gemini-4-carbon", api_key="test-key")
+        assert get_model_input_tokens(model) == 1_048_576
+        info = get_model_info("google/gemini-4-carbon")
+        assert info is not None
+        assert info.model == "Gemini 4 Carbon"
+        assert str(info.release_date) == "2026-11-10"
+        assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.output_tokens == 65_536
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "medium"
+
+    def test_gemini_4_hydrogen(self) -> None:
+        """Gemini 4 Hydrogen resolves to its own entry (1M context, 64K output)."""
+        model = get_model("google/gemini-4-hydrogen", api_key="test-key")
+        assert get_model_input_tokens(model) == 1_048_576
+        info = get_model_info("google/gemini-4-hydrogen")
+        assert info is not None
+        assert info.model == "Gemini 4 Hydrogen"
+        assert str(info.release_date) == "2026-11-12"
+        assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.output_tokens == 65_536
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "high"
+
+    def test_gemini_4_neon(self) -> None:
+        """Gemini 4 Neon resolves to its own entry (1M context, 64K output)."""
+        model = get_model("google/gemini-4-neon", api_key="test-key")
+        assert get_model_input_tokens(model) == 1_048_576
+        info = get_model_info("google/gemini-4-neon")
+        assert info is not None
+        assert info.model == "Gemini 4 Neon"
+        assert str(info.release_date) == "2026-11-18"
+        assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.output_tokens == 65_536
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "high"
 
     def test_claude_latest_defaults_to_1m(self):
         """An unknown/future Claude model (is_claude_latest) assumes the 1M frontier."""

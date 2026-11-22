@@ -31,10 +31,14 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from acp.helpers import session_notification, text_block, update_agent_message
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import picker
+from inspect_ai.agent._acp._schema_builders import (
+    session_notification,
+    text_block,
+    update_agent_message,
+)
 from inspect_ai.agent._acp.inspect_ext import INSPECT_TURN_STATE_METHOD
 from inspect_ai.agent._acp.server import acp_server
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport

@@ -156,6 +156,8 @@ You can provide custom `instructions` or even completely override the `prompt` t
 
 Edit compaction reduces context size by removing content from the message history while preserving the overall structure. It works in phases: first clearing extended thinking blocks from older turns, then removing tool call results (and optionally the tool calls themselves) from older interactions. When compaction triggers multiple times, it continues clearing older content on each cycle.
 
+Edit compaction changes earlier messages in place. Some models bind replayed reasoning to the conversation that came before it: OpenAI GPT-6.2 and later, and on the Anthropic API, Claude Fable 5.1 and later and Claude Opus, Sonnet, and Haiku 5.5 and later. For these models the provider drops reasoning that follows edited content, including the recent reasoning that `keep_thinking_turns` keeps, so the model may have to redo it. Inspect logs a warning when this happens. Summary compaction doesn't have this problem, because it replaces older reasoning along with the messages it summarizes. Neither does OpenAI's native compaction: OpenAI keeps the reasoning that follows it.
+
 For example, here we add edit compaction to a `react()` agent (all parameters to `CompactionEdit` reflect the built-in defaults):
 
 ``` python

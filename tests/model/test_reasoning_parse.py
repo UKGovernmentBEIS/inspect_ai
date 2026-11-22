@@ -1,3 +1,7 @@
+import base64
+
+import pytest
+
 from inspect_ai.model._reasoning import (
     ReasoningCapsule,
     parse_content_with_reasoning,
@@ -436,13 +440,33 @@ def test_reasoning_round_trip_with_internal_string_with_quotes():
     assert parsed.internal == original.internal
 
 
-def test_reasoning_parse_with_invalid_internal_json():
-    content, reasoning = parse_content_with_reasoning(
-        '<think internal="not valid json">Reasoning</think>Content'
+@pytest.mark.parametrize(
+    "internal",
+    [
+        "not valid json",
+        base64.b64encode(b"not json").decode(),
+        base64.b64encode(b"\xff\xfe").decode(),
+        base64.b64encode(("[" * 250 + "]" * 250).encode()).decode(),
+        base64.b64encode(("[" * 300 + "]" * 300).encode()).decode(),
+    ],
+)
+def test_reasoning_parse_with_undecodable_internal_is_literal(internal: str) -> None:
+    """A block whose `internal` can't become a content object's `internal` is text."""
+    text = f'Quoted: <think internal="{internal}">Reasoning</think>Content'
+    assert parse_content_with_reasoning(text) == (text, None)
+
+
+def test_reasoning_split_skips_undecodable_block() -> None:
+    literal = '<think internal="not valid json">quoted</think>'
+    encoded = base64.b64encode(b'{"a": 1}').decode()
+    segments = split_content_with_reasoning(
+        f'{literal}\n<think internal="{encoded}">real</think>\nanswer'
     )
-    assert reasoning is not None
-    assert reasoning.internal is None  # Invalid JSON should result in None
-    assert reasoning.reasoning == "Reasoning"
+    assert segments == [
+        literal,
+        ReasoningCapsule(reasoning="real", internal={"a": 1}),
+        "answer",
+    ]
 
 
 def test_reasoning_parse_redacted_collapses_wrapped_payload():

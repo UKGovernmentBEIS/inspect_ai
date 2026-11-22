@@ -41,7 +41,7 @@ def test_task_score_results():
     )
 
     # confirm the mean result is computed
-    log = eval(task, model="mockllm/model", sandbox=False)
+    log = eval(task, model="mockllm/model")
     assert len(log[0].results.scores) == 1
     assert len(log[0].results.scores[0].metrics) == 1
     assert "accuracy" in log[0].results.scores[0].metrics

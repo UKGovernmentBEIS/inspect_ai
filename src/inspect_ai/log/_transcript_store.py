@@ -99,8 +99,26 @@ class TranscriptEventStore:
             raise RuntimeError("TranscriptEventStore is closed")
 
     def merge_event(
-        self, event: Event, attachment_lookup: Callable[[str], str | None]
+        self,
+        event: Event,
+        attachment_lookup: Callable[[str], str | None],
+        *,
+        condensed: bool = False,
     ) -> None:
+        """Merge an event.
+
+        The event holds raw values, except `ModelEvent.call`, which is
+        condensed as a transcript gives it to subscribers that keep their
+        own attachment store (see `Transcript._subscribe_store`). Literal text
+        that begins with `attachment://` or `tc://` in the raw values is
+        stored as an attachment of its own, so it reads back as written.
+
+        Args:
+            event: The event.
+            attachment_lookup: Content of the attachments the event references.
+            condensed: Every field of the event holds references already (an
+                event restored from a checkpoint).
+        """
         with self._lock:
             self._ensure_open()
             if event.uuid is None:
@@ -115,10 +133,15 @@ class TranscriptEventStore:
                     incoming_refs: set[str] = set()
                     if isinstance(event, ModelEvent):
                         condensed_event: Event = self._condense_model_event(
-                            event, event_attachments, incoming_refs
+                            event,
+                            event_attachments,
+                            incoming_refs,
+                            escape_refs=not condensed,
                         )
                     else:
-                        condensed_event = condense_event(event, event_attachments)
+                        condensed_event = condense_event(
+                            event, event_attachments, escape_refs=not condensed
+                        )
                         incoming_refs.update(self._attachment_refs(condensed_event))
                     event_json = json.dumps(
                         to_jsonable_python(
@@ -338,6 +361,8 @@ class TranscriptEventStore:
         event: ModelEvent,
         event_attachments: dict[str, str],
         incoming_refs: set[str],
+        *,
+        escape_refs: bool,
     ) -> Event:
         """Condense a ModelEvent against the in-memory pool indices.
 
@@ -352,11 +377,15 @@ class TranscriptEventStore:
                 walking is added here (mutated via the walk closures).
             incoming_refs: Out-parameter — attachment refs from new pool
                 entries and the walked remainder are added here.
+            escape_refs: Store literal reference text outside the call as
+                attachments (the event's other fields hold raw values).
 
         Returns:
             The condensed event (input/call request replaced by pool refs).
         """
-        content_fn = events_attachment_fn(event_attachments)
+        content_fn = events_attachment_fn(event_attachments, escape_refs=escape_refs)
+        # the call is condensed already, so its references stay as they are
+        call_fn = events_attachment_fn(event_attachments)
         context = WalkContext(message_cache={}, only_core=False)
 
         def add_message(hash_value: str, walked: ChatMessage) -> int:
@@ -379,14 +408,18 @@ class TranscriptEventStore:
             messages=self._msg_pool_index,
             calls=self._call_pool_index,
             walk_message=lambda m: walk_chat_message(m, content_fn, context),
-            walk_call_message=lambda v: walk_json_value(v, content_fn, context),
+            walk_call_message=lambda v: walk_json_value(v, call_fn, context),
             add_message=add_message,
             add_call=add_call,
         )
 
         # walk the remainder (input now [], call request without messages)
         condensed_remainder = condense_event(
-            condensed, event_attachments, context=context
+            condensed,
+            event_attachments,
+            context=context,
+            escape_refs=escape_refs,
+            call_fn=call_fn,
         )
         incoming_refs.update(self._attachment_refs(condensed_remainder))
         return condensed_remainder

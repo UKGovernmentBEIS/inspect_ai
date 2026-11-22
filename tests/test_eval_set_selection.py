@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from inspect_ai import Task, TaskSource, eval_set, task
+from inspect_ai import Task, TaskSource, enqueue_task, eval_set, task
 from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._eval.eval_set_manifest import (
     INSPECT_EVAL_SET_CAPTURE,
@@ -20,6 +20,7 @@ from inspect_ai._eval.eval_set_overrides import (
     INSPECT_EVAL_SET_OVERRIDES,
     EvalSetOverrides,
 )
+from inspect_ai._eval.eval_set_pruning import is_placeholder, reset_pruning
 from inspect_ai._eval.eval_set_selection import (
     EVAL_SET_SELECTION_VERSION,
     INSPECT_EVAL_SET_SELECTION,
@@ -30,10 +31,16 @@ from inspect_ai._eval.eval_set_selection import (
 from inspect_ai._eval.evalset import task_identifier
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog, list_eval_logs, read_eval_log
+from inspect_ai.log import (
+    EvalLog,
+    ProvenanceData,
+    list_eval_logs,
+    read_eval_log,
+    zero_samples,
+)
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.scorer import Score, Scorer, Target, exact, scorer
+from inspect_ai.scorer import Score, Scorer, Target, exact, includes, scorer
 from inspect_ai.scorer._metrics import accuracy
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util._checkpoint import CheckpointConfig
@@ -61,7 +68,11 @@ def selection_task_two() -> Task:
 
 
 def enumerate_eval_set(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **kwargs: Any
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    tasks: list[Task] | None = None,
+    **kwargs: Any,
 ) -> EvalSetCapture:
     """Enumerate the eval set under capture mode (how a runner learns identifiers)."""
     manifest_path = tmp_path / "manifest.json"
@@ -69,7 +80,9 @@ def enumerate_eval_set(
     try:
         with pytest.raises(SystemExit):
             eval_set(
-                tasks=[selection_task_one(), selection_task_two()],
+                tasks=[selection_task_one(), selection_task_two()]
+                if tasks is None
+                else tasks,
                 model=MODELS,
                 log_dir=str(tmp_path / "capture-logs"),
                 display="plain",
@@ -140,6 +153,209 @@ def test_eval_set_selection_runs_only_selected_task(
     assert logs[0].eval.model == "mockllm/model2"
     # the eval set has four tasks; the worker ran exactly one
     assert len(list_eval_logs(str(log_dir))) == 1
+
+
+@task
+def selection_zero_task() -> Task:
+    return Task(
+        dataset=[
+            Sample(id="a", input="hi", target="Default output from mockllm/model"),
+            Sample(id="b", input="hi", target="Default output from mockllm/model"),
+        ],
+        solver=[generate()],
+        scorer=includes(),
+    )
+
+
+def test_eval_set_selection_empty_attempt_log_can_zero_samples(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A worker runs the selected task with `empty_attempt()`, and `zero_samples()` accepts its log."""
+    capture = enumerate_eval_set(monkeypatch, tmp_path, tasks=[selection_zero_task()])
+    identifier = next(t.identifier for t in capture.tasks if t.model == "mockllm/model")
+
+    def run(selection: EvalSetSelection, name: str) -> EvalLog:
+        success, logs = run_selection(
+            monkeypatch,
+            tmp_path,
+            selection,
+            tmp_path / name,
+            tasks=[selection_zero_task()],
+            name=name,
+        )
+        assert success
+        assert len(logs) == 1
+        return read_eval_log(logs[0].location)
+
+    log = run(selection_for(identifier), "logs")
+    empty = run(
+        EvalSetSelection(
+            version=EVAL_SET_SELECTION_VERSION,
+            eval_set_id="worker-test",
+            tasks=[EvalSetSelectionTask(identifier=identifier)],
+            empty_attempt=True,
+        ),
+        "empty",
+    )
+
+    assert log.eval.solver is None
+    assert empty.eval.solver == "inspect_ai/empty_attempt"
+    assert empty.eval.task == log.eval.task
+
+    zero_samples(log, empty, ["a"], ProvenanceData(author="runner", reason="zeroed"))
+
+    scores = {s.id: (s.scores or {})["includes"].value for s in log.samples or []}
+    assert scores == {"a": "I", "b": "C"}
+
+
+def test_selection_empty_attempt_cannot_resume(tmp_path: Path) -> None:
+    """An empty attempt's log never matches the task's identifier, so resuming one is refused when the selection is read."""
+    path = tmp_path / "selection.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": EVAL_SET_SELECTION_VERSION,
+                "eval_set_id": "probe",
+                "tasks": [{"identifier": "a", "resume": "logs/a.eval"}],
+                "empty_attempt": True,
+            }
+        )
+    )
+    with pytest.raises(PrerequisiteError, match="cannot resume"):
+        read_eval_set_selection(str(path))
+
+
+@solver
+def enqueue_selection_child() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        enqueue_task(selection_task_two())
+        return state
+
+    return solve
+
+
+@task
+def selection_enqueuing_task() -> Task:
+    return Task(
+        dataset=[Sample(input="hello", target="hello")],
+        solver=[enqueue_selection_child()],
+        scorer=exact(),
+    )
+
+
+def faceted_selection(capture: EvalSetCapture, model: str) -> EvalSetSelection:
+    """A selection of the captured task on `model`, with its pruning facets."""
+    selected = next(t for t in capture.tasks if t.model == model)
+    assert selected.registry_name is not None and selected.args_hash is not None
+    return EvalSetSelection(
+        version=EVAL_SET_SELECTION_VERSION,
+        eval_set_id="worker-test",
+        tasks=[
+            EvalSetSelectionTask(
+                identifier=selected.identifier,
+                registry_name=selected.registry_name,
+                args_hash=selected.args_hash,
+            )
+        ],
+    )
+
+
+def test_eval_set_selection_enqueued_task_uses_creator_model(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A task added by a selected task (without a model) runs on its model.
+
+    The selection carries the capture's pruning facets, as runners send them,
+    so the `@task` call the solver makes must build the real child rather than
+    a pruned placeholder.
+    """
+    reset_pruning()
+    capture = enumerate_eval_set(
+        monkeypatch, tmp_path, tasks=[selection_enqueuing_task()]
+    )
+    selection = faceted_selection(capture, "mockllm/model2")
+
+    try:
+        success, logs = run_selection(
+            monkeypatch,
+            tmp_path,
+            selection,
+            tmp_path / "logs",
+            tasks=[selection_enqueuing_task()],
+        )
+    finally:
+        reset_pruning()
+
+    added = [log for log in logs if log.eval.task == "selection_task_two"]
+    assert [log.eval.model for log in added] == ["mockllm/model2"]
+    assert success
+    added_log = read_eval_log(added[0].location)
+    assert added_log.samples is not None
+    sample = added_log.samples[0]
+    assert sample.error is None
+    # the child's own sample and scorer ran, not a placeholder's
+    assert sample.input == "hello"
+    assert sample.scores is not None and list(sample.scores) == ["exact"]
+    # generate() returned model output (the none model raises instead)
+    assert sample.output.completion == "Default output from mockllm/model"
+
+
+PREBUILT: dict[str, Task] = {}
+"""A task built before the selection was resolved, for the solver below to add."""
+
+
+@solver
+def enqueue_prebuilt_child() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        enqueue_task(PREBUILT["child"])
+        return state
+
+    return solve
+
+
+@task
+def selection_prebuilt_enqueuing_task() -> Task:
+    return Task(
+        dataset=[Sample(input="hello", target="hello")],
+        solver=[enqueue_prebuilt_child()],
+    )
+
+
+def test_eval_set_selection_refuses_enqueued_placeholder(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A child pruned before the selection was resolved fails the enqueue call."""
+    reset_pruning()
+    capture = enumerate_eval_set(
+        monkeypatch, tmp_path, tasks=[selection_prebuilt_enqueuing_task()]
+    )
+    selection = faceted_selection(capture, "mockllm/model2")
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(selection.model_dump_json())
+
+    try:
+        # built while the worker's selection is set, outside any task
+        monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection_path))
+        PREBUILT["child"] = selection_task_two()
+        monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
+        assert is_placeholder(PREBUILT["child"])
+
+        _, logs = run_selection(
+            monkeypatch,
+            tmp_path,
+            selection,
+            tmp_path / "logs",
+            tasks=[selection_prebuilt_enqueuing_task()],
+        )
+    finally:
+        PREBUILT.clear()
+        reset_pruning()
+
+    assert [log.eval.task for log in logs] == ["selection_prebuilt_enqueuing_task"]
+    parent_log = read_eval_log(logs[0].location)
+    assert parent_log.samples is not None
+    error = parent_log.samples[0].error
+    assert error is not None and "selection pruning" in error.message
 
 
 def test_eval_set_selection_stamps_eval_set_id(
@@ -1460,6 +1676,16 @@ _EXPECTED_SELECTION_FIELDS[7] = {
     "overrides": _EXPECTED_SELECTION_FIELDS[6]["overrides"],
 }
 
+# v8 added `empty_attempt`: run the selected tasks with the `empty_attempt()`
+# solver, for the log `zero_samples()` copies verdicts from. A selection field
+# rather than an override because the solver is part of task identity: tasks
+# are matched with the definition's solver and only the run uses this one.
+_EXPECTED_SELECTION_FIELDS[8] = {
+    "selection": _EXPECTED_SELECTION_FIELDS[7]["selection"] | {"empty_attempt"},
+    "task": _EXPECTED_SELECTION_FIELDS[7]["task"],
+    "overrides": _EXPECTED_SELECTION_FIELDS[7]["overrides"],
+}
+
 
 def test_eval_set_selection_schema_stability() -> None:
     assert EVAL_SET_SELECTION_VERSION in _EXPECTED_SELECTION_FIELDS
@@ -1566,6 +1792,33 @@ def test_selection_scanners_are_gated_at_version_7(
 
     if accepted:
         assert read_eval_set_selection(str(path)) is not None
+    else:
+        with pytest.raises(PrerequisiteError, match="schema version"):
+            read_eval_set_selection(str(path))
+
+
+@pytest.mark.parametrize(
+    ("version", "accepted"),
+    [(7, False), (8, True)],
+    ids=["empty_attempt under version 7", "empty_attempt under version 8"],
+)
+def test_selection_empty_attempt_is_gated_at_version_8(
+    version: int, accepted: bool, tmp_path: Path
+) -> None:
+    path = tmp_path / "selection.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": version,
+                "eval_set_id": "probe",
+                "tasks": [{"identifier": "a"}],
+                "empty_attempt": True,
+            }
+        )
+    )
+
+    if accepted:
+        assert read_eval_set_selection(str(path)).empty_attempt is True
     else:
         with pytest.raises(PrerequisiteError, match="schema version"):
             read_eval_set_selection(str(path))
