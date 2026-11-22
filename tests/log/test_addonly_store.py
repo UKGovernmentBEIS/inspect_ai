@@ -518,6 +518,7 @@ def test_retried_needs_retry_on_error(
 def fail_attempts_in_file(path: str) -> Solver:
     """As `fail_attempts`, with the counts in a JSON file.
 
+    A count is by sample id, or by `<sample-id>.<epoch>` for one epoch.
     eval_retry imports the task file again, so module state does not carry
     over to the retry; the file and its path (a task arg) do.
     """
@@ -525,7 +526,14 @@ def fail_attempts_in_file(path: str) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         state = await generate(state)
         failures = json.loads(Path(path).read_text())
-        key = str(state.sample_id)
+        key = next(
+            (
+                k
+                for k in [f"{state.sample_id}.{state.epoch}", str(state.sample_id)]
+                if k in failures
+            ),
+            "",
+        )
         if failures.get(key, 0) > 0:
             failures[key] -= 1
             Path(path).write_text(json.dumps(failures))
@@ -647,6 +655,49 @@ def test_eval_set_retry_validates(
     assert result.exit_code == 0, result.output
     compared = 2 if retry_cleanup else 4
     assert f"2 eval(s), {compared} sample(s) compared, 0 finding(s)." in result.output
+
+
+@pytest.mark.parametrize(
+    "first,retry",
+    [({}, {"sample_id": ["s0"]}), ({"epochs": 2}, {"epochs": 1})],
+    ids=["sample_id", "epochs"],
+)
+def test_eval_set_narrower_retry_validates(
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    first: dict[str, Any],
+    retry: dict[str, Any],
+) -> None:
+    """A later eval_set retries the failed eval with fewer samples or epochs.
+
+    The retry copies only the samples it selects into its .eval, so the
+    samples it does not select are not missing.
+    """
+    failures = tmp_path / "failures.json"
+    failures.write_text(json.dumps({"s0" if "sample_id" in retry else "s0.2": 1}))
+    log_dir = tmp_path / "logs"
+    options: dict[str, Any] = dict(
+        log_dir=str(log_dir),
+        model="mockllm/model",
+        display="none",
+        max_samples=1,
+        retry_attempts=0,
+        tamper_evident_store=evalhost_env.url,
+    )
+    success, logs = eval_set(retried_task(str(failures)), **first, **options)
+    assert not success
+    # the first eval closed s1 without an error in every epoch
+    first_samples = read_eval_log(logs[0].location).samples or []
+    assert {(s.id, s.epoch) for s in first_samples if s.error is None} >= {
+        ("s1", epoch) for epoch in range(1, first.get("epochs", 1) + 1)
+    }
+    success, logs = eval_set(retried_task(str(failures)), **retry, **options)
+    assert success, logs[0].error
+
+    result = validate_cli(evalhost_env, log_dir)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
 
 
 def test_edit_reused_sample(
