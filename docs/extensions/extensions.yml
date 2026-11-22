@@ -322,3 +322,9 @@
     no consent, wrong details, unmentioned actions and wrong amounts. Built for τ²-bench airline transcripts.
   author: "[Vidushi Anand](https://github.com/Vidushi2709)"
   categories: ["Analysis"]
+
+- name: "[baseline-increment](https://github.com/Lakshmi-Chakradhar-Vijayarao/baseline-increment#from-your-evaluation-harness)"
+  description: |
+    Does a detector, judge or confidence score add information beyond cheap baselines (length, task, model, difficulty)? Reads Inspect logs (`baseline-increment from-inspect`), takes the label from one scorer and the detector from another, and runs a refit conditional-randomisation test whose false-flag rate is published from a simulation suite.
+  author: "[Lakshmi Chakradhar Vijayarao](https://github.com/Lakshmi-Chakradhar-Vijayarao)"
+  categories: ["Analysis"]

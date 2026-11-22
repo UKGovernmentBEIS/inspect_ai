@@ -91,6 +91,7 @@ from inspect_ai.model._providers.google import (
     chat_content_to_part,
     completion_choice_from_candidate,
     content,
+    finish_reason_to_stop_reason,
 )
 from inspect_ai.model._providers.util import OAUTH_PLACEHOLDER_API_KEY
 from inspect_ai.model._providers.util.hooks import HttpHooks
@@ -147,6 +148,25 @@ def test_google_block_reason():
     # TODO: comment in once we have an input that triggers the filter
     # assert log.samples
     # assert log.samples[0].output.stop_reason == "content_filter"
+
+
+@pytest.mark.parametrize(
+    "finish_reason",
+    [
+        FinishReason.SAFETY,
+        FinishReason.RECITATION,
+        FinishReason.BLOCKLIST,
+        FinishReason.PROHIBITED_CONTENT,
+        FinishReason.SPII,
+        FinishReason.IMAGE_SAFETY,
+        FinishReason.IMAGE_PROHIBITED_CONTENT,
+        FinishReason.IMAGE_RECITATION,
+    ],
+)
+def test_finish_reason_safety_blocks_are_content_filter(
+    finish_reason: FinishReason,
+) -> None:
+    assert finish_reason_to_stop_reason(finish_reason) == "content_filter"
 
 
 def test_completion_choice_malformed_function_call():
@@ -3784,8 +3804,60 @@ def test_usage_metadata_without_thoughts():
     )
 
     assert usage is not None
+    assert usage.input_tokens == 10
     assert usage.output_tokens == 5
     assert usage.reasoning_tokens == 0
+
+
+def test_usage_metadata_includes_tool_use_prompt_tokens_in_input():
+    from google.genai.types import GenerateContentResponseUsageMetadata
+
+    from inspect_ai.model._providers.google import usage_metadata_to_model_usage
+
+    usage = usage_metadata_to_model_usage(
+        GenerateContentResponseUsageMetadata(
+            prompt_token_count=1000,
+            tool_use_prompt_token_count=4000,
+            candidates_token_count=200,
+            thoughts_token_count=300,
+            total_token_count=5500,
+        )
+    )
+
+    assert usage is not None
+    assert usage.input_tokens == 5000
+    assert usage.input_tokens_cache_read is None
+    assert usage.output_tokens == 500
+    assert usage.total_tokens == 5500
+    assert usage.input_tokens + usage.output_tokens == usage.total_tokens
+
+
+def test_usage_metadata_tool_use_prompt_tokens_with_cache():
+    from google.genai.types import GenerateContentResponseUsageMetadata
+
+    from inspect_ai.model._providers.google import usage_metadata_to_model_usage
+
+    usage = usage_metadata_to_model_usage(
+        GenerateContentResponseUsageMetadata(
+            prompt_token_count=1000,
+            cached_content_token_count=600,
+            tool_use_prompt_token_count=4000,
+            candidates_token_count=200,
+            thoughts_token_count=300,
+            total_token_count=5500,
+        )
+    )
+
+    assert usage is not None
+    # cached tokens are part of prompt_token_count only, so they come out
+    # of input_tokens once and tool-use tokens are added in full
+    assert usage.input_tokens == 4400
+    assert usage.input_tokens_cache_read == 600
+    assert usage.output_tokens == 500
+    assert (
+        usage.input_tokens + (usage.input_tokens_cache_read or 0) + usage.output_tokens
+        == usage.total_tokens
+    )
 
 
 # ---- OAuth / ADC credentials for the Gemini Developer API ----
