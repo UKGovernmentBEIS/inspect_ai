@@ -68,11 +68,15 @@ ready for review as a feature.
   sequence gaps, sample and eval closing records, record counts, attempts
   missing from the eval closing list, late event versions, events without a
   uuid, a .eval file for each eval, and the .eval events against the stored
-  events. It exits non-zero on any finding. `--verbose` lists each record
+  events. Step 1c added: records the eval could not have written, .eval
+  files and samples with no records, two .eval files with one eval id, and
+  the .eval scores and eval status, stats and results against the closing
+  records. It exits non-zero on any finding. `--verbose` lists each record
   with its arrival time. The scope for matching eval ids to .eval files is
   the `--store` prefix: one prefix per log directory.
 - Tests:
-  - `tests/log/test_addonly_store.py`: 15 tests (17 runs under asyncio).
+  - `tests/log/test_addonly_store.py`: 15 tests in step 1b; step 1c added
+    end-to-end tamper tests (see [Step 1c](#step-1c-end-to-end-tamper-tests)).
   - `tests/agent/test_bridge_approval.py`: `test_host_tool_stores_before_it_runs`
     and `test_host_tools_against_addonly_store` (parallel and serial).
   - `tests/test_helpers/addonly_moto.py` (moto setup, `MotoStore.validate`),
@@ -165,6 +169,35 @@ After these changes the writer's guarantees are: each boundary returns only
 after every record numbered up to the last one taken is confirmed; once a
 put or a buffer insert fails, the attempt writes nothing more; every 412
 fails the write. The code has one mechanism per clause.
+
+## Step 1c: end-to-end tamper tests
+
+Each test runs a real eval with the store on, checks that it validates
+clean, changes the .eval file or the store, then runs the `inspect
+validate` command in a subprocess and checks the exact finding kinds. 3
+happy-path tests (plain eval, agent eval, 3 samples x 2 epochs at once), 16
+.eval tampers, 22 store tampers and settings changes. Set
+`ADDONLY_EVIDENCE_DIR` to keep each command's output.
+
+Validator bugs the tests found, each fixed with a test that failed first:
+
+1. With two versions of a key in the same second (S3 times have whole
+   seconds), the validator read the newest, not the first. An overwrite
+   with matching .eval edits then hid the `event_mismatch`. It now takes
+   the last version listed (S3 lists newest first).
+2. A record the eval could not have written (bad JSON, a bad event, an
+   unknown key, a record of the wrong type) stopped the validator with a
+   traceback, so no eval under the prefix was checked. Anyone with the host
+   keys can add one. Now `malformed_record`.
+3. These passed, with the line "The .eval files match the add-only store":
+   an extra .eval file with no records (`unstored_eval`), an edited copy of
+   a .eval with the same eval id (`duplicate_eval_file`), an added sample
+   (`unstored_sample`), an edited sample score (`score_mismatch`), and an
+   edited eval status, stats or results (`eval_mismatch`).
+4. The pass line now says what was checked and what was not: the eval
+   spec, plan, error, reductions, tags and metadata; each sample's
+   messages, output, input, target, metadata, store, error, usage and
+   times; and what the sample summaries say.
 
 ## The evals that were run
 
@@ -470,7 +503,9 @@ changed decisions 2, 3, 5 and 6, and added 14 and 15; each change is marked.
    still leaves a finished copy.
 9. Records are JSON. Buffer rows are kept as the buffer's own text.
 10. The validator reads the earliest version of a key that has several. It
-    compares events only, with attachments and pools resolved in full. It
+    compares events only (*step 1c:* also the scores and the eval's status,
+    stats and results, which the closing records hold; Eric kept events as
+    the record, so messages and output are not compared), with attachments and pools resolved in full. It
     treats an event as complete when its JSON has no true `pending`.
 11. Multipart detection: an ETag with a `-`. A real build would use
     GetObjectAttributes.
