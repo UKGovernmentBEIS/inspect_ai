@@ -47,7 +47,7 @@ from inspect_ai._eval.evalset import (
 )
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.resolved import ResolvedTask
-from inspect_ai._eval.task.task import task_with
+from inspect_ai._eval.task.task import task_score_names, task_with
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem, local_path, size_in_mb
@@ -82,6 +82,7 @@ from inspect_ai.scorer import (
     Scorer,
     Target,
     exact,
+    match,
     mean,
     metric,
     scorer,
@@ -158,6 +159,85 @@ def test_eval_set_retry_keeps_dict_score_names(
     assert [(s.name, s.score_name) for s in log.eval.scorers] == [
         ("match", "strict"),
         ("includes", "loose"),
+    ]
+
+
+@pytest.mark.parametrize("retry_immediate", [False, True])
+def test_eval_set_retry_keeps_task_with_score_names(
+    tmp_path: Path, retry_immediate: bool
+) -> None:
+    """A retried task keeps names applied with `task_with()` outside the task function."""
+    success, logs = eval_set(
+        tasks=task_with(
+            named_scorers_failing_once_task(str(tmp_path / "failed")),
+            scorer={"override1": match(), "override2": includes()},
+        ),
+        log_dir=str(tmp_path / "logs"),
+        retry_attempts=2,
+        retry_wait=0.1,
+        retry_immediate=retry_immediate,
+        model="mockllm/model",
+    )
+    assert success
+
+    log = read_eval_log(logs[0].location)
+    assert log.samples is not None and log.results is not None
+    assert log.eval.scorers is not None
+    assert [(s.id, list(s.scores or {})) for s in log.samples] == [
+        (1, ["override1", "override2"]),
+        (2, ["override1", "override2"]),
+    ]
+    assert [s.name for s in log.results.scores] == ["override1", "override2"]
+    assert [(s.name, s.score_name) for s in log.eval.scorers] == [
+        ("match", "override1"),
+        ("includes", "override2"),
+    ]
+
+
+def test_eval_set_resume_keeps_previous_score_names(tmp_path: Path) -> None:
+    """Resuming a log scores its remaining samples under the names it records.
+
+    The second `eval_set()` passes other names for the same scorers. Sample 1 is
+    reused under the first run's names, so sample 2 is scored under them too.
+    """
+
+    def run(task: Task) -> tuple[bool, list[EvalLog]]:
+        return eval_set(
+            tasks=task,
+            log_dir=str(tmp_path / "logs"),
+            retry_attempts=0,
+            model="mockllm/model",
+        )
+
+    first = task_with(
+        named_scorers_failing_once_task(str(tmp_path / "failed")),
+        scorer={"first1": match(), "first2": includes()},
+    )
+    success, _ = run(first)
+    assert not success
+    second = task_with(
+        named_scorers_failing_once_task(str(tmp_path / "failed")),
+        scorer={"second1": match(), "second2": includes()},
+    )
+    success, logs = run(second)
+    assert success
+    # the previous names apply to this run only, not to the task object
+    assert task_score_names(second) == ["second1", "second2"]
+
+    log = read_eval_log(logs[0].location)
+    assert log.samples is not None and log.reductions is not None
+    assert log.eval.scorers is not None
+    assert [(s.id, list(s.scores or {})) for s in log.samples] == [
+        (1, ["first1", "first2"]),
+        (2, ["first1", "first2"]),
+    ]
+    assert [(r.scorer, len(r.samples)) for r in log.reductions] == [
+        ("first1", 2),
+        ("first2", 2),
+    ]
+    assert [(s.name, s.score_name) for s in log.eval.scorers] == [
+        ("match", "first1"),
+        ("includes", "first2"),
     ]
 
 

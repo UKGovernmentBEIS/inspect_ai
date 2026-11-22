@@ -108,7 +108,9 @@ Task(
 
 The scores for each sample and the results for the eval are then recorded as `gpt4` and `gemini`. Use the same names to refer to a score elsewhere (e.g. `headline_metric="gemini"`).
 
-The names are saved in the log, so they are kept when you [re-score it](scoring-workflow.qmd#score-command) with `inspect score`. Names must be non-empty strings.
+The names are saved in the log, so they are kept when you [re-score it](scoring-workflow.qmd#score-command) with `inspect score`. A retry (`inspect eval-retry`, or `eval_set()` resuming a log) also scores under the names in the log it continues, so that all of the samples are aggregated together. Names must be non-empty strings.
+
+To name the scores of an existing task, pass a dict to `task_with()` or assign one to `task.scorer`. Reading `task.scorer` always gives a list of scorers, which doesn't include the names: `Task(scorer=other_task.scorer)` records default names, and assigning a scorer or a list to `task.scorer` drops the names of the dict it replaces.
 
 ## Scorer with Multiple Values
 

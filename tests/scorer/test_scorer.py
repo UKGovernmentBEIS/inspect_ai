@@ -328,6 +328,22 @@ def test_task_scorer_dict_unscored_eval_records_names() -> None:
     assert [s.score_name for s in log.eval.scorers] == ["strict", "loose"]
 
 
+def test_task_scorer_assigned_dict_names_scores() -> None:
+    """A dict assigned to `task.scorer` names scores as one passed to `Task` does."""
+    task = _named_task()
+    task.scorer = {"first": match(), "second": includes()}
+    log = eval(task, model="mockllm/model", display="none")[0]
+    assert log.status == "success"
+    assert log.samples is not None and log.results is not None
+    assert log.eval.scorers is not None
+    assert [list(sample.scores or {}) for sample in log.samples] == [
+        ["first", "second"],
+        ["first", "second"],
+    ]
+    assert [score.name for score in log.results.scores] == ["first", "second"]
+    assert [s.score_name for s in log.eval.scorers] == ["first", "second"]
+
+
 def test_task_scorer_changed_in_place_is_error() -> None:
     """Names that no longer line up with `task.scorer` fail before any sample runs."""
     task = _named_task()

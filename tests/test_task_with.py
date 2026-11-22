@@ -166,13 +166,37 @@ def test_task_scorer_assignment_drops_score_names() -> None:
     task = Task(scorer={"accuracy_strict": match()})
     replacement = [match(), match()]
     task.scorer = replacement
-    assert task.scorer is replacement
+    assert task.scorer == replacement
+    assert task_score_names(task) is None
+
+    task = Task(scorer={"accuracy_strict": match()})
+    single = match()
+    task.scorer = single
+    assert task.scorer == [single]
     assert task_score_names(task) is None
 
     task = Task(scorer={"accuracy_strict": match()})
     task.scorer = None
     assert task.scorer is None
     assert task_score_names(task) is None
+
+
+def test_task_scorer_assignment_accepts_dict() -> None:
+    strict, loose = match(location="end"), match(location="begin")
+    task = Task(scorer=match())
+    task.scorer = {"accuracy_strict": strict, "accuracy_loose": loose}
+    assert task.scorer == [strict, loose]
+    assert task_score_names(task) == ["accuracy_strict", "accuracy_loose"]
+
+    # a dict replaces the names of an earlier dict
+    task.scorer = {"accuracy": loose}
+    assert task.scorer == [loose]
+    assert task_score_names(task) == ["accuracy"]
+
+
+def test_task_scorer_list_passed_on_has_no_score_names() -> None:
+    task = Task(scorer={"accuracy_strict": match()})
+    assert task_score_names(Task(scorer=task.scorer)) is None
 
 
 def test_task_scorer_changed_in_place_is_error() -> None:
@@ -197,6 +221,8 @@ def test_task_scorer_dict_invalid_name_is_error(name: Any) -> None:
         Task(scorer=scorers)
     with pytest.raises(ValueError, match="Score names must be non-empty strings"):
         task_with(Task(), scorer=scorers)
+    with pytest.raises(ValueError, match="Score names must be non-empty strings"):
+        Task().scorer = scorers
 
 
 def test_task_scorer_dict_metrics_override() -> None:

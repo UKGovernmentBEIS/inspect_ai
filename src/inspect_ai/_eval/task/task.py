@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import copy
 from dataclasses import dataclass
 from logging import getLogger
 from typing import (
@@ -292,15 +293,20 @@ class Task:
 
     @property
     def scorer(self) -> list[Scorer] | None:
-        """Scorers for the task, as a list whether passed as a list or a dict."""
+        """Scorers for the task, as a list whether passed as a list or a dict.
+
+        The list doesn't carry score names. Assign a dict of scorers to name the
+        scores; assigning a scorer or a list of scorers names them for their scorers.
+        """
         return self._scorer
 
     @scorer.setter
-    def scorer(self, scorer: list[Scorer] | None) -> None:
-        # Score names are positional, so they can't describe a replaced list
-        # (use `task_with()` to pass a new dict of scorers).
-        self._scorer = scorer
-        self._score_names = None
+    def scorer(self, scorer: "NamedScorers" | None) -> None:
+        # A dict names the scores, as in the constructor. Anything else clears
+        # the names: they are positional, so they can't describe another list.
+        named_scorers = resolve_named_scorers(scorer)
+        self._scorer = named_scorers.scorers
+        self._score_names = named_scorers.score_names
 
     @property
     def name(self) -> str:
@@ -493,9 +499,7 @@ def task_with(
     if not isinstance(on_resume, NotGiven):
         task.on_resume = on_resume
     if not isinstance(scorer, NotGiven):
-        named_scorers = resolve_named_scorers(scorer)
-        task.scorer = named_scorers.scorers
-        task._score_names = named_scorers.score_names
+        task.scorer = scorer
     if not isinstance(metrics, NotGiven):
         task.metrics = metrics
     if not isinstance(model, NotGiven):
@@ -757,10 +761,59 @@ def task_score_names(task: Task) -> list[str] | None:
         raise ValueError(
             f"Task '{task.name}' has {len(scorers)} scorers but {len(score_names)} "
             f"score names ({', '.join(score_names)}): task.scorer was changed "
-            "after a dict of scorers was passed. Pass the scorers with "
-            "task_with(task, scorer=...) instead."
+            "in place after a dict of scorers was passed. Assign the new "
+            "scorers to task.scorer instead."
         )
     return score_names
+
+
+def with_previous_score_names(task: Task, previous_log: EvalLog) -> Task:
+    """`task` with the score names of the run recorded in `previous_log`.
+
+    A retried log carries the previous run's samples, and their scores keep the
+    names they were recorded under. Scores of the remaining samples are reduced
+    and aggregated with them only under the same names. The task's own names
+    can differ: a retry reloads the task from its definition, which loses names
+    applied with `task_with()`, and the definition may have changed. The previous
+    names (generated ones, if the log records none) therefore replace them.
+
+    Names are positional, so they are kept only when the task has the scorers
+    the previous log's header records. Otherwise the task's own names are used,
+    as they are when scorers change between a run and its retry.
+
+    Returns a copy when the names change. The task object can be shared with
+    other evals (another model in an eval set, a later `eval()`), which keep
+    the task's own names.
+    """
+    header_scorers = previous_log.eval.scorers
+    if not header_scorers or not task.scorer:
+        return task
+
+    # score.py imports this module, so the header name helper is imported here
+    from inspect_ai._eval.score import score_names_from_log_header
+
+    previous_names = score_names_from_log_header(previous_log)
+    if previous_names == task._score_names:
+        return task
+
+    previous_scorers = [eval_scorer.name for eval_scorer in header_scorers]
+    scorers = [
+        registry_unqualified_name(scorer) if is_registry_object(scorer) else None
+        for scorer in task.scorer
+    ]
+    if scorers != previous_scorers:
+        if previous_names is not None:
+            logger.warning(
+                f"Task '{task.name}' is retried with scorers that differ from "
+                "those in the previous log, so its score names "
+                f"({', '.join(previous_names)}) are not kept. Scores recorded "
+                "under those names are not included in the results of this retry."
+            )
+        return task
+
+    task = copy(task)
+    task._score_names = previous_names
+    return task
 
 
 def to_scorer(s: Any) -> Scorer:

@@ -14,6 +14,7 @@ from test_helpers.utils import (
 from inspect_ai import Task, eval, eval_retry, task, task_with
 from inspect_ai.dataset import Sample
 from inspect_ai.log import (
+    EvalLog,
     ProvenanceData,
     invalidate_samples,
     list_eval_logs,
@@ -23,7 +24,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._providers.mockllm import MockLLM
-from inspect_ai.scorer import exact
+from inspect_ai.scorer import exact, includes, match
 from inspect_ai.solver import TaskState, generate, solver
 from inspect_ai.viewer import TaskSamplesView, ViewerConfig
 
@@ -356,6 +357,107 @@ def test_eval_retry_keeps_dict_score_names(tmp_path: Path) -> None:
         ("match", "strict"),
         ("includes", "loose"),
     ]
+
+
+def _retried_score_names(log: EvalLog) -> dict[str, object]:
+    assert log.samples is not None and log.results is not None
+    assert log.eval.scorers is not None and log.reductions is not None
+    return {
+        "samples": [(s.id, list(s.scores or {})) for s in log.samples],
+        "results": [(s.name, s.metrics["accuracy"].value) for s in log.results.scores],
+        "reductions": [(r.scorer, len(r.samples)) for r in log.reductions],
+        "header": [(s.name, s.score_name) for s in log.eval.scorers],
+    }
+
+
+def test_eval_retry_keeps_task_with_score_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry keeps names applied with `task_with()` outside the task function.
+
+    The retry reloads the task, whose own names are `strict` and `loose`. Sample
+    1 is reused (correct) and sample 2 is rerun (incorrect), so each accuracy is
+    0.5 only if both are aggregated under one name.
+    """
+    monkeypatch.setattr(MockLLM, "default_output", "hello")
+    log1 = eval(
+        task_with(
+            named_scorers_failing_once_task(str(tmp_path / "failed")),
+            scorer={"override1": match(), "override2": includes()},
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+    )[0]
+    assert log1.status == "error"
+
+    monkeypatch.setattr(MockLLM, "default_output", "wrong")
+    log2 = eval_retry(log1, log_dir=str(tmp_path / "logs"))[0]
+    assert log2.status == "success"
+    assert _retried_score_names(log2) == {
+        "samples": [
+            (1, ["override1", "override2"]),
+            (2, ["override1", "override2"]),
+        ],
+        "results": [("override1", 0.5), ("override2", 0.5)],
+        "reductions": [("override1", 2), ("override2", 2)],
+        "header": [("match", "override1"), ("includes", "override2")],
+    }
+
+
+def test_eval_retry_keeps_generated_score_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry of a log without recorded names keeps its generated names."""
+    monkeypatch.setattr(MockLLM, "default_output", "hello")
+    log1 = eval(
+        task_with(
+            named_scorers_failing_once_task(str(tmp_path / "failed")),
+            scorer=[match(), includes()],
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+    )[0]
+    assert log1.status == "error"
+
+    monkeypatch.setattr(MockLLM, "default_output", "wrong")
+    log2 = eval_retry(log1, log_dir=str(tmp_path / "logs"))[0]
+    assert log2.status == "success"
+    assert _retried_score_names(log2) == {
+        "samples": [(1, ["match", "includes"]), (2, ["match", "includes"])],
+        "results": [("match", 0.5), ("includes", 0.5)],
+        "reductions": [("match", 2), ("includes", 2)],
+        "header": [("match", None), ("includes", None)],
+    }
+
+
+def test_eval_retry_with_other_scorers_uses_task_score_names(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Recorded names aren't applied to scorers other than those they were recorded for."""
+    log1 = eval(
+        task_with(
+            named_scorers_failing_once_task(str(tmp_path / "failed")),
+            scorer={"only": exact()},
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+    )[0]
+    assert log1.status == "error"
+
+    with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+        log2 = eval_retry(log1, log_dir=str(tmp_path / "logs"))[0]
+    assert log2.status == "success"
+    assert log2.samples is not None and log2.eval.scorers is not None
+    assert [(s.id, list(s.scores or {})) for s in log2.samples] == [
+        (1, ["only"]),
+        (2, ["strict", "loose"]),
+    ]
+    assert [(s.name, s.score_name) for s in log2.eval.scorers] == [
+        ("match", "strict"),
+        ("includes", "loose"),
+    ]
+    warnings = [r.message for r in caplog.records if "score names (only)" in r.message]
+    assert len(warnings) == 1
 
 
 def test_eval_retry_preserves_token_usage():
