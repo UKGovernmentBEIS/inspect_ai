@@ -999,7 +999,7 @@ def _completion(
     }
 
 
-def _choice_error(code: int) -> dict[str, Any]:
+def _response_with_choice_error(code: int) -> dict[str, Any]:
     """A mid-generation failure: the error sits on the choice, beside partial text."""
     return _completion(
         content="partial",
@@ -1020,7 +1020,7 @@ def _raised(api: OpenRouterAPI, response: dict[str, Any]) -> BaseException:
 
 def test_on_response_choice_error_429_retries_as_rate_limit() -> None:
     api = _make_api("openai/gpt-4o")
-    ex = _raised(api, _choice_error(429))
+    ex = _raised(api, _response_with_choice_error(429))
     assert isinstance(ex, OpenAIResponseError)
     assert api.should_retry(ex) == RetryDecision.rate_limit()
 
@@ -1028,14 +1028,14 @@ def test_on_response_choice_error_429_retries_as_rate_limit() -> None:
 @pytest.mark.parametrize("code", [408, 500, 502, 504])
 def test_on_response_choice_error_server_codes_retry_as_transient(code: int) -> None:
     api = _make_api("openai/gpt-4o")
-    ex = _raised(api, _choice_error(code))
+    ex = _raised(api, _response_with_choice_error(code))
     assert isinstance(ex, OpenAIResponseError)
     assert api.should_retry(ex) == RetryDecision.transient()
 
 
 def test_on_response_choice_error_400_raises_without_retry() -> None:
     api = _make_api("openai/gpt-4o")
-    ex = _raised(api, _choice_error(400))
+    ex = _raised(api, _response_with_choice_error(400))
     assert isinstance(ex, OpenRouterError)
     assert api.should_retry(ex) == RetryDecision.no()
 
@@ -1050,14 +1050,23 @@ def test_openrouter_error_str_includes_message() -> None:
 
 def test_on_response_top_level_error_wins_over_choice_error() -> None:
     api = _make_api("openai/gpt-4o")
-    response = _choice_error(429) | {"error": {"code": 400, "message": "bad"}}
+    response = _response_with_choice_error(429) | {
+        "error": {"code": 400, "message": "bad"}
+    }
     assert isinstance(_raised(api, response), OpenRouterError)
 
 
 @pytest.mark.parametrize(
     "error",
-    ["upstream exploded", {"message": "boom"}, {"code": 502}, None, {}],
-    ids=["string", "no-code", "no-message", "none", "empty"],
+    [
+        "upstream exploded",
+        {"message": "boom"},
+        {"code": 502},
+        {"code": True, "message": "boom"},
+        None,
+        {},
+    ],
+    ids=["string", "no-code", "no-message", "bool-code", "none", "empty"],
 )
 def test_on_response_ignores_malformed_choice_error(error: Any) -> None:
     response = _completion(content="partial", finish_reason="error")
@@ -1070,7 +1079,7 @@ def test_on_response_accepts_normal_completion() -> None:
 
 
 async def test_generate_retries_choice_error_and_returns_next_completion() -> None:
-    responses = [_choice_error(429), _completion("ok")]
+    responses = [_response_with_choice_error(429), _completion("ok")]
     requests: list[httpx2.Request] = []
 
     async def handler(request: httpx2.Request) -> httpx2.Response:

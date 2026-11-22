@@ -427,16 +427,16 @@ class OpenRouterAPI(OpenAICompatibleAPI):
 def _choice_error(choices: list[dict[str, Any]]) -> ErrorResponse | None:
     """The first well-formed error on a choice, if any.
 
-    A failure mid-generation in a non-streamed response comes back as HTTP 200
-    with the error on the choice, next to the partial content. An `error` that
-    lacks an int `code` and a str `message` is ignored, leaving the choice to be
-    returned as a completion.
+    OpenRouter returns a failure mid-generation as HTTP 200 with the error on
+    the choice, next to the partial content. An `error` that lacks an int
+    `code` and a str `message` is ignored, leaving the choice to be returned as
+    a completion.
     """
     for choice in choices:
         error = choice.get("error")
         if (
             isinstance(error, dict)
-            and isinstance(error.get("code"), int)
+            and type(error.get("code")) is int
             and isinstance(error.get("message"), str)
         ):
             return cast(ErrorResponse, error)
