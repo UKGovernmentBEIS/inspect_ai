@@ -188,7 +188,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 env=resolved.env,
             )
             if result.success:
-                # look through the images, if one of them doesn't apper in the the
+                # look through the images, if one of them doesn't appear in the
                 # config text then this compose file requires its own sample specific
                 # environment for resolution
                 images = result.stdout.strip().splitlines()
