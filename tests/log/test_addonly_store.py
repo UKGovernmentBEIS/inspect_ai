@@ -507,7 +507,8 @@ def test_swap_eval_file_keep_eval_id(
     other.eval.eval_id = clean_run.eval_id
     write_eval_log(other, clean_run.location)
     result = validate_cli(clean_run.store, clean_run.log_dir)
-    assert_fails_with(result, "event_mismatch")
+    # the other run's header (stats: its own start and end times) and events
+    assert_fails_with(result, "eval_mismatch", "event_mismatch")
 
 
 def test_extra_eval_file(
@@ -566,6 +567,17 @@ def test_edit_score(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
     result = validate_cli(clean_run.store, clean_run.log_dir)
     assert_fails_with(result, "score_mismatch")
     assert "score_mismatch " in result.output and "'includes'" in result.output
+
+
+def test_edit_results(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """The eval's accuracy changed in the .eval header."""
+    log = read_eval_log(clean_run.location)
+    assert log.results
+    log.results.scores[0].metrics["accuracy"].value = 0.5
+    write_eval_log(log, clean_run.location)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "eval_mismatch")
+    assert "results" in result.output
 
 
 # ---------------------------------------------- tampering, add-only store

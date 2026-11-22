@@ -62,6 +62,7 @@ FindingKind = Literal[
     "duplicate_eval_file",
     "unstored_sample",
     "score_mismatch",
+    "eval_mismatch",
 ]
 
 
@@ -356,6 +357,18 @@ def _validate_eval(
     if eval_file is None:
         finding("missing_eval_file", "No .eval file in the log dir has this eval id.")
         return findings, 0
+
+    if eval_closing is not None:
+        fields = {"status", "stats", "results"}
+        header = read_eval_log(eval_file, header_only=True).model_dump(
+            mode="json", include=fields
+        )
+        stored = eval_closing.model_dump(mode="json", include=fields)
+        if changed := sorted(f for f in fields if header.get(f) != stored.get(f)):
+            finding(
+                "eval_mismatch",
+                f"The .eval file's {changed} differ from the eval closing record's.",
+            )
 
     stored_samples = {sample_part for sample_part, _ in attempts}
     for sample_part in sorted(_eval_file_samples(eval_file) - stored_samples):
