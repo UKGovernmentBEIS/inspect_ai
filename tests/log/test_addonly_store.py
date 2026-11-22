@@ -251,7 +251,16 @@ def test_plain_eval_validates(
     result = validate_cli(evalhost_env, tmp_path, "--verbose")
     assert result.exit_code == 0, result.output
     assert result.findings() == []
-    assert "1 eval(s), 1 sample(s) compared, 0 finding(s)." in result.output
+    assert result.output.endswith(
+        "1 eval(s), 1 sample(s) compared, 0 finding(s).\n"
+        "Checked against the add-only store: each sample's events and scores, "
+        "which samples the .eval files have, and each eval's status, stats and "
+        "results.\n"
+        "Not checked: the eval spec, plan, error, reductions, tags and metadata; "
+        "each sample's messages, output, input, target, metadata, store, error, "
+        "usage and times; and what the sample summaries say.\n"
+        "A pass does not show that the run was honest.\n"
+    ), result.output
     # --verbose lists the start record, the sample's records and both closings
     assert log.samples
     sample = sample_key_part(log.samples[0].id, 1)
