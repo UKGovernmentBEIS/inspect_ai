@@ -13,7 +13,7 @@ def log_viewer(
 ) -> Operation:
     """Add a log viewer column to an eval data frame.
 
-    Transform operation to add a log_viewer column to a data frame based on one more more `url_mappings`.
+    Transform operation to add a log_viewer column to a data frame based on one or more `url_mappings`.
 
     URL mappings define the relationship between log file paths (either fileystem or S3) and URLs where logs are published. The URL target should be the location where the output of the [`inspect view bundle`](../log-viewer.qmd#sec-publishing) command was published.
 
