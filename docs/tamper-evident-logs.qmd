@@ -1,0 +1,206 @@
+---
+title: Tamper-Evident Logs
+llms-description: Keep a copy of each sample's events in an add-only S3 bucket while the eval runs, then check .eval files against it with inspect validate.
+---
+
+::: {.callout-important appearance="simple"}
+Tamper-evident logs are experimental. The option, the store layout and the output of `inspect validate` are not yet a stable API and can change without notice.
+:::
+
+## Overview
+
+An eval log (a `.eval` file) can be changed after it is written: by someone with write access to the log directory, or by the eval process itself if it is compromised while it runs. Tamper-evident logs let you find such changes.
+
+While an eval runs, each sample writes its events to an *add-only store*: an S3 bucket in a separate AWS account, where the eval host can add objects but cannot change or delete them. The sample writes:
+
+- before each model call sends its request;
+- before each set of tool calls starts;
+- at the end of the sample, after scoring.
+
+At each of these points the sample waits until S3 confirms the write. Later, the `inspect validate` command compares the `.eval` files with the add-only store and reports each difference.
+
+## What it protects
+
+- **Edits to a finished log.** If someone changes a sample's events or scores, deletes or adds a sample, or replaces the `.eval` file, `inspect validate` reports it. The original events stay in the add-only store.
+- **Edits by a compromised eval process.** Events that the store confirmed before the compromise cannot be changed. If the process changes them in its local copy, the `.eval` file no longer matches the store.
+- **Lost samples.** A sample that stops before its last write has no closing record in the store, so the validator reports it as cut short.
+
+## What it does not protect
+
+- **Anything the process writes after it is compromised.** A compromised process can write false events to the store, with the correct secret for its eval. Events that the sample recorded after its last confirmed write, before the compromise, are also not protected.
+- **A whole fake eval.** A compromised eval host can write the records of an eval that never ran. The validator reports it only if no `.eval` file has its eval id.
+- **Fields that are not stored.** The validator checks each sample's events and scores, which samples the `.eval` file has, and the eval's status, stats and results. It does not check other fields, for example the eval spec and plan, each sample's messages, output and error, or the sample summaries.
+
+A pass shows that the `.eval` file matches what was stored. It does not show that the run was honest.
+
+## Set up the add-only store
+
+Use a bucket in an AWS account that is separate from the account of the eval hosts. Nobody who can sign in to an eval host must be able to change the bucket's settings.
+
+1.  Create the bucket with Object Lock in COMPLIANCE mode. This also turns on versioning. Set the retention period to the time that you must keep the records. Nobody can delete a stored version, or make the retention shorter, until the period ends.
+
+    ``` bash
+    aws s3api create-bucket --bucket my-addonly-store \
+      --object-lock-enabled-for-bucket
+    aws s3api put-object-lock-configuration --bucket my-addonly-store \
+      --object-lock-configuration '{"ObjectLockEnabled": "Enabled",
+        "Rule": {"DefaultRetention": {"Mode": "COMPLIANCE", "Days": 365}}}'
+    ```
+
+2.  Add a bucket policy that refuses a put without `If-None-Match`. Without this policy, a put can add a second version of an object.
+
+    ``` json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "RequireIfNoneMatch",
+          "Effect": "Deny",
+          "Principal": "*",
+          "Action": "s3:PutObject",
+          "Resource": "arn:aws:s3:::my-addonly-store/*",
+          "Condition": {"Null": {"s3:if-none-match": "true"}}
+        }
+      ]
+    }
+    ```
+
+3.  Make a role for the eval hosts that can only add objects and read the Object Lock settings. The eval uses the usual AWS credential chain (for example `AWS_PROFILE` or the instance role) to get these credentials.
+
+    ``` json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": "s3:PutObject",
+          "Resource": "arn:aws:s3:::my-addonly-store/*"
+        },
+        {
+          "Effect": "Allow",
+          "Action": "s3:GetBucketObjectLockConfiguration",
+          "Resource": "arn:aws:s3:::my-addonly-store"
+        }
+      ]
+    }
+    ```
+
+4.  Make a read-only role for the validator:
+
+    ``` json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "s3:ListBucketVersions",
+            "s3:GetBucketVersioning",
+            "s3:GetBucketPolicy",
+            "s3:GetBucketObjectLockConfiguration"
+          ],
+          "Resource": "arn:aws:s3:::my-addonly-store"
+        },
+        {
+          "Effect": "Allow",
+          "Action": "s3:GetObjectVersion",
+          "Resource": "arn:aws:s3:::my-addonly-store/*"
+        }
+      ]
+    }
+    ```
+
+Use one prefix in the bucket for each log directory. The validator reports every eval under its prefix that has no `.eval` file in the log directory, so evals from other log directories must not share the prefix.
+
+## Turn it on
+
+Give the eval the location of the add-only store:
+
+``` python
+eval("ctf.py", model="openai/gpt-6-luna",
+     tamper_evident_store="s3://my-addonly-store/team-a")
+```
+
+``` bash
+inspect eval ctf.py --model openai/gpt-6-luna \
+  --tamper-evident-store s3://my-addonly-store/team-a
+```
+
+`eval_set()` and `inspect eval-set` take the same option. If you do not give it, the eval writes nothing to the add-only store.
+
+Before the first sample starts, the eval checks the store: it writes its first record, writes it again (S3 must refuse), tries to read and delete it (S3 must refuse), and reads the Object Lock settings (they must be COMPLIANCE). If a check fails, the eval fails.
+
+The eval also needs `log_realtime` (on by default). It fails at start if `log_realtime` is off.
+
+If a write fails with a network error, throttling or a server error, the sample tries it again for up to 60 seconds. If the write still fails, or fails for another reason, the eval fails, whatever `fail_on_error` says. This includes a write that S3 refuses because the object exists.
+
+### Retries
+
+The log does not record the store location, so give it again when you retry an eval:
+
+``` bash
+inspect eval-retry logs/2026-11-22T10-00-00_ctf_abc.eval \
+  --tamper-evident-store s3://my-addonly-store/team-a
+```
+
+A sample that the retry reuses from the earlier eval is not written again. The retry's closing record names the eval that the sample came from, and the validator compares the sample with that eval's records.
+
+With `retry_on_error`, the failed attempt keeps its records in the store. The validator lists it as retried, and does not report it as a finding.
+
+## Validate logs
+
+Run `inspect validate` on the log directory, with the read-only credentials of the validator. Take the store location from your own configuration, never from a `.eval` file:
+
+``` bash
+inspect validate logs --store s3://my-addonly-store/team-a
+```
+
+You can also set the location in `INSPECT_VALIDATE_STORE`. Run the validator on a host that the eval hosts cannot control.
+
+### A pass
+
+The command exits with 0 and says what it checked:
+
+``` default
+1 eval(s), 1 sample(s) compared, 0 finding(s).
+Checked against the add-only store: each sample's events and scores, which samples the .eval files have, and each eval's status, stats and results.
+Not checked: everything else, including the eval spec and plan, each sample's messages, output and error, what the sample summaries say, invalidation and log_updates.
+A pass does not show that the run was honest.
+```
+
+An attempt that `retry_on_error` retried shows as one line before the count. It is not a finding:
+
+``` default
+retried LdM2ww.../s0.1/1: No closing record; a later attempt has one.
+```
+
+### A failure
+
+Each finding is one line: the kind of finding, the eval id or record key, and a message. The command exits with 1. In this example a tool result was changed in the `.eval` file:
+
+``` default
+event_mismatch ceb6p9.../s0.1/1: Event 8 (tool FWBdtR...) differs in ['result']; the store has 2 version(s) of it.
+
+1 eval(s), 1 sample(s) compared, 1 finding(s).
+```
+
+In this example someone added a record to the store after the eval, with the eval host's keys. They do not know the eval's secret (the nonce), which only the eval process had:
+
+``` default
+nonce VbcjdG.../s0.1/1/16: Nonce differs from the start record's.
+record_count VbcjdG.../s0.1/1: Closing record counts 15 records, store has [1, 2, ..., 16].
+
+1 eval(s), 1 sample(s) compared, 2 finding(s).
+```
+
+Use `--verbose` to list every record in the store with the time that S3 received it.
+
+To see the original events of a sample, read its records from the add-only store. Each sample attempt has the keys `<eval-id>/<sample-id>.<epoch>/<attempt>/<n>` (one record per write) and `<eval-id>/<sample-id>.<epoch>/<attempt>/closing`.
+
+## Known limits
+
+- **Rescoring.** `inspect score` changes the scores and results, and also writes the sample's events again in a different order. The validator then reports `score_mismatch`, `eval_mismatch` and `event_mismatch`. How to show a rescore separately from tampering is an open question.
+- **Other changes after the run.** A tool that changes the eval's status, stats or results after the run makes validation fail, as a hand edit does. Merged shard logs and samples removed during the run are not yet handled.
+- **Checkpoint resume.** The validator does not check a resumed sample's restored state against the earlier eval's records.
+- **Validation cost.** The validator reads every record of every eval under the prefix, one S3 request each.
+- **Events that skip the sample buffer.** A warning logged from a worker thread during a sample can make an event skip the local sample buffer, so it never reaches the store. The validator then reports an `event_mismatch` for a run that was not changed.
