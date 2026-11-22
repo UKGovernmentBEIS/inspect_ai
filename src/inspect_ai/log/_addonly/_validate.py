@@ -447,7 +447,8 @@ def _compare_eval_file(
         (f"{eval_id}/{sample_part}/{closing.sample.attempt}", "", closing, records)
         for sample_part, (closing, records) in stored.final_attempts.items()
     ]
-    for sample_part in sorted(_eval_file_samples(eval_file) - stored.sample_parts):
+    eval_file_samples = _eval_file_samples(eval_file)
+    for sample_part in sorted(eval_file_samples - stored.sample_parts):
         earlier = _earlier_attempt(evals, stored.prior_eval_id, sample_part)
         if earlier is None:
             finding(
@@ -471,6 +472,25 @@ def _compare_eval_file(
                 records,
             )
         )
+
+    # a retry's .eval holds every sample of its prior eval (the seed copies
+    # them), so each one the prior evals closed without an error must be there
+    prior_samples = {
+        sample_part
+        for prior_id in _prior_evals(evals, stored.prior_eval_id)
+        for sample_part in evals[prior_id].sample_parts
+    }
+    for sample_part in sorted(prior_samples - stored.sample_parts - eval_file_samples):
+        earlier = _earlier_attempt(evals, stored.prior_eval_id, sample_part)
+        if earlier is not None and earlier[1].error is None:
+            source, closing, _ = earlier
+            finding(
+                "missing_sample",
+                f"Not in {eval_file}. A retry reuses it from "
+                f"{source}/{sample_part}/{closing.sample.attempt}, which closed "
+                "without an error.",
+                f"{eval_id}/{sample_part}",
+            )
 
     compared = 0
     for key, note, closing, sample_records in to_compare:
@@ -515,20 +535,28 @@ def _earlier_attempt(
 ) -> tuple[str, SampleClosingRecord, list[SampleRecord]] | None:
     """The eval that ran a reused sample, and its last closed attempt.
 
-    Follows the start records' prior eval ids, since a retry of a retry
-    reuses the sample from the first retry, which reused it in turn. An eval
-    with records of the sample ran it, so the search stops there.
+    A retry of a retry reuses the sample from the first retry, which reused
+    it in turn. An eval with records of the sample ran it, so the search
+    stops there.
     """
+    for prior_id in _prior_evals(evals, eval_id):
+        stored = evals[prior_id]
+        if sample_part in stored.final_attempts:
+            return (prior_id, *stored.final_attempts[sample_part])
+        if sample_part in stored.sample_parts:
+            return None
+    return None
+
+
+def _prior_evals(
+    evals: Mapping[str, _StoredEval], eval_id: str | None
+) -> Iterator[str]:
+    """``eval_id``, then each eval its start record's prior eval id leads to."""
     seen: set[str] = set()
     while eval_id is not None and eval_id in evals and eval_id not in seen:
         seen.add(eval_id)
-        stored = evals[eval_id]
-        if sample_part in stored.final_attempts:
-            return (eval_id, *stored.final_attempts[sample_part])
-        if sample_part in stored.sample_parts:
-            return None
-        eval_id = stored.prior_eval_id
-    return None
+        yield eval_id
+        eval_id = evals[eval_id].prior_eval_id
 
 
 def _changed_keys(

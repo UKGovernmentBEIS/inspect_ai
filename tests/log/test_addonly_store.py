@@ -703,6 +703,30 @@ def test_add_sample_to_retry(
     assert f"prior eval {log.eval.eval_id}" in result.output
 
 
+def test_delete_reused_sample(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """s1 deleted from a retry of a retry: the first eval closed it without an error."""
+    log = retried_task_run(evalhost_env, tmp_path, s0_failures=2)
+    for status in ["error", "success"]:
+        log = eval_retry(
+            log,
+            log_dir=str(tmp_path),
+            display="none",
+            tamper_evident_store=evalhost_env.url,
+        )[0]
+        assert log.status == status, log.error
+
+    log = read_eval_log(log.location)
+    assert log.samples
+    log.samples = [s for s in log.samples if s.id != "s1"]
+    write_eval_log(log, log.location)
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert_fails_with(result, "missing_sample")
+    assert f"missing_sample {log.eval.eval_id}/s1.1:" in result.output
+
+
 class StreamingMockLLM(MockLLM):
     async def generate(
         self,
