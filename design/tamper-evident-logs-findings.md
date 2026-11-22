@@ -71,7 +71,11 @@ review as a feature.
   events. Step 1c added: records the eval could not have written, .eval
   files and samples with no records, two .eval files with one eval id, and
   the .eval scores and eval status, stats and results against the closing
-  records. It exits non-zero on any finding. `--verbose` lists each record
+  records. Review round 1 added: samples found by zip member name, values
+  compared as JSON text, rows that stop the sample rebuild, retried
+  attempts (listed, not findings), and samples an eval retry reused
+  (compared with the earlier eval's records). It exits non-zero on any
+  finding. `--verbose` lists each record
   with its arrival time. The scope for matching eval ids to .eval files is
   the `--store` prefix: one prefix per log directory.
 - Tests:
@@ -93,9 +97,13 @@ PYTHONPATH=tests python scripts/addonly_timing.py
 PYTHONPATH=tests python scripts/addonly_moto_probe.py
 ```
 
-The eval writes to the store when `INSPECT_ADDONLY_STORE=s3://bucket/prefix`
-is set. It needs `log_realtime` (the default), and fails at start without
-it.
+The eval writes to the store when it gets
+`tamper_evident_store="s3://bucket/prefix"` (`eval()`, `eval_set()`,
+`eval_retry()`) or `--tamper-evident-store s3://bucket/prefix` (`inspect
+eval`, `eval-set`, `eval-retry`). Without it, the eval writes nothing to the
+store. The log does not record it, so a retry must be given it again (as
+`sentinel_proxy`). It needs `log_realtime` (the default), and fails at
+start without it.
 
 ## Step 1b: changes for plan v81
 
@@ -188,16 +196,82 @@ Validator bugs the tests found, each fixed with a test that failed first:
 2. A record the eval could not have written (bad JSON, a bad event, an
    unknown key, a record of the wrong type) stopped the validator with a
    traceback, so no eval under the prefix was checked. Anyone with the host
-   keys can add one. Now `malformed_record`.
+   keys can add one. Now `malformed_record`. *Correction (review round 1):*
+   this fix covered the record and its event rows only. A record with a
+   bad pool row, or a row whose key was already stored, still stopped the
+   validator in the sample rebuild. Fixed in review round 1 (fix 3 below).
 3. These passed, with the line "The .eval files match the add-only store":
    an extra .eval file with no records (`unstored_eval`), an edited copy of
    a .eval with the same eval id (`duplicate_eval_file`), an added sample
    (`unstored_sample`), an edited sample score (`score_mismatch`), and an
    edited eval status, stats or results (`eval_mismatch`).
-4. The pass line now says what was checked and what was not: the eval
-   spec, plan, error, reductions, tags and metadata; each sample's
-   messages, output, input, target, metadata, store, error, usage and
-   times; and what the sample summaries say.
+4. The pass line now says what was checked and what was not. *Review
+   round 1:* the "Not checked" part read as a full list, which it was not.
+   It now reads "Not checked: everything else, including the eval spec and
+   plan, each sample's messages, output and error, what the sample
+   summaries say, invalidation and log_updates."
+
+## Review round 1: fixes and changes after the run
+
+Two fresh-context reviews (Claude Opus 5.5; Codex gpt-6.1-sol, xhigh) of
+5e6fb89a9..524ddb439 found these defects. Each fix has a test that failed
+before it.
+
+1. **NaN and 1 == True.** The score and eval checks compared `model_dump`
+   dicts with `==`. A clean run with a NaN score or metric gave
+   `score_mismatch` and `eval_mismatch` (NaN != NaN). A score value 1
+   edited to true passed, in the sample scores and in the score event
+   (1 == True). The score, eval and event checks now compare JSON text
+   (`_same_json`: `json.dumps(..., sort_keys=True)`). Tests:
+   `test_nan_score_validates`, `test_edit_score_one_to_true`.
+2. **An extra zip member with a stored sample's id.** A member
+   `samples/extra_epoch_1.json` holding s0's sample JSON (id s0), with an
+   edited tool result and score, passed with 0 findings: the full read gave
+   id s0 only, and s0 was compared from its own member. Samples are now
+   found by zip member name (`read_log_sample_keys`) and summary id. The
+   extra member gives `unstored_sample`. Test:
+   `test_add_sample_member_same_id`.
+3. **Rows that stop the sample rebuild.** A message or call pool row whose
+   data is not JSON (JSONDecodeError), or any row whose key the store
+   already has (sqlite IntegrityError), stopped the validator, and no other
+   eval was checked. Now `malformed_record` for the attempt; the validator
+   goes on. Test: `test_malformed_buffer_row` (5 cases; a second eval
+   under the prefix is still checked).
+4. **Docs.** The pass line (above), test docstrings (an overwrite's second
+   version is usually in a later second, not the same one;
+   `remove_last_record` keeps both closing records, so it is not the store
+   that a host that stops early leaves), and the evidence notes.
+
+Changes after the run (plan v83), with Eric's go:
+
+- **retry_on_error.** A retried attempt has no closing record, so the
+  validator reported `missing_closing`. Now, when a later attempt of the
+  same sample has a closing record, the attempt is listed as `retried`
+  and is not a finding. With no later closed attempt, it is still
+  `missing_closing`. Test: `test_retry_on_error_validates`.
+- **eval_retry.** A sample the retry reused from an earlier eval has no
+  records under the retry's eval id, so the validator reported
+  `unstored_sample`. The retry's .eval does not say which eval the sample
+  came from (the sample keeps its uuid and event uuids; nothing names the
+  earlier eval). As plan v83 says, the retry's eval closing record now
+  lists each reused sample with the earlier eval's id
+  (`EvalClosingRecord.reused`). The validator compares the sample with
+  that eval's records, and follows the list when the earlier eval is a
+  retry too. An earlier eval with no closed attempt of the sample gives
+  `unstored_sample`. Tests: `test_eval_retry_validates` (two retries),
+  `test_edit_reused_sample`.
+- **Rescore (`inspect score`).** Not changed; the design is pending with
+  Eric. Plan v83 expects a rescore to change only scores and the header.
+  But `inspect score` also writes the sample's events again: it builds the
+  event tree and flattens it (`_get_updated_events`, `_eval/score.py:204`;
+  `event_sequence`, `event/_tree.py:94`), so each span's events come
+  together and parallel spans lose their order, and the new scorers span
+  replaces the old one. A rescore then gives `event_mismatch` too. Test:
+  `test_rescore_fails_validation`.
+
+Also: the store location is now the eval option `tamper_evident_store`
+(see [What was built](#what-was-built)); the environment variable is
+gone.
 
 ## The evals that were run
 
@@ -471,9 +545,11 @@ policy) can only be checked on real AWS.
 Eric was away for step 1. I made these decisions without him. Step 1b
 changed decisions 2, 3, 5 and 6, and added 14 and 15; each change is marked.
 
-1. Store location: the env var `INSPECT_ADDONLY_STORE` for the eval. The
-   validator takes `--store` (or `INSPECT_VALIDATE_STORE`), never the .eval
-   file. A real build would use an eval option.
+1. Store location: *changed in review round 1* from the env var
+   `INSPECT_ADDONLY_STORE` to the eval option `tamper_evident_store`
+   (CLI `--tamper-evident-store`). The log does not record it; a retry is
+   given it again. The validator takes `--store` (or
+   `INSPECT_VALIDATE_STORE`), never the .eval file.
 2. Client: synchronous boto3 in a worker thread (`anyio.to_thread`), from a
    new boto3 session per eval. This works under asyncio and trio, and
    avoids fsspec. A new session is needed because the default session keeps
@@ -565,12 +641,29 @@ for each other, validator scope). These remain or are new:
   thread logs during the sample (plan issue 1).
 - Settle the bridge `message_id` update and the sentinel sidecar updates
   (plan issues 2 and 3).
-- Configure the store through eval options, not an env var.
 - Validator: parallel reads, JSON output, the hash index of Appendix C, and
   GetObjectAttributes for multipart detection.
-- Records for retries, re-scores and shard merges (out of scope here).
+- Records for re-scores and shard merges (out of scope here; retries are
+  done).
 - Test compliance mode, the If-None-Match policy and real put latency in a
   sandbox AWS account.
+
+## Validation runs (review round 1)
+
+At 408cf8bd0, moto server only:
+
+- `pytest tests/log/test_addonly_store.py -n 4`: 66 passed, 4 skipped
+  (trio variants); with `--runtrio`, the 4 trio variants pass.
+- `pytest tests/log -n 4` (with `.venv/bin` on `PATH`): 2,365 passed, 510
+  skipped, 0 failed.
+- `pytest tests/agent/test_bridge_approval.py tests/test_retry.py
+  tests/test_eval_set.py tests/test_eval_set_overrides.py tests/test_eval.py
+  -n 4`: 1,876 passed, 1,279 skipped, 0 failed (at 0d1ea78ba; the next
+  commit changes only a test helper used by `tests/log`).
+- `ruff check .`, `ruff format --check .`, `mypy --exclude
+  tests/test_package src tests`, mypy on the two scripts: clean.
+- Evidence: `ADDONLY_EVIDENCE_DIR` set for the `test_addonly_store.py` run
+  at 0d1ea78ba: 52 output files.
 
 ## Validation runs (step 1b)
 
@@ -585,12 +678,22 @@ for each other, validator scope). These remain or are new:
 - `ruff check`, `ruff format`, `mypy --exclude tests/test_package src tests`
   (plus the timing script): clean.
 
+## Known limits
+
+- **Rescore fails validation today; design pending with Eric.** See
+  [Review round 1](#review-round-1-fixes-and-changes-after-the-run).
+- A retry's reused-sample list is a claim by the retry's eval host. The
+  earlier eval's records are protected, so the .eval sample is still
+  checked against them; a list that names the wrong eval gives a finding.
+
 ## Not tested
 
 - Real S3 (by instruction).
+- `eval_set()` and the `--tamper-evident-store` CLI flag: the option is
+  passed through (mypy-checked), but no eval set or CLI eval ran with it;
+  the tests use `eval()` and `eval_retry()`.
 - Trio: the unit tests of the writer and the store run under trio; no eval
   ran under trio.
 - The sentinel sidecar, sandboxed bridged agents (the bridge runs in
-  process), checkpoint resume, sample retries (only the stop-on-failure
-  path), evicted events (the buffer read-back path at log time), and large
+  process), checkpoint resume, evicted events (the buffer read-back path at log time), and large
   model inputs.
