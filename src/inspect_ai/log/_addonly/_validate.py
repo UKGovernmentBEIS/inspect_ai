@@ -11,6 +11,7 @@ honest: records written after a compromise pass too. Other .eval fields
 """
 
 import json
+import sqlite3
 import tempfile
 from collections import defaultdict
 from collections.abc import Iterator, Mapping
@@ -407,7 +408,17 @@ def _validate_eval(
                 f"Scores {changed} differ from the sample closing record's.",
                 attempt_key,
             )
-        difference = _compare_events(logged, sample_records)
+        # a row the eval could not have written (a pool row that is not JSON,
+        # a key stored twice) fails here, not when its record is read
+        try:
+            difference = _compare_events(logged, sample_records)
+        except (ValueError, sqlite3.IntegrityError) as ex:
+            finding(
+                "malformed_record",
+                f"Cannot rebuild the sample's events: {_first_error(ex)}",
+                attempt_key,
+            )
+            continue
         compared += 1
         if difference is not None:
             finding(
@@ -481,7 +492,7 @@ def _record_type(
             return None
 
 
-def _first_error(ex: ValueError) -> str:
+def _first_error(ex: Exception) -> str:
     if isinstance(ex, ValidationError):
         error = ex.errors()[0]
         location = ".".join(map(str, error["loc"]))

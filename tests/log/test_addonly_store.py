@@ -65,7 +65,12 @@ from inspect_ai.log._addonly._validate import (
 )
 from inspect_ai.log._addonly._writer import EvalRecordWriter
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
-from inspect_ai.log._recorders.buffer.types import BufferEventRow, BufferRows
+from inspect_ai.log._recorders.buffer.types import (
+    BufferAttachmentRow,
+    BufferEventRow,
+    BufferPoolRow,
+    BufferRows,
+)
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model import (
     ChatMessage,
@@ -781,6 +786,62 @@ def test_malformed_record(
     assert_fails_with(result, "malformed_record")
     assert f"malformed_record {key}:" in result.output
     assert ": :" not in result.output
+
+
+@pytest.mark.parametrize(
+    "table,key",
+    [
+        ("message_pool", "new"),
+        ("call_pool", "new"),
+        ("message_pool", "stored"),
+        ("call_pool", "stored"),
+        ("attachments", "stored"),
+    ],
+)
+def test_malformed_buffer_row(
+    clean_run: CleanRun, validate_cli: ValidateCli, table: str, key: str
+) -> None:
+    """A record with a pool row whose data is not JSON, or a row with a key already stored.
+
+    The record parses; the sample rebuild reads the rows. Another eval under
+    the prefix is still checked.
+    """
+    records = [
+        SampleRecord.model_validate_json(clean_run.read(clean_run.sample_key(i)))
+        for i in range(1, clean_run.records() + 1)
+    ]
+    stored = _rebuild_rows(records)
+    row_key = (
+        "new-key"
+        if key == "new"
+        else stored.attachments[0].hash
+        if table == "attachments"
+        else getattr(stored, table)[0].key
+    )
+    pool_row = [BufferPoolRow(key=row_key, data="not json")]
+    rows = (
+        BufferRows(attachments=[BufferAttachmentRow(hash=row_key, content="x")])
+        if table == "attachments"
+        else BufferRows(message_pool=pool_row)
+        if table == "message_pool"
+        else BufferRows(call_pool=pool_row)
+    )
+    seq = len(records) + 1
+    forged = SampleRecord(
+        eval_id=clean_run.eval_id,
+        nonce=FORGED_NONCE,
+        sample=SampleAttemptRef(sample_id="s0", epoch=1, attempt=1),
+        seq=seq,
+        rows=rows,
+    )
+    clean_run.put(clean_run.sample_key(seq), forged.model_dump_json())
+    other = run(agent_task(samples=1), clean_run.log_dir)
+    assert other.status == "success", other.error
+
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "nonce", "record_count", "malformed_record")
+    assert f"malformed_record {clean_run.eval_id}/s0.1/1:" in result.output
+    assert "2 eval(s), 1 sample(s) compared" in result.output
 
 
 def test_forged_attempt(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
