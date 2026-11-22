@@ -516,8 +516,10 @@ def test_swap_eval_file_keep_eval_id(
     other.eval.eval_id = clean_run.eval_id
     write_eval_log(other, clean_run.location)
     result = validate_cli(clean_run.store, clean_run.log_dir)
-    # the other run's header (stats: its own start and end times) and events
-    assert_fails_with(result, "eval_mismatch", "event_mismatch")
+    # the other run's events; its stats differ too (start and end times, in
+    # whole seconds) unless both runs fell in the same seconds
+    assert result.exit_code != 0, result.output
+    assert result.kinds() - {"eval_mismatch"} == {"event_mismatch"}, result.output
 
 
 def test_extra_eval_file(
