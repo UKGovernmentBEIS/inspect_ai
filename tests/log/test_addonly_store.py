@@ -1114,7 +1114,17 @@ def test_forged_event_without_uuid(
     )
 
 
-@pytest.mark.parametrize("kind", ["not_json", "bad_event", "odd_key", "wrong_type"])
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "not_json",
+        "bad_event",
+        "odd_key",
+        "wrong_type",
+        "bad_attempt_closing",
+        "bad_attempt_record",
+    ],
+)
 def test_malformed_record(
     clean_run: CleanRun, validate_cli: ValidateCli, kind: str
 ) -> None:
@@ -1132,6 +1142,12 @@ def test_malformed_record(
             body = clean_run.forged_record(seq, {"uuid": "u", "event": "info"})
         case "odd_key":
             key = f"{clean_run.eval_id}/s0.1/x"
+            body = clean_run.forged_record(seq)
+        case "bad_attempt_closing":
+            key = f"{clean_run.eval_id}/s0.1/bad/{CLOSING}"
+            body = clean_run.read(clean_run.sample_key(CLOSING)).decode()
+        case "bad_attempt_record":
+            key = f"{clean_run.eval_id}/s0.1/bad/{seq}"
             body = clean_run.forged_record(seq)
         case _:
             key = clean_run.sample_key(CLOSING, attempt=2)

@@ -614,9 +614,9 @@ def _record_type(
             return StartRecord
         case [_, "closing"]:
             return EvalClosingRecord
-        case [_, _, _, "closing"]:
+        case [_, _, attempt, "closing"] if attempt.isdecimal():
             return SampleClosingRecord
-        case [_, _, _, seq] if seq.isdigit():
+        case [_, _, attempt, seq] if attempt.isdecimal() and seq.isdigit():
             return SampleRecord
         case _:
             return None
