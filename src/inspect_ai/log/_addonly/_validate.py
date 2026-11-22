@@ -368,9 +368,9 @@ def _validate_eval(
         header = read_eval_log(eval_file, header_only=True).model_dump(
             mode="json", include=fields
         )
-        stored = eval_closing.model_dump(mode="json", include=fields)
+        closing_fields = eval_closing.model_dump(mode="json", include=fields)
         if changed := sorted(
-            f for f in fields if not _same_json(header.get(f), stored.get(f))
+            f for f in fields if not _same_json(header.get(f), closing_fields.get(f))
         ):
             finding(
                 "eval_mismatch",

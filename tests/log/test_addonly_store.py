@@ -261,9 +261,9 @@ def test_plain_eval_validates(
         "Checked against the add-only store: each sample's events and scores, "
         "which samples the .eval files have, and each eval's status, stats and "
         "results.\n"
-        "Not checked: the eval spec, plan, error, reductions, tags and metadata; "
-        "each sample's messages, output, input, target, metadata, store, error, "
-        "usage and times; and what the sample summaries say.\n"
+        "Not checked: everything else, including the eval spec and plan, each "
+        "sample's messages, output and error, what the sample summaries say, "
+        "invalidation and log_updates.\n"
         "A pass does not show that the run was honest.\n"
     ), result.output
     # --verbose lists the start record, the sample's records and both closings
@@ -929,7 +929,9 @@ def test_overwrite_record(clean_run: CleanRun, validate_cli: ValidateCli) -> Non
 
     The eval host puts without If-None-Match. On real S3 the bucket policy
     refuses that put; moto does not enforce it, so a second version is added,
-    in the same second as the first. The validator reads the earliest version.
+    usually in a later second than the first (the same second is
+    `test_overwrite_in_same_second_reads_earliest`). The validator reads the
+    earliest version.
     """
     tool_seq, tool_event = next(
         (i, e)
@@ -1021,8 +1023,10 @@ def test_delete_marker(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
 
 
 # Records removed for good. Real S3 refuses this to everyone under COMPLIANCE
-# retention, but a host that stops writing early leaves the same store. moto
-# lets the admin shorten the retention and delete, so these tests use that.
+# retention. moto lets the admin shorten the retention and delete, so these
+# tests use that. A host that stops writing early leaves a store like
+# `remove_sample_closing` or `remove_eval_closing`; `remove_last_record` keeps
+# both closing records, which such a host does not write.
 
 
 def test_remove_sample_closing(clean_run: CleanRun, validate_cli: ValidateCli) -> None:

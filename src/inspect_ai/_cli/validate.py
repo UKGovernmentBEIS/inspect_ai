@@ -50,9 +50,9 @@ def validate_command(log_dir: str, store: str, verbose: bool) -> None:
 CHECKED = (
     "Checked against the add-only store: each sample's events and scores, which "
     "samples the .eval files have, and each eval's status, stats and results.\n"
-    "Not checked: the eval spec, plan, error, reductions, tags and metadata; "
-    "each sample's messages, output, input, target, metadata, store, error, "
-    "usage and times; and what the sample summaries say.\n"
+    "Not checked: everything else, including the eval spec and plan, each "
+    "sample's messages, output and error, what the sample summaries say, "
+    "invalidation and log_updates.\n"
     "A pass does not show that the run was honest."
 )
 """What a pass covers (see ``_validate.py``: events through the buffer
