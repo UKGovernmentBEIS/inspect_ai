@@ -366,7 +366,9 @@ def _validate_eval(
             mode="json", include=fields
         )
         stored = eval_closing.model_dump(mode="json", include=fields)
-        if changed := sorted(f for f in fields if header.get(f) != stored.get(f)):
+        if changed := sorted(
+            f for f in fields if not _same_json(header.get(f), stored.get(f))
+        ):
             finding(
                 "eval_mismatch",
                 f"The .eval file's {changed} differ from the eval closing record's.",
@@ -423,8 +425,18 @@ def _changed_keys(
         for key in lhs.keys() | rhs.keys()
         if key not in lhs
         or key not in rhs
-        or lhs[key].model_dump(mode="json") != rhs[key].model_dump(mode="json")
+        or not _same_json(
+            lhs[key].model_dump(mode="json"), rhs[key].model_dump(mode="json")
+        )
     )
+
+
+def _same_json(lhs: Any, rhs: Any) -> bool:
+    """Whether two JSON values are the same JSON text.
+
+    Unlike ``==``, NaN equals NaN, and 1, 1.0 and true differ.
+    """
+    return json.dumps(lhs, sort_keys=True) == json.dumps(rhs, sort_keys=True)
 
 
 def _eval_file_samples(eval_file: str) -> set[str]:
@@ -538,9 +550,11 @@ def _compare_events(logged: EvalSample, records: list[SampleRecord]) -> str | No
     logged_events = [e.model_dump(mode="json") for e in logged.events]
     stored_events = [e.model_dump(mode="json") for e in rebuilt.events]
     for index, (lhs, rhs) in enumerate(zip(logged_events, stored_events)):
-        if lhs != rhs:
+        if not _same_json(lhs, rhs):
             fields = sorted(
-                k for k in lhs.keys() | rhs.keys() if lhs.get(k) != rhs.get(k)
+                k
+                for k in lhs.keys() | rhs.keys()
+                if not _same_json(lhs.get(k), rhs.get(k))
             )
             versions = sum(
                 row.event_id == rhs.get("uuid")

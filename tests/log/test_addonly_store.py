@@ -41,7 +41,7 @@ from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
-from inspect_ai.event import Event, InfoEvent, ToolEvent
+from inspect_ai.event import Event, InfoEvent, ScoreEvent, ToolEvent
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log, write_eval_log
 from inspect_ai.log._addonly import ADDONLY_STORE_ENV
 from inspect_ai.log._addonly._records import (
@@ -83,7 +83,7 @@ from inspect_ai.model._stream import (
     report_model_stream_delta,
     report_model_stream_start,
 )
-from inspect_ai.scorer import includes
+from inspect_ai.scorer import Score, Scorer, Target, includes, mean, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool import Tool, ToolChoice, ToolInfo, tool
 
@@ -355,6 +355,46 @@ def test_streaming_eval_validates(evalhost_env: MotoStore, tmp_path: Path) -> No
     assert any(e.get("pending") and e["output"]["choices"] for e in model_rows)
 
 
+@scorer(metrics=[mean()])
+def nan_score() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=float("nan"))
+
+    return score
+
+
+@scorer(metrics=[mean()])
+def one_score() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=1)
+
+    return score
+
+
+def numeric_score_run(log_dir: Path) -> EvalLog:
+    log = eval(
+        Task(dataset=[Sample(input="hi")], scorer=[nan_score(), one_score()]),
+        model="mockllm/model",
+        log_dir=str(log_dir),
+        display="none",
+    )[0]
+    assert log.status == "success", log.error
+    return log
+
+
+def test_nan_score_validates(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """A NaN score and metric match the store (NaN equals NaN in JSON text)."""
+    log = numeric_score_run(tmp_path)
+    assert log.results
+    assert any(m.value != m.value for m in log.results.scores[0].metrics.values())
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
+
+
 class StreamingMockLLM(MockLLM):
     async def generate(
         self,
@@ -578,6 +618,36 @@ def test_edit_score(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
     result = validate_cli(clean_run.store, clean_run.log_dir)
     assert_fails_with(result, "score_mismatch")
     assert "score_mismatch " in result.output and "'includes'" in result.output
+
+
+def test_edit_score_one_to_true(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """A score value 1 changed to true, in the sample scores and the score event.
+
+    1 == True in Python; in JSON they differ.
+    """
+    log = numeric_score_run(tmp_path)
+    assert validate(evalhost_env, tmp_path).findings == []
+    log = read_eval_log(log.location)
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.scores
+    sample.scores["one_score"].value = True
+    score_event = next(
+        e
+        for e in sample.events
+        if isinstance(e, ScoreEvent)
+        and e.score.value == 1
+        and e.score.value is not True
+    )
+    score_event.score.value = True
+    write_eval_log(log, log.location)
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert_fails_with(result, "score_mismatch", "event_mismatch")
+    assert "Scores ['one_score'] differ" in result.output
+    assert "differs in ['score']" in result.output
 
 
 def test_edit_results(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
