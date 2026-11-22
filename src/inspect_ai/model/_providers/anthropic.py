@@ -2075,8 +2075,17 @@ class AnthropicAPI(ModelAPI):
         return self.model_name.replace(f"{self.service}/", "", 1)
 
     def canonical_name(self) -> str:
-        """Canonical model name for model info database lookup."""
-        return f"anthropic/{self.service_model_name()}"
+        """Canonical model name for model info database lookup.
+
+        On Bedrock the cross-region inference profile prefix (us., global.,
+        ...) is dropped: the database keys Bedrock ids as `anthropic.claude-...`.
+        """
+        name = self.service_model_name()
+        if self.is_bedrock():
+            from ._litellm_proxy_names import strip_bedrock_cross_region
+
+            name = strip_bedrock_cross_region(name)
+        return f"anthropic/{name}"
 
     def input_tokens_name(self) -> str:
         """Model name used for looking up model input tokens."""
