@@ -529,7 +529,8 @@ class BedrockAPI(ModelAPI):
         """Canonical model name for model info database lookup.
 
         Bedrock model names use the format: provider.model-name-version:variant
-        e.g., anthropic.claude-3-5-sonnet-20241022-v2:0
+        e.g., anthropic.claude-3-5-sonnet-20241022-v2:0, optionally with a
+        cross-region inference profile prefix (us., eu., global., ...)
 
         Returns the canonical format: provider/model-name
         e.g., anthropic/claude-3-5-sonnet-20241022
@@ -540,16 +541,9 @@ class BedrockAPI(ModelAPI):
     def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
         # a prompt router serves a request with one of its models, reported
         # as the output model (see model_output_from_response)
-        from ._litellm_proxy_names import BEDROCK_CROSS_REGIONS
-
         if output.usage is None or output.model == self.model_name:
             return None
-        # routers invoke cross-region inference profiles (e.g.
-        # `.../inference-profile/us.amazon.nova-lite-v1:0`)
         model_id = output.model.split("/")[-1]
-        region, dot, rest = model_id.partition(".")
-        if dot and region in BEDROCK_CROSS_REGIONS:
-            model_id = rest
         return [ServedModelUsage(_bedrock_canonical_name(model_id), output.usage)]
 
     @override
@@ -1359,7 +1353,10 @@ def add_cache_points(
 
 def _bedrock_canonical_name(name: str) -> str:
     """Model info database name for a Bedrock model id."""
+    from ._litellm_proxy_names import strip_bedrock_cross_region
+
     provider: str | None = None
+    name = strip_bedrock_cross_region(name)
 
     # Extract provider prefix (e.g., "anthropic." or "meta.")
     if "." in name:
