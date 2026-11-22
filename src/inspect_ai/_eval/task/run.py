@@ -347,7 +347,7 @@ class EvalSampleSource(NamedTuple):
     log): the attempt's own `created` is made later than it, which keeps
     generated sample ids from repeating (see `dynamic_id_token`).
     `prior_eval_id` is the prior log's eval id: the eval a reused sample
-    comes from (the add-only store lists it with the sample).
+    comes from (the add-only store's start record holds it).
     """
 
     lookup: SampleLookup
@@ -1401,7 +1401,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         # that the log is initialized)
         eval_plan = plan_to_eval_plan(plan, generate_config)
         try:
-            await logger.log_start(eval_plan)
+            await logger.log_start(
+                eval_plan, sample_source.prior_eval_id if sample_source else None
+            )
         except anyio.get_cancelled_exc_class():
             # the dispatcher reports the task's own abort/retry here as an
             # errored attempt and moves on, so show the task as finished
@@ -1726,10 +1728,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
                     if isinstance(previous_sample, EvalSample):
                         reporter.progress()
-                        if logger.addonly is not None:
-                            logger.addonly.note_reused(
-                                previous_sample.id, previous_sample.epoch
-                            )
                         if logger.prior_seeded:
                             logger.note_reused_sample(previous_sample)
                         elif log_samples:

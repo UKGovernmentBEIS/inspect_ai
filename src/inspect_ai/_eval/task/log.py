@@ -234,7 +234,6 @@ class TaskLogger:
         dynamic_dataset: bool = False,
         prior_created: str | None = None,
         tamper_evident_store: str | None = None,
-        prior_eval_id: str | None = None,
     ) -> None:
         packages = {
             PKG_NAME: importlib_metadata.version(PKG_NAME),
@@ -338,7 +337,6 @@ class TaskLogger:
         self.recorder = recorder
         # the prior log's `eval.created`, which this attempt's must follow
         self._prior_created = prior_created
-        self._prior_eval_id = prior_eval_id
         self._tamper_evident_store = (
             StoreLocation.parse(tamper_evident_store) if tamper_evident_store else None
         )
@@ -718,14 +716,20 @@ class TaskLogger:
         """
         self._record_sample_outcome(sample)
 
-    async def log_start(self, plan: EvalPlan) -> None:
-        await self._start_addonly(plan)
+    async def log_start(self, plan: EvalPlan, prior_eval_id: str | None = None) -> None:
+        """Start the log.
+
+        Args:
+           plan: The eval plan.
+           prior_eval_id: The eval a retry reuses samples from.
+        """
+        await self._start_addonly(plan, prior_eval_id)
         await self.recorder.log_start(self.eval, plan)
         # the first destination write: for a seeded retry attempt it already
         # carries the complete prior sample set
         await self.recorder.flush(self.eval)
 
-    async def _start_addonly(self, plan: EvalPlan) -> None:
+    async def _start_addonly(self, plan: EvalPlan, prior_eval_id: str | None) -> None:
         """Start the eval's add-only store records, when a store is configured."""
         location = self._tamper_evident_store
         if location is None:
@@ -735,7 +739,7 @@ class TaskLogger:
                 "Writing to an add-only store requires log_realtime (the sample buffer)."
             )
         self.addonly = await EvalRecordWriter.start(
-            location, self.eval, plan, self._prior_eval_id
+            location, self.eval, plan, prior_eval_id
         )
 
     async def start_sample(self, sample: EvalSampleSummary) -> None:

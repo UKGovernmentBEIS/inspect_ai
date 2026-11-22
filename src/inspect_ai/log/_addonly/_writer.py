@@ -21,7 +21,6 @@ from ._records import (
     CLOSING,
     START,
     EvalClosingRecord,
-    ReusedSampleRef,
     SampleAttemptRef,
     SampleClosingRecord,
     SampleRecord,
@@ -37,19 +36,11 @@ def _body(record: BaseModel) -> bytes:
 class EvalRecordWriter:
     """One eval's writes. Holds the eval's nonce, which exists only in memory."""
 
-    def __init__(
-        self,
-        store: AddOnlyStore,
-        eval_id: str,
-        nonce: str,
-        prior_eval_id: str | None = None,
-    ) -> None:
+    def __init__(self, store: AddOnlyStore, eval_id: str, nonce: str) -> None:
         self.store = store
         self.eval_id = eval_id
         self.nonce = nonce
-        self.prior_eval_id = prior_eval_id
         self._attempts: list[SampleAttemptRef] = []
-        self._reused: list[ReusedSampleRef] = []
 
     @classmethod
     async def start(
@@ -61,19 +52,18 @@ class EvalRecordWriter:
     ) -> "EvalRecordWriter":
         """Write the start record and check the store's settings.
 
-        ``prior_eval_id`` is the eval an eval retry reuses samples from.
+        ``prior_eval_id`` is the eval a retry reuses samples from.
         """
-        writer = cls(
-            AddOnlyStore(location),
-            eval.eval_id,
-            secrets.token_hex(32),
-            prior_eval_id,
-        )
+        writer = cls(AddOnlyStore(location), eval.eval_id, secrets.token_hex(32))
         await writer.store.put_start_and_check(
             f"{eval.eval_id}/{START}",
             _body(
                 StartRecord(
-                    eval_id=eval.eval_id, nonce=writer.nonce, eval=eval, plan=plan
+                    eval_id=eval.eval_id,
+                    nonce=writer.nonce,
+                    eval=eval,
+                    plan=plan,
+                    prior_eval_id=prior_eval_id,
                 )
             ),
         )
@@ -90,15 +80,6 @@ class EvalRecordWriter:
         self._attempts.append(ref)
         return SampleRecordWriter(self, buffer_db, ref)
 
-    def note_reused(self, sample_id: str | int, epoch: int) -> None:
-        """The eval reused this sample from the prior eval, so it writes no records of it."""
-        assert self.prior_eval_id is not None
-        self._reused.append(
-            ReusedSampleRef(
-                sample_id=sample_id, epoch=epoch, eval_id=self.prior_eval_id
-            )
-        )
-
     async def close(
         self, status: EvalStatus, stats: EvalStats, results: EvalResults | None
     ) -> None:
@@ -112,7 +93,6 @@ class EvalRecordWriter:
                     stats=stats,
                     results=results,
                     samples=self._attempts,
-                    reused=self._reused,
                 )
             ),
         )

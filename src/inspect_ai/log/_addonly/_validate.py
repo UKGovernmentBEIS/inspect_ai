@@ -116,8 +116,8 @@ class _StoredEval(NamedTuple):
     """``<sample-id>.<epoch>`` of every attempt in the store."""
     final_attempts: dict[str, _FinalAttempt]
     """The last closed attempt of each sample, by ``<sample-id>.<epoch>``."""
-    reused: dict[str, str]
-    """Earlier eval id of each sample the eval reused, by ``<sample-id>.<epoch>``."""
+    prior_eval_id: str | None
+    """The eval a retry reuses samples from (the start record's)."""
 
 
 class _Version(NamedTuple):
@@ -322,7 +322,7 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
     start = stored.get(f"{eval_id}/{START}")
     if start is None:
         finding("missing_start", "No start record.")
-        return _StoredEval(findings, retried, False, None, set(), {}, {})
+        return _StoredEval(findings, retried, False, None, set(), {}, None)
     assert isinstance(start, StartRecord)
     nonce = start.nonce
 
@@ -392,10 +392,7 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
         eval_closing,
         {sample_part for sample_part, _ in attempts},
         final_attempts,
-        {
-            sample_key_part(r.sample_id, r.epoch): r.eval_id
-            for r in (eval_closing.reused if eval_closing else [])
-        },
+        start.prior_eval_id,
     )
 
 
@@ -409,8 +406,8 @@ def _compare_eval_file(
 ) -> _Compared:
     """Compare the eval's .eval file with its records.
 
-    A sample that an eval retry reused is compared with the records of the
-    eval that ran it.
+    A .eval sample with no records of its own is one a retry reused: it is
+    compared with the records of the earlier eval that ran it.
     """
     findings: list[Finding] = []
 
@@ -438,27 +435,23 @@ def _compare_eval_file(
                 f"The .eval file's {changed} differ from the eval closing record's.",
             )
 
-    for sample_part in sorted(
-        _eval_file_samples(eval_file) - stored.sample_parts - stored.reused.keys()
-    ):
-        finding(
-            "unstored_sample",
-            "In the .eval file, with no records in the store.",
-            f"{eval_id}/{sample_part}",
-        )
-
     # (key for findings, note for messages, closing, records)
     to_compare: list[tuple[str, str, SampleClosingRecord, list[SampleRecord]]] = [
         (f"{eval_id}/{sample_part}/{closing.sample.attempt}", "", closing, records)
         for sample_part, (closing, records) in stored.final_attempts.items()
     ]
-    for sample_part, earlier_id in sorted(stored.reused.items()):
-        earlier = _earlier_attempt(evals, earlier_id, sample_part)
+    for sample_part in sorted(_eval_file_samples(eval_file) - stored.sample_parts):
+        earlier = _earlier_attempt(evals, stored.prior_eval_id, sample_part)
         if earlier is None:
             finding(
                 "unstored_sample",
-                f"Reused from {earlier_id}, which has no closed attempt of it "
-                "in the store.",
+                "In the .eval file, with no records in the store"
+                + (
+                    f", and no closed attempt in the prior eval "
+                    f"{stored.prior_eval_id} or the evals it reused from."
+                    if stored.prior_eval_id
+                    else "."
+                ),
                 f"{eval_id}/{sample_part}",
             )
             continue
@@ -511,22 +504,23 @@ def _compare_eval_file(
 
 
 def _earlier_attempt(
-    evals: Mapping[str, _StoredEval], eval_id: str, sample_part: str
+    evals: Mapping[str, _StoredEval], eval_id: str | None, sample_part: str
 ) -> tuple[str, SampleClosingRecord, list[SampleRecord]] | None:
     """The eval that ran a reused sample, and its last closed attempt.
 
-    Follows each eval's reused list, since a retry of a retry reuses the
-    sample from the first retry, which reused it in turn.
+    Follows the start records' prior eval ids, since a retry of a retry
+    reuses the sample from the first retry, which reused it in turn. An eval
+    with records of the sample ran it, so the search stops there.
     """
     seen: set[str] = set()
-    while eval_id in evals and eval_id not in seen:
+    while eval_id is not None and eval_id in evals and eval_id not in seen:
         seen.add(eval_id)
         stored = evals[eval_id]
         if sample_part in stored.final_attempts:
             return (eval_id, *stored.final_attempts[sample_part])
-        if sample_part not in stored.reused:
+        if sample_part in stored.sample_parts:
             return None
-        eval_id = stored.reused[sample_part]
+        eval_id = stored.prior_eval_id
     return None
 
 

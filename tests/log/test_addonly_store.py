@@ -38,7 +38,7 @@ from test_helpers.addonly_moto import (
     moto_addonly_store,
 )
 
-from inspect_ai import Task, eval, eval_retry, task
+from inspect_ai import Task, eval, eval_retry, eval_set, task
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent import react
@@ -522,9 +522,9 @@ def test_eval_retry_validates(
 ) -> None:
     """eval_retry twice: s0 fails twice, s1 is reused from the first eval each time.
 
-    Each retry's eval closing record lists s1 with the eval its .eval sample
-    came from; the second retry's points to the first retry, which points
-    to the first eval, where the records are.
+    s1 has no records under either retry. Each retry's start record names
+    the eval it reused samples from; the second retry's names the first
+    retry, whose own names the first eval, where the records are.
     """
     log = retried_task_run(evalhost_env, tmp_path, s0_failures=2)
     for status in ["error", "success"]:
@@ -540,6 +540,56 @@ def test_eval_retry_validates(
     assert result.exit_code == 0, result.output
     assert result.findings() == []
     assert "3 eval(s), 6 sample(s) compared, 0 finding(s)." in result.output
+
+
+def test_task_retry_attempts_validates(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """task_retry_attempts: the second eval reuses s1 from the first."""
+    failures = tmp_path / "failures.json"
+    failures.write_text(json.dumps({"s0": 1}))
+    log_dir = tmp_path / "logs"
+    log = eval(
+        retried_task(str(failures)),
+        model="mockllm/model",
+        log_dir=str(log_dir),
+        display="none",
+        max_samples=1,
+        task_retry_attempts=1,
+        tamper_evident_store=evalhost_env.url,
+    )[0]
+    assert log.status == "success", log.error
+
+    result = validate_cli(evalhost_env, log_dir)
+    assert result.exit_code == 0, result.output
+    assert "2 eval(s), 4 sample(s) compared, 0 finding(s)." in result.output
+
+
+def test_eval_set_retry_validates(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """eval_set retry: the second eval reuses s1 from the first.
+
+    retry_cleanup=False keeps the failed attempt's .eval file.
+    """
+    failures = tmp_path / "failures.json"
+    failures.write_text(json.dumps({"s0": 1}))
+    log_dir = tmp_path / "logs"
+    success, logs = eval_set(
+        retried_task(str(failures)),
+        log_dir=str(log_dir),
+        model="mockllm/model",
+        display="none",
+        max_samples=1,
+        retry_attempts=1,
+        retry_cleanup=False,
+        tamper_evident_store=evalhost_env.url,
+    )
+    assert success, logs[0].error
+
+    result = validate_cli(evalhost_env, log_dir)
+    assert result.exit_code == 0, result.output
+    assert "2 eval(s), 4 sample(s) compared, 0 finding(s)." in result.output
 
 
 def test_edit_reused_sample(
@@ -567,6 +617,33 @@ def test_edit_reused_sample(
     assert_fails_with(result, "event_mismatch")
     assert f"event_mismatch {retry.eval.eval_id}/s1.1:" in result.output
     assert f"reused from {log.eval.eval_id}" in result.output
+
+
+def test_add_sample_to_retry(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """A sample added to a retry's .eval: no eval in the chain ran it."""
+    log = retried_task_run(evalhost_env, tmp_path, s0_failures=1)
+    retry = eval_retry(
+        log,
+        log_dir=str(tmp_path),
+        display="none",
+        tamper_evident_store=evalhost_env.url,
+    )[0]
+    assert retry.status == "success", retry.error
+
+    retry = read_eval_log(retry.location)
+    assert retry.samples
+    added = next(s for s in retry.samples if s.id == "s1").model_copy(
+        update={"id": "s2"}
+    )
+    retry.samples.append(added)
+    write_eval_log(retry, retry.location)
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert_fails_with(result, "unstored_sample")
+    assert f"unstored_sample {retry.eval.eval_id}/s2.1:" in result.output
+    assert f"prior eval {log.eval.eval_id}" in result.output
 
 
 class StreamingMockLLM(MockLLM):

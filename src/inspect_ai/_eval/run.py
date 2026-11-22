@@ -466,9 +466,6 @@ async def eval_run(
                     prior_created=resolved_task.sample_source.prior_created
                     if resolved_task.sample_source is not None
                     else None,
-                    prior_eval_id=resolved_task.sample_source.prior_eval_id
-                    if resolved_task.sample_source is not None
-                    else None,
                 )
                 await logger.init()
 
