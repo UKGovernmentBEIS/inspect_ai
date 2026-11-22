@@ -2513,8 +2513,10 @@ def test_sample_source_retry_filters_prior_payloads_before_publication(
                 name for name in archive.namelist() if name.startswith("samples/")
             } == {f"samples/{selected_id}_epoch_1.json"}
 
-    async def check_start(logger: TaskLogger, plan: EvalPlan) -> None:
-        await start(logger, plan)
+    async def check_start(
+        logger: TaskLogger, plan: EvalPlan, prior_eval_id: str | None = None
+    ) -> None:
+        await start(logger, plan, prior_eval_id)
         assert logger.prior_seeded
         check_snapshot(logger.location)
         snapshots.append(logger.location)
@@ -2633,8 +2635,10 @@ def test_sample_source_retry_applies_limit_and_epochs_before_publication(
                 }
                 assert bodies <= {f"samples/{id}_epoch_1.json" for id in expected_ids}
 
-    async def check_start(logger: TaskLogger, plan: EvalPlan) -> None:
-        await start(logger, plan)
+    async def check_start(
+        logger: TaskLogger, plan: EvalPlan, prior_eval_id: str | None = None
+    ) -> None:
+        await start(logger, plan, prior_eval_id)
         assert logger.prior_seeded
         check_snapshot(logger.location)
         snapshots.append(logger.location)
