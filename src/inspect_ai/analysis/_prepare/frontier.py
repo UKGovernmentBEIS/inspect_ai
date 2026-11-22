@@ -11,7 +11,7 @@ def frontier(
 ) -> Operation:
     """Add a frontier column to an eval data frame.
 
-    Tranform operation to add a frontier column to a data frame based using a task, release date, and score.
+    Transform operation to add a frontier column to a data frame based using a task, release date, and score.
 
     The frontier column will be True if the model was the top-scoring model on the task among all models available at the moment the model was released; otherwise it will be False.
 
