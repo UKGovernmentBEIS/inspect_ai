@@ -689,6 +689,7 @@ def test_malformed_record(
     result = validate_cli(clean_run.store, clean_run.log_dir)
     assert_fails_with(result, "malformed_record")
     assert f"malformed_record {key}:" in result.output
+    assert ": :" not in result.output
 
 
 def test_forged_attempt(clean_run: CleanRun, validate_cli: ValidateCli) -> None:

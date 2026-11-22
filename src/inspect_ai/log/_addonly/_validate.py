@@ -469,7 +469,8 @@ def _record_type(
 def _first_error(ex: ValueError) -> str:
     if isinstance(ex, ValidationError):
         error = ex.errors()[0]
-        return f"{'.'.join(map(str, error['loc']))}: {error['msg']}"
+        location = ".".join(map(str, error["loc"]))
+        return f"{location}: {error['msg']}" if location else error["msg"]
     return str(ex)
 
 
