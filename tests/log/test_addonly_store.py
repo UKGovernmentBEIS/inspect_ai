@@ -1313,6 +1313,31 @@ def test_forged_eval(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
     assert f"missing_eval_file {forged_id}:" in result.output
 
 
+def test_eval_names_itself_as_prior(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """An eval whose start record names itself does not hide its deleted .eval file."""
+    forged_id = "forged" + clean_run.eval_id[6:]
+    for key in [
+        *[f"s0.1/1/{i}" for i in range(1, clean_run.records() + 1)],
+        "s0.1/1/closing",
+        "closing",
+    ]:
+        body = clean_run.read(f"{clean_run.eval_id}/{key}").decode()
+        clean_run.put(f"{forged_id}/{key}", body.replace(clean_run.eval_id, forged_id))
+    start = StartRecord.model_validate_json(
+        clean_run.read(f"{clean_run.eval_id}/start")
+    )
+    start.eval_id = forged_id
+    start.prior_eval_id = forged_id
+    clean_run.put(f"{forged_id}/start", start.model_dump_json())
+
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "missing_eval_file")
+    assert f"missing_eval_file {forged_id}:" in result.output
+    assert "prior_without_file" not in result.output
+
+
 def test_forged_eval_without_start(
     clean_run: CleanRun, validate_cli: ValidateCli
 ) -> None:
