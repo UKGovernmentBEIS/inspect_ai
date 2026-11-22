@@ -23,6 +23,7 @@ from inspect_ai.log._file import (
     list_eval_logs,
     read_eval_log,
     read_eval_log_sample,
+    read_eval_log_sample_summaries,
 )
 from inspect_ai.log._log import EvalSample
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
@@ -60,6 +61,7 @@ FindingKind = Literal[
     "malformed_record",
     "unstored_eval",
     "duplicate_eval_file",
+    "unstored_sample",
 ]
 
 
@@ -351,6 +353,14 @@ def _validate_eval(
         finding("missing_eval_file", "No .eval file in the log dir has this eval id.")
         return findings, 0
 
+    stored_samples = {sample_part for sample_part, _ in attempts}
+    for sample_part in sorted(_eval_file_samples(eval_file) - stored_samples):
+        finding(
+            "unstored_sample",
+            "In the .eval file, with no records in the store.",
+            f"{eval_id}/{sample_part}",
+        )
+
     compared = 0
     for ref, sample_records in final_attempts.values():
         try:
@@ -372,6 +382,22 @@ def _validate_eval(
                 f"{eval_id}/{sample_key_part(ref.sample_id, ref.epoch)}/{ref.attempt}",
             )
     return findings, compared
+
+
+def _eval_file_samples(eval_file: str) -> set[str]:
+    """``<sample-id>.<epoch>`` of each sample in the .eval file.
+
+    From the sample summaries (which the viewer lists) and the samples
+    themselves (which a full read returns), since an edit can add to one only.
+    """
+    summaries = read_eval_log_sample_summaries(eval_file)
+    samples = read_eval_log(eval_file, exclude_fields=_SAMPLE_BODY).samples or []
+    return {sample_key_part(s.id, s.epoch) for s in summaries} | {
+        sample_key_part(s.id, s.epoch) for s in samples
+    }
+
+
+_SAMPLE_BODY = {"events", "messages", "attachments", "events_data", "store"}
 
 
 def _record_type(

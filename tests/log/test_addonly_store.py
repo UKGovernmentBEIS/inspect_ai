@@ -534,6 +534,27 @@ def test_duplicate_eval_id(clean_run: CleanRun, validate_cli: ValidateCli) -> No
     assert f"duplicate_eval_file {clean_run.eval_id}:" in result.output
 
 
+@pytest.mark.parametrize("how", ["log_api", "zip_entry_only"])
+def test_add_sample(clean_run: CleanRun, validate_cli: ValidateCli, how: str) -> None:
+    """A sample added to the .eval file: a copy of s0 as s1.
+
+    With inspect's log API (in the summaries too), or as a zip entry only,
+    which a full read of the log returns but the summaries do not list.
+    """
+    if how == "log_api":
+        log = read_eval_log(clean_run.location)
+        assert log.samples
+        log.samples.append(log.samples[0].model_copy(update={"id": "s1"}))
+        write_eval_log(log, clean_run.location)
+    else:
+        with zipfile.ZipFile(clean_run.location, "a") as zf:
+            sample = json.loads(zf.read("samples/s0_epoch_1.json"))
+            zf.writestr("samples/s1_epoch_1.json", json.dumps({**sample, "id": "s1"}))
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "unstored_sample")
+    assert f"unstored_sample {clean_run.eval_id}/s1.1:" in result.output
+
+
 # ---------------------------------------------- tampering, add-only store
 #
 # The eval host can add keys (put with If-None-Match) and nothing else. Its
