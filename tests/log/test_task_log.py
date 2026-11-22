@@ -220,6 +220,7 @@ class _FlushBufferDB:
         self,
         summary: EvalSampleSummary,
         sample_metadata: dict[str, Any] | None = None,
+        sample_store: dict[str, Any] | None = None,
     ) -> None:
         self.completed_metadata.append(sample_metadata)
 

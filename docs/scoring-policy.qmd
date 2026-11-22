@@ -112,10 +112,14 @@ Score entries can contain a human-readable `explanation` and a machine-readable 
 | `no_response` | model under test | empty completion |
 | `grader_failed` | grader | grader could not provide a usable verdict |
 | `scoring_failed` | scorer | scorer could not provide a result |
+| `excluded` | operator | left out of the metrics after the eval; the value is `NaN` |
+| `zeroed` | operator | scored as an empty attempt after the eval |
 
 : {tbl-colwidths=[30,20,50]}
 
 The vocabulary distinguishes failures by actor: model-under-test failures use `invalid_response_format`, `refusal`, or `no_response`; grader failures use `grader_failed`; and other scorer failures use `scoring_failed`. The explanation or scorer-specific metadata can contain finer-grained details.
+
+An operator who decides after the eval that a sample should not count as the model ran it records the decision as a score edit with `excluded` or `zeroed`. An `excluded` score with a `NaN` value takes no part in epoch reduction (see [Reducing Epochs](metrics.qmd#reducing-epochs)).
 
 ## Run settings
 

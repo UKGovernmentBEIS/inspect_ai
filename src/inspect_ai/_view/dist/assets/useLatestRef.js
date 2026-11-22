@@ -1,6 +1,6 @@
 import { i as __toESM } from "./rolldown-runtime.js";
 import { n as require_react, t as require_compiler_runtime } from "./compiler-runtime.js";
-//#region ../../packages/react/src/hooks/useLatestRef.ts
+// ../../packages/react/src/hooks/useLatestRef.ts
 var import_compiler_runtime = require_compiler_runtime();
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 /**
@@ -23,7 +23,6 @@ var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 	(0, import_react.useLayoutEffect)(t0);
 	return ref;
 }
-//#endregion
 export { useLatestRef as t };
 
 //# sourceMappingURL=useLatestRef.js.map

@@ -28,11 +28,11 @@ GPT_4O_MINI_AZURE = "openai/azure/gpt-4o-mini"
 CLAUDE_4_6_SONNET = "anthropic/claude-sonnet-4-6"
 CLAUDE_4_6_OPUS = "anthropic/claude-opus-4-6"
 GEMINI_3_FLASH_PREVIEW = "google/gemini-3-flash-preview"
-MISTRAL_LARGE_LATEST = "mistral/mistral-large-latest"
+MISTRAL_LARGE_2512 = "mistral/mistral-large-2512"
 GROK_4_3 = "grok/grok-4.3"
 GROQ_LLAMA_3_3_70B_VERSATILE = "groq/llama-3.3-70b-versatile"
 CLOUDFLARE_LLAMA_3_3_70B = "cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast"
-TOGETHER_MINI_MAX_27 = "together/MiniMaxAI/MiniMax-M2.7"
+TOGETHER_MINI_MAX_3_1_FLASH = "together/MiniMaxAI/MiniMax-M3.1-Flash"
 BEDROCK_NOVA_LITE_1_0 = "bedrock/amazon.nova-lite-v1:0"
 MOONSHOT_KIMI_K3 = "moonshot/kimi-k3"
 DEEPSEEK_FLASH = "deepseek/deepseek-flash"
@@ -43,12 +43,12 @@ MODELS = {
     CLAUDE_4_6_SONNET: 1000000,
     CLAUDE_4_6_OPUS: 1000000,
     GEMINI_3_FLASH_PREVIEW: 1048576,
-    MISTRAL_LARGE_LATEST: 262144,
+    MISTRAL_LARGE_2512: 262144,
     GROK_4_3: 1000000,
     GROQ_LLAMA_3_3_70B_VERSATILE: 128000,
     # cloudflare serves this model with a reduced context window
     CLOUDFLARE_LLAMA_3_3_70B: 24000,
-    TOGETHER_MINI_MAX_27: 196000,
+    TOGETHER_MINI_MAX_3_1_FLASH: 1048576,
     BEDROCK_NOVA_LITE_1_0: 128000,
     MOONSHOT_KIMI_K3: 1048576,
     DEEPSEEK_FLASH: 1048576,
@@ -113,7 +113,7 @@ async def test_model_length_google():
 
 @skip_if_no_mistral
 async def test_model_length_mistral():
-    await check_model_length(MISTRAL_LARGE_LATEST)
+    await check_model_length(MISTRAL_LARGE_2512)
 
 
 @skip_if_no_grok
@@ -133,7 +133,7 @@ async def test_model_length_cloudflare():
 
 @skip_if_no_together
 async def test_model_length_together():
-    await check_model_length(TOGETHER_MINI_MAX_27)
+    await check_model_length(TOGETHER_MINI_MAX_3_1_FLASH)
 
 
 @skip_if_no_bedrock

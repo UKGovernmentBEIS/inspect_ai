@@ -1,3 +1,4 @@
+import time
 from random import Random
 from typing import Any, cast
 
@@ -605,6 +606,34 @@ async def test_malformed_answer_wrappers_preserve_fallback_behavior(
         messages=[ChatMessageUser(content="What's the answer?", source="input")],
     )
     new_state = await solver(state=state, generate=generate)
+    assert choices_marked_correct(new_state.choices) == expected
+
+
+@pytest.mark.parametrize(
+    ("answer", "expected"),
+    [
+        ("ANSWER:" + " " * 50_000 + "!", set()),
+        ("ANSWER: A" + " " * 50_000 + "!", {"choice 1"}),
+        ("ANSWER:" + " \t" * 50_000 + "!", set()),
+        ("$a" + " " * 50_000 + "!\nANSWER: B", {"choice 2"}),
+        ("**a" + " " * 50_000 + "!\nANSWER: B", {"choice 2"}),
+        ("ANSWER: B\nANSWER: \n", set()),
+        ("ANSWER: \nA!", set()),
+    ],
+)
+@pytest.mark.anyio
+async def test_answer_parsing_is_linear_on_long_whitespace_runs(
+    answer: str, expected: set[str]
+):
+    generate = generate_for_multiple_correct(answers=answer)
+    solver = multiple_choice()
+    state = simple_task_state(
+        choices=["choice 1", "choice 2", "choice 3"],
+        messages=[ChatMessageUser(content="What's the answer?", source="input")],
+    )
+    start = time.perf_counter()
+    new_state = await solver(state=state, generate=generate)
+    assert time.perf_counter() - start < 1.0
     assert choices_marked_correct(new_state.choices) == expected
 
 

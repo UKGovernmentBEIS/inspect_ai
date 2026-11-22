@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -34,7 +35,37 @@ from inspect_ai.util._sandbox.docker.config import (
 )
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.docker.mounts import validate_compose_mounts
-from inspect_ai.util._sandbox.docker.util import ComposeProject, task_project_name
+from inspect_ai.util._sandbox.docker.util import (
+    ComposeProject,
+    is_inspect_project,
+    task_project_name,
+)
+
+
+@pytest.mark.parametrize(
+    ("task_name", "prefix"),
+    [
+        ("gpqa_diamond_long", "gpqa_diamond"),
+        ("Mixed CASE / task", "mixed-case-t"),
+        ("task________", "task"),
+        ("", "task"),
+    ],
+)
+def test_project_name_random_suffix(task_name: str, prefix: str) -> None:
+    name = task_project_name(task_name)
+    assert re.fullmatch(rf"inspect-{prefix}-i[0-9abcdefghjkmnpqrstvwxyz]{{16}}", name)
+    assert is_inspect_project(name)
+
+
+def test_project_name_changes_for_the_same_task() -> None:
+    assert task_project_name("same-task") != task_project_name("same-task")
+
+
+@pytest.mark.parametrize(
+    "name", ["inspect-gpqa_diamond-im7d3n2", "inspect-task-ielnkhh"]
+)
+def test_project_recognition_accepts_legacy_names(name: str) -> None:
+    assert is_inspect_project(name)
 
 
 @skip_if_no_docker

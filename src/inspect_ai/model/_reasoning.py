@@ -13,6 +13,7 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
+from inspect_ai.model._internal import NotInternal, decode_internal
 
 logger = getLogger(__name__)
 
@@ -144,19 +145,30 @@ class _ThinkBlock(NamedTuple):
 
 
 def _parse_think_block(content: str) -> _ThinkBlock | None:
-    """Find the first <think/> block, returning its span and parsed capsule."""
+    """Find the first <think/> block, returning its span and parsed capsule.
+
+    A block whose `internal` attribute `decode_internal` rejects is literal
+    text (e.g. a model quoting the marker): it is skipped whole and the search
+    continues after it.
+    """
     # Match <think> tag with any attributes
     pattern = r"<think([^>]*)>(.*?)</think>"
-    match = _find_nested_think_block(content) or re.search(pattern, content, re.DOTALL)
+    offset = 0
+    while match := _find_nested_think_block(content, offset) or re.compile(
+        pattern, re.DOTALL
+    ).search(content, offset):
+        try:
+            internal = _parse_internal_attr(match.group(1))
+        except NotInternal:
+            offset = match.end()
+            continue
 
-    if match:
         attrs_str = match.group(1)
         reasoning = match.group(2).strip()
 
         # Parse attributes from opening tag
         signature = _parse_attr(attrs_str, "signature")
         redacted = _parse_attr(attrs_str, "redacted") == "true"
-        internal = _parse_internal_attr(attrs_str)
 
         # Extract nested <summary> tag from content
         reasoning, summary = _parse_summary(reasoning)
@@ -179,16 +191,17 @@ def _parse_think_block(content: str) -> _ThinkBlock | None:
                 internal=internal,
             ),
         )
-    else:
-        return None
+    return None
 
 
-def _find_nested_think_block(content: str) -> re.Match[str] | None:
+def _find_nested_think_block(content: str, offset: int = 0) -> re.Match[str] | None:
     start: int | None = None
     depth = 0
     pattern = re.compile(r"<think([^>]*)>(.*)</think>", re.DOTALL)
 
-    for match in re.finditer(r"<think([^>]*)>|</think>", content, re.DOTALL):
+    for match in re.compile(r"<think([^>]*)>|</think>", re.DOTALL).finditer(
+        content, offset
+    ):
         tag = match.group(0)
         if tag.startswith("<think"):
             if start is None:
@@ -216,16 +229,13 @@ def _parse_attr(attrs_str: str, name: str) -> str | None:
 
 
 def _parse_internal_attr(attrs_str: str) -> JsonValue | None:
-    """Extract and JSON-decode the internal attribute value (base64-encoded JSON)."""
+    """Decode the internal attribute value (base64-encoded JSON), if present.
+
+    Raises:
+        NotInternal: The attribute does not carry internal state.
+    """
     raw = _parse_attr(attrs_str, "internal")
-    if raw is None:
-        return None
-    try:
-        decoded = base64.b64decode(raw).decode("utf-8")
-        result: JsonValue = json.loads(decoded)
-        return result
-    except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
-        return None
+    return None if raw is None else decode_internal(raw)
 
 
 def _parse_summary(content: str) -> tuple[str, str | None]:

@@ -5,7 +5,8 @@ name: Release
 # since the last release, and writes their titles into CHANGELOG.md and the
 # release notes. Merging that PR tags the release and creates the GitHub
 # Release; this workflow then publishes to PyPI and npm, each behind its
-# environment's approval.
+# environment's approval. Once PyPI has the release, it announces it in Slack
+# and deploys the docs site.
 #
 # Everything runs with GITHUB_TOKEN. Releases, tags and pushes made with it
 # trigger no other workflows, so this workflow runs the publish jobs itself
@@ -222,3 +223,84 @@ jobs:
     uses: ./.github/workflows/npm-publish.yml
     with:
       tag: ${{ needs.release-please.outputs.tag }}
+
+  # Announces the release in Slack once PyPI publishing succeeds, as
+  # inspect_flow and inspect_swarm do. A re-run after PyPI already has the
+  # release (re-running all jobs, a recovery dispatch) announces it again. The
+  # shared action does nothing while the SLACK_WEBHOOK_URL secret is unset.
+  announce:
+    name: Announce in Slack
+    needs: [release-please, publish-pypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      # The tag is resolved on retries and recovery runs too, where Release
+      # Please's own outputs are empty, so the notes come from that release.
+      - name: Read the release notes
+        id: notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag }}
+        run: |
+          release="$RUNNER_TEMP/release.json"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,body > "$release"
+          url=$(jq -r .url "$release")
+          delimiter="EOF_$(openssl rand -hex 16)"
+          {
+            echo "url=$url"
+            echo "body<<$delimiter"
+            jq -r .body "$release"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: meridianlabs-ai/actions/slack-release-announce@65f1b6bdb9b1af7eb0bc89942c624dd4efef1316 # main, 2026-11-02
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          title: ":rocket: inspect-ai ${{ needs.release-please.outputs.tag }} released"
+          release-url: ${{ steps.notes.outputs.url }}
+          release-body: ${{ steps.notes.outputs.body }}
+
+  # A recovery run can finish an older release after a newer one shipped, so
+  # only the latest release deploys the docs; otherwise the site would roll
+  # back. Checked after the PyPI approval, so releases approved out of order
+  # are compared against the latest when each one is published.
+  docs-latest:
+    name: Check the release is the latest
+    needs: [release-please, publish-pypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      latest: ${{ steps.check.outputs.latest }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag }}
+        run: |
+          LATEST=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          if [ "$LATEST" = "$TAG" ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Not deploying the docs for $TAG: the latest release is $LATEST."
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Deploys the docs site at the release tag. The run's ref is main, so the
+  # shared workflow is passed the tag to render.
+  docs:
+    name: Deploy docs
+    needs: [release-please, docs-latest]
+    if: needs.docs-latest.outputs.latest == 'true'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: meridianlabs-ai/actions/.github/workflows/publish-docs.yml@b63bc2bb3cc6a615e83e27d5465cb87dd27379b9 # main, 2026-11-18
+    with:
+      tag: ${{ needs.release-please.outputs.tag }}
+      python-version: "3.11"
+      extras: doc

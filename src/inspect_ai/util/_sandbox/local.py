@@ -11,6 +11,7 @@ from ._cli import SANDBOX_CLI
 from .environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxTimeoutError,
     SandboxUserUnsupportedError,
 )
 from .limits import (
@@ -100,15 +101,25 @@ class LocalSandboxEnvironment(SandboxEnvironment):
                 self._SANDBOX_TOOLS_DIR_ENV: str(self._sandbox_tools_dir),
             }
 
-        result = await subprocess(
-            args=cmd,
-            input=input,
-            cwd=final_cwd,
-            env=final_env,
-            timeout=timeout,
-            output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
-            concurrency=concurrency,
-        )
+        try:
+            result = await subprocess(
+                args=cmd,
+                input=input,
+                cwd=final_cwd,
+                env=final_env,
+                timeout=timeout,
+                output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
+                concurrency=concurrency,
+            )
+        except TimeoutError as ex:
+            # a single timer, on the same machine as the command, which ends
+            # the command when it expires: nothing but the command's own
+            # running time can explain the expiry.
+            raise SandboxTimeoutError(
+                f"Command timed out after {timeout} seconds",
+                truncated_output=getattr(ex, "truncated_output", None),
+                reason="command",
+            ) from ex
         return result
 
     async def _stop_sandbox_tools(self, *, timeout: int) -> None:

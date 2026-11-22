@@ -196,7 +196,12 @@ def store_from_events(events: list["Event"]) -> Store:
 
     Uses event_tree() to ensure proper ordering of parallel events.
     Only processes StoreEvents from root-level spans (which encompass
-    all nested changes) to avoid redundant replay.
+    all nested changes) to avoid redundant replay. A root-level span or
+    StoreEvent that begins while an earlier root-level span is still open
+    is skipped too, since that span's StoreEvent covers the changes made
+    before it ends: the control channel's interim scoring runs in a fresh
+    context, so the spans its scorers open have no parent. A span with no
+    end (an in-progress sample) stays open to the end of the events.
 
     Args:
         events: List of Event objects (typically from EvalSample.events).
@@ -207,18 +212,28 @@ def store_from_events(events: list["Event"]) -> Store:
     from inspect_ai.event._store import StoreEvent
     from inspect_ai.event._tree import EventTreeSpan, event_tree
 
+    # one pass's objects for both the tree and the positions
+    events = list(events)
     tree = event_tree(events)
     data: dict[str, Any] = {}
+
+    position = {id(event): index for index, event in enumerate(events)}
+    open_until = -1  # position of the open root-level span's end
 
     # Process only root-level items
     for node in tree:
         if isinstance(node, EventTreeSpan):
+            if position[id(node.begin)] < open_until:
+                continue
+            open_until = position[id(node.end)] if node.end is not None else len(events)
             # Find StoreEvents that are direct children (not nested in child spans)
             for child in node.children:
                 if isinstance(child, StoreEvent):
                     data = _apply_store_event(data, child)
         elif isinstance(node, StoreEvent):
             # Root-level StoreEvent not in any span
+            if position[id(node)] < open_until:
+                continue
             data = _apply_store_event(data, node)
 
     return Store(data)
@@ -289,8 +304,10 @@ def _json_change_to_patch_op(change: JsonChange) -> dict[str, Any]:
     op: dict[str, Any] = {"op": change.op, "path": change.path}
 
     if change.op in ("add", "replace", "test"):
-        # These operations require a value (None is valid for explicit null)
-        op["value"] = change.value
+        # These operations require a value (None is valid for explicit null).
+        # Copied because the patch is applied in place: later patches would
+        # otherwise modify the event's own value.
+        op["value"] = deepcopy(change.value)
     elif change.op in ("move", "copy"):
         if change.from_ is None:
             raise ValueError(

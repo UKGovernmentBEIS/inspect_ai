@@ -2,9 +2,11 @@
 |---|---|
 | anthropic/claude-fable-5 | high |
 | anthropic/claude-fable-5-1 | high |
+| anthropic/claude-fable-5-2 | high |
 | anthropic/claude-haiku-5-5 | medium |
 | anthropic/claude-mythos-5 | high |
 | anthropic/claude-mythos-5-1 | high |
+| anthropic/claude-mythos-5-2 | high |
 | anthropic/claude-opus-4-6 | adaptive |
 | anthropic/claude-opus-4-7 | adaptive |
 | anthropic/claude-opus-4-8 | high |
@@ -29,12 +31,20 @@
 | google/gemini-3.7-flash | medium |
 | google/gemini-3.8-flash | medium |
 | google/gemini-4-argon | medium |
+| google/gemini-4-carbon | medium |
+| google/gemini-4-hydrogen | high |
+| google/gemini-4-neon | high |
 | grok/grok-3-mini | low |
 | grok/grok-4 | no effort scale |
 | grok/grok-4.3 | low |
 | grok/grok-4.5 | high |
 | grok/grok-4.6 | high |
 | grok/grok-4.7 | high |
+| meta/muse-ember-1.0 | max |
+| meta/muse-spark-1.1 | high |
+| meta/muse-spark-1.2 | high |
+| meta/muse-spark-1.3 | high |
+| meta/muse-wonder-1.0 | max |
 | mistral/magistral-medium-2506 | no effort scale |
 | mistral/magistral-small-2506 | no effort scale |
 | mistral/mistral-medium-2604 | none |

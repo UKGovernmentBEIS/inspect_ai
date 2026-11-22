@@ -123,14 +123,14 @@ def test_openai_code_execution_python() -> None:
 
 @skip_if_no_anthropic
 def test_anthropic_code_execution() -> None:
-    check_code_execution("anthropic/claude-sonnet-4-5")
+    check_code_execution("anthropic/claude-sonnet-5-5")
 
 
 @pytest.mark.slow
 @skip_if_no_anthropic
 @skip_if_no_docker
 def test_anthropic_code_execution_python() -> None:
-    check_python_code_execution("anthropic", "claude-sonnet-4-5")
+    check_python_code_execution("anthropic", "claude-sonnet-5-5")
 
 
 def test_normalize_config_default_all_providers_enabled() -> None:

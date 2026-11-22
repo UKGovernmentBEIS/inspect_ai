@@ -227,6 +227,10 @@ def skip_if_no_accelerate(func):
     return skip_if_no_package("accelerate")(func)
 
 
+def skip_if_no_torch(func):
+    return skip_if_no_package("torch")(func)
+
+
 def skip_if_no_transformer_lens(func):
     return skip_if_no_package("transformer_lens")(func)
 
@@ -402,11 +406,6 @@ def skip_if_no_openrouter(func):
     return pytest.mark.api(skip_if_env_var("OPENROUTER_API_KEY", exists=False)(func))
 
 
-def skip_if_no_together_base_url(func):
-    func._needs_flaky_retry = True
-    return pytest.mark.api(skip_if_env_var("TOGETHER_BASE_URL", exists=False)(func))
-
-
 def skip_if_no_fireworks(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("FIREWORKS_API_KEY", exists=False)(func))
@@ -535,6 +534,16 @@ def skip_if_async_backend(backend):
         return wrapper
 
     return decorator
+
+
+def collide_murmur3(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make every Murmur3 hash the same, so an identity resting on one collides."""
+    import mmh3
+
+    monkeypatch.setattr(mmh3, "hash_bytes", lambda *args, **kwargs: bytes(16))
+    monkeypatch.setattr(mmh3, "hash64", lambda *args, **kwargs: (0, 0))
+    monkeypatch.setattr(mmh3, "hash128", lambda *args, **kwargs: 0)
+    monkeypatch.setattr(mmh3, "hash", lambda *args, **kwargs: 0)
 
 
 def skip_if_trio(func):

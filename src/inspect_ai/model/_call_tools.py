@@ -4,7 +4,7 @@ import string
 import types
 import typing
 from collections.abc import Collection
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from dataclasses import dataclass, is_dataclass, replace
@@ -43,6 +43,7 @@ import anyio
 import yaml
 from anyio.streams.memory import MemoryObjectSendStream
 from pydantic import BaseModel, TypeAdapter
+from shortuuid import uuid
 from typing_extensions import is_typeddict
 
 from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
@@ -77,7 +78,11 @@ from inspect_ai.tool._tool import (
     ToolSource,
     tool_result_content,
 )
-from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
+from inspect_ai.tool._tool_call import (
+    ToolCallContent,
+    ToolCallError,
+    viewer_failed_view,
+)
 from inspect_ai.tool._tool_canonical import tool_canonical_arguments
 from inspect_ai.tool._tool_def import ToolDef, tool_def_fields, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
@@ -85,8 +90,10 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._json import dataclass_fields
 from inspect_ai.util._limit import LimitExceededError, apply_limits
-from inspect_ai.util._sandbox.environment import SandboxUnavailableError
-from inspect_ai.util._sandbox.events import SandboxTimeoutError
+from inspect_ai.util._sandbox.environment import (
+    SandboxTimeoutError,
+    SandboxUnavailableError,
+)
 from inspect_ai.util._sandbox.service import CONTROL_FLOW_EXCEPTIONS
 from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
@@ -98,6 +105,7 @@ from ._chat_message import (
     ChatMessageUser,
 )
 from ._generate_config import active_generate_config
+from ._message_ids import edited_message
 
 logger = getLogger(__name__)
 
@@ -141,6 +149,19 @@ def watch_handoffs() -> Iterator[HandoffWatch]:
         yield watch
     finally:
         _handoff_watch.reset(token)
+
+
+def repeated_call_ids(calls: Sequence[ToolCall]) -> set[str]:
+    """The ids several of `calls` share.
+
+    A provider records no replay state under such an id, as it can't tell the
+    calls' states apart.
+    """
+    seen: set[str] = set()
+    repeated: set[str] = set()
+    for call in calls:
+        (repeated if call.id in seen else seen).add(call.id)
+    return repeated
 
 
 def _fail_fast_tools(message: ChatMessageAssistant) -> set[str]:
@@ -223,10 +244,16 @@ async def execute_tools(
 
     approval_cm = approval_context(approval) if approval else nullcontext()
     review_cm = review_context(review) if review else nullcontext()
+    if checks_tool_calls():
+        from inspect_ai._sentinel._dispatch import tool_turn
+
+        turn_cm: AbstractContextManager[None] = tool_turn(messages)
+    else:
+        turn_cm = nullcontext()
     watch = _handoff_watch.get()
     token = _handoff_watch.set(None)
     try:
-        with approval_cm, review_cm:
+        with approval_cm, review_cm, turn_cm:
             return await _execute_tools_impl(messages, tools, max_output, watch)
     finally:
         _handoff_watch.reset(token)
@@ -335,6 +362,7 @@ async def _execute_tools_impl(
             # on `event`)
             result_event = ToolEvent(
                 id=call.id,
+                execution_id=event.execution_id,
                 function=call.function,
                 arguments=event.arguments,
                 result=content,
@@ -368,6 +396,7 @@ async def _execute_tools_impl(
                             result,
                             truncated,
                             conversation,
+                            event.execution_id,
                         )
                 except anyio.get_cancelled_exc_class():
                     on_review_cancelled(execution_result, result_event)
@@ -444,10 +473,12 @@ async def _execute_tools_impl(
                 waiting_starts[idx] = sample_clock()
                 stage_events[idx] = ToolEvent(
                     id=call.id,
+                    execution_id=uuid(),
                     function=call.function,
                     arguments=call.arguments,
                     view=call.view,
                     pending=True,
+                    call_message_id=message.id,
                 )
                 stage_results[idx] = None
 
@@ -472,6 +503,7 @@ async def _execute_tools_impl(
                 )
                 skipped_event = ToolEvent(
                     id=call.id,
+                    execution_id=event.execution_id,
                     function=call.function,
                     arguments=call.arguments,
                     result=tool_result_content(tool_message.content),
@@ -633,6 +665,7 @@ async def _execute_tools_impl(
                     )
                     op_result_event = ToolEvent(
                         id=call.id,
+                        execution_id=event.execution_id,
                         function=call.function,
                         arguments=event.arguments,
                         result=tool_result_content(op_tool_message.content),
@@ -752,6 +785,7 @@ async def _execute_tools_impl(
                     )
                     cancellation_event = ToolEvent(
                         id=call.id,
+                        execution_id=event.execution_id,
                         function=call.function,
                         arguments=event.arguments,
                         result=tool_result_content(tool_message.content),
@@ -911,6 +945,24 @@ async def call_tool(
         event.arguments = shown.arguments
         return shown
 
+    # A sentinel sidecar that ended the sample at a call of this turn ends it
+    # before any of the turn's calls runs, as an in-process sentinel's
+    # terminate at a call does, whatever the call holds.
+    from inspect_ai._sentinel._sidecar._act import take_call_decision
+
+    decided = take_call_decision(call.id)
+    if decided is not None and decided.action == "terminate":
+        await record_pending_tool_event()
+        raise TerminateSampleError(decided.message or "Sentinel requested termination.")
+
+    # A call a sentinel sidecar rejected is answered as an in-process
+    # sentinel's rejection is, whatever it holds: the eval is handed it with
+    # its id and function only, so its arguments are never parsed. No approver
+    # sees it: the sidecar judged the turn before Inspect was handed it.
+    if decided is not None and decided.action == "reject":
+        await record_pending_tool_event()
+        raise ToolApprovalError(decided.message)
+
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
         raise await record_tool_parsing_error(call.parse_error)
@@ -949,11 +1001,21 @@ async def call_tool(
     # without oversight the event records the model's arguments, canonical
     shown = shown_to_callbacks(call)
 
+    # A call the sidecar changed is the call Inspect is handed, so approvers
+    # and an in-process sentinel see it changed and may change it again.
+    if decided is not None and decided.modified is not None:
+        error = _sidecar_modified_error(shown, decided.modified)
+        if error is not None:
+            await record_pending_tool_event()
+            raise RuntimeError(error)
+        call, arguments = await revalidated_tool_call(decided.modified, tool_def)
+        shown = shown_to_callbacks(call)
+
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import apply_tool_approval
 
     approved, approval = await apply_tool_approval(
-        message, call, tool_def.viewer, conversation
+        message, call, tool_def.viewer, conversation, execution_id=event.execution_id
     )
     if not approved:
         await record_pending_tool_event()
@@ -984,7 +1046,12 @@ async def call_tool(
 
         try:
             decision = await sentinel_before_tool_call(
-                message, message_id, call, tool_def.viewer, conversation
+                message,
+                message_id,
+                call,
+                tool_def.viewer,
+                conversation,
+                execution_id=event.execution_id,
             )
             modified = apply_sentinel_decision(decision, call)
             selected = decision is not None and decision.action == "modify"
@@ -1056,6 +1123,12 @@ _SENTINEL_MODIFIED_FUNCTION = (
 )
 
 
+def _sidecar_modified_error(shown: ToolCall, modified: ToolCall) -> str | None:
+    if modified.function != shown.function:
+        return _SENTINEL_MODIFIED_FUNCTION.format(modified.function, shown.function)
+    return _modified_id_error("A sentinel sidecar", shown, modified)
+
+
 def _modified_id_error(who: str, shown: ToolCall, modified: ToolCall) -> str | None:
     """Error for a native `modify` decision that changes the call's id, else `None`.
 
@@ -1117,12 +1190,14 @@ async def _apply_tool_review(
     output: ToolResult,
     truncated: tuple[int, int] | None,
     conversation: list[ChatMessage],
+    execution_id: str | None,
 ) -> None:
     """Give the active review policies and sentinel the executed call's result.
 
     Only calls that actually ran are reviewed (the caller checks this): a call
     rejected at the call stage or failed by argument parsing produced no result,
-    and the error the model receives is its feedback.
+    and the error the model receives is its feedback. `execution_id` is the
+    call's `ToolEvent.execution_id`, which the sentinel's steps record.
 
     Raises:
         TerminateSampleError: A reviewer or the sentinel requested termination.
@@ -1150,9 +1225,10 @@ async def _apply_tool_review(
             call,
             result,
             output,
-            truncated,
+            truncated or False,
             tool_def.viewer if tool_def else None,
             conversation,
+            execution_id=execution_id,
         )
 
 
@@ -1178,14 +1254,13 @@ async def agent_handoff(
     # tools in parallel and we won't be handling the other calls)
     last_message = agent_conversation[-1]
     if isinstance(last_message, ChatMessageAssistant) and last_message.tool_calls:
-        agent_conversation[-1] = agent_conversation[-1].model_copy(
-            update=dict(
-                tool_calls=[
-                    tool_call
-                    for tool_call in last_message.tool_calls
-                    if tool_call.id == call.id
-                ]
-            )
+        agent_conversation[-1] = edited_message(
+            last_message,
+            tool_calls=[
+                tool_call
+                for tool_call in last_message.tool_calls
+                if tool_call.id == call.id
+            ],
         )
 
     # ammend the conversation with a ChatMessageTool to indicate
@@ -1296,9 +1371,7 @@ def prepend_agent_name(
     message: ChatMessageAssistant, agent_name: str
 ) -> ChatMessageAssistant:
     if isinstance(message.content, str):
-        return message.model_copy(
-            update=dict(content=f"[{agent_name}] {message.content}")
-        )
+        return edited_message(message, content=f"[{agent_name}] {message.content}")
     else:
         content = copy(message.content)
         for i in range(0, len(content)):
@@ -1309,7 +1382,7 @@ def prepend_agent_name(
                         update=dict(text=f"[{agent_name}] {text}")
                     )
                 break
-        return message.model_copy(update=dict(content=content))
+        return edited_message(message, content=content)
 
 
 async def resolve_tools(
@@ -2129,7 +2202,7 @@ def tool_call_view(call: ToolCall, tdefs: list[ToolDef]) -> ToolCallContent | No
                 f"Error in viewer for tool '{call.function}': {ex}. "
                 "Falling back to default rendering.",
             )
-            return None
+            return viewer_failed_view(call).call
     else:
         return None
 

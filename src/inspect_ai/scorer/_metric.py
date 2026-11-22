@@ -1,3 +1,4 @@
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from logging import getLogger
@@ -54,14 +55,18 @@ ScoreReason = Literal[
     # measurement instrument
     "grader_failed",  # grader model failed (unparseable verdict, refusal, schema mismatch)
     "scoring_failed",  # scorer could not run (missing logprobs, invalid config, no subscores)
+    # operator decision
+    "excluded",  # excluded from scoring; the value is NaN
+    "zeroed",  # scored as an empty attempt
 ]
 """Standard machine-readable reasons for abnormal scores.
 
 The first group attributes the failure to the model under test (kept
 fine-grained — refusal rate is a first-class quantity, distinct from format
 violations); the second to the measurement instrument, split by whether a
-grader model failed or the scorer itself could not run. Any custom string
-is also legal; the detail behind a coarse value belongs in `explanation`.
+grader model failed or the scorer itself could not run; the third to an
+operator who edited the score after the eval. Any custom string is also
+legal; the detail behind a coarse value belongs in `explanation`.
 """
 
 
@@ -238,6 +243,19 @@ class Score(BaseModel):
             return self.value
         else:
             raise ValueError("This score is not a scalar")
+
+
+def score_is_excluded(score: Score) -> bool:
+    """Whether an operator excluded the score.
+
+    True when `reason` is `"excluded"` and the value is a float NaN at the
+    root. Epoch reduction leaves such scores out.
+    """
+    return (
+        score.reason == "excluded"
+        and isinstance(score.value, float)
+        and math.isnan(score.value)
+    )
 
 
 class Reference(BaseModel):

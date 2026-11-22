@@ -375,3 +375,50 @@ def test_retry_on_error_events_persisted():
     persisted_log = read_eval_log(log.location)
     assert persisted_log.samples is not None
     _check_retry_events(persisted_log.samples[0])
+
+
+def test_cancel_during_sample_teardown_suppresses_retry() -> None:
+    """A cancel stamped while the sample tears down still abandons its retry.
+
+    `on_complete` runs as `active_sample` exits, after the logging block and
+    while the sample is still listed as active, so a per-sample cancel can
+    land there.
+    """
+    from inspect_ai._control.cancel import cancel_sample
+    from inspect_ai._control.eval_state import get_eval_states
+    from inspect_ai.log._samples import sample_active
+
+    attempts = 0
+
+    @solver
+    def errors_once_cancelled_in_teardown() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal attempts
+            attempts += 1
+            active = sample_active()
+            assert active is not None
+
+            async def cancel_on_teardown() -> None:
+                eval_id = get_eval_states()[0].eval_id
+                result = await cancel_sample(
+                    eval_id, str(state.sample_id), state.epoch, action="cancel"
+                )
+                assert result is not None and result["ok"] is True
+
+            active.on_complete = cancel_on_teardown
+            raise RuntimeError("boom")
+
+        return solve
+
+    log = eval(
+        Task(
+            dataset=[Sample(id="a", input="x")],
+            solver=errors_once_cancelled_in_teardown(),
+        ),
+        model="mockllm/model",
+        retry_on_error=1,
+    )[0]
+
+    assert attempts == 1
+    assert log.status == "success"
+    assert not log.samples

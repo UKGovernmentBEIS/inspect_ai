@@ -26,6 +26,7 @@ from inspect_ai.model._openai_responses import (
     _maybe_native_tool_param,
     _openai_input_item_from_chat_message,
     _process_response_output_items,
+    assistant_internal,
     init_sample_openai_assistant_internal,
     is_tool_search_tool_param,
     maybe_tool_search_tool,
@@ -310,6 +311,26 @@ def test_resume_plain_call_not_seeded() -> None:
     )
     messages_from_responses_input(input_items, [], "openai/gpt-5")
     assert "c2" not in assistant_internal().tool_calls
+
+
+def test_inbound_tool_search_calls_sharing_an_id_seed_no_item() -> None:
+    init_sample_openai_assistant_internal()
+    input_items = cast(
+        list[ResponseInputItemParam],
+        [
+            {
+                "type": "tool_search_call",
+                "id": f"x{n}",
+                "call_id": "ts_shared",
+                "arguments": {"query": query},
+                "execution": "client",
+                "status": "completed",
+            }
+            for n, query in enumerate(["file tools", "web tools"])
+        ],
+    )
+    messages_from_responses_input(input_items, [], "openai/gpt-5")
+    assert "ts_shared" not in assistant_internal().tool_calls
 
 
 # 4. inbound [call, output] -> assistant ToolCall + ChatMessageTool with tools json

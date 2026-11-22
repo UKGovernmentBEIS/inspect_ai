@@ -3520,7 +3520,7 @@ def test_ctl_task_cancel_before_final_log_write_stays_abandoned(
             assert me.task_cancel is not None
             # the attempt requests its own re-run (as the TUI's retry action
             # does) and the operator's cancel lands before it has torn down
-            me.task_cancel.cancel_task("retry")
+            me.task_cancel.request("retry")
             observed["result"] = cancel_task(me.task_id)
             # the retry stamp cancelled the task's scope; deliver it here
             await anyio.sleep(10)
@@ -3559,6 +3559,69 @@ def test_ctl_task_cancel_before_final_log_write_stays_abandoned(
 
     # the retry never ran: one attempt, ending with its error log
     assert fail["calls"] == 1
+    assert not success
+    assert len(logs) == 1 and logs[0].status == "error"
+
+
+def test_retry_request_after_ctl_cancel_does_not_retry(
+    short_data_dir: Path,
+) -> None:
+    """A retry request cannot lower an operator's cancel.
+
+    ``inspect ctl task cancel`` stamps ``"abort"`` and reports that the task
+    will not be retried. A retry chosen in the task display's cancel dialog
+    while the aborted attempt tears down must not turn that into a re-run:
+    abort outranks retry, as it does when the requests arrive the other way
+    round (a cancel over a pending retry abandons it).
+    """
+    import anyio
+
+    from inspect_ai._control.cancel import cancel_task
+
+    calls = {"n": 0}
+    observed: dict[str, Any] = {}
+
+    @solver
+    def cancel_then_request_retry() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls["n"] += 1
+            if calls["n"] > 1:
+                return state
+            me = next(s for s in get_eval_states() if s.task == "task_cancelled")
+            assert me.task_cancel is not None
+            observed["result"] = cancel_task(me.task_id)
+            # the cancel dialog's retry choice, made before the abort lands
+            me.task_cancel.request("retry")
+            observed["stamp"] = me.task_cancel.cancel_type
+            await anyio.sleep(10)
+            return state
+
+        return solve
+
+    @task
+    def task_cancelled() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[cancel_then_request_retry()],
+            name="task_cancelled",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    success, logs = eval_set(
+        tasks=[task_cancelled()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=2,
+        retry_wait=0.05,
+        retry_immediate=True,
+    )
+
+    result = observed.get("result")
+    assert result is not None and result["ok"] is True and result["changed"] is True
+    assert observed["stamp"] == "abort"
+    assert calls["n"] == 1
     assert not success
     assert len(logs) == 1 and logs[0].status == "error"
 

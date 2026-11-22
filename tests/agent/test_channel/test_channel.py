@@ -512,6 +512,17 @@ async def test_subscribe_turn_state_fires_cancelled_on_interrupt() -> None:
     assert states == ["started", "cancelled"]
 
 
+async def test_subscribe_turn_state_fires_ended_when_turn_raises() -> None:
+    """A turn left by an exception (e.g. a sample limit) still reports "ended"."""
+    ch = AgentChannel()
+    states: list[str] = []
+    ch.subscribe_turn_state(lambda s: states.append(s))
+    with pytest.raises(ValueError):
+        with ch.turn_scope():
+            raise ValueError("limit")
+    assert states == ["started", "ended"]
+
+
 def test_subscribe_turn_state_unsubscribe_is_idempotent() -> None:
     ch = AgentChannel()
     unsub = ch.subscribe_turn_state(lambda s: None)

@@ -134,7 +134,7 @@ Handoffs are automatically presented to the model as tool calls with a `transfer
 Create handoffs by enclosing an agent with the `handoff()` function. These agents in turn are often simple `react()` agents with a tailored prompt and set of tools. For example, here we create a `web_surfer()` agent that we can handoff to:
 
 ``` python
-from inspect_ai.agent react
+from inspect_ai.agent import react
 from inspect_ai.tool import web_search
 
 web_surfer = react(

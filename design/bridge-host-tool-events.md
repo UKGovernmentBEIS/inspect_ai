@@ -165,9 +165,56 @@ bridged tools has a grant for each, so it can run more than once; one of
 those events takes the proposing id and the rest get fresh ids, since
 `ToolEvent.id` is what ACP cards, the viewer's approval and navigation maps,
 `sample cancel-tool-call` and `InterruptEvent` key on. Every event that
-consumed a grant records the proposing id in `metadata.bridge.proposal_id`,
-which is the field to join on; which request takes the id is
-`_execute_granted()`'s order.
+consumed a grant records the model's id for the proposing call in
+`metadata.bridge.proposal_id`, which joins it to the `ModelEvent` that
+proposed it, and the proposal's handout in `execution_id` (below), which
+joins it to the call's approvals and sentinel steps; which request takes
+the id is `_execute_granted()`'s order.
+
+### Execution ids
+
+Each response the bridge hands to the agent is a handout of each of its
+calls. `bridge_generate()` mints an id for each call's handout before the
+call is reviewed, and keeps it on the bridge's record of the call id
+(`_Handed.execution_id`, kept in the checkpoint) and on the call's grants
+(`_Proposal.execution_id`). A call denoting several bridged tools (a shared
+description) is approved, checked and run once per tool, so a handout's run
+of one bridged tool is an execution: its id is the handout's with the tool's
+server and name, `<handout>/<server>/<tool>` (`target_execution_id`). The
+id is opaque: a server or tool name may contain `/`, so it can't be split
+into its parts, and consumers compare it only for equality. The
+call's `ApprovalEvent`s and `tool_call` sentinel steps record it, one per
+tool reviewed, and so does the host `ToolEvent` that consumed that tool's
+grant. Consumers that pair a check or an approval with its run by
+`execution_id` then pair each with the run of the tool it judged, whatever
+order the agent runs the tools in. A call no bridged tool serves (an
+in-process bridge's) records the handout's id. A run whose request matched
+the grants of more than one handout records `None`: the bridge already can't
+tell which handout it ran for (`_Proposal.ambiguous`), as a handout's
+response may never have reached the agent, or two agents may run the same
+call in the other order. A handout is not an execution: the same call handed
+out again (a retry or a cache hit) is a new handout, with a new id, under the
+same call id.
+
+A `tool_result` step is checked when the agent's next request carries the
+result (see Sentinel below), under the call id the agent reports, once per
+tool the call denotes. It records the handout's execution of that tool while
+the handout is the call id's only one. Once the call id is handed out again,
+or when calls of one response share it, the bridge can't tell which handout
+a result answers, and the step's `execution_id` is `None`; so it is for a
+call id the bridge never handed out. The host `ToolEvent`'s own id never
+names a step: a second run's event gets a fresh id, while the result the
+agent reports is of the handout.
+
+Native tool calls get an `execution_id` per `ToolEvent` too
+(`execute_tools()`), which their approvals and both sentinel tool stages
+record. Sentinel replay pairs a native call with its checks by it. Live
+records every execution's tool steps under the call id, but a replayed step
+id must be unique for its stage, so when two executions of one call id are
+rebuilt (a retry after a tool error, a provider that repeats ids), the first
+keeps the call id and each later one is named by its `execution_id`. The
+`human_decisions` of later steps keep the call id, as live records it. A log
+without the ids replays as before.
 
 A `_Proposal` is referenced only by its grants, so pairing state lives in the
 bounded grant store (1024 entries) and is dropped with the last of its grants,
@@ -178,8 +225,9 @@ restore.
 Grants are stored for servers registered with `require_proposal=False` too,
 only so that a proposed call on them pairs; their calls execute with or
 without one (decision: Ransom, 2026-09-15). They share the store, and the
-eviction warning says what an evicted grant loses: for an exempt server only
-the pairing, for any other the right to execute. An unproposed call on an
+eviction warning says what an evicted grant loses: for an exempt server the
+pairing, for any other the right to execute. Either way the evicted grant's
+reply no longer links any of its calls (see `message_id` below). An unproposed call on an
 exempt server with the same arguments as a pending proposal takes that
 proposal's grant and id, and the proposed call then runs with a fresh id and
 `grant: "exempt"`. Execution is unaffected; the user docs state this
@@ -219,7 +267,11 @@ other order their ids are swapped between two otherwise identical events.
   dispatcher `call_mcp_tool`); `null` without a proposal. For a dispatcher
   call the event's `arguments` are the inner arguments that ran, which is
   what the grant binds.
-- `proposal_id`: the proposing call's id on every consumed grant, else `null`.
+- `proposal_id`: the model's id for the proposing call on every consumed
+  grant, else `null`. The bridge hands a call over under the model's id,
+  except when the model reuses an id that already names another call: the
+  call is then handed over, and runs, under a fresh id (the event's `id`),
+  and `proposal_id` keeps the model's, as its `ModelEvent` does.
 - `grant`: `"consumed"`, `"denied"`, `"exempt"` (an exempt server ran it
   without a matching proposal), or `null` for a request rejected before the
   grant check (unknown server or tool, arguments too deep).
@@ -390,16 +442,107 @@ data-URI images in a transcript tool event's result, native or host, follow
 (`ToolEvent.events`) stay inline. Text results stay inline: the same text is already inline in the tool
 message the model sees next.
 
-`message_id` is `None`: the agent builds the `ChatMessageTool` itself and
-sends it in a later request, so its id does not exist when the event is
-finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
+`message_id` is the id of the tool message holding the result when the link
+is exact, and `None` otherwise. The agent builds that `ChatMessageTool` itself
+and sends it in a later request, so its id does not exist when the event is
+finalised. The bridge waits for it (`_await_result_message()`) and sets
+`message_id` when the request arrives (`_link_result_messages()`), updating
+the completed event through the transcript's event-update path
+(`_event_updated()`), as for a pending event. Transcript subscribers see the
+event completed with `message_id=None` and then updated; a log read back has
+it set.
+
+The link is exact when all of these hold:
+
+- The reply holding the call is placed under the id the bridge handed it
+  with (`_align_with_tracked()`), and no message the bridge could not place
+  took that id first.
+- The bridge has complete evidence of the reply's executions: it handed the
+  reply out once, and it neither dropped the reply's awaited calls (it tracks
+  at most 256, dropping the oldest replies' first) nor evicted one of its
+  grants. A reply handed out again (a cached generation or retry, also after
+  a checkpoint resume, since the checkpoint keeps the ids the bridge knows)
+  may have its calls run once per hand-out, and executions the bridge no
+  longer tracks can't be told apart from the one it does. The bridge records
+  each such reply's id in `_unlinked_replies` (ids only, for the rest of the
+  sample; `_unlink()`, or directly when it drops awaited calls), and none of
+  the reply's calls links again, including one first executed after the
+  drop.
+- The grant it consumed is not for a server registered with
+  `require_proposal=False`: there an unproposed call with a pending
+  proposal's arguments takes that proposal's grant, so the grant does not
+  show which call ran.
+- The call ran once, its id is unique in the reply, and no other call in the
+  reply has its function and arguments.
+- Its execution matched no other reply's pending grant, exactly or once
+  undeclared arguments are dropped. `consume_tool_execution_grant()` marks
+  every proposal the execution could belong to `ambiguous` and unlinks its
+  reply, so none of them links, including an execution of theirs that
+  completed before the ambiguity was found.
+- No other request may have repeated the call while its answer was
+  outstanding. A client that lost a response sends the call again, and the
+  agent may send that attempt's result as the call's answer. Calls are
+  compared by (server, tool) and arguments, as grants compare them (also
+  projected onto a closed schema's declared keys). The check runs when an
+  execution consumes a grant (`_record_execution()`), before it starts, and
+  when a request is denied:
+  - The proposal's second execution (one call granted for several tools)
+    unlinks its reply.
+  - An execution of a call whose earlier execution under another reply is
+    still running or awaiting its answer may be that call's retry, taking
+    the later reply's identical grant: both replies are unlinked. An earlier
+    execution already settled (its answer linked, or left unlinked) is final,
+    so ordinary repeated calls whose answers arrived in between keep their
+    links.
+  - A grant is one-shot, so a retry with no other grant to take is denied,
+    and the agent may send the denial as the answer. `unlink_denied_call()`
+    unlinks the reply of every recorded or pending call it may repeat, or of
+    every call of the tool when the arguments can't be read (not an object,
+    or nested too deep). A request naming no bridged tool repeats no
+    proposal.
+
+  The record holds reply ids, positions and argument hashes only, and each
+  entry is dropped once it is scanned or unlinked, so the work is amortized
+  constant per execution.
+- Exactly one tool message answers it, by call id, before the next assistant
+  message with tool calls, and that message is new in the request: one sent
+  before, or equal to one sent before, may hold another result.
+- That message contains the start of the result the agent received
+  (`_holds_result()`). The bridge can't see whether the response reached
+  the agent: the in-sandbox proxy reads the response file even after the
+  agent's MCP client gave up on the call (its own timeout), and the agent
+  then answers with its timeout error, after the execution completed.
+
+Otherwise `message_id` stays `None`. This includes a Google result whose call
+id the dialect inferred from order (a call sharing its function with another),
+a call of a reply whose awaited calls were dropped, and a call proposed before
+a checkpoint resume.
+
+Lost-grant cross-proposal limitation. Once a reply's grant is evicted (1024
+unconsumed grants), matching no longer knows that reply. If a later reply
+proposes the identical call, an execution of the first reply's call takes the
+later reply's grant without ambiguity, so its event pairs with the later
+proposal (`proposal_id`, id and span) although it ran the earlier call. The
+link is still left unset when the later reply's own call is sent: it is
+denied, which unlinks the later reply, or it takes another identical grant
+while the execution paired with the later reply awaits its answer, which
+unlinks both. A wrong link would need the agent to answer the later call
+without sending it to the bridge (reusing the earlier result, say). Not
+handled further: it needs 1024 unconsumed grants and an identical later
+proposal, and fixing the pairing would mean keeping evicted grants.
+
+`agent` is `None`; `agent_span_id` is the tool's, as natively.
 
 ## Consumers
 
 - **ACP.** `_map_tool_event()` pops the call from `_BridgeToolState.pending`,
   so the card synthesized for the proposal is updated with the real result
   and is not settled again from the agent's `ChatMessageTool`; the update
-  also marks the card cancelable. An event of a multi-target proposal that
+  also replaces the card's title and `raw_input` with the event's (the
+  arguments that ran, which a sentinel may have modified) and marks the card
+  cancelable. A scaffold-reported result gives the card the title and
+  `raw_input` of the call it answers in the scaffold's request (the arguments
+  that ran; `_scaffold_run`). An event of a multi-target proposal that
   did not take the proposing id, and an unpaired call on an exempt server,
   carry fresh ids and map as their own cards. Replay synthesizes no card for an id that has a real
   `ToolEvent`. The sub-agent filter places an event by its `span_id` as well
@@ -418,11 +561,27 @@ finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
   grants are minted, and reviews each call under the bridged tool it denotes,
   whatever name the agent declared, through the same resolution the grants
   use (`reviewed_calls()`); a call denoting several bridged tools is approved
-  separately for each, and the resulting `ApprovalEvent`s carry the proposing
-  id. See
+  separately for each, and the resulting `ApprovalEvent`s carry the id the
+  call is handed over under and the handout's execution of the tool each
+  reviewed (see Execution ids). They are
+  recorded in the span the call's host runs are (the proposing `ModelEvent`'s,
+  where a `ModelEventSink` placed it in a sub-agent's span), so the viewer
+  finds them in the run's conversation; the approvers run in the current
+  span, so their own calls stay out of it. See
   [Bridged Agents](../docs/approval.qmd#bridged-agents).
-- **Sentinel.** The host executor runs no sentinel tool stage, so sentinel
-  replay rebuilds none for a `ToolEvent` with `metadata["bridge"]`.
+- **Sentinel.** The host executor runs no sentinel tool stage. The bridge
+  checks the call when the model proposes it, and its result when the agent's
+  next request carries it (`sentinel_tool_results()`), each in a
+  `sentinel_bridge` span under the request, not under the tool span: the
+  request carries the call's id, which the MCP call does not. The steps
+  record the handout's execution of the tool they judged (see Execution
+  ids). Sentinel replay does not read a `ToolEvent` with
+  `metadata["bridge"]` for tool steps: like the agent's own tools, a host
+  call's steps show the call as the model wrote it (under the scaffold's name
+  for the tool) and the result as the model next received it, taken from the
+  bridge's model calls (see
+  [Bridged Agents](../docs/agent-custom.qmd#bridged-agents)). The bridge's
+  recorded checks are not paired with those steps.
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the
   TUI's running state and the control server's activity and cancellation like
   native ones. Hooks receive each non-pending update. `events_df()` has `tool`
@@ -472,8 +631,9 @@ finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
 
 ## Compatibility
 
-- **Logs.** No schema change. Bridged samples that call host tools have
-  `tool` events and `tool` spans. Data-URI images in a transcript tool
+- **Logs.** `ToolEvent`, `ApprovalEvent` and `SentinelEvent` have an optional
+  `execution_id` (experimental); logs written before it read `None`. Bridged
+  samples that call host tools have `tool` events and `tool` spans. Data-URI images in a transcript tool
   event's result are stored as attachments (`log_images=True`) or removed (`log_images=False`);
   URL and file-path image sources stay inline. An older Inspect reading such
   a log shows the `attachment://` reference in the result.
@@ -490,7 +650,8 @@ finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
   while a host call is pending keeps a pending event that resume never
   completes, as for a native tool. Grants are not restored, so a proposal
   made before a checkpoint does not pair after resume and, on a server that
-  requires proposals, its call is denied.
+  requires proposals, its call is denied. Its result is not linked
+  (`message_id` stays `None`).
 
 ## Security
 
@@ -525,8 +686,6 @@ The untrusted input is the agent's `tools/call`: `server`, `tool` and
   proposing call's).
 - **Native error wording on the wire.** A mapped exception reaches the agent
   as its own text, not the `ToolCallError` wording the event records.
-- **Back-filling `ToolEvent.message_id`** when the agent's `ChatMessageTool`
-  arrives, which needs a hooks-safe way to update a completed event.
 - **Grants and proposals across checkpoint restore** (registering the grant
   store with the checkpointer).
 - **A viewer badge** for `metadata.bridge` (host execution, denied, exempt) on

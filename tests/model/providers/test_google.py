@@ -4630,3 +4630,42 @@ def test_google_api_version_vertex_uses_sdk_default(
     )
     assert api.is_vertex()
     assert _sdk_api_version(api) == "v1beta1"
+
+
+@pytest.mark.parametrize("kept", ["both", "last"])
+async def test_calls_sharing_an_id_replay_in_order_without_signatures(
+    kept: str,
+) -> None:
+    candidate = Candidate(
+        content=Content(
+            role="model",
+            parts=[
+                Part(
+                    function_call=FunctionCall(
+                        id="shared", name="read_file", args={"path": "old.txt"}
+                    ),
+                    thought_signature=b"old-signature",
+                ),
+                Part(
+                    function_call=FunctionCall(
+                        id="shared", name="read_file", args={"path": "new.txt"}
+                    )
+                ),
+            ],
+        ),
+        finish_reason=FinishReason.STOP,
+    )
+    message = completion_choice_from_candidate("test-model", candidate).message
+    if kept == "last":
+        # a filter keeping one of the calls leaves both anchors naming its id
+        message.tool_calls = (message.tool_calls or [])[-1:]
+
+    replayed = await content(MagicMock(), message)
+
+    calls = [
+        (part.function_call.args, part.thought_signature)
+        for part in replayed.parts or []
+        if part.function_call is not None
+    ]
+    paths = ["old.txt", "new.txt"] if kept == "both" else ["new.txt"]
+    assert calls == [({"path": path}, None) for path in paths]

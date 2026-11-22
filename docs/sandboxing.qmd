@@ -101,7 +101,6 @@ There are two sandbox environments built in to Inspect and six available as exte
 | `k8s` | [inspect-k8s-sandbox](https://pypi.org/project/inspect-k8s-sandbox/) | Yes | [Kubernetes](https://k8s-sandbox.aisi.org.uk/) cluster. |
 | `daytona` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Daytona](https://meridianlabs-ai.github.io/inspect_sandboxes/daytona.html) cloud sandbox. |
 | `modal` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Modal](https://meridianlabs-ai.github.io/inspect_sandboxes/modal.html) cloud sandbox. |
-| `ec2` | [inspect_ec2_sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) | No | [AWS EC2](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) virtual machine. |
 | `proxmox` | [inspect_proxmox_sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) | No | [Proxmox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) with virtual machines. |
 | `vagrant` | [inspect_vagrant_sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox) | No | [Vagrant](https://github.com/jasongwartz/inspect_vagrant_sandbox) virtual machines on any Vagrant-supported hypervisor. |
 | `openshell` | [inspect-openshell-sandbox](https://pypi.org/project/inspect-openshell-sandbox/) | Yes | [NVIDIA OpenShell](https://github.com/32bitsret/inspect-openshell-sandbox) sandboxes with Landlock filesystem and network policies. |
@@ -208,6 +207,8 @@ Docker Compose is checked separately: Inspect requires version 2.21.0 or greater
 
 Inspect's prerequisite checks confirm that Docker supports the features Inspect needs. They do not check whether security updates are installed. You are responsible for using vendor-supported releases and applying security updates to Docker Engine or Docker Desktop, Compose, the container runtime (such as runc), and the Docker host's operating system. This also applies when the Docker host is remote.
 
+Don't count on a non-root container user to contain an adversarial model, as a capable model may get root in its container (see [Adversarial Models](agent-bridge.qmd#adversarial-models)).
+
 If you plan on running evaluations with large numbers of concurrent containers (\> 30) you should also configure Docker's [default address pools](https://straz.to/2021-09-08-docker-address-pools/) to accommodate this.
 
 ### File Access
@@ -307,6 +308,8 @@ eval("ctf.py", sandbox_prebuilt=True)
 ```
 
 With this option set, task startup verifies images instead of building them. Every service with a `build` section or `x-local: true` must name an `image` that already exists locally, and Inspect's internal images (e.g. for the computer tool) must also be present. Other services use their local image when present, and a failed pull of a missing one is also an error. A missing image results in an error before any samples run. The option can also be set via the `INSPECT_EVAL_SANDBOX_PREBUILT` environment variable.
+
+Inspect injects sandbox tools binaries into sandboxes for some tools. An install built from the sdist (e.g. conda-forge or `pip install --no-binary inspect-ai`) does not bundle them and downloads them at first use. For offline / air-gapped use, run `inspect download sandbox-tools` while online to fetch them ahead of time. The download writes into the `inspect_ai` package directory. For a read-only shared install, a user who can write to that directory should run `inspect download sandbox-tools` once.
 
 ### Multiple Environments
 
@@ -454,7 +457,7 @@ eval("ctf.py", sandbox_cleanup = False)
 When you do this, you'll see a list of sandbox containers printed out which includes the ID of each container. You can then use this ID to get a shell inside one of the containers:
 
 ``` bash
-docker exec -it inspect-task-ielnkhh-default-1 bash -l
+docker exec -it inspect-task-iqes2sgrg8tkq5q5w-default-1 bash -l
 ```
 
 When you no longer need the environments, you can clean them up either all at once or individually by project name. The printed list ends with the cleanup command for each environment:
@@ -464,7 +467,7 @@ When you no longer need the environments, you can clean them up either all at on
 inspect sandbox cleanup docker
 
 # cleanup single environment
-inspect sandbox cleanup docker inspect-task-ielnkhh
+inspect sandbox cleanup docker inspect-task-iqes2sgrg8tkq5q5w
 ```
 
 ## Resource Management

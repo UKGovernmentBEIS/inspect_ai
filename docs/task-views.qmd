@@ -247,7 +247,7 @@ Keys are fnmatch-style globs (`"*"`, `"audit_*"`, or exact scanner names). As a 
 
 ## Untrusted Content
 
-By default the viewer renders log content richly: model output and scores are shown as markdown (with math and syntax highlighting), terminal output keeps its colors, and images, audio, and video are displayed. When the content comes from a model you can't trust (for example, during pre-deployment testing of a model without safeguards), set `trust_content=False` to have the viewer show all of the log's content as plain text instead:
+By default the viewer renders log content richly: model output and scores are shown as markdown (with math and syntax highlighting), terminal output keeps its colors, and images, audio, and video are displayed. When the content comes from a model you can't trust (for example, during pre-deployment testing of a model without safeguards), set `trust_content=False` to have the viewer show the log's content as literal text and replace media with placeholders:
 
 ``` python
 @task

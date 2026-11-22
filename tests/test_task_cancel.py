@@ -18,7 +18,7 @@ from typing_extensions import override
 
 from inspect_ai import Task, TaskSource
 from inspect_ai import eval as inspect_eval
-from inspect_ai._display.core.display import TaskCancel, TaskError
+from inspect_ai._display.core.display import CancelType, TaskCancel, TaskError
 from inspect_ai._eval.evalset import eval_set
 from inspect_ai._eval.task.run import task_run as original_task_run
 from inspect_ai.dataset import Sample
@@ -32,6 +32,53 @@ from inspect_ai.util import (
     SandboxEnvironmentConfigType,
     sandboxenv,
 )
+
+
+@pytest.mark.parametrize(
+    ("pending", "requested", "stamped"),
+    [
+        (None, "drain", "drain"),
+        ("drain", "score", "score"),
+        ("score", "error", "score"),
+        ("error", "retry", "retry"),
+        ("retry", "abort", "abort"),
+        ("abort", "retry", "abort"),
+        ("abort", "abort", "abort"),
+        ("abort", "drain", "abort"),
+        ("drain", None, "drain"),
+    ],
+)
+def test_task_cancel_stamp_only_escalates(
+    pending: CancelType, requested: CancelType, stamped: CancelType
+) -> None:
+    applied: list[CancelType] = []
+    task_cancel = TaskCancel(can_retry=True, apply=applied.append)
+    task_cancel.request(pending)
+    applied.clear()
+
+    task_cancel.request(requested)
+
+    assert task_cancel.cancel_type == stamped
+    assert applied == ([] if stamped == pending else [requested])
+
+
+@pytest.mark.parametrize(
+    ("ended_in_error", "requested", "stamped"),
+    [
+        (True, "abort", "abort"),
+        (True, "retry", None),
+        (False, "abort", None),
+    ],
+)
+def test_task_cancel_after_close_accepts_only_abort_of_errored_attempt(
+    ended_in_error: bool, requested: CancelType, stamped: CancelType
+) -> None:
+    task_cancel = TaskCancel(can_retry=True, apply=lambda _: None)
+    task_cancel.close(ended_in_error=ended_in_error)
+
+    task_cancel.request(requested)
+
+    assert task_cancel.cancel_type == stamped
 
 
 def test_abort_cancel_produces_error_status() -> None:
@@ -60,7 +107,7 @@ def test_abort_cancel_produces_error_status() -> None:
             while not cancel_holder:
                 await anyio.sleep(0.01)
             # Trigger an abort cancellation (simulates clicking Cancel > Abort)
-            cancel_holder[0].cancel_task("abort")
+            cancel_holder[0].request("abort")
             # Sleep to let the cancellation propagate. The abort is expected to
             # interrupt this; the duration is only an upper bound on the
             # propagation window.
@@ -121,7 +168,7 @@ def test_abort_cancel_not_retried_without_task_retries() -> None:
             while not cancel_holder:
                 await anyio.sleep(0.01)
             # Trigger an abort cancellation
-            cancel_holder[0].cancel_task("abort")
+            cancel_holder[0].request("abort")
             # Sleep to let the cancellation propagate. The abort is expected to
             # interrupt this; the duration is only an upper bound on the
             # propagation window.
@@ -325,7 +372,7 @@ def test_error_resolution_downgraded_for_materializing_fail_on_error_sample() ->
         # sample was materializing (after the gate's active_samples() check)
         eval_state = get_eval_states()[0]
         assert eval_state.task_cancel is not None
-        eval_state.task_cancel.cancel_task("error")
+        eval_state.task_cancel.request("error")
         original_start(self, tg)
 
     @solver(name="downgrade_resolution_solver")
@@ -392,7 +439,7 @@ def test_drain_resolution_cancels_materializing_sample() -> None:
         if self.sample.id == 2:
             eval_state = get_eval_states()[0]
             assert eval_state.task_cancel is not None
-            eval_state.task_cancel.cancel_task("drain")
+            eval_state.task_cancel.request("drain")
         original_start(self, tg)
 
     @solver(name="drain_resolution_solver")
@@ -666,7 +713,7 @@ def test_external_interrupt_with_pending_resolution_logs_cancelled(
             # stamp the resolution on the raw handle without interrupting
             # this sample — the pending-graceful-resolution state (e.g. a
             # `--score` cancel stalled on a hung sample/scorer)
-            eval_state.task_cancel.cancel_task("score")
+            eval_state.task_cancel.request("score")
             resolution_pending.set()
             await anyio.sleep(10)
             return state
@@ -1126,7 +1173,7 @@ def _fire_on_log_finish(
     async def log_finish(self: TaskLogger, *args: Any, **kwargs: Any) -> Any:
         if self.eval.task == task_name and args[0] == status and not fired:
             fired.append(self.eval.eval_id)
-            _task_cancel_handle(self.eval.eval_id).cancel_task(cancel_type)
+            _task_cancel_handle(self.eval.eval_id).request(cancel_type)
             if hang:
                 await anyio.sleep_forever()
         return await original_log_finish(self, *args, **kwargs)
@@ -1248,7 +1295,7 @@ async def test_abort_pending_before_error_log_write_keeps_full_log(
     def collect_and_abort(stats: Any) -> None:
         # called in task a's error handler just before its error-log write
         if "a" in handles and not pending_at_write:
-            handles["a"].cancel_task("abort")
+            handles["a"].request("abort")
             pending_at_write.append(handles["a"].cancel_type)
         collect_eval_data(stats)
 
@@ -1286,8 +1333,13 @@ async def test_abort_pending_before_error_log_write_keeps_full_log(
 
 def _record_task_display_results(
     monkeypatch: pytest.MonkeyPatch,
+    profiles: dict[str, Any] | None = None,
 ) -> dict[str, list[object]]:
-    """Record each task display's `complete()` results, keyed by task display name."""
+    """Record each task display's `complete()` results, keyed by task display name.
+
+    When `profiles` is given, each task's display profile is stored in it under
+    the same name.
+    """
     import inspect_ai._eval.task.run as task_run_module
     from inspect_ai._display import display as real_display
 
@@ -1314,6 +1366,8 @@ def _record_task_display_results(
 
         @contextmanager
         def task(self, profile: Any) -> Iterator[Any]:
+            if profiles is not None:
+                profiles[profile.name] = profile
             with self.inner.task(profile) as td:
                 yield _RecordingTaskDisplay(td, profile.name)
 
@@ -1377,7 +1431,8 @@ async def test_abort_before_error_log_write_shields_it_for_bounded_time() -> Non
     import inspect_ai._eval.task.run as task_run_module
     from inspect_ai._eval.task.run import abort_bounded_write
 
-    pending = TaskCancel(can_retry=False, cancel_task=print, cancel_type="abort")
+    pending = TaskCancel(can_retry=False, apply=lambda _: None)
+    pending.request("abort")
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(task_run_module, "ABORTED_LOG_WRITE_TIMEOUT", 0.05)
         with anyio.CancelScope() as task_scope:
@@ -1515,7 +1570,7 @@ runs to its end, and the cancellation lands after the teardown.
 
 
 async def _abort_and_wait(eval_id: str) -> None:
-    _task_cancel_handle(eval_id).cancel_task("abort")
+    _task_cancel_handle(eval_id).request("abort")
     await anyio.sleep(_POST_ABORT_WAIT)
 
 
@@ -1733,7 +1788,7 @@ async def test_abort_before_any_log_write_reports_errored_log(
 
     async def log_start(self: TaskLogger, *args: Any, **kwargs: Any) -> None:
         if self.eval.task == "a":
-            handles["a"].cancel_task("abort")
+            handles["a"].request("abort")
             await anyio.sleep_forever()
         await original_log_start(self, *args, **kwargs)
 
@@ -1759,6 +1814,139 @@ async def test_abort_before_any_log_write_reports_errored_log(
     assert len(displayed["a"]) == 1
     assert isinstance(displayed["a"][0], TaskError)
     assert "cancelled by user (abort)" in str(displayed["a"][0].exc_value)
+
+
+@pytest.mark.anyio
+async def test_unregistered_final_retry_clears_retry_pending(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A final retry that fails before it registers leaves no attempt retry-pending.
+
+    The first attempt registers and errors, so it is flagged retry-pending.
+    The retry's `log_start` fails before `register_eval`, with no retry
+    left. Once the task has ended, the first attempt is no longer flagged,
+    and a task cancel or drain reports the task finished rather than
+    abandoning a retry that will not run.
+    """
+    from inspect_ai import eval_async
+    from inspect_ai._control.cancel import cancel_task, drain_task
+    from inspect_ai._control.eval_state import get_eval_states
+    from inspect_ai._eval.task.log import TaskLogger
+
+    original_log_start = TaskLogger.log_start
+    starts: list[str] = []
+
+    async def log_start(self: TaskLogger, *args: Any, **kwargs: Any) -> None:
+        starts.append(self.eval.eval_id)
+        if len(starts) == 2:
+            raise RuntimeError("retry log_start failed")
+        await original_log_start(self, *args, **kwargs)
+
+    monkeypatch.setattr(TaskLogger, "log_start", log_start)
+
+    runs: list[str] = []
+    observed: dict[str, Any] = {}
+
+    class _CheckAfterTaskSource(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_failing_task("a", runs, failures=1)]
+
+        async def next_tasks(self) -> list[Task] | None:
+            states = [s for s in get_eval_states() if s.task == "a"]
+            observed["registered"] = [s.eval_id for s in states]
+            observed["retry_pending"] = [s.retry_pending for s in states]
+            task_id = states[0].task_id
+            observed["cancel"] = cancel_task(task_id)
+            observed["drain"] = drain_task(task_id)
+            return None
+
+    logs = await eval_async(
+        _CheckAfterTaskSource(),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        task_retry_attempts=1,
+    )
+
+    assert runs == ["a"]
+    assert len(starts) == 2
+    assert len(logs) == 1 and logs[0].status == "error"
+    assert logs[0].eval.eval_id == starts[1]
+    # only the first attempt registered; it is no longer retry-pending
+    assert observed["registered"] == [starts[0]]
+    assert observed["retry_pending"] == [False]
+    for result in (observed["cancel"], observed["drain"]):
+        assert result is not None
+        assert "retry_abandoned" not in result
+        assert result.get("changed") is False
+        assert result.get("reason") == "task already finished"
+
+
+@pytest.mark.anyio
+async def test_retry_abandoned_after_row_opens_completes_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry abandoned after its display row opened completes that row as cancelled.
+
+    The retry is abandoned during its `log_start`, after the row opened and
+    before `register_eval`. The task ends with the first attempt's error log,
+    and the row's summary does not point at the retry's discarded log.
+    """
+    from io import StringIO
+
+    from rich.console import Console
+
+    from inspect_ai import eval_async
+    from inspect_ai._control.eval_state import abandon_task_retry
+    from inspect_ai._display.core.display import TaskCancelled, TaskWithResult
+    from inspect_ai._display.core.results import tasks_results
+    from inspect_ai._eval.task.log import TaskLogger
+
+    original_log_start = TaskLogger.log_start
+    starts: list[str] = []
+    locations: list[str] = []
+
+    async def log_start(self: TaskLogger, *args: Any, **kwargs: Any) -> None:
+        starts.append(self.eval.eval_id)
+        locations.append(self.location)
+        await original_log_start(self, *args, **kwargs)
+        if len(starts) == 2:
+            abandon_task_retry(self.eval.task_id)
+
+    monkeypatch.setattr(TaskLogger, "log_start", log_start)
+    profiles: dict[str, Any] = {}
+    displayed = _record_task_display_results(monkeypatch, profiles)
+
+    runs: list[str] = []
+    logs = await eval_async(
+        _failing_task("a", runs, failures=1),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        task_retry_attempts=1,
+    )
+
+    assert runs == ["a"]
+    assert len(starts) == 2
+    assert len(logs) == 1 and logs[0].status == "error"
+    assert logs[0].eval.eval_id == starts[0]
+    assert sorted(displayed) == ["a", "a (retry 1 of 1)"]
+    assert [type(r) for r in displayed["a"]] == [TaskError]
+    retry_results = displayed["a (retry 1 of 1)"]
+    assert len(retry_results) == 1
+    assert isinstance(retry_results[0], TaskCancelled)
+    assert retry_results[0].samples_completed == 0
+
+    # the retry's log was discarded; its summary names no log
+    assert not Path(locations[1]).exists()
+    retry_profile = profiles["a (retry 1 of 1)"]
+    assert retry_profile.log_location == ""
+    out = StringIO()
+    Console(file=out, width=300).print(
+        tasks_results([TaskWithResult(retry_profile, retry_results[0])])
+    )
+    rendered = out.getvalue()
+    assert "Task interrupted" in rendered
+    assert "Log:" not in rendered
+    assert Path(locations[1]).stem not in rendered
 
 
 @pytest.mark.anyio
@@ -1814,7 +2002,7 @@ async def test_run_cancel_stops_dispatch(tmp_path: Path, with_abort: bool) -> No
             if with_abort:
                 active = sample_active()
                 assert active is not None
-                _task_cancel_handle(active.eval_id).cancel_task("abort")
+                _task_cancel_handle(active.eval_id).request("abort")
             scopes[0].cancel()
             await anyio.sleep_forever()
             return state
@@ -1888,7 +2076,7 @@ async def test_task_source_task_complete_runs_to_completion_after_abort(
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             active = sample_active()
             assert active is not None
-            _task_cancel_handle(active.eval_id).cancel_task("abort")
+            _task_cancel_handle(active.eval_id).request("abort")
             await anyio.sleep_forever()
             return state
 
@@ -2005,7 +2193,7 @@ class _LateCancelSource(TaskSource):
     async def task_complete(self, log: EvalLog) -> None:
         self.completed.append(log.status)
         if len(self.completed) == 1:
-            _task_cancel_handle(log.eval.eval_id).cancel_task(self.cancel_type)
+            _task_cancel_handle(log.eval.eval_id).request(self.cancel_type)
         await anyio.sleep(0)
 
 
