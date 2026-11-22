@@ -100,7 +100,7 @@ class AgentSubmit(NamedTuple):
     """Alternate implementation for submit tool.
 
     The tool can provide its `name` and `description` internally,
-    or these values can be overriden by the `name` and `description`
+    or these values can be overridden by the `name` and `description`
     fields in `AgentSubmit`
 
     The tool should return the `answer` provided to it for scoring.
