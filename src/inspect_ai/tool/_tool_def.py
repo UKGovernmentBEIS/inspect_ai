@@ -246,7 +246,7 @@ def tool_def_fields(tool: Tool) -> ToolDefFields:
     else:
         raise ValueError(f"Description not provided for tool function '{name}'")
 
-    # see if the user has overriden any of the tool's descriptions
+    # see if the user has overridden any of the tool's descriptions
     parameters = tool_info.parameters
     desc = tool_description(tool)
     if desc.parameters:
