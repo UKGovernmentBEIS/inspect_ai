@@ -21,7 +21,7 @@ from inspect_ai._util.working import sample_working_time
 
 class BaseEvent(BaseModel):
     uuid: str | None = Field(default=None)
-    """Unique identifer for event."""
+    """Unique identifier for event."""
 
     span_id: str | None = Field(default=None)
     """Span the event occurred within."""
