@@ -37,17 +37,19 @@ A pass shows that the `.eval` file matches what was stored. It does not show tha
 
 ## Set up the add-only store
 
-Use a bucket in an AWS account that is separate from the account of the eval hosts. Nobody who can sign in to an eval host must be able to change the bucket's settings.
+Use a bucket in an AWS account that is separate from the account of the eval hosts. People who can sign in to an eval host must not be able to change the bucket's settings.
 
 1.  Create the bucket with Object Lock in COMPLIANCE mode. This also turns on versioning. Set the retention period to the time that you must keep the records. Nobody can delete a stored version, or make the retention shorter, until the period ends.
 
     ``` bash
-    aws s3api create-bucket --bucket my-addonly-store \
+    aws s3api create-bucket --bucket my-addonly-store --region us-east-1 \
       --object-lock-enabled-for-bucket
     aws s3api put-object-lock-configuration --bucket my-addonly-store \
       --object-lock-configuration '{"ObjectLockEnabled": "Enabled",
         "Rule": {"DefaultRetention": {"Mode": "COMPLIANCE", "Days": 365}}}'
     ```
+
+    In a region other than `us-east-1`, also give `--create-bucket-configuration LocationConstraint=<region>`.
 
 2.  Add a bucket policy that refuses a put without `If-None-Match`. Without this policy, a put can add a second version of an object.
 
@@ -128,7 +130,7 @@ inspect eval ctf.py --model openai/gpt-6-luna \
   --tamper-evident-store s3://my-addonly-store/team-a
 ```
 
-`eval_set()` and `inspect eval-set` take the same option. If you do not give it, the eval writes nothing to the add-only store.
+`eval_set()` and `inspect eval-set` take the same option, and use it for each retry that they run. If you do not give it, the eval writes nothing to the add-only store.
 
 Before the first sample starts, the eval checks the store: it writes its first record, writes it again (S3 must refuse), tries to read and delete it (S3 must refuse), and reads the Object Lock settings (they must be COMPLIANCE). If a check fails, the eval fails.
 
@@ -138,14 +140,16 @@ If a write fails with a network error, throttling or a server error, the sample 
 
 ### Retries
 
-The log does not record the store location, so give it again when you retry an eval:
+The log does not record the store location, so give it again when you retry an eval with `eval_retry()` or `inspect eval-retry`:
 
 ``` bash
 inspect eval-retry logs/2026-11-22T10-00-00_ctf_abc.eval \
   --tamper-evident-store s3://my-addonly-store/team-a
 ```
 
-A sample that the retry reuses from the earlier eval is not written again. The retry's closing record names the eval that the sample came from, and the validator compares the sample with that eval's records.
+`eval_set()` and `task_retry_attempts` retry a failed eval in the same run, and use the store location that the run got.
+
+A sample that a retry reuses from the earlier eval is not written again. The retry's start record names the earlier eval. The validator compares the sample with the records of the eval that ran it: the earlier eval, or an eval before it when the earlier eval was also a retry.
 
 With `retry_on_error`, the failed attempt keeps its records in the store. The validator lists it as retried, and does not report it as a finding. This applies only to the attempts that the eval's `retry_on_error` setting allows. Another attempt with no closing record is reported as `missing_closing`.
 
@@ -188,7 +192,7 @@ event_mismatch ceb6p9.../s0.1/1: Event 8 (tool FWBdtR...) differs in ['result'];
 1 eval(s), 1 sample(s) compared, 1 finding(s).
 ```
 
-In this example someone added a record to the store after the eval, with the eval host's keys. They do not know the eval's secret (the nonce), which only the eval process had:
+In this example someone added a record to the store after the eval, with the eval host's keys. They do not know the eval's secret (the nonce): it is in the store's records, which the eval host's keys cannot read. The list of record numbers is shortened here:
 
 ``` default
 nonce VbcjdG.../s0.1/1/16: Nonce differs from the start record's.

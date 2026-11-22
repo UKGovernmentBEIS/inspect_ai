@@ -1533,7 +1533,7 @@ def eval_retry(
             `<name>-recovered.eval` alongside the crashed log rather than in
             `log_dir`, so read its location from `EvalLog.location`.
         sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
-        tamper_evident_store: `s3://bucket/prefix` of the add-only store for tamper-evident logs, as `eval()` takes it. The log doesn't record it, so a retry is told again.
+        tamper_evident_store: `s3://bucket/prefix` of the add-only store for tamper-evident logs, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
@@ -1767,7 +1767,7 @@ async def eval_retry_async(
             `<name>-recovered.eval` alongside the crashed log rather than in
             `log_dir`, so read its location from `EvalLog.location`.
         sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
-        tamper_evident_store: `s3://bucket/prefix` of the add-only store for tamper-evident logs, as `eval()` takes it. The log doesn't record it, so a retry is told again.
+        tamper_evident_store: `s3://bucket/prefix` of the add-only store for tamper-evident logs, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
