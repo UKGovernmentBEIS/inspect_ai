@@ -16,8 +16,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
+from inspect_ai.event._validate import validate_events
 from inspect_ai.log._file import (
     list_eval_logs,
     read_eval_log,
@@ -56,6 +57,7 @@ FindingKind = Literal[
     "missing_eval_file",
     "missing_sample",
     "event_mismatch",
+    "malformed_record",
 ]
 
 
@@ -246,28 +248,44 @@ def _validate_eval(
     def finding(kind: FindingKind, message: str, key: str | None = None) -> None:
         findings.append(Finding(kind=kind, eval_id=eval_id, key=key, message=message))
 
-    if f"{eval_id}/{START}" not in keys:
+    # records the eval could have written; anything else is reported, so
+    # that it cannot stop the validator
+    stored: dict[str, StoreRecord] = {}
+    for key in keys:
+        record_type = _record_type(key)
+        if record_type is None:
+            finding("malformed_record", "Not a key the eval writes.", key)
+            continue
+        try:
+            record = read(key)
+            if isinstance(record, SampleRecord):
+                validate_events([json.loads(row.data) for row in record.rows.events])
+        except ValueError as ex:
+            finding("malformed_record", f"Cannot read it: {_first_error(ex)}", key)
+            continue
+        if not isinstance(record, record_type):
+            finding("malformed_record", f"Holds a {record.type} record.", key)
+            continue
+        stored[key] = record
+
+    start = stored.get(f"{eval_id}/{START}")
+    if start is None:
         finding("missing_start", "No start record.")
         return findings, 0
-    start = read(f"{eval_id}/{START}")
     assert isinstance(start, StartRecord)
     nonce = start.nonce
 
     # attempts: "<eval>/<sample>.<epoch>/<attempt>/<seq|closing>"
     attempts: dict[tuple[str, str], dict[str, StoreRecord]] = defaultdict(dict)
     eval_closing: EvalClosingRecord | None = None
-    for key in keys:
-        parts = key.split("/")
-        if len(parts) == 2:
-            record = read(key)
-            if parts[1] == CLOSING:
-                assert isinstance(record, EvalClosingRecord)
-                eval_closing = record
-        else:
-            record = read(key)
-            attempts[(parts[1], parts[2])][parts[3]] = record
+    for key, record in stored.items():
         if record.nonce != nonce:
             finding("nonce", "Nonce differs from the start record's.", key)
+        parts = key.split("/")
+        if isinstance(record, EvalClosingRecord):
+            eval_closing = record
+        elif len(parts) == 4:
+            attempts[(parts[1], parts[2])][parts[3]] = record
 
     if eval_closing is None:
         finding("missing_eval_closing", "No closing record: the eval was cut short.")
@@ -333,6 +351,36 @@ def _validate_eval(
                 f"{eval_id}/{sample_key_part(ref.sample_id, ref.epoch)}/{ref.attempt}",
             )
     return findings, compared
+
+
+def _record_type(
+    key: str,
+) -> (
+    type[StartRecord]
+    | type[SampleRecord]
+    | type[SampleClosingRecord]
+    | type[EvalClosingRecord]
+    | None
+):
+    """The record type a key under an eval holds, or None if the eval never writes the key."""
+    match key.split("/"):
+        case [_, "start"]:
+            return StartRecord
+        case [_, "closing"]:
+            return EvalClosingRecord
+        case [_, _, _, "closing"]:
+            return SampleClosingRecord
+        case [_, _, _, seq] if seq.isdigit():
+            return SampleRecord
+        case _:
+            return None
+
+
+def _first_error(ex: ValueError) -> str:
+    if isinstance(ex, ValidationError):
+        error = ex.errors()[0]
+        return f"{'.'.join(map(str, error['loc']))}: {error['msg']}"
+    return str(ex)
 
 
 def _event_version_problems(

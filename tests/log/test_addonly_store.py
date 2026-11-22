@@ -584,6 +584,34 @@ def test_forged_event_without_uuid(
     )
 
 
+@pytest.mark.parametrize("kind", ["not_json", "bad_event", "odd_key", "wrong_type"])
+def test_malformed_record(
+    clean_run: CleanRun, validate_cli: ValidateCli, kind: str
+) -> None:
+    """Something the eval never writes, added under its prefix.
+
+    Before the validator reported these, it stopped with a traceback, so it
+    could not check any eval under the prefix.
+    """
+    seq = clean_run.records() + 1
+    match kind:
+        case "not_json":
+            key, body = clean_run.sample_key(seq), "not a record"
+        case "bad_event":
+            key = clean_run.sample_key(seq)
+            body = clean_run.forged_record(seq, {"uuid": "u", "event": "info"})
+        case "odd_key":
+            key = f"{clean_run.eval_id}/s0.1/x"
+            body = clean_run.forged_record(seq)
+        case _:
+            key = clean_run.sample_key(CLOSING, attempt=2)
+            body = clean_run.read(f"{clean_run.eval_id}/{START}").decode()
+    clean_run.put(key, body)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "malformed_record")
+    assert f"malformed_record {key}:" in result.output
+
+
 def test_forged_attempt(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
     """A second attempt of the sample: attempt 1's rows and closing, copied."""
     records = [
