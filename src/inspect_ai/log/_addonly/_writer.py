@@ -1,6 +1,6 @@
 """Writes an eval's records to the add-only store.
 
-PROTOTYPE (tamper-evident eval logs, step 1). A sample writes at each
+Tamper-evident logs. A sample writes at each
 boundary (before each generate request, before each stage of tool calls,
 and at sample end) and waits until the store confirms the write.
 """

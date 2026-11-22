@@ -1,4 +1,4 @@
-"""PROTOTYPE: `inspect validate` (tamper-evident eval logs, step 1)."""
+"""`inspect validate`: check .eval files against the add-only store (tamper-evident logs)."""
 
 import click
 
@@ -23,9 +23,10 @@ from inspect_ai._util.error import PrerequisiteError
     help="List every record with its arrival time.",
 )
 def validate_command(log_dir: str, store: str, verbose: bool) -> None:
-    """Check the add-only store, and compare the .eval files in LOG_DIR with it.
+    """Check tamper-evident logs: compare the .eval files in LOG_DIR with the add-only store.
 
-    A pass covers the .eval fields the store holds (see the success line),
+    Also checks the add-only store's settings and records. Exits non-zero on
+    any finding. A pass covers the .eval fields the store holds (see the success line),
     not that the run was honest: records written after a compromise pass too.
     """
     from inspect_ai.log._addonly._validate import validate_store

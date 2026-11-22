@@ -1,4 +1,4 @@
-"""PROTOTYPE: tamper-evident eval logs, step 1, against moto server.
+"""Tamper-evident logs, against moto server.
 
 Runs real evals (mockllm, react agents, parallel and serial tool stages, a
 sub-agent used as a tool, two sub-agents at once, streamed output) with the
@@ -6,7 +6,7 @@ add-only store on, then validates the store and the .eval files. The
 tampering tests change a clean run's .eval file or store, then run the
 `inspect validate` command and check its findings. Set ADDONLY_EVIDENCE_DIR
 to save each command's output. See
-design/prototype-tamper-evident-logs-findings.md.
+design/tamper-evident-logs-findings.md.
 """
 
 import json

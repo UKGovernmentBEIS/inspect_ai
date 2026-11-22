@@ -1,7 +1,7 @@
-# Prototype findings: tamper-evident eval logs, step 1
+# Findings: tamper-evident logs, step 1
 
-Spec: the plan "Tamper-evident eval logs". Step 1 was built against v80.
-Step 1b changed the prototype to match v81, which took in the step 1
+Spec: the tamper-evident logs plan. Step 1 was built against v80.
+Step 1b changed the code to match v81, which took in the step 1
 findings (see [Step 1b: changes for plan v81](#step-1b-changes-for-plan-v81)).
 Branch `epatey/tamper-evident-logs-prototype`, from `main` at ec5d110b1.
 Built by Claude Code on Opus 5.5 (`claude-opus-5-5`), session default
@@ -12,8 +12,8 @@ subprocess with IAM enforcement on. No AWS calls were made. No AWS
 credentials other than moto's fake keys were used. Nothing was installed
 outside the project venv (`uv sync --locked` only).
 
-This is prototype code. It answers the plan's four questions. It is not
-ready for review as a feature.
+This code answers the plan's four questions. It is not yet ready for
+review as a feature.
 
 ## Summary
 
@@ -22,7 +22,7 @@ ready for review as a feature.
 | 1. No legitimate event version is written after the event is complete and a boundary stored it | False for bridged host tools called one at a time: the bridge's `message_id` update is a late version (seen in a run). True for every other path run. The sentinel sidecar's updates can also be late when sub-agents run at once (code reading, not run). | `test_host_tools_against_addonly_store[serial]` (2 findings); `test_agent_eval_validates`, `test_streaming_eval_validates`, `test_host_tools_against_addonly_store[parallel]`, timing script (0 findings); rule proven by `test_late_event_version_flagged` |
 | 2. Every buffered event has a uuid | True. The `uuid()` fallback at `buffer/database.py:424` never fires for sample events. | Code path below; validator check `event_without_uuid` found none in any run |
 | 3. A sample rebuilt from buffer rows matches the sample logged from memory | True for every sample run, once no warning is logged from a worker thread (see [Events lost when a worker thread logs a warning](#events-lost-when-a-worker-thread-logs-a-warning)). | `test_agent_eval_validates` (6 samples), `test_streaming_eval_validates`, bridge test, timing script and probe runs (1,000+ samples) |
-| 4. Time per boundary write | Local moto, not S3: median 4.5 ms with 1 sample (put alone 3.9 ms). Median 34 ms, p95 65 ms with 10 samples at once (put alone 27 ms). | `scripts/prototype_addonly_timing.py` |
+| 4. Time per boundary write | Local moto, not S3: median 4.5 ms with 1 sample (put alone 3.9 ms). Median 34 ms, p95 65 ms with 10 samples at once (put alone 27 ms). | `scripts/addonly_timing.py` |
 
 ## What was built
 
@@ -81,16 +81,16 @@ ready for review as a feature.
     and `test_host_tools_against_addonly_store` (parallel and serial).
   - `tests/test_helpers/addonly_moto.py` (moto setup, `MotoStore.validate`),
     `tests/test_helpers/addonly_agents.py` (scripted agents).
-- Scripts: `scripts/prototype_addonly_timing.py`,
-  `scripts/prototype_addonly_moto_probe.py`.
+- Scripts: `scripts/addonly_timing.py`,
+  `scripts/addonly_moto_probe.py`.
 
 Run them from the repo root:
 
 ```bash
 pytest tests/log/test_addonly_store.py
 pytest tests/agent/test_bridge_approval.py -k addonly_store
-PYTHONPATH=tests python scripts/prototype_addonly_timing.py
-PYTHONPATH=tests python scripts/prototype_addonly_moto_probe.py
+PYTHONPATH=tests python scripts/addonly_timing.py
+PYTHONPATH=tests python scripts/addonly_moto_probe.py
 ```
 
 The eval writes to the store when `INSPECT_ADDONLY_STORE=s3://bucket/prefix`
@@ -100,7 +100,7 @@ it.
 ## Step 1b: changes for plan v81
 
 Plan v81 took in the six plan errors of step 1. Each change below matches
-the prototype to the plan.
+the code to the plan.
 
 1. **412.** The eval host's S3 client has SDK retries off
    (`_store.py:84`, `retries={"max_attempts": 0}`, as `asyncfiles`
@@ -378,7 +378,7 @@ samples of one timing run; the mismatched sample's records had two such
 two threads shows the event loop thread's event skipping a subscriber that
 the other thread is inside.
 
-Prototype fix: the store's client has a pool of 50 connections
+Fix in this branch: the store's client has a pool of 50 connections
 (`_store.py:83`, the value `AsyncFilesystem` uses), so its puts no longer
 log the warning at this concurrency. After the fix, 25 more runs of the
 20 x 2 eval (1,000 samples) had no `LoggerEvent` and no finding. The
@@ -391,7 +391,7 @@ buffer that live viewing reads.
 ### 4. Time per boundary write
 
 Against a local moto server on the same host, not real S3. The numbers show
-the prototype's own cost and moto's, not S3 latency. "Wait" is the time the
+this code's own cost and moto's, not S3 latency. "Wait" is the time the
 sample waits at a boundary: reading rows from SQLite, JSON, the put, and
 waiting for earlier records of the same sample.
 
@@ -412,7 +412,7 @@ plan's estimate of tens of milliseconds for a real S3 put is not tested.
 
 ## What moto does and does not enforce
 
-From `scripts/prototype_addonly_moto_probe.py`:
+From `scripts/addonly_moto_probe.py`:
 
 ```
 action                                                       real S3 (docs)                moto
@@ -521,7 +521,7 @@ changed decisions 2, 3, 5 and 6, and added 14 and 15; each change is marked.
 15. *New in 1b.* Validator scope: one store prefix per log directory, given
     to both the eval and the validator. No new option.
 
-## Plan issues the prototype still finds
+## Plan issues these runs still find
 
 Plan v81 fixed the six plan errors of step 1 (412 after a retried put,
 failed buffer insert, bridged host tools, `.` in keys, sub-agents waiting
@@ -535,7 +535,7 @@ for each other, validator scope). These remain or are new:
    tried; here it is not. The plan needs every event to reach the buffer,
    which means fixing the transcript's re-entry check across threads (or
    not recording worker-thread log records in the sample transcript) in
-   core. The prototype only removed its own trigger.
+   core. This branch only removed its own trigger.
 2. **Sidecar updates with sub-agents.** The plan says the sidecar's output
    update and timing update happen "inside the generate call or tool call,
    before the next boundary". That holds for the agent that made the call,
@@ -560,7 +560,7 @@ for each other, validator scope). These remain or are new:
 
 - Use an async S3 client (aiobotocore, as `AsyncFilesystem` does) with
   connection reuse.
-- Set the retry time limit (the prototype uses 60 s).
+- Set the retry time limit (this branch uses 60 s).
 - Make sure every event of a sample reaches the buffer, also when a worker
   thread logs during the sample (plan issue 1).
 - Settle the bridge `message_id` update and the sentinel sidecar updates

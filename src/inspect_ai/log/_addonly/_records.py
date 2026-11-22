@@ -1,6 +1,6 @@
 """Records in the add-only store and their keys.
 
-PROTOTYPE (tamper-evident eval logs, step 1). Keys, under the store prefix:
+Tamper-evident logs. Keys, under the store prefix:
 
     <eval-id>/start
     <eval-id>/closing

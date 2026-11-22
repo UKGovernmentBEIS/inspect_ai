@@ -1,4 +1,4 @@
-"""A local add-only store on moto server, for the tamper-evident logs prototype.
+"""A local add-only store on moto server, for tamper-evident logs.
 
 Runs moto server in a subprocess with IAM enforcement on (moto reads
 ``INITIAL_NO_AUTH_ACTION_COUNT`` once per process, so it cannot share the

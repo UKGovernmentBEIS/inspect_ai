@@ -1,4 +1,4 @@
-"""Scripted agents for the tamper-evident logs prototype (tests and scripts).
+"""Scripted agents for tamper-evident logs (tests and scripts).
 
 A react agent with one parallel stage (two adds and two sub-agents used as
 tools, so two sub-agents run at once), then a serial stage, then submit.

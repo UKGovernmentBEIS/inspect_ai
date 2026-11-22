@@ -1,13 +1,14 @@
 """Checks the add-only store, and compares .eval files with it.
 
-PROTOTYPE (tamper-evident eval logs, step 1). Runs outside the eval, with
+Tamper-evident logs. Runs outside the eval, with
 read access to the store. Takes the store's location from its caller, never
 from a .eval file.
 
 A pass means the .eval fields the store holds (events, scores, which samples
 exist, the eval's status, stats and results) match it, not that the run was
 honest: records written after a compromise pass too. Other .eval fields
-(sample messages and output, the sample summaries) are not checked.
+(for example sample messages and output, the sample summaries) are not
+checked.
 """
 
 import json

@@ -385,7 +385,7 @@ class TaskLogger:
         # sample buffer db
         self._buffer_db: SampleBufferDatabase | None = None
 
-        # add-only store writer (tamper-evident logs prototype)
+        # add-only store writer (tamper-evident logs)
         self.addonly: EvalRecordWriter | None = None
 
         # how many of the run's process-scoped ctl config updates this log

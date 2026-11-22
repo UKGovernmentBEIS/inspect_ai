@@ -1,7 +1,7 @@
-"""PROTOTYPE: time the boundary writes of tamper-evident eval logs.
+"""Time the boundary writes of tamper-evident logs.
 
 Against a LOCAL EMULATOR (moto server on 127.0.0.1), not real S3: the times
-show the prototype's own cost (reading buffer rows, JSON, boto3 in a worker
+show this code's own cost (reading buffer rows, JSON, boto3 in a worker
 thread, HTTP to localhost), not S3 latency.
 
 Runs the scripted agent eval (tests/test_helpers/addonly_agents.py) with and
@@ -11,7 +11,7 @@ without the add-only store, validates the store, and prints:
 - eval wall time with and without the store;
 - the records of one sample, to show what each boundary stored.
 
-Usage (from the repo root): PYTHONPATH=tests python scripts/prototype_addonly_timing.py [--samples N] [--epochs N]
+Usage (from the repo root): PYTHONPATH=tests python scripts/addonly_timing.py [--samples N] [--epochs N]
 """
 
 import argparse

@@ -1,10 +1,10 @@
-"""PROTOTYPE: what moto server enforces for the add-only store.
+"""Tamper-evident logs: what moto server enforces for the add-only store.
 
 Checks If-None-Match, compliance-mode Object Lock, a bucket policy that
 requires If-None-Match, and IAM limits on the eval host's user. Each line
 prints what real S3 does (from the AWS documentation) and what moto did.
 
-Usage (from the repo root): PYTHONPATH=tests python scripts/prototype_addonly_moto_probe.py
+Usage (from the repo root): PYTHONPATH=tests python scripts/addonly_moto_probe.py
 """
 
 import datetime
