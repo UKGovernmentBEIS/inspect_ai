@@ -2,39 +2,54 @@
 
 Runs real evals (mockllm, react agents, parallel and serial tool stages, a
 sub-agent used as a tool, two sub-agents at once, streamed output) with the
-add-only store on, then validates the store and the .eval files.
-See design/prototype-tamper-evident-logs-findings.md.
+add-only store on, then validates the store and the .eval files. The
+tampering tests change a clean run's .eval file or store, then run the
+`inspect validate` command and check its findings. Set ADDONLY_EVIDENCE_DIR
+to save each command's output. See
+design/prototype-tamper-evident-logs-findings.md.
 """
 
 import json
+import os
+import shutil
 import uuid
-from collections.abc import Iterator, Mapping
+import zipfile
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import anyio
 import pytest
 from botocore.exceptions import EndpointConnectionError, ReadTimeoutError
-from click.testing import CliRunner
 from test_helpers.addonly_agents import (
     agent_task,
     run,
     scripted_call,
     scripted_output,
 )
-from test_helpers.addonly_moto import BUCKET, MotoStore, moto_addonly_store
+from test_helpers.addonly_moto import (
+    BUCKET,
+    CliResult,
+    MotoStore,
+    moto_addonly_store,
+)
 
 from inspect_ai import Task, eval
-from inspect_ai._cli.validate import validate_command
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
-from inspect_ai.event import Event, InfoEvent
-from inspect_ai.log import write_eval_log
+from inspect_ai.event import Event, InfoEvent, ToolEvent
+from inspect_ai.log import EvalLog, EvalSample, read_eval_log, write_eval_log
 from inspect_ai.log._addonly import ADDONLY_STORE_ENV
-from inspect_ai.log._addonly._records import SampleAttemptRef, SampleRecord
+from inspect_ai.log._addonly._records import (
+    CLOSING,
+    START,
+    SampleAttemptRef,
+    SampleClosingRecord,
+    SampleRecord,
+)
 from inspect_ai.log._addonly._store import (
     AddOnlyStore,
     AddOnlyStoreError,
@@ -44,6 +59,7 @@ from inspect_ai.log._addonly._store import (
 from inspect_ai.log._addonly._validate import (
     ValidationReport,
     _event_version_problems,
+    _rebuild_rows,
 )
 from inspect_ai.log._addonly._writer import EvalRecordWriter
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
@@ -92,24 +108,186 @@ def validate(store: MotoStore, log_dir: Path) -> ValidationReport:
     return store.validate(log_dir)
 
 
+EVIDENCE_DIR_ENV = "ADDONLY_EVIDENCE_DIR"
+"""If set, each `inspect validate` run of the tests saves its output there."""
+
+ValidateCli = Callable[..., CliResult]
+
+
+@pytest.fixture
+def validate_cli(request: pytest.FixtureRequest) -> ValidateCli:
+    """Runs `inspect validate` (a subprocess) and saves its output as evidence."""
+
+    def validate_cli(
+        store: MotoStore, log_dir: Path, *options: str, policy: bool = True
+    ) -> CliResult:
+        result = store.validate_cli(log_dir, *options, policy=policy)
+        evidence = os.environ.get(EVIDENCE_DIR_ENV)
+        if evidence:
+            name = request.node.name.removeprefix("test_")
+            shown = ["inspect", *result.command[3:]]
+            Path(evidence, f"{name}.txt").write_text(
+                f"$ {' '.join(shown)}\n{result.output}[exit code {result.exit_code}]\n"
+            )
+        return result
+
+    return validate_cli
+
+
+class CleanRun(NamedTuple):
+    """An agent eval with one sample, run with the store on, that validates clean."""
+
+    store: MotoStore
+    log_dir: Path
+    log: EvalLog
+
+    @property
+    def eval_id(self) -> str:
+        return self.log.eval.eval_id
+
+    @property
+    def location(self) -> Path:
+        return Path(self.log.location)
+
+    def sample_key(self, last: str | int, attempt: int = 1) -> str:
+        """Key (under the store prefix) of a record of sample s0, epoch 1."""
+        return f"{self.eval_id}/s0.1/{attempt}/{last}"
+
+    def records(self) -> int:
+        """Number of sample records of s0, from its closing record."""
+        return SampleClosingRecord.model_validate_json(
+            self.read(self.sample_key(CLOSING))
+        ).records
+
+    def read(self, key: str) -> bytes:
+        s3 = self.store.client(self.store.admin)
+        body: bytes = s3.get_object(Bucket=BUCKET, Key=f"{self.store.prefix}/{key}")[
+            "Body"
+        ].read()
+        return body
+
+    def put(self, key: str, body: str | bytes, if_none_match: bool = True) -> None:
+        """Put as the eval host: it can add keys, never read or delete them."""
+        self.store.client(self.store.evalhost).put_object(
+            Bucket=BUCKET,
+            Key=f"{self.store.prefix}/{key}",
+            Body=body,
+            **({"IfNoneMatch": "*"} if if_none_match else {}),
+        )
+
+    def forged_record(self, seq: int, *events: dict[str, Any], attempt: int = 1) -> str:
+        """A sample record of s0 from someone without the eval's nonce."""
+        return SampleRecord(
+            eval_id=self.eval_id,
+            nonce=FORGED_NONCE,
+            sample=SampleAttemptRef(sample_id="s0", epoch=1, attempt=attempt),
+            seq=seq,
+            rows=BufferRows(
+                events=[
+                    BufferEventRow(event_id=e["uuid"], data=json.dumps(e))
+                    for e in events
+                ]
+            ),
+        ).model_dump_json()
+
+    def stored_events(self, seq: int) -> list[dict[str, Any]]:
+        record = SampleRecord.model_validate_json(self.read(self.sample_key(seq)))
+        return [json.loads(row.data) for row in record.rows.events]
+
+
+FORGED_NONCE = "0" * 64
+
+
+@pytest.fixture
+def clean_run(evalhost_env: MotoStore, tmp_path: Path) -> CleanRun:
+    log = run(agent_task(samples=1), tmp_path)
+    assert log.status == "success", log.error
+    assert validate(evalhost_env, tmp_path).findings == []
+    return CleanRun(evalhost_env, tmp_path, log)
+
+
+def edit_sample(clean: CleanRun, edit: Callable[[EvalSample], None]) -> None:
+    """Edit sample s0 of the .eval file with inspect's own log API."""
+    log = read_eval_log(clean.location)
+    assert log.samples
+    edit(log.samples[0])
+    write_eval_log(log, clean.location)
+
+
+def edit_zip_entry(path: Path, name: str, edit: Callable[[Any], Any]) -> None:
+    """Edit one JSON entry of a .eval file's zip in place, as a person with a zip tool could."""
+    with zipfile.ZipFile(path) as zf:
+        entries = {info.filename: zf.read(info) for info in zf.infolist()}
+    entries[name] = json.dumps(edit(json.loads(entries[name]))).encode()
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for entry, data in entries.items():
+            zf.writestr(entry, data)
+
+
+def assert_fails_with(result: CliResult, *kinds: str) -> None:
+    """The validator failed, with exactly these finding kinds."""
+    assert result.exit_code != 0, result.output
+    assert result.kinds() == set(kinds), result.output
+    assert f"{len(result.findings())} finding(s)." in result.output
+
+
 # --------------------------------------------------------- end-to-end runs
 
 
-def test_agent_eval_validates(evalhost_env: MotoStore, tmp_path: Path) -> None:
-    """Real eval: validator finds nothing (answers 1-3), and the paths ran."""
-    log = run(agent_task(epochs=2, samples=3), tmp_path, max_samples=3)
+def test_plain_eval_validates(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """One generate, no tools."""
+    log = eval(
+        Task(dataset=[Sample(input="hi", target="Default")], scorer=includes()),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+    )[0]
     assert log.status == "success", log.error
 
-    report = validate(evalhost_env, tmp_path)
-    assert report.findings == []
-    assert report.samples_compared == 6
-    assert log.eval.eval_id in report.evals
+    result = validate_cli(evalhost_env, tmp_path, "--verbose")
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
+    assert "1 eval(s), 1 sample(s) compared, 0 finding(s)." in result.output
+    # --verbose lists the start record, the sample's records and both closings
+    assert log.samples
+    sample = sample_key_part(log.samples[0].id, 1)
+    for key in ["start", f"{sample}/1/1", f"{sample}/1/closing", "closing"]:
+        assert f"{evalhost_env.prefix}/{log.eval.eval_id}/{key}\n" in result.output
+
+
+def test_agent_eval_validates(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """An agent with tool calls and sub-agents; the paths ran."""
+    log = run(agent_task(samples=1), tmp_path)
+    assert log.status == "success", log.error
+    assert log.samples
+    tools = {e.function for e in log.samples[0].events if isinstance(e, ToolEvent)}
+    assert tools == {"add", "researcher", "lookup", "note", "submit"}
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert "1 eval(s), 1 sample(s) compared, 0 finding(s)." in result.output
 
     # the run exercised a pending event stored before it completed: the
     # sub-agent tool calls span the sub-agents' own boundaries
     records = _sample_records(evalhost_env, log.eval.eval_id)
     spans = _events_completed_in_later_record(records)
     assert any(kind == "tool" for kind, _, _ in spans), spans
+
+
+def test_samples_at_once_validate(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """3 samples x 2 epochs, all at once."""
+    log = run(agent_task(epochs=2, samples=3), tmp_path, max_samples=6)
+    assert log.status == "success", log.error
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert "1 eval(s), 6 sample(s) compared, 0 finding(s)." in result.output
 
 
 def test_streaming_eval_validates(evalhost_env: MotoStore, tmp_path: Path) -> None:
@@ -182,80 +360,391 @@ class StreamingMockLLM(MockLLM):
         return ModelOutput.from_content(model="mockllm", content="streamed")
 
 
-# --------------------------------------------------------------- tampering
+# -------------------------------------------------- tampering, .eval file
+#
+# Each test tampers with a clean run (`clean_run` validates it first), then
+# runs `inspect validate` and checks it fails with the finding for that
+# tamper. Anyone who can write the log directory can make these changes.
 
 
-def test_edit_eval_file_detected(evalhost_env: MotoStore, tmp_path: Path) -> None:
-    log = run(agent_task(), tmp_path)
-    assert log.samples
-    tool_event = next(e for e in log.samples[0].events if e.event == "tool")
-    tool_event.result = "harmless"
-    write_eval_log(log, log.location)
+def test_edit_event(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """A tool result changed with inspect's own log API."""
 
-    report = validate(evalhost_env, tmp_path)
-    mismatches = [f for f in report.findings if f.kind == "event_mismatch"]
-    assert len(mismatches) == 1 and "result" in mismatches[0].message
+    def edit(sample: EvalSample) -> None:
+        tool_event = next(e for e in sample.events if isinstance(e, ToolEvent))
+        tool_event.result = "harmless"
+
+    edit_sample(clean_run, edit)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "event_mismatch")
+    assert "differs in ['result']" in result.output
 
 
-def test_validate_cli(
-    evalhost_env: MotoStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_edit_event_in_zip(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """The model's answer changed in the sample JSON inside the .eval zip."""
+
+    def edit(sample: dict[str, Any]) -> dict[str, Any]:
+        model = next(e for e in sample["events"] if e["event"] == "model")
+        model["output"]["choices"][0]["message"]["content"] = "a different answer"
+        return sample
+
+    edit_zip_entry(clean_run.location, "samples/s0_epoch_1.json", edit)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "event_mismatch")
+    assert "(model " in result.output and "differs in ['output']" in result.output
+
+
+def test_edit_model_input_in_pool(
+    clean_run: CleanRun, validate_cli: ValidateCli
 ) -> None:
-    log = run(agent_task(samples=1), tmp_path)
-    for key, value in evalhost_env.env(evalhost_env.validator).items():
-        monkeypatch.setenv(key, value)
-    evalhost_env.require_if_none_match_policy()
-    try:
-        args = [str(tmp_path), "--store", evalhost_env.url]
-        passed = CliRunner().invoke(validate_command, args)
-        assert passed.exit_code == 0, passed.output
-        assert "1 sample(s) compared, 0 finding(s)" in passed.output
+    """A model input message changed in the sample's message pool (not in an event)."""
 
-        Path(log.location).unlink()
-        failed = CliRunner().invoke(validate_command, args)
-        assert failed.exit_code != 0
-        assert "missing_eval_file" in failed.output
-    finally:
-        evalhost_env.client(evalhost_env.admin).delete_bucket_policy(Bucket=BUCKET)
+    def edit(sample: dict[str, Any]) -> dict[str, Any]:
+        sample["events_data"]["messages"][0]["content"] = "a different prompt"
+        return sample
+
+    edit_zip_entry(clean_run.location, "samples/s0_epoch_1.json", edit)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "event_mismatch")
+    assert "(model " in result.output and "differs in ['input']" in result.output
 
 
-def test_overwrite_and_forged_record_detected(
-    evalhost_env: MotoStore, tmp_path: Path
+def test_delete_event(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """The first tool event removed."""
+    deleted: list[str] = []
+
+    def edit(sample: EvalSample) -> None:
+        index = next(i for i, e in enumerate(sample.events) if isinstance(e, ToolEvent))
+        deleted.append(str(sample.events.pop(index).uuid))
+
+    edit_sample(clean_run, edit)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "event_mismatch")
+    # the first difference is where the stored event is missing from the copy
+    assert f"(tool {deleted[0]})" in result.output
+
+
+def test_reorder_events(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """Two tool events swapped."""
+
+    def edit(sample: EvalSample) -> None:
+        first, second = [
+            i for i, e in enumerate(sample.events) if isinstance(e, ToolEvent)
+        ][:2]
+        sample.events[first], sample.events[second] = (
+            sample.events[second],
+            sample.events[first],
+        )
+
+    edit_sample(clean_run, edit)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "event_mismatch")
+
+
+def test_truncate_events(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """The tail of the events cut off, from the score event on."""
+    counts: list[int] = []
+
+    def edit(sample: EvalSample) -> None:
+        counts.append(len(sample.events))
+        score = next(i for i, e in enumerate(sample.events) if e.event == "score")
+        del sample.events[score:]
+        counts.append(len(sample.events))
+
+    edit_sample(clean_run, edit)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "event_mismatch")
+    assert f".eval has {counts[1]} events, the store has {counts[0]}." in result.output
+
+
+def test_delete_eval_file(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    clean_run.location.unlink()
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "missing_eval_file")
+    assert f"missing_eval_file {clean_run.eval_id}:" in result.output
+
+
+def test_delete_sample(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """The sample removed from the .eval zip, and from its summaries."""
+    with zipfile.ZipFile(clean_run.location) as zf:
+        entries = {
+            info.filename: zf.read(info)
+            for info in zf.infolist()
+            if info.filename != "samples/s0_epoch_1.json"
+        }
+    with zipfile.ZipFile(clean_run.location, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, data in entries.items():
+            zf.writestr(name, b"[]" if name == "summaries.json" else data)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "missing_sample")
+    assert "Sample s0 epoch 1 is not in" in result.output
+
+
+def test_swap_eval_file(
+    clean_run: CleanRun,
+    validate_cli: ValidateCli,
+    tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
-    log = run(agent_task(samples=1), tmp_path)
-    eval_id = log.eval.eval_id
-    sample_prefix = f"{evalhost_env.prefix}/{eval_id}/s0.1/1"
-    admin = evalhost_env.client(evalhost_env.admin)
-    evalhost = evalhost_env.client(evalhost_env.evalhost)
+    """The .eval file replaced by the file of another run of the same task."""
+    other = run(agent_task(samples=1), tmp_path_factory.mktemp("other"))
+    shutil.copyfile(other.location, clean_run.location)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "missing_eval_file")
+    assert f"missing_eval_file {clean_run.eval_id}:" in result.output
 
-    # without If-None-Match an overwrite only adds a version (moto does not
-    # enforce the bucket policy that would refuse it)
-    first = admin.get_object(Bucket=BUCKET, Key=f"{sample_prefix}/1")["Body"].read()
-    evalhost.put_object(Bucket=BUCKET, Key=f"{sample_prefix}/1", Body=first)
-    # another eval adds a record to this sample; it cannot know the nonce
-    forged = SampleRecord(
-        eval_id=eval_id,
-        nonce="0" * 64,
-        sample=SampleAttemptRef(sample_id="s0", epoch=1, attempt=1),
-        seq=99,
-        rows=BufferRows(),
+
+def test_swap_eval_file_keep_eval_id(
+    clean_run: CleanRun,
+    validate_cli: ValidateCli,
+    tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """As above, with the other run's eval id changed to this run's."""
+    monkeypatch.delenv(ADDONLY_STORE_ENV)
+    other = run(agent_task(samples=1), tmp_path_factory.mktemp("other"))
+    other.eval.eval_id = clean_run.eval_id
+    write_eval_log(other, clean_run.location)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "event_mismatch")
+
+
+# ---------------------------------------------- tampering, add-only store
+#
+# The eval host can add keys (put with If-None-Match) and nothing else. Its
+# keys outlive the eval, so after the eval anyone holding them can add
+# records too, but without the eval's nonce, which was only in memory.
+
+
+def test_forged_record_wrong_nonce(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """The next record of the sample added after the eval."""
+    seq = clean_run.records() + 1
+    clean_run.put(clean_run.sample_key(seq), clean_run.forged_record(seq))
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "nonce", "record_count")
+    assert f"nonce {clean_run.sample_key(seq)}:" in result.output
+
+
+def test_forged_record_sequence_gap(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """A record added with a number past the next one."""
+    seq = clean_run.records() + 5
+    clean_run.put(clean_run.sample_key(seq), clean_run.forged_record(seq))
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "nonce", "sequence_gap", "record_count")
+
+
+def test_forged_late_event_version(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """A record that changes an event the store already holds complete."""
+    seq = clean_run.records() + 1
+    tool_event = next(
+        e
+        for i in range(1, seq)
+        for e in clean_run.stored_events(i)
+        if e["event"] == "tool" and not e.get("pending")
     )
-    evalhost.put_object(
+    edited = {**tool_event, "result": "harmless"}
+    clean_run.put(clean_run.sample_key(seq), clean_run.forged_record(seq, edited))
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(
+        result, "nonce", "record_count", "late_event_version", "event_mismatch"
+    )
+    assert f"event {tool_event['uuid']}, stored complete in record" in result.output
+
+
+def test_forged_event_without_uuid(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """A record with a row whose id is not its event's uuid."""
+    seq = clean_run.records() + 1
+    record = SampleRecord(
+        eval_id=clean_run.eval_id,
+        nonce=FORGED_NONCE,
+        sample=SampleAttemptRef(sample_id="s0", epoch=1, attempt=1),
+        seq=seq,
+        rows=BufferRows(
+            events=[
+                BufferEventRow(
+                    event_id="row-id",
+                    data=InfoEvent(uuid="event-uuid", data="x").model_dump_json(),
+                )
+            ]
+        ),
+    )
+    clean_run.put(clean_run.sample_key(seq), record.model_dump_json())
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(
+        result, "nonce", "record_count", "event_without_uuid", "event_mismatch"
+    )
+
+
+def test_forged_attempt(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """A second attempt of the sample: attempt 1's rows and closing, copied."""
+    records = [
+        SampleRecord.model_validate_json(clean_run.read(clean_run.sample_key(i)))
+        for i in range(1, clean_run.records() + 1)
+    ]
+    copy = SampleRecord(
+        eval_id=clean_run.eval_id,
+        nonce=FORGED_NONCE,
+        sample=SampleAttemptRef(sample_id="s0", epoch=1, attempt=2),
+        seq=1,
+        rows=_rebuild_rows(records),
+    )
+    clean_run.put(clean_run.sample_key(1, attempt=2), copy.model_dump_json())
+    closing = SampleClosingRecord.model_validate_json(
+        clean_run.read(clean_run.sample_key(CLOSING))
+    )
+    closing.nonce = FORGED_NONCE
+    closing.sample = SampleAttemptRef(sample_id="s0", epoch=1, attempt=2)
+    closing.records = 1
+    clean_run.put(clean_run.sample_key(CLOSING, attempt=2), closing.model_dump_json())
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    # the validator compares the .eval sample with the last attempt; the
+    # copied rows match it, so only the nonce and the closing list catch it
+    assert_fails_with(result, "nonce", "unlisted_attempt")
+
+
+def test_forged_eval(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """A whole eval added to the store: start, records, closings, its own nonce."""
+    forged_id = "forged" + clean_run.eval_id[6:]
+    for key in [
+        "start",
+        *[f"s0.1/1/{i}" for i in range(1, clean_run.records() + 1)],
+        "s0.1/1/closing",
+        "closing",
+    ]:
+        body = clean_run.read(f"{clean_run.eval_id}/{key}").decode()
+        clean_run.put(f"{forged_id}/{key}", body.replace(clean_run.eval_id, forged_id))
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "missing_eval_file")
+    assert f"missing_eval_file {forged_id}:" in result.output
+
+
+def test_forged_eval_without_start(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """Records added under an eval id that has no start record."""
+    clean_run.put(
+        "no-such-eval/s0.1/1/1",
+        clean_run.read(clean_run.sample_key(1)),
+    )
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "missing_start")
+    assert "missing_start no-such-eval: No start record." in result.output
+
+
+def test_forged_record_in_parts(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """A record added with a multipart upload, whose arrival time is its start."""
+    seq = clean_run.records() + 1
+    s3 = clean_run.store.client(clean_run.store.evalhost)
+    key = f"{clean_run.store.prefix}/{clean_run.sample_key(seq)}"
+    upload = s3.create_multipart_upload(Bucket=BUCKET, Key=key)["UploadId"]
+    part = s3.upload_part(
         Bucket=BUCKET,
-        Key=f"{sample_prefix}/99",
-        Body=forged.model_dump_json(),
+        Key=key,
+        UploadId=upload,
+        PartNumber=1,
+        Body=clean_run.forged_record(seq),
+    )
+    s3.complete_multipart_upload(
+        Bucket=BUCKET,
+        Key=key,
+        UploadId=upload,
+        MultipartUpload={"Parts": [{"PartNumber": 1, "ETag": part["ETag"]}]},
         IfNoneMatch="*",
     )
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "multipart", "nonce", "record_count")
 
-    kinds = {f.kind for f in validate(evalhost_env, tmp_path).findings}
-    assert {"overwrite", "nonce", "sequence_gap", "record_count"} <= kinds
+
+def test_delete_marker(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """A store admin deletes a record without a version id.
+
+    Real S3 allows this under COMPLIANCE retention: it adds a delete marker
+    and keeps the record. The eval host's role cannot delete.
+    """
+    clean_run.store.client(clean_run.store.admin).delete_object(
+        Bucket=BUCKET, Key=f"{clean_run.store.prefix}/{clean_run.sample_key(CLOSING)}"
+    )
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "overwrite")
+    assert "Delete marker." in result.output
 
 
-def test_deleted_eval_file_detected(evalhost_env: MotoStore, tmp_path: Path) -> None:
-    log = run(agent_task(samples=1), tmp_path)
-    Path(log.location).unlink()
-    report = validate(evalhost_env, tmp_path)
-    missing = [f for f in report.findings if f.kind == "missing_eval_file"]
-    assert [f.eval_id for f in missing] == [log.eval.eval_id]
+# Records removed for good. Real S3 refuses this to everyone under COMPLIANCE
+# retention, but a host that stops writing early leaves the same store. moto
+# lets the admin shorten the retention and delete, so these tests use that.
+
+
+def test_remove_sample_closing(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    clean_run.store.remove_version(clean_run.sample_key(CLOSING))
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "missing_closing")
+
+
+def test_remove_last_record(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    clean_run.store.remove_version(clean_run.sample_key(clean_run.records()))
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "record_count", "event_mismatch")
+
+
+def test_remove_middle_record(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    clean_run.store.remove_version(clean_run.sample_key(2))
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "sequence_gap", "record_count", "event_mismatch")
+
+
+def test_remove_eval_closing(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    clean_run.store.remove_version(f"{clean_run.eval_id}/{CLOSING}")
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "missing_eval_closing")
+
+
+def test_remove_start(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    clean_run.store.remove_version(f"{clean_run.eval_id}/{START}")
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "missing_start")
+
+
+# ------------------------------------------------- store settings changed
+
+
+def test_versioning_suspended(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """Versioning suspended, so an overwrite would replace a record.
+
+    Real S3 refuses this on an Object Lock bucket; moto allows it. (moto
+    refuses to change the Object Lock mode of a bucket that holds objects,
+    as real S3 does for COMPLIANCE, so that change is not tested.)
+    """
+    admin = clean_run.store.client(clean_run.store.admin)
+    admin.put_bucket_versioning(
+        Bucket=BUCKET, VersioningConfiguration={"Status": "Suspended"}
+    )
+    try:
+        result = validate_cli(clean_run.store, clean_run.log_dir)
+    finally:
+        admin.put_bucket_versioning(
+            Bucket=BUCKET, VersioningConfiguration={"Status": "Enabled"}
+        )
+    assert_fails_with(result, "settings")
+    assert "Versioning is not enabled." in result.output
+
+
+def test_policy_removed(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """No bucket policy requires If-None-Match, so the host could overwrite."""
+    result = validate_cli(clean_run.store, clean_run.log_dir, policy=False)
+    assert_fails_with(result, "settings")
+    assert "No bucket policy statement denies a put without If-None-Match." in (
+        result.output
+    )
+
+
+# ------------------------------------------------------------------ scope
 
 
 def test_prefix_per_log_dir_scopes_validation(

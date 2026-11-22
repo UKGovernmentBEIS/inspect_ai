@@ -24,15 +24,20 @@ import subprocess
 import sys
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple, get_args
 
 import boto3
 import httpx
 
-from inspect_ai.log._addonly._validate import ValidationReport, validate_store
+from inspect_ai.log._addonly._validate import (
+    FindingKind,
+    ValidationReport,
+    validate_store,
+)
 
 BUCKET = "addonly-store"
 REGION = "us-east-1"
@@ -51,6 +56,28 @@ class Keys:
             "AWS_ACCESS_KEY_ID": self.access_key_id,
             "AWS_SECRET_ACCESS_KEY": self.secret_access_key,
         }
+
+
+class CliResult(NamedTuple):
+    """Exit code and output (stdout and stderr) of `inspect validate`."""
+
+    command: list[str]
+    exit_code: int
+    output: str
+
+    def findings(self) -> list[tuple[FindingKind, str]]:
+        """(kind, rest of line) for each finding line."""
+        kinds: tuple[FindingKind, ...] = get_args(FindingKind)
+        return [
+            (kind, rest)
+            for kind, _, rest in (
+                line.partition(" ") for line in self.output.splitlines()
+            )
+            if kind in kinds
+        ]
+
+    def kinds(self) -> set[str]:
+        return {kind for kind, _ in self.findings()}
 
 
 @dataclass(frozen=True)
@@ -101,15 +128,79 @@ class MotoStore:
             ),
         )
 
-    def validate(self, log_dir: str | Path) -> ValidationReport:
-        """Validate with the bucket policy in place (moto refuses every put under it)."""
+    @contextmanager
+    def _policy_in_place(self) -> Iterator[None]:
+        """The bucket policy, for the validator's settings check.
+
+        moto refuses every put while it is in place, so it is removed after.
+        """
         self.require_if_none_match_policy()
         try:
+            yield
+        finally:
+            self.client(self.admin).delete_bucket_policy(Bucket=BUCKET)
+
+    def validate(self, log_dir: str | Path) -> ValidationReport:
+        """Validate in process, with the validator's keys."""
+        with self._policy_in_place():
             return validate_store(
                 self.url, str(log_dir), client=self.client(self.validator)
             )
-        finally:
-            self.client(self.admin).delete_bucket_policy(Bucket=BUCKET)
+
+    def validate_cli(
+        self, log_dir: str | Path, *options: str, policy: bool = True
+    ) -> CliResult:
+        """Run `inspect validate LOG_DIR --store URL` in a subprocess, with the validator's keys.
+
+        Without ``policy``, the bucket has no policy that requires If-None-Match.
+        """
+        command = [
+            sys.executable,
+            "-m",
+            "inspect_ai",
+            "validate",
+            str(log_dir),
+            "--store",
+            self.url,
+            *options,
+        ]
+        with self._policy_in_place() if policy else nullcontext():
+            result = subprocess.run(
+                command,
+                env={**os.environ, **self.env(self.validator), "COLUMNS": "200"},
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=120,
+            )
+        return CliResult(command, result.returncode, result.stdout)
+
+    def remove_version(self, key: str) -> None:
+        """Delete the only version of a record for good (no delete marker).
+
+        Real S3 refuses this under COMPLIANCE retention, for every user. moto
+        lets the admin shorten the retention first, so the tests use it to show
+        what the validator sees when a record is gone.
+        """
+        s3 = self.client(self.admin)
+        full_key = f"{self.prefix}/{key}"
+        (version,) = [
+            v
+            for v in s3.list_object_versions(Bucket=BUCKET, Prefix=self.prefix)[
+                "Versions"
+            ]
+            if v["Key"] == full_key
+        ]
+        s3.put_object_retention(
+            Bucket=BUCKET,
+            Key=full_key,
+            VersionId=version["VersionId"],
+            Retention={
+                "Mode": "COMPLIANCE",
+                "RetainUntilDate": datetime(2020, 1, 1, tzinfo=timezone.utc),
+            },
+        )
+        s3.delete_object(Bucket=BUCKET, Key=full_key, VersionId=version["VersionId"])
 
 
 def _free_port() -> int:
