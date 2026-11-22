@@ -321,7 +321,7 @@ class JSONRecorder(FileRecorder):
             # The Python JSON serializer supports NaN and Inf, however
             # this isn't technically part of the JSON spec. The json-stream
             # library shares this limitation, so if we fail with an
-            # invalid character (or Unexpected symbol) then we move on and and parse w/ pydantic
+            # invalid character (or Unexpected symbol) then we move on and parse w/ pydantic
             # (which does support NaN and Inf by default)
             except (ValueError, IncompleteJSONError, UnexpectedSymbol) as ex:
                 if is_ijson_nan_inf_error(ex):
