@@ -655,6 +655,7 @@ def test_eval_set_retry_validates(
     assert result.exit_code == 0, result.output
     compared = 2 if retry_cleanup else 4
     assert f"2 eval(s), {compared} sample(s) compared, 0 finding(s)." in result.output
+    assert ("prior_without_file " in result.output) == retry_cleanup
 
 
 @pytest.mark.parametrize(
@@ -1311,6 +1312,44 @@ def test_forged_eval(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
     result = validate_cli(clean_run.store, clean_run.log_dir)
     assert_fails_with(result, "missing_eval_file")
     assert f"missing_eval_file {forged_id}:" in result.output
+
+
+def test_forged_successor_lists_deleted_eval_file(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """The .eval file deleted, and a forged later eval that names the eval.
+
+    With eval-host keys and write access to the log dir, someone adds an
+    eval whose start record names the eval as its prior eval, and a .eval
+    file of the forged eval. The deleted file is not a finding, but it is
+    listed.
+    """
+    forged_id = "forged" + clean_run.eval_id[6:]
+    for key in [
+        *[f"s0.1/1/{i}" for i in range(1, clean_run.records() + 1)],
+        "s0.1/1/closing",
+        "closing",
+    ]:
+        body = clean_run.read(f"{clean_run.eval_id}/{key}").decode()
+        clean_run.put(f"{forged_id}/{key}", body.replace(clean_run.eval_id, forged_id))
+    start = StartRecord.model_validate_json(
+        clean_run.read(f"{clean_run.eval_id}/start")
+    )
+    start.eval_id = forged_id
+    start.prior_eval_id = clean_run.eval_id
+    clean_run.put(f"{forged_id}/start", start.model_dump_json())
+    log = read_eval_log(clean_run.location)
+    log.eval.eval_id = forged_id
+    write_eval_log(log, clean_run.log_dir / "forged.eval")
+    clean_run.location.unlink()
+
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
+    assert (
+        f"prior_without_file {clean_run.eval_id}: No .eval file; "
+        f"{forged_id} names it as its prior eval." in result.output
+    )
 
 
 def test_eval_names_itself_as_prior(

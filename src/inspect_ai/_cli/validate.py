@@ -37,6 +37,12 @@ def validate_command(log_dir: str, store: str, verbose: bool) -> None:
             click.echo(f"{record.arrival.isoformat()}  {record.key}")
     for key in report.retried:
         click.echo(f"retried {key}: No closing record; a later attempt has one.")
+    for eval_id, later_ids in report.prior_without_file.items():
+        for later_id in later_ids:
+            click.echo(
+                f"prior_without_file {eval_id}: No .eval file; {later_id} names "
+                "it as its prior eval."
+            )
     for finding in report.findings:
         click.echo(
             f"{finding.kind} {finding.key or finding.eval_id or ''}: {finding.message}"

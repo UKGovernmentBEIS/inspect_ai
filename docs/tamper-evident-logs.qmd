@@ -30,7 +30,7 @@ At each of these points the sample waits until S3 confirms the write. Later, the
 - **Anything the process writes after it is compromised.** A compromised process can write false events to the store, with the correct secret for its eval. Events that the sample recorded after its last confirmed write, before the compromise, are also not protected.
 - **A whole fake eval.** A compromised eval host can write the records of an eval that never ran. The validator reports it only if no `.eval` file has its eval id.
 - **An attempt that `retry_on_error` allows.** When `retry_on_error` is on, a compromised process can write a later attempt of a sample. The earlier attempt then has no closing record, and the validator lists it as retried. It does not compare that attempt's events with the `.eval` file.
-- **A deleted `.eval` file of a retried eval.** When a later eval names an eval as the one it retried, the validator does not report a missing `.eval` file for the earlier eval. So it also does not report it when someone deletes that file. The earlier eval's records stay in the store.
+- **A deleted `.eval` file of an eval that a later eval names.** When a later eval's start record names an eval as the one it retried, the validator does not report a missing `.eval` file for the earlier eval. It lists the eval as `prior_without_file`, which does not change the exit code. Eval-host keys can forge a later eval that names any eval. So when someone deletes the `.eval` file of any eval, successful or not, and forges such an eval, the deletion shows only in this list, not as a finding. If the forged eval has its own records of the same samples, the validator compares the samples with these records, not with the records of the earlier eval. The earlier eval's records stay in the store.
 - **Fields that are not stored.** The validator checks each sample's events and scores, which samples the `.eval` file has, and the eval's status, stats and results. It does not check other fields, for example the eval spec and plan, each sample's messages, output and error, or the sample summaries.
 
 A pass shows that the `.eval` file matches what was stored. It does not show that the run was honest.
@@ -153,7 +153,7 @@ A sample that a retry reuses from the earlier eval is not written again. The ret
 
 With `retry_on_error`, the failed attempt keeps its records in the store. The validator lists it as retried, and does not report it as a finding. This applies only to the attempts that the eval's `retry_on_error` setting allows. Another attempt with no closing record is reported as `missing_closing`.
 
-`eval_set()` deletes the `.eval` file of a failed attempt after its retry (`retry_cleanup`, on by default). This does not cause a finding: the retry's records name the failed attempt's eval, and the validator still uses that eval's records to check the samples that the retry reused.
+`eval_set()` deletes the `.eval` file of a failed attempt after its retry (`retry_cleanup`, on by default). This does not cause a finding: the retry's records name the failed attempt's eval, and the validator still uses that eval's records to check the samples that the retry reused. The validator lists the failed attempt's eval as `prior_without_file`.
 
 ## Validate logs
 
@@ -180,6 +180,12 @@ An attempt that `retry_on_error` retried shows as one line before the count. It 
 
 ``` default
 retried LdM2ww.../s0.1/1: No closing record; a later attempt has one.
+```
+
+An eval with no `.eval` file that a later eval names as its prior eval also shows as one line before the count. It is not a finding. Make sure that you ran the later eval as a retry of the eval, because eval-host keys can forge the later eval:
+
+``` default
+prior_without_file MBjNiQ...: No .eval file; EMhV3K... names it as its prior eval.
 ```
 
 ### A failure

@@ -93,6 +93,11 @@ class ValidationReport(BaseModel):
     retried: list[str] = []
     """Attempts with no closing record whose sample has a later closed attempt,
     when the eval's ``retry_on_error`` allows the retry. Listed, not findings."""
+    prior_without_file: dict[str, list[str]] = {}
+    """Evals with no .eval file, with the later evals that name each one as
+    their prior eval. Listed, not findings: eval_set's ``retry_cleanup``
+    deletes these files, but eval-host keys can forge a later eval that
+    names any eval."""
 
     @property
     def passed(self) -> bool:
@@ -246,6 +251,9 @@ def validate_store(
         findings=findings,
         samples_compared=sum(c.samples_compared for c in compared.values()),
         retried=[key for e in stored.values() for key in e.retried],
+        prior_without_file={
+            eval_id: c.named_by for eval_id, c in compared.items() if c.named_by
+        },
     )
 
 
@@ -402,6 +410,8 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
 class _Compared(NamedTuple):
     findings: list[Finding]
     samples_compared: int
+    named_by: list[str] = []
+    """The later evals that name the eval as prior, if it has no .eval file."""
 
 
 def _compare_eval_file(
@@ -423,15 +433,16 @@ def _compare_eval_file(
     if eval_file is None:
         # eval_set's retry_cleanup deletes a retried eval's .eval file; the
         # retry's own .eval holds the samples it reused from it
-        if not any(
-            e.prior_eval_id == eval_id
+        named_by = sorted(
+            other_id
             for other_id, e in evals.items()
-            if other_id != eval_id
-        ):
+            if other_id != eval_id and e.prior_eval_id == eval_id
+        )
+        if not named_by:
             finding(
                 "missing_eval_file", "No .eval file in the log dir has this eval id."
             )
-        return _Compared(findings, 0)
+        return _Compared(findings, 0, named_by)
 
     if stored.closing is not None:
         fields = {"status", "stats", "results"}
