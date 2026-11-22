@@ -744,6 +744,13 @@ Code at ef6e2ddbc, plus the test fix in the next commit (one stub in
   after the stub fix. Before it: 1 failed
   (`test_retry_abandoned_during_seed_never_starts_the_log`, a `log_start`
   stub with two arguments).
+- PR CI at 77acc34d6 found two more `log_start` stubs with two arguments,
+  in `tests/test_sample_source.py` (14 failed); fixed in d4a7f53d5, and
+  `pytest tests/test_sample_source.py -n 4` then gave 108 passed. Also
+  failing in CI, not from this round:
+  `test_sentinel_is_the_last_positional_parameter` (3 tests; fails since
+  `tamper_evident_store` was added after `sentinel_proxy`, at 482060faa
+  too) and `test_shared_action_calls_pin_one_sha` (fails on `main` too).
 - `ruff check .`, `ruff format --check .`, `mypy --exclude
   tests/test_package src tests`, mypy on the two scripts: clean.
 - eval_set with a retry against moto: `test_eval_set_retry_validates[False]`
