@@ -45,6 +45,7 @@ from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._generate_config import has_image_output
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool._mcp._remote import redact_responses_mcp_tools
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 from inspect_ai.util._json import json_schema_dump
 
@@ -88,6 +89,34 @@ from .util.hooks import HttpxHooks, polling
 logger = getLogger(__name__)
 
 
+_REASONING_REMOVED_WARNING = (
+    "The Responses API removed replayed reasoning item(s) for model '{model}' "
+    "(reason: {reason}), so the model no longer sees that reasoning and may "
+    "redo it. A prefix_mismatch reason means earlier conversation content "
+    "or the tool list changed after the reasoning was produced (for example, "
+    "CompactionEdit clearing old tool results). Run with --log-model-api "
+    "(log_model_api=True) to record each response's input_transformations."
+)
+
+
+def _warn_reasoning_removed(model: str, response: dict[str, Any]) -> None:
+    """Warn when the API removed replayed reasoning items from the input.
+
+    Reads the dumped response because openai SDKs before 3.50.0 don't declare
+    `input_transformations` and pass its items through as plain dicts.
+
+    Skips `turn_boundary`: models that use only current-turn reasoning drop
+    earlier turns' reasoning on every request, so it isn't a sign of a problem.
+    """
+    reasons = {
+        t.get("reason")
+        for t in response.get("input_transformations") or []
+        if t.get("action") == "removed" and t.get("reason") != "turn_boundary"
+    }
+    for reason in sorted(str(r) for r in reasons):
+        warn_once(logger, _REASONING_REMOVED_WARNING.format(model=model, reason=reason))
+
+
 def _fix_function_tool_parameters(response: Response) -> None:
     """Fix string parameters in FunctionTool objects.
 
@@ -129,7 +158,18 @@ async def generate_responses(
     model_family: str | None = None,
     streaming: bool = False,
     supports_explicit_prompt_cache: bool = False,
+    extra_body: dict[str, Any] | None = None,
+    process_response: Callable[[Response], Response] | None = None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+    """Generate a model output through the Responses API.
+
+    `extra_body` adds fields to the request body as given, except those that
+    Inspect sets itself (see `_raw_extra_body()`). `process_response`
+    receives each successful response after it is recorded on the model call
+    and before it is converted to model output, so a compatible service can
+    consume output items or usage fields that the OpenAI conversion does not
+    understand.
+    """
     # background in extra_body should be applied
     if background is None and config.extra_body:
         background = config.extra_body.get("background", None)
@@ -230,9 +270,12 @@ async def generate_responses(
         # matches the wire request (batched and background requests can't stream)
         if streaming and not background and batcher is None:
             request["stream"] = True
+        raw_extra_body = _raw_extra_body(extra_body or {}, request)
+        if raw_extra_body:
+            request["extra_body"] = raw_extra_body
 
         model_call = set_active_model_event_call(
-            request=request,
+            request=redact_responses_mcp_tools(request),
             filter=openai_media_filter,
         )
         stream_state = _StreamState()
@@ -272,13 +315,14 @@ async def generate_responses(
             # Use warnings=False to suppress Pydantic serialization warnings for
             # action types the SDK may not yet support.
             # See: https://github.com/pydantic/pydantic-ai/issues/3653
-            model_call.set_response(
-                model_response.model_dump(warnings=False),
-                http_hooks.end_request(request_id),
-            )
+            response_dump = model_response.model_dump(warnings=False)
+            model_call.set_response(response_dump, http_hooks.end_request(request_id))
+            if process_response is not None:
+                model_response = process_response(model_response)
 
             # parse out choices
             choices = openai_responses_chat_choices(model_name, model_response, tools)
+            _warn_reasoning_removed(model_response.model or model_name, response_dump)
 
             # surface response-level `metadata` (echoed request metadata, which
             # some models augment with additional fields) so callers can read it
@@ -474,6 +518,33 @@ async def wait_for_background_response(
 _GENERATE_CONFIG_REASONING_FIELDS = frozenset(
     ["effort", "mode", "summary", "generate_summary"]
 )
+
+
+# `config.extra_body` fields that the request reads, besides
+# `responses_extra_body_fields()`.
+_REQUEST_EXTRA_BODY_FIELDS = frozenset(["background", "reasoning"])
+
+
+def _raw_extra_body(
+    extra_body: dict[str, Any], request: dict[str, Any]
+) -> dict[str, Any]:
+    """Fields of `extra_body` to send as given.
+
+    The SDK merges `extra_body` over the request with its fields winning, so a
+    field the request already reads or sets (`reasoning`, `include`, `text`)
+    would replace Inspect's value. Those fields are left out, with a warning
+    for the ones Inspect sets from `GenerateConfig` or the input.
+    """
+    read = _REQUEST_EXTRA_BODY_FIELDS.union(responses_extra_body_fields())
+    built = {k for k, v in request.items() if not isinstance(v, NotGiven)}
+    built.add("stream")
+    ignored = sorted(k for k in extra_body if k in built and k not in read)
+    if ignored:
+        warn_once(
+            logger,
+            f"extra_body fields {ignored} are set by Inspect and are not sent as given.",
+        )
+    return {k: v for k, v in extra_body.items() if k not in read and k not in built}
 
 
 def completion_params_responses(

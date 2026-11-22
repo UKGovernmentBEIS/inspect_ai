@@ -127,7 +127,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Random seed. OpenAI, Google, Mistral, Groq, HuggingFace, and vLLM only."""
 
     top_k: int | None
-    """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, and HuggingFace only."""
+    """Randomly sample the next word from the top_k most likely next words. Google and HuggingFace only."""
 
     num_choices: int | None
     """How many chat completion choices to generate for each input message. OpenAI, Grok, Google, and TogetherAI only."""
@@ -253,7 +253,7 @@ class GenerateConfig(BaseModel):
     """Random seed. OpenAI, Google, Mistral, Groq, HuggingFace, and vLLM only."""
 
     top_k: int | None = Field(default=None)
-    """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, vLLM, and SGLang only."""
+    """Randomly sample the next word from the top_k most likely next words. Google, HuggingFace, vLLM, and SGLang only."""
 
     num_choices: int | None = Field(default=None)
     """How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, vLLM, and SGLang only."""
@@ -397,6 +397,18 @@ class GenerateConfig(BaseModel):
             if value is not None:
                 setattr(config, key, deepcopy(value))
         return config
+
+
+def generate_config_dict(config: GenerateConfig) -> dict[str, Any]:
+    """Dump a generate config without its None fields, except a cache's expiry.
+
+    A cache policy with no ``expiry`` validates with the "1W" default, so a
+    cache that never expires keeps an explicit None.
+    """
+    config_dict = config.model_dump(exclude_none=True)
+    if isinstance(config.cache, CachePolicy) and config.cache.expiry is None:
+        config_dict["cache"]["expiry"] = None
+    return config_dict
 
 
 def active_generate_config() -> GenerateConfig:

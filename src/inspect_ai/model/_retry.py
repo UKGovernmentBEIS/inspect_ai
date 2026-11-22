@@ -11,7 +11,13 @@ from tenacity.stop import StopBaseT
 from tenacity.wait import WaitBaseT
 from typing_extensions import NotRequired, TypedDict
 
-from inspect_ai._util.working import add_sample_wait, sample_clock, sample_wait
+from inspect_ai._util.retry import backoff_multiplier
+from inspect_ai._util.working import (
+    ModelAttempts,
+    add_sample_wait,
+    sample_clock,
+    sample_wait,
+)
 from inspect_ai.model._generate_overrides import generate_config_override
 
 if TYPE_CHECKING:
@@ -51,6 +57,7 @@ def model_retry_config(
     live_overrides: bool = True,
     report_retry_wait: bool = True,
     qualified_model_name: str | None = None,
+    attempts: ModelAttempts | None = None,
 ) -> ModelRetryConfig:
     # `model_name` is the bare provider model name and is display-oriented
     # (trace retry lines, the ctl retry_wait activity view keep showing it);
@@ -79,7 +86,9 @@ def model_retry_config(
     # known waits of the active sample (see design/working-time-concurrency.md).
     # Batchers leave it off: their admin-op loops run on a worker task that
     # inherits an arbitrary sample's context. A config with it on serves a
-    # single retry loop, since the attempt start is kept here.
+    # single retry loop, since the attempt start is kept here. `attempts`
+    # holds the loop's attempts in flight as known work; a retried attempt
+    # stops being work when it becomes a wait.
 
     async def on_before_sleep(rs: RetryCallState) -> None:
         # `report_retry_wait` gates the per-sample record rather than relying
@@ -123,7 +132,7 @@ def model_retry_config(
     wait = (
         wait
         if wait is not None
-        else wait_exponential_jitter(initial=3, max=(30 * 60), jitter=3)
+        else wait_exponential_jitter(**backoff_multiplier(3), max=(30 * 60), jitter=3)
     )
 
     # tenacity's retry_if_exception expects a bool predicate; coerce
@@ -176,10 +185,24 @@ def model_retry_config(
         if (
             effective_timeout is not None
             and retry_state.seconds_since_start is not None
-            and retry_state.seconds_since_start >= effective_timeout
+            and retry_state.seconds_since_start - _time_apart_from_the_call()
+            >= effective_timeout
         ):
             return True
         return False
+
+    def _time_apart_from_the_call() -> float:
+        # The time a person took to answer a sentinel sidecar's question
+        # about the call, and the time its requests took to register the
+        # sample with the sidecar. It is not the model call's own time, so
+        # it doesn't count toward the timeout. It is zero outside an agent
+        # call through a sidecar. Only `Model._generate`'s loop, which sets
+        # `sample_waits`, runs inside such a call.
+        if not sample_waits:
+            return 0.0
+        from inspect_ai._sentinel._sidecar._received import time_apart_from_the_call
+
+        return time_apart_from_the_call()
 
     config: ModelRetryConfig = {
         "wait": wait,
@@ -200,7 +223,9 @@ def model_retry_config(
         # every retried attempt, including the last one of a call that runs
         # out of retries
         def after_retryable_attempt(rs: RetryCallState) -> None:
-            add_sample_wait(attempt_start, sample_clock())
+            add_sample_wait(attempt_start, sample_clock(), completed=False)
+            if attempts is not None:
+                attempts.retried()
 
         config["before"] = before_attempt
         config["after"] = after_retryable_attempt

@@ -1,10 +1,13 @@
 import asyncio
 import os
 import re
+import subprocess
 from asyncio.subprocess import Process as AsyncIOProcess
+from collections.abc import Callable
 
 import psutil
 
+from ..._util.common_types import ToolException
 from ..._util.process_tree import process_group_members, terminate_process_tree
 from ..._util.pseudo_terminal import PseudoTerminal, PseudoTerminalIO
 from ..._util.timeout_event import TimeoutEvent
@@ -17,15 +20,22 @@ _DEFAULT_MAX_BASH_SESSION_RESPONSE_BYTES = 10 * 1024**2
 
 class Process:
     @classmethod
-    async def create(cls, user: str | RunAs | None = None) -> "Process":
+    async def create(
+        cls, user: str | RunAs | None = None, cwd: str | None = None
+    ) -> "Process":
+        """Start an interactive shell as `user`, in `cwd` if given.
+
+        Raises:
+           ToolException: If `cwd` does not exist or `user` cannot enter it.
+        """
         pty = await PseudoTerminal.create()
 
         env = {**os.environ, "TERM": "dumb"}
         if user is not None:
             env["HOME"] = get_home_dir(user)
 
-        return cls(
-            await asyncio.create_subprocess_exec(
+        try:
+            process = await asyncio.create_subprocess_exec(
                 "/bin/bash",
                 "-i",
                 stdin=pty.subprocess_fd,
@@ -33,10 +43,19 @@ class Process:
                 stderr=pty.subprocess_fd,
                 env=env,
                 start_new_session=True,
-                preexec_fn=make_preexec(user),
-            ),
-            pty,
-        )
+                preexec_fn=_make_shell_preexec(user, cwd),
+            )
+        except subprocess.SubprocessError:
+            pty.cleanup()
+            # only the directory change raises in the preexec function
+            raise ToolException(
+                f"The shell cannot start in {cwd!r}: it does not exist or its "
+                "user cannot enter it"
+            ) from None
+        except BaseException:
+            pty.cleanup()
+            raise
+        return cls(process, pty)
 
     def __init__(self, process: AsyncIOProcess, pty: PseudoTerminalIO) -> None:
         self._process = process
@@ -241,6 +260,26 @@ ansi_escape_pattern = re.compile(
 """,
     re.VERBOSE,
 )
+
+
+def _make_shell_preexec(
+    user: str | RunAs | None, cwd: str | None
+) -> Callable[[], None]:
+    """Switch to `user`, then enter `cwd` with that user's permissions.
+
+    `subprocess`'s own `cwd` changes directory before the preexec function, as
+    the server's user, so the shell could start in a directory its user cannot
+    reach. An error entering `cwd` raises, which `subprocess` reports to the
+    parent as a `SubprocessError`.
+    """
+    switch = make_preexec(user)
+
+    def preexec() -> None:
+        switch()
+        if cwd is not None:
+            os.chdir(cwd)
+
+    return preexec
 
 
 def strip_control_characters(text: str) -> str:

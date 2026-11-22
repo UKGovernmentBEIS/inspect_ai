@@ -25,6 +25,8 @@ plus ``POST /release`` / ``POST /keep`` for keep-alive control
 and the first phase-3 directives: the config/log-flush mutations,
 ``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``,
 ``POST /evals/{id}/sample/cancel-tool-call``,
+the operator targets (``GET /evals/{id}/sample/agents`` and
+``POST /evals/{id}/sample/agent/{action}``),
 ``POST /evals/{id}/sample/requeue``,
 the interim-scoring pass (``POST``/``GET /tasks/{id}/score`` and the
 sample-scoped ``POST``/``GET /evals/{id}/sample/score``), and
@@ -38,6 +40,7 @@ with the rest of phases 3-4.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import socket
@@ -580,6 +583,7 @@ class ControlServer:
         from fastapi import Depends, FastAPI, Query, Request
         from fastapi.responses import JSONResponse
 
+        from inspect_ai._control.body import request_body
         from inspect_ai._control.current_server import current_control_server
         from inspect_ai._control.disconnect import (
             ClientDisconnectedError,
@@ -1327,6 +1331,68 @@ class ControlServer:
                     content["pending"] = result["pending"]
                 return JSONResponse(status_code=409, content=content)
             return result
+
+        # The sample's operator groups: named agents that code in the sample
+        # registered with `operator_group()` (inspect_ai._control.operator).
+        # A read, so `epoch` defaults to 1 like the other per-sample reads.
+        @app.get("/evals/{eval_id}/sample/agents")
+        async def get_sample_agents(
+            eval_id: str, sample_id: str, epoch: int = 1
+        ) -> JSONResponse:
+            from inspect_ai._control.operator import sample_agents
+
+            response = sample_agents(eval_id, sample_id, epoch)
+            return JSONResponse(status_code=response.status, content=response.content)
+
+        # Send `message`, `pause`, `resume` or `stop` to one agent or group of
+        # the sample. `epoch` is required (mutation); exactly one of `agent`
+        # and `group`. The message text rides a JSON body, `{"text": ...}`,
+        # since it is free and possibly long; the strict-parameter check
+        # covers the query parameters only. Nothing awaits between the body
+        # read and the registrant's call, so the lookup and the action are
+        # atomic with respect to the sample.
+        @app.post("/evals/{eval_id}/sample/agent/{action}")
+        async def sample_agent_action_route(
+            eval_id: str,
+            action: str,
+            sample_id: str,
+            epoch: int | None = None,
+            agent: str | None = None,
+            group: str | None = None,
+            interrupt: bool | None = None,
+            dry_run: bool = False,
+            raw: bytes = Depends(request_body),
+        ) -> JSONResponse:
+            from inspect_ai._control.operator import sample_agent_action
+
+            text: str | None = None
+            if raw:
+                try:
+                    body = json.loads(raw)
+                except ValueError:
+                    body = None
+                if (
+                    not isinstance(body, dict)
+                    or set(body) != {"text"}
+                    or not isinstance(body["text"], str)
+                ):
+                    return JSONResponse(
+                        status_code=400,
+                        content={"error": 'the request body must be {"text": "..."}'},
+                    )
+                text = body["text"]
+            response = sample_agent_action(
+                eval_id,
+                sample_id,
+                epoch,
+                action,
+                agent=agent,
+                group=group,
+                text=text,
+                interrupt=interrupt,
+                dry_run=dry_run,
+            )
+            return JSONResponse(status_code=response.status, content=response.content)
 
         # Requeue one errored/cancelled sample (phase 3): re-add it to the
         # live run — it goes to the back of the sample queue and re-runs

@@ -750,6 +750,52 @@ def test_api_log_headers_multiple(view_client: ViewTestClient) -> None:
     assert len(resp.json()) == 2
 
 
+def test_api_log_headers_preserves_non_finite_values(
+    view_client: ViewTestClient,
+) -> None:
+    full_path = str(view_client.log_dir / "2025-01-01T00-00-00+00-00_task_taskid.eval")
+    eval_log = inspect_ai.log.EvalLog(
+        eval=inspect_ai.log.EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="task",
+            task_id="task_id",
+            dataset=inspect_ai.log.EvalDataset(),
+            model="model",
+            config=inspect_ai.log.EvalConfig(),
+            metadata={"nan": float("nan")},
+            task_args={"inf": float("inf"), "neg_inf": float("-inf")},
+        ),
+        results=inspect_ai.log.EvalResults(
+            scores=[inspect_ai.log.EvalScore(name="dicty", scorer="dicty")]
+        ),
+    )
+    eval_log.reductions = [
+        inspect_ai.log.EvalSampleReductions(
+            scorer="dicty",
+            samples=[
+                inspect_ai.log.EvalSampleScore(
+                    value={"unscored": float("nan"), "scored": 1.0}, sample_id=1
+                )
+            ],
+        )
+    ]
+    inspect_ai.log.write_eval_log(eval_log, full_path, "eval")
+
+    encoded = urllib.parse.quote_plus(full_path)
+    resp = view_client.request("GET", f"/log-headers?file={encoded}")
+
+    resp.raise_for_status()
+    header = resp.json()[0]
+    assert math.isnan(header["eval"]["metadata"]["nan"])
+    assert header["eval"]["task_args"] == {
+        "inf": float("inf"),
+        "neg_inf": float("-inf"),
+    }
+    value = header["reductions"][0]["samples"][0]["value"]
+    assert math.isnan(value["unscored"])
+    assert value["scored"] == 1.0
+
+
 def test_api_log_headers_forbidden() -> None:
     class NoReadPolicy(AccessPolicy):
         async def can_read(self, request: Request, file: str) -> bool:
@@ -2919,6 +2965,16 @@ async def test_event_loop_monitor_propagates_body_exception_bare() -> None:
     with pytest.raises(ValueError):
         async with event_loop_monitor():
             raise ValueError("boom")
+
+    # it keeps its own cause and context
+    with pytest.raises(ValueError) as excinfo:
+        async with event_loop_monitor():
+            try:
+                raise KeyError("context")
+            except KeyError:
+                raise ValueError("boom") from OSError("cause")
+    assert repr(excinfo.value.__cause__) == "OSError('cause')"
+    assert repr(excinfo.value.__context__) == "KeyError('context')"
 
 
 async def _consume(stream: Any) -> bytes:

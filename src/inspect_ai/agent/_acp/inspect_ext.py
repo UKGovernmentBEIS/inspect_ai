@@ -133,7 +133,10 @@ TOTAL_MESSAGES_META_KEY = "inspect.total_messages"
 # Inspect, so there's no pending ``ToolEvent`` for the connection handler to
 # cancel — the request would silently no-op. The Inspect TUI reads this off the
 # tool card to suppress the per-tool "cancel tool" affordance (the operator can
-# still interrupt the whole turn). Absent ⇒ cancelable (the react default).
+# still interrupt the whole turn). Absent ⇒ cancelable (the react default). A
+# ``ToolCallProgress`` carrying the key changes it: when a sandbox bridge runs a
+# host tool for a proposed call, the real pending ``ToolEvent`` makes the card
+# cancelable.
 TOOL_CALL_CANCELABLE_META_KEY = "inspect.tool_call_cancelable"
 
 
@@ -920,7 +923,11 @@ class PlanPolicyTransformer:
         ``priority="medium"`` since neither ``update_plan`` nor
         ``todo_write`` carry priority.
         """
-        from acp.helpers import plan_entry, session_notification, update_plan
+        from inspect_ai.agent._acp._schema_builders import (
+            plan_entry,
+            session_notification,
+            update_plan,
+        )
 
         if not isinstance(raw_input, dict) or self._state.wire_session_id is None:
             return None
@@ -968,7 +975,11 @@ def build_picker_notification(
     Both the text format and the ``_meta`` shape are Inspect-specific
     extensions on a standard ACP notification.
     """
-    from acp.helpers import session_notification, text_block, update_agent_message
+    from inspect_ai.agent._acp._schema_builders import (
+        session_notification,
+        text_block,
+        update_agent_message,
+    )
 
     if not targets:
         text = (

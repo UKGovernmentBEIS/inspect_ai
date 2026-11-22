@@ -5,8 +5,10 @@ This file provides guidance to AI coding agents when working with code in this r
 ## Contribution policy — required checks before opening a PR
 
 These rules are mandatory for AI coding agents (Claude Code, Codex, Cursor,
-Devin, and similar) preparing contributions. Human contributors: see
-[CONTRIBUTING.md](CONTRIBUTING.md). A deterministic gate enforces them.
+Devin, and similar) preparing contributions. Read and follow
+[CONTRIBUTING.md](CONTRIBUTING.md) first: its rules apply to agents and human
+contributors alike, and this section adds agent-specific rules on top. A
+deterministic gate enforces the checks below.
 
 1. **Accepted-issue check.** Is the account you are operating for on the
    qualified roster (recorded by account id in `.github/qualified.yml`)? If
@@ -47,8 +49,12 @@ or review request, including when posting a PR review, identify
 yourself as an AI agent. State that you are not a project maintainer
 and that your comment or review does not represent the maintainers'
 views or decisions. Do not imply that you can accept an issue,
-approve a PR, or speak for the project. This does not apply to agents
-acting for project maintainers.
+approve a PR, or speak for the project. Submit an unrequested review
+as a **Comment**, never **Approve** or **Request changes**: on this
+repository those are maintainer decisions, a non-maintainer's verdict
+doesn't count toward merging, and it misleads the author about where
+their PR stands. Put any confirmation or concern in the comment text.
+This does not apply to agents acting for project maintainers.
 
 If you do open a PR: reference the accepted issue (`Fixes #NNN`); run
 `make check` and `make test` and report results honestly; for non-trivial
@@ -88,6 +94,7 @@ Example:
 ```
 
 ## Build/Lint/Test Commands
+- Set up the environment: `uv sync --locked` (installs exactly `uv.lock`; don't `pip install` the project). After changing dependencies in `pyproject.toml`, run `uv lock` and commit `uv.lock`. Don't override the 7-day dependency cooldown. Every other dependency procedure is in [DEPENDENCIES.md](https://github.com/meridianlabs-ai/actions/blob/main/DEPENDENCIES.md) in meridianlabs-ai/actions
 - Run all tests: `pytest`
 - Run a single test: `pytest tests/path/to/test_file.py::test_function_name -v`
 - Format code: `ruff format`
@@ -132,11 +139,12 @@ limitations, and validation.
 
 ## Suppression gate
 
-- Do NOT suppress lint or type errors (`# noqa`, `# type: ignore`,
-  `# pyright: ignore`, or the file-wide `# ruff: noqa` /
-  `# mypy: ignore-errors`). Fix the code. A deterministic gate enforces
-  this (`make suppressions-check` against `suppressions.json`); maintainers
-  reject suppressions that just make an error go away.
+- Do NOT suppress lint or type errors (`# noqa`, `# ruff: ignore[...]`,
+  `# type: ignore`, `# pyright: ignore`, the range `# ruff: disable[...]`,
+  or the file-wide `# ruff: noqa` / `# mypy: ignore-errors`). Fix the
+  code. A deterministic gate enforces this (`make suppressions-check`
+  against `suppressions.json`); maintainers reject suppressions that just
+  make an error go away.
 - In the rare case a suppression is correct, it requires both: a reason in
   a trailing hash comment segment on the same line, the only style mypy
   accepts (e.g. `x = f()  # type: ignore[assignment]  # stub is wrong
@@ -191,6 +199,26 @@ providers, sandbox or tool code, agents, or async plumbing must run the gated
 tests that cover the change locally, and the PR description must report the
 run. The `slow-tests` skill (`.agents/skills/slow-tests/SKILL.md`) says which
 flags and directories go with which change and what each class needs.
+
+This table lists common cases. The skill has the full list and takes precedence.
+
+| You changed | Run | Needs |
+|---|---|---|
+| A model provider | `pytest --runapi --runslow tests/model/providers/test_<provider>*.py` | That provider's credentials |
+| Tool code (`src/inspect_ai/tool/`) | `pytest --runslow -m slow tests/tools/ -x` | Docker running |
+| Sandbox tools build inputs (`src/inspect_sandbox_tools/`, other paths in `injectable_paths.txt`) | Build the `-dev` binaries with `build_within_container.py --arch <arch>`, then again with `--musl`. Then run `pytest --runslow -m slow tests/tools/ -x` | Docker running |
+| Agent code | `pytest --runslow --runapi tests/agent/` | Some tests need Docker or an OpenAI or Anthropic key |
+
+`build_within_container.py` and `injectable_paths.txt` are in
+`src/inspect_ai/tool/_sandbox_tools_utils/`. Use the architecture of your
+Docker host for `<arch>`; CI uses `amd64`. The tests reuse the existing `-dev`
+binaries. Rebuild both after each change.
+
+A gated test that is not enabled shows as skipped, and pytest still exits
+successfully. `--runslow` alone does not run the live provider tests marked
+`api`; they also need `--runapi` and the provider's credentials. Check the
+skip summary at the end of the run to confirm the tests you meant to run
+actually ran.
 
 Report the run in a `### Slow tests` section after `### Validation`. Use one
 short bullet per run: test class/provider, version when relevant, exact
@@ -274,7 +302,7 @@ The title starts with a Conventional Commits type (enforced by the PR Title Lint
 
 Before opening a non-trivial PR, run at least one code review pass in a fresh context — a reviewer that hasn't seen the authoring conversation (e.g. `/code-review` or a subagent) — using a strong (frontier-class) model; in our experience reviews from small fast-tier models rarely surface real issues. Fix or explicitly dismiss each finding before opening, and disclose the pass in the `### Agent review` section.
 
-When asked to open a PR, don't stop at creation — monitor it afterward: watch its CI checks (e.g. `gh pr checks <number> --repo <owner>/<repo> --watch`) until they complete, report the outcome, and investigate/fix any failures. If the branch has fallen behind its base (out of date), update it — merge or rebase the base branch in and push — so CI runs against current code.
+When asked to open a PR, don't stop at creation — monitor it afterward: watch its CI checks (e.g. `gh pr checks <number> --repo <owner>/<repo> --watch`) until they complete, report the outcome, and investigate/fix any failures. `main` does not require PR branches to be up to date before merging. Don't merge or rebase `main` into a branch only because it is behind: each push reruns CI and can dismiss an existing approval. Merge it in to resolve a conflict, or when the branch needs a change from `main` (for example a CI fix, or before regenerating the schema; see the land-ts-mono skill).
 
 Don't edit `CHANGELOG.md`; the Changelog Lint check (`no-changelog-edits`) fails any PR that does, except the release PR. Release Please writes the changelog and the GitHub Release notes at release time from the squash-merged PR titles: `feat`, `fix`, `perf` and `revert` titles become entries, and other types are left out. The PR title is therefore the changelog line, so keep it short (~25 words), state the user-visible behavior change, and leave out internal names and issue numbers (Release Please links the PR). The squash commit's message is the PR description, which Release Please also reads:
 
@@ -289,14 +317,12 @@ Never change a submodule gitlink (e.g. `src/inspect_ai/_view/ts-mono`) unless th
 Please open upstream PRs from a personal fork rather than an organization
 fork, and leave "Allow edits by maintainers" enabled when creating the PR
 (it's on by default in the GitHub UI and `gh pr create`). That setting gives
-upstream maintainers push access to the PR branch, and they need it: upstream
-`main` requires PR branches to be up to date before merging, so every push to
-`main` blocks open PRs until their branches are updated. With maintainer
-edits enabled, a maintainer can update the branch (or push small fixes) and
-merge on their own schedule. GitHub does not support maintainer edits on
-organization-owned forks, so a PR from an org fork can only be kept mergeable
-by its author — it will sit approved but unmergeable whenever `main` moves
-until the author syncs the branch again.
+upstream maintainers push access to the PR branch, so a maintainer can
+resolve a merge conflict (for example after `main` bumps the ts-mono gitlink)
+or push a small fix without waiting for the author. GitHub does not support
+maintainer edits on organization-owned forks, so only people with push access
+to the fork can change a PR from it. If it conflicts with `main`, it sits
+unmergeable until one of them resolves the conflict.
 
 If you must open from an org fork, the following applies.
 

@@ -1,8 +1,12 @@
+import importlib
 from typing import Any
 
+import jsonpath_ng
 import pytest
+from jsonpath_ng import Child, Fields, JSONPath
 from jsonpath_ng.ext import parse  # type: ignore
 
+from inspect_ai.analysis._dataframe import validate
 from inspect_ai.analysis._dataframe.validate import (
     Schema,
     jsonpath_in_schema,
@@ -84,3 +88,24 @@ def test_skip_slice_expression(expanded_schema: dict[str, Any]) -> None:
     """True slice 1:5 is in UNSUPPORTED and therefore skipped."""
     jp = parse("results.scores[1:5].name")
     assert jsonpath_in_schema(jp, expanded_schema) is True
+
+
+class _StandInWildcard(JSONPath):
+    """Stand-in for jsonpath-ng >= 1.16.0's `Wildcard` node."""
+
+
+def test_skip_wildcard_node(
+    monkeypatch: pytest.MonkeyPatch, expanded_schema: dict[str, Any]
+) -> None:
+    """A Wildcard node is not validated, like a Slice before jsonpath-ng 1.16.0."""
+    monkeypatch.setattr(jsonpath_ng, "Wildcard", _StandInWildcard, raising=False)
+    try:
+        importlib.reload(validate)
+        # results.scores[*].scorer as jsonpath-ng 1.16.0 parses it
+        scores = Child(Fields("results"), Fields("scores"))
+        jp = Child(Child(scores, _StandInWildcard()), Fields("scorer"))
+        assert validate.find_unsupported(jp) == [_StandInWildcard]
+        assert validate.jsonpath_in_schema(jp, expanded_schema) is True
+    finally:
+        monkeypatch.undo()
+        importlib.reload(validate)

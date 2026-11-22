@@ -91,12 +91,16 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
     failed in the task so we'll ultimately just mark it as incorrect
     """
     # Remove wrappers before matching so trailing text still reaches the lenient fallback.
+    # Each run of spaces can match only one way in these patterns, so matching
+    # model output stays linear (the inner text cannot end in a space).
     completion = re.sub(
-        r"\x24\s*([A-Za-z\d][A-Za-z\d ,]*?)\s*\x24",
+        r"\x24\s*([A-Za-z\d](?:[A-Za-z\d ,]*[A-Za-z\d,])?)\s*\x24",
         r"\1",
         state.output.completion,
     )
-    completion = re.sub(r"\*\*\s*([A-Za-z\d][A-Za-z\d ,]*?)\s*\*\*", r"\1", completion)
+    completion = re.sub(
+        r"\*\*\s*([A-Za-z\d](?:[A-Za-z\d ,]*[A-Za-z\d,])?)\s*\*\*", r"\1", completion
+    )
     completion = re.sub(
         r"(?i)(^|[:,])(\s*)\(([A-Za-z\d])\)(?=\s*(?:,|\.|\n|\Z))",
         r"\1\2\3",
@@ -108,8 +112,11 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
     # ANSWER: <answer> string with only whitespace or a period/full stop at the end.
     # The CoT templates instruct the model to put the answer on the LAST line,
     # so if there are multiple matching lines we take the last one.
+    # Possessive quantifiers keep matching linear on long runs of spaces. The
+    # second branch keeps the whitespace-only answer that `\s*` reached by
+    # backtracking (e.g. "ANSWER: \n").
     matches = re.findall(
-        r"(?i)^ANSWER\s*:\s*([A-Za-z\d ,]+)\s*(?:$|\n|\.)",
+        r"(?i)^ANSWER\s*:(?:\s*+|[^\S ]*+)([A-Za-z\d ,]++)\s*(?:$|\n|\.)",
         completion,
         flags=re.MULTILINE,
     )

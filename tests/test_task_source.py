@@ -426,6 +426,34 @@ def test_task_complete_returning_tasks_chains_generations() -> None:
     assert len({log.eval.run_id for log in logs}) == 1
 
 
+async def test_task_complete_returned_task_error_propagates(tmp_path: Path) -> None:
+    # an error adding a follow-up task that task_complete returned (here a
+    # sandbox type that is not registered) ends the run, as it does for
+    # enqueue_task; only an exception from the callback itself is logged
+    class _BadChild(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_task("gen0")]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            if log.eval.task == "gen0":
+                return [
+                    Task(
+                        dataset=[Sample(input="hi", target="ok")],
+                        solver=[generate()],
+                        name="gen1",
+                        sandbox="not-a-registered-sandbox",
+                    )
+                ]
+            return None
+
+    with pytest.raises(ValueError, match="not-a-registered-sandbox"):
+        await eval_async(
+            tasks=_BadChild(),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+        )
+
+
 def test_factory_task_complete_returning_tasks() -> None:
     # same pattern via the task_source() factory: task_complete returns followups
     produced = [1]

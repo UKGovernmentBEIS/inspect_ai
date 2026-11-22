@@ -1,9 +1,19 @@
+import builtins
 import json
-from typing import Any, Callable, cast
+import sys
+from collections.abc import Sequence
+from contextvars import ContextVar
+from typing import Any, Callable, Final, Literal, TypeAlias, cast
 
 from pydantic import BaseModel, Field, JsonValue, PrivateAttr
 
 from inspect_ai._util.json import jsonable_python
+from inspect_ai._util.lineage import (
+    Lineage,
+    PrefixLineages,
+    eq_prefix_len,
+    strict_eq,
+)
 
 
 def as_error_response(body: object | None) -> dict[str, JsonValue]:
@@ -36,6 +46,17 @@ The first parmaeter is the key if the value is a dictionary item.
 The second parameter is the value. Return a modified value if appropriate.
 
 """
+
+
+CallMessageKey: TypeAlias = Literal["messages", "contents", "input", "inputs"]
+"""Key under which a provider wire request carries its messages array."""
+
+CALL_MESSAGE_KEYS: Final[tuple[CallMessageKey, ...]] = (
+    "messages",
+    "contents",
+    "input",
+    "inputs",
+)
 
 
 class ModelRequestId(BaseModel):
@@ -94,21 +115,34 @@ class ModelCall(BaseModel):
            filter (ModelCallFilter): Function for filtering model call data.
            time: Time taken for underlying ModelCall
         """
-        request_dict: dict[str, JsonValue] = jsonable_python(request)
-        if filter:
-            request_dict = cast(
-                dict[str, JsonValue], _walk_json_value(None, request_dict, filter)
-            )
+        request_dict: Any = jsonable_python(request)
+        interner = _call_interner.get()
+        interned = (
+            interner.intern_request(request_dict, filter)
+            if interner is not None and isinstance(request_dict, dict)
+            else None
+        )
+        if interned is not None:
+            request_dict = interned
+        elif filter:
+            request_dict = _walk_json_value(None, request_dict, filter)
 
-        response_dict: dict[str, JsonValue] | None = None
+        response_dict: Any = None
         if response is not None:
             response_dict = jsonable_python(response)
             if filter:
-                response_dict = cast(
-                    dict[str, JsonValue], _walk_json_value(None, response_dict, filter)
-                )
+                response_dict = _walk_json_value(None, response_dict, filter)
 
-        call = ModelCall(request=request_dict, response=response_dict, time=time)
+        if isinstance(request_dict, dict) and (
+            response_dict is None or isinstance(response_dict, dict)
+        ):
+            # jsonable_python output is already JSON-native, and validating
+            # would copy every container (losing the interned objects)
+            call = ModelCall.model_construct(
+                request=request_dict, response=response_dict, time=time
+            )
+        else:
+            call = ModelCall(request=request_dict, response=response_dict, time=time)
         call._filter = filter
         return call
 
@@ -137,3 +171,153 @@ def _walk_json_value(
         return {k: _walk_json_value(k, v, filter) for k, v in value.items()}
     else:
         return value
+
+
+_InternKey: TypeAlias = tuple[CallMessageKey, ModelCallFilter | None]
+"""Interned lineages match only requests with the same message key and filter."""
+
+_INTERN_SLOTS: Final = 8
+"""Request lineages retained per sample (about four interleaved streams)."""
+
+_INTERN_MAX_IDLE: Final = 4 * _INTERN_SLOTS
+"""Requests a lineage may go unmatched before it is dropped."""
+
+_HEAVY_STR_LEN: Final = 256 * 1024
+"""Strings longer than this (base64 media) are never retained pre-filter.
+
+A message holding one is retained as the ``_HEAVY`` snapshot, which equals
+nothing and so ends a list comparison; the message is then compared by its
+filtered form, which holds no payload.
+"""
+
+if sys.version_info >= (3, 15):
+    _HEAVY = builtins.sentinel("_HEAVY")
+else:
+    _HEAVY = object()
+
+
+def _has_heavy_str(value: JsonValue) -> bool:
+    stack = [value]
+    while stack:
+        v = stack.pop()
+        if isinstance(v, str):
+            if len(v) > _HEAVY_STR_LEN:
+                return True
+        elif isinstance(v, dict):
+            stack.extend(v.values())
+        elif isinstance(v, list):
+            stack.extend(v)
+    return False
+
+
+class CallMessageInterner:
+    """Shares wire-message objects across the model calls of a sample.
+
+    Providers rebuild every request from scratch, so each call's message
+    list is new objects even where it repeats the previous call. The
+    interner matches a new list against recent ones (see
+    ``PrefixLineages``) and substitutes the logged objects of the shared
+    leading run, so every consumer of logged calls (the transcript, the
+    sample buffer, log condensing) sees the same object for the same
+    message and compares by identity. The call filter runs only on the
+    messages after that run.
+
+    Logged requests are shared across calls, so they must not be mutated
+    in place.
+    """
+
+    def __init__(self) -> None:
+        self._lineages: PrefixLineages[_InternKey, JsonValue] = PrefixLineages(
+            _INTERN_SLOTS, _INTERN_MAX_IDLE, _interned_prefix_len
+        )
+
+    def intern_request(
+        self, request: dict[str, JsonValue], filter: ModelCallFilter | None
+    ) -> dict[str, JsonValue] | None:
+        """``request`` (filtered) with its message list interned.
+
+        Args:
+            request: Jsonable request, before filtering.
+            filter: The call's filter, if any.
+
+        Returns:
+            The filtered request with interned messages, or ``None`` when it
+            has no message list or the filter would replace the request or
+            the list itself (the caller then filters it whole).
+        """
+        msg_key = next((k for k in CALL_MESSAGE_KEYS if k in request), None)
+        msgs = request.get(msg_key) if msg_key is not None else None
+        if msg_key is None or not isinstance(msgs, list):
+            return None
+        if filter is not None and (
+            filter(None, request) is not request or filter(msg_key, msgs) is not msgs
+        ):
+            return None
+        logged = self.intern(msgs, msg_key, filter)
+        return {
+            k: logged
+            if k == msg_key
+            else (_walk_json_value(k, v, filter) if filter else v)
+            for k, v in request.items()
+        }
+
+    def intern(
+        self,
+        msgs: list[JsonValue],
+        msg_key: CallMessageKey,
+        filter: ModelCallFilter | None,
+    ) -> list[JsonValue]:
+        """Logged (filtered) messages for ``msgs``, reusing earlier objects.
+
+        Args:
+            msgs: Jsonable wire messages, before filtering.
+            msg_key: Request key the messages live under.
+            filter: The call's filter, if any.
+
+        Returns:
+            The filtered messages, sharing objects with earlier calls for
+            the leading run they repeat.
+        """
+        match = self._lineages.match((msg_key, filter), msgs)
+        logged = match.entries
+        snapshots = match.snapshots
+        for msg in msgs[match.length :]:
+            out = _walk_json_value(None, msg, filter) if filter else msg
+            logged.append(out)
+            heavy = filter is not None and _has_heavy_str(msg)
+            snapshots.append(_HEAVY if heavy else msg)
+        self._lineages.record(match, snapshots, logged)
+        return list(logged)
+
+
+def _interned_prefix_len(
+    msgs: Sequence[object], lineage: Lineage[_InternKey, JsonValue]
+) -> int:
+    """Shared leading run, comparing ``_HEAVY`` snapshots by filtered form."""
+    filter = lineage.key[1]
+    snapshots = lineage.snapshots
+    limit = min(len(msgs), len(snapshots))
+    n = 0
+    while True:
+        n += eq_prefix_len(msgs[n:], snapshots[n:], lineage.strict[n:])
+        if n >= limit or snapshots[n] is not _HEAVY or filter is None:
+            return n
+        walked = _walk_json_value(None, cast(JsonValue, msgs[n]), filter)
+        if not strict_eq(walked, lineage.entries[n]):
+            return n
+        n += 1
+
+
+_call_interner: ContextVar[CallMessageInterner | None] = ContextVar(
+    "call_interner", default=None
+)
+
+
+def init_call_interner(enabled: bool = True) -> None:
+    """Start a fresh message interner for the current context (one per sample).
+
+    Args:
+        enabled: Whether to intern; transcripts that drop most calls'
+            payloads pass ``False``, so calls skip the comparison.
+    """
+    _call_interner.set(CallMessageInterner() if enabled else None)

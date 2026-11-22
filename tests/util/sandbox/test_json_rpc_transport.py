@@ -34,6 +34,7 @@ async def test_sandbox_json_rpc_transport_reassembles_large_unicode_response() -
 
     class FakeSandbox:
         async def exec(self, *args: Any, **kwargs: Any) -> ExecResult[str]:
+            assert args == ([SANDBOX_CLI, "exec"],)
             exec_inputs.append(kwargs)
             request = json.loads(kwargs["input"])
             if request["method"] == _CHUNK_METHOD:
@@ -50,7 +51,7 @@ async def test_sandbox_json_rpc_transport_reassembles_large_unicode_response() -
                 True, 0, _chunk_response(original_bytes, handle, 0, 127), ""
             )
 
-    transport = SandboxJSONRPCTransport(FakeSandbox(), SANDBOX_CLI)  # type: ignore[arg-type]
+    transport = SandboxJSONRPCTransport(FakeSandbox())  # type: ignore[arg-type]
 
     with override_max_exec_output_size(1024):
         assert await transport("large", {}, False) == original_response
@@ -75,7 +76,7 @@ async def test_sandbox_json_rpc_transport_leaves_plain_response() -> None:
             assert json.loads(kwargs["input"])["method"] == "plain"
             return ExecResult(True, 0, response, "")
 
-    transport = SandboxJSONRPCTransport(FakeSandbox(), SANDBOX_CLI)  # type: ignore[arg-type]
+    transport = SandboxJSONRPCTransport(FakeSandbox())  # type: ignore[arg-type]
 
     assert await transport("plain", {}, False) == response
 
@@ -93,7 +94,7 @@ async def test_sandbox_json_rpc_transport_leaves_json_rpc_errors() -> None:
         async def exec(self, *args: Any, **kwargs: Any) -> ExecResult[str]:
             return ExecResult(True, 0, response, "")
 
-    transport = SandboxJSONRPCTransport(FakeSandbox(), SANDBOX_CLI)  # type: ignore[arg-type]
+    transport = SandboxJSONRPCTransport(FakeSandbox())  # type: ignore[arg-type]
 
     assert await transport("plain", {}, False) == response
 
@@ -102,16 +103,18 @@ async def test_sandbox_json_rpc_transport_rejects_out_of_order_chunk() -> None:
     original_bytes = b'{"jsonrpc":"2.0","id":1,"result":"abcdefghijklmno"}'
     handle = "b" * 32
     continuation_count = 0
+    released = False
 
     class FakeSandbox:
         async def exec(self, *args: Any, **kwargs: Any) -> ExecResult[str]:
-            nonlocal continuation_count
+            nonlocal continuation_count, released
             request = json.loads(kwargs["input"])
             if request["method"] != _CHUNK_METHOD:
                 return ExecResult(
                     True, 0, _chunk_response(original_bytes, handle, 0, 10), ""
                 )
             if request["params"].get("release") is True:
+                released = True
                 return ExecResult(True, 0, _success_response(), "")
             continuation_count += 1
             offset = request["params"]["offset"] + 1
@@ -119,11 +122,12 @@ async def test_sandbox_json_rpc_transport_rejects_out_of_order_chunk() -> None:
                 True, 0, _chunk_response(original_bytes, handle, offset, 10), ""
             )
 
-    transport = SandboxJSONRPCTransport(FakeSandbox(), SANDBOX_CLI)  # type: ignore[arg-type]
+    transport = SandboxJSONRPCTransport(FakeSandbox())  # type: ignore[arg-type]
 
     with pytest.raises(RuntimeError, match="out of order"):
         await transport("large", {}, False)
     assert continuation_count == 1
+    assert released
 
 
 async def test_sandbox_json_rpc_transport_surfaces_continuation_error() -> None:
@@ -152,7 +156,7 @@ async def test_sandbox_json_rpc_transport_surfaces_continuation_error() -> None:
                 "",
             )
 
-    transport = SandboxJSONRPCTransport(FakeSandbox(), SANDBOX_CLI)  # type: ignore[arg-type]
+    transport = SandboxJSONRPCTransport(FakeSandbox())  # type: ignore[arg-type]
 
     with pytest.raises(RuntimeError, match="chunk missing"):
         await transport("large", {}, False)
@@ -193,7 +197,7 @@ async def test_sandbox_json_rpc_transport_keeps_concurrent_handles_separate() ->
                 "",
             )
 
-    transport = SandboxJSONRPCTransport(FakeSandbox(), SANDBOX_CLI)  # type: ignore[arg-type]
+    transport = SandboxJSONRPCTransport(FakeSandbox())  # type: ignore[arg-type]
     results = await tg_collect(
         [
             partial(transport, "one", {}, False),
@@ -204,25 +208,12 @@ async def test_sandbox_json_rpc_transport_keeps_concurrent_handles_separate() ->
     assert results == [responses["one"], responses["two"]]
 
 
-async def test_legacy_sandbox_transport_does_not_enable_chunk_protocol() -> None:
-    response = json.dumps({"jsonrpc": "2.0", "id": 1, "result": "legacy"})
-
-    class FakeSandbox:
-        async def exec(self, *args: Any, **kwargs: Any) -> ExecResult[str]:
-            assert kwargs["env"] is None
-            return ExecResult(True, 0, response, "")
-
-    transport = SandboxJSONRPCTransport(FakeSandbox(), "inspect-tool-support")  # type: ignore[arg-type]
-
-    assert await transport("legacy", {}, False) == response
-
-
 async def test_sandbox_exec_error_uses_stdout_when_stderr_is_empty() -> None:
     class FakeSandbox:
         async def exec(self, *args: Any, **kwargs: Any) -> ExecResult[str]:
             return ExecResult(False, 1, "stdout diagnostic", "")
 
-    transport = SandboxJSONRPCTransport(FakeSandbox(), SANDBOX_CLI)  # type: ignore[arg-type]
+    transport = SandboxJSONRPCTransport(FakeSandbox())  # type: ignore[arg-type]
 
     with pytest.raises(RuntimeError, match="stdout diagnostic"):
         await transport("failing", {}, False)

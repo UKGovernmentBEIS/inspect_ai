@@ -1,11 +1,26 @@
+import functools
 import re
-from typing import Literal
+import uuid
+from dataclasses import dataclass
+from typing import Any, Callable, Literal, NamedTuple, Sequence
 
+import anyio
 import pytest
+from test_helpers.sandbox import CannedSandbox
 
-from inspect_ai import Task, eval
+from inspect_ai import Task, eval, eval_async
 from inspect_ai._util.content import ContentReasoning, ContentText
-from inspect_ai.agent._agent import Agent, AgentState, agent
+from inspect_ai.agent._agent import Agent, AgentState, agent, agent_with
+from inspect_ai.agent._as_solver import as_solver
+from inspect_ai.agent._as_tool import as_tool
+from inspect_ai.agent._channel import (
+    AgentChannel,
+    Cancel,
+    UserMessage,
+    current_agent_channel,
+)
+from inspect_ai.agent._channel.gate import turn_gate, turn_loop
+from inspect_ai.agent._deepagent.deepagent import deepagent
 from inspect_ai.agent._filter import MessageFilter
 from inspect_ai.agent._handoff import handoff
 from inspect_ai.agent._react import react
@@ -16,22 +31,45 @@ from inspect_ai.agent._types import (
     AgentSubmit,
 )
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog
+from inspect_ai.event import CompactionEvent, ModelEvent
+from inspect_ai.log import EvalLog, read_eval_log
 from inspect_ai.model import (
+    ChatCompletionChoice,
     ChatMessageUser,
     GenerateConfig,
+    Model,
     ModelOutput,
+    ModelUsage,
     get_model,
 )
+from inspect_ai.model._call_tools import execute_tools, watch_handoffs
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
+    ChatMessageTool,
 )
-from inspect_ai.scorer import Score, Target, accuracy, includes, scorer
+from inspect_ai.model._compaction._compaction import compaction
+from inspect_ai.model._compaction.auto import CompactionAuto
+from inspect_ai.model._compaction.native import CompactionNative
+from inspect_ai.model._compaction.trim import CompactionTrim
+from inspect_ai.scorer import (
+    CORRECT,
+    Score,
+    Scorer,
+    Target,
+    accuracy,
+    includes,
+    scorer,
+)
 from inspect_ai.solver import Generate, Solver, TaskState, solver
-from inspect_ai.tool import Tool, ToolCall, tool
+from inspect_ai.tool import Tool, ToolCall, ToolError, ToolSource, tool
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.util import SandboxEnvironment, sandbox, sandboxenv
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentConfigType
+from inspect_ai.util._sandbox.identity import sandbox_identity, sandbox_identity_active
+from inspect_ai.util._subprocess import ExecResult
 
 
 @tool
@@ -540,6 +578,47 @@ def test_react_agent_on_continue_func_with_braces():
     assert log.samples[0].error is None
     messages = log.samples[0].messages
     assert messages[-2].text == 'You said "I refuse. {pwned}". Please call submit.'
+
+
+def test_react_agent_on_continue_edit_keeps_logged_input(tmp_path):
+    # an on_continue that rewrites an earlier tool result in place must not
+    # change what the earlier generation's logged input shows
+    async def on_continue(state: AgentState) -> bool:
+        tool_messages = [m for m in state.messages if isinstance(m, ChatMessageTool)]
+        if len(tool_messages) == 2:
+            tool_messages[0].content = "[elided]"
+        return True
+
+    addition_task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=react(tools=[addition()], on_continue=on_continue),
+        scorer=compare_quantities(),
+    )
+    log = eval(
+        addition_task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    "mockllm/model", "addition", {"x": 1, "y": 1}
+                ),
+                ModelOutput.for_tool_call(
+                    "mockllm/model", "addition", {"x": 2, "y": 2}
+                ),
+                ModelOutput.for_tool_call("mockllm/model", "submit", {"answer": "2"}),
+            ],
+        ),
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success"
+
+    sample = read_eval_log(log.location).samples[0]
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    first_tool_results = [
+        next(m for m in e.input if isinstance(m, ChatMessageTool))
+        for e in model_events[1:]
+    ]
+    assert [m.text for m in first_tool_results] == ["2", "[elided]"]
 
 
 def test_react_agent_assistant_prompt_with_braces():
@@ -1121,3 +1200,1262 @@ def test_react_agent_fail_on_refusal_no_submit() -> None:
     assert log.samples
     assert log.samples[0].error is not None
     assert _model_event_count(log) == 2
+
+
+# ---------------------------------------------------------------------------
+# Turn gate
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _GateCall:
+    texts: list[str]
+    last_role: str
+    has_assistant: bool
+    state_matches: bool
+    interrupted: bool
+    redirected: bool
+
+
+# rewrite hook: (boundary index, messages) -> whether it rewrote them
+_GateRewrite = Callable[[int, list[ChatMessage]], bool]
+
+
+class _TestGate:
+    """Turn gate that records the boundaries of the first loop it sees.
+
+    It continues that loop past its first `answers` answers, appending a
+    `WAKE <n>` user message at the boundary that follows each.
+    """
+
+    def __init__(self, rewrite: _GateRewrite | None = None, answers: int = 0) -> None:
+        self.rewrite = rewrite
+        self.answers = answers
+        self.channel: AgentChannel | None = None
+        self.calls: list[_GateCall] = []
+        self.answer_calls: list[str] = []
+        self.wake = False
+        self.interrupted: anyio.Event | None = None
+        self.redirected = False
+
+    async def before_turn(
+        self,
+        channel: AgentChannel,
+        messages: Sequence[ChatMessage],
+        state: AgentState | None,
+    ) -> bool:
+        if self.channel is None:
+            self.channel = channel
+            channel.subscribe_turn_state(self._on_turn_state)
+        if channel is not self.channel:
+            return False
+        assert isinstance(messages, list)
+        self.calls.append(
+            _GateCall(
+                texts=[m.text for m in messages],
+                last_role=messages[-1].role,
+                has_assistant=any(m.role == "assistant" for m in messages),
+                state_matches=state is not None and state.messages is messages,
+                interrupted=self.interrupted is not None and self.interrupted.is_set(),
+                redirected=self.redirected,
+            )
+        )
+        if self.wake:
+            self.wake = False
+            messages.append(ChatMessageUser(content=f"WAKE {len(self.answer_calls)}"))
+        return self.rewrite(len(self.calls) - 1, messages) if self.rewrite else False
+
+    async def after_answer(self, channel: AgentChannel, state: AgentState) -> bool:
+        if channel is not self.channel:
+            return False
+        # the answer: the completion's last word, after mockllm's tool call text
+        self.answer_calls.append(state.output.completion.split()[-1])
+        self.wake = len(self.answer_calls) <= self.answers
+        return self.wake
+
+    def closed(self, channel: AgentChannel) -> None:
+        pass
+
+    def _on_turn_state(self, turn_state: str) -> None:
+        if turn_state == "cancelled" and self.interrupted is not None:
+            self.interrupted.set()
+
+
+@agent
+def _gated(gate: _TestGate, inner: Agent) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        with turn_gate(gate):
+            return await inner(state)
+
+    return execute
+
+
+@agent
+def _gated_with_redirect(gate: _TestGate, inner: Agent) -> Agent:
+    """Post an operator redirect once the loop's turn is interrupted."""
+
+    async def execute(state: AgentState) -> AgentState:
+        interrupted = anyio.Event()
+        gate.interrupted = interrupted
+
+        async def redirect() -> None:
+            await interrupted.wait()
+            gate.redirected = True
+            assert gate.channel is not None
+            gate.channel._post(UserMessage(message=ChatMessageUser(content="REDIRECT")))
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(redirect)
+            with turn_gate(gate):
+                state = await inner(state)
+            tg.cancel_scope.cancel()
+        return state
+
+    return execute
+
+
+@tool
+def lookup() -> Tool:
+    async def execute() -> str:
+        """Look up a value."""
+        return "ORIGINAL RESULT"
+
+    return execute
+
+
+@tool
+def stall() -> Tool:
+    async def execute() -> str:
+        """Wait until interrupted."""
+        current_agent_channel()._interrupt(Cancel())
+        await anyio.sleep_forever()
+        return "never"
+
+    return execute
+
+
+def _tool_turn(name: str = "lookup") -> ModelOutput:
+    return ModelOutput.for_tool_call(
+        model="mockllm/model", tool_name=name, tool_arguments={}
+    )
+
+
+def _overflow() -> ModelOutput:
+    return ModelOutput.from_content(
+        model="mockllm/model", content="overflow", stop_reason="model_length"
+    )
+
+
+def _done(submit: bool) -> ModelOutput:
+    if submit:
+        return ModelOutput.for_tool_call(
+            model="mockllm/model", tool_name="submit", tool_arguments={"answer": "done"}
+        )
+    return ModelOutput.from_content(model="mockllm/model", content="done")
+
+
+def _model_inputs(log: EvalLog) -> list[list[str]]:
+    assert log.samples
+    return [
+        [m.text for m in e.input]
+        for e in log.samples[0].events
+        if isinstance(e, ModelEvent)
+    ]
+
+
+def _forced_compactions(log: EvalLog) -> int:
+    assert log.samples
+    return len(
+        [
+            e
+            for e in log.samples[0].events
+            if isinstance(e, CompactionEvent)
+            and (e.metadata or {}).get("trigger") == "forced"
+        ]
+    )
+
+
+def _count_resets(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Count `reset()` calls on the compaction handlers react creates."""
+    import inspect_ai.agent._react as react_module
+
+    resets: list[int] = []
+
+    def create_counting(**kwargs: Any) -> Any:
+        handler = compaction(**kwargs)
+        reset = handler.reset
+
+        async def counting_reset(prefix: list[ChatMessage]) -> None:
+            resets.append(len(prefix))
+            await reset(prefix)
+
+        setattr(handler, "reset", counting_reset)
+        return handler
+
+    monkeypatch.setattr(react_module, "create_compaction", create_counting)
+    return resets
+
+
+def _replace_tool_result(messages: list[ChatMessage]) -> None:
+    index = next(i for i, m in enumerate(messages) if m.role == "tool")
+    messages[index] = messages[index].model_copy(update={"content": "REWRITTEN RESULT"})
+
+
+_SUBMIT_IDS = ["react", "react_no_submit"]
+
+
+@pytest.mark.parametrize("submit", [True, False], ids=_SUBMIT_IDS)
+def test_react_turn_gate_runs_at_every_boundary(submit: bool) -> None:
+    gate = _TestGate()
+    task = Task(
+        dataset=[Sample(input="Test")],
+        solver=_gated(
+            gate,
+            react(
+                tools=[lookup()],
+                submit=submit,
+                compaction=CompactionTrim(threshold=10_000),
+            ),
+        ),
+    )
+    model = get_model(
+        "mockllm/model", custom_outputs=[_tool_turn(), _overflow(), _done(submit)]
+    )
+
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success"
+    assert len(_model_inputs(log)) == 3
+    # before the first generation, after a tool turn, after a recovered overflow
+    assert [(c.has_assistant, c.last_role) for c in gate.calls] == [
+        (False, "user"),
+        (True, "tool"),
+        (True, "tool"),
+    ]
+    assert all(c.state_matches for c in gate.calls)
+
+
+@pytest.mark.parametrize("submit", [True, False], ids=_SUBMIT_IDS)
+def test_react_turn_gate_runs_after_interrupt_redirect(submit: bool) -> None:
+    gate = _TestGate()
+    task = Task(
+        dataset=[Sample(input="Test")],
+        solver=_gated_with_redirect(gate, react(tools=[stall()], submit=submit)),
+    )
+    model = get_model(
+        "mockllm/model", custom_outputs=[_tool_turn("stall"), _done(submit)]
+    )
+
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success"
+    # never called while after_cancel() waits for the redirect
+    assert [(c.interrupted, c.redirected) for c in gate.calls] == [
+        (False, False),
+        (True, True),
+    ]
+    assert gate.calls[1].texts[-1] == "REDIRECT"
+
+
+@pytest.mark.parametrize("agent_kind", ["react", "deepagent"])
+@pytest.mark.parametrize("change", ["replace", "delete", "append"])
+def test_react_turn_gate_rewrite_reaches_model_input(
+    agent_kind: str, change: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    resets = _count_resets(monkeypatch)
+
+    def rewrite(index: int, messages: list[ChatMessage]) -> bool:
+        if index != 1:
+            return False
+        if change == "replace":
+            _replace_tool_result(messages)
+            return True
+        if change == "delete":
+            messages[:] = [m for m in messages if m.text != "DELETE-ME"]
+            return True
+        messages.append(ChatMessageUser(content="APPENDED"))
+        return False
+
+    gate = _TestGate(rewrite)
+    inner = (
+        react(tools=[lookup()], compaction=CompactionTrim(threshold=10_000))
+        if agent_kind == "react"
+        else deepagent(tools=[lookup()])
+    )
+    task = Task(
+        dataset=[
+            Sample(
+                input=[
+                    ChatMessageUser(content="KEEP"),
+                    ChatMessageUser(content="DELETE-ME"),
+                ]
+            )
+        ],
+        solver=_gated(gate, inner),
+    )
+    model = get_model("mockllm/model", custom_outputs=[_tool_turn(), _done(True)])
+
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success"
+    first, second = _model_inputs(log)
+    assert "ORIGINAL RESULT" not in first and "DELETE-ME" in first
+    if change == "replace":
+        assert "REWRITTEN RESULT" in second
+        assert "ORIGINAL RESULT" not in second
+    elif change == "delete":
+        assert "DELETE-ME" not in second
+    else:
+        assert second[-1] == "APPENDED"
+    assert len(resets) == (0 if change == "append" else 1)
+
+
+@pytest.mark.parametrize("submit", [True, False], ids=_SUBMIT_IDS)
+@pytest.mark.parametrize("rewrite_after_overflow", [True, False])
+def test_react_overflow_after_rewrite_forces_compaction_again(
+    submit: bool, rewrite_after_overflow: bool
+) -> None:
+    def rewrite(index: int, messages: list[ChatMessage]) -> bool:
+        # boundary 3 follows the overflow that forced compaction recovered
+        if index == 3 and rewrite_after_overflow:
+            _replace_tool_result(messages)
+            return True
+        return False
+
+    task = Task(
+        dataset=[Sample(input="Test")],
+        solver=_gated(
+            _TestGate(rewrite),
+            react(
+                tools=[lookup()],
+                submit=submit,
+                compaction=CompactionTrim(threshold=10_000),
+                truncation="disabled",
+            ),
+        ),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            _tool_turn(),
+            _tool_turn(),
+            _overflow(),
+            _overflow(),
+            _done(submit),
+        ],
+    )
+
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success"
+    assert log.samples
+    completion = log.samples[0].output.completion or ""
+    if rewrite_after_overflow:
+        assert _forced_compactions(log) == 2
+        assert "done" in completion
+    else:
+        assert _forced_compactions(log) == 1
+        assert "done" not in completion
+
+
+def _anthropic_shaped_compact() -> Callable[..., Any]:
+    """A stub `Model.compact()` returning Anthropic's shape: no system message."""
+
+    async def compact(
+        self: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        instructions: str | None = None,
+    ) -> tuple[list[ChatMessage], ModelUsage | None]:
+        return [
+            ChatMessageAssistant(content="[COMPACTED BLOCK]"),
+            ChatMessageUser(content="Please continue working."),
+        ], None
+
+    return compact
+
+
+@pytest.mark.parametrize("submit", [True, False], ids=_SUBMIT_IDS)
+@pytest.mark.parametrize("strategy", ["native", "auto"])
+@pytest.mark.parametrize(
+    ("boundary", "role"), [(0, "system"), (1, "system"), (1, "user")]
+)
+def test_react_native_compaction_keeps_message_appended_at_boundary(
+    submit: bool,
+    strategy: str,
+    boundary: int,
+    role: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Model, "compact", _anthropic_shaped_compact())
+    resets = _count_resets(monkeypatch)
+
+    def append(index: int, messages: list[ChatMessage]) -> bool:
+        if index != boundary:
+            return False
+        if role == "system":
+            # an appended system message is a rewrite, as a runtime's gate
+            # reports it, so the handler's saved prefix includes it
+            messages.append(ChatMessageSystem(content="EXTRA SYSTEM"))
+            return True
+        messages.append(ChatMessageUser(content="EXTRA USER"))
+        return False
+
+    compaction_strategy = (
+        CompactionNative(threshold=10_000)
+        if strategy == "native"
+        else CompactionAuto(threshold=10_000)
+    )
+    task = Task(
+        dataset=[Sample(input="Test")],
+        solver=_gated(
+            _TestGate(append),
+            react(tools=[lookup()], submit=submit, compaction=compaction_strategy),
+        ),
+    )
+    outputs = [_overflow(), _done(submit)]
+    if boundary == 1:
+        outputs.insert(0, _tool_turn())
+    model = get_model("mockllm/model", custom_outputs=outputs)
+
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success"
+    assert _forced_compactions(log) == 1
+    after_compaction = _model_inputs(log)[-1]
+    assert "[COMPACTED BLOCK]" in after_compaction
+    if role == "system":
+        assert "EXTRA SYSTEM" in after_compaction
+        assert len(resets) == 1
+    else:
+        assert len(resets) == 0
+
+
+def _submit(answer: str) -> ModelOutput:
+    return ModelOutput.for_tool_call(
+        model="mockllm/model", tool_name="submit", tool_arguments={"answer": answer}
+    )
+
+
+def _reply(
+    content: str, stop_reason: Literal["stop", "content_filter"] = "stop"
+) -> ModelOutput:
+    return ModelOutput.from_content(
+        model="mockllm/model", content=content, stop_reason=stop_reason
+    )
+
+
+def _model_input_messages(log: EvalLog) -> list[list[ChatMessage]]:
+    assert log.samples
+    return [e.input for e in log.samples[0].events if isinstance(e, ModelEvent)]
+
+
+def _continue_after(on_continue_calls: list[str]) -> Callable[..., Any]:
+    async def on_continue(state: AgentState) -> bool:
+        on_continue_calls.append(state.output.completion)
+        return True
+
+    return on_continue
+
+
+@pytest.mark.parametrize("agent_kind", ["react", "deepagent"])
+@pytest.mark.parametrize("end", ["attempts_used", "check_passed"])
+async def test_react_after_answer_continues_after_submission(
+    agent_kind: str, end: str
+) -> None:
+    on_continue_calls: list[str] = []
+    attempts = 1 if end == "attempts_used" else 2
+    on_continue = _continue_after(on_continue_calls)
+    inner = (
+        react(tools=[lookup()], attempts=attempts, on_continue=on_continue)
+        if agent_kind == "react"
+        else deepagent(tools=[lookup()], attempts=attempts, on_continue=on_continue)
+    )
+    gate = _TestGate(answers=1)
+    task = Task(
+        dataset=[Sample(input="Test", target=["ONE", "TWO"])],
+        solver=_gated(gate, inner),
+        scorer=includes(),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[_tool_turn(), _submit("ONE"), _submit("TWO")],
+    )
+
+    log = (await eval_async(task, model=model))[0]
+
+    assert log.status == "success"
+    assert log.samples
+    assert gate.answer_calls == ["ONE", "TWO"]
+    # on_continue ran after the tool turn, never after an answer
+    assert len(on_continue_calls) == 1
+    inputs = _model_input_messages(log)
+    assert len(inputs) == 3
+    woken = inputs[2]
+    assert [m.role for m in woken].count("system") == 1
+    assert woken[-1].text == "WAKE 1"
+    # the first activation's submit call and result stay in the conversation
+    assert woken[-2].role == "tool" and woken[-2].text == "ONE"
+    last_assistant = woken[-3]
+    assert isinstance(last_assistant, ChatMessageAssistant)
+    assert last_assistant.tool_calls
+    assert last_assistant.tool_calls[0].function == "submit"
+    assert log.samples[0].output.completion.endswith("TWO")
+    # with the submit calls removed on return, both answers stay in the
+    # returned history as assistant text
+    returned = [m.text for m in log.samples[0].messages if m.role == "assistant"]
+    assert [text.split()[-1] for text in returned[-2:]] == ["ONE", "TWO"]
+
+
+async def test_react_after_answer_resets_attempts() -> None:
+    gate = _TestGate(answers=1)
+    task = Task(
+        dataset=[Sample(input="Test", target="RIGHT")],
+        solver=_gated(gate, react(attempts=2)),
+        scorer=includes(),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            _submit("WRONG"),
+            _submit("WRONG"),
+            _submit("WRONG"),
+            _submit("RIGHT"),
+        ],
+    )
+
+    log = (await eval_async(task, model=model))[0]
+
+    assert log.status == "success"
+    assert log.samples
+    assert gate.answer_calls == ["WRONG", "RIGHT"]
+    inputs = _model_input_messages(log)
+    # the second activation gets both its attempts: its first incorrect
+    # submission gets the incorrect message rather than ending the loop
+    assert len(inputs) == 4
+    assert inputs[2][-1].text == "WAKE 1"
+    assert inputs[3][-1].text == AgentAttempts().incorrect_message
+    assert log.samples[0].output.completion.endswith("RIGHT")
+
+
+@pytest.mark.parametrize("end", ["no_on_continue", "on_continue_false"])
+async def test_react_no_submit_after_answer_continues_after_reply(end: str) -> None:
+    async def stop(state: AgentState) -> bool:
+        return False
+
+    gate = _TestGate(answers=1)
+    inner = react(
+        tools=[lookup()],
+        submit=False,
+        on_continue=stop if end == "on_continue_false" else None,
+    )
+    task = Task(dataset=[Sample(input="Test")], solver=_gated(gate, inner))
+    model = get_model("mockllm/model", custom_outputs=[_reply("ONE"), _reply("TWO")])
+
+    log = (await eval_async(task, model=model))[0]
+
+    assert log.status == "success"
+    assert log.samples
+    assert gate.answer_calls == ["ONE", "TWO"]
+    inputs = _model_input_messages(log)
+    assert len(inputs) == 2
+    assert [m.role for m in inputs[1]].count("system") == 1
+    assert [m.text for m in inputs[1][-2:]] == ["ONE", "WAKE 1"]
+    assert log.samples[0].output.completion.endswith("TWO")
+
+
+@pytest.mark.parametrize(
+    "end",
+    [
+        "refusals",
+        "overflow",
+        "no_submit_overflow",
+        "on_continue_false",
+        "no_submit_on_continue_false_after_tools",
+    ],
+)
+async def test_react_after_answer_not_called_at_other_ends(end: str) -> None:
+    async def stop(state: AgentState) -> bool:
+        return False
+
+    submit = not end.startswith("no_submit")
+    on_continue = stop if end.endswith(("on_continue_false", "after_tools")) else None
+    outputs = {
+        "refusals": [_reply("no", "content_filter")] * 3,
+        "overflow": [_overflow()],
+        "no_submit_overflow": [_overflow()],
+        "on_continue_false": [_tool_turn()],
+        "no_submit_on_continue_false_after_tools": [_tool_turn()],
+    }[end]
+    gate = _TestGate(answers=1)
+    task = Task(
+        dataset=[Sample(input="Test")],
+        solver=_gated(
+            gate, react(tools=[lookup()], submit=submit, on_continue=on_continue)
+        ),
+    )
+    model = get_model("mockllm/model", custom_outputs=outputs)
+
+    log = (await eval_async(task, model=model))[0]
+
+    assert log.status == "success"
+    assert len(_model_inputs(log)) == len(outputs)
+    assert gate.answer_calls == []
+
+
+@agent
+def _silent_child() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Return without generating."""
+        return state
+
+    return execute
+
+
+@agent
+def _replying_child() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Reply once."""
+        state.output = await get_model().generate(state.messages)
+        state.messages.append(state.output.message)
+        return state
+
+    return execute
+
+
+@pytest.mark.parametrize("gated", [True, False])
+@pytest.mark.parametrize("agent_kind", ["react", "deepagent"])
+@pytest.mark.parametrize("child", ["silent", "replying"])
+async def test_react_no_submit_stops_after_handoff(
+    child: str, agent_kind: str, gated: bool
+) -> None:
+    async def stop(state: AgentState) -> bool:
+        return False
+
+    child_agent = _silent_child() if child == "silent" else _replying_child()
+    tools = [handoff(child_agent)]
+    inner = (
+        react(tools=tools, submit=False, on_continue=stop)
+        if agent_kind == "react"
+        else deepagent(tools=tools, submit=False, on_continue=stop)
+    )
+    gate = _TestGate(answers=1)
+    task = Task(
+        dataset=[Sample(input="Test")],
+        solver=_gated(gate, inner) if gated else inner,
+    )
+    outputs = [_tool_turn(f"transfer_to__{child}_child")]
+    if child == "replying":
+        outputs.append(_reply("CHILD"))
+    model = get_model("mockllm/model", custom_outputs=outputs)
+
+    log = (await eval_async(task, model=model))[0]
+
+    assert log.status == "success"
+    assert log.samples
+    output = log.samples[0].output
+    if child == "silent":
+        assert output.empty
+    else:
+        # the handoff replaced the parent's output with the child's reply
+        assert output.completion == "CHILD"
+    # the parent generated once, and the child as many times as it does
+    assert len(_model_inputs(log)) == len(outputs)
+    # the parent's turn made a tool call, so it is not an answer
+    assert gate.answer_calls == []
+
+
+@pytest.mark.parametrize(
+    "end",
+    ["attempts_used", "check_passed", "no_submit_reply", "no_submit_on_continue_false"],
+)
+async def test_react_after_answer_false_returns_as_without_gate(end: str) -> None:
+    async def stop(state: AgentState) -> bool:
+        return False
+
+    # a stopping on_continue would end the loop at the tool turn
+    first = [] if end == "no_submit_on_continue_false" else [_tool_turn()]
+
+    async def run(gate: _TestGate | None) -> EvalLog:
+        if end.startswith("no_submit"):
+            inner = react(
+                tools=[lookup()],
+                submit=False,
+                on_continue=stop if end == "no_submit_on_continue_false" else None,
+            )
+            outputs = [*first, _reply("ONE")]
+        else:
+            inner = react(tools=[lookup()], attempts=1 if end == "attempts_used" else 2)
+            outputs = [*first, _submit("ONE")]
+        task = Task(
+            dataset=[Sample(input="Test", target="ONE")],
+            solver=_gated(gate, inner) if gate else inner,
+            scorer=includes(),
+        )
+        model = get_model("mockllm/model", custom_outputs=outputs)
+        return (await eval_async(task, model=model))[0]
+
+    gate = _TestGate(answers=0)
+    gated, ungated = await run(gate), await run(None)
+
+    assert gate.answer_calls == ["ONE"]
+    assert gated.samples and ungated.samples
+    assert len(_model_inputs(gated)) == len(_model_inputs(ungated)) == len(first) + 1
+    assert gated.samples[0].output.completion == ungated.samples[0].output.completion
+    assert [(m.role, m.text) for m in gated.samples[0].messages] == [
+        (m.role, m.text) for m in ungated.samples[0].messages
+    ]
+
+
+def _turn(*calls: tuple[str, dict[str, Any]]) -> ModelOutput:
+    """One generation that calls each tool in order."""
+    return ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="calls",
+                    model="mockllm/model",
+                    source="generate",
+                    tool_calls=[
+                        ToolCall(
+                            id=f"call_{uuid.uuid4().hex}",
+                            function=function,
+                            arguments=arguments,
+                        )
+                        for function, arguments in calls
+                    ],
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+
+_SUBMIT_ONE = ("submit", {"answer": "ONE"})
+
+
+@agent
+def _raising_child() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Fail."""
+        raise ToolError("child failed")
+
+    return execute
+
+
+@agent
+def _submit_result_child() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Report a result named like the parent's submit tool."""
+        call = ToolCall(id="child_submit", function="submit", arguments={})
+        state.messages.append(ChatMessageAssistant(content="", tool_calls=[call]))
+        state.messages.append(
+            ChatMessageTool(
+                content="CHILD", tool_call_id="child_submit", function="submit"
+            )
+        )
+        return state
+
+    return execute
+
+
+@tool(name="x")
+def _ordinary_x() -> Tool:
+    async def execute() -> str:
+        """Run x."""
+        return "X"
+
+    return execute
+
+
+def _handoff_x() -> Tool:
+    return handoff(_silent_child(), tool_name="x")
+
+
+class _PhasedSource(ToolSource):
+    """Tools for generation until the model generates, then tools for execution."""
+
+    def __init__(self, generation: list[Tool], execution: list[Tool]) -> None:
+        self.generation = generation
+        self.execution = execution
+        self.generated = False
+
+    async def tools(self) -> list[Tool]:
+        return self.execution if self.generated else self.generation
+
+
+def _phased_model(outputs: list[ModelOutput], source: _PhasedSource | None) -> Model:
+    pending = list(outputs)
+
+    def generate(
+        input: list[ChatMessage], tools: list[ToolInfo], tool_choice: Any, config: Any
+    ) -> ModelOutput:
+        if source is not None:
+            source.generated = True
+        return pending.pop(0)
+
+    return get_model("mockllm/model", custom_outputs=generate)
+
+
+def _child_loop(submit: bool) -> Agent:
+    return react(
+        name="child_loop",
+        description="A child loop that hands off.",
+        tools=[handoff(_replying_child())],
+        submit=submit,
+    )
+
+
+class _HandoffCase(NamedTuple):
+    tools: list[Tool | ToolSource]
+    outputs: list[ModelOutput]
+    source: _PhasedSource | None
+    asked: bool
+
+
+def _handoff_case(case: str) -> _HandoffCase:
+    child_loop_outputs = [
+        _turn(("transfer_to__replying_child", {})),
+        _reply("CHILD"),
+    ]
+    if case == "own_submit_beside_handoff":
+        return _HandoffCase(
+            [handoff(_replying_child())],
+            [_turn(("transfer_to__replying_child", {}), _SUBMIT_ONE), _reply("CHILD")],
+            None,
+            False,
+        )
+    if case == "child_submit_result":
+        return _HandoffCase(
+            [handoff(_submit_result_child(), output_filter=None)],
+            [_turn(("transfer_to__submit_result_child", {}))],
+            None,
+            False,
+        )
+    if case == "child_tool_error":
+        return _HandoffCase(
+            [handoff(_raising_child())],
+            [_turn(("transfer_to__raising_child", {}), _SUBMIT_ONE)],
+            None,
+            False,
+        )
+    if case == "silent_child":
+        return _HandoffCase(
+            [handoff(_silent_child())],
+            [_turn(("transfer_to__silent_child", {}), _SUBMIT_ONE)],
+            None,
+            False,
+        )
+    if case == "as_tool_beside_direct_handoff":
+        return _HandoffCase(
+            [as_tool(_child_loop(submit=False)), handoff(_silent_child())],
+            [
+                _turn(
+                    ("child_loop", {"input": "go"}),
+                    ("transfer_to__silent_child", {}),
+                    _SUBMIT_ONE,
+                ),
+                *child_loop_outputs,
+            ],
+            None,
+            False,
+        )
+    if case == "as_tool_no_submit_child":
+        return _HandoffCase(
+            [as_tool(_child_loop(submit=False))],
+            [_turn(("child_loop", {"input": "go"}), _SUBMIT_ONE), *child_loop_outputs],
+            None,
+            True,
+        )
+    if case == "as_tool_submitting_child":
+        return _HandoffCase(
+            [as_tool(_child_loop(submit=True))],
+            [
+                _turn(("child_loop", {"input": "go"}), _SUBMIT_ONE),
+                *child_loop_outputs,
+                _submit("C"),
+            ],
+            None,
+            True,
+        )
+    # a ToolSource, phased so the executor can see different tools
+    generation, execution, asked = {
+        "source_becomes_handoff": ([_ordinary_x()], [_handoff_x()], False),
+        "stable_handoff_source": ([_handoff_x()], [_handoff_x()], False),
+        "stable_ordinary_source": ([_ordinary_x()], [_ordinary_x()], True),
+        "duplicate_handoff_first": (
+            [_ordinary_x()],
+            [_handoff_x(), _ordinary_x()],
+            False,
+        ),
+        "duplicate_ordinary_first": (
+            [_ordinary_x()],
+            [_ordinary_x(), _handoff_x()],
+            True,
+        ),
+    }[case]
+    source = _PhasedSource(generation, execution)
+    return _HandoffCase([source], [_turn(("x", {}), _SUBMIT_ONE)], source, asked)
+
+
+@pytest.mark.parametrize("end", ["attempts_used", "check_passed"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "own_submit_beside_handoff",
+        "child_submit_result",
+        "child_tool_error",
+        "silent_child",
+        "as_tool_beside_direct_handoff",
+        "source_becomes_handoff",
+        "stable_handoff_source",
+        "duplicate_handoff_first",
+        "as_tool_no_submit_child",
+        "as_tool_submitting_child",
+        "stable_ordinary_source",
+        "duplicate_ordinary_first",
+    ],
+)
+async def test_react_after_answer_not_asked_when_turn_hands_off(
+    case: str, end: str
+) -> None:
+    async def run(gate: _TestGate | None) -> tuple[EvalLog, bool]:
+        tools, outputs, source, asked = _handoff_case(case)
+        inner = react(tools=tools, attempts=1 if end == "attempts_used" else 2)
+        task = Task(
+            dataset=[Sample(input="Test", target=["ONE", "CHILD"])],
+            solver=_gated(gate, inner) if gate else inner,
+            scorer=includes(),
+        )
+        log = (await eval_async(task, model=_phased_model(outputs, source)))[0]
+        return log, asked
+
+    # a gate that would continue the loop if asked, unless the turn's
+    # answer is the parent's own (then asking is what the test checks)
+    asked = _handoff_case(case).asked
+    gate = _TestGate(answers=0 if asked else 1)
+    (gated, _), (ungated, _) = await run(gate), await run(None)
+
+    assert gated.status == ungated.status == "success"
+    assert gate.answer_calls == (["ONE"] if asked else [])
+    # the loop returns from that turn as it does without a gate
+    assert gated.samples and ungated.samples
+    assert len(_model_inputs(gated)) == len(_model_inputs(ungated))
+    assert len(_model_inputs(gated)) == len(_handoff_case(case).outputs)
+    assert gated.samples[0].output.completion == ungated.samples[0].output.completion
+    assert [(m.role, m.text) for m in gated.samples[0].messages] == [
+        (m.role, m.text) for m in ungated.samples[0].messages
+    ]
+
+
+@pytest.mark.parametrize("order", ["handoff_first", "submit_first"])
+@pytest.mark.parametrize("child", ["silent", "replying"])
+@pytest.mark.parametrize("end", ["attempts_used", "check_passed"])
+async def test_react_after_answer_keeps_earlier_answer_when_turn_hands_off(
+    end: str, child: str, order: str
+) -> None:
+    transfer: tuple[str, dict[str, Any]] = (f"transfer_to__{child}_child", {})
+    submit_two: tuple[str, dict[str, Any]] = ("submit", {"answer": "TWO"})
+    calls = (
+        [transfer, submit_two] if order == "handoff_first" else [submit_two, transfer]
+    )
+    outputs = [_submit("ONE"), _turn(*calls)]
+    if child == "replying":
+        outputs.append(_reply("CHILD"))
+    gate = _TestGate(answers=1)
+    inner = react(
+        tools=[handoff(_silent_child() if child == "silent" else _replying_child())],
+        attempts=1 if end == "attempts_used" else 2,
+    )
+    task = Task(
+        dataset=[Sample(input="Test", target=["ONE", "TWO"])],
+        solver=_gated(gate, inner),
+        scorer=includes(),
+    )
+    model = get_model("mockllm/model", custom_outputs=outputs)
+
+    log = (await eval_async(task, model=model))[0]
+
+    assert log.status == "success"
+    assert log.samples
+    # the turn that handed off is not asked about, so the loop returns
+    assert gate.answer_calls == ["ONE"]
+    assert len(_model_inputs(log)) == len(outputs)
+    assert log.samples[0].output.completion.endswith("TWO")
+    # the continued answer stays in the returned history
+    returned = [m.text for m in log.samples[0].messages if m.role == "assistant"]
+    assert any(text.endswith("ONE") for text in returned)
+
+
+def _cut_off_child() -> Agent:
+    async def stop(state: AgentState) -> bool:
+        return False
+
+    return react(
+        name="cut_off_child",
+        description="A child cut off before it submits.",
+        on_continue=stop,
+    )
+
+
+@pytest.mark.parametrize("gated", [True, False])
+@pytest.mark.parametrize("agent_kind", ["react", "deepagent"])
+@pytest.mark.parametrize("on_continue", ["none", "false"])
+async def test_react_no_submit_handoff_reply_is_not_an_answer(
+    on_continue: str, agent_kind: str, gated: bool
+) -> None:
+    seen: list[str] = []
+
+    async def stop(state: AgentState) -> bool:
+        seen.append(state.output.completion)
+        return False
+
+    tools = [handoff(_cut_off_child())]
+    stopper = stop if on_continue == "false" else None
+    inner = (
+        react(tools=tools, submit=False, on_continue=stopper)
+        if agent_kind == "react"
+        else deepagent(tools=tools, submit=False, on_continue=stopper)
+    )
+    gate = _TestGate(answers=1)
+    # with a gate, a reply of the parent's own comes first and is an answer
+    own = [_reply("ONE")] if gated else []
+    outputs = [*own, _tool_turn("transfer_to_cut_off_child"), _reply("CHILD")]
+    task = Task(
+        dataset=[Sample(input="Test")],
+        solver=_gated(gate, inner) if gated else inner,
+    )
+    model = get_model("mockllm/model", custom_outputs=outputs)
+
+    log = (await eval_async(task, model=model))[0]
+
+    assert log.status == "success"
+    assert log.samples
+    assert gate.answer_calls == (["ONE"] if gated else [])
+    # the loop returns the child's tool-free output, as it does without a gate
+    output = log.samples[0].output
+    assert output.completion == "CHILD"
+    assert output.stop_reason == "stop"
+    assert len(_model_inputs(log)) == len(outputs)
+    if on_continue == "false":
+        assert seen == [*(["ONE"] if gated else []), "CHILD"]
+
+
+@agent
+def _execute_handoff(results: list[tuple[Any, Any, bool, bool]]) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Run one handoff call with and without a watch."""
+        tools = [handoff(_silent_child()), lookup()]
+
+        def message(function: str) -> list[ChatMessage]:
+            call = ToolCall(id="call", function=function, arguments={})
+            return [
+                *state.messages,
+                ChatMessageAssistant(content="", tool_calls=[call]),
+            ]
+
+        handed = message("transfer_to__silent_child")
+        plain = await execute_tools(handed, tools)
+        with watch_handoffs() as watch:
+            watched = await execute_tools(handed, tools)
+        with watch_handoffs() as ordinary:
+            await execute_tools(message("lookup"), tools)
+        results.append((plain, watched, watch.called, ordinary.called))
+        return state
+
+    return execute
+
+
+async def test_execute_tools_reports_handoffs_only_to_a_watch() -> None:
+    results: list[tuple[Any, Any, bool, bool]] = []
+    task = Task(dataset=[Sample(input="Test")], solver=_execute_handoff(results))
+
+    log = (await eval_async(task, model="mockllm/model"))[0]
+
+    assert log.status == "success"
+    [(plain, watched, called, ordinary_called)] = results
+    assert called is True
+    assert ordinary_called is False
+    # a watch changes nothing about what execute_tools() returns
+    assert [(m.role, m.text) for m in plain.messages] == [
+        (m.role, m.text) for m in watched.messages
+    ]
+    assert (plain.output is None) == (watched.output is None)
+    if plain.output is not None:
+        assert plain.output.completion == watched.output.completion
+
+
+@agent
+def _builder() -> Agent:
+    return react(tools=[lookup()])
+
+
+@agent
+def _wrapping_builder() -> Agent:
+    inner = react()
+
+    @functools.wraps(inner)
+    async def execute(state: AgentState) -> AgentState:
+        return await inner(state)
+
+    return execute
+
+
+def _wraps_copy() -> Agent:
+    inner = react()
+
+    @functools.wraps(inner)
+    async def execute(state: AgentState) -> AgentState:
+        return await inner(state)
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    ("make", "background"),
+    [
+        (lambda: react(), False),
+        (lambda: react(name="named"), False),
+        (lambda: react(submit=False), False),
+        (lambda: deepagent(), False),
+        (lambda: deepagent(background=True), True),
+        (lambda: deepagent(background=4), True),
+        (lambda: agent_with(react(), name="renamed"), False),
+        (lambda: _builder(), False),
+    ],
+)
+def test_turn_loop_reads_loop_mark(make: Callable[[], Agent], background: bool) -> None:
+    mark = turn_loop(make())
+    assert mark is not None
+    assert mark.background is background
+
+
+@pytest.mark.parametrize(
+    "make",
+    [_wraps_copy, _wrapping_builder, lambda: _gated(_TestGate(), react())],
+)
+def test_turn_loop_refuses_other_agents(make: Callable[[], Agent]) -> None:
+    assert turn_loop(make()) is None
+
+
+_scope_execs: list[tuple[str, str | None, bool]] = []
+"""(command, user, scope active) of each `tool` or `scorer` exec."""
+
+
+def _record_scope_exec(cmd: list[str], user: str | None) -> ExecResult[str]:
+    if cmd[0] in ("tool", "scorer"):
+        _scope_execs.append((cmd[0], user, sandbox_identity_active()))
+    return ExecResult(True, 0, "", "")
+
+
+@sandboxenv(name="react_scope_recorder")
+class _ScopeRecorderSandbox(CannedSandbox):
+    """Records the user of `tool` and `scorer` execs; other commands succeed."""
+
+    def __init__(self) -> None:
+        super().__init__(_record_scope_exec)
+
+    @classmethod
+    async def sample_init(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
+    ) -> dict[str, SandboxEnvironment]:
+        return {"default": cls()}
+
+
+@tool
+def sandbox_probe() -> Tool:
+    async def execute() -> str:
+        """Run a command in the sandbox."""
+        await sandbox().exec(["tool"])
+        return "ok"
+
+    return execute
+
+
+@scorer(metrics=[accuracy()])
+def sandbox_probe_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        await sandbox().exec(["scorer"])
+        return Score(value=CORRECT)
+
+    return score
+
+
+@solver
+def _in_identity_scope(inner: Agent) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        with sandbox_identity("w-1"):
+            return await as_solver(inner)(state, generate)
+
+    return solve
+
+
+def test_react_in_loop_scorer_keeps_the_default_user_in_a_scope() -> None:
+    """In-loop scoring runs as the default user; the agent's tools as the scope's."""
+    _scope_execs.clear()
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model", tool_name="sandbox_probe", tool_arguments={}
+            ),
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "2"},
+            ),
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=_in_identity_scope(react(tools=[sandbox_probe()], attempts=2)),
+        scorer=sandbox_probe_scorer(),
+        sandbox="react_scope_recorder",
+    )
+    [log] = eval(task, model=model)
+    assert log.status == "success", log.error
+    assert _scope_execs == [
+        ("tool", "w-1", True),
+        ("scorer", None, True),  # in-loop
+        ("scorer", None, False),  # final
+    ]
+
+
+@scorer(metrics=[accuracy()])
+def _scope_opening_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        with sandbox_identity("judge"):
+            await sandbox().exec(["scorer"])
+        return Score(value=CORRECT)
+
+    return score
+
+
+def test_react_in_loop_scorer_cannot_open_a_scope() -> None:
+    """A scorer opening its own scope fails during in-loop scoring."""
+    _scope_execs.clear()
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "2"},
+            ),
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=react(attempts=2),
+        scorer=_scope_opening_scorer(),
+        sandbox="react_scope_recorder",
+    )
+    [log] = eval(task, model=model)
+    assert log.status == "error"
+    assert log.error is not None
+    assert "cannot be opened inside" in log.error.message
+    assert _scope_execs == []

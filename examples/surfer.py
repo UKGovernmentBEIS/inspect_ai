@@ -52,11 +52,9 @@ def web_surfer(instance: str | None = None) -> Tool:
             surfer_state.messages.append(
                 ChatMessageSystem(
                     content=dedent("""
-                You are a helpful assistant that can use a web browser to
-                answer questions. You don't need to answer the questions with
-                a single web browser request, rather, you can perform searches,
-                follow links, backtrack, and otherwise use the web to its
-                fullest capability to help answer the question.
+                You are a helpful assistant that can use web search to
+                answer questions. You can perform multiple searches to
+                gather the information needed to answer the question.
 
                 In some cases questions will be about your previous web searches,
                 in those cases you don't always need to use the web search tool

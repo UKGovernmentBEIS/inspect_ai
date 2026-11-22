@@ -13,26 +13,36 @@ from test_helpers.utils import flaky_retry, skip_if_no_docker, skip_if_no_openai
 from inspect_ai import Task, eval
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
+from inspect_ai.event import SandboxEvent
+from inspect_ai.model import get_model
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Generate, Solver, TaskState, fork, solver
 from inspect_ai.tool import Tool, ToolError, bash, skill
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.tool._tools._skill.install import install_lock, install_skills
+from inspect_ai.tool._tools._skill.install import (
+    INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT,
+    install_lock,
+    install_skills,
+)
 from inspect_ai.tool._tools._skill.read import SkillParsingError, _read_skill
 from inspect_ai.tool._tools._skill.tool import _cache_lock
 from inspect_ai.tool._tools._skill.types import Skill
 from inspect_ai.util import (
     SandboxUserUnsupportedError,
     Store,
+    sandbox,
     store,
     subtask,
     tool_state_scope,
 )
+from inspect_ai.util._sandbox._framework_operation import framework_sandbox_operation
 from inspect_ai.util._sandbox.context import (
     sandbox_default_context_var,
     sandbox_environments_context_var,
 )
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+from inspect_ai.util._sandbox.identity import sandbox_identity
 from inspect_ai.util._sandbox.limits import (
     OutputLimitExceededError,
     override_max_read_file_size,
@@ -84,7 +94,224 @@ class TestSkillNameUniqueness:
         assert tool is not None
 
 
+class _StepSandbox(CannedSandbox):
+    """Records each install step with the user it ran as.
+
+    `pwd` gives /work. Writes as a user other than root under `protected` are
+    refused, as for a directory only the default user (root) can write.
+    `owners` maps each file to its owner, "default" for the default user, and
+    `cwds` records the `cwd` of each command.
+    """
+
+    def __init__(self, protected: str = "/root") -> None:
+        super().__init__(self._answer)
+        self.protected = protected
+        self.steps: list[tuple[str, str | None]] = []
+        self.owners: dict[str, str] = {}
+        self.executable: set[str] = set()
+        self.cwds: list[str | None] = []
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        self.cwds.append(cwd)
+        return await super().exec(
+            cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
+        )
+
+    def _answer(self, cmd: list[str], user: str | None) -> ExecResult[str]:
+        argv = cmd[4:]
+        if argv == ["pwd"]:
+            self.steps.append(("pwd", user))
+            return ExecResult(True, 0, "/work", "")
+        if argv[:1] == ["chown"]:
+            self.steps.append((f"chown {argv[1]}", user))
+            self.owners[argv[-1]] = argv[1]
+        if argv[:2] == ["chmod", "+x"]:
+            self.steps.append(("chmod", user))
+            self.executable.add(argv[-1])
+        return ExecResult(True, 0, "", "")
+
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
+        if user not in (None, "root") and file.startswith(self.protected):
+            raise PermissionError(file)
+        self.steps.append(("write", user))
+        self.owners[file] = user or "default"
+
+
+def _without_file_user(sandbox: CannedSandbox, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give `sandbox` a `write_file()` that declares no `user`."""
+    write_file = sandbox.write_file
+
+    async def write(file: str, contents: str | bytes) -> None:
+        await write_file(file, contents)
+
+    monkeypatch.setattr(sandbox, "write_file", write)
+
+
 class TestSkillInstallation:
+    SCRIPTED = Skill(
+        name="example",
+        description="Example",
+        instructions="Example",
+        scripts={"run.sh": "echo hello"},
+    )
+
+    @pytest.mark.parametrize("user", [None, "1000"])
+    async def test_install_keeps_legacy_write_interface(
+        self, user: str | None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        files: list[str] = []
+        sandbox = CannedSandbox(lambda cmd, user: ExecResult(True, 0, "", ""))
+
+        async def write(file: str, contents: str | bytes) -> None:
+            files.append(file)
+
+        monkeypatch.setattr(sandbox, "write_file", write)
+        sk = Skill(name="example", description="Example", instructions="Example")
+        await install_skills([sk], sandbox=sandbox, user=user, dir="/skills")
+        assert files == ["/skills/example/SKILL.md"]
+
+        # an explicit user keeps working inside a scope
+        if user is not None:
+            files.clear()
+            proxy = SandboxEnvironmentProxy(sandbox)
+            _use_sandbox(proxy)
+            with sandbox_identity("w-1"):
+                await install_skills([sk], sandbox=proxy, user=user, dir="/skills")
+            assert files == ["/skills/example/SKILL.md"]
+
+    async def test_install_skills_explicit_user_in_a_scope(self) -> None:
+        sandbox = _StepSandbox()
+        _use_sandbox(SandboxEnvironmentProxy(sandbox))
+        with sandbox_identity("w-1"):
+            await install_skills([self.SCRIPTED], user="root", dir="/root/skills")
+        assert sandbox.steps == [
+            ("write", None),
+            ("chown root", "root"),
+            ("write", None),
+            ("chown root", "root"),
+            ("chmod", "root"),
+        ]
+        assert sandbox.cwds == [None, None, None]
+
+    @pytest.mark.parametrize("scope_cwd", [None, "/home/w-1"])
+    async def test_install_skills_omitted_user_in_a_scope(
+        self, scope_cwd: str | None
+    ) -> None:
+        sandbox = _StepSandbox()
+        _use_sandbox(SandboxEnvironmentProxy(sandbox))
+        with sandbox_identity("w-1", cwd=scope_cwd):
+            await install_skills([self.SCRIPTED], dir="/home/w-1/skills")
+        assert sandbox.steps == [("write", "w-1"), ("write", "w-1"), ("chmod", "w-1")]
+        # the member's chmod does not start in the provider's working
+        # directory, which the member may not be able to enter
+        assert sandbox.cwds == ["/"]
+        assert INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT is True
+
+    async def test_install_skills_omitted_user_in_a_scope_relative_dir(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sandbox = _StepSandbox()
+        _use_sandbox(SandboxEnvironmentProxy(sandbox))
+        with sandbox_identity("w-1", cwd="/home/w-1"):
+            [installed] = await install_skills([self.SCRIPTED])
+        # the default relative dir resolves against the scope's cwd, not the
+        # provider's working directory (/work here, /root on many images)
+        assert installed.location == "/home/w-1/skills/example/SKILL.md"
+        assert sandbox.steps == [("write", "w-1"), ("write", "w-1"), ("chmod", "w-1")]
+        assert sandbox.cwds == ["/"]
+        script = "/home/w-1/skills/example/scripts/run.sh"
+        assert sandbox.owners[script] == "w-1"
+        assert script in sandbox.executable
+
+        # a provider whose write_file() takes no user raises before writing
+        legacy = _StepSandbox()
+        _without_file_user(legacy, monkeypatch)
+        _use_sandbox(SandboxEnvironmentProxy(legacy))
+        with sandbox_identity("w-1", cwd="/home/w-1"):
+            with pytest.raises(SandboxUserUnsupportedError, match="'w-1'"):
+                await install_skills([self.SCRIPTED], dir="skills")
+        assert legacy.steps == []
+
+    async def test_install_skills_omitted_user_in_a_scope_without_cwd(
+        self,
+    ) -> None:
+        sandbox = _StepSandbox()
+        _use_sandbox(SandboxEnvironmentProxy(sandbox))
+        with sandbox_identity("w-1"):
+            [installed] = await install_skills([self.SCRIPTED], dir="skills")
+        # with no scope cwd, a relative dir resolves against the working
+        # directory of a pwd run as the member
+        assert installed.location == "/work/skills/example/SKILL.md"
+        assert sandbox.steps == [
+            ("pwd", "w-1"),
+            ("write", "w-1"),
+            ("write", "w-1"),
+            ("chmod", "w-1"),
+        ]
+        assert sandbox.cwds == [None, "/"]
+
+    async def test_install_skills_explicit_user_in_a_scope_relative_dir(
+        self,
+    ) -> None:
+        sandbox = _StepSandbox()
+        _use_sandbox(SandboxEnvironmentProxy(sandbox))
+        with sandbox_identity("w-1", cwd="/home/w-1"):
+            [installed] = await install_skills([self.SCRIPTED], user="root")
+        # an explicit user's default-user writes keep the provider's
+        # directory rather than one the member controls
+        assert installed.location == "/work/skills/example/SKILL.md"
+        assert sandbox.steps[0] == ("pwd", "root")
+        assert sandbox.cwds[0] is None
+        assert sandbox.owners["/work/skills/example/scripts/run.sh"] == "root"
+
+    async def test_install_skills_raw_provider_without_file_user_in_a_scope(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A provider passed directly raises like the proxy does, not TypeError."""
+        sandbox = _StepSandbox()
+        _without_file_user(sandbox, monkeypatch)
+        _use_sandbox(SandboxEnvironmentProxy(sandbox))
+        with sandbox_identity("w-1"):
+            with pytest.raises(
+                SandboxUserUnsupportedError,
+                match="cannot run as 'w-1' inside the sandbox identity scope",
+            ):
+                await install_skills([self.SCRIPTED], sandbox=sandbox, dir="skills")
+        assert sandbox.steps == []
+
+    async def test_install_skills_omitted_user_under_marker_matches_final_scoring(
+        self,
+    ) -> None:
+        scored = _StepSandbox(protected="/srv")
+        _use_sandbox(SandboxEnvironmentProxy(scored))
+        with sandbox_identity("w-1"), framework_sandbox_operation():
+            await install_skills([self.SCRIPTED], dir="/srv/skills")
+        unscoped = _StepSandbox(protected="/srv")
+        _use_sandbox(SandboxEnvironmentProxy(unscoped))
+        await install_skills([self.SCRIPTED], dir="/srv/skills")
+        assert scored.steps == unscoped.steps
+        assert scored.steps == [("write", None), ("write", None), ("chmod", None)]
+        assert scored.cwds == unscoped.cwds == [None]
+
+    async def test_install_skills_omitted_user_outside_a_scope(self) -> None:
+        sandbox = _StepSandbox()
+        _use_sandbox(SandboxEnvironmentProxy(sandbox))
+        await install_skills([self.SCRIPTED], dir="/root/skills")
+        assert sandbox.steps == [("write", None), ("write", None), ("chmod", None)]
+        assert sandbox.cwds == [None]
+
     async def test_install_as_local_current_user(self) -> None:
         if os.name != "posix":
             pytest.skip("requires POSIX user identities")
@@ -147,6 +374,24 @@ class TestSkillInstallation:
             with pytest.raises(error_type):
                 await install_skills([sk], sandbox=sandbox, user="1000", dir="/skills")
         assert [user for _, user in sandbox.exec_calls] == expected_users
+
+    async def test_nested_files_install_at_posix_paths(self, tmp_path: Path) -> None:
+        """Files in subdirectories land in the matching sandbox subdirectory."""
+        skill_dir = tmp_path / "test-skill"
+        (skill_dir / "scripts" / "bash").mkdir(parents=True)
+        (skill_dir / "assets" / "templates" / "email").mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(create_skill_md())
+        (skill_dir / "scripts" / "bash" / "run.sh").write_text("echo hello")
+        (skill_dir / "assets" / "templates" / "email" / "welcome.txt").write_text("Hi")
+
+        sandbox = CannedSandbox.returning(ExecResult(True, 0, "", ""))
+        await install_skills([skill_dir], sandbox=sandbox, dir="/skills")
+
+        assert sorted(sandbox.written) == [
+            "/skills/test-skill/SKILL.md",
+            "/skills/test-skill/assets/templates/email/welcome.txt",
+            "/skills/test-skill/scripts/bash/run.sh",
+        ]
 
 
 class TestSkillParsing:
@@ -652,6 +897,78 @@ def test_skill_end_to_end() -> None:
     )
 
 
+_MEMBER_SCRIPT = "/home/w1/skills/banner/scripts/run.sh"
+
+
+@solver
+def _member_installs_a_scripted_skill() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        created = await sb.exec(
+            ["sh", "-c", "useradd -m w1 && chmod 700 /home/w1"], user="root"
+        )
+        assert created.success, created.stderr
+        assert (await sb.exec(["pwd"])).stdout.strip() == "/root"
+        # checked from "/" because some runtimes refuse to start a command in
+        # a working directory the user cannot enter
+        entered = await sb.exec(["test", "-x", "/root"], cwd="/", user="w1")
+        assert not entered.success, entered
+
+        banner = Skill(
+            name="banner",
+            description="Prints a banner.",
+            instructions="Run scripts/run.sh.",
+            scripts={"run.sh": "#!/bin/sh\necho banner\n"},
+        )
+        with sandbox_identity("w1", cwd="/home/w1"):
+            # the default "skills" dir resolves against the scope's cwd
+            [installed] = await install_skills([banner])
+            assert installed.location == "/home/w1/skills/banner/SKILL.md"
+            ran = await sandbox().exec([_MEMBER_SCRIPT])
+            assert ran.stdout == "banner\n", ran
+
+        owner = await sb.exec(["stat", "-c", "%U", _MEMBER_SCRIPT])
+        assert owner.stdout.strip() == "w1", owner
+        return state
+
+    return solve
+
+
+# A scope member installs a skill with a script into the default directory on
+# an image whose working directory (/root) is closed to it.
+@skip_if_no_docker
+@pytest.mark.slow
+def test_member_installs_a_scripted_skill_with_a_closed_workdir(
+    tmp_path: Path,
+) -> None:
+    compose = tmp_path / "compose.yaml"
+    compose.write_text(
+        "services:\n  default:\n    image: ubuntu:24.04\n"
+        "    command: tail -f /dev/null\n    working_dir: /root\n"
+        "    init: true\n    network_mode: none\n    stop_grace_period: 1s\n"
+    )
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_member_installs_a_scripted_skill(),
+        sandbox=("docker", str(compose)),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+    assert log.samples
+    # Docker runtimes that start a command in a directory the user cannot
+    # enter do not show the failure, so check the chmod's recorded cwd
+    [chmod] = [
+        event
+        for event in log.samples[0].events
+        if isinstance(event, SandboxEvent)
+        and event.cmd is not None
+        and "chmod +x " + _MEMBER_SCRIPT in event.cmd
+    ]
+    assert chmod.options is not None
+    assert chmod.options["user"] == "w1"
+    assert chmod.options["cwd"] == "/"
+
+
 class _FileSandbox(CannedSandbox):
     """Keeps written files in memory and answers the installer's commands.
 
@@ -682,7 +999,9 @@ class _FileSandbox(CannedSandbox):
             self.owners.pop(cmd[-1], None)
         return ExecResult(True, 0, "", "")
 
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         await anyio.lowlevel.checkpoint()
         await super().write_file(file, contents)
         self.files[file] = contents.encode() if isinstance(contents, str) else contents
@@ -719,7 +1038,9 @@ class _BlockingSandbox(_FileSandbox):
         for cmd in self.late_cmds:
             self._answer(cmd, None)
 
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         if self.stage == "write" and self.block:
             try:
                 await self._block(file)
@@ -758,7 +1079,9 @@ class _CountingLocalSandbox(LocalSandboxEnvironment):
         super().__init__()
         self.written: list[str] = []
 
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         self.written.append(file)
         await super().write_file(file, contents)
 
@@ -1048,7 +1371,9 @@ class TestSkillToolStateScope:
         class FailingSandbox(_FileSandbox):
             fail = True
 
-            async def write_file(self, file: str, contents: str | bytes) -> None:
+            async def write_file(
+                self, file: str, contents: str | bytes, *, user: str | None = None
+            ) -> None:
                 if self.fail:
                     self.fail = False
                     self.files[file] = b"part"

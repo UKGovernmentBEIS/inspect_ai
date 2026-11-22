@@ -1,0 +1,582 @@
+from logging import getLogger
+from typing import Any, Literal, NamedTuple, Sequence, cast
+
+import anyio
+from pydantic import JsonValue, TypeAdapter
+from shortuuid import uuid
+
+from inspect_ai._sentinel._scope import sentinel_scope
+from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.logger import warn_once
+from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
+from inspect_ai._util.working import (
+    known_work,
+    sample_clock,
+    sample_working_time_since,
+)
+from inspect_ai.agent._channel.observer import null_execution_observer
+from inspect_ai.event._tool import ToolEvent
+from inspect_ai.log._samples import sample_active
+from inspect_ai.log._transcript import transcript
+from inspect_ai.model._call_tools import (
+    _exceeds_max_depth,
+    _max_depth_parse_error,
+    decisive_tool_exception,
+    tool_call_error,
+    tool_result_content_list,
+    truncate_tool_output,
+    validate_tool_input,
+)
+from inspect_ai.tool._tool import Tool, ToolError, ToolParsingError, ToolResult
+from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
+from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._sandbox.service import find_control_flow
+from inspect_ai.util._span import parent_span, span
+
+from ..types import (
+    _RESULT_EVIDENCE,
+    BridgedToolId,
+    _Received,
+    target_execution_id,
+)
+from .types import SandboxAgentBridge, _ToolExecutionGrant
+
+logger = getLogger(__name__)
+
+JSON_VALUE_ADAPTER: TypeAdapter[JsonValue] = TypeAdapter(JsonValue)
+
+OPERATOR_CANCEL_MESSAGE = "Command timed out before completing."
+_CANCELLED = ToolCallError(
+    "cancelled", "Host tool call was cancelled before completing."
+)
+
+
+async def execute_host_tool(
+    bridge: SandboxAgentBridge, server: str, tool: str, arguments: JsonValue
+) -> JsonValue:
+    """Execute a bridged tool for the scaffold, record it, and return the result.
+
+    A tool runs only for a call the model proposed in a bridged generation, once
+    per proposal (see `SandboxAgentBridge.register_tool_execution_grants`), unless
+    its server was registered with `require_proposal=False`.
+
+    Arguments nested deeper than a native call accepts are rejected, and the
+    rest are validated against the tool's schema as for a native call, so a
+    scaffold's malformed arguments surface as a `ToolParsingError` the model
+    can recover from; they are otherwise forwarded as the scaffold sent them.
+    An `ExceptionGroup` is decided by its most serious leaf
+    (`decisive_tool_exception`), as in `execute_tools`, and classified with the
+    same `tool_call_error` mapping. Those a native call would show the model
+    propagate unchanged as the RPC error the scaffold reads as tool output,
+    except a `LimitExceededError`, bare or deciding a group: it is raised as a
+    `ToolError` with the native message, as the service dispatcher would route
+    a `LimitExceededError` to the sample, where natively the model reads it as
+    a tool error and the agent continues. A termination
+    (`TerminateSampleError`, anywhere in the exception as `find_control_flow`
+    finds it, a limit's history included) also propagates unchanged: the
+    service dispatcher answers the RPC and propagates the termination out of
+    the service task, which ends the sample as a native tool's termination
+    does. Any other exception is a bug in the eval's tool, which natively
+    fails the sample: the decisive exception is signalled through
+    `bridge.request_fail` so the bridge's monitor task ends the sample at
+    once, and the original still propagates so the RPC unwinds with an error
+    reply (the teardown may pre-empt its delivery; the scaffold's turn is over
+    either way). An error building the reply from the tool's result (one that
+    cannot be serialized) is classified the same way, so it too fails the
+    sample.
+
+    A result a native call would pass to the model as text (anything but
+    content) is truncated to the same output limit, in the same format
+    (`truncate_tool_output`).
+
+    No sentinel stage runs here. A sentinel's `tool_call` check runs before
+    the call's grant is minted, and its `tool_result` check when the scaffold
+    sends the result back in a request (`sentinel_tool_results`), as for a
+    tool the scaffold runs itself: that request carries the call's id, which
+    an MCP call does not.
+
+    Every request is recorded as one `ToolEvent` in a `tool` span, as a native
+    call is, with `metadata["bridge"]` describing it (see `ToolEvent`). An
+    execution that consumed a grant takes the id its call was handed to the
+    scaffold under, records the model's id for the call as `proposal_id` and
+    its handout's run of the tool as `execution_id` (`target_execution_id`),
+    and is recorded in the span of the
+    proposing `ModelEvent`; a denied or rejected
+    request gets a fresh id and the error the scaffold receives. A running
+    call can be cancelled by the operator like a native one.
+    """
+    recorded_arguments = (
+        arguments
+        if isinstance(arguments, dict) and not _exceeds_max_depth(arguments)
+        else {}
+    )
+    metadata = _BridgeMetadata(server, tool)
+
+    if server not in bridge.bridged_tools:
+        message = f"Unknown bridged tools server: {server}"
+        await _record_rejection(
+            bridge,
+            tool,
+            recorded_arguments,
+            ToolCallError("parsing", message),
+            metadata,
+        )
+        raise ValueError(message)
+
+    server_tools = bridge.bridged_tools[server]
+    if tool not in server_tools:
+        message = f"Unknown tool '{tool}' in server '{server}'"
+        await _record_rejection(
+            bridge,
+            tool,
+            recorded_arguments,
+            ToolCallError("parsing", message),
+            metadata,
+        )
+        raise ValueError(message)
+
+    if _exceeds_max_depth(arguments):
+        bridge.unlink_denied_call(server, tool, None)
+        message = f"Error parsing tool call arguments: {_max_depth_parse_error()}"
+        await _record_rejection(
+            bridge, tool, {}, ToolCallError("parsing", message), metadata
+        )
+        raise ToolParsingError(message)
+
+    grant = (
+        bridge.consume_tool_execution_grant(server, tool, arguments)
+        if isinstance(arguments, dict)
+        else None
+    )
+    if grant is None and server not in bridge.proposal_exempt_servers:
+        bridge.unlink_denied_call(
+            server, tool, arguments if isinstance(arguments, dict) else None
+        )
+        warn_once(
+            logger,
+            f"Denied host tool call '{server}/{tool}': the model did not "
+            "propose it in a bridged generation (or its proposal has "
+            "already executed). An agent that calls host tools from code "
+            "the model writes (Codex CLI in code mode) can never match a "
+            "proposal; set require_proposal=False on the existing "
+            f"BridgedToolsSpec for server '{server}' for such an agent.",
+        )
+        message = (
+            f"Host tool call '{server}/{tool}' was not proposed by the model "
+            "in a bridged generation (a bridged host tool runs once per "
+            "proposed call)"
+        )
+        metadata.grant = "denied"
+        await _record_rejection(
+            bridge,
+            tool,
+            recorded_arguments,
+            ToolCallError("permission", message),
+            metadata,
+        )
+        raise PermissionError(message)
+
+    with parent_span(grant.proposal.span_id if grant is not None else None):
+        return await _execute_granted(
+            bridge, tool, server_tools[tool], arguments, grant, metadata
+        )
+
+
+class _BridgeMetadata:
+    """What `ToolEvent.metadata["bridge"]` records about a host tool request."""
+
+    def __init__(self, server: str, tool: str) -> None:
+        self.server = server
+        self.tool = tool
+        self.function: str | None = None
+        self.proposal_id: str | None = None
+        self.grant: Literal["consumed", "denied", "exempt"] | None = None
+
+    def as_metadata(self) -> dict[str, Any]:
+        return {
+            "bridge": {
+                "server": self.server,
+                "tool": self.tool,
+                "function": self.function,
+                "proposal_id": self.proposal_id,
+                "grant": self.grant,
+            }
+        }
+
+
+def _handout(grant: _ToolExecutionGrant | None) -> str | None:
+    """The execution a run that consumed `grant` is (`ToolEvent.execution_id`): its handout's run of the grant's tool (`target_execution_id`).
+
+    `None` without a grant, or when the run's request matched grants of more
+    than one handout (`_Proposal.ambiguous`): which of them it ran for is
+    unknown, as one handout's response may never have reached the scaffold.
+    """
+    if grant is None or grant.proposal.ambiguous:
+        return None
+    return target_execution_id(
+        grant.proposal.execution_id, BridgedToolId(grant.server, grant.tool)
+    )
+
+
+async def _record_rejection(
+    bridge: SandboxAgentBridge,
+    tool: str,
+    arguments: dict[str, JsonValue],
+    error: ToolCallError | None,
+    metadata: _BridgeMetadata,
+    *,
+    event_id: str | None = None,
+    view: ToolCallContent | None = None,
+    failed: bool | None = None,
+    call_message_id: str | None = None,
+    grant: _ToolExecutionGrant | None = None,
+    raised: BaseException | None = None,
+) -> None:
+    """Record a request that did not execute as a completed event in its own `tool` span.
+
+    `raised` is what the RPC raises for a request that consumed `grant`.
+    """
+    event = ToolEvent(
+        id=event_id or uuid(),
+        execution_id=_handout(grant),
+        function=tool,
+        arguments=arguments,
+        view=view,
+        metadata=metadata.as_metadata(),
+        call_message_id=call_message_id,
+    )
+    event._set_result(
+        result="",
+        truncated=None,
+        error=error,
+        working_time=0.0,
+        agent=None,
+        failed=failed,
+        message_id=None,
+    )
+    recorded = False
+    try:
+        async with span(name=tool, type="tool"):
+            transcript()._event(event)
+            recorded = True
+    except Exception as ex:
+        # a span-ID provider failed, an unexpected error
+        if not recorded:
+            bridge.request_fail(inner_exception(ex))
+        raise
+    finally:
+        # cancelled or failed while a span-ID provider allocated the span: the
+        # request was still received and decided, so it is still recorded
+        if not recorded:
+            transcript()._event(event)
+        _await_result_message(bridge, grant, event, _received("", None, raised))
+
+
+def _await_result_message(
+    bridge: SandboxAgentBridge,
+    grant: _ToolExecutionGrant | None,
+    event: ToolEvent,
+    received: _Received,
+) -> None:
+    """Await the result message of the execution that consumed `grant`.
+
+    `received` is what the scaffold receives for the call (`_received`),
+    which a result message must hold (`_holds_result`).
+
+    An execution on a server registered with `require_proposal=False` never
+    links: an unproposed call there takes a pending proposal's grant
+    (`consume_tool_execution_grant`), so the grant doesn't show which call ran.
+    """
+    if grant is not None and grant.proposal.reply is not None:
+        bridge._await_result_message(
+            grant.proposal.reply,
+            event,
+            received,
+            linkable=grant.proposal.linkable
+            and grant.server not in bridge.proposal_exempt_servers,
+        )
+
+
+async def _execute_granted(
+    bridge: SandboxAgentBridge,
+    tool: str,
+    tool_fn: Tool,
+    arguments: JsonValue,
+    grant: _ToolExecutionGrant | None,
+    metadata: _BridgeMetadata,
+) -> JsonValue:
+    if grant is not None:
+        metadata.function = grant.proposal.call.function
+        metadata.proposal_id = grant.proposal.proposal_id
+        metadata.grant = "consumed"
+    else:
+        metadata.grant = "exempt"
+    event_id = grant.proposal.take_id() if grant is not None else uuid()
+    view = grant.proposal.call.view if grant is not None else None
+    call_message_id = grant.proposal.message_id if grant is not None else None
+
+    try:
+        tool_def = ToolDef(tool_fn)
+        # jsonschema reports a non-object as a validation error like any other
+        validation_errors = validate_tool_input(
+            cast(dict[str, Any], arguments), tool_def.parameters
+        )
+    except Exception as ex:
+        # classified as an exception from the tool itself (below)
+        decisive = decisive_tool_exception(ex)
+        mapped = tool_call_error(decisive, tool)
+        if mapped is None:
+            bridge.request_fail(decisive)
+        await _record_rejection(
+            bridge,
+            tool,
+            arguments if isinstance(arguments, dict) else {},
+            mapped.error if mapped is not None else None,
+            metadata,
+            event_id=event_id,
+            view=view,
+            failed=True if mapped is None else None,
+            call_message_id=call_message_id,
+            grant=grant,
+            raised=ex,
+        )
+        raise
+    if validation_errors:
+        parsing = ToolParsingError(validation_errors)
+        await _record_rejection(
+            bridge,
+            tool,
+            arguments if isinstance(arguments, dict) else {},
+            ToolCallError("parsing", validation_errors),
+            metadata,
+            event_id=event_id,
+            view=view,
+            call_message_id=call_message_id,
+            grant=grant,
+            raised=parsing,
+        )
+        raise parsing
+    call_arguments = cast(dict[str, JsonValue], arguments)
+
+    event = ToolEvent(
+        id=event_id,
+        execution_id=_handout(grant),
+        function=tool,
+        arguments=call_arguments,
+        view=view,
+        pending=True,
+        metadata=metadata.as_metadata(),
+        call_message_id=call_message_id,
+    )
+    sample = sample_active()
+    observer = (
+        sample.execution_observer if sample is not None else null_execution_observer()
+    )
+    call_start = sample_clock()
+    recorded = False
+    scope = anyio.CancelScope()
+    outcome: _Outcome | None = None
+    try:
+        async with span(name=tool, type="tool"):
+            transcript()._event(event)
+            recorded = True
+            with observer.track_tool_call(event.id, event):
+                try:
+                    with scope:
+                        event._set_cancel_fn(scope.cancel)
+                        # as in call_tool: the tool's own model calls are not
+                        # agent turns
+                        with sentinel_scope("tool"), known_work():
+                            result = await tool_fn(**call_arguments)
+                        output, truncated = _recorded_result(
+                            tool, result, tool_def.max_output
+                        )
+                        outcome = _Outcome(
+                            output, truncated, reply=_reply(output, result)
+                        )
+                except Exception as ex:
+                    # an error raised while unwinding the operator's cancel is
+                    # superseded by the timeout (below); caught outside `scope`,
+                    # which strips its cancellation from a Trio task group's
+                    # mixed exception group
+                    if not scope.cancel_called:
+                        outcome = _raised(ex, tool, tool_def.max_output)
+                        raised = outcome.raised
+                        if raised is not None and raised is not ex:
+                            raise raised from ex
+                        raise
+            # `cancel_called`, not `cancelled_caught`: a tool that absorbs the
+            # cancellation and returns was still cancelled
+            if scope.cancel_called:
+                outcome = _Outcome(
+                    error=ToolCallError("timeout", OPERATOR_CANCEL_MESSAGE),
+                    raised=ToolError(OPERATOR_CANCEL_MESSAGE),
+                )
+    except BaseException as ex:
+        # not decided above: an outer cancellation (bridge teardown, sample
+        # limit), or a span-ID provider cancelled or failing (grant not restored)
+        if outcome is None or outcome.raised is not ex:
+            outcome = (
+                _Outcome(failed=True, raised=ex, fatal=inner_exception(ex))
+                if isinstance(ex, Exception)
+                else _Outcome(error=_CANCELLED, raised=ex)
+            )
+        raise
+    finally:
+        if outcome is not None:
+            event._set_result(
+                result=outcome.result,
+                truncated=outcome.truncated,
+                error=outcome.error,
+                working_time=sample_working_time_since(call_start),
+                agent=None,
+                failed=outcome.failed,
+                message_id=None,
+                agent_span_id=getattr(tool_fn, "agent_span_id", None),
+            )
+            if recorded:
+                transcript()._event_updated(event)
+            else:
+                transcript()._event(event)
+            _await_result_message(
+                bridge,
+                grant,
+                event,
+                _received(outcome.result, outcome.reply, outcome.raised),
+            )
+            if outcome.fatal is not None:
+                bridge.request_fail(outcome.fatal)
+
+    assert outcome is not None
+    if outcome.raised is not None:
+        raise outcome.raised
+    return outcome.reply
+
+
+class _Outcome(NamedTuple):
+    """How a host tool call ended: what is recorded, and what the scaffold gets."""
+
+    result: ToolResult = ""
+    truncated: tuple[int, int] | None = None
+    error: ToolCallError | None = None
+    failed: bool | None = None
+    reply: JsonValue = None  # the RPC result, on success
+    raised: BaseException | None = None  # what the RPC raises instead
+    fatal: Exception | None = None  # fails the sample (`bridge.request_fail`)
+
+
+def _reply(output: ToolResult, result: ToolResult) -> JsonValue:
+    """The RPC result for `result` (recorded as `output`), built before recording."""
+    # Plain strings are returned verbatim (the MCP `tools/call` text part
+    # carries them as-is). For anything else, use pydantic_core.to_json so
+    # Pydantic models (e.g. list[ContentText] from real MCP tools) are
+    # serialized correctly — json.dumps can't handle BaseModel.
+    if isinstance(output, str):
+        return output
+    if isinstance(result, ContentImage) or (
+        isinstance(result, list)
+        and all(isinstance(content, (ContentText, ContentImage)) for content in result)
+        and any(isinstance(content, ContentImage) for content in result)
+    ):
+        return _mcp_tool_result_content(result)
+    return to_json_str_safe(result)
+
+
+def _received(
+    output: ToolResult, reply: JsonValue, raised: BaseException | None
+) -> _Received:
+    """What the scaffold receives for a call recorded as `output`, whose RPC returned `reply` or raised `raised`.
+
+    The error's text (which the scaffold shows after the service's prefix,
+    no evidence as a denied call's error carries it too); else the first text
+    of `output`, which the reply holds as is or JSON-escaped (`_reply`); else
+    the first text of the reply, which for media is an image URL or path (an
+    MCP text block), or the JSON of other media. Only the start of the text
+    is kept (`_RESULT_EVIDENCE`), as the reply may hold large media.
+    """
+    if raised is not None:
+        return _Received(str(raised).strip()[:_RESULT_EVIDENCE])
+    texts = (
+        [content.text for content in output if isinstance(content, ContentText)]
+        if isinstance(output, list)
+        else []
+    )
+    for block in reply if isinstance(reply, list) else [reply]:
+        match block:
+            case str():
+                texts.append(block)
+            case {"type": "text", "text": str() as text}:
+                texts.append(text)
+    text = next((stripped for text in texts if (stripped := text.strip())), "")
+    return _Received(text[:_RESULT_EVIDENCE])
+
+
+def _raised(ex: Exception, tool: str, max_output: int | None) -> _Outcome:
+    """A call whose tool (or reply) raised `ex`, which the RPC raises.
+
+    A group is handled as its decisive leaf would be if raised bare, but the
+    original propagates so the scaffold's error reply is unchanged, except that
+    a deciding limit is replaced by a `ToolError` with its mapped message: the
+    service dispatcher routes a `LimitExceededError` to the sample. A
+    termination anywhere in `ex` (including a limit's history) still leaves
+    the original to the dispatcher.
+    """
+    decisive = decisive_tool_exception(ex)
+    mapped = tool_call_error(decisive, tool)
+    if mapped is None:
+        # a termination is the service dispatcher's to enact
+        fatal = decisive if find_control_flow(ex) is None else None
+        return _Outcome(failed=True, raised=ex, fatal=fatal)
+    output, truncated = _recorded_result(tool, mapped.result or "", max_output)
+    raised = (
+        ToolError(mapped.error.message)
+        if isinstance(decisive, LimitExceededError) and find_control_flow(ex) is None
+        else ex
+    )
+    return _Outcome(output, truncated, error=mapped.error, raised=raised)
+
+
+def _recorded_result(
+    tool: str, result: ToolResult, max_output: int | None
+) -> tuple[ToolResult, tuple[int, int] | None]:
+    """The result as the scaffold receives it, and the truncation applied (if any).
+
+    Content is passed through; anything else becomes text truncated to the
+    output limit, as for a native call.
+    """
+    content = tool_result_content_list(result)
+    if content is not None:
+        return content, None
+    text = result if isinstance(result, str) else to_json_str_safe(result)
+    truncated = truncate_tool_output(tool, text, max_output)
+    if truncated is None:
+        return text, None
+    return truncated.output, (truncated.raw_bytes, truncated.truncated_bytes)
+
+
+def _mcp_tool_content_block(content: JsonValue) -> JsonValue:
+    match content:
+        case {"type": "image", "image": str() as image} if is_data_uri(image):
+            return {
+                "type": "image",
+                "data": data_uri_to_base64(image),
+                "mimeType": data_uri_mime_type(image) or "image/png",
+            }
+        case {"type": "image", "image": str() as image}:
+            return {"type": "text", "text": image}
+        case _:
+            return content
+
+
+def _mcp_tool_result_content(
+    result: ContentImage | Sequence[Content],
+) -> list[JsonValue]:
+    content = JSON_VALUE_ADAPTER.validate_json(to_json_str_safe(result))
+    match content:
+        case list():
+            return [_mcp_tool_content_block(block) for block in content]
+        case _:
+            return [_mcp_tool_content_block(content)]

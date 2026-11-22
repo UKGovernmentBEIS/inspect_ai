@@ -526,6 +526,38 @@ def _event_summary(e: dict[str, Any]) -> str:
             _sanitize_control(str(e.get("data") or "")),
         ]
         return _truncate(" · ".join(b for b in bits if b), 80)
+    if t == "communication":
+        agent = _sanitize_control(str(e.get("agent") or "?"))
+        if e.get("kind") == "waited":
+            channels = ", ".join(
+                _sanitize_control(str(c)) for c in e.get("channels") or []
+            )
+            head = f"{agent} waited"
+            duration = e.get("duration")
+            if isinstance(duration, int | float):
+                head += f" {duration:.1f}s"
+            head += f" on {channels}: {_sanitize_control(str(e.get('outcome') or ''))}"
+        else:
+            record_ids = ", ".join(
+                _sanitize_control(str(r)) for r in e.get("record_ids") or []
+            )
+            head = (
+                f"{agent} → {_sanitize_control(str(e.get('channel') or ''))}: "
+                f"{_sanitize_control(str(e.get('kind') or ''))} {record_ids}"
+            ).rstrip()
+        bits = [head]
+        if e.get("rejected") is not None:
+            bits.append(f"refused ({_sanitize_control(str(e['rejected']))})")
+        bits.append(_sanitize_control(str(e.get("reason") or "")))
+        bits.append(_sanitize_control(str(e.get("content") or "")))
+        return _truncate(" · ".join(b for b in bits if b), 80)
+    if t == "swarm":
+        bits = [
+            _sanitize_control(str(e.get("kind") or "")),
+            _sanitize_control(str(e.get("member") or "")),
+            _sanitize_control(str(e.get("data") or "")),
+        ]
+        return _truncate(" · ".join(b for b in bits if b), 80)
     return ""
 
 

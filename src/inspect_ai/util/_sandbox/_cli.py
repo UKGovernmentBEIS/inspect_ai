@@ -18,8 +18,16 @@ accidental discovery. When Inspect can run commands in the sandbox as root, it
 installs the tree as root and restricts it to 0700. A root-owned 0700 tree
 prevents access by other, non-root users, but not by a process running in the
 sandbox as root.
+
+The directory name ends in the tools version (``sandbox_tools_version.txt``), so
+each version gets its own tree. A tree outlives the release that installed it (on
+the host for the ``local`` sandbox, in a reused container, or in an image with the
+tools preinstalled), and a tree from another version may not speak this release's
+protocol. With a path per version, a tree is only ever reused by the version that
+installed it, and trees (and running servers) from other versions are left alone.
 """
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -28,7 +36,25 @@ if TYPE_CHECKING:
 # Also defined in inspect_ai.tool._sandbox_tools_utils._build_config — keep in sync.
 SANDBOX_TOOLS_BASE_NAME = "inspect-sandbox-tools"
 
-SANDBOX_TOOLS_DIR = "/var/tmp/.da7be258e003d428"
+
+def _read_sandbox_tools_version() -> str:
+    version_file = (
+        Path(__file__).parents[2]
+        / "tool"
+        / "_sandbox_tools_utils"
+        / "sandbox_tools_version.txt"
+    )
+    return version_file.read_text().strip()
+
+
+SANDBOX_TOOLS_VERSION = _read_sandbox_tools_version()
+"""The version of the sandbox tools this process injects.
+
+Read once, so the install directory and the artifact chosen for it always name the
+same version, even if the package is upgraded under a running process.
+"""
+
+SANDBOX_TOOLS_DIR = f"/var/tmp/.da7be258e003d428-v{SANDBOX_TOOLS_VERSION}"
 
 SANDBOX_CLI = f"{SANDBOX_TOOLS_DIR}/{SANDBOX_TOOLS_BASE_NAME}"
 
@@ -38,10 +64,14 @@ def tools_user_param(
 ) -> str | dict[str, object] | None:
     """Value of a sandbox tool request's ``user`` param.
 
-    An explicit ``user`` wins; otherwise the sandbox's default exec identity, which
-    the tools switch to (a no-op when they already run as it). None when neither is
-    known, so the tools keep their own identity.
+    An explicit ``user`` wins; then the user of a ``sandbox_identity()`` scope for
+    the sandbox; otherwise the sandbox's default exec identity, which the tools
+    switch to (a no-op when they already run as it). None when none is known, so
+    the tools keep their own identity.
     """
+    from .identity import sandbox_identity_user
+
+    user = sandbox_identity_user(sandbox, user, strict=False)
     if user:
         return user
     if sandbox._tools_default_user:

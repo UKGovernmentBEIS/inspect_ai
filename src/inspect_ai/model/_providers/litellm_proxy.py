@@ -1057,7 +1057,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
 
         Gemini 1.5 and 2.0 take none, and thinking-only (Pro) models cannot
         turn thinking off. Gemini 3 and later (including codenames) take
-        `minimal` (where supported) to `high`. Gemini 2.5 gets a thinking
+        `minimal` (where supported) to `high`; LiteLLM rejects `xhigh` even
+        for models that accept it natively. Gemini 2.5 gets a thinking
         budget instead (see `_thinking_for`), or, if the proxy rejects that,
         the effort with `xhigh` and `max` lowered to `high`. Other Google
         models (e.g. Gemma) get `requested`.
@@ -1085,7 +1086,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                     f"Model {self.service_model_name()} does not support "
                     "minimal thinking; using low instead.",
                 )
-            return level
+            return "high" if level == "xhigh" else level
         if self._gemini_thinking_budget(requested, config) is not None:
             return None
         return clamp_reasoning_effort_to_minimal_low_medium_high(requested)

@@ -6,6 +6,7 @@ from typing import Any, Callable, Literal
 from pydantic import Field
 
 from inspect_ai.tool import Tool, ToolError, tool
+from inspect_ai.tool._tool_canonical import set_tool_canonical_arguments
 from inspect_ai.util import StoreModel, store_as
 from inspect_ai.util._resource import resource
 from inspect_ai.util._tool_state import tool_state_instance
@@ -58,6 +59,7 @@ def memory(
     if readonly:
         result = _readonly_execute(_seed, instance)
         result.initial_data = initial_data  # type: ignore[attr-defined]
+        set_tool_canonical_arguments(result, _canonical_arguments)
         return result
 
     async def execute(
@@ -132,6 +134,7 @@ def memory(
                 raise ToolError(f"Unknown command: {command}")
 
     execute.initial_data = initial_data  # type: ignore[attr-defined]
+    set_tool_canonical_arguments(execute, _canonical_arguments)
     return execute
 
 
@@ -185,6 +188,25 @@ def _validate_path(path: str) -> str:
     if norm != "/memories" and not norm.startswith("/memories/"):
         raise ToolError(f"Invalid path: {path} escapes /memories directory")
     return norm
+
+
+def _canonical_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Arguments with each valid path replaced by the canonical path it acts on.
+
+    Tool calls are approved on these arguments, so an approval policy written
+    for a path matches the path the command will use (`/memories/a/../b` is
+    approved as `/memories/b`). An invalid path is left as given; the command
+    rejects it.
+    """
+    canonical = dict(arguments)
+    for name in ("path", "old_path", "new_path"):
+        path = canonical.get(name)
+        if isinstance(path, str):
+            try:
+                canonical[name] = _validate_path(path)
+            except ToolError:
+                pass
+    return canonical
 
 
 def _path_exists(store: MemoryStore, path: str) -> bool:
@@ -490,6 +512,15 @@ def _rename(store: MemoryStore, old_path: str | None, new_path: str | None) -> s
         raise ToolError(
             f"The path {old_path} does not exist. Please provide a valid path."
         )
+
+    # Refuse to rename onto an existing path: a file destination would be
+    # silently replaced, and a directory destination would leave the store
+    # holding both a directory entry and file keys at the same path, breaking
+    # view/str_replace/insert. Mirrors BetaLocalFilesystemMemoryTool.rename in
+    # anthropic-sdk-python, which refuses with "The destination ... already
+    # exists" (#5821).
+    if _path_exists(store, new_path):
+        raise ToolError(f"The destination {new_path} already exists")
 
     if _is_dir(store, old_path):
         # Rename directory and all contents

@@ -5,7 +5,7 @@ from types import TracebackType
 from typing import Callable
 
 from pydantic import BaseModel
-from rich import print
+from rich import get_console, print
 from rich.console import RenderableType
 
 
@@ -92,7 +92,10 @@ def exception_hook() -> Callable[..., None]:
         traceback: TracebackType,
     ) -> None:
         if isinstance(exception, PrerequisiteError):
-            print(f"\n{exception.message}\n")
+            if get_console().quiet:
+                sys.stderr.write(f"\n{exception.message}\n\n")
+            else:
+                print(f"\n{exception.message}\n")
         elif isinstance(exception, (CancelledError, KeyboardInterrupt)):
             # User-initiated interruption (Ctrl-C → SIGINT, or an inner
             # CancelledError re-raised from the task group to preserve
