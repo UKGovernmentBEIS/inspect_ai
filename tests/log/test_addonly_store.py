@@ -400,6 +400,47 @@ def test_nan_score_validates(
     assert result.findings() == []
 
 
+@solver
+def fail_first_attempt(attempts: dict[str, int]) -> Solver:
+    """Generate, then raise on the sample's first attempt only."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state = await generate(state)
+        key = str(state.sample_id)
+        attempts[key] = attempts.get(key, 0) + 1
+        if attempts[key] == 1:
+            raise RuntimeError("first attempt fails")
+        return state
+
+    return solve
+
+
+def test_retry_on_error_validates(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """Attempt 1 errors and is retried: it has no closing record, attempt 2 has one."""
+    log = eval(
+        Task(
+            dataset=[Sample(id="s0", input="hi", target="Default")],
+            solver=fail_first_attempt({}),
+            scorer=includes(),
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+        retry_on_error=1,
+    )[0]
+    assert log.status == "success", log.error
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
+    assert (
+        f"retried {log.eval.eval_id}/s0.1/1: No closing record; a later attempt "
+        "has one.\n" in result.output
+    )
+
+
 class StreamingMockLLM(MockLLM):
     async def generate(
         self,

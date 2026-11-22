@@ -89,6 +89,9 @@ class ValidationReport(BaseModel):
     records: list[StoredRecordInfo]
     findings: list[Finding]
     samples_compared: int
+    retried: list[str] = []
+    """Attempts with no closing record whose sample has a later closed attempt
+    (``retry_on_error``). Listed, not findings."""
 
     @property
     def passed(self) -> bool:
@@ -96,6 +99,12 @@ class ValidationReport(BaseModel):
 
 
 _record_adapter: TypeAdapter[StoreRecord] = TypeAdapter(StoreRecord)
+
+
+class _EvalResult(NamedTuple):
+    findings: list[Finding]
+    samples_compared: int
+    retried: list[str]
 
 
 class _Version(NamedTuple):
@@ -196,16 +205,16 @@ def validate_store(
         for eval_id, names in sorted(eval_files.items())
         if len(names) > 1
     )
-    samples_compared = 0
-    for eval_id, keys in sorted(evals.items()):
-        eval_findings, compared = _validate_eval(
+    results = [
+        _validate_eval(
             eval_id,
             keys,
             lambda rel: read(location.key(rel)),
             eval_files.get(eval_id, [None])[0],
         )
-        findings.extend(eval_findings)
-        samples_compared += compared
+        for eval_id, keys in sorted(evals.items())
+    ]
+    findings.extend(f for result in results for f in result.findings)
 
     return ValidationReport(
         evals=sorted(evals),
@@ -218,7 +227,8 @@ def validate_store(
             key=lambda r: (r.arrival, r.key),
         ),
         findings=findings,
-        samples_compared=samples_compared,
+        samples_compared=sum(result.samples_compared for result in results),
+        retried=[key for result in results for key in result.retried],
     )
 
 
@@ -271,8 +281,9 @@ def _validate_eval(
     keys: list[str],
     read: Any,
     eval_file: str | None,
-) -> tuple[list[Finding], int]:
+) -> _EvalResult:
     findings: list[Finding] = []
+    retried: list[str] = []
 
     def finding(kind: FindingKind, message: str, key: str | None = None) -> None:
         findings.append(Finding(kind=kind, eval_id=eval_id, key=key, message=message))
@@ -300,7 +311,7 @@ def _validate_eval(
     start = stored.get(f"{eval_id}/{START}")
     if start is None:
         finding("missing_start", "No start record.")
-        return findings, 0
+        return _EvalResult(findings, 0, retried)
     assert isinstance(start, StartRecord)
     nonce = start.nonce
 
@@ -323,6 +334,11 @@ def _validate_eval(
         for a in (eval_closing.samples if eval_closing else [])
     }
 
+    closed = {
+        (sample_part, int(attempt))
+        for (sample_part, attempt), records in attempts.items()
+        if CLOSING in records
+    }
     final_attempts: dict[
         tuple[str, int], tuple[SampleClosingRecord, list[SampleRecord]]
     ] = {}
@@ -339,7 +355,12 @@ def _validate_eval(
             finding("sequence_gap", f"Sequence numbers {seqs} have a gap.", prefix)
         closing = records.get(CLOSING)
         if closing is None:
-            finding("missing_closing", "No closing record: cut short.", prefix)
+            if any(
+                part == sample_part and later > int(attempt) for part, later in closed
+            ):
+                retried.append(prefix)
+            else:
+                finding("missing_closing", "No closing record: cut short.", prefix)
         else:
             assert isinstance(closing, SampleClosingRecord)
             if seqs and max(seqs) > closing.records or len(seqs) != closing.records:
@@ -361,7 +382,7 @@ def _validate_eval(
 
     if eval_file is None:
         finding("missing_eval_file", "No .eval file in the log dir has this eval id.")
-        return findings, 0
+        return _EvalResult(findings, 0, retried)
 
     if eval_closing is not None:
         fields = {"status", "stats", "results"}
@@ -426,7 +447,7 @@ def _validate_eval(
                 difference,
                 attempt_key,
             )
-    return findings, compared
+    return _EvalResult(findings, compared, retried)
 
 
 def _changed_keys(

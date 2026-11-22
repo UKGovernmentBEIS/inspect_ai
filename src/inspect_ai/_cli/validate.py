@@ -34,6 +34,8 @@ def validate_command(log_dir: str, store: str, verbose: bool) -> None:
     if verbose:
         for record in report.records:
             click.echo(f"{record.arrival.isoformat()}  {record.key}")
+    for key in report.retried:
+        click.echo(f"retried {key}: No closing record; a later attempt has one.")
     for finding in report.findings:
         click.echo(
             f"{finding.kind} {finding.key or finding.eval_id or ''}: {finding.message}"
