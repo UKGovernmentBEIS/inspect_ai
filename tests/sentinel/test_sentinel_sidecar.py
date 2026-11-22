@@ -4699,7 +4699,8 @@ def test_the_time_the_sidecar_spent_judging_is_waiting(decided: dict[str, Any]) 
     # sample, which its working limit reads, and for the call. The amounts
     # are checked against a fake clock in tests/util/test_limit_working.py;
     # here, on the real clock, only that the judging came out. The hold is
-    # long and the margin wide so that a stalled runner doesn't fail it.
+    # long and the margin wide, so a stall of up to about a second in one
+    # run doesn't fail it.
     assert call_unjudged >= 3.0
     assert call_judged < call_unjudged - 1.5
     assert sample_judged < sample_unjudged - 1.5
