@@ -29,6 +29,7 @@ At each of these points the sample waits until S3 confirms the write. Later, the
 
 - **Anything the process writes after it is compromised.** A compromised process can write false events to the store, with the correct secret for its eval. Events that the sample recorded after its last confirmed write, before the compromise, are also not protected.
 - **A whole fake eval.** A compromised eval host can write the records of an eval that never ran. The validator reports it only if no `.eval` file has its eval id.
+- **An attempt that `retry_on_error` allows.** When `retry_on_error` is on, a compromised process can write a later attempt of a sample. The earlier attempt then has no closing record, and the validator lists it as retried. It does not compare that attempt's events with the `.eval` file.
 - **Fields that are not stored.** The validator checks each sample's events and scores, which samples the `.eval` file has, and the eval's status, stats and results. It does not check other fields, for example the eval spec and plan, each sample's messages, output and error, or the sample summaries.
 
 A pass shows that the `.eval` file matches what was stored. It does not show that the run was honest.
@@ -145,7 +146,7 @@ inspect eval-retry logs/2026-11-22T10-00-00_ctf_abc.eval \
 
 A sample that the retry reuses from the earlier eval is not written again. The retry's closing record names the eval that the sample came from, and the validator compares the sample with that eval's records.
 
-With `retry_on_error`, the failed attempt keeps its records in the store. The validator lists it as retried, and does not report it as a finding.
+With `retry_on_error`, the failed attempt keeps its records in the store. The validator lists it as retried, and does not report it as a finding. This applies only to the attempts that the eval's `retry_on_error` setting allows. Another attempt with no closing record is reported as `missing_closing`.
 
 ## Validate logs
 

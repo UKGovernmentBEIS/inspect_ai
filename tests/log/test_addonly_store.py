@@ -25,6 +25,7 @@ from typing import Any, NamedTuple
 import anyio
 import pytest
 from botocore.exceptions import EndpointConnectionError, ReadTimeoutError
+from pydantic import TypeAdapter
 from test_helpers.addonly_agents import (
     agent_task,
     run,
@@ -48,9 +49,12 @@ from inspect_ai.log import EvalLog, EvalSample, read_eval_log, write_eval_log
 from inspect_ai.log._addonly._records import (
     CLOSING,
     START,
+    EvalClosingRecord,
     SampleAttemptRef,
     SampleClosingRecord,
     SampleRecord,
+    StartRecord,
+    StoreRecord,
 )
 from inspect_ai.log._addonly._store import (
     AddOnlyStore,
@@ -61,6 +65,7 @@ from inspect_ai.log._addonly._store import (
 from inspect_ai.log._addonly._validate import (
     ValidationReport,
     _event_version_problems,
+    _read_eval,
     _rebuild_rows,
     validate_store,
 )
@@ -463,6 +468,50 @@ def test_retry_on_error_validates(
         f"retried {log.eval.eval_id}/s0.1/1: No closing record; a later attempt "
         "has one.\n" in result.output
     )
+
+
+@pytest.mark.parametrize("retry_on_error", [None, 1])
+def test_retried_needs_retry_on_error(
+    clean_run: CleanRun, retry_on_error: int | None
+) -> None:
+    """An attempt with no closing record is retried only when retry_on_error allows it.
+
+    A process that has the nonce writes attempt 2 as a copy of attempt 1,
+    and does not write attempt 1's closing record. Without retry_on_error,
+    the eval cannot have retried attempt 1.
+    """
+    eval_id = clean_run.eval_id
+    seqs = range(1, clean_run.records() + 1)
+    adapter: TypeAdapter[StoreRecord] = TypeAdapter(StoreRecord)
+    records = {
+        key: adapter.validate_json(clean_run.read(stored_key))
+        for key, stored_key in [
+            (f"{eval_id}/{START}", f"{eval_id}/{START}"),
+            (f"{eval_id}/{CLOSING}", f"{eval_id}/{CLOSING}"),
+            *[(clean_run.sample_key(seq),) * 2 for seq in seqs],
+            *[
+                (clean_run.sample_key(last, attempt=2), clean_run.sample_key(last))
+                for last in [*seqs, CLOSING]
+            ],
+        ]
+    }
+    start = records[f"{eval_id}/{START}"]
+    assert isinstance(start, StartRecord)
+    start.eval.config.retry_on_error = retry_on_error
+    eval_closing = records[f"{eval_id}/{CLOSING}"]
+    assert isinstance(eval_closing, EvalClosingRecord)
+    eval_closing.samples.append(SampleAttemptRef(sample_id="s0", epoch=1, attempt=2))
+
+    stored = _read_eval(eval_id, list(records), records.__getitem__)
+    attempt_1 = f"{eval_id}/s0.1/1"
+    if retry_on_error:
+        assert stored.findings == []
+        assert stored.retried == [attempt_1]
+    else:
+        assert [(f.kind, f.key) for f in stored.findings] == [
+            ("missing_closing", attempt_1)
+        ]
+        assert stored.retried == []
 
 
 @solver

@@ -91,8 +91,8 @@ class ValidationReport(BaseModel):
     findings: list[Finding]
     samples_compared: int
     retried: list[str] = []
-    """Attempts with no closing record whose sample has a later closed attempt
-    (``retry_on_error``). Listed, not findings."""
+    """Attempts with no closing record whose sample has a later closed attempt,
+    when the eval's ``retry_on_error`` allows the retry. Listed, not findings."""
 
     @property
     def passed(self) -> bool:
@@ -325,6 +325,7 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
         return _StoredEval(findings, retried, False, None, set(), {}, None)
     assert isinstance(start, StartRecord)
     nonce = start.nonce
+    retry_on_error = start.eval.config.retry_on_error or 0
 
     # attempts: "<eval>/<sample>.<epoch>/<attempt>/<seq|closing>"
     attempts: dict[tuple[str, str], dict[str, StoreRecord]] = defaultdict(dict)
@@ -364,7 +365,8 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
             finding("sequence_gap", f"Sequence numbers {seqs} have a gap.", prefix)
         closing = records.get(CLOSING)
         if closing is None:
-            if any(
+            # attempt n is retried only when retry_on_error allows attempt n + 1
+            if int(attempt) <= retry_on_error and any(
                 part == sample_part and later > int(attempt) for part, later in closed
             ):
                 retried.append(prefix)
