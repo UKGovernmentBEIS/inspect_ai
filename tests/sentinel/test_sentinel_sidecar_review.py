@@ -42,6 +42,7 @@ from inspect_ai._sentinel._sidecar._received import (
     JUDGED_REPLY_PATH,
     ReceivedCall,
     _received,
+    current_receiving,
     receiving_call,
     request_id_to_reuse,
     route_fetch_to_sidecar,
@@ -51,6 +52,7 @@ from inspect_ai._sentinel._sidecar._review import (
     MAX_ERROR_FETCHES,
     MAX_RESENDS,
 )
+from inspect_ai._sentinel._sidecar._task import SampleFacts, task_sidecars
 from inspect_ai._util.working import sample_wait
 from inspect_ai.approval import Approval
 from inspect_ai.approval._approval import ApprovalDecision
@@ -220,6 +222,13 @@ class ReviewingSidecar(StandInSidecar):
     With a large number, every try that the provider's SDK makes on its own
     fails this way.
     """
+    when_pending_review_lost: Callable[[], None] | None = None
+    when_resend_lost: Callable[[], None] | None = None
+    """Set to have a resend that the sidecar passed on to a busy provider lose its connection, and run as it does.
+
+    The provider still has the request, and Inspect gets a connection error.
+    """
+    """Run as a "pending review" answer is lost, for what happens before the client's next try."""
     cut_off: bool = False
     """Whether the provider's reply is cut off on every try passed on to it.
 
@@ -407,6 +416,9 @@ class ReviewingSidecar(StandInSidecar):
             # the provider is still working, and the sidecar will hold its reply
             paused.turn = turn
             paused.state = "awaiting_reply"
+            if self.when_resend_lost is not None:
+                self.when_resend_lost()
+                raise httpx2.ReadError("The connection was lost.", request=request)
             self._holds[id(request)] = 60.0
         else:
             paused.turn = turn
@@ -446,6 +458,8 @@ class ReviewingSidecar(StandInSidecar):
         # the connection fails before the error arrives.
         if self.pending_reviews_lost > 0:
             self.pending_reviews_lost -= 1
+            if self.when_pending_review_lost is not None:
+                self.when_pending_review_lost()
             raise httpx2.ConnectError("The connection was lost.", request=request)
         return _refusal("pending review")
 
@@ -2548,6 +2562,315 @@ def test_a_call_given_up_on_after_a_lost_pending_review_is_cancelled_at_once(
     # on it, without waiting for the sample to end
     first = stand_in.model_calls[0]
     assert cancelled_before_the_sample_ended == [[first.headers["x-irid"]]]
+
+
+def _registration_fills(stand_in: ReviewingSidecar) -> Callable[[], None]:
+    # The task is registered with the sidecar again, as when another of the
+    # task's models is found there, and other samples fill the registration.
+    # So the sidecar won't take the sample's registration again, which the
+    # next try of a request finds as it is sent.
+    full = [False]
+
+    def complete(_: dict[str, Any]) -> dict[str, Any]:
+        if full[0]:
+            return {"error": {"code": -32008, "message": "the registrations are full"}}
+        return {}
+
+    def fill() -> None:
+        sidecars = task_sidecars(stand_in.calls[0]["params"]["eval_id"])
+        assert sidecars is not None
+        access = sidecars.access("http://proxy.test")
+        assert access is not None
+        access.registrations_begun += 1
+        full[0] = True
+
+    stand_in.methods["complete_registration"] = complete
+    return fill
+
+
+def test_nobody_is_asked_about_a_call_whose_samples_registration_stopped_its_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    person = Person("terminate")
+    person.install(monkeypatch)
+    # The first try's "pending review" is lost with its connection, and the
+    # registration fills before the provider's SDK tries again.
+    stand_in = ReviewingSidecar(
+        pauses=["model_input"],
+        turns=[Turn()],
+        pending_reviews_lost=1,
+        judge_usage={"input_tokens": 1000, "output_tokens": 0, "total_tokens": 1000},
+    )
+    stand_in.when_pending_review_lost = _registration_fills(stand_in)
+
+    log = _run(stand_in, solver=generate(), sentinel_proxy="required")
+
+    # The call fails on the registration's error whatever a person answers,
+    # so nobody is asked: an answer of "terminate" would have ended the
+    # sample with no error. The paused call is cancelled at the sidecar, and
+    # what judging its first try cost is still counted.
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert person.asked == []
+    assert sample.error is not None
+    assert "the registrations are full" in sample.error.message
+    [sent] = stand_in.model_calls
+    assert stand_in.cancelled == [sent.headers["x-irid"]]
+    assert sample.model_usage["mockllm/judge"].total_tokens == 1000
+
+
+@pytest.mark.parametrize("lookups_refused", [1, 10], ids=["once", "every time"])
+def test_a_cancelled_calls_judging_usage_is_asked_for_once_more_or_noted_as_unknown(
+    lookups_refused: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    person = Person("terminate")
+    person.install(monkeypatch)
+    # As above, and the sidecar then answers with an error when asked what
+    # judging the call billed.
+    stand_in = ReviewingSidecar(
+        pauses=["model_input"],
+        turns=[Turn()],
+        pending_reviews_lost=1,
+        lookups_refused=lookups_refused,
+        judge_usage={"input_tokens": 1000, "output_tokens": 0, "total_tokens": 1000},
+    )
+    stand_in.when_pending_review_lost = _registration_fills(stand_in)
+
+    log = _run(stand_in, solver=generate(), sentinel_proxy="required")
+
+    # The call is cancelled all the same, and fails on the registration's
+    # error. Its usage is asked for once more: it is counted if the sidecar
+    # then says, and noted as unknown if not.
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert person.asked == []
+    assert sample.error is not None
+    assert "the registrations are full" in sample.error.message
+    [sent] = stand_in.model_calls
+    assert stand_in.cancelled == [sent.headers["x-irid"]]
+    assert len(_called(stand_in, "request_result")) == 2
+    unknown = [
+        e
+        for e in sample.events
+        if isinstance(e, InfoEvent)
+        and isinstance(e.data, dict)
+        and e.data.get("judging_usage") == "unavailable"
+    ]
+    if lookups_refused == 1:
+        assert sample.model_usage["mockllm/judge"].total_tokens == 1000
+        assert unknown == []
+    else:
+        assert "mockllm/judge" not in sample.model_usage
+        assert len(unknown) == 1
+
+
+@pytest.mark.parametrize(
+    ("busy_lookups", "judging_lookups"),
+    [(1_000_000, 0), (1, 1_000_000)],
+    ids=["the provider is slow to reply", "the sidecar is slow to judge the reply"],
+)
+def test_a_resent_call_isnt_waited_on_once_its_samples_registration_stops_a_retry(
+    busy_lookups: int, judging_lookups: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Person("approve").install(monkeypatch)
+    # The approved request is resent and reaches the provider, and the
+    # resend's connection is lost. The registration fills before the
+    # provider's SDK tries again.
+    stand_in = ReviewingSidecar(
+        pauses=["model_input"],
+        turns=[Turn()],
+        provider_busy_lookups=busy_lookups,
+        judging_lookups=judging_lookups,
+    )
+    stand_in.when_resend_lost = _registration_fills(stand_in)
+
+    log = _run(stand_in, solver=generate(), sentinel_proxy="required", time_limit=20)
+
+    # Asked, the sidecar would go on saying it awaits the reply, or is
+    # judging it. The call fails on the registration's error all the same,
+    # and is cancelled, and the sample doesn't run out its time waiting.
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.limit is None
+    assert sample.error is not None
+    assert "the registrations are full" in sample.error.message
+    assert stand_in.cancelled == [stand_in.model_calls[0].headers["x-irid"]]
+
+
+def test_a_resent_calls_usage_that_cant_be_read_once_its_retry_is_stopped_is_noted_incomplete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    stand_in = ReviewingSidecar(
+        pauses=["model_input"],
+        turns=[Turn()],
+        provider_busy_lookups=1,
+        judge_usage={"input_tokens": 1000, "output_tokens": 0, "total_tokens": 1000},
+    )
+    fill = _registration_fills(stand_in)
+
+    def fills_and_stops_answering() -> None:
+        # The approved request is resent, and may be judged again. Its
+        # connection is lost, the registration fills before the provider's
+        # SDK tries again, and the sidecar can't then say what the call billed.
+        fill()
+        stand_in.lookups_refused = 10
+
+    stand_in.when_resend_lost = fills_and_stops_answering
+
+    log = _run(stand_in, solver=generate(), sentinel_proxy="required")
+
+    # What was read while the person was asked is kept, and the rest is
+    # noted as missing rather than read as none.
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is not None
+    assert "the registrations are full" in sample.error.message
+    assert sample.model_usage["mockllm/judge"].total_tokens == 1000
+    paused_id = stand_in.model_calls[0].headers["x-irid"]
+    assert [
+        e.data
+        for e in sample.events
+        if isinstance(e, InfoEvent)
+        and isinstance(e.data, dict)
+        and "judging_usage" in e.data
+    ] == [
+        {
+            "request": paused_id,
+            "judging_usage": "incomplete",
+            "reason": "the sidecar didn't answer",
+        }
+    ]
+
+
+@pytest.mark.parametrize("stopped", ["the resend", "Inspect's retry"])
+def test_a_paused_call_whose_samples_registration_stops_it_is_cancelled_at_once(
+    stopped: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stand_in = ReviewingSidecar(
+        pauses=["model_input"],
+        turns=[Turn()],
+        # Inspect retries a "pending review" it lost, having asked the person
+        pending_reviews_lost=1 if stopped == "Inspect's retry" else 0,
+    )
+    fill = _registration_fills(stand_in)
+
+    async def fills_meanwhile() -> None:
+        fill()
+
+    # the registration fills while the person decides, and they approve
+    Person("approve", meanwhile=fills_meanwhile).install(monkeypatch)
+    monkeypatch.setattr(AnthropicAPI, "retry_wait", lambda self: wait_none())
+    cancelled_as_the_call_ended: list[list[str]] = []
+
+    @solver
+    def calls_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            try:
+                return await generate(state)
+            finally:
+                cancelled_as_the_call_ended.append(list(stand_in.cancelled))
+
+        return solve
+
+    task = Task(dataset=[Sample(input="Hi.")], solver=calls_once())
+    # with no retries in the provider's SDK, Inspect retries the call itself
+    retries: dict[str, Any] = {"max_retries": 0} if stopped == "Inspect's retry" else {}
+    model = get_model(
+        "anthropic/claude-haiku-4-5",
+        base_url="http://proxy.test",
+        api_key="test-key",
+        memoize=False,
+        http_client=stand_in.http_client(),
+        **retries,
+    )
+
+    [log] = inspect_eval(task, model=model, sentinel_proxy="required", display="none")
+
+    # The approved request is never sent on. The sidecar is told at once,
+    # as the call fails, and not only when the sample ends.
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None and "the registrations are full" in error.message
+    [sent] = stand_in.model_calls
+    assert cancelled_as_the_call_ended == [[sent.headers["x-irid"]]]
+
+
+def _restarts_and_another_sample_registers(
+    stand_in: ReviewingSidecar,
+) -> Callable[[], Awaitable[None]]:
+    # The sidecar restarts while the person decides, and another sample
+    # finds it lost and registers the task again. The approved call carries
+    # on under its id, and the restarted sidecar's running totals for it
+    # start again.
+    async def restart() -> None:
+        stand_in.tokens.clear()
+        for paused in stand_in.paused.values():
+            paused.judging_time = 0.0
+        received = current_receiving()
+        sidecars = task_sidecars()
+        assert received is not None and sidecars is not None
+        another = sidecars.attempt_registration(
+            received.sidecar,
+            SampleFacts(
+                sample_id=2, sample_description=None, sample_input="Hi.", metadata={}
+            ),
+            "another_sample",
+            1,
+        )
+        await another.ensure_registered(received.sidecar)
+
+    return restart
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
+def test_a_paused_calls_judging_usage_after_a_sidecar_restart_is_counted_in_full(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    # every `request_result` about the call returns the same usage: before
+    # the restart, the total of the call's first judging, and after it, the
+    # total of its judging since
+    stand_in = ReviewingSidecar(
+        pauses=["model_input"],
+        turns=[Turn()],
+        judge_usage={"input_tokens": 1000, "output_tokens": 0, "total_tokens": 1000},
+    )
+    Person(
+        "approve", meanwhile=_restarts_and_another_sample_registers(stand_in)
+    ).install(monkeypatch)
+
+    log = _run(stand_in, solver=generate(), sentinel_proxy="required")
+
+    assert log.samples is not None
+    judge = log.samples[0].model_usage["mockllm/judge"]
+    assert judge.total_tokens == 2000
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"], ids=["on asyncio", "on trio"])
+def test_a_paused_calls_judging_time_after_a_sidecar_restart_counts_as_waiting(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    # The sentinel judges the first request for 0.3 seconds before it asks.
+    # The restarted sidecar holds the resend 0.5 seconds, 0.4 of them judging.
+    stand_in = ReviewingSidecar(
+        pauses=["model_input"],
+        turns=[Turn(text="Sunny.")],
+        holds=[(0.3, 0.3), (0.5, 0.4)],
+    )
+    Person(
+        "approve", meanwhile=_restarts_and_another_sample_registers(stand_in)
+    ).install(monkeypatch)
+
+    log = _run(stand_in, solver=generate(), sentinel_proxy="required")
+
+    assert stand_in.holds == []
+    assert log.samples is not None
+    event = _model_events(log.samples[0])[-1]
+    # both sends' judging count as waiting, the resend's from the restarted
+    # sidecar's own total
+    assert _event_waiting(event) >= 0.3 + 0.4 - 0.05
 
 
 def test_a_call_whose_replies_keep_being_cut_off_isnt_resent_without_end(

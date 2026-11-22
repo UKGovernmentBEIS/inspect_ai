@@ -162,7 +162,7 @@ If you need to read full samples, events, or messages and the read is taking lon
 
 ``` python
 from inspect_ai.analysis import (
-    SampleMessages, SampleSummary samples_df, events_df
+    SampleMessages, SampleSummary, samples_df, events_df
 )
 
 # we need to read full sample messages so we parallelize

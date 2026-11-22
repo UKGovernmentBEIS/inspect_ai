@@ -332,8 +332,8 @@ add = ToolDef(
     description="A tool to add numbers", 
     parameters={
         "x": "the x argument",
-        "y": "the y argument"
-    })
+        "y": "the y argument",
+    },
 )
 
 use_tools([add])
