@@ -614,12 +614,18 @@ def test_task_retry_attempts_validates(
     assert "2 eval(s), 4 sample(s) compared, 0 finding(s)." in result.output
 
 
+@pytest.mark.parametrize("retry_cleanup", [True, False])
 def test_eval_set_retry_validates(
-    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    retry_cleanup: bool,
 ) -> None:
     """eval_set retry: the second eval reuses s1 from the first.
 
-    retry_cleanup=False keeps the failed attempt's .eval file.
+    retry_cleanup (the default) deletes the failed attempt's .eval file. The
+    second eval's start record names the first eval, so the missing file is
+    not a finding, and s1 is still compared with the first eval's records.
     """
     failures = tmp_path / "failures.json"
     failures.write_text(json.dumps({"s0": 1}))
@@ -631,14 +637,16 @@ def test_eval_set_retry_validates(
         display="none",
         max_samples=1,
         retry_attempts=1,
-        retry_cleanup=False,
+        retry_cleanup=retry_cleanup,
         tamper_evident_store=evalhost_env.url,
     )
     assert success, logs[0].error
+    assert len(list(log_dir.glob("*.eval"))) == (1 if retry_cleanup else 2)
 
     result = validate_cli(evalhost_env, log_dir)
     assert result.exit_code == 0, result.output
-    assert "2 eval(s), 4 sample(s) compared, 0 finding(s)." in result.output
+    compared = 2 if retry_cleanup else 4
+    assert f"2 eval(s), {compared} sample(s) compared, 0 finding(s)." in result.output
 
 
 def test_edit_reused_sample(

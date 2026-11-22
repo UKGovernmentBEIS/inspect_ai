@@ -420,7 +420,12 @@ def _compare_eval_file(
     if not stored.started:
         return _Compared(findings, 0)
     if eval_file is None:
-        finding("missing_eval_file", "No .eval file in the log dir has this eval id.")
+        # eval_set's retry_cleanup deletes a retried eval's .eval file; the
+        # retry's own .eval holds the samples it reused from it
+        if not any(e.prior_eval_id == eval_id for e in evals.values()):
+            finding(
+                "missing_eval_file", "No .eval file in the log dir has this eval id."
+            )
         return _Compared(findings, 0)
 
     if stored.closing is not None:
