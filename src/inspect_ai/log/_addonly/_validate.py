@@ -150,7 +150,9 @@ def validate_store(
             )
 
     def read(key: str) -> StoreRecord:
-        earliest = min(by_key[key], key=lambda v: v.arrival)
+        # S3 lists a key's versions newest first. Arrival times have whole
+        # seconds, so they cannot order versions stored in the same second.
+        earliest = by_key[key][-1]
         body = s3.get_object(
             Bucket=location.bucket, Key=key, VersionId=earliest.version_id
         )["Body"].read()

@@ -16,6 +16,7 @@ import uuid
 import zipfile
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -60,6 +61,7 @@ from inspect_ai.log._addonly._validate import (
     ValidationReport,
     _event_version_problems,
     _rebuild_rows,
+    validate_store,
 )
 from inspect_ai.log._addonly._writer import EvalRecordWriter
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
@@ -660,6 +662,88 @@ def test_forged_record_in_parts(clean_run: CleanRun, validate_cli: ValidateCli) 
     )
     result = validate_cli(clean_run.store, clean_run.log_dir)
     assert_fails_with(result, "multipart", "nonce", "record_count")
+
+
+def test_overwrite_record(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """The .eval file edited, and the store record overwritten to match it.
+
+    The eval host puts without If-None-Match. On real S3 the bucket policy
+    refuses that put; moto does not enforce it, so a second version is added,
+    in the same second as the first. The validator reads the earliest version.
+    """
+    tool_seq, tool_event = next(
+        (i, e)
+        for i in range(1, clean_run.records() + 1)
+        for e in clean_run.stored_events(i)
+        if e["event"] == "tool" and not e.get("pending")
+    )
+    record = SampleRecord.model_validate_json(
+        clean_run.read(clean_run.sample_key(tool_seq))
+    )
+    for row in record.rows.events:
+        if row.event_id == tool_event["uuid"]:
+            row.data = json.dumps({**json.loads(row.data), "result": "harmless"})
+    clean_run.put(
+        clean_run.sample_key(tool_seq), record.model_dump_json(), if_none_match=False
+    )
+
+    def edit(sample: EvalSample) -> None:
+        event = next(e for e in sample.events if e.uuid == tool_event["uuid"])
+        assert isinstance(event, ToolEvent)
+        event.result = "harmless"
+
+    edit_sample(clean_run, edit)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "overwrite", "event_mismatch")
+    assert "2 versions: an overwrite got through." in result.output
+
+
+class _SameSecondVersions:
+    """An S3 client whose version listing gives every version one arrival time.
+
+    S3 times have whole seconds, so versions stored in the same second look
+    like this. Real S3 and moto list a key's versions newest first.
+    """
+
+    def __init__(self, client: Any) -> None:
+        self._client = client
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._client, name)
+
+    def get_paginator(self, name: str) -> Any:
+        paginator = self._client.get_paginator(name)
+        client = self
+
+        class SameSecond:
+            def paginate(self, **kwargs: Any) -> Iterator[dict[str, Any]]:
+                for page in paginator.paginate(**kwargs):
+                    for version in page.get("Versions", []):
+                        version["LastModified"] = client.arrival
+                    yield page
+
+        return SameSecond()
+
+    arrival = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+def test_overwrite_in_same_second_reads_earliest(clean_run: CleanRun) -> None:
+    """The validator reads a record's first version, also when both have one time."""
+    key = clean_run.sample_key(1)
+    record = SampleRecord.model_validate_json(clean_run.read(key))
+    record.rows = BufferRows()
+    clean_run.put(key, record.model_dump_json(), if_none_match=False)
+
+    store = clean_run.store
+    with store._policy_in_place():
+        report = validate_store(
+            store.url,
+            str(clean_run.log_dir),
+            client=_SameSecondVersions(store.client(store.validator)),
+        )
+    # the second version has no rows; read instead of the first, it would
+    # leave the store without the sample's first events
+    assert {f.kind for f in report.findings} == {"overwrite"}, report.findings
 
 
 def test_delete_marker(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
