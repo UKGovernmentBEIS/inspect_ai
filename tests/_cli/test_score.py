@@ -4,11 +4,13 @@ import pytest
 import rich
 from test_helpers.utils import skip_if_no_openai
 
+from inspect_ai import Task, eval_async
 from inspect_ai._cli import score as score_cli
 from inspect_ai._cli.score import print_results, score
 from inspect_ai._display import display
 from inspect_ai._display.core.results import sample_coverage_messages
 from inspect_ai._eval.score import ScoreAction, score_async
+from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, read_eval_log_async, write_eval_log_async
 from inspect_ai.log._edit import (
     MetadataEdit,
@@ -518,3 +520,58 @@ async def test_score_keeps_recorded_score_names_only_when_overwriting(
     else:
         assert isinstance(scorers, list)
         assert len(scorers) == 3
+
+
+@pytest.mark.parametrize(
+    ("scored", "action"),
+    [(True, "overwrite"), (False, "overwrite"), (False, None)],
+    ids=["scored-overwrite", "unscored-overwrite", "unscored-default"],
+)
+@pytest.mark.parametrize("stream", [False, True], ids=["no-stream", "stream"])
+async def test_score_keeps_score_names_of_dict_scored_eval(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    scored: bool,
+    action: ScoreAction | None,
+    stream: bool,
+) -> None:
+    """`inspect score` rescoring a dict-scored eval keeps the dict's score names."""
+    task = Task(
+        dataset=[
+            Sample(input="a", target="a", id=1),
+            Sample(input="b", target="b", id=2),
+        ],
+        scorer={"strict": match(location="end"), "loose": match(location="any")},
+    )
+    (log,) = await eval_async(
+        task, model="mockllm/model", log_dir=str(tmp_path / "logs"), score=scored
+    )
+
+    monkeypatch.setattr(score_cli, "init_eval_context", lambda *args, **kwargs: None)
+    monkeypatch.setattr(score_cli, "print_results", lambda *args, **kwargs: None)
+
+    output_file = tmp_path / "rescored.eval"
+    await score(
+        log_dir="",
+        log_file=log.location,
+        action=action,
+        log_level=None,
+        output_file=str(output_file),
+        overwrite=True,
+        scorer=None,
+        s=(),
+        metric=None,
+        stream=stream,
+    )
+
+    rescored = await read_eval_log_async(str(output_file))
+    assert rescored.samples is not None and rescored.results is not None
+    assert rescored.eval.scorers is not None and rescored.reductions is not None
+    for sample in rescored.samples:
+        assert list(sample.scores or {}) == ["strict", "loose"]
+    assert [s.name for s in rescored.results.scores] == ["strict", "loose"]
+    assert [r.scorer for r in rescored.reductions] == ["strict", "loose"]
+    assert [(s.name, s.score_name) for s in rescored.eval.scorers] == [
+        ("match", "strict"),
+        ("match", "loose"),
+    ]

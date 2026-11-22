@@ -24,6 +24,7 @@ from test_helpers.utils import (
     failing_task_deterministic,
     identity_solver,
     keyboard_interrupt,
+    named_scorers_failing_once_task,
     skip_if_trio,
     sleep_for_solver,
 )
@@ -126,6 +127,38 @@ def test_eval_set(retry_immediate: bool) -> None:
         )
         assert not success
         assert logs[0].status == "error"
+
+
+@pytest.mark.parametrize("retry_immediate", [False, True])
+def test_eval_set_retry_keeps_dict_score_names(
+    tmp_path: Path, retry_immediate: bool
+) -> None:
+    """A retried task names reused and rerun samples' scores for its dict keys."""
+    marker = tmp_path / "failed"
+    success, logs = eval_set(
+        tasks=named_scorers_failing_once_task(str(marker)),
+        log_dir=str(tmp_path / "logs"),
+        retry_attempts=2,
+        retry_wait=0.1,
+        retry_immediate=retry_immediate,
+        model="mockllm/model",
+    )
+    assert success
+    assert marker.exists()
+
+    log = read_eval_log(logs[0].location)
+    assert log.status == "success"
+    assert log.samples is not None and log.results is not None
+    assert log.eval.scorers is not None
+    assert [(s.id, list(s.scores or {})) for s in log.samples] == [
+        (1, ["strict", "loose"]),
+        (2, ["strict", "loose"]),
+    ]
+    assert [s.name for s in log.results.scores] == ["strict", "loose"]
+    assert [(s.name, s.score_name) for s in log.eval.scorers] == [
+        ("match", "strict"),
+        ("includes", "loose"),
+    ]
 
 
 @pytest.mark.slow

@@ -1,3 +1,4 @@
+import copy
 import inspect
 from typing import Any
 
@@ -5,11 +6,12 @@ import pytest
 from test_helpers.tasks import minimal_task
 
 from inspect_ai import task_with
-from inspect_ai._eval.task.task import Task
+from inspect_ai._eval.task.task import Task, task_score_names
+from inspect_ai._util.registry import registry_info
 from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.log import HeadlineMetric
-from inspect_ai.scorer import match
+from inspect_ai.scorer import match, mean
 
 
 def test_task_with_add_options():
@@ -130,13 +132,74 @@ def test_task_with_description() -> None:
     assert task.description == "Kept."
 
 
-def test_task_scorer_dict_is_type_error() -> None:
-    scorers: Any = {"accuracy_strict": match(location="end")}
-    with pytest.raises(TypeError, match="dict of scorers"):
+def test_task_scorer_dict_keeps_scorer_a_list() -> None:
+    strict, loose = match(location="end"), match(location="begin")
+    task = Task(scorer={"accuracy_strict": strict, "accuracy_loose": loose})
+    assert task.scorer == [strict, loose]
+    assert task_score_names(task) == ["accuracy_strict", "accuracy_loose"]
+
+
+def test_task_scorer_list_has_no_score_names() -> None:
+    assert task_score_names(Task(scorer=[match(), match()])) is None
+    assert task_score_names(Task(scorer=match())) is None
+    assert task_score_names(Task()) is None
+
+
+def test_task_with_scorer_dict() -> None:
+    strict = match(location="end")
+    task = task_with(Task(scorer=match()), scorer={"accuracy_strict": strict})
+    assert task.scorer == [strict]
+    assert task_score_names(task) == ["accuracy_strict"]
+
+    # other options leave the names in place
+    task = task_with(task, time_limit=30)
+    assert task_score_names(task) == ["accuracy_strict"]
+
+
+@pytest.mark.parametrize("scorer", [match(), [match()], None])
+def test_task_with_scorer_replaces_score_names(scorer: Any) -> None:
+    task = task_with(Task(scorer={"accuracy_strict": match()}), scorer=scorer)
+    assert task_score_names(task) is None
+
+
+def test_task_scorer_assignment_drops_score_names() -> None:
+    task = Task(scorer={"accuracy_strict": match()})
+    replacement = [match(), match()]
+    task.scorer = replacement
+    assert task.scorer is replacement
+    assert task_score_names(task) is None
+
+    task = Task(scorer={"accuracy_strict": match()})
+    task.scorer = None
+    assert task.scorer is None
+    assert task_score_names(task) is None
+
+
+def test_task_scorer_changed_in_place_is_error() -> None:
+    task = Task(scorer={"accuracy_strict": match()})
+    assert task.scorer is not None
+    task.scorer.append(match())
+    with pytest.raises(ValueError, match="2 scorers but 1 score names"):
+        task_score_names(task)
+
+
+def test_task_scorer_dict_survives_copy() -> None:
+    task = Task(scorer={"accuracy_strict": match()})
+    for copied in (copy.copy(task), copy.deepcopy(task)):
+        assert task_score_names(copied) == ["accuracy_strict"]
+        assert copied.scorer is not None and len(copied.scorer) == 1
+
+
+@pytest.mark.parametrize("name", ["", 1, None])
+def test_task_scorer_dict_invalid_name_is_error(name: Any) -> None:
+    scorers: Any = {name: match()}
+    with pytest.raises(ValueError, match="Score names must be non-empty strings"):
         Task(scorer=scorers)
-
-
-def test_task_with_scorer_dict_is_type_error() -> None:
-    scorers: Any = {"accuracy_strict": match(location="end")}
-    with pytest.raises(TypeError, match="dict of scorers"):
+    with pytest.raises(ValueError, match="Score names must be non-empty strings"):
         task_with(Task(), scorer=scorers)
+
+
+def test_task_scorer_dict_metrics_override() -> None:
+    task = Task(scorer={"accuracy_strict": match()}, metrics=[mean()])
+    assert task.scorer is not None
+    assert registry_info(task.scorer[0]).metadata["metrics"] == task.metrics

@@ -22,7 +22,7 @@ from inspect_ai import Task, eval, task
 from inspect_ai._util.entrypoints import clear_entry_points_state, ensure_entry_points
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
-from inspect_ai.scorer import match
+from inspect_ai.scorer import includes, match
 from inspect_ai.solver import Generate, TaskState, generate, solver
 from inspect_ai.util._concurrency import (
     AdaptiveConcurrency,
@@ -624,6 +624,35 @@ def failing_task_deterministic(should_fail: Sequence[bool]) -> Task:
         dataset=dataset,
         plan=[failing_solver_deterministic(should_fail), generate()],
         scorer=match(),
+    )
+
+
+@solver
+def failing_once_solver(marker: str, sample_id: int | str):
+    """Fail `sample_id` the first time it runs.
+
+    A `marker` file records the failure, so a retry that reloads the task passes.
+    """
+
+    async def solve(state: TaskState, generate: Generate):
+        if state.sample_id == sample_id and not Path(marker).exists():
+            Path(marker).touch()
+            raise ValueError("Eval failed!")
+        return state
+
+    return solve
+
+
+@task
+def named_scorers_failing_once_task(marker: str) -> Task:
+    """A dict-scored task whose second sample fails on the first attempt only."""
+    return Task(
+        dataset=[
+            Sample(input="Say hello", target="hello", id=1),
+            Sample(input="Say hello", target="hello", id=2),
+        ],
+        solver=[failing_once_solver(marker, sample_id=2), generate()],
+        scorer={"strict": match(), "loose": includes()},
     )
 
 

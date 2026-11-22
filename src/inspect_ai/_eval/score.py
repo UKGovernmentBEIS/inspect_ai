@@ -413,15 +413,11 @@ async def score_async(
         # that subsequent recompute_metrics() (which derives ScorerInfo from
         # this header list) operates on the right entries.
         applied_eval_scorers = (
-            resolve_eval_scorers([as_scorer_spec(s) for s in resolved_scorers]) or []
+            resolve_eval_scorers(
+                [as_scorer_spec(s) for s in resolved_scorers], score_names
+            )
+            or []
         )
-        if score_names is not None:
-            applied_eval_scorers = [
-                _with_score_name(eval_scorer, score_name)
-                for eval_scorer, score_name in zip(
-                    applied_eval_scorers, score_names, strict=True
-                )
-            ]
 
         # Since the metrics calculation above is only be done using the scorers
         # and scores that were generated during this scoring run, we need to process
@@ -766,11 +762,6 @@ def resolve_scorers_info(log: EvalLog) -> list[ScorerInfo]:
             )
         )
     return infos
-
-
-def _with_score_name(eval_scorer: EvalScorer, score_name: str) -> EvalScorer:
-    """Record a score name on a log header scorer."""
-    return eval_scorer.model_copy(update={"score_name": score_name})
 
 
 def _score_name(eval_scorer: EvalScorer) -> str | None:

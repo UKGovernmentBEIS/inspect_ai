@@ -69,6 +69,8 @@ When rescoring a previously scored log file you have two options:
 
 You can choose which mode to use based on whether you want to preserve or discard the previous scoring data.
 
+If the task [named its scores](multiple-scorers.qmd#naming-scores) by passing a dict of scorers, overwrite mode keeps those names. In append mode the existing names are already taken, so the new scores are named for their scorers.
+
 ::: {.callout-note appearance="simple"}
 When using append mode, the new scorer uses its own metrics independently; the original eval's metric configuration is not applied to the appended scorer. This means append works even when the original eval used metrics from packages that are not available in the current environment.
 :::

@@ -221,6 +221,7 @@ class TaskLogger:
         recorder: Recorder,
         header_only: bool,
         dynamic_dataset: bool = False,
+        score_names: list[str] | None = None,
     ) -> None:
         packages = {
             PKG_NAME: importlib_metadata.version(PKG_NAME),
@@ -273,7 +274,7 @@ class TaskLogger:
                 setattr(eval_config, name, value)
 
         # resolve scorers
-        eval_scorers = resolve_eval_scorers(scorer)
+        eval_scorers = resolve_eval_scorers(scorer, score_names)
 
         # resolve metrics
         eval_metrics = resolve_eval_metrics(metrics)
@@ -1321,15 +1322,24 @@ def resolve_eval_metrics(
         }
 
 
-def resolve_eval_scorers(scorers: list[ScorerSpec] | None) -> list[EvalScorer] | None:
+def resolve_eval_scorers(
+    scorers: list[ScorerSpec] | None, score_names: list[str] | None = None
+) -> list[EvalScorer] | None:
+    """Log header entries for `scorers`.
+
+    `score_names` (parallel to `scorers`) records each scorer's score name, so a
+    later scoring run keeps it. Omit it for names generated again at each run.
+    """
     if scorers is None:
         return None
     else:
+        recorded_names: list[str] | list[None] = score_names or [None] * len(scorers)
         results = []
-        for scorer in scorers:
+        for scorer, score_name in zip(scorers, recorded_names, strict=True):
             results.append(
                 EvalScorer(
                     name=scorer.scorer,
+                    score_name=score_name,
                     metrics=resolve_scorer_metrics(scorer.metrics),
                     options=scorer.args,
                     metadata=scorer.metadata,

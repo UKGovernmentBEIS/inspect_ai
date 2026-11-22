@@ -7,6 +7,7 @@ import pytest
 from test_helpers.utils import (
     failing_task,
     failing_task_deterministic,
+    named_scorers_failing_once_task,
     skip_if_no_docker,
 )
 
@@ -322,6 +323,39 @@ def test_eval_retry_preserves_scorer_attribution(monkeypatch) -> None:
     assert 1 in by_id and 2 in by_id
     assert by_id[2] == "match", f"fresh sample scorer={by_id[2]!r}"
     assert by_id[1] == "match", f"restored sample scorer={by_id[1]!r}"
+
+
+def test_eval_retry_keeps_dict_score_names(tmp_path: Path) -> None:
+    """A retry names reused and rerun samples' scores for the task's dict keys."""
+    log1 = eval(
+        named_scorers_failing_once_task(str(tmp_path / "failed")),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+    )[0]
+    assert log1.status == "error"
+    assert log1.samples is not None
+    assert [(s.id, list(s.scores or {})) for s in log1.samples] == [
+        (1, ["strict", "loose"]),
+        (2, []),
+    ]
+
+    log2 = eval_retry(log1, log_dir=str(tmp_path / "logs"))[0]
+    assert log2.status == "success"
+    assert log2.samples is not None and log2.results is not None
+    assert log2.eval.scorers is not None and log2.reductions is not None
+    assert [(s.id, list(s.scores or {})) for s in log2.samples] == [
+        (1, ["strict", "loose"]),
+        (2, ["strict", "loose"]),
+    ]
+    assert [s.name for s in log2.results.scores] == ["strict", "loose"]
+    assert [(r.scorer, len(r.samples)) for r in log2.reductions] == [
+        ("strict", 2),
+        ("loose", 2),
+    ]
+    assert [(s.name, s.score_name) for s in log2.eval.scorers] == [
+        ("match", "strict"),
+        ("includes", "loose"),
+    ]
 
 
 def test_eval_retry_preserves_token_usage():

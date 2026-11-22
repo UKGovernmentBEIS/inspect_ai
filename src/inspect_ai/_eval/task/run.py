@@ -235,6 +235,7 @@ from .scheduler import (
     _SampleRun,
 )
 from .store import DiskSampleStore, maybe_page_to_disk
+from .task import task_score_names
 from .task_source import TaskSource
 from .util import sample_id_filter, sample_limit_count, sample_messages, slice_dataset
 
@@ -1078,9 +1079,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # and aggregation use the same names
     scorer_names: list[str] | None = None
     if scorers:
-        scorer_names = []
-        for s in scorers:
-            scorer_names.append(unique_scorer_name(s, scorer_names))
+        scorer_names = task_score_names(task)
+        if scorer_names is None:
+            scorer_names = []
+            for s in scorers:
+                scorer_names.append(unique_scorer_name(s, scorer_names))
 
     scorer_profiles = (
         [registry_log_name(scorer) for scorer in scorers if is_registry_object(scorer)]
@@ -2500,7 +2503,7 @@ async def _task_run_sample_attempt(
         init_subtask_store(state.store)
         sample_transcript._subscribe(on_sample_event)
         if scorers:
-            init_scoring_context(scorers, Target(sample.target))
+            init_scoring_context(scorers, Target(sample.target), scorer_names)
         init_sample_assistant_internal()
 
         # use sandbox if provided

@@ -1235,7 +1235,7 @@ def _init_pass_scoring_context(handle: TaskScoring, target: Any) -> None:
     from inspect_ai.scorer._score import init_scoring_context
 
     init_task_context(handle.model, handle.model_roles, handle.generate_config)
-    init_scoring_context(handle.scorers, target)
+    init_scoring_context(handle.scorers, target, handle.scorer_names)
 
 
 async def _apply_scorers(
