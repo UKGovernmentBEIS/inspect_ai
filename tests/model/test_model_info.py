@@ -787,6 +787,9 @@ class TestGetModelInputTokens:
         assert info.snapshot == "20261109"
         assert str(info.knowledge_cutoff_date) == "2026-06-01"
         assert info.reasoning_effort_default == "high"
+        bedrock_info = get_model_info("anthropic/bedrock/anthropic.claude-mythos-5-2")
+        assert bedrock_info is not None
+        assert bedrock_info.model == "Claude Mythos 5.2"
 
     def test_claude_mythos_preview(self):
         """Test that Claude Mythos Preview reports 1MM input tokens."""
