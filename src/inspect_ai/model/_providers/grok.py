@@ -405,7 +405,7 @@ class GrokAPI(ModelAPI):
                                     config.response_schema.json_schema
                                 )
                             )
-                    # stream the reponse for improved connectivity for long requests
+                    # stream the response for improved connectivity for long requests
                     elif self._resolve_streaming(config):
                         report_model_stream_start()
                         streamed_response: Response | None = None
