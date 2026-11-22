@@ -11,7 +11,7 @@ honest: records written after a compromise pass too.
 import json
 import tempfile
 from collections import defaultdict
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
@@ -34,7 +34,6 @@ from ._records import (
     CLOSING,
     START,
     EvalClosingRecord,
-    SampleAttemptRef,
     SampleClosingRecord,
     SampleRecord,
     StartRecord,
@@ -62,6 +61,7 @@ FindingKind = Literal[
     "unstored_eval",
     "duplicate_eval_file",
     "unstored_sample",
+    "score_mismatch",
 ]
 
 
@@ -317,8 +317,9 @@ def _validate_eval(
         for a in (eval_closing.samples if eval_closing else [])
     }
 
-    final_attempts: dict[tuple[str, int], tuple[SampleAttemptRef, list[SampleRecord]]]
-    final_attempts = {}
+    final_attempts: dict[
+        tuple[str, int], tuple[SampleClosingRecord, list[SampleRecord]]
+    ] = {}
     for (sample_part, attempt), records in sorted(attempts.items()):
         prefix = f"{eval_id}/{sample_part}/{attempt}"
         if eval_closing is not None and (sample_part, attempt) not in listed:
@@ -344,8 +345,11 @@ def _validate_eval(
                 )
             ref = closing.sample
             current = final_attempts.get((str(ref.sample_id), ref.epoch))
-            if current is None or current[0].attempt < ref.attempt:
-                final_attempts[(str(ref.sample_id), ref.epoch)] = (ref, sample_records)
+            if current is None or current[0].sample.attempt < ref.attempt:
+                final_attempts[(str(ref.sample_id), ref.epoch)] = (
+                    closing,
+                    sample_records,
+                )
         for message in _event_version_problems(sample_records):
             finding(*message, key=prefix)
 
@@ -362,7 +366,11 @@ def _validate_eval(
         )
 
     compared = 0
-    for ref, sample_records in final_attempts.values():
+    for closing, sample_records in final_attempts.values():
+        ref = closing.sample
+        attempt_key = (
+            f"{eval_id}/{sample_key_part(ref.sample_id, ref.epoch)}/{ref.attempt}"
+        )
         try:
             logged = read_eval_log_sample(
                 eval_file, ref.sample_id, ref.epoch, resolve_attachments="full"
@@ -373,15 +381,35 @@ def _validate_eval(
                 f"Sample {ref.sample_id} epoch {ref.epoch} is not in {eval_file}.",
             )
             continue
+        stored_scores = {k: v.score for k, v in closing.scores.items()}
+        if changed := _changed_keys(logged.scores or {}, stored_scores):
+            finding(
+                "score_mismatch",
+                f"Scores {changed} differ from the sample closing record's.",
+                attempt_key,
+            )
         difference = _compare_events(logged, sample_records)
         compared += 1
         if difference is not None:
             finding(
                 "event_mismatch",
                 difference,
-                f"{eval_id}/{sample_key_part(ref.sample_id, ref.epoch)}/{ref.attempt}",
+                attempt_key,
             )
     return findings, compared
+
+
+def _changed_keys(
+    lhs: Mapping[str, BaseModel], rhs: Mapping[str, BaseModel]
+) -> list[str]:
+    """Keys whose values differ (as JSON) or are in only one mapping."""
+    return sorted(
+        key
+        for key in lhs.keys() | rhs.keys()
+        if key not in lhs
+        or key not in rhs
+        or lhs[key].model_dump(mode="json") != rhs[key].model_dump(mode="json")
+    )
 
 
 def _eval_file_samples(eval_file: str) -> set[str]:

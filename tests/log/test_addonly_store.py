@@ -555,6 +555,19 @@ def test_add_sample(clean_run: CleanRun, validate_cli: ValidateCli, how: str) ->
     assert f"unstored_sample {clean_run.eval_id}/s1.1:" in result.output
 
 
+def test_edit_score(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """The sample's score changed; its score event left as it was."""
+
+    def edit(sample: EvalSample) -> None:
+        assert sample.scores
+        sample.scores["includes"].value = "I"
+
+    edit_sample(clean_run, edit)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "score_mismatch")
+    assert "score_mismatch " in result.output and "'includes'" in result.output
+
+
 # ---------------------------------------------- tampering, add-only store
 #
 # The eval host can add keys (put with If-None-Match) and nothing else. Its
