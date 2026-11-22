@@ -58,6 +58,7 @@ FindingKind = Literal[
     "missing_sample",
     "event_mismatch",
     "malformed_record",
+    "unstored_eval",
 ]
 
 
@@ -167,6 +168,15 @@ def validate_store(
         evals[rel.split("/", 1)[0]].append(rel)
 
     eval_files = _eval_files(log_dir)
+    findings.extend(
+        Finding(
+            kind="unstored_eval",
+            eval_id=eval_id,
+            message=f"{eval_file} has no records in the store.",
+        )
+        for eval_id, eval_file in sorted(eval_files.items())
+        if eval_id not in evals
+    )
     samples_compared = 0
     for eval_id, keys in sorted(evals.items()):
         eval_findings, compared = _validate_eval(

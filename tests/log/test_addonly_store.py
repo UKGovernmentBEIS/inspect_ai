@@ -510,6 +510,17 @@ def test_swap_eval_file_keep_eval_id(
     assert_fails_with(result, "event_mismatch")
 
 
+def test_extra_eval_file(
+    clean_run: CleanRun, validate_cli: ValidateCli, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A .eval file from a run without the store, put in the log dir."""
+    monkeypatch.delenv(ADDONLY_STORE_ENV)
+    extra = run(agent_task(samples=1), clean_run.log_dir)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "unstored_eval")
+    assert f"unstored_eval {extra.eval.eval_id}:" in result.output
+
+
 # ---------------------------------------------- tampering, add-only store
 #
 # The eval host can add keys (put with If-None-Match) and nothing else. Its
@@ -871,7 +882,7 @@ def test_prefix_per_log_dir_scopes_validation(
     assert validate(evalhost_env, tmp_path / "a").findings == []
     assert validate(other, tmp_path / "b").findings == []
     missing = validate(evalhost_env, tmp_path / "b").findings
-    assert [f.kind for f in missing] == ["missing_eval_file"]
+    assert sorted(f.kind for f in missing) == ["missing_eval_file", "unstored_eval"]
 
 
 def test_sample_key_encoding() -> None:
