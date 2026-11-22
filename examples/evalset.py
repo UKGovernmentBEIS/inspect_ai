@@ -53,7 +53,7 @@ def run(log_dir: str, max_tasks: int | None, retry_attempts: int):
        retry_attempts: Number of retry attempts (defaults to 10)
 
     Returns:
-       Tuple of bool, list[EvalLog] with sucess status and final logs
+       Tuple of bool, list[EvalLog] with success status and final logs
     """
     # run eval_set
     return eval_set(
