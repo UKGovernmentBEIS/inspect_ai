@@ -987,3 +987,140 @@ async def test_model_event_with_cache_hit(tracing_env):
 
         model_call = mock_mlflow.start_span_no_context.call_args_list[3]
         assert model_call.kwargs["attributes"]["cache"] == "read"
+
+
+@pytest.mark.anyio
+async def test_sample_event_dedup_double_delivery(tracing_env):
+    """Regression test for #5780: double-delivered ModelEvents span once.
+
+    Inspect re-emits a ModelEvent once its timing fields are filled in, so
+    `on_sample_event` can see the same event twice. The dedup guard in the
+    example must still produce only one LLM span for that model call.
+    """
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.model._generate_config import GenerateConfig
+    from inspect_ai.model._model_output import ModelOutput
+
+    hook = MlflowTracingHooks()
+
+    with patch.object(_tracing_mod, "mlflow") as mock_mlflow:
+        mock_mlflow.start_span_no_context.return_value = MagicMock()
+
+        await hook.on_run_start(
+            RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
+        )
+        await hook.on_task_start(
+            TaskStart(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                spec=_make_eval_spec(),
+                plan=EvalPlan(),
+            )
+        )
+        await hook.on_sample_start(
+            SampleStart(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                sample_id="sample-0",
+                summary=MagicMock(),
+            )
+        )
+
+        # Spans so far: run, task, sample. A fourth span appears only on
+        # the first delivery; a second delivery must not add a fifth.
+        baseline_spans = mock_mlflow.start_span_no_context.call_count
+        assert baseline_spans == 3
+
+        model_event = ModelEvent(
+            model="openai/gpt-4",
+            input=[],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(),
+        )
+        for _ in range(2):
+            await hook.on_sample_event(
+                SampleEvent(
+                    eval_set_id=None,
+                    run_id="run-001",
+                    eval_id="eval-001",
+                    sample_id="sample-0",
+                    event=model_event,
+                )
+            )
+
+        assert mock_mlflow.start_span_no_context.call_count == baseline_spans + 1
+
+
+@pytest.mark.anyio
+async def test_sample_event_dedup_cleared_on_sample_end(tracing_env):
+    """The dedup set is cleared when the sample ends.
+
+    After on_sample_end the sample's uuid set is dropped so later samples
+    get their own bookkeeping instead of inheriting leftover state.
+    """
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.model._generate_config import GenerateConfig
+    from inspect_ai.model._model_output import ModelOutput
+
+    hook = MlflowTracingHooks()
+
+    with patch.object(_tracing_mod, "mlflow") as mock_mlflow:
+        mock_mlflow.start_span_no_context.return_value = MagicMock()
+
+        await hook.on_run_start(
+            RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
+        )
+        await hook.on_task_start(
+            TaskStart(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                spec=_make_eval_spec(),
+                plan=EvalPlan(),
+            )
+        )
+        await hook.on_sample_start(
+            SampleStart(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                sample_id="sample-0",
+                summary=MagicMock(),
+            )
+        )
+
+        event_a = ModelEvent(
+            model="openai/gpt-4",
+            input=[],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(),
+        )
+        await hook.on_sample_event(
+            SampleEvent(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                sample_id="sample-0",
+                event=event_a,
+            )
+        )
+
+        assert "sample-0" in hook._seen_event_uuids
+
+        await hook.on_sample_end(
+            SampleEnd(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                sample_id="sample-0",
+                sample=_make_sample(scores={"accuracy": Score(value=1.0)}),
+            )
+        )
+
+        assert "sample-0" not in hook._seen_event_uuids

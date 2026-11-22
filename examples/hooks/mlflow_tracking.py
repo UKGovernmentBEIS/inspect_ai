@@ -95,6 +95,11 @@ class MlflowTrackingHooks(Hooks):
         self._sample_counts: dict[str, int] = {}
         self._model_usage: dict[str, dict[str, float]] = {}
         self._event_counts: dict[str, dict[str, int]] = {}
+        # Inspect may deliver the same ModelEvent to on_sample_event more than
+        # once (e.g. once when the call completes and again when its timing
+        # fields are filled in); dedupe by event uuid so counters and metrics
+        # reflect the eval log, not the number of deliveries. See issue #5780.
+        self._seen_event_uuids: dict[str, set[str]] = {}
 
     def enabled(self) -> bool:
         return os.getenv("MLFLOW_TRACKING_URI") is not None
@@ -131,6 +136,7 @@ class MlflowTrackingHooks(Hooks):
         self._sample_counts.clear()
         self._model_usage.clear()
         self._event_counts.clear()
+        self._seen_event_uuids.clear()
 
     async def on_task_start(self, data: TaskStart) -> None:
         self._tasks[data.eval_id] = data.spec
@@ -311,6 +317,10 @@ class MlflowTrackingHooks(Hooks):
 
     async def on_sample_end(self, data: SampleEnd) -> None:
         eval_id = data.eval_id
+        # Drop the per-sample uuid set now that the sample is done; keep
+        # memory bounded even if the caller skips the early return below.
+        self._seen_event_uuids.pop(data.sample_id, None)
+
         if eval_id not in self._task_runs:
             return
 
@@ -353,6 +363,15 @@ class MlflowTrackingHooks(Hooks):
             self._event_counts[eval_id] = {"model_calls": 0, "tool_calls": 0}
 
         event = data.event
+
+        # Skip events we have already handled for this sample. Inspect may
+        # deliver the same event twice (see issue #5780), so dedupe by uuid.
+        if event.uuid is not None:
+            seen = self._seen_event_uuids.setdefault(data.sample_id, set())
+            if event.uuid in seen:
+                return
+            seen.add(event.uuid)
+
         counters = self._event_counts[eval_id]
 
         if isinstance(event, ModelEvent):

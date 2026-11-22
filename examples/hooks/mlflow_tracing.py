@@ -72,6 +72,11 @@ class MlflowTracingHooks(Hooks):
         self._task_spans: dict[str, Any] = {}  # eval_id -> LiveSpan
         self._sample_spans: dict[str, Any] = {}  # sample_id -> LiveSpan
         self._inspect_spans: dict[str, Any] = {}  # inspect span_id -> LiveSpan
+        # Inspect may deliver the same event to on_sample_event more than
+        # once (e.g. a ModelEvent is re-emitted once its timing fields are
+        # filled in); dedupe by event uuid so each event produces exactly
+        # one span. See issue #5780.
+        self._seen_event_uuids: dict[str, set[str]] = {}  # sample_id -> uuids
 
     def enabled(self) -> bool:
         return (
@@ -115,6 +120,7 @@ class MlflowTracingHooks(Hooks):
         self._task_spans.clear()
         self._sample_spans.clear()
         self._inspect_spans.clear()
+        self._seen_event_uuids.clear()
 
     async def on_task_start(self, data: TaskStart) -> None:
         parent = self._run_spans.get(data.run_id)
@@ -187,6 +193,8 @@ class MlflowTracingHooks(Hooks):
             logger.debug("Failed to start sample span", exc_info=True)
 
     async def on_sample_end(self, data: SampleEnd) -> None:
+        self._seen_event_uuids.pop(data.sample_id, None)
+
         span = self._sample_spans.pop(data.sample_id, None)
         if span is None:
             return
@@ -222,6 +230,15 @@ class MlflowTracingHooks(Hooks):
             return
 
         event = data.event
+
+        # Skip events we have already handled for this sample. Inspect may
+        # deliver the same event twice (see issue #5780); without this guard
+        # a ModelEvent would create two LLM spans for the same call.
+        if event.uuid is not None:
+            seen = self._seen_event_uuids.setdefault(data.sample_id, set())
+            if event.uuid in seen:
+                return
+            seen.add(event.uuid)
 
         try:
             if isinstance(event, SpanBeginEvent):
