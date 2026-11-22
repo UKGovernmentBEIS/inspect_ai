@@ -6,6 +6,7 @@
 | anthropic/claude-haiku-5-5 | medium |
 | anthropic/claude-mythos-5 | high |
 | anthropic/claude-mythos-5-1 | high |
+| anthropic/claude-mythos-5-2 | high |
 | anthropic/claude-opus-4-6 | adaptive |
 | anthropic/claude-opus-4-7 | adaptive |
 | anthropic/claude-opus-4-8 | high |
