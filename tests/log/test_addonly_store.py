@@ -12,6 +12,8 @@ design/tamper-evident-logs-findings.md.
 import json
 import os
 import shutil
+import subprocess
+import sys
 import uuid
 import zipfile
 from collections.abc import Callable, Iterator, Mapping
@@ -838,6 +840,35 @@ def test_edit_score_one_to_true(
     assert_fails_with(result, "score_mismatch", "event_mismatch")
     assert "Scores ['one_score'] differ" in result.output
     assert "differs in ['score']" in result.output
+
+
+def test_rescore_fails_validation(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """`inspect score --action overwrite` after the run: fails validation today.
+
+    Besides the scores and results, `inspect score` writes the sample's
+    events again in span order, with the new scorers span in place of the
+    old one, so the events differ too. How to report a rescore is not yet
+    decided.
+    """
+    rescore = subprocess.run(
+        [
+            *[sys.executable, "-m", "inspect_ai", "score", str(clean_run.location)],
+            *["--scorer", "match", "--overwrite", "--action", "overwrite"],
+        ],
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+    )
+    assert rescore.returncode == 0, rescore.stderr
+    log = read_eval_log(clean_run.location)
+    assert log.eval.eval_id == clean_run.eval_id
+    assert log.samples and log.samples[0].scores
+    assert set(log.samples[0].scores) == {"match"}
+
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "score_mismatch", "eval_mismatch", "event_mismatch")
 
 
 def test_edit_results(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
