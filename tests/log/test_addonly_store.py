@@ -607,6 +607,25 @@ def test_add_sample(clean_run: CleanRun, validate_cli: ValidateCli, how: str) ->
     assert f"unstored_sample {clean_run.eval_id}/s1.1:" in result.output
 
 
+def test_add_sample_member_same_id(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """A zip member `samples/extra_epoch_1.json` added: s0's sample, edited.
+
+    Its sample JSON says id s0, so only the member name shows that it is
+    not the s0 the store has.
+    """
+    with zipfile.ZipFile(clean_run.location, "a") as zf:
+        sample = json.loads(zf.read("samples/s0_epoch_1.json"))
+        tool_event = next(e for e in sample["events"] if e["event"] == "tool")
+        tool_event["result"] = "harmless"
+        sample["scores"]["includes"]["value"] = "I"
+        zf.writestr("samples/extra_epoch_1.json", json.dumps(sample))
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "unstored_sample")
+    assert f"unstored_sample {clean_run.eval_id}/extra.1:" in result.output
+
+
 def test_edit_score(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
     """The sample's score changed; its score event left as it was."""
 

@@ -20,6 +20,7 @@ from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
+from inspect_ai._util._async import run_coroutine
 from inspect_ai.event._validate import validate_events
 from inspect_ai.log._file import (
     list_eval_logs,
@@ -28,6 +29,7 @@ from inspect_ai.log._file import (
     read_eval_log_sample_summaries,
 )
 from inspect_ai.log._log import EvalSample
+from inspect_ai.log._recorders import recorder_type_for_location
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.types import BufferRows
 from inspect_ai.log._recorders.streaming import materialize_streaming_sample
@@ -442,17 +444,18 @@ def _same_json(lhs: Any, rhs: Any) -> bool:
 def _eval_file_samples(eval_file: str) -> set[str]:
     """``<sample-id>.<epoch>`` of each sample in the .eval file.
 
-    From the sample summaries (which the viewer lists) and the samples
-    themselves (which a full read returns), since an edit can add to one only.
+    From the sample summaries (which the viewer lists) and the names of the
+    sample members of the zip (which a full read returns), since an edit can
+    add to one only. Member names, not the ids in the sample JSON: a member
+    added under a new name can hold a stored sample's id.
     """
     summaries = read_eval_log_sample_summaries(eval_file)
-    samples = read_eval_log(eval_file, exclude_fields=_SAMPLE_BODY).samples or []
+    members = run_coroutine(
+        recorder_type_for_location(eval_file).read_log_sample_keys(eval_file)
+    )
     return {sample_key_part(s.id, s.epoch) for s in summaries} | {
-        sample_key_part(s.id, s.epoch) for s in samples
+        sample_key_part(m.sample_id, m.epoch) for m in members
     }
-
-
-_SAMPLE_BODY = {"events", "messages", "attachments", "events_data", "store"}
 
 
 def _record_type(
