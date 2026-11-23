@@ -8,9 +8,11 @@ import importlib.util
 import pathlib
 
 import pytest
+import yaml
 
+REPO = pathlib.Path(__file__).parents[1]
 spec = importlib.util.spec_from_file_location(
-    "pr_gate", pathlib.Path(__file__).parents[1] / ".github" / "scripts" / "pr_gate.py"
+    "pr_gate", REPO / ".github" / "scripts" / "pr_gate.py"
 )
 assert spec is not None and spec.loader is not None
 pr_gate = importlib.util.module_from_spec(spec)
@@ -59,6 +61,17 @@ def test_parse_qualified_non_numeric_entry_raises():
 # --- trivial carve-out ---
 
 
+def test_docs_include_fix_is_trivial():
+    files = [{"filename": "docs/_tools-basics.md", "additions": 1, "deletions": 1}]
+    assert pr_gate.is_trivial(files)
+
+
+def test_readme_typo_fix_is_trivial():
+    assert pr_gate.is_trivial(
+        [{"filename": "README.md", "additions": 1, "deletions": 1}]
+    )
+
+
 def test_trivial_docs_only_small_diff():
     files = [
         {"filename": "README.md", "additions": 2, "deletions": 1},
@@ -79,6 +92,98 @@ def test_not_trivial_when_diff_large():
 
 def test_trivial_empty_file_list_is_not_trivial():
     assert not pr_gate.is_trivial([])
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "docs/_quarto.yml",
+        "docs/filters/callout.lua",
+        "docs/scripts/build.py",
+        "docs/js/site.js",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "src/inspect_sandbox_tools/AGENTS.md",
+        "AGENTS.override.md",
+        "GEMINI.md",
+        "examples/skills/skills/disk-usage/SKILL.md",
+        "CONTRIBUTING.md",
+        "design/sandbox-trust-model.md",
+        "src/inspect_ai/README.md",
+        "docs/AGENTS.md",
+        "docs/guides/AGENTS.override.md",
+        "docs/CHANGELOG.md",
+        ".agents/skills/slow-tests/SKILL.md",
+        ".github/pull_request_template.md",
+    ],
+)
+def test_small_edit_outside_docs_prose_is_not_trivial(filename):
+    files = [{"filename": filename, "additions": 1, "deletions": 1}]
+    assert not pr_gate.is_trivial(files)
+    v = pr_gate.decide(make_ctx(files=files))
+    assert v.verdict == "close" and v.tier == "needs-issue"
+
+
+def test_one_line_extensions_listing_is_trivial():
+    files = [
+        {"filename": "docs/extensions/extensions.yml", "additions": 6, "deletions": 0}
+    ]
+    assert pr_gate.is_trivial(files)
+
+
+def test_rename_from_code_into_docs_is_not_trivial():
+    files = [
+        {
+            "filename": "docs/notes.qmd",
+            "previous_filename": "src/inspect_ai/x.py",
+            "status": "renamed",
+            "additions": 1,
+            "deletions": 0,
+        }
+    ]
+    assert not pr_gate.is_trivial(files)
+
+
+def test_rename_within_docs_with_a_small_edit_is_trivial():
+    files = [
+        {
+            "filename": "docs/new-name.qmd",
+            "previous_filename": "docs/old-name.qmd",
+            "status": "renamed",
+            "additions": 1,
+            "deletions": 1,
+        }
+    ]
+    assert pr_gate.is_trivial(files)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        # mode change: GitHub reports no changed lines, as for a binary file
+        {"filename": "docs/eval.qmd", "status": "changed"},
+        # pure rename
+        {
+            "filename": "docs/b.qmd",
+            "previous_filename": "docs/a.qmd",
+            "status": "renamed",
+        },
+    ],
+)
+def test_change_without_changed_lines_is_not_trivial(change):
+    files = [{"additions": 0, "deletions": 0, **change}]
+    assert not pr_gate.is_trivial(files)
+
+
+def test_gate_rechecks_when_files_or_body_change():
+    workflow = yaml.safe_load(
+        (REPO / ".github" / "workflows" / "pr-gate.yml").read_text()
+    )
+    # PyYAML reads the bare `on` key as True.
+    types = workflow[True]["pull_request_target"]["types"]
+    assert {"synchronize", "edited"} <= set(types)
+    env = workflow["jobs"]["gate"]["steps"][-1]["env"]
+    assert env["PR_EVENT_ACTION"] == "${{ github.event.action }}"
 
 
 # --- decision core: pass if ANY check holds ---
@@ -424,8 +529,9 @@ def test_fetch_ctx_records_linked_issue_repository(monkeypatch, tmp_path):
     assert pr_gate.decide(ctx).tier == "issue-approved"
 
 
-# --- enforcement: the close happens on every close verdict; the explanatory
-# comment is posted once, and only the gate's own comment counts as posted ---
+# --- enforcement: a close verdict closes the PR unless it changed during the
+# run; the explanatory comment is skipped only when a reopened PR already has
+# one, and only the gate's own comment counts as posted ---
 
 
 def gate_comment(body=None):
@@ -452,12 +558,37 @@ def test_is_gate_comment_requires_gate_author_and_marker():
     assert not pr_gate.is_gate_comment({"user": None, "body": None})
 
 
+HEAD_SHA = "a" * 40
+
+
+def live(
+    sha,
+    state="open",
+    draft=False,
+    body="Fixes #1",
+    base="main",
+    fork_pushed_at="2026-11-23T10:00:00Z",
+    labels=(),
+):
+    """The PR as GET /pulls/N returns it, with some of the fork metadata."""
+    return {
+        "head": {"sha": sha, "repo": {"pushed_at": fork_pushed_at}},
+        "base": {"ref": base},
+        "state": state,
+        "draft": draft,
+        "body": body,
+        "labels": [{"name": name} for name in labels],
+    }
+
+
 class FakeGitHub:
     """Stands in for the gate's `gh`/`gh_json` calls and records what it is told."""
 
-    def __init__(self, ctx, comments):
+    def __init__(self, ctx, comments, prs=(None,)):
         self.ctx = ctx
         self.comments = comments
+        # successive answers for the live PR; the last one repeats
+        self.prs = [pr or live(HEAD_SHA) for pr in prs]
         self.calls: list[tuple[str, ...]] = []
 
     def fetch_ctx(self, repo, pr_number, author, author_id, assoc):
@@ -465,6 +596,8 @@ class FakeGitHub:
         return self.ctx
 
     def gh_json(self, *args):
+        if args[0].endswith("/pulls/42"):
+            return self.prs.pop(0) if len(self.prs) > 1 else self.prs[0]
         assert args[0].endswith("/comments"), args
         return self.comments
 
@@ -484,8 +617,15 @@ class FakeGitHub:
         return [c[-1] for c in self.calls if c[1].endswith("/labels")]
 
 
-def run_gate(monkeypatch, ctx, comments=(), dry_run="false"):
-    fake = FakeGitHub(ctx, list(comments))
+def run_gate(
+    monkeypatch,
+    ctx,
+    comments=(),
+    dry_run="false",
+    prs=(None,),
+    action="opened",
+):
+    fake = FakeGitHub(ctx, list(comments), prs)
     monkeypatch.setattr(pr_gate, "fetch_ctx", fake.fetch_ctx)
     monkeypatch.setattr(pr_gate, "gh_json", fake.gh_json)
     monkeypatch.setattr(pr_gate, "gh", fake.gh)
@@ -495,6 +635,7 @@ def run_gate(monkeypatch, ctx, comments=(), dry_run="false"):
     monkeypatch.setenv("PR_AUTHOR_ID", str(ctx["author_id"]))
     monkeypatch.setenv("PR_AUTHOR_ASSOC", ctx["author_association"])
     monkeypatch.setenv("PR_CREATED_AT", "2026-09-15T12:00:00Z")
+    monkeypatch.setenv("PR_EVENT_ACTION", action)
     monkeypatch.setenv("DRY_RUN", dry_run)
     assert pr_gate.main() == 0
     return fake
@@ -517,8 +658,73 @@ def test_deferred_close_uses_deferred_comment(monkeypatch):
 def test_reopened_pr_with_gate_comment_is_closed_without_new_comment(monkeypatch):
     # The PR was closed by the gate once and reopened unchanged: close it
     # again, but do not repeat the explanation.
-    fake = run_gate(monkeypatch, make_ctx(), comments=[gate_comment()])
+    fake = run_gate(
+        monkeypatch, make_ctx(), comments=[gate_comment()], action="reopened"
+    )
     assert fake.posted_comments == []
+    assert fake.closed
+
+
+@pytest.mark.parametrize("action", ["synchronize", "edited"])
+def test_recheck_close_explains_itself_despite_an_earlier_gate_comment(
+    monkeypatch, action
+):
+    # The PR was closed once, reopened with an accepted issue and passed; a
+    # later push or edit made it fail again.
+    fake = run_gate(
+        monkeypatch,
+        make_ctx(linked_issues=[issue(["deferred"])]),
+        comments=[gate_comment()],
+        action=action,
+    )
+    assert fake.posted_comments[0][-1] == f"body={pr_gate.deferred_close_comment()}"
+    assert fake.closed
+
+
+def test_failing_pr_is_left_for_the_newer_run_when_its_body_changed(monkeypatch):
+    # An edit during the run may have linked an accepted issue.
+    fake = run_gate(
+        monkeypatch,
+        make_ctx(),
+        prs=(live(HEAD_SHA), live(HEAD_SHA, body="Fixes #2")),
+    )
+    assert not fake.closed
+    assert fake.posted_comments == []
+
+
+def test_failing_pr_is_left_for_the_newer_run_when_retargeted(monkeypatch):
+    fake = run_gate(
+        monkeypatch,
+        make_ctx(),
+        prs=(live(HEAD_SHA), live(HEAD_SHA, base="release/1.0")),
+    )
+    assert not fake.closed
+    assert fake.posted_comments == []
+
+
+def test_push_to_another_branch_of_the_fork_does_not_skip_the_close(monkeypatch):
+    fake = run_gate(
+        monkeypatch,
+        make_ctx(),
+        prs=(live(HEAD_SHA), live(HEAD_SHA, fork_pushed_at="2026-11-23T10:05:00Z")),
+    )
+    assert fake.closed
+    assert len(fake.posted_comments) == 1
+
+
+def test_failing_pr_endorsed_during_the_run_is_not_closed(monkeypatch):
+    fake = run_gate(
+        monkeypatch,
+        make_ctx(),
+        prs=(live(HEAD_SHA), live(HEAD_SHA, labels=["Qualified"])),
+    )
+    assert not fake.closed
+    assert fake.posted_comments == []
+
+
+def test_reopened_pr_without_gate_comment_explains_itself(monkeypatch):
+    fake = run_gate(monkeypatch, make_ctx(), action="reopened")
+    assert len(fake.posted_comments) == 1
     assert fake.closed
 
 
@@ -529,6 +735,7 @@ def test_unrelated_marker_comment_does_not_count_as_gate_comment(monkeypatch):
         monkeypatch,
         make_ctx(),
         comments=[user_comment("somebody", pr_gate.close_comment())],
+        action="reopened",
     )
     assert len(fake.posted_comments) == 1
     assert fake.closed
@@ -536,7 +743,10 @@ def test_unrelated_marker_comment_does_not_count_as_gate_comment(monkeypatch):
 
 def test_gate_author_comment_without_marker_does_not_count(monkeypatch):
     fake = run_gate(
-        monkeypatch, make_ctx(), comments=[gate_comment(body="some other bot output")]
+        monkeypatch,
+        make_ctx(),
+        comments=[gate_comment(body="some other bot output")],
+        action="reopened",
     )
     assert len(fake.posted_comments) == 1
     assert fake.closed
@@ -570,3 +780,32 @@ def test_dry_run_labels_instead_of_closing(monkeypatch):
     assert fake.labels_added == ["labels[]=gate-dry-run"]
     assert fake.posted_comments == []
     assert not fake.closed
+
+
+def test_failing_pr_is_left_for_the_newer_run_when_its_head_moved(monkeypatch):
+    fake = run_gate(monkeypatch, make_ctx(), prs=(live(HEAD_SHA), live("b" * 40)))
+    assert not fake.closed
+    assert fake.posted_comments == []
+
+
+def test_gate_runs_only_on_open_ready_prs():
+    workflow = yaml.safe_load(
+        (REPO / ".github" / "workflows" / "pr-gate.yml").read_text()
+    )
+    condition = workflow["jobs"]["gate"]["if"]
+    assert "github.event.pull_request.draft == false" in condition
+    assert "github.event.pull_request.state == 'open'" in condition
+    assert " && " in condition and "||" not in condition
+
+
+@pytest.mark.parametrize(
+    "now",
+    [live(HEAD_SHA, state="closed"), live(HEAD_SHA, draft=True)],
+    ids=["closed", "draft"],
+)
+def test_queued_run_leaves_a_pr_that_is_no_longer_open_and_ready(monkeypatch, now):
+    # The run was queued while the PR was open and ready; an earlier run
+    # closed it, a maintainer closed it, or the author made it a draft.
+    fake = run_gate(monkeypatch, make_ctx(), prs=(now,), action="edited")
+    assert not fake.closed
+    assert fake.posted_comments == []

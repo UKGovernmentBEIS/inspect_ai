@@ -144,8 +144,11 @@ applies wherever else a caller gives a relative path inside a scope:
   resolves against it, so `exec_remote(cwd="sub")` and `exec(cwd="sub")` run
   in the same directory (`test_identity_scope_resolves_a_relative_cwd` in
   `tests/util/sandbox/test_exec_remote.py`). Inside a marked operation, such
-  as an in-loop scorer, a relative `cwd` is kept, as `exec()` keeps it there;
-  an omitted one still becomes the scope's `cwd`.
+  as an in-loop scorer, `exec_remote()` resolves its user and `cwd` as
+  `exec()` does there: an omitted user is the default user, an omitted `cwd`
+  stays omitted and a relative one is kept
+  (`test_framework_operation_keeps_the_default_user_in_a_scope`,
+  `test_framework_operation_leaves_an_omitted_cwd_omitted`).
 - `sandbox_with(file)` resolves a relative `file` against the scope's `cwd`
   for the scope's sandbox among the candidates before probing it, so
   `sandbox_with("result.txt")` probes the same pathname a member's
@@ -168,10 +171,6 @@ another sandbox and through `as_type()`, nothing changes
 (`test_scope_cwd_is_not_used_by_framework_operations_or_elsewhere`). The
 `SandboxEvent` records the resolved `cwd` in an exec event's options and the
 resolved path in a file event's `file`.
-
-Companion packages tell that the installed inspect_ai applies the scope's
-`cwd` at the boundary through the `SANDBOX_OPERATIONS_USE_SCOPE_CWD` flag in
-`identity.py`.
 
 ### Closed working directories
 
@@ -337,9 +336,8 @@ take at the boundary:
   `SandboxUserUnsupportedError` before writing anything. Given an absolute
   `dir`, or a relative one in a scope with a `cwd`, it works on a
   [closed working directory](#closed-working-directories) (see below for a
-  relative one in a scope with no `cwd`); companion packages detect that its
-  `chmod +x` runs from `/` through the `INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT`
-  flag in `install.py`. It changes no ownership: files it creates belong to the
+  relative one in a scope with no `cwd`).
+  It changes no ownership: files it creates belong to the
   member, like every other file the member's scaffold creates, while a file
   it overwrites keeps whatever owner the provider's write leaves (Docker
   keeps the existing owner); it can overwrite only a file the member may
@@ -567,10 +565,6 @@ root.
 - **User switching without usable root.** A tools server that runs as the
   default user cannot switch to the scope's user, so `bash_session()` and
   `text_editor()` cannot honour a scope there.
-- **Scorers and `exec_remote()`.** Inside in-loop scoring, `exec_remote()`
-  still takes the scope's user (its user resolution is not marker-aware), while
-  the scorer's `exec()` keeps the default user. No scorer is known to call
-  `exec_remote()`.
 - **File users in third-party providers.** Kubernetes and other providers
   need `user` on `read_file()` and `write_file()` before custom file
   operations work inside a scope there. That work belongs in each provider's

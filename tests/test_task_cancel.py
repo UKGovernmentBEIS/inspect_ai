@@ -1406,7 +1406,7 @@ async def test_abort_of_stuck_error_log_write_times_out(
 
     first_attempt = displayed["a"][0]
     assert isinstance(first_attempt, TaskError)
-    assert "sample failure" in str(first_attempt.exc_value)
+    assert "sample failure" in first_attempt.text
     if cancel_type == "abort":
         assert [(log.eval.task, log.status) for log in logs] == [
             ("a", "error"),
@@ -1813,7 +1813,7 @@ async def test_abort_before_any_log_write_reports_errored_log(
     assert runs == ["b"]
     assert len(displayed["a"]) == 1
     assert isinstance(displayed["a"][0], TaskError)
-    assert "cancelled by user (abort)" in str(displayed["a"][0].exc_value)
+    assert "cancelled by user (abort)" in displayed["a"][0].text
 
 
 @pytest.mark.anyio
@@ -1907,6 +1907,8 @@ async def test_retry_abandoned_after_row_opens_completes_row(
 
     async def log_start(self: TaskLogger, *args: Any, **kwargs: Any) -> None:
         starts.append(self.eval.eval_id)
+        # the attempt's log started (init()) before log_start
+        assert self.location is not None
         locations.append(self.location)
         await original_log_start(self, *args, **kwargs)
         if len(starts) == 2:

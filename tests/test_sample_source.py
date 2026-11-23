@@ -25,6 +25,7 @@ from inspect_ai import (
     eval_set,
     task,
 )
+from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log import (
@@ -2516,8 +2517,8 @@ def test_sample_source_retry_filters_prior_payloads_before_publication(
     async def check_start(logger: TaskLogger, plan: EvalPlan) -> None:
         await start(logger, plan)
         assert logger.prior_seeded
-        check_snapshot(logger.location)
-        snapshots.append(logger.location)
+        check_snapshot(_initialized_location(logger))
+        snapshots.append(_initialized_location(logger))
 
     monkeypatch.setattr(TaskLogger, "log_start", check_start)
     ok, logs = eval_set(
@@ -2636,8 +2637,8 @@ def test_sample_source_retry_applies_limit_and_epochs_before_publication(
     async def check_start(logger: TaskLogger, plan: EvalPlan) -> None:
         await start(logger, plan)
         assert logger.prior_seeded
-        check_snapshot(logger.location)
-        snapshots.append(logger.location)
+        check_snapshot(_initialized_location(logger))
+        snapshots.append(_initialized_location(logger))
 
     monkeypatch.setattr(TaskLogger, "log_start", check_start)
     ok, logs = eval_set(
@@ -3052,3 +3053,9 @@ def test_sample_source_task_retry_feed_raise_leaves_reuse_counted() -> None:
 
     # ...but the reused run was already counted completed, not cancelled
     assert observed and observed[0] == (1, 0, 0)
+
+
+def _initialized_location(logger: TaskLogger) -> str:
+    """The location of a logger whose log has been initialised."""
+    assert logger.location is not None
+    return logger.location
