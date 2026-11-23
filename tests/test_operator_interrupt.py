@@ -7,7 +7,7 @@ from inspect_ai._control.cancel import cancel_sample
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.log._samples import SampleCancelAction, sample_active
 from inspect_ai.scorer import Score, Scorer, Target, accuracy, includes, scorer
-from inspect_ai.solver import Generate, TaskState, solver
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import background
 
 
@@ -129,8 +129,8 @@ def test_operator_cancel_stays_cancelled_when_an_error_follows():
 
 
 @solver
-def interrupt_twice(first: SampleCancelAction, second: SampleCancelAction):
-    async def solve(state: TaskState, generate: Generate):
+def interrupt_twice(first: SampleCancelAction, second: SampleCancelAction) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
         active = sample_active()
         assert active is not None, "expected an active sample"
         active.interrupt(first)
@@ -141,7 +141,7 @@ def interrupt_twice(first: SampleCancelAction, second: SampleCancelAction):
     return solve
 
 
-def test_second_interrupt_does_not_replace_the_first():
+def test_second_interrupt_does_not_replace_the_first() -> None:
     """A cancel followed by a score before the runner handles it stays a cancel."""
     log = eval(
         Task(
@@ -177,7 +177,7 @@ def ctl_cancel_while_scoring() -> Scorer:
     return score
 
 
-def test_ctl_cancel_after_operator_score_reports_no_change():
+def test_ctl_cancel_after_operator_score_reports_no_change() -> None:
     """A ctl cancel landing while an operator 'score' is being scored is a no-op."""
     _ctl_results.clear()
     log = eval(
