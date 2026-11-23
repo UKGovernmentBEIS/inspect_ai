@@ -629,8 +629,12 @@ scope, and no `TerminateSampleError` is in its history:
 `find_control_flow()` (`src/inspect_ai/util/_sandbox/service.py`), which
 searches group members, `__cause__` and `__context__`, finds none. A limit
 error that carries a termination is therefore never caught by
-`apply_limits()` or `run()`; it propagates unchanged and the sample ends on
-the termination, as today. The combined errors this design raises itself
+`apply_limits()` or `run()`; it propagates unchanged. Where it ends up is
+today's: the sandbox service's dispatcher searches its history
+(`raise_if_control_flow()`), so under the bridge the sample ends on the
+termination; the native sample runner does not search a limit error's
+history, so one that reaches it is recorded as a limit, as today ("The
+owner's exit check"; "Not this design"). The combined errors this design raises itself
 (the tool reduction, the response filter, the bridge) are built inside the
 handler that caught the original exception, so implicit `__context__`
 chaining keeps a termination in it findable. A limit is covered when it is one of the scope's own limits (of any
@@ -918,7 +922,10 @@ records it, `EvalSample.limit` from its primary fields.
 Everything else is unchanged. A limit error that escapes the solvers is
 recorded as it is today. A non-limit error (a group whose first leaf is
 not a limit) goes to the error handling as today, so an error still outranks a
-limit at the runner. A termination keeps its own `except` clause. An
+limit at the runner. A termination keeps its own `except` clause, which
+catches a `TerminateSampleError` that escapes the solvers; the runner does
+not search a limit error's history for one, so a limit error carrying a
+termination is recorded as a limit, as today. An
 operator interrupt and a limit delivered by cancellation (the working limit,
 or a limit a sandbox service routes to the sample) keep their handling
 inside `run()`, which sets the outcome before the join, so the exit check
@@ -1985,9 +1992,13 @@ documented. Behaviour changes:
   their kind, with one exception: a limit error with a termination in its
   history is never returned. That changes one case: a bare error from one
   of `run()`'s own limits raised from or during a `TerminateSampleError`
-  now propagates out of `run()` and ends the sample on the termination,
-  where today `run()` returns it; a group carrying one propagates, as
-  today. Native
+  now propagates out of `run()`, where today `run()` returns it; a group
+  carrying one propagates, as today. Under the bridge the sample then ends
+  on the termination (`EvalSample.limit` of type `operator` with the
+  termination's reason). In a native solver that does not catch it, the
+  runner records it as a limit (`EvalSample.limit` of its primary type),
+  as it records such an error reaching it today; the sample no longer
+  continues past it. Native
   tools still map an owned limit to the `limit` tool error without looking
   at its history, as today. `run(limits=None)`, which
   returns only the state, catches nothing, as today. With `catch_errors=False` a
@@ -2308,7 +2319,13 @@ under trio with `--runtrio`.
   swallows an exceeded sample token limit and returns is recorded as
   limited; a solver that uses exactly the budget and returns is not; a solver that catches the limit and raises
   `state.token_limit` is not; a resume for scoring over a spent budget is
-  not; a sample with a cost limit whose solver calls an unpriced model fails
+  not; a native solver awaiting
+  `run(limits=[token_limit(...), cost_limit(...)])` whose agent raises a
+  group of both limits' errors, the cost limit's raised from a
+  `TerminateSampleError`, gets no return from `run()`: the group escapes
+  and the sample is recorded with the token limit (the combined error's
+  primary fields), as the runner records such a group today; a sample with
+  a cost limit whose solver calls an unpriced model fails
   with `UnmeteredCallError`;
   - the runner's reduction (`first_or_combined_limit()`): a solver that
     enters a `with token_limit()` inside the sample's cost limit and lets
@@ -2484,7 +2501,8 @@ Each step is one PR, in this order. Each keeps the suite green.
 3. **Owners and reductions.** `_limit.py`: `apply_limits()` covered exits
    (a limit is covered when it is the scope's own or its node carries the
    scope's marker; an error with a termination in its history, found by
-   `find_control_flow()`, is never covered) and the exit check over its own limits on a normal return.
+   `find_control_flow()`, is never covered; the runner's handling of a
+   limit error carrying a termination is unchanged) and the exit check over its own limits on a normal return.
    `src/inspect_ai/agent/_run.py`: the return after the block, and
    entering the scope as `apply_limits(limits or [],
    catch_errors=limits is not None)`: today `run(limits=None)` enters a
@@ -2581,6 +2599,12 @@ None.
   check and the checkpoint dump and restore at the nodes the runner
   entered rather than the tree roots, and deciding what a stored nested
   payload, which holds the enclosing totals, restores into.
+- Delivering a termination carried in a limit error's history on the
+  native path. The sample runner's `except LimitExceededError` records
+  the limit without searching its history, as today, while the sandbox
+  service's dispatcher delivers the termination
+  (`raise_if_control_flow()`). Making the runner search with
+  `find_control_flow()` is a separate change.
 - Where a policy call's error ends up. A sentinel stage's, tool result
   review's or approval's error keeps today's routes, which differ by stage
   and between native and bridged execution (`SentinelFailure` unwrapped at
