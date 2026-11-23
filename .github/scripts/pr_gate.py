@@ -270,7 +270,10 @@ def fetch_ctx(
 ) -> dict:
     owner, name = repo.split("/")
 
-    files = gh_json(f"repos/{repo}/pulls/{pr_number}/files", "--paginate")
+    # One page, so a run's cost doesn't grow with the PR. It is the whole list
+    # for any PR that could be trivial, which has fewer than TRIVIAL_MAX_LINES
+    # files.
+    files = gh_json(f"repos/{repo}/pulls/{pr_number}/files?per_page=100")
 
     pr_labels = [
         label["name"].lower()
