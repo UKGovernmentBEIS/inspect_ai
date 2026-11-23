@@ -633,10 +633,11 @@ Each guarantee below is the one a named test in `tests/log/test_shards.py`
 their own sections.
 
 - A merge of shards run with sample ids holds every selected sample and
-  epoch. For deterministic, order-insensitive metrics over values the
-  stored JSON preserves (for example mean, accuracy and stderr over plain
-  scores), each named metric value it computes equals the corresponding
-  value of a fresh merge of the same companion and of an unsharded run
+  epoch. For deterministic metrics that are mathematically
+  order-insensitive, over values the stored JSON preserves (for example
+  mean, accuracy and stderr over plain scores), each named metric value it
+  computes equals the corresponding value of a fresh merge of the same
+  companion and of an unsharded run, up to floating-point rounding
   (`test_merge_of_sample_id_shards_matches_an_unsharded_run`,
   `test_incremental_merges_equal_fresh_merges`). The exceptions:
   - **Randomness.** `bootstrap_stderr` and bootstrap `ci` (clustered too)
@@ -644,7 +645,10 @@ their own sections.
     ("Results").
   - **Input order.** The merge feeds metrics in id, then epoch order; a
     native run in epoch, then dataset order. An order-sensitive metric can
-    differ ("Results"). So can anything that follows the first score
+    differ ("Results"), and so can the last bits of a floating-point
+    aggregate such as `mean()`, whose summation order follows the input
+    order (scores 0.1, 0.1, 0.4 averaged in two orders give
+    0.20000000000000004 and 0.19999999999999998). So can anything that follows the first score
     seen: a wildcard metric (`{"*": [...]}`) expands in the key order of
     the first dictionary score, so the results can come out in a different
     order, and the default headline, which is the first result, can name a
