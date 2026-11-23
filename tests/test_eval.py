@@ -1550,7 +1550,10 @@ def test_eval_sandbox_init_when_first_task_has_no_sandbox():
     from inspect_ai._eval.run import SandboxManager
 
     with mock.patch.object(
-        SandboxManager, "start", autospec=True, side_effect=SandboxManager.start
+        SandboxManager,
+        "_start_sandboxenvs",
+        autospec=True,
+        side_effect=SandboxManager._start_sandboxenvs,
     ) as start_spy:
         results = eval(
             tasks=[
@@ -2142,7 +2145,7 @@ async def test_terminal_log_write_failure_preserves_recovery(
         assert "persistent final write failure" in logs[0].error.message
         assert len(buffers) == task_retry_attempts + 1
         logger = loggers[-1]
-        written = await read_eval_log_async(logger.location)
+        written = await read_eval_log_async(_initialized_location(logger))
         assert written.status == "started"
         assert not written.samples
         assert logger.buffer_db is None
@@ -2165,7 +2168,7 @@ async def test_terminal_log_write_failure_preserves_recovery(
         # Restore storage for recovery; the missing DB simulates another machine.
         monkeypatch.setattr(ZipLogFile, "flush", flush)
         recovered_log = await recover_eval_log_async(
-            logger.location,
+            _initialized_location(logger),
             _db_dir=tmp_path
             / ("db" if recovery_source == "database" else "missing-db"),
         )
@@ -2428,7 +2431,7 @@ async def test_terminal_retry_startup_releases_recorder(
     logs = list_eval_logs(str(tmp_path))
     assert len(logs) == (2 if failure_stage == "flush" else 1)
     if failure_stage == "flush":
-        written = await read_eval_log_async(failed_loggers[0].location)
+        written = await read_eval_log_async(_initialized_location(failed_loggers[0]))
         assert written.status == "started"
         assert written.samples is not None and len(written.samples) == 1
         assert written.samples[0].error == (prior.samples or [])[0].error
@@ -3206,3 +3209,80 @@ async def test_eval_scoring_hook_cancellation_closes_sample_streams(
     finally:
         for receive in receivers:
             receive.close()
+
+
+def _initialized_location(logger: TaskLogger) -> str:
+    """The location of a logger whose log has been initialised."""
+    assert logger.location is not None
+    return logger.location
+
+
+@solver
+def _fails_twice_past_the_time_limit() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        async def fail(error: Exception) -> None:
+            # outlasts the sample's time limit, then fails
+            with anyio.CancelScope(shield=True):
+                await anyio.sleep(1.5)
+            raise error
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(fail, ValueError("the first failure"))
+            tg.start_soon(fail, KeyError("the second failure"))
+        return state
+
+    return solve
+
+
+# The suite skips ids that begin `[trio` unless it runs only its Trio variants,
+# and this test starts an eval of its own on each backend.
+@pytest.mark.parametrize("backend", ["trio", "asyncio"], ids=["on trio", "on asyncio"])
+def test_a_sample_error_of_one_failure_in_a_group_is_recorded_as_itself(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+
+    @solver
+    def fails_past_the_time_limit() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with anyio.CancelScope(shield=True):
+                await anyio.sleep(1.5)
+            raise ValueError("the only failure")
+
+        return solve
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=fails_past_the_time_limit()),
+        model="mockllm/model",
+        time_limit=1,
+        display="none",
+    )
+
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None
+    assert error.message == "ValueError('the only failure')"
+
+
+@pytest.mark.parametrize("backend", ["trio", "asyncio"], ids=["on trio", "on asyncio"])
+def test_a_sample_error_of_failures_in_a_group_keeps_each_in_its_traceback(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=_fails_twice_past_the_time_limit()),
+        model="mockllm/model",
+        time_limit=1,
+        display="none",
+    )
+
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None
+    assert "the first failure" in error.traceback
+    if backend == "trio":
+        # Under Trio the group reaches the sample's error once its time limit
+        # has run out, and is recorded whole. On asyncio, a task group's
+        # errors are unwrapped where the group ends, which keeps the first.
+        assert "the second failure" in error.traceback

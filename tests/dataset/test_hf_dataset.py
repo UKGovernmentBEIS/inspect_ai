@@ -11,6 +11,12 @@ from inspect_ai.dataset._sources.hf import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _clear_hf_offline_env(monkeypatch):
+    for name in ("HF_HUB_OFFLINE", "HF_DATASETS_OFFLINE", "TRANSFORMERS_OFFLINE"):
+        monkeypatch.delenv(name, raising=False)
+
+
 def _make_hf_http_error(status_code: int):
     from huggingface_hub.errors import HfHubHTTPError
 
@@ -93,6 +99,117 @@ def test_no_retry_readtimeout_other_host():
 
 def test_no_retry_unrelated_exception():
     assert _should_retry_hf_error(RuntimeError("boom")) is False
+
+
+@pytest.mark.parametrize("module", ["httpx", "httpx2"])
+@pytest.mark.parametrize(
+    "timeout", ["ConnectTimeout", "ReadTimeout", "WriteTimeout", "PoolTimeout"]
+)
+def test_retry_httpx_timeouts(module, timeout):
+    pytest.importorskip(module)
+    mod = __import__(module)
+    err = getattr(mod, timeout)(
+        "timed out",
+        request=mod.Request("GET", "https://huggingface.co/api/datasets/org/ds"),
+    )
+    assert _should_retry_hf_error(err) is True
+
+
+def test_retry_httpx_timeout_in_cause_chain():
+    httpx = pytest.importorskip("httpx")
+    timeout = httpx.ReadTimeout("timed out")
+    try:
+        try:
+            raise timeout
+        except httpx.ReadTimeout as ex:
+            raise OSError("download failed") from ex
+    except OSError as err:
+        assert _should_retry_hf_error(err) is True
+
+
+@skip_if_no_package("httpx")
+def test_no_retry_httpx_non_timeout_error():
+    import httpx
+
+    assert _should_retry_hf_error(httpx.ConnectError("refused")) is False
+
+
+def test_retry_hub_unreachable_wrapper_without_cause():
+    err = ConnectionError(
+        "Couldn't reach 'lhoestq/demo1' on the Hub (LocalEntryNotFoundError)"
+    )
+    assert err.__cause__ is None
+    assert _should_retry_hf_error(err) is True
+
+
+@pytest.mark.parametrize(
+    "env,expected_retry",
+    [
+        ({"HF_HUB_OFFLINE": "1"}, False),
+        ({"HF_DATASETS_OFFLINE": "true"}, False),
+        ({"TRANSFORMERS_OFFLINE": "YES"}, False),
+        ({"HF_HUB_OFFLINE": "on"}, False),
+        ({"HF_HUB_OFFLINE": "0"}, True),
+        ({"HF_DATASETS_OFFLINE": "false"}, True),
+        # HF_DATASETS_OFFLINE overrides the Hub-wide flag when it is set
+        ({"HF_HUB_OFFLINE": "1", "HF_DATASETS_OFFLINE": "0"}, True),
+        # a non-empty HF_HUB_OFFLINE takes precedence over TRANSFORMERS_OFFLINE
+        ({"HF_HUB_OFFLINE": "0", "TRANSFORMERS_OFFLINE": "1"}, True),
+        ({"HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "0"}, False),
+        # an empty HF_HUB_OFFLINE falls through to TRANSFORMERS_OFFLINE
+        ({"HF_HUB_OFFLINE": "", "TRANSFORMERS_OFFLINE": "1"}, False),
+        ({"HF_HUB_OFFLINE": "", "TRANSFORMERS_OFFLINE": "0"}, True),
+    ],
+)
+def test_hub_unreachable_wrapper_respects_offline_mode(
+    monkeypatch, env, expected_retry
+):
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    err = ConnectionError(
+        "Couldn't reach 'lhoestq/demo1' on the Hub (LocalEntryNotFoundError)"
+    )
+    assert _should_retry_hf_error(err) is expected_retry
+
+
+def test_retry_httpx_timeout_wrapped_by_filenotfound_or_value_error():
+    httpx = pytest.importorskip("httpx")
+    for wrapper in (FileNotFoundError, ValueError):
+        try:
+            try:
+                raise httpx.ReadTimeout("timed out")
+            except httpx.ReadTimeout as ex:
+                raise wrapper("unrelated message") from ex
+        except wrapper as err:
+            assert _should_retry_hf_error(err) is True
+
+
+def test_no_retry_unrelated_error_raised_while_handling_timeout_with_from_none():
+    httpx = pytest.importorskip("httpx")
+    try:
+        try:
+            raise httpx.ReadTimeout("timed out")
+        except httpx.ReadTimeout:
+            raise PermissionError("gated dataset") from None
+    except PermissionError as err:
+        assert _should_retry_hf_error(err) is False
+
+
+def test_cyclic_exception_chain_terminates():
+    first, second = RuntimeError("a"), RuntimeError("b")
+    first.__cause__, second.__cause__ = second, first
+    assert _should_retry_hf_error(first) is False
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Couldn't reach 'lhoestq/demo1' on the Hub (OfflineModeIsEnabled)",
+        "Connection refused",
+    ],
+)
+def test_no_retry_unrelated_connection_error(message):
+    assert _should_retry_hf_error(ConnectionError(message)) is False
 
 
 @pytest.fixture
@@ -752,3 +869,54 @@ def test_hf_dataset_cache_hit_does_not_invoke_retry(tmp_path, monkeypatch):
 
     result = hf_dataset(path=path, split=split)
     assert len(result) == 1
+
+
+def test_hf_dataset_stops_retrying_timeout_at_attempt_limit(
+    fast_retry, tmp_path, monkeypatch
+):
+    httpx = pytest.importorskip("httpx")
+    monkeypatch.setattr("inspect_ai.dataset._sources.hf._hf_max_tries", lambda: 3)
+    calls = 0
+
+    def fake_load_dataset(*_a, **_k):
+        nonlocal calls
+        calls += 1
+        raise httpx.ReadTimeout("timed out")
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    from inspect_ai.dataset import hf_dataset
+
+    with pytest.raises(httpx.ReadTimeout):
+        hf_dataset(path="org/ds", split="test", cached=False)
+    assert calls == 3
+
+
+@pytest.mark.parametrize("retry,expected_calls", [(True, 2), (False, 1)])
+def test_hf_dataset_retries_httpx_timeout(
+    retry, expected_calls, fast_retry, tmp_path, monkeypatch
+):
+    httpx = pytest.importorskip("httpx")
+    calls = 0
+
+    def fake_load_dataset(*_a, **_k):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise httpx.ReadTimeout("timed out")
+        return _FakeHFDataset([{"input": "a", "target": "1"}])
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    from inspect_ai.dataset import hf_dataset
+
+    if retry:
+        assert len(hf_dataset(path="org/ds", split="test", cached=False)) == 1
+    else:
+        with pytest.raises(httpx.ReadTimeout):
+            hf_dataset(path="org/ds", split="test", cached=False, retry=False)
+    assert calls == expected_calls

@@ -379,16 +379,17 @@ async def _probe_root_access(sandbox: SandboxEnvironment) -> RootAccess:
             user="root",
             timeout=_ROOT_ACCESS_PROBE_TIMEOUT,
         )
+    # The decision is kept for the sandbox's life, so only a failed probe keeps
+    # its exception (the tools raise it as their cause): the tracebacks in an
+    # exception's chain would hold the sample.
     except SandboxUserUnsupportedError as ex:
-        return RootAccess("unusable", str(ex), ex)
+        return RootAccess("unusable", str(ex))
     except (SandboxUnavailableError, TimeoutError) as ex:
         return RootAccess("failed", f"root probe did not complete: {ex}", ex)
     except Exception as ex:
         # Providers that have not adopted SandboxUserUnsupportedError may still
         # signal "cannot exec as root" with provider-specific exceptions.
-        return RootAccess(
-            "ambiguous", f"root probe raised {type(ex).__name__}: {ex}", ex
-        )
+        return RootAccess("ambiguous", f"root probe raised {type(ex).__name__}: {ex}")
     return _root_access_verdict(probe)
 
 

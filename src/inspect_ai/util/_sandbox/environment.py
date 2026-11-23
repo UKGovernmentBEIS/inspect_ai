@@ -221,7 +221,9 @@ class RootAccess:
     reason: str
     """Why the probe reached ``state``, for traces and error messages."""
     error: Exception | None = None
-    """The probe's exception when it raised (always set for ``failed``)."""
+    """The exception of a ``failed`` probe, which the tools raise as their cause.
+
+    Other outcomes keep only ``reason``."""
 
 
 class SandboxEnvironment(abc.ABC):
@@ -572,10 +574,17 @@ class SandboxEnvironment(abc.ABC):
     ) -> None:
         """Called at task startup initialize resources.
 
-        Runs in the directory the eval was launched from, with the process's
-        own environment, as `sample_init` does. A relative config path that
+        Called once for each sandbox configuration in a run, when the first
+        task that needs it starts, while other tasks may be running. Runs in
+        the directory the eval was launched from, with the process's own
+        environment, as `sample_init` does. A relative config path that
         exists under the task's directory (a string config, or a build
         context in a `ComposeConfig`) arrives as an absolute path.
+
+        If a call raises, it gets no `task_cleanup`, so release whatever it
+        allocated before raising. `task_init` can then be called again for
+        the same configuration in the same run (the task's retry, or another
+        task that needs it), and that call either sets it up or raises again.
 
         Args:
           task_name: Name of task using the sandbox environment.

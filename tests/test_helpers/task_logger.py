@@ -11,6 +11,8 @@ class TaskLoggerShim(TaskLogger):
         self._buffer_db = cast(SampleBufferDatabase, buffer_db)
         self.addonly = None
         self._tamper_evident_store = None
+        # an initialised logger, holding a recorder entry
+        self._location: str | None = "test.eval"
         self._samples_completed = 0
         self._logged_sample_keys = set()
         self._cancelled_sample_keys = set()
