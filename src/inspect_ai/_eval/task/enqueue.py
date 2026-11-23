@@ -67,7 +67,7 @@ class TaskRecord:
     """The task's name, kept after the record ends."""
     model: str
     index: int
-    """Result order: the seed first, then tasks in the order they were added."""
+    """Result order: the seed first, then each batch in the order it was added."""
     options: "TaskRunOptions | None"
     """The configured task, released when the record ends."""
     retries_remaining: int
@@ -105,9 +105,25 @@ class RunQueue:
     """
 
     def __init__(
-        self, run_id: str, resolve: ResolveTasksFn, task_names: list[str]
+        self,
+        run_id: str,
+        resolve: ResolveTasksFn,
+        task_names: list[str],
+        *,
+        results_by_sequence: bool = False,
     ) -> None:
+        """Create the run's queue.
+
+        Args:
+            run_id: The run's id.
+            resolve: Resolves tasks against the run's models and config.
+            task_names: The task names the run starts with.
+            results_by_sequence: Return each batch's logs in dispatch
+                (sequence-major) order rather than the order given, as a run
+                at ``max_tasks == 1`` does.
+        """
         self.run_id = run_id
+        self._results_by_sequence = results_by_sequence
         self.closed = False
         """No more additions or retries: dispatch has ended."""
         self.task_names = list(task_names)
@@ -166,9 +182,10 @@ class RunQueue:
         """Configure and add a batch of resolved tasks.
 
         Every check runs for the whole batch before anything is added, so an
-        error raises to the caller and adds nothing. The batch is ordered
+        error raises to the caller and adds nothing. The batch is dispatched
         sequence-major, so at ``max_tasks == 1`` all of one task definition's
-        models run before the next definition's.
+        models run before the next definition's. Its logs are returned in the
+        order it was given, or in dispatch order with ``results_by_sequence``.
 
         Args:
             resolved: The tasks to add.
@@ -205,15 +222,19 @@ class RunQueue:
                 task_id=task.id,
                 task=task.task.name,
                 model=str(task.model),
-                index=len(self.records),
+                index=-1,
                 options=task_options,
                 retries_remaining=self.task_retry_attempts,
             )
             task_options.record = record
             self._ids.add(task.id)
-            self.records.append(record)
             self.pending.append(record)
             records.append(record)
+        by_id = {record.task_id: record for record in records}
+        for task in ordered if self._results_by_sequence else resolved:
+            record = by_id[task.id]
+            record.index = len(self.records)
+            self.records.append(record)
 
         from inspect_ai._control.pause import dispatch_model_name, note_dispatch_models
 

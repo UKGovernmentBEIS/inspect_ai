@@ -4341,6 +4341,72 @@ def test_retry_abandoned_during_seed_never_starts_the_log(
     assert read_eval_log(logs[0].name, header_only=True).status == "error"
 
 
+def test_retry_abandoned_between_passes_is_not_a_cancel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A task whose retry was abandoned is left out of a later pass's missing-log check.
+
+    With `retry_immediate=False` each pass is its own eval(). A task abandoned
+    after the first pass (an operator's `inspect ctl task cancel` or `drain`
+    between attempts) is passed to the next pass with its task id, and the
+    dispatcher ends it with no attempt and no log. The set goes on: the other
+    task's retry runs, and no KeyboardInterrupt cancels the set.
+    """
+    from inspect_ai._control.eval_state import abandon_task_retry
+
+    runs: list[str] = []
+
+    def failing_task(name: str, failures: int) -> Task:
+        @solver(name=f"abandon_between_passes_{name}_{id(runs)}")
+        def fail_then_pass() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                runs.append(name)
+                if runs.count(name) <= failures:
+                    raise ValueError(f"{name} fails")
+                return state
+
+            return solve
+
+        return Task(dataset=[Sample(input="x")], solver=fail_then_pass(), name=name)
+
+    passes: list[list[str]] = []
+
+    def eval_then_abandon(*args: Any, **kwargs: Any) -> list[EvalLog]:
+        logs = eval(*args, **kwargs)
+        passes.append([log.eval.task for log in logs])
+        if len(passes) == 1:
+            for log in logs:
+                if log.eval.task == "abandoned":
+                    abandon_task_retry(log.eval.task_id)
+        return logs
+
+    monkeypatch.setattr("inspect_ai._eval.evalset.eval", eval_then_abandon)
+
+    log_dir = str(tmp_path / "logs")
+    _, logs = eval_set(
+        tasks=[failing_task("abandoned", failures=10), failing_task("other", 1)],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=2,
+        retry_wait=0.1,
+        retry_immediate=False,
+        retry_cleanup=False,
+        display="none",
+    )
+    # pass 2 re-ran only the other task; the abandoned task ran once
+    assert passes == [["abandoned", "other"], ["other"]]
+    assert sorted(runs) == ["abandoned", "other", "other"]
+    headers = [
+        read_eval_log(log.name, header_only=True) for log in list_eval_logs(log_dir)
+    ]
+    assert sorted((log.eval.task, log.status) for log in headers) == [
+        ("abandoned", "error"),
+        ("other", "error"),
+        ("other", "success"),
+    ]
+    assert [log.eval.task for log in logs] == ["other"]
+
+
 def test_cancelled_retry_attempt_log_seeds_the_next_pass(tmp_path: Path) -> None:
     """A retry attempt cancelled by Ctrl-C leaves a log the next eval-set pass reuses.
 

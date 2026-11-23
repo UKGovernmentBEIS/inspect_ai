@@ -30,6 +30,7 @@ from inspect_ai._control.eval_state import (
     register_completed_eval,
     reset_run_registries,
     task_gracefully_resolved,
+    task_retry_abandoned,
 )
 from inspect_ai._control.server import (
     control_server,
@@ -699,9 +700,14 @@ def eval_set(
         run_ids.update(log.eval.run_id for log in results)
 
         # check for cancelled: a cancelled log, or a requested task with no
-        # log (it was still queued when the run was cancelled)
+        # log (it was still queued when the run was cancelled). A task whose
+        # retry an operator abandoned in an earlier pass is ended with no log
+        # and no attempt; that is not a cancellation of the run.
         returned = {log.eval.task_id for log in results}
-        if evals_cancelled(results) or any(task.id not in returned for task in tasks):
+        if evals_cancelled(results) or any(
+            task.id not in returned and not task_retry_abandoned(task.id)
+            for task in tasks
+        ):
             raise KeyboardInterrupt
 
         # return results

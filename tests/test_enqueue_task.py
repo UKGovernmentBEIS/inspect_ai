@@ -357,32 +357,50 @@ async def test_task_added_from_run_start_hook_is_freed_once_it_ends(
     assert alive_during_next_pull == [False, False]
 
 
+@pytest.mark.parametrize("max_tasks", [1, 2])
 @pytest.mark.parametrize("added", [False, True])
-def test_returned_logs_are_grouped_by_task_definition(added: bool) -> None:
-    # several definitions and models at max_tasks > 1: each definition's
-    # models in turn (sequence-major), with tasks added from on_run_start
-    # after the seed
+def test_returned_log_order(added: bool, max_tasks: int) -> None:
+    # several definitions and models, with tasks added from on_run_start after
+    # the seed: dispatch is sequence-major, so at max_tasks=1 each
+    # definition's models start before the next definition's and the logs
+    # come back in that order; at max_tasks=2 they come back in the order the
+    # tasks were requested
+    started: list[tuple[str, str]] = []
+
+    def order_task(name: str) -> Task:
+        async def record() -> None:
+            started.append((name, str(get_model())))
+
+        return _hook_task(name, record)
+
+    models = ["mockllm/one", "mockllm/two"]
+
     def run() -> list[EvalLog]:
         return eval(
-            [_hook_task("A", _noop), _hook_task("B", _noop)],
-            model=["mockllm/one", "mockllm/two"],
-            max_tasks=2,
+            [order_task("A"), order_task("B")],
+            model=models,
+            max_tasks=max_tasks,
             display="none",
         )
 
     if added:
-        with _enqueue_on_run_start(lambda: _hook_task("C", _noop)):
+        with _enqueue_on_run_start(lambda: order_task("C")):
             logs = run()
     else:
         logs = run()
 
-    expected = [
-        (task, model)
-        for task in ["A", "B", "C"][: 3 if added else 2]
-        for model in ["mockllm/one", "mockllm/two"]
-    ]
-    assert [(log.eval.task, log.eval.model) for log in logs] == expected
+    definitions = ["A", "B", "C"] if added else ["A", "B"]
+    by_definition = [(task, model) for task in definitions for model in models]
+    requested = [(task, model) for model in models for task in ["A", "B"]]
+    if added:
+        requested += [("C", model) for model in models]
+    returned = [(log.eval.task, log.eval.model) for log in logs]
     assert all(log.status == "success" for log in logs)
+    if max_tasks == 1:
+        assert started == by_definition
+        assert returned == by_definition
+    else:
+        assert returned == requested
 
 
 async def test_enqueue_task_from_run_start_hook_config_error_fails_the_run(

@@ -1049,7 +1049,12 @@ async def _eval_async_inner(
         # every task name the run has seen, so `task:id` sample selectors
         # resolve against it: the enclosing eval set's tasks (a retry runs a
         # subset), then each task as it is added
-        queue = RunQueue(run_id, resolve_added_tasks, list(eval_set_tasks or []))
+        queue = RunQueue(
+            run_id,
+            resolve_added_tasks,
+            list(eval_set_tasks or []),
+            results_by_sequence=parallel == 1,
+        )
         queue_token = bind_run_queue(queue)
 
         await emit_run_start(eval_set_id, run_id, resolved_tasks)

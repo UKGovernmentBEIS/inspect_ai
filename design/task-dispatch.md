@@ -558,7 +558,9 @@ anything is committed:
 Any error raises to the caller and nothing of the batch is added. Then, in
 the same step, it commits: adds the names to the run's set, orders the
 batch sequence-major (the order `run_batches` uses at `max_tasks == 1`),
-creates each record in `queued` at the end of the queue, registers it with
+creates each record in `queued` at the end of the queue (its logs are
+returned in the order given, or sequence-major at `max_tasks == 1`, as
+`run_batches` returns them), registers it with
 the control channel, grows the display's task count (except for the seed,
 which the task screen counts when it opens) and rings `wake`.
 
