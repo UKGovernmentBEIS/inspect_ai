@@ -20,7 +20,6 @@ from inspect_ai.solver import Generate, Solver, TaskState, fork, solver
 from inspect_ai.tool import Tool, ToolError, bash, skill
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._skill.install import (
-    INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT,
     install_lock,
     install_skills,
 )
@@ -217,7 +216,6 @@ class TestSkillInstallation:
         # the member's chmod does not start in the provider's working
         # directory, which the member may not be able to enter
         assert sandbox.cwds == ["/"]
-        assert INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT is True
 
     async def test_install_skills_omitted_user_in_a_scope_relative_dir(
         self, monkeypatch: pytest.MonkeyPatch

@@ -1,7 +1,7 @@
 import posixpath
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, Final, Iterator, Literal, NamedTuple
+from typing import Any, Iterator, Literal, NamedTuple
 
 from ._framework_operation import in_framework_sandbox_operation
 from ._privileged import privileged_shell
@@ -195,15 +195,6 @@ def sandbox_operation_user(env: SandboxEnvironment, user: str | None) -> str | N
     if user is not None or in_framework_sandbox_operation():
         return user
     return sandbox_identity_user(env, None, strict=False)
-
-
-SANDBOX_OPERATIONS_USE_SCOPE_CWD: Final = True
-"""Sandbox operations inside a scope with a `cwd` default to that `cwd`.
-
-See `sandbox_operation_cwd()` and `sandbox_operation_file()`. Companion
-packages check for this name to detect the behaviour on an installed
-inspect_ai, so keep it.
-"""
 
 
 def sandbox_operation_cwd(env: SandboxEnvironment, cwd: str | None) -> str | None:
