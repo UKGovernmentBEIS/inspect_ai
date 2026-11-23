@@ -1249,7 +1249,8 @@ def _format_samples(samples: dict[str, Any], status: str | None = None) -> str:
     - ``done/total (N running)`` when samples are in flight
     - ``done/total (complete)`` when total > 0 and nothing in flight + nothing queued
     - ``0/total (queued)`` when no samples started yet
-    - ``queued`` for a task that has not started (``status`` ``queued``)
+    - ``queued`` for a task that has not started (``status`` ``queued``),
+      whatever counters an earlier round left
     - ``0/0 (finished)`` for a finished task with no samples
     - ``done/total`` as the bland fallback
 
@@ -1263,13 +1264,14 @@ def _format_samples(samples: dict[str, Any], status: str | None = None) -> str:
     queued = int(samples.get("queued", 0) or 0)
 
     done = completed + errored + cancelled
+    if status == "queued" and not in_flight:
+        # not started (a task with an earlier round's counters included)
+        return "queued"
     if total == 0:
         # No total recorded — show in_flight as a single number so
         # the user sees something useful pre-EvalState registration.
         if in_flight:
             return f"{in_flight} running"
-        if status == "queued":
-            return "queued"
         if status == "completed":
             return "0/0 (finished)"
         return "starting"

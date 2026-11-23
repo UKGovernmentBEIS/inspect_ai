@@ -5171,11 +5171,16 @@ def test_eval_set_next_round_lists_a_queued_task_once(tmp_path: Path) -> None:
     from test_helpers.ctl import ctl_request
 
     runs: Counter[str] = Counter()
-    seen_by_first: list[list[str]] = []
+    seen_by_first: list[list[tuple[str, bool, int]]] = []
 
-    async def statuses(name: str) -> list[str]:
+    async def statuses(name: str) -> list[tuple[str, bool, int]]:
+        # status, whether it reads finished, and the attempts it keeps
         response = await ctl_request("GET", "/tasks")
-        return [row["status"] for row in response.json() if row["task"] == name]
+        return [
+            (row["status"], row["completed_at"] is not None, row["attempts"])
+            for row in response.json()
+            if row["task"] == name
+        ]
 
     def failing_once(name: str, other: str) -> Task:
         @solver
@@ -5204,4 +5209,4 @@ def test_eval_set_next_round_lists_a_queued_task_once(tmp_path: Path) -> None:
     )
     assert success
     assert runs == {"X": 2, "Y": 2}
-    assert seen_by_first == [["queued"]]
+    assert seen_by_first == [[("queued", False, 1)]]

@@ -264,13 +264,18 @@ def _resolve_scope(
     candidates = active or started
     if len(candidates) == 1 and str(candidates[0].get("task_id") or ""):
         target = candidates[0]
+        # a completed default target counts toward the blast radius, as an
+        # explicit one does
+        siblings = _active_siblings(summaries, socket_path)
+        if not _is_reachable(target):
+            siblings += 1
         return _DirectiveScope(
             socket_path=socket_path,
             pid=target.get("pid"),
             task_id=str(target["task_id"]),
             task=str(target.get("task") or "") or None,
             header=_task_header(target),
-            siblings=_active_siblings(summaries, socket_path),
+            siblings=siblings,
         )
     if per_task_option is not None:
         addressable = [c for c in candidates if str(c.get("task_id") or "")]

@@ -233,15 +233,20 @@ def test_tasks_table_shows_queued_and_finished_tasks_with_no_samples(
 ) -> None:
     # a task that has not started, and one that ended without starting
     empty = {"total": 0, "completed": 0, "in_flight": 0, "queued": 0}
+    # an earlier eval set round's counts, kept on a task queued again
+    earlier = {"total": 1, "completed": 0, "errored": 1, "in_flight": 0, "queued": 0}
     _print_human_table(
         [
             _task_row("aaa111", "t1", status="queued", samples=empty),
             _task_row("bbb222", "t2", status="completed", samples=empty),
+            _task_row("ccc333", "t3", status="queued", samples=earlier),
         ]
     )
     lines = capsys.readouterr().out.splitlines()
     assert "queued" in next(ln for ln in lines if ln.startswith("aaa111"))
     assert "0/0 (finished)" in next(ln for ln in lines if ln.startswith("bbb222"))
+    retried = next(ln for ln in lines if ln.startswith("ccc333"))
+    assert "queued" in retried and "complete" not in retried
 
 
 def test_tasks_table_hides_solver_column_when_absent(
@@ -8185,6 +8190,29 @@ def test_resolve_scope_sole_queued_task_resolves_to_process_scope() -> None:
         [], [*queued, _full_summary("bbb222", "t2", status="completed")], None
     )
     assert beside_completed is not None and beside_completed.task_id == "bbb222"
+    # the completed target and the queued task a process-wide change reaches
+    assert beside_completed.siblings == 2
+
+
+def test_config_process_knob_notes_queued_task_beside_completed_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A completed default target with a queued task still gets the process note."""
+    _patch_surface(
+        monkeypatch,
+        [
+            _full_summary("aaa111", "t1", status="completed"),
+            _full_summary("bbb222", "t2", status="queued"),
+        ],
+    )
+    _stub_limits(monkeypatch)
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-connections", "5", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["target"]["task_id"] == "aaa111"
+    assert any("process-wide" in note for note in payload["notes"])
 
 
 def test_config_process_knob_with_sole_queued_task_targets_process(

@@ -161,7 +161,8 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         ``attempts`` count (1 for tasks without retries, >1 when
         retries occurred), and the running ``refusals`` / ``http_retries``
         tallies for this eval's samples. A task that has not registered yet
-        has status ``queued``, ``attempts`` 0 and zero sample counts.
+        has status ``queued`` and no ``completed_at``; with no earlier
+        attempt under its id it has ``attempts`` 0 and zero sample counts.
     """
     # Lazy imports to avoid pulling the full log/event/scorer chain at
     # module-import time (control server module is imported during
@@ -316,7 +317,9 @@ def _add_queued_tasks(summaries: list[dict[str, Any]], started_at: float) -> Non
     """Add a ``queued`` row for each task that has not registered.
 
     A task with history under its id (an earlier ``eval_set(retry_immediate=
-    False)`` round) keeps its row, marked ``queued``.
+    False)`` round) keeps its row, with its attempts, counters and log
+    location, marked ``queued``: not completed, with the queued task's
+    current pause state.
     """
     from inspect_ai._control.queued_tasks import queued_tasks
 
@@ -324,13 +327,19 @@ def _add_queued_tasks(summaries: list[dict[str, Any]], started_at: float) -> Non
     for queued in queued_tasks():
         existing = by_task_id.get(queued.record.task_id)
         if existing is not None:
-            existing["status"] = "queued"
+            existing.update(
+                status="queued", completed_at=None, **_queued_pause_fields(queued)
+            )
         else:
             summaries.append(_queued_summary(queued, started_at))
 
 
-def _queued_summary(queued: "QueuedTask", started_at: float) -> dict[str, Any]:
-    """The ``GET /tasks`` row of a task that has not registered."""
+def _queued_pause_fields(queued: "QueuedTask") -> dict[str, Any]:
+    """A queued task's pause fields: the latches holding it from starting.
+
+    The dispatcher checks the same latches. A queued task has nothing
+    dispatched, so it is quiesced whenever a latch holds it.
+    """
     from inspect_ai._control.pause import (
         task_held_count,
         task_pause_now_sources,
@@ -338,15 +347,24 @@ def _queued_summary(queued: "QueuedTask", started_at: float) -> dict[str, Any]:
     )
 
     record = queued.record
-    spec = queued.eval
-    # a pause holds a queued task from starting (the dispatcher checks the
-    # same latches); it has nothing dispatched
     paused = task_pause_sources(record.task_id, record.model) or None
     paused_now = (
         (task_pause_now_sources(record.task_id, record.model) or None)
         if paused is not None
         else None
     )
+    return {
+        "paused": paused,
+        "paused_now": paused_now,
+        "quiesced": paused is not None,
+        "held": task_held_count(record.task_id),
+    }
+
+
+def _queued_summary(queued: "QueuedTask", started_at: float) -> dict[str, Any]:
+    """The ``GET /tasks`` row of a task that has not registered."""
+    record = queued.record
+    spec = queued.eval
     return {
         "run_id": spec.run_id,
         "eval_id": spec.eval_id,
@@ -358,10 +376,7 @@ def _queued_summary(queued: "QueuedTask", started_at: float) -> dict[str, Any]:
         "status": "queued",
         "started_at": started_at,
         "completed_at": None,
-        "paused": paused,
-        "paused_now": paused_now,
-        "quiesced": paused is not None,
-        "held": task_held_count(record.task_id),
+        **_queued_pause_fields(queued),
         "resolving": None,
         "attempts": 0,
         "epochs": queued.epochs,

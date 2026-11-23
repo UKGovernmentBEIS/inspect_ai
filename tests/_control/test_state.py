@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from tenacity import RetryCallState
 
     from inspect_ai._control.eval_state import LiveEvalData
+    from inspect_ai._eval.task.enqueue import RunQueue, TaskRecord
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
 
@@ -1085,42 +1086,17 @@ def test_task_summary_sums_event_counts_across_retry_attempts() -> None:
         clear_all_eval_states()
 
 
-@pytest.mark.parametrize("handoff", ["end", "register"])
-async def test_task_list_keeps_a_task_whose_handoff_completes_during_deferred_reads(
-    handoff: str,
-) -> None:
-    """A queued task leaving the registry mid-listing is still listed once.
-
-    The listing awaits reused logs' deferred statistics; a queued task that
-    ends (or registers) during that await moves from the queued registry to
-    its EvalState, and the listing must show it from one or the other.
-    """
+def _queued_record() -> tuple["RunQueue", "TaskRecord"]:
+    """A run queue holding one queued task, ``queued_task`` on mockllm."""
     from types import SimpleNamespace
 
-    import anyio
-
     from inspect_ai import Task
-    from inspect_ai._control.eval_state import (
-        DeferredSampleStats,
-        register_completed_eval,
-        register_eval,
-        reset_run_registries,
-    )
-    from inspect_ai._control.state import current_eval_summaries
     from inspect_ai._eval.loader import resolve_tasks
     from inspect_ai._eval.task.enqueue import RunQueue
     from inspect_ai._eval.task.run import TaskRunOptions
     from inspect_ai.dataset import Sample
     from inspect_ai.log import EvalConfig
     from inspect_ai.model import get_model
-
-    read_started = anyio.Event()
-    release = anyio.Event()
-
-    async def reused_stats() -> DeferredSampleStats:
-        read_started.set()
-        await release.wait()
-        return DeferredSampleStats(total_messages=1, completed=1, errored=0)
 
     queue = RunQueue("run", lambda tasks: [], [])
     queue.open(
@@ -1151,6 +1127,38 @@ async def test_task_list_keeps_a_task_whose_handoff_completes_during_deferred_re
         None,
         None,
     )
+    [record] = queue.add([resolved], seed=True)
+    return queue, record
+
+
+@pytest.mark.parametrize("handoff", ["end", "register"])
+async def test_task_list_keeps_a_task_whose_handoff_completes_during_deferred_reads(
+    handoff: str,
+) -> None:
+    """A queued task leaving the registry mid-listing is still listed once.
+
+    The listing awaits reused logs' deferred statistics; a queued task that
+    ends (or registers) during that await moves from the queued registry to
+    its EvalState, and the listing must show it from one or the other.
+    """
+    import anyio
+
+    from inspect_ai._control.eval_state import (
+        DeferredSampleStats,
+        register_completed_eval,
+        register_eval,
+        reset_run_registries,
+    )
+    from inspect_ai._control.state import current_eval_summaries
+
+    read_started = anyio.Event()
+    release = anyio.Event()
+
+    async def reused_stats() -> DeferredSampleStats:
+        read_started.set()
+        await release.wait()
+        return DeferredSampleStats(total_messages=1, completed=1, errored=0)
+
     rows: list[dict[str, Any]] = []
     try:
         register_completed_eval(
@@ -1161,7 +1169,7 @@ async def test_task_list_keeps_a_task_whose_handoff_completes_during_deferred_re
             task_id="t_reused",
             deferred_sample_stats=reused_stats,
         )
-        [record] = queue.add([resolved], seed=True)
+        queue, record = _queued_record()
 
         async def listing() -> None:
             rows.extend(await current_eval_summaries(0.0))
@@ -1184,3 +1192,46 @@ async def test_task_list_keeps_a_task_whose_handoff_completes_during_deferred_re
     listed = [row for row in rows if row["task_id"] == record.task_id]
     assert len(listed) == 1
     assert listed[0]["status"] == ("completed" if handoff == "end" else "running")
+
+
+async def test_queued_task_with_earlier_round_reads_queued_and_current_pause() -> None:
+    """A queued task with an earlier round's row is not shown as finished.
+
+    The row keeps the earlier attempt's counters and log, but has no
+    completion time and reports the pause latches holding the queued task.
+    """
+    from inspect_ai._cli.ctl._render import _format_samples
+    from inspect_ai._control.eval_state import (
+        register_completed_eval,
+        reset_run_registries,
+    )
+    from inspect_ai._control.pause import pause_process
+    from inspect_ai._control.state import current_eval_summaries
+
+    try:
+        queue, record = _queued_record()
+        # the earlier round's attempt, which errored, under the same task id
+        register_completed_eval(
+            "e_round_1",
+            total=1,
+            completed=0,
+            errored=1,
+            task="queued_task",
+            task_id=record.task_id,
+            model=record.model,
+            log_location="round_1.eval",
+        )
+        await pause_process()
+        rows = await current_eval_summaries(0.0)
+    finally:
+        reset_run_registries()
+
+    [row] = [row for row in rows if row["task_id"] == record.task_id]
+    assert row["status"] == "queued"
+    assert row["completed_at"] is None
+    assert row["attempts"] == 1
+    assert row["log_location"] == "round_1.eval"
+    assert row["samples"]["total"] == 1 and row["samples"]["errored"] == 1
+    assert row["paused"] == ["process"]
+    assert row["quiesced"] is True
+    assert _format_samples(row["samples"], row["status"]) == "queued"
