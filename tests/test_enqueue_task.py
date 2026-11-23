@@ -22,6 +22,7 @@ import anyio.to_thread
 import pytest
 
 from inspect_ai import Epochs, Task, TaskSource, eval, eval_async, eval_set, task
+from inspect_ai._control.eval_state import reset_run_registries
 from inspect_ai._display import display
 from inspect_ai._display.core import active as active_display_module
 from inspect_ai._display.core.display import TaskError
@@ -1040,18 +1041,31 @@ async def test_ending_a_record_twice_lowers_the_task_total_once(
     queue = RunQueue("run", lambda tasks: [], [])
     queue.open(
         lambda resolved, names: [
-            cast(TaskRunOptions, types.SimpleNamespace()) for _ in resolved
+            cast(
+                TaskRunOptions,
+                types.SimpleNamespace(
+                    logger=types.SimpleNamespace(
+                        eval=types.SimpleNamespace(
+                            eval_id="e", task="t", task_id=task.id, run_id="run"
+                        )
+                    )
+                ),
+            )
+            for task in resolved
         ],
         task_retry_attempts=0,
     )
     [resolved] = resolve_tasks(
         _hook_task("t", _noop), {}, get_model("mockllm/model"), None, None, None
     )
-    [record] = queue.add([resolved], seed=True)
-    queue.screen_open = True
-    queue.end(record, None)
-    queue.end(record, None)
-    assert task_count_changes == [-1]
+    try:
+        [record] = queue.add([resolved], seed=True)
+        queue.screen_open = True
+        queue.end(record, None)
+        queue.end(record, None)
+        assert task_count_changes == [-1]
+    finally:
+        reset_run_registries()
 
 
 @solver

@@ -524,7 +524,9 @@ def register_completed_eval(
     enter ``task_run.py``, so the per-sample counter path that would
     normally maintain the state never fires. This bulk-equivalent
     sets the terminal counters up-front so ``current_eval_summaries``
-    surfaces the eval as completed.
+    surfaces the eval as completed. The run queue also uses it, with no
+    samples, for a task that ends without registering (cancelled before it
+    started, or failed in startup), so the task stays listed as finished.
 
     ``completed`` / ``errored`` / ``total_messages`` may be provisional
     (header-derived) values refined later by ``deferred_sample_stats`` —
@@ -1128,6 +1130,7 @@ def reset_run_registries() -> None:
         reset_process_pause,
         reset_task_pause_gates,
     )
+    from inspect_ai._control.queued_tasks import reset_queued_tasks
     from inspect_ai._control.scoring import reset_score_passes
     from inspect_ai.model._generate_overrides import (
         reset_generate_config_overrides,
@@ -1136,6 +1139,7 @@ def reset_run_registries() -> None:
     from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
     clear_all_eval_states()
+    reset_queued_tasks()
     reset_retry_abandoned()
     reset_gracefully_resolved()
     reset_generate_config_overrides()

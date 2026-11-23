@@ -17,6 +17,7 @@ import logging
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
+from functools import partial
 from typing import TYPE_CHECKING, Callable, Iterator, Literal
 
 import anyio
@@ -88,8 +89,16 @@ class TaskRecord:
         self._reach("row_opened")
 
     def on_registered(self) -> None:
-        """An attempt registered the task with the control channel."""
+        """An attempt registered the task with the control channel.
+
+        Called in the same synchronous step as ``register_eval``, so a
+        directive finds the task either in the queued registry or through its
+        ``EvalState``.
+        """
+        from inspect_ai._control.queued_tasks import unregister_queued_task
+
         self._reach("registered")
+        unregister_queued_task(self)
 
     def _reach(self, reached: TaskReached) -> None:
         if _REACHED_ORDER[reached] > _REACHED_ORDER[self.reached]:
@@ -214,6 +223,9 @@ class RunQueue:
         ordered = sorted(resolved, key=lambda task: task.sequence)
         options = self._configure(ordered, names)
 
+        from inspect_ai._control.pause import dispatch_model_name, note_dispatch_models
+        from inspect_ai._control.queued_tasks import register_queued_task
+
         # commit (no checks below)
         self.task_names = names
         records: list[TaskRecord] = []
@@ -221,7 +233,7 @@ class RunQueue:
             record = TaskRecord(
                 task_id=task.id,
                 task=task.task.name,
-                model=str(task.model),
+                model=dispatch_model_name(task.model),
                 index=-1,
                 options=task_options,
                 retries_remaining=self.task_retry_attempts,
@@ -230,13 +242,12 @@ class RunQueue:
             self._ids.add(task.id)
             self.pending.append(record)
             records.append(record)
+            register_queued_task(record, partial(self.cancel, record))
         by_id = {record.task_id: record for record in records}
         for task in ordered if self._results_by_sequence else resolved:
             record = by_id[task.id]
             record.index = len(self.records)
             self.records.append(record)
-
-        from inspect_ai._control.pause import dispatch_model_name, note_dispatch_models
 
         note_dispatch_models([dispatch_model_name(task.model) for task in ordered])
         if not seed and records:
@@ -281,9 +292,20 @@ class RunQueue:
         self.wake.set()
 
     def end(self, record: TaskRecord, log: "EvalLog | None") -> None:
-        """End a record with ``log`` (``None`` if it has none)."""
+        """End a record with ``log`` (``None`` if it has none).
+
+        A record that never registered with the control channel is
+        registered as a finished eval with no samples before it leaves the
+        queued registry, so the control channel lists it as finished and a
+        repeated directive answers "task already finished".
+        """
+        from inspect_ai._control.queued_tasks import unregister_queued_task
+
         if record.phase == "ended":
             return
+        if record.reached != "registered":
+            _register_finished(record, log)
+        unregister_queued_task(record)
         record.log = log
         record.phase = "ended"
         record.attempt_cancel = None
@@ -330,6 +352,27 @@ class RunQueue:
             raise RuntimeError(
                 "enqueue_task() was called before the run started its tasks."
             )
+
+
+def _register_finished(record: TaskRecord, log: "EvalLog | None") -> None:
+    """Register a record that ends without registering as a finished eval."""
+    from inspect_ai._control.eval_state import register_completed_eval
+
+    if log is not None:
+        spec = log.eval
+    else:
+        assert record.options is not None
+        spec = record.options.logger.eval
+    register_completed_eval(
+        spec.eval_id,
+        total=0,
+        completed=0,
+        task=spec.task,
+        task_id=spec.task_id,
+        model=record.model,
+        log_location=log.location if log is not None else "",
+        run_id=spec.run_id,
+    )
 
 
 def _require_run_loop(queue: RunQueue) -> None:

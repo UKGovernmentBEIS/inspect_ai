@@ -8,6 +8,8 @@ Reads from two sources at request time:
 - :func:`inspect_ai.log._samples.active_samples` for ``in_flight``
   (currently-executing samples), plus the per-eval ``task`` / ``model``
   / ``started_at`` / ``run_id`` metadata.
+- :func:`inspect_ai._control.queued_tasks.queued_tasks` for tasks that have
+  not registered yet, listed with status ``queued``.
 
 One process can host multiple evals at once. There are two ways this
 happens:
@@ -46,6 +48,7 @@ from inspect_ai._util.file import local_path
 if TYPE_CHECKING:
     from inspect_ai._control.cancel import PendingToolCall
     from inspect_ai._control.eval_state import EvalState
+    from inspect_ai._control.queued_tasks import QueuedTask
     from inspect_ai._eval.task.scheduler import SampleKey
     from inspect_ai.log._log import EvalSampleSummary
     from inspect_ai.log._samples import ActiveSample
@@ -157,7 +160,8 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         ``{total, completed, errored, in_flight, queued}``, an
         ``attempts`` count (1 for tasks without retries, >1 when
         retries occurred), and the running ``refusals`` / ``http_retries``
-        tallies for this eval's samples.
+        tallies for this eval's samples. A task that has not registered yet
+        has status ``queued``, ``attempts`` 0 and zero sample counts.
     """
     # Lazy imports to avoid pulling the full log/event/scorer chain at
     # module-import time (control server module is imported during
@@ -299,8 +303,79 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
             }
         )
 
+    _add_queued_tasks(summaries, started_at)
+
     summaries.sort(key=lambda s: s["started_at"])
     return summaries
+
+
+def _add_queued_tasks(summaries: list[dict[str, Any]], started_at: float) -> None:
+    """Add a ``queued`` row for each task that has not registered.
+
+    A task with history under its id (an earlier ``eval_set(retry_immediate=
+    False)`` round) keeps its row, marked ``queued``.
+    """
+    from inspect_ai._control.queued_tasks import queued_tasks
+
+    by_task_id = {s["task_id"]: s for s in summaries if s["task_id"]}
+    for queued in queued_tasks():
+        existing = by_task_id.get(queued.record.task_id)
+        if existing is not None:
+            existing["status"] = "queued"
+        else:
+            summaries.append(_queued_summary(queued, started_at))
+
+
+def _queued_summary(queued: "QueuedTask", started_at: float) -> dict[str, Any]:
+    """The ``GET /tasks`` row of a task that has not registered."""
+    from inspect_ai._control.pause import (
+        task_held_count,
+        task_pause_now_sources,
+        task_pause_sources,
+    )
+
+    record = queued.record
+    spec = queued.eval
+    # a pause holds a queued task from starting (the dispatcher checks the
+    # same latches); it has nothing dispatched
+    paused = task_pause_sources(record.task_id, record.model) or None
+    paused_now = (
+        (task_pause_now_sources(record.task_id, record.model) or None)
+        if paused is not None
+        else None
+    )
+    return {
+        "run_id": spec.run_id,
+        "eval_id": spec.eval_id,
+        "task": record.task,
+        "task_id": record.task_id,
+        "model": record.model,
+        "solver": "",
+        "log_location": "",
+        "status": "queued",
+        "started_at": started_at,
+        "completed_at": None,
+        "paused": paused,
+        "paused_now": paused_now,
+        "quiesced": paused is not None,
+        "held": task_held_count(record.task_id),
+        "resolving": None,
+        "attempts": 0,
+        "epochs": queued.epochs,
+        "samples": {
+            "total": 0,
+            "completed": 0,
+            "errored": 0,
+            "cancelled": 0,
+            "in_flight": 0,
+            "queued": 0,
+        },
+        "total_tokens": 0,
+        "tokens_per_second": None,
+        "total_messages": 0,
+        "refusals": 0,
+        "http_retries": 0,
+    }
 
 
 async def current_sample_summaries(

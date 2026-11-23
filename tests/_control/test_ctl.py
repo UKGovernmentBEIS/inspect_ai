@@ -18,6 +18,7 @@ import click
 import httpx
 import pytest
 from test_helpers.trace import action_record, write_trace_log
+from test_helpers.utils import skip_if_trio
 
 from _control.conftest import cli_runner
 from inspect_ai._cli.ctl import ctl_command
@@ -225,6 +226,22 @@ def test_tasks_table_shows_model_and_solver_columns(
     assert "model" in lines[0] and "solver" in lines[0]
     row = next(ln for ln in lines if ln.startswith("aaa111"))
     assert "openai/gpt-5" in row and "react" in row
+
+
+def test_tasks_table_shows_queued_and_finished_tasks_with_no_samples(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # a task that has not started, and one that ended without starting
+    empty = {"total": 0, "completed": 0, "in_flight": 0, "queued": 0}
+    _print_human_table(
+        [
+            _task_row("aaa111", "t1", status="queued", samples=empty),
+            _task_row("bbb222", "t2", status="completed", samples=empty),
+        ]
+    )
+    lines = capsys.readouterr().out.splitlines()
+    assert "queued" in next(ln for ln in lines if ln.startswith("aaa111"))
+    assert "0/0 (finished)" in next(ln for ln in lines if ln.startswith("bbb222"))
 
 
 def test_tasks_table_hides_solver_column_when_absent(
@@ -6184,6 +6201,38 @@ def test_task_drain_retry_abandoned_output(monkeypatch: pytest.MonkeyPatch) -> N
     )
 
 
+@pytest.mark.parametrize("verb", ["cancel", "drain"])
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_task_stop_of_queued_task_output(
+    monkeypatch: pytest.MonkeyPatch, verb: str, dry_run: bool
+) -> None:
+    """A task that has not started ends without running samples."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1", status="queued")])
+    spy = _RequestSpy(
+        {"ok": True, "changed": True, "task_queued": True, "in_flight": 0}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    args = ["task", verb, "t1"] + (["--dry-run"] if dry_run else [])
+    terse = cli_runner().invoke(ctl_command, args)
+    assert terse.exit_code == 0, terse.output
+    assert spy.paths == [f"/tasks/aaa111/{verb}"]
+    if dry_run:
+        assert terse.stdout == (
+            f"{verb} t1: dry-run — the task has not started, so it would end "
+            "without running any samples\n"
+        )
+    else:
+        assert terse.stdout == (
+            f"{verb} t1: requested — the task has not started, so it ends "
+            "without running any samples\n"
+        )
+    full = cli_runner().invoke(ctl_command, [*args, "--no-terse"])
+    assert full.exit_code == 0, full.output
+    assert "queued" in full.stdout  # the task header
+    expected = f"Would {verb}" if dry_run else f"{verb.capitalize()} requested"
+    assert f"{expected} — the task has not started" in full.stdout
+
+
 def test_task_drain_missing_route_names_version_skew(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -9994,3 +10043,63 @@ def test_explicit_log_dir_works_through_the_entry_point(tmp_path: Path) -> None:
     )
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["incomplete"] is False
+
+
+@pytest.mark.real_ctl_server
+@skip_if_trio  # the control server runs on asyncio only
+async def test_ctl_lists_and_cancels_a_queued_task_in_a_live_run(
+    short_data_dir: Path,
+) -> None:
+    """`inspect ctl` against a live eval: a queued task is listed and cancelled.
+
+    The task is added while `next_tasks()` blocks, so it stays queued; the
+    CLI runs in a worker thread while the eval's loop serves its requests.
+    """
+    from inspect_ai import Task, TaskSource, eval_async
+    from inspect_ai._eval.task.enqueue import enqueue_task
+    from inspect_ai.dataset import Sample
+    from inspect_ai.util._display import init_display_type
+
+    seen: dict[str, Any] = {}
+
+    def ctl(*args: str) -> Any:
+        result = cli_runner().invoke(ctl_command, [*args, "--json"])
+        assert result.exit_code == 0, (result.output, result.exception)
+        return json.loads(result.stdout)
+
+    class _Src(TaskSource):
+        calls = 0
+
+        def initial_tasks(self) -> list[Task]:
+            return [Task(dataset=[Sample(input="x")], name="seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            self.calls += 1
+            if self.calls == 1:
+                enqueue_task(Task(dataset=[Sample(input="x")], name="waiting"))
+                seen["list"] = await anyio.to_thread.run_sync(ctl, "task", "list")
+                seen["cancel"] = await anyio.to_thread.run_sync(
+                    ctl, "task", "cancel", "waiting"
+                )
+            return None
+
+    init_display_type("none")
+    with anyio.fail_after(60):
+        logs = await eval_async(
+            _Src(),
+            model="mockllm/model",
+            log_dir=str(short_data_dir / "logs"),
+            ctl_server=True,
+        )
+
+    [row] = [t for t in seen["list"]["tasks"] if t["task"] == "waiting"]
+    assert row["status"] == "queued"
+    assert row["attempts"] == 0
+    cancel = seen["cancel"]
+    assert cancel["applied"] is True
+    assert cancel["detail"]["task_queued"] is True
+    assert cancel["detail"]["in_flight"] == 0
+    [waiting] = [log for log in logs if log.eval.task == "waiting"]
+    assert waiting.status == "error"
+    assert waiting.error is not None
+    assert "Task cancelled by user (abort)" in waiting.error.message
