@@ -36,6 +36,10 @@ _BACKPRESSURE_BUFFER_SIZE = 100 * 1024 * 1024  # 100 MiB
 _MAX_POLL_OUTPUT_BYTES = 1 * 1024 * 1024  # 1 MiB per poll response
 _WAIT_CHECK_INTERVAL_SECONDS = 0.05
 _OUTPUT_EXIT_WAIT_SECONDS = 0.1
+# Room added to each output buffer once the job is no longer running. A leader
+# leaves under 1.5 MiB unread with a pipe of up to 1 MiB, the default
+# `fs.pipe-max-size`; what an enlarged pipe leaves beyond the room is lost.
+_MAX_TAIL_BYTES = 4 * 1024 * 1024
 
 
 def _leader_handle(process: AsyncIOProcess) -> psutil.Process | None:
@@ -492,6 +496,10 @@ class Job:
         readers = [t for t in (self._stdout_task, self._stderr_task) if not t.done()]
         if not readers:
             return
+        # A reader waiting on a full buffer holds the end of the output: give
+        # it room to reach EOF during the wait below.
+        for buffer in (self._stdout_buffer, self._stderr_buffer):
+            buffer.set_limit(_BACKPRESSURE_BUFFER_SIZE + _MAX_TAIL_BYTES)
         _, pending = await asyncio.wait(readers, timeout=1.0)
         for task in pending:
             task.cancel()
