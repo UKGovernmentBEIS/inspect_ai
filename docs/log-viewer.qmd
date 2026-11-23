@@ -105,19 +105,21 @@ If you are running with the `inspect view` command-line then you can access logs
 
 ### Sharing Live Logs {#s3-logs}
 
-By default, live updates are available on the machine running the evaluation. If your logs are on Amazon S3 or a shared disk, run the eval with `--log-shared` so others can follow it in Inspect View.
+Multiple users can view live logs located on Amazon S3 (or any shared filesystem) by specifying an additional `--log-shared` option indicating that live log information should be written to the shared filesystem:
 
 ``` bash
 inspect eval ctf.py --log-shared
 ```
 
-Inspect shares updates every 10 seconds by default. Pass an interval in seconds to change how often others see updates.
+This is required because the live log viewing feature relies on a local database of log events which is only visible on the machine where the evaluation is running. The `--log-shared` option specifies that the live log information should also be written to the shared filesystem. By default, this information is synced every 10 seconds. You can override this by passing a value to `--log-shared`:
 
 ``` bash
-inspect eval ctf.py --log-shared 30
+ inspect eval ctf.py --log-shared 30
 ```
 
-On a local or mounted disk on Linux or macOS, Inspect stores live updates in a `.buffer` folder inside your log directory. While an eval is running, leave `.buffer` and its run folder in place. If Inspect warns that sharing has stopped, the eval keeps recording locally, but others will stop seeing live updates for that run. [Set up a log directory for multiple users](eval-logs.qmd#shared-log-directory).
+On a local or mounted disk on Linux or macOS, Inspect keeps a `.buffer` folder in the log directory between runs. Use ordinary directories for `.buffer` and its run folders. If Inspect detects that a run folder has moved or been replaced, it warns and stops sharing updates for that run. The eval continues recording locally.
+
+If several accounts run evals in the same log directory, give each account permission to create folders in `.buffer`. Inspect replaces files as it publishes updates, so configure any extra viewer permissions to apply to new files.
 
 ## Sample Details
 
