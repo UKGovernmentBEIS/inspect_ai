@@ -670,8 +670,9 @@ A caught error is always observable: it is returned, never dropped.
 `run()` with a `limits` list, empty or not, returns `(state, error)` with
 the combined error; a deepagent background subagent reads it from the
 scope after its block, as today. `run(limits=None)` returns only the state,
-so it has nowhere to report an error and catches nothing: every limit
-error propagates from it, as today. The order of `limits` does not matter
+so it has nowhere to report an error and catches nothing: it enters its
+scope with `catch_errors=False`, and every limit error propagates from it,
+as today. The order of `limits` does not matter
 for catching: a group of the scope's own token limit and a cost limit
 entered inside the scope is caught like any other covered group, and
 `run()` returns their combined error, also when the scope entered only a
@@ -787,7 +788,8 @@ tool error; a handoff still answers its own limit) pin this nesting.
   whose deciding leaf is a limit, the combined error of every limit in it
   (a termination and an unexpected error still decide first, as today).
   If the error is owned by the call, it is mapped to the `limit` tool
-  error as today, with the combined error's message. That covers `as_tool()` limits, any `with token_limit()` inside
+  error as today: `tool_call_error()` formats the text from the combined
+  error's primary `type` and `limit_str`, so it names the primary limit. That covers `as_tool()` limits, any `with token_limit()` inside
   a tool, and message limits. An error that is not owned is handled like a
   termination raised in a tool: its `ToolEvent` is completed, its siblings
   in the stage are cancelled, and the error propagates out of
@@ -2299,8 +2301,10 @@ under trio with `--runtrio`.
   limit's also propagates, as their combined error (today the message
   limit is the tool's `limit` error). A group of the message
   limit's error and a `token_limit()` entered inside the tool is owned: it
-  is the `limit` tool error with the combined error's message. A group of two limits both entered inside the
-  tool is the `limit` tool error with the outer one's message. A group
+  is the `limit` tool error, its text formatted from the combined error's
+  primary type and limit. A group of two limits both entered inside the
+  tool is the `limit` tool error naming the outer one's type and limit
+  (the primary). A group
   holding only the message limit's error is still the message `limit`
   tool error. A `time_limit()` entered inside the tool that expires is the
   `limit` tool error, as today (the call owns it by its marker). The existing
@@ -2493,7 +2497,12 @@ Each step is one PR, in this order. Each keeps the suite green.
 3. **Owners and reductions.** `_limit.py`: `apply_limits()` covered exits
    (a limit is covered when it is the scope's own or its node carries the
    scope's marker) and the exit check over its own limits on a normal return.
-   `src/inspect_ai/agent/_run.py`: the return after the block.
+   `src/inspect_ai/agent/_run.py`: the return after the block, and
+   entering the scope as `apply_limits(limits or [],
+   catch_errors=limits is not None)`: today `run(limits=None)` enters a
+   catching scope over `[]`, which catches nothing only because no limit is
+   its own; once a scope also covers the limits entered inside it, that
+   scope would catch such a limit and drop it at `return state`.
    `src/inspect_ai/_eval/task/run.py`: combining the limits of the
    escaping group, and the exit check over the sample's token, cost and turn limits, read
    from the limit trees as `sample_limits()` reads them, after
