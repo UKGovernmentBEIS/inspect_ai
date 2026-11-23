@@ -392,8 +392,11 @@ that:
   every sample errored before scoring (for example `score=False` or
   `fail_on_error=False` with every solver raising), the shard logs and a
   native run have no results, but the merge keeps the task's declared
-  scorers and writes a result per scorer with zero scored samples and NaN
-  metrics (`_results` in `_write.py`);
+  scorers and writes a result per scorer with zero scored samples, each
+  metric taking its empty-input value (`_results` in `_write.py`,
+  `empty_metric_value` in `src/inspect_ai/_eval/task/results.py`): the
+  mapping a metric reports for no samples when it reports a non-empty one,
+  as `ci()` reports bounds of 0, and NaN otherwise, as for `accuracy()`;
 - metrics see values in their stored JSON form, so a tuple is a list and a
   datetime a string; the merge does not detect or recover such types
   (decisions: Ransom, 2026-10-29 and 2026-11-02);
@@ -677,7 +680,8 @@ their own sections.
     passes and minted anew by a fresh merge.
   - **All samples errored.** When every sample errored before scoring, a
     native run has no results, while the merge writes one per declared
-    scorer with zero scored samples and NaN metrics ("Results").
+    scorer with zero scored samples and each metric's empty-input value
+    ("Results").
 - A pass reads only changed and new shards
   (`test_incremental_merge_reads_only_changed_shards`), and an incomplete
   set raises and writes nothing without `allow_incomplete`
