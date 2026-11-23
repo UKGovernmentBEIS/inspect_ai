@@ -4667,14 +4667,14 @@ def test_judging_usage_the_sidecar_didnt_price_is_priced_as_in_process() -> None
 )
 def test_the_time_the_sidecar_spent_judging_is_waiting(decided: dict[str, Any]) -> None:
     def run(judging_time: float | None) -> tuple[float, float]:
-        # the proxy holds the call a second, judging_time of it for its
+        # the proxy holds the call three seconds, judging_time of it for its
         # sidecar; a turn it refuses comes back as an error Inspect recovers
         stand_in = StandInSidecar(
             turns=[
                 Turn(
                     **decided,
                     judging={"judging_time": judging_time} if judging_time else None,
-                    delay=1.0,
+                    delay=3.0,
                 ),
                 Turn(),
             ]
@@ -4693,15 +4693,17 @@ def test_the_time_the_sidecar_spent_judging_is_waiting(decided: dict[str, Any]) 
         return sample.working_time, call.working_time
 
     sample_unjudged, call_unjudged = run(None)
-    sample_judged, call_judged = run(0.9)
+    sample_judged, call_judged = run(2.7)
 
     # As in process, the agent is charged only the model's time: for the
     # sample, which its working limit reads, and for the call. The amounts
     # are checked against a fake clock in tests/util/test_limit_working.py;
-    # here, on the real clock, only that the judging came out.
-    assert call_unjudged >= 1.0
-    assert call_judged < call_unjudged - 0.5
-    assert sample_judged < sample_unjudged - 0.5
+    # here, on the real clock, only that the judging came out. The hold is
+    # long and the margin wide, so a stall of up to about a second in one
+    # run doesn't fail it.
+    assert call_unjudged >= 3.0
+    assert call_judged < call_unjudged - 1.5
+    assert sample_judged < sample_unjudged - 1.5
 
 
 @pytest.mark.parametrize("limit", ["token", "cost", "turn"])
