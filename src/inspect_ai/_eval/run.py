@@ -730,6 +730,10 @@ async def _run_task(
                     task_cancel.close(
                         ended_in_error=result is not None and result.status == "error"
                     )
+                    # published before the TaskSource is notified, so a run
+                    # cancellation landing there still ends the record with it
+                    if result is not None and options.record is not None:
+                        options.record.log = result
                     if abandoned:
                         run_returned = True
                         return
@@ -1227,6 +1231,10 @@ async def dispatch_tasks(
                             run = await _run_task(options, task_cancel, task_scope)
                         await settle(run)
                     except BaseException:
+                        # a log the attempt wrote before the exception (a run
+                        # cancellation after its final write) is its result
+                        if options.logger.finished_log is not None:
+                            record.log = options.logger.finished_log
                         with anyio.CancelScope(shield=True):
                             if not options.logger.finished:
                                 await options.logger.discard(

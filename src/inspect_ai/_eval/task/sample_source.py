@@ -459,9 +459,16 @@ class HandleChannel(SampleSource):
             self._queue.end(record, None)
 
     def end(self, error: BaseException) -> None:
-        """Close the channel and fail every unsettled request with ``error``."""
+        """Close the channel and fail every unsettled request with ``error``.
+
+        Also drops any samples still buffered for the attempt, so an ended
+        task holds none of its senders' samples.
+        """
         self.closed = True
         self.pushed.set()
+        if self.enqueuer is not None:
+            self.enqueuer.drain()
+            self.enqueuer = None
         requests, self.requests = self.requests, {}
         for request in requests.values():
             request.future.set_exception(error)

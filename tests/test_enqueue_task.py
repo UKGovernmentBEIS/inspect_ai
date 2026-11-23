@@ -2325,3 +2325,191 @@ def _find_record(name: str) -> TaskRecord | None:
     queue = get_run_queue()
     assert queue is not None
     return next((r for r in queue.records if r.task == name), None)
+
+
+@pytest.mark.parametrize("cancelled_in", ["sample", "task_complete"])
+async def test_run_cancellation_keeps_a_fed_tasks_written_log(
+    tmp_path: Path, events: _Events, cancelled_in: str
+) -> None:
+    kept: list[TaskHandle] = []
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        kept.append(handle)
+        if cancelled_in == "sample":
+            await handle.enqueue_sample(
+                Sample(input="x", metadata={"started": "cancel", "wait": "never"})
+            )
+        else:
+            async with handle:
+                await handle.enqueue_sample(Sample(input="x"))
+            await anyio.sleep_forever()
+
+    class Source(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_creator_task(body)]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            # the rollout's log is written and taken by the dispatcher; a run
+            # cancellation lands while the source hears about it
+            if log.eval.task == "rollout_task":
+                events["cancel"].set()
+                await anyio.sleep_forever()
+            return None
+
+    with anyio.fail_after(30):
+        async with anyio.create_task_group() as tg:
+
+            async def run() -> None:
+                await eval_async(Source(), model="mockllm/model", log_dir=str(tmp_path))
+
+            tg.start_soon(run)
+            await events["cancel"].wait()
+            tg.cancel_scope.cancel()
+        final = await kept[0].result()
+    assert final is not None
+    expected = "cancelled" if cancelled_in == "sample" else "success"
+    assert final.status == expected
+    with pytest.raises(TaskEndedError) as raised:
+        await kept[0].enqueue_sample(Sample(input="y"))
+    assert raised.value.log is final
+
+
+async def test_log_start_failure_leaves_no_buffered_samples(
+    tmp_path: Path, events: _Events, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log_start = TaskLogger.log_start
+
+    async def failing_log_start(self: TaskLogger, *args: Any, **kwargs: Any) -> None:
+        if self.eval.task == "rollout_task":
+            raise OSError("log storage unavailable")
+        await log_start(self, *args, **kwargs)
+
+    monkeypatch.setattr(TaskLogger, "log_start", failing_log_start)
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        with pytest.raises(TaskEndedError) as raised:
+            await handle.enqueue_sample(Sample(input="x"))
+        assert raised.value.log is not None and raised.value.log.status == "error"
+        record = _record_by_id(handle.task_id)
+        assert record.channel is not None
+        assert record.channel.requests == {}
+        assert record.channel.enqueuer is None
+
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            _creator_task(body), model="mockllm/model", log_dir=str(tmp_path)
+        )
+    assert _by_task(logs)["creator"].status == "success"
+
+
+async def test_cancel_of_a_fed_attempt_before_it_registers(
+    tmp_path: Path, events: _Events, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    init = TaskLogger.init
+
+    async def held_init(self: TaskLogger) -> None:
+        # the rollout's attempt has been picked; hold it before registration
+        if self.eval.task == "rollout_task":
+            events["picked"].set()
+            await events["release_init"].wait()
+        await init(self)
+
+    monkeypatch.setattr(TaskLogger, "init", held_init)
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        _send_in_background(handle, Sample(input="x"))
+        await events["picked"].wait()
+        record = _record_by_id(handle.task_id)
+        assert record.phase == "attempt" and record.reached == "added"
+        handle.cancel()
+        assert not record.ended.is_set()
+        with pytest.raises(RuntimeError) as raised:
+            await handle.enqueue_sample(Sample(input="y"))
+        assert type(raised.value) is RuntimeError
+        events["release_init"].set()
+        log = await handle.result()
+        assert log is not None and log.status == "error"
+        with pytest.raises(TaskEndedError):
+            await handle.enqueue_sample(Sample(input="y"))
+
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            _creator_task(body), model="mockllm/model", log_dir=str(tmp_path)
+        )
+    assert _by_task(logs)["creator"].status == "success"
+
+
+async def test_fed_request_at_run_cancellation_ends_with_no_log(
+    tmp_path: Path, events: _Events
+) -> None:
+    outcomes: list[Any] = []
+    started: list[str] = []
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        try:
+            events["waiting"].set()
+            await anyio.sleep_forever()
+        except anyio.get_cancelled_exc_class():
+            # the waiter sits in this attempt's shielded cleanup while the
+            # run's cancellation ends dispatch
+            with anyio.CancelScope(shield=True), anyio.fail_after(10):
+                try:
+                    await handle.enqueue_sample(Sample(input="x"))
+                except TaskEndedError as ex:
+                    outcomes.append(ex.log)
+                outcomes.append(_record_by_id(handle.task_id).reached)
+            raise
+
+    class Source(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_creator_task(body)]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            started.append(log.eval.task)
+            return None
+
+    with anyio.fail_after(30):
+        async with anyio.create_task_group() as tg:
+
+            async def run() -> None:
+                await eval_async(Source(), model="mockllm/model", log_dir=str(tmp_path))
+
+            tg.start_soon(run)
+            await events["waiting"].wait()
+            tg.cancel_scope.cancel()
+    # the request's task never started: no attempt, no log
+    assert outcomes == [None, "added"]
+    assert "rollout_task" not in started
+
+
+def test_fed_tasks_own_retry_request_is_not_honoured() -> None:
+    outcomes: list[Any] = []
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        _send_in_background(
+            handle, Sample(input="x", metadata={"started": "running", "wait": "never"})
+        )
+        await EVENTS["running"].wait()
+        record = _record_by_id(handle.task_id)
+        assert record.attempt_cancel is not None
+        outcomes.append(record.attempt_cancel.can_retry)
+        record.attempt_cancel.request("retry")
+        outcomes.append(await handle.result())
+
+    EVENTS.clear()
+    logs = eval(
+        _creator_task(body),
+        model="mockllm/model",
+        display="none",
+        task_retry_attempts=2,
+    )
+    rollouts = [log for log in logs if log.eval.task == "rollout_task"]
+    assert len(rollouts) == 1 and rollouts[0].status == "error"
+    assert outcomes[0] is False
+    assert outcomes[1] is not None
+    assert outcomes[1].eval.eval_id == rollouts[0].eval.eval_id

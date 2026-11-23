@@ -15,9 +15,11 @@ from inspect_ai import (
     TaskEndedError,
     TaskSource,
     enqueue_task,
+    eval,
     eval_set,
     samples_from_handle,
     task,
+    task_with,
 )
 from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._eval.eval_set_manifest import (
@@ -1976,3 +1978,53 @@ def test_eval_set_selection_creator_feeds_a_rollout_task(
     assert not any(log.eval.task == "selection_task_two" for log in logs)
     # the failed rollout does not decide the worker's result
     assert success
+
+
+@solver
+def feed_selection_task_one() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        [handle] = enqueue_task(
+            task_with(selection_task_one(), dataset=samples_from_handle())
+        )
+        async with handle:
+            await handle.enqueue_sample(Sample(input="1+1", target="2"))
+        return state
+
+    return solve
+
+
+def test_eval_set_selection_refuses_a_fed_log_as_resume(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A fed task's log is another task's log, even for its factory's identifier."""
+    capture = enumerate_eval_set(monkeypatch, tmp_path)
+    identifier = next(
+        t.identifier
+        for t in capture.tasks
+        if t.name == "selection_task_one" and t.model == MODELS[0]
+    )
+
+    # run A adds selection_task_one fed through its handle
+    logs = eval(
+        Task(dataset=[Sample(input="x")], solver=[feed_selection_task_one()]),
+        model=MODELS[0],
+        log_dir=str(tmp_path / "run-a"),
+        display="none",
+    )
+    [fed] = [log for log in logs if log.eval.task == "selection_task_one"]
+    assert fed.eval.dataset.name == "samples_from_handle" and fed.location
+
+    with pytest.raises(PrerequisiteError, match="belongs to a different task"):
+        run_selection(
+            monkeypatch,
+            tmp_path,
+            EvalSetSelection(
+                version=EVAL_SET_SELECTION_VERSION,
+                eval_set_id="worker-test",
+                tasks=[
+                    EvalSetSelectionTask(identifier=identifier, resume=fed.location)
+                ],
+            ),
+            tmp_path / "logs",
+            name="fed-resume",
+        )
