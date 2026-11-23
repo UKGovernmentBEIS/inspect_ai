@@ -292,9 +292,15 @@ where pickle caches them today.
 ### Concurrency and failure
 
 Writes are atomic. The writer creates a temporary file in the entry's own
-directory with `tempfile.mkstemp` (exclusive creation, under a name such as
-`.<key>.jsonl.<random>.tmp` that matches no entry pattern), writes the
-bytes, closes it and renames it over `<key>.jsonl` with `os.replace`. A
+directory, under a random name that matches no entry pattern, writes the
+bytes, closes it and renames it over `<key>.jsonl` with `os.replace`. The
+temporary file is created exclusively (`O_EXCL`) and with the permissions
+an ordinary create gives under the process umask, as
+`_create_local_tempfile` in `src/inspect_ai/_util/atomic_write.py` does, so
+a published entry has the same mode as one written by `open(filename,
+"wb")` today. (`tempfile.mkstemp` would make every entry owner-only, so a
+cache directory shared through `INSPECT_CACHE_DIR` would become unreadable
+to other accounts.) A
 reader therefore opens either the previous whole entry, the new whole entry
 or no file; when two processes store the same key, the last rename wins and
 the entry is one writer's whole file. If anything fails before the rename,
@@ -526,7 +532,10 @@ or a model provider (they use `mockllm` and `INSPECT_CACHE_DIR` under
 - **Failed rename.** With `os.replace` patched to raise, a store leaves the
   existing entry unchanged and no temporary file, and `generate()` returns
   its output.
-- **Temporary files are not entries.** A leftover `.<key>.jsonl.<random>.tmp`
+- **Entry permissions.** Under the test's umask, a stored entry has the
+  same mode as a file created with `open(path, "wb")` in the same
+  directory (not owner-only). Skipped on Windows.
+- **Temporary files are not entries.** A leftover temporary file
   holding a valid expired entry is not listed or pruned, is counted by
   `cache_size`, and is removed by `cache_clear`.
 - **Path setup failures are misses.** With a regular file at
@@ -566,8 +575,8 @@ or a model provider (they use `mockllm` and `INSPECT_CACHE_DIR` under
    Tests: never-deserialized, tripwire, round trip, non-ASCII text, invalid
    headers, invalid bodies, expiry, legacy entries, lossy outputs, NaN
    refused, normalized outputs, concurrent writers and a reader, failed
-   rename, temporary files, path setup failures, the containment tests, and
-   the updated existing tests.
+   rename, entry permissions, temporary files, path setup failures, the
+   containment tests, and the updated existing tests.
 2. **CLI and docs** (`src/inspect_ai/_cli/cache.py`, `docs/caching.qmd`).
    Pruneable table title and help text; a caching docs section on the entry
    format, that entries from earlier versions are not reused, and that
