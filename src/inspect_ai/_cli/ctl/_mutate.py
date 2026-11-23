@@ -174,7 +174,8 @@ def _resolve_scope(
     and task log-flush today; task cancel/drain are expected to reuse it): an
     explicit ``TASK`` targets that task; no ``TASK`` defaults to the sole
     process — a single-active-task process resolves to that task (completed
-    eval-set siblings and queued tasks don't count), a multi-task process
+    eval-set siblings and queued tasks don't count; a process with only
+    queued tasks resolves to the process scope), a multi-task process
     resolves to the
     process-level scope. ``model`` composes with both paths — an explicit
     ``TASK``'s matches are filtered to tasks running a matching model (see
@@ -252,11 +253,15 @@ def _resolve_scope(
         )
     socket_path = sockets[0]
     tasks_in_proc = [s for s in visible if str(s.get("socket_path")) == socket_path]
+    # a queued task is never a default target (its task-scoped routes answer
+    # 404 until it starts); a process with only queued tasks resolves to the
+    # process scope, as a process with no tasks listed yet does
+    started = [s for s in tasks_in_proc if s.get("status") != "queued"]
     # a finished task's config is no longer meaningfully adjustable, so the
     # sole-task default keys on what is still active — an eval-set with one
     # running and N completed tasks resolves to the running one
-    active = [s for s in tasks_in_proc if _is_active(s)]
-    candidates = active or tasks_in_proc
+    active = [s for s in started if _is_active(s)]
+    candidates = active or started
     if len(candidates) == 1 and str(candidates[0].get("task_id") or ""):
         target = candidates[0]
         return _DirectiveScope(
@@ -274,13 +279,18 @@ def _resolve_scope(
             # impossible advice — either a just-starting attempt whose
             # registration hasn't landed yet (status running/pending), or
             # pre-task-id reused logs (completed)
-            starting = any(_is_active(c) for c in candidates)
-            reason = (
-                "the running task hasn't finished registering yet — retry in a moment"
-                if starting
-                else "this process's tasks predate task ids (older reused "
-                "logs) and can't be targeted by task-keyed directives"
-            )
+            if not candidates:
+                reason = "no task in this process has started yet — retry in a moment"
+            elif any(_is_active(c) for c in candidates):
+                reason = (
+                    "the running task hasn't finished registering yet — retry "
+                    "in a moment"
+                )
+            else:
+                reason = (
+                    "this process's tasks predate task ids (older reused "
+                    "logs) and can't be targeted by task-keyed directives"
+                )
             _fail(
                 "invalid_request", f"{per_task_option} needs a task id, but {reason}."
             )

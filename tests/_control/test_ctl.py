@@ -8166,6 +8166,41 @@ def test_resolve_scope_queued_task_is_reached_but_not_a_default_target() -> None
     assert named.siblings == 2  # the queued target is counted once
 
 
+def test_resolve_scope_sole_queued_task_resolves_to_process_scope() -> None:
+    """A task that has not started is not a default target, even when alone."""
+    from inspect_ai._cli.ctl._mutate import _resolve_scope
+
+    queued = [_full_summary("aaa111", "t1", status="queued")]
+    scope = _resolve_scope([], queued, None)
+    assert scope is not None
+    assert scope.task_id is None  # process scope
+    assert scope.siblings == 1
+    with pytest.raises(click.exceptions.Exit):
+        _resolve_scope([], queued, None, per_task_option="--max-samples")
+    # an explicit selector still targets the queued task
+    named = _resolve_scope([], queued, "t1")
+    assert named is not None and named.task_id == "aaa111"
+    # a completed task stays the fallback default beside a queued one
+    beside_completed = _resolve_scope(
+        [], [*queued, _full_summary("bbb222", "t2", status="completed")], None
+    )
+    assert beside_completed is not None and beside_completed.task_id == "bbb222"
+
+
+def test_config_process_knob_with_sole_queued_task_targets_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A process setting during startup goes to the process, not the queued task."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1", status="queued")])
+    _stub_limits(monkeypatch)
+    result = cli_runner().invoke(ctl_command, ["config", "--max-tasks", "2", "--json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["target"]["scope"] == "process"
+    task_knob = cli_runner().invoke(ctl_command, ["config", "--max-samples", "3"])
+    assert task_knob.exit_code == 1
+    assert "no task in this process has started yet" in task_knob.stderr
+
+
 def test_config_process_knob_notes_queued_tasks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
