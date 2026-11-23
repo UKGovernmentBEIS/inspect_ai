@@ -291,24 +291,17 @@ where pickle caches them today.
 
 ### Concurrency and failure
 
-Writes are atomic. The writer creates a temporary file in the entry's own
-directory, under a random name that matches no entry pattern, writes the
-bytes, closes it and renames it over `<key>.jsonl` with `os.replace`. The
-temporary file is created exclusively (`O_EXCL`). A published entry has
-the mode `open(filename, "wb")` gives it today: when it replaces an existing
-regular `<key>.jsonl`, that file's permission bits are kept, and a new entry
-gets the permissions an ordinary create gives under the process umask, as
-`atomic_write` in `src/inspect_ai/_util/atomic_write.py` does for both
-cases. (`tempfile.mkstemp` would make every entry owner-only, so a cache
-directory shared through `INSPECT_CACHE_DIR` would become unreadable to
-other accounts, and a plain create would reset a restricted or
-group-shared entry's mode on every rewrite.) A
-reader therefore opens either the previous whole entry, the new whole entry
-or no file; when two processes store the same key, the last rename wins and
-the entry is one writer's whole file. If anything fails before the rename,
-the temporary file is removed, the existing entry is untouched, and the
-output is not cached (traced). On Windows the rename fails while another
-process has the entry open; that store is skipped the same way. There is no
+`cache_store` writes the entry with `atomic_write_bytes(path, data,
+fsync=False)` (`src/inspect_ai/_util/atomic_write.py`), the writer eval logs
+use: it writes a temporary file in the entry's directory and renames it into
+place. A reader therefore sees the previous whole entry, the new whole entry
+or none, and when two processes store the same key the entry is one
+writer's whole file. A write that fails leaves the existing entry and no
+temporary file, and the output is not cached (traced); on Windows that
+includes a rename refused while another process has the entry open. The
+helper's permission handling, including that its temporary copy can be
+more readable than a restricted entry while it is written or after a
+killed store, is its accepted behaviour, as for eval logs. There is no
 `fsync`: after a system crash an entry may be empty or partial, which
 readers treat as invalid. There is no new locking.
 
@@ -441,9 +434,9 @@ pickle's 9.9 KB (pickle stores the repeated string once) and 36.9 KB with
 Untrusted input reaching the new code: the bytes of any file under the cache
 root, file names in it, and symlinks. Handling:
 
-- The writer creates its temporary file with exclusive creation, so a name
-  planted in the directory is never opened for writing, and `os.replace`
-  replaces a symlink at the entry path rather than writing through it.
+- The writer is `atomic_write_bytes`, run after today's inside-the-cache
+  check. A symlink inside the cache is written through, as `open(path,
+  "wb")` does today; containment is unchanged.
 - Lookup reads one path derived from the key; list and prune open only files
   whose names match an entry pattern, after today's inside-the-cache check,
   which resolves symlinks.
@@ -531,14 +524,8 @@ or a model provider (they use `mockllm` and `INSPECT_CACHE_DIR` under
   of reads (a spike of this shape found 238 of 585 reads partial in place,
   none with a temporary file and rename), so the test fails without atomic
   writes.
-- **Failed rename.** With `os.replace` patched to raise, a store leaves the
-  existing entry unchanged and no temporary file, and `generate()` returns
-  its output.
-- **Entry permissions.** Under the test's umask, a new stored entry has the
-  same mode as a file created with `open(path, "wb")` in the same
-  directory (not owner-only), and storing over an existing `<key>.jsonl`
-  whose mode differs from that (`0600`, `0660`) keeps the existing mode.
-  Skipped on Windows.
+- **Failed write.** A store whose write raises is skipped and `generate()`
+  returns its output.
 - **Temporary files are not entries.** A leftover temporary file
   holding a valid expired entry is not listed or pruned, is counted by
   `cache_size`, and is removed by `cache_clear`.
@@ -574,13 +561,13 @@ or a model provider (they use `mockllm` and `INSPECT_CACHE_DIR` under
    `<key>.jsonl`; `cache_list_expired` and `cache_prune` on entry-name
    patterns with header-only reads and legacy detection; remove the `pickle`
    import; the store-time round-trip check and the warning for outputs not
-   cached; the temporary-file-and-rename write; path setup inside the
-   lookup and store handlers.
+   cached; writing with `atomic_write_bytes`; path setup inside the lookup
+   and store handlers.
    Tests: never-deserialized, tripwire, round trip, non-ASCII text, invalid
    headers, invalid bodies, expiry, legacy entries, lossy outputs, NaN
    refused, normalized outputs, concurrent writers and a reader, failed
-   rename, entry permissions, temporary files, path setup failures, the
-   containment tests, and the updated existing tests.
+   write, temporary files, path setup failures, the containment tests, and
+   the updated existing tests.
 2. **CLI and docs** (`src/inspect_ai/_cli/cache.py`, `docs/caching.qmd`).
    Pruneable table title and help text; a caching docs section on the entry
    format, that entries from earlier versions are not reused, and that
