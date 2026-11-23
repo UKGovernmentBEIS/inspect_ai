@@ -125,7 +125,9 @@ For group viewing, use a shared group and a writer umask that grants group read 
 
 Shared updates begin after the first successful log snapshot. If a permission error delays that snapshot, Inspect waits for the next log flush. After restoring access, you can use `inspect ctl task log-flush` to write any pending completed samples.
 
-If permissions or a read-only filesystem prevent Inspect from opening or creating the run directory, it warns once and stops shared updates for that run. The same applies if Inspect encounters a linked buffer directory or manifest, or loses the run directory after syncing begins. In each case the evaluation continues to record locally.
+Keep `.buffer` and the run directory in place while the eval is running. Inspect checks the run directory before each upload. If either directory moves during an upload, that upload may finish in the directory it opened. If the next upload finds the run directory missing or replaced, Inspect warns once and stops sharing for that run. The evaluation continues to record locally.
+
+Inspect also stops sharing and warns once if permissions or a read-only filesystem prevent it from opening or creating the run directory, or if it encounters a linked buffer directory or manifest.
 
 ## Sample Details
 

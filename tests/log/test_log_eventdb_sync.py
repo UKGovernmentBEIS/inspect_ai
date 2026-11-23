@@ -211,15 +211,18 @@ def test_live_sync_keeps_segment_and_manifest_together(
         db.log_events([SampleEvent(id=1, epoch=1, event=InfoEvent(data="first"))])
         sync_to_filestore(db, writer)
         db.log_events([SampleEvent(id=1, epoch=1, event=InfoEvent(data="second"))])
-        monkeypatch.setattr(writer, "write_segment", archive_after_segment)
-        for _ in range(2):
-            with pytest.raises(OSError, match="removed or replaced"):
-                sync_to_filestore(db, writer)
-        assert list(run.iterdir()) == []
+        with monkeypatch.context() as during_upload:
+            during_upload.setattr(writer, "write_segment", archive_after_segment)
+            sync_to_filestore(db, writer)
         reader = SampleBufferFilestore(str(tmp_path / "archived.eval"), create=False)
         data = reader.get_sample_data(1, 1)
         assert data is not None
         assert [event.event["data"] for event in data.events] == ["first", "second"]
+
+        db.log_events([SampleEvent(id=1, epoch=1, event=InfoEvent(data="third"))])
+        with pytest.raises(SharedBufferUnavailable, match="removed or replaced"):
+            sync_to_filestore(db, writer)
+        assert list(run.iterdir()) == []
         writer.cleanup()
         assert run.is_dir()
     finally:
@@ -236,8 +239,7 @@ def test_shared_sync_stops_on_stale_directory_lookup(
     writer.write_manifest(Manifest())
     with patch(lookup, side_effect=OSError(errno.ESTALE, "Stale file handle")):
         with pytest.raises(SharedBufferUnavailable, match="removed or replaced"):
-            with writer.sync_directory():
-                pytest.fail("synced after losing the directory")
+            writer.verify_sync_directory()
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")

@@ -261,19 +261,10 @@ class SampleBufferFilestore(SampleBuffer):
                 raise
         return self._local
 
-    @contextmanager
-    def sync_directory(self) -> Iterator[None]:
-        """Keep the manifest read and all writes in one verified run directory."""
-        if not self._posix:
-            yield
-            return
-        directory = self._local_directory()
-        directory.verify()
-        try:
-            yield
-        finally:
-            # Detect a move even if publishing into the original directory failed.
-            directory.verify()
+    def verify_sync_directory(self) -> None:
+        """Check that the pinned POSIX run directory is in place before an upload."""
+        if self._posix:
+            self._local_directory().verify()
 
     def _write_bytes(self, path: str, data: bytes) -> None:
         """Write bytes to the filestore, tagging S3 objects as ephemeral.

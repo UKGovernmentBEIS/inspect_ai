@@ -2125,8 +2125,8 @@ def sync_to_filestore(
     # recorded for the next sync
     removed = db.take_removed_since_sync()
     try:
-        with filestore.sync_directory():
-            _sync_samples_to_filestore(db, filestore, removed)
+        filestore.verify_sync_directory()
+        _sync_samples_to_filestore(db, filestore, removed)
     except BaseException:
         db.restore_removed_since_sync(removed)
         raise
