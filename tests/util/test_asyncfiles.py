@@ -879,6 +879,28 @@ async def test_list_dir_s3_returns_files_and_prefixes_from_one_listing(
     assert empty.files == [] and empty.dirs == []
 
 
+async def test_list_s3_keys_lists_every_object_with_directory_markers(
+    mock_s3: None,
+) -> None:
+    import boto3
+
+    s3 = boto3.client("s3")
+    for key in ("keys/", "keys/a.eval", "keys/sub/", "keys/sub/b", "keys-x/c"):
+        s3.put_object(Bucket="test-bucket", Key=key, Body=b"")
+
+    async with AsyncFilesystem() as fs:
+        keys = await fs.list_s3_keys(f"{S3_BUCKET}/keys")
+        with pytest.raises(ValueError, match="Not an S3 URL"):
+            await fs.list_s3_keys("/tmp/keys")
+
+    assert sorted(keys) == [
+        f"{S3_BUCKET}/keys/",
+        f"{S3_BUCKET}/keys/a.eval",
+        f"{S3_BUCKET}/keys/sub/",
+        f"{S3_BUCKET}/keys/sub/b",
+    ]
+
+
 # =============================================================================
 # Tests for write_file_streaming
 # =============================================================================

@@ -31,6 +31,7 @@ from inspect_ai.log._recorders.eval import (
 )
 from inspect_ai.log._recorders.recorder import SampleRecordKey
 
+from ._delete import Companion, delete_companion, list_companion
 from ._errors import ShardSetError, ShardSetIncomplete
 from ._owned import run_owned
 from ._plan import (
@@ -88,6 +89,7 @@ def merge_eval_log_shards(
     sample_ids: Sequence[str | int] | None = None,
     sample_count: int | None = None,
     allow_incomplete: bool = False,
+    delete_shards: bool = False,
 ) -> ShardMergeResult:
     """Merge the shard logs of a sharded run into one eval log.
 
@@ -133,16 +135,27 @@ def merge_eval_log_shards(
             used, or on a first merge the whole dataset.
         allow_incomplete: Write a `started` or `error` merged log when the
             set is incomplete, rather than raise `ShardSetIncomplete`.
+        delete_shards: After the merge, delete the shards directory. Only a
+            complete (`success`) merged log has its shards deleted; otherwise
+            the merge raises and deletes nothing. Use it only on a finished
+            run that nothing else writes to. If deletion is interrupted, run
+            the merge again with it to finish. Cannot be combined with
+            `allow_incomplete`.
 
     Returns:
-        The merged log's header, and whether it was written.
+        The merged log's header, and whether it was written. When
+        `delete_shards` is set and the call returns, the shards were deleted.
 
     Raises:
         ShardSetError: The shards cannot be merged (`ShardSelectionError`
             when they hold samples outside the selection), `task` is not
             the task they ran, or a local merged log is a symbolic link.
+            With `delete_shards`: a local shards directory is a symbolic
+            link, a name in an S3 shards directory is one S3 would read as
+            another key, or something was left in the shards directory
+            after deletion.
         ShardSetIncomplete: The set is incomplete and `allow_incomplete` is
-            not set. Nothing is written.
+            not set. Nothing is written or deleted.
         WriteConflictError: Another merge holds the lock or published first.
             Run the merge again once it has finished. A lock file left by
             a merge that crashed stays until you delete it.
@@ -152,9 +165,12 @@ def merge_eval_log_shards(
             bytes follow the end of the stream.
         FileNotFoundError: Neither the merged log nor any shard exists.
         TypeError: `task` is not a `Task`.
+        OSError: A delete failed (with `delete_shards`). The error keeps
+            its type; run the merge again with `delete_shards` to finish.
         ValueError: Invalid arguments: both `sample_ids` and
-            `sample_count`, an empty or string `sample_ids`, or a
-            `sample_count` below 1; or `log` is not a local path, `file://`
+            `sample_count`, an empty or string `sample_ids`, a
+            `sample_count` below 1, or both `allow_incomplete` and
+            `delete_shards`; or `log` is not a local path, `file://`
             URI or `s3://` URL, is not named `<name>.eval` or
             `<name>.shards`, names a recovered log, or is an S3 location
             that S3 would read as another key.
@@ -166,6 +182,7 @@ def merge_eval_log_shards(
             sample_ids=sample_ids,
             sample_count=sample_count,
             allow_incomplete=allow_incomplete,
+            delete_shards=delete_shards,
         )
     )
 
@@ -177,6 +194,7 @@ async def merge_eval_log_shards_async(
     sample_ids: Sequence[str | int] | None = None,
     sample_count: int | None = None,
     allow_incomplete: bool = False,
+    delete_shards: bool = False,
 ) -> ShardMergeResult:
     """Merge the shard logs of a sharded run into one eval log.
 
@@ -190,11 +208,17 @@ async def merge_eval_log_shards_async(
             "Build the task as you passed it to eval() and pass that."
         )
     (location, merged_path, shards_dir), given = check_merge_arguments(
-        log, sample_ids, sample_count
+        log,
+        sample_ids,
+        sample_count,
+        allow_incomplete=allow_incomplete,
+        delete_shards=delete_shards,
     )
 
     async with AsyncFilesystem() as fs:
         with merge_guard(merged_path):
+            # taken before the pass, so nothing written after it is deleted
+            listed = await list_companion(fs, shards_dir) if delete_shards else None
             existing = await _read_merged(fs, merged_path)
             merge_pass = await _merge_pass(
                 fs,
@@ -204,11 +228,32 @@ async def merge_eval_log_shards_async(
                 given,
                 task,
                 allow_incomplete=allow_incomplete,
+                deleting=delete_shards,
             )
+            if listed is not None:
+                await _delete_shards(fs, merged_path, shards_dir, listed, merge_pass)
 
     header = merge_pass.header
     header.location = location
     return ShardMergeResult(log=header, written=merge_pass.written)
+
+
+async def _delete_shards(
+    fs: AsyncFilesystem,
+    merged_path: str,
+    shards_dir: str,
+    listed: Companion,
+    merge_pass: "_Pass",
+) -> None:
+    """Delete the listed shards once the pass has left a `success` merged log."""
+    header = merge_pass.header
+    if header.status != "success":
+        raise ShardSetError(
+            f"{merged_path} has status '{header.status}', so its shards were not "
+            "deleted. Only the shards of a complete merged log are deleted."
+        )
+    current = [(e.shard, e.log) for e in _ledger(header)]
+    await delete_companion(fs, shards_dir, listed, current)
 
 
 class _Merged(NamedTuple):
@@ -272,13 +317,23 @@ def check_merge_arguments(
     log: str,
     sample_ids: Sequence[str | int] | None,
     sample_count: int | None,
+    *,
+    allow_incomplete: bool,
+    delete_shards: bool,
 ) -> MergeArguments:
     """Check the arguments of a merge before any I/O.
 
     Raises:
         ValueError: An unsupported or recovered-log location, an invalid
-            selection, or an S3 location that S3 would read as another key.
+            selection, an S3 location that S3 would read as another key, or
+            both `allow_incomplete` and `delete_shards`.
     """
+    if allow_incomplete and delete_shards:
+        raise ValueError(
+            "delete_shards (--delete-shards) cannot be combined with "
+            "allow_incomplete (--allow-incomplete): only the shards of a "
+            "complete merged log are deleted."
+        )
     paths = merge_paths(log)
     given = given_selection(sample_ids, sample_count)
     check_s3_location(paths.merged)
@@ -355,6 +410,7 @@ async def _merge_pass(
     task: "Task",
     *,
     allow_incomplete: bool,
+    deleting: bool,
 ) -> _Pass:
     listing = await list_shard_set(fs, shards_dir, numeric_shards=True)
     check_attempt_names(listing.shards)
@@ -371,7 +427,7 @@ async def _merge_pass(
                 f"Neither {merged_path} nor any shard in {shards_dir} exists."
             )
         check_task_matches(task, existing.header, merged_path)
-        return _recorded_pass(existing, given, allow_incomplete)
+        return _recorded_pass(existing, given, allow_incomplete, deleting)
 
     ledger = (
         {e.shard: e for e in _ledger(existing.header)} if existing is not None else {}
@@ -381,9 +437,13 @@ async def _merge_pass(
         if shard.name in ledger:
             check_attempt_order(shard, ledger[shard.name])
     present = {s.name for s in shards}
-    check_vanished(
-        [name for name in ledger if name not in present], merged_path, shards_dir
-    )
+    vanished = [name for name in ledger if name not in present]
+    if deleting and vanished and not changed:
+        # a deletion that stopped part way: the rest of the shards match
+        assert existing is not None
+        check_task_matches(task, existing.header, merged_path)
+        return _recorded_pass(existing, given, allow_incomplete, deleting)
+    check_vanished(vanished, merged_path, shards_dir)
 
     reads, readers = await _read_attempts(fs, changed)
     by_shard = {read.shard: read for read in reads}
@@ -433,7 +493,7 @@ async def _merge_pass(
     epochs = base.eval.config.epochs or 1
     status = plan_status(entries, keys, selection, epochs, base.eval.dataset.samples)
     if status.status != "success" and not allow_incomplete:
-        raise _incomplete(merged_path, status)
+        raise _incomplete(merged_path, status, deleting)
 
     if existing is not None and not changed and selection.same_as(recorded):
         return _Pass(existing.header, False)
@@ -518,7 +578,10 @@ async def _merge_pass(
 
 
 def _recorded_pass(
-    existing: _Merged, given: Selection | None, allow_incomplete: bool
+    existing: _Merged,
+    given: Selection | None,
+    allow_incomplete: bool,
+    deleting: bool,
 ) -> _Pass:
     """A pass that keeps the merged log as recorded (its shards deleted)."""
     header = existing.header
@@ -536,11 +599,11 @@ def _recorded_pass(
         header.eval.dataset.samples,
     )
     if header.status != "success" and not allow_incomplete:
-        raise _incomplete(header.location, status)
+        raise _incomplete(header.location, status, deleting)
     return _Pass(header, False)
 
 
-def _incomplete(location: str, status: Status) -> ShardSetIncomplete:
+def _incomplete(location: str, status: Status, deleting: bool) -> ShardSetIncomplete:
     merged_status: Literal["started", "error"] = (
         "error" if status.status == "error" else "started"
     )
@@ -552,10 +615,15 @@ def _incomplete(location: str, status: Status) -> ShardSetIncomplete:
     if status.failed:
         parts.append(f"failed shards: {', '.join(status.failed)}")
     detail = f" ({'; '.join(parts)})" if parts else ""
+    advice = (
+        "Only the shards of a complete merged log are deleted; to abandon the "
+        "run, delete its shards directory by hand."
+        if deleting
+        else "Pass allow_incomplete (--allow-incomplete on the command line) to "
+        "write an incomplete merged log."
+    )
     return ShardSetIncomplete(
-        f"The shards of {location} are incomplete{detail}. Pass allow_incomplete "
-        "(--allow-incomplete on the command line) to write an incomplete merged "
-        "log.",
+        f"The shards of {location} are incomplete{detail}. {advice}",
         status=merged_status,
         missing=status.missing,
         running=status.running,

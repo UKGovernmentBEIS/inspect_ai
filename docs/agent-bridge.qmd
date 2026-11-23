@@ -389,6 +389,8 @@ Some providers reuse one tool call id for several calls (e.g. Mistral sends `"nu
 
 The field is `None` when every call kept the model's id. It is also `None` when a request or response filter returned a copy of the response (changed or not), even if the bridge gave its calls new ids, so a missing field doesn't prove the agent received the model's ids. For a turn that tool approval rejected, the agent never received the calls: their ids appear only in the rejection the model is sent next.
 
+Sentinel replay uses these ids to pair each call with its result (see [Bridged Agents](agent-custom.qmd#bridged-agents)).
+
 On a `require_proposal=False` server, a call is paired with the oldest pending proposal for the same tool and arguments, whichever call arrives first. A call the model did not propose (for example, one made from code the model wrote) with the same arguments as a pending proposal takes that proposal's id, and the proposed call is then recorded as `"exempt"` with a fresh id. Both calls run as usual; only the pairing in the log is wrong.
 
 If you want to use additional features of Inspect transcripts (e.g. spans, markdown output, etc.) you can still import and use the `transcript` function as normal. For example:

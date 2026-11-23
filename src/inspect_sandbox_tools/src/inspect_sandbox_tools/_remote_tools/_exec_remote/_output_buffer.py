@@ -12,8 +12,8 @@ class BoundedByteBuffer:
     from the pipe, the kernel buffer fills, and the subprocess blocks
     on write — applying backpressure all the way to the source.
 
-    A put() that waits on a full buffer is freed by a drain() or by
-    cancelling the task that awaits it.
+    A put() that waits on a full buffer is freed by a drain(), by a
+    set_limit() that makes room, or by cancelling the task that awaits it.
     """
 
     def __init__(self, max_bytes: int) -> None:
@@ -36,6 +36,11 @@ class BoundedByteBuffer:
             self._has_space.clear()
             await self._has_space.wait()
         self._buf.extend(data)
+
+    def set_limit(self, max_bytes: int) -> None:
+        """Change the size at which put() waits."""
+        self._max_bytes = max_bytes
+        self._has_space.set()
 
     def drain(self, max_bytes: int | None = None) -> bytes:
         """Return buffered data and remove it from the buffer.
