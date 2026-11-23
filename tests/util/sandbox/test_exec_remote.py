@@ -1071,6 +1071,24 @@ class TestUserParam:
         )
         assert params["cwd"] == cwd
 
+    async def test_framework_operation_keeps_the_default_user_in_a_scope(
+        self,
+    ) -> None:
+        params = await self._start_params(
+            ExecRemoteStreamingOptions(cwd="/srv"),
+            identity=("w-1", "/home/w-1"),
+            framework_operation=True,
+        )
+        assert params["user"] == self._DEFAULT_USER._asdict()
+
+    async def test_framework_operation_leaves_an_omitted_cwd_omitted(self) -> None:
+        params = await self._start_params(
+            ExecRemoteStreamingOptions(user="root"),
+            identity=("w-1", "/home/w-1"),
+            framework_operation=True,
+        )
+        assert "cwd" not in params
+
     async def test_identity_scope_for_another_sandbox_is_ignored(self) -> None:
         params = await self._start_params(
             ExecRemoteStreamingOptions(),
