@@ -359,6 +359,104 @@ async def test_numeric_match_any_with_punctuation():
 @pytest.mark.parametrize(
     "model_output",
     [
+        "The answer is 42！",
+        "The answer is 42？",
+        "The answer is 42：",
+        "The answer is 42；",
+        "The answer is （42）",
+        "The answer is ［42］",
+        "The answer is ｛42｝",
+        "The answer is ＂42＂",
+        "The answer is ｀42｀",
+        "The answer is ＇42＇",
+        "The answer is （42）。",
+        "答え: 42。",
+        "The answer is 「42」",
+        "The answer is 『42』",
+        "The answer is 【42】",
+        "答えは 「42」",
+    ],
+)
+async def test_numeric_match_with_fullwidth_punctuation(model_output: str):
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output=model_output)
+    result = await scorer(state, Target(["42"]))
+
+    assert result is not None
+    assert result.text == CORRECT
+    assert result.answer == "42"
+
+
+@pytest.mark.anyio
+async def test_numeric_match_any_with_fullwidth_punctuation():
+    scorer = match(numeric=True, location="any")
+    state = simple_task_state(model_output="first 7 then （42） then done")
+    result = await scorer(state, Target(["42"]))
+
+    assert result is not None
+    assert result.text == CORRECT
+    assert result.answer == "42"
+
+
+@pytest.mark.anyio
+async def test_numeric_match_begin_with_fullwidth_punctuation():
+    scorer = match(numeric=True, location="begin")
+    state = simple_task_state(model_output="（42） is the answer")
+    result = await scorer(state, Target(["42"]))
+
+    assert result is not None
+    assert result.text == CORRECT
+    assert result.answer == "42"
+
+
+@pytest.mark.anyio
+async def test_numeric_end_uses_last_fullwidth_number():
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="途中は 7。 答え: 42。")
+
+    last = await scorer(state, Target(["42"]))
+    assert last.text == CORRECT
+    assert last.answer == "42"
+
+    earlier = await scorer(state, Target(["7"]))
+    assert earlier.text == INCORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_fullwidth_punctuation_on_target():
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="答え: 42。")
+    result = await scorer(state, Target(["（42）"]))
+
+    assert result is not None
+    assert result.text == CORRECT
+    assert result.answer == "42"
+
+
+@pytest.mark.anyio
+async def test_numeric_fullwidth_decimal_is_not_trimmed_to_integer():
+    # U+FF0E is a decimal separator, same as ASCII ".". Stripping it would
+    # score "．42" (0.42) as 42.
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="The answer is ．42")
+
+    as_integer = await scorer(state, Target(["42"]))
+    assert as_integer.text == INCORRECT
+
+    as_decimal = await scorer(state, Target(["0.42"]))
+    assert as_decimal.text == CORRECT
+
+    state = simple_task_state(model_output="The answer is 42．5")
+    fractional = await scorer(state, Target(["42.5"]))
+    assert fractional.text == CORRECT
+    collapsed = await scorer(state, Target(["42"]))
+    assert collapsed.text == INCORRECT
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model_output",
+    [
         # operator characters express bounds/approximations, not the value:
         # they must NOT be trimmed into a match (false CORRECTs inflate
         # scores silently — nobody audits their passing samples)
@@ -366,6 +464,7 @@ async def test_numeric_match_any_with_punctuation():
         "The answer is >=42",
         "The answer is ~42",
         "The answer is &42",
+        "The answer is ＜42",
     ],
 )
 async def test_numeric_match_operator_prefix_stays_incorrect(model_output: str):
@@ -389,6 +488,21 @@ async def test_numeric_match_exact_rejects_punctuation():
     assert result.text == INCORRECT
 
     state = simple_task_state(model_output="42!")
+    result = await scorer(state, Target(["42"]))
+    assert result is not None
+    assert result.text == INCORRECT
+
+    state = simple_task_state(model_output="（42）")
+    result = await scorer(state, Target(["42"]))
+    assert result is not None
+    assert result.text == INCORRECT
+
+    state = simple_task_state(model_output="42。")
+    result = await scorer(state, Target(["42"]))
+    assert result is not None
+    assert result.text == INCORRECT
+
+    state = simple_task_state(model_output="「42」")
     result = await scorer(state, Target(["42"]))
     assert result is not None
     assert result.text == INCORRECT
@@ -426,3 +540,37 @@ async def test_numeric_long_repeated_chinese_units_scores():
 
     assert result is not None
     assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_match_digit_run_before_chinese_unit():
+    # 12万 is 120_000, not 2·10⁴: the digits before the unit are a run
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="The population is 12万")
+
+    result = await scorer(state, Target(["120000"]))
+    assert result is not None
+    assert result.text == CORRECT
+    assert result.answer is not None and float(result.answer) == 120_000.0
+
+    result = await scorer(state, Target(["20000"]))
+    assert result is not None
+    assert result.text == INCORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_match_digit_run_outside_float_range():
+    # A run long enough to lose its float counterpart must score INCORRECT,
+    # not raise OverflowError out of the comparison.
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="9" * 305 + "万")
+
+    result = await scorer(state, Target(["1"]))
+    assert result is not None
+    assert result.text == INCORRECT
+
+    # The target is a number the run cannot represent either, so there is
+    # nothing to match against; it must not raise on the way to that answer.
+    result = await scorer(state, Target(["10" + "0" * 309]))
+    assert result is not None
+    assert result.text == INCORRECT

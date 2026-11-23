@@ -1,5 +1,9 @@
 """Tests for json_schema_to_base_model and json_schema_dump functions."""
 
+import json
+from datetime import date
+from enum import Enum
+
 import pytest
 from pydantic import BaseModel, Field, ValidationError
 
@@ -620,6 +624,27 @@ def test_json_schema_dump_tool_info():
     assert result["name"] == "test_tool"
     assert result["description"] == "A test tool"
     assert "query" in result["parameters"]["properties"]
+
+
+def test_json_schema_dump_python_defaults():
+    """Defaults with no JSON form (an Enum member, a date) are dumped as JSON."""
+
+    class Unit(Enum):
+        CELSIUS = "celsius"
+        FAHRENHEIT = "fahrenheit"
+
+    params = ToolParams(
+        properties={
+            "unit": ToolParam(
+                type="string", enum=["celsius", "fahrenheit"], default=Unit.CELSIUS
+            ),
+            "since": ToolParam(type="string", format="date", default=date(2026, 1, 1)),
+        },
+    )
+    result = json_schema_dump(params)
+    assert result["properties"]["unit"]["default"] == "celsius"
+    assert result["properties"]["since"]["default"] == "2026-01-01"
+    assert json.loads(json.dumps(result)) == result
 
 
 def test_json_schema_dump_anyof_exclude():

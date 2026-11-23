@@ -1,4 +1,4 @@
-//#region ../../node_modules/.pnpm/mathxyjax3@0.8.3/node_modules/mathxyjax3/dist/xypic-DrMJn58R.js
+// ../../node_modules/.pnpm/mathxyjax3@0.8.3/node_modules/mathxyjax3/dist/xypic-DrMJn58R.js
 (function() {
 	var e = {
 		401: function(e, t) {
@@ -14871,6 +14871,5 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
 		})));
 	})();
 })();
-//#endregion
 
 //# sourceMappingURL=xypic-DrMJn58R.js.map

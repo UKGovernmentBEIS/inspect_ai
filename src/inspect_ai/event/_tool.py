@@ -33,6 +33,23 @@ class ToolEvent(BaseEvent):
     id: str
     """Unique identifier for tool call."""
 
+    execution_id: str | None = Field(default=None)
+    """Id of this execution of the call, which the approvals and sentinel steps that judged it record as their `execution_id`.
+
+    Unique to each execution of a native call, also when a model repeats a call
+    id. For a host tool a sandbox agent bridge runs, the handout it ran for
+    (each response's handing of the call to the scaffold has its own) and the
+    bridged tool it ran, as `<handout>/<server>/<tool>`: a call that denotes
+    several bridged tools sharing a description runs once per tool, each an
+    execution of its own. `None` for a host call no handout accounts for, for
+    a host call whose request matched the grants of more than one handout
+    (which one it ran for is unknown), and in logs written before this field.
+
+    The id is opaque: compare it for equality, and don't parse it.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
     function: str
     """Function called."""
 
@@ -82,7 +99,47 @@ class ToolEvent(BaseEvent):
     """Did the tool call fail with a hard error?."""
 
     message_id: str | None = Field(default=None)
-    """Id of ChatMessageTool associated with this event."""
+    """Id of ChatMessageTool associated with this event.
+
+    The message may not stay in the conversation (react removes its `submit`
+    tool's result). For a host tool a sandbox agent bridge runs for the
+    scaffold, the result reaches the conversation only when the scaffold sends
+    it back, so this is set then, on the completed event, and only when the
+    answer is certain: the scaffold sends back the reply holding the call
+    unchanged and the bridge places it under the id it handed it with, the call
+    ran once, no other call of the reply has its id or its function and
+    arguments, and exactly one tool message answers it (by call id, before the
+    next assistant message with tool calls), is new in that request, and
+    contains the start of the result the scaffold received. Its content may
+    otherwise differ from `result`: scaffolds edit results and dialects
+    reshape them.
+
+    Otherwise it stays `None`: the scaffold never sends the result, edits the
+    reply, or sends it where the bridge can't place it (another conversation
+    may hold an equal reply); a message the bridge couldn't place took the
+    reply's id; the call executed more than once; more than one tool
+    message answers it; the answer equals a message sent before, was sent
+    before the call completed, or doesn't contain the start of the result
+    (e.g. the scaffold's client gave up on the call and answered with its
+    own timeout); Google names only the result's function and several calls
+    of the reply share it; the sample resumed from a checkpoint first; or
+    256 later host calls are tracked before its result arrives.
+    """
+
+    call_message_id: str | None = Field(default=None)
+    """Id of the assistant message that proposed this tool call.
+
+    The output of the `ModelEvent` that generated the call. In the agent bridge
+    this is the generated output even when a response filter or approval
+    changed the message handed to the scaffold; `None` for a call the model
+    did not propose or one the bridge can't verify against the generation
+    (arguments a filter changed, a reply whose text a request filter edited,
+    identical calls repeated in one reply).
+    It identifies the proposing message, not necessarily one model call: a
+    cached output reused by several model calls (even within one sample and
+    epoch) has one id, so a join that matches more than one `ModelEvent` is
+    ambiguous. `message_id` is the id of the tool message holding its result.
+    """
 
     def _set_result(
         self,

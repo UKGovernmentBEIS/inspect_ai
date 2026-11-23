@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import ContentReasoning, ContentText, ContentToolUse
 from inspect_ai.model import (
     ChatMessage,
@@ -11,8 +12,56 @@ from inspect_ai.model import (
     ChatMessageUser,
 )
 from inspect_ai.model._compaction.edit import TOOL_RESULT_REMOVED, CompactionEdit
+from inspect_ai.model._message_ids import edited_message
 from inspect_ai.model._model import get_model
 from inspect_ai.tool import ToolCall
+
+
+async def test_citation_only_edit_compaction_keeps_message_id() -> None:
+    """Removing only citations leaves the visible message identity intact."""
+    citation = UrlCitation(url="https://example.com", cited_text="answer")
+    assistant = ChatMessageAssistant(
+        id="cited",
+        content=[ContentText(text="answer", citations=[citation])],
+    )
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question"),
+        assistant,
+        ChatMessageUser(content="Continue"),
+    ]
+    strategy = CompactionEdit(memory=False, keep_thinking_turns="all")
+
+    compacted, _ = await strategy.compact(get_model("mockllm/model"), messages, [])
+
+    assert compacted[1].id == assistant.id
+    assert isinstance(compacted[1].content, list)
+    assert isinstance(compacted[1].content[0], ContentText)
+    assert compacted[1].content[0].citations is None
+
+
+async def test_reasoning_and_citation_edit_has_deterministic_id() -> None:
+    """The final citation pass preserves an earlier deterministic edit."""
+    citation = UrlCitation(url="https://example.com", cited_text="answer")
+    assistant = ChatMessageAssistant(
+        id="cited-reasoning",
+        content=[
+            ContentReasoning(reasoning="private thought"),
+            ContentText(text="answer", citations=[citation]),
+        ],
+    )
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question"),
+        assistant,
+        ChatMessageUser(content="Continue"),
+    ]
+    strategy = CompactionEdit(memory=False, keep_thinking_turns=0)
+    model = get_model("mockllm/model")
+
+    first, _ = await strategy.compact(model, messages, [])
+    second, _ = await strategy.compact(model, messages, [])
+    expected = edited_message(assistant, content=[ContentText(text="answer")])
+
+    assert first[1].id == second[1].id == expected.id
 
 
 @pytest.fixture
@@ -1382,3 +1431,58 @@ async def test_server_tool_clearing_does_not_write_into_other_messages(
     assert len(tool_uses) == 1
     assert tool_uses[0].id == "ws1"
     assert tool_uses[0].result == TOOL_RESULT_REMOVED
+
+
+@pytest.mark.parametrize("keep_tool_inputs", [True, False])
+async def test_edited_messages_get_ids_derived_from_their_sources(
+    tool_call_1: ToolCall, keep_tool_inputs: bool
+) -> None:
+    """Clearing thinking, tool results, server tool results and memory content gives new ids.
+
+    The id is derived from the source's id and the edited content, so compacting
+    the same history again gives the same ids.
+    """
+    strategy = CompactionEdit(
+        keep_thinking_turns=0,
+        keep_tool_uses=0,
+        keep_tool_inputs=keep_tool_inputs,
+        memory=True,
+    )
+    memory_call = ToolCall(
+        id="mem1",
+        function="memory",
+        arguments={"command": "create", "path": "/notes", "file_text": "x" * 100},
+    )
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Start"),
+        ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning="Thinking"),
+                ContentText(text="Searching"),
+                ContentToolUse(
+                    tool_type="web_search",
+                    id="ws1",
+                    name="web_search",
+                    arguments="{}",
+                    result="results",
+                ),
+            ],
+            tool_calls=[tool_call_1, memory_call],
+        ),
+        ChatMessageTool(content="Sunny", tool_call_id="tool1", function="get_weather"),
+        ChatMessageTool(content="saved", tool_call_id="mem1", function="memory"),
+        ChatMessageUser(content="Next"),
+    ]
+    by_id = {m.id: m for m in messages}
+
+    compacted, _ = await strategy.compact(get_model("mockllm/model"), messages, [])
+    again, _ = await strategy.compact(get_model("mockllm/model"), messages, [])
+
+    edited = [m for m in compacted if m.id not in by_id]
+    assert all(m == by_id[m.id] for m in compacted if m.id in by_id)
+    assert all(m.metadata is None for m in edited)
+    # with keep_tool_inputs=False the tool messages are removed, not edited
+    assert {m.role for m in edited} == (
+        {"assistant", "tool"} if keep_tool_inputs else {"assistant"}
+    )
+    assert [m.id for m in again] == [m.id for m in compacted]

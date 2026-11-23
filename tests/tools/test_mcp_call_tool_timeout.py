@@ -12,7 +12,9 @@ JSON-RPC -32001 on 2.x) into a `ToolError` so the model is notified rather than
 the sample erroring out.
 """
 
+from contextlib import AsyncExitStack
 from datetime import timedelta
+from typing import cast
 
 import anyio
 import httpx
@@ -25,6 +27,7 @@ from inspect_ai.tool._mcp._compat import MCP_V2, McpError  # noqa: E402
 from inspect_ai.tool._mcp._local import (  # noqa: E402
     MCPServerLocal,
     MCPServerLocalSession,
+    _Connection,
     create_server_sandbox,
 )
 from inspect_ai.tool._mcp._sandbox import DEFAULT_SANDBOX_TIMEOUT  # noqa: E402
@@ -76,8 +79,12 @@ async def _run(timeout):
     session = MCPServerLocalSession(
         client=lambda: None, name="exploit", events=False, timeout=timeout
     )
-    session._session = _NeverRespondsSession()  # inject the fake
-    session._refcount = 1
+    from mcp.client.session import ClientSession
+
+    # inject the fake
+    session._conn = _Connection(
+        cast(ClientSession, _NeverRespondsSession()), AsyncExitStack()
+    )
 
     # build a ToolDef for a fake tool and call its execute()
     from mcp.types import Tool as MCPTool

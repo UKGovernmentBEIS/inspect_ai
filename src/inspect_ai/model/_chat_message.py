@@ -29,7 +29,25 @@ class ChatMessageBase(BaseModel):
     """Base class for chat messages."""
 
     id: str | None = Field(default=None)
-    """Unique identifer for message."""
+    """Unique identifier for message.
+
+    An id names one message with one content: copies of a message keep its id,
+    and a version with different content has another. Content here is what the
+    message shows: its role, text and other content, tool calls and tool result.
+    A string and the same text as a content list are the same content, and
+    empty text parts don't count (an empty string equals an empty list);
+    provider-internal fields, `source`, `model` and `metadata` don't count.
+
+    When Inspect edits a message (removing reasoning or a tool result for a
+    model call, compaction, a handoff, react's submit, a response filter or
+    approval in the agent bridge), the edit gets an id derived from the id of
+    the message it was made from and its own content, so the same edit is the
+    same message. Messages built from others (combined messages, media moved
+    out of tool results) get ids derived from their sources' ids and their
+    content. One exception: a response-filter output that keeps server-tool
+    items from an Anthropic turn with unfinished server work keeps the
+    generated message's id; other edits get a derived id.
+    """
 
     content: str | list[Content]
     """Content (simple string or list of content objects)"""

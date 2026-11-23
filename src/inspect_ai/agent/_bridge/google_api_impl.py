@@ -3,8 +3,9 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+from collections import Counter, deque
 from logging import getLogger
-from typing import Any, Literal
+from typing import AbstractSet, Any, Callable, Literal, NamedTuple
 
 from shortuuid import uuid
 
@@ -22,12 +23,14 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
+from inspect_ai.model._message_ids import canonical_tool_arguments
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
 from inspect_ai.model._providers._google_computer_use import (
     gemini_action_from_tool_call,
 )
 from inspect_ai.model._reasoning import (
+    ReasoningCapsule,
     parse_content_with_reasoning,
     reasoning_to_think_tag,
 )
@@ -55,6 +58,7 @@ from .util import (
     client_json_schema,
     client_request_object,
     client_request_string,
+    gemini_first_call_signature,
     relax_tool_choice_for_withheld,
     resolve_bridge_model,
     resolve_generate_config,
@@ -131,7 +135,13 @@ async def inspect_google_api_request_impl(
     )
 
     # translate messages
-    messages = messages_from_google_contents(contents, system_instruction)
+    inferred_results: list[ChatMessageTool] = []
+    messages = messages_from_google_contents(
+        contents,
+        system_instruction,
+        inferred_results,
+        handed=bridge._handouts.wire_names,
+    )
     await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
@@ -142,7 +152,7 @@ async def inspect_google_api_request_impl(
     validate_client_config(config)
 
     # try to maintain id stability
-    apply_message_ids(bridge, messages)
+    apply_message_ids(bridge, messages, inferred_results, named_results=True)
 
     # give inspect-level config priority over agent default config
     config = resolve_generate_config(model, config)
@@ -159,20 +169,97 @@ async def inspect_google_api_request_impl(
         # None when it sent none
         requested_model=client_model if client_model is not None else requested_model,
         routing=routing,
+        # Gemini CLI keys a response's calls by id, so calls sharing one would
+        # run as one
+        distinct_call_ids=True,
     )
     if c_message is not None:
         messages.append(c_message)
 
     debug_log("INSPECT OUTPUT", output.message)
 
-    # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
-
     # translate response to Gemini format
     response = gemini_response_from_output(output, model.api.model_name)
     debug_log("SCAFFOLD RESPONSE", response)
+    # re-parse the JSON the client receives (e.g. integer argument keys become
+    # strings) as a later request's history is parsed, so an unchanged echo
+    # matches it
+    wire_content = json.loads(json.dumps(response["candidates"][0]["content"]))
+    handed = bridge._handouts.wire_names
+    transported = messages_from_google_contents([wire_content], None, handed=handed)
+    # a scaffold that drops the call ids sends the reply back in this form
+    without_ids = _without_call_ids(wire_content)
+    bridge._record_transported_reply(
+        output.message, messages_from_google_contents([without_ids], None)
+    )
+    for form, form_handed in ((wire_content, handed), (without_ids, None)):
+        merged = _gemini_cli_merged(form)
+        if merged != form:
+            bridge._record_transported_reply(
+                output.message,
+                messages_from_google_contents([merged], None, handed=form_handed),
+            )
+
+    # update state if we have more messages than the last generation
+    await bridge._track_state(messages, output, [transported])
 
     return response
+
+
+def _without_call_ids(content: dict[str, Any]) -> dict[str, Any]:
+    """`content` with no id on its function calls.
+
+    A scaffold that rebuilds a call from its name and arguments sends it
+    back so, and the call is read back under the id derived from it.
+    """
+    return {
+        **content,
+        "parts": [
+            {
+                **part,
+                "functionCall": {
+                    key: value
+                    for key, value in part["functionCall"].items()
+                    if key != "id"
+                },
+            }
+            if "functionCall" in part
+            else part
+            for part in content.get("parts", [])
+        ],
+    }
+
+
+def _gemini_cli_merged(content: dict[str, Any]) -> dict[str, Any]:
+    """`content` as Gemini CLI sends a reply back in its history.
+
+    Gemini CLI drops thought parts and appends each non-thought text part to
+    the part before it when that is non-empty non-thought text
+    (`geminiChat.ts`, `processStreamResponse`). So the embedded reasoning
+    part (`gemini_response_from_output`) comes back joined to the text
+    before it, which can change the text the reply is read back with.
+    """
+    parts: list[dict[str, Any]] = []
+    for part in content.get("parts", []):
+        if part.get("thought"):
+            continue
+        if parts and parts[-1].get("text") and _is_text(parts[-1]) and _is_text(part):
+            parts[-1] = {**parts[-1], "text": parts[-1]["text"] + part["text"]}
+        else:
+            parts.append(part)
+    return {**content, "parts": parts}
+
+
+def _is_text(part: dict[str, Any]) -> bool:
+    """Whether Gemini CLI reads `part` as non-thought text (`isValidNonThoughtTextPart`)."""
+    return (
+        isinstance(part.get("text"), str)
+        and not part.get("thought")
+        and not any(
+            key in part
+            for key in ("functionCall", "functionResponse", "inlineData", "fileData")
+        )
+    )
 
 
 def debug_log(caption: str, o: Any) -> None:
@@ -364,7 +451,28 @@ def tool_choice_from_google_tool_config(
 def messages_from_google_contents(
     contents: list[dict[str, Any]],
     system_instruction: dict[str, Any] | list[Any] | None,
+    inferred_results: list[ChatMessageTool] | None = None,
+    *,
+    handed: Callable[[str], AbstractSet[str] | None] | None = None,
 ) -> list[ChatMessage]:
+    """Inspect messages for Google contents.
+
+    With `handed` (the functions of the calls the bridge handed over under
+    an id, `_Handouts.wire_names`), a call takes the id its `functionCall`
+    carries and a result the id its `functionResponse` carries
+    (`_function_part_id`), and such a result is not inferred. Without it, ids
+    the parts carry are ignored. A call without an id gets one derived from
+    its function, arguments and position, and a result without one is paired
+    as follows.
+
+    A `functionResponse` without an id names its function but not its call,
+    so it takes the id of the next pending call of the previous model turn
+    with that name. The id is read only when that turn had one call with the
+    name and one response names it. Otherwise it is inferred from order
+    (several calls) or another response may be the call's answer (several
+    responses), and every response naming the function is appended to
+    `inferred_results`.
+    """
     messages: list[ChatMessage] = []
 
     # track system prompt text so we can strip duplicate prefixes from user messages
@@ -415,14 +523,23 @@ def messages_from_google_contents(
                 )
 
     # track tool call IDs by function name for matching with tool results
-    pending_tool_calls: dict[str, list[str]] = {}
+    pending_tool_calls: dict[str, _PendingCalls] = {}
+
+    def settle_pending() -> None:
+        if inferred_results is not None:
+            for pending in pending_tool_calls.values():
+                if pending.shared or len(pending.responses) > 1:
+                    inferred_results.extend(pending.responses)
+        pending_tool_calls.clear()
 
     for content in contents:
         role = content.get("role", "user")
         parts = content.get("parts", [])
 
         if role == "user":
-            user_content, tool_messages = _extract_user_parts(parts, pending_tool_calls)
+            user_content, tool_messages = _extract_user_parts(
+                parts, pending_tool_calls, handed
+            )
             if user_content:
                 # strip duplicate system prompt prefix
                 user_content = _strip_system_prompt_prefix(
@@ -443,19 +560,21 @@ def messages_from_google_contents(
             func_response_parts = [p for p in parts if _is_function_response_part(p)]
             if func_response_parts:
                 _, tool_messages = _extract_user_parts(
-                    func_response_parts, pending_tool_calls
+                    func_response_parts, pending_tool_calls, handed
                 )
                 messages.extend(tool_messages)
 
             other_parts = [p for p in parts if not _is_function_response_part(p)]
-            assistant_content, tool_calls = _extract_model_parts(other_parts)
+            assistant_content, tool_calls = _extract_model_parts(other_parts, handed)
 
             if tool_calls:
-                pending_tool_calls.clear()
+                settle_pending()
+                functions = Counter(tc.function for tc in tool_calls)
                 for tc in tool_calls:
-                    if tc.function not in pending_tool_calls:
-                        pending_tool_calls[tc.function] = []
-                    pending_tool_calls[tc.function].append(tc.id)
+                    pending_tool_calls.setdefault(
+                        tc.function,
+                        _PendingCalls(_CallQueue(), functions[tc.function] > 1, []),
+                    ).ids.append(tc.id)
 
             # Only emit an assistant turn when it carries real content or tool calls;
             # a pure-functionResponse model turn must NOT add an empty assistant (that
@@ -468,6 +587,7 @@ def messages_from_google_contents(
                     )
                 )
 
+    settle_pending()
     return messages
 
 
@@ -517,17 +637,102 @@ def _strip_system_prompt_prefix(
     return user_content
 
 
+def _function_part_id(
+    part: dict[str, Any],
+    name: str,
+    handed: Callable[[str], AbstractSet[str] | None],
+) -> str | None:
+    """The id a functionCall or functionResponse carries, as the bridge handed it over.
+
+    Gemini CLI may prefix an id with the call's name (`name__id`), as the
+    part gives it or stripped (`generic_tool` for a blank one). A handed id
+    is taken as it is. Otherwise a prefix of either form is stripped only
+    from the id of a call handed over to a function of that name: `handed`
+    gives the names Gemini can send the calls handed over under an id as
+    (`_Handouts.wire_names`), which for calls sharing an id are those of any
+    of theirs. Each id read as another this way is one `_echoes` gives for
+    the call, so no other call has it (`_Handouts.reused`).
+    """
+    part_id = part.get("id")
+    if not isinstance(part_id, str) or not part_id:
+        return None
+    if handed(part_id) is not None:
+        return part_id
+    # neither form's prefix starts with the other's, so at most one is the id's
+    for form in (name, name.strip() or "generic_tool"):
+        if part_id.startswith(f"{form}__"):
+            names = handed(part_id[len(form) + 2 :])
+            if names is not None and name in names:
+                return part_id[len(form) + 2 :]
+    return part_id
+
+
 def _is_function_response_part(part: Any) -> bool:
     return isinstance(part, dict) and (
         "functionResponse" in part or "function_response" in part
     )
 
 
+class _CallQueue:
+    """Call ids awaiting a result, in call order, indexed by id.
+
+    `remove` takes an id's earliest remaining occurrence (a result naming its
+    call); `popleft` takes the earliest remaining call (a result without an
+    id). Each is amortized O(1), so pairing a batch is linear in any order.
+    """
+
+    def __init__(self) -> None:
+        self._order: deque[str] = deque()
+        self._remaining: Counter[str] = Counter()
+        # occurrences `remove` took that `popleft` has yet to pass in `_order`;
+        # they are always the earliest ones of their id still in `_order`
+        self._removed: Counter[str] = Counter()
+        self._count = 0
+
+    def append(self, call_id: str) -> None:
+        self._order.append(call_id)
+        self._remaining[call_id] += 1
+        self._count += 1
+
+    def remove(self, call_id: str) -> None:
+        """Take `call_id`'s earliest remaining occurrence, if any remains."""
+        if self._remaining[call_id] > 0:
+            self._remaining[call_id] -= 1
+            self._removed[call_id] += 1
+            self._count -= 1
+
+    def popleft(self) -> str:
+        while True:
+            call_id = self._order.popleft()
+            if self._removed[call_id] > 0:
+                self._removed[call_id] -= 1
+                continue
+            self._remaining[call_id] -= 1
+            self._count -= 1
+            return call_id
+
+    def __bool__(self) -> bool:
+        return self._count > 0
+
+
+class _PendingCalls(NamedTuple):
+    """The calls of the previous model turn with one function name, not yet answered."""
+
+    ids: _CallQueue
+
+    shared: bool
+    """Whether the turn had more than one call with the name."""
+
+    responses: list[ChatMessageTool]
+    """The tool messages of the responses naming the function since the turn."""
+
+
 def _extract_user_parts(
     parts: list[dict[str, Any]],
-    pending_tool_calls: dict[str, list[str]],
+    pending_tool_calls: dict[str, _PendingCalls],
+    handed: Callable[[str], AbstractSet[str] | None] | None = None,
 ) -> tuple[list[Content] | str | None, list[ChatMessageTool]]:
-    # pending_tool_calls maps function_name -> list of call_ids from the previous
+    # pending_tool_calls maps function_name -> call_ids from the previous
     # model message, used to match functionResponse with the correct tool_use_id.
     content_parts: list[Content] = []
     tool_messages: list[ChatMessageTool] = []
@@ -563,26 +768,37 @@ def _extract_user_parts(
             func_name = func_response.get("name", "")
             response = func_response.get("response", {})
 
-            if func_name in pending_tool_calls and pending_tool_calls[func_name]:
-                call_id = pending_tool_calls[func_name].pop(0)
+            pending = pending_tool_calls.get(func_name)
+            response_id = (
+                _function_part_id(func_response, func_name, handed)
+                if handed is not None
+                else None
+            )
+            if response_id is not None:
+                # the id of the call it answers, as the bridge handed it over
+                call_id = response_id
+                if pending is not None:
+                    pending.ids.remove(call_id)
+                pending = None
+            elif pending is not None and pending.ids:
+                call_id = pending.ids.popleft()
             else:
                 call_id = f"call_{func_name}_{uuid()[:8]}"
                 logger.warning(
-                    f"No pending tool call found for function '{func_name}', "
-                    f"generating new call_id: {call_id}"
+                    f"No pending tool call found for function {func_name!r}, "
+                    f"generating new call_id: {call_id!r}"
                 )
 
             response_content = (
                 json.dumps(response) if isinstance(response, dict) else str(response)
             )
 
-            tool_messages.append(
-                ChatMessageTool(
-                    tool_call_id=call_id,
-                    function=func_name,
-                    content=response_content,
-                )
+            tool_message = ChatMessageTool(
+                tool_call_id=call_id, function=func_name, content=response_content
             )
+            tool_messages.append(tool_message)
+            if pending is not None:
+                pending.responses.append(tool_message)
 
     if len(content_parts) == 1 and isinstance(content_parts[0], ContentText):
         return content_parts[0].text, tool_messages
@@ -591,8 +807,53 @@ def _extract_user_parts(
     return None, tool_messages
 
 
+def _decode_base64(value: str | bytes) -> bytes | None:
+    if isinstance(value, bytes):
+        return value
+    try:
+        return base64.b64decode(
+            value + "=" * (-len(value) % 4), altchars=b"-_", validate=True
+        )
+    except ValueError:
+        return None
+
+
+def _canonical_thought_signature(signature: str | bytes) -> str:
+    """Return standard base64 for a Google thought signature.
+
+    The SDK uses URL-safe base64 for bytes, while other Google clients send
+    standard base64. Either form may omit padding. A string that doesn't
+    decode is not a signature and is returned unchanged.
+    """
+    if isinstance(signature, bytes):
+        return base64.b64encode(signature).decode()
+    decoded = _decode_base64(signature)
+    return signature if decoded is None else base64.b64encode(decoded).decode()
+
+
+# Google signatures are redacted reasoning with no provider signature and are
+# canonicalized. Other capsules (readable reasoning, other providers' tokens) keep
+# their own spelling and match verbatim or by decoded bytes, since the SDK
+# re-encodes thoughtSignature as URL-safe base64.
+def _capsule_signature_reasoning(
+    signature: str | bytes, capsule: ReasoningCapsule
+) -> str | None:
+    if capsule.redacted and capsule.signature is None:
+        canonical = _canonical_thought_signature(signature)
+        if _canonical_thought_signature(capsule.reasoning) == canonical:
+            return canonical
+        return None
+    if capsule.reasoning == signature:
+        return capsule.reasoning
+    decoded = _decode_base64(signature)
+    if decoded is not None and decoded == _decode_base64(capsule.reasoning):
+        return capsule.reasoning
+    return None
+
+
 def _extract_model_parts(
     parts: list[dict[str, Any]],
+    handed: Callable[[str], AbstractSet[str] | None] | None = None,
 ) -> tuple[list[Content] | None, list[ToolCall]]:
     """Extract assistant content and function calls from model parts.
 
@@ -645,15 +906,15 @@ def _extract_model_parts(
                     thought_sig = embedded_capsule.reasoning
 
             if thought_sig and not first_fc_signature_captured:
-                if isinstance(thought_sig, str):
-                    sig_str = thought_sig
-                else:
-                    sig_str = base64.b64encode(thought_sig).decode()
-
-                if embedded_capsule and embedded_capsule.reasoning == sig_str:
+                capsule_reasoning = (
+                    _capsule_signature_reasoning(thought_sig, embedded_capsule)
+                    if embedded_capsule
+                    else None
+                )
+                if embedded_capsule and capsule_reasoning is not None:
                     content_parts.append(
                         ContentReasoning(
-                            reasoning=embedded_capsule.reasoning,
+                            reasoning=capsule_reasoning,
                             signature=embedded_capsule.signature,
                             redacted=embedded_capsule.redacted,
                             summary=embedded_capsule.summary,
@@ -662,7 +923,7 @@ def _extract_model_parts(
                 else:
                     content_parts.append(
                         ContentReasoning(
-                            reasoning=sig_str,
+                            reasoning=_canonical_thought_signature(thought_sig),
                             redacted=True,
                         )
                     )
@@ -671,12 +932,23 @@ def _extract_model_parts(
             if not isinstance(args, dict):
                 args = {"value": args}
 
-            # deterministic call ID for message ID stability
-            args_str = json.dumps(args, sort_keys=True) if args else ""
-            call_hash = hashlib.md5(
-                f"{func_name}:{args_str}:{part_idx}".encode()
-            ).hexdigest()[:8]
-            call_id = f"call_{func_name}_{call_hash}"
+            # the id the bridge handed over, which the scaffold sends back;
+            # failing that, deterministic for message ID stability, unchanged
+            # by a JSON round-trip of the arguments (5.0 sent back as 5);
+            # `surrogatepass` encodes a lone surrogate in the name losslessly
+            call_id = (
+                _function_part_id(func_call, func_name, handed)
+                if handed is not None
+                else None
+            ) or ""
+            if not call_id:
+                args_str = canonical_tool_arguments(args) if args else ""
+                call_hash = hashlib.md5(
+                    f"{func_name}:{args_str}:{part_idx}".encode(
+                        "utf-8", "surrogatepass"
+                    )
+                ).hexdigest()[:8]
+                call_id = f"call_{func_name}_{call_hash}"
 
             tool_calls.append(
                 ToolCall(
@@ -687,12 +959,33 @@ def _extract_model_parts(
                 )
             )
 
+    if embedded_capsule and not tool_calls:
+        content_parts.insert(
+            0,
+            ContentReasoning(
+                reasoning=embedded_capsule.reasoning,
+                signature=embedded_capsule.signature,
+                redacted=embedded_capsule.redacted,
+                summary=embedded_capsule.summary,
+                internal=embedded_capsule.internal,
+            ),
+        )
+
     if content_parts:
         return content_parts, tool_calls
     return None, tool_calls
 
 
 def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[str, Any]:
+    """The Gemini response for `output`.
+
+    The first call carries the one signature the response hands over, and the
+    same reasoning is embedded as a text part (`reasoning_to_think_tag`): that
+    of the call's own anchor, or none (`gemini_first_call_signature`). A
+    response without calls embeds its last signed reasoning. Each call
+    carries its id, which a scaffold that keeps it (Gemini CLI) sends back
+    with the call and its response.
+    """
     parts: list[dict[str, Any]] = []
     working_reasoning_block: ContentReasoning | None = None
 
@@ -709,12 +1002,16 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
                         working_reasoning_block = c
 
     if output.message.tool_calls:
+        working_reasoning_block = gemini_first_call_signature(output.message)
         for idx, tc in enumerate(output.message.tool_calls):
             if tc.function == "computer":
                 name, args = gemini_action_from_tool_call(tc)
-                fc_part: dict[str, Any] = {"functionCall": {"name": name, "args": args}}
             else:
-                fc_part = {"functionCall": {"name": tc.function, "args": tc.arguments}}
+                name, args = tc.function, tc.arguments
+            function_call: dict[str, Any] = {"name": name, "args": args}
+            if tc.id:
+                function_call = {"id": tc.id, **function_call}
+            fc_part: dict[str, Any] = {"functionCall": function_call}
 
             if idx == 0 and working_reasoning_block is not None:
                 fc_part["thoughtSignature"] = working_reasoning_block.reasoning

@@ -56,7 +56,7 @@ inspect eval simpleqa.py --model openai/gpt-6-luna
 ``` bash
 pip install anthropic
 export ANTHROPIC_API_KEY=your-anthropic-api-key
-inspect eval simpleqa.py --model anthropic/claude-sonnet-4-6
+inspect eval simpleqa.py --model anthropic/claude-sonnet-5-5
 ```
 
 #### Google

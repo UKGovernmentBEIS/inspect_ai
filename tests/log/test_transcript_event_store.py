@@ -163,6 +163,7 @@ def test_transcript_event_store_exports_only_referenced_attachments(
     transcript_store.merge_event(
         InfoEvent(data={"blob": "attachment://kept"}),
         attachment_lookup={"kept": "payload", "unused": "ignore me"}.get,
+        condensed=True,
     )
 
     _write_transcript_files(transcript_store, tmp_path)
@@ -182,6 +183,7 @@ def test_transcript_event_store_warns_for_missing_attachment_ref(
         transcript_store.merge_event(
             InfoEvent(data={"blob": "attachment://missing"}),
             attachment_lookup=_no_attachment,
+            condensed=True,
         )
 
     warning.assert_called_once_with(
@@ -206,13 +208,15 @@ def test_transcript_event_store_retains_cumulative_attachments(
     first_event = InfoEvent(data={"blob": "attachment://abc"})
     second_event = InfoEvent(data={"blob": "attachment://def"})
 
-    transcript_store.merge_event(first_event, attachment_lookup={"abc": "payload"}.get)
+    transcript_store.merge_event(
+        first_event, attachment_lookup={"abc": "payload"}.get, condensed=True
+    )
     _write_transcript_files(transcript_store, tmp_path)
 
     assert json.loads((tmp_path / "attachments.json").read_text()) == {"abc": "payload"}
 
     transcript_store.merge_event(
-        second_event, attachment_lookup={"def": "payload2"}.get
+        second_event, attachment_lookup={"def": "payload2"}.get, condensed=True
     )
     _write_transcript_files(transcript_store, tmp_path)
 
@@ -242,9 +246,13 @@ def test_transcript_event_store_retains_attachment_on_event_update(
     transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     event = InfoEvent(data={"blob": "attachment://abc"})
 
-    transcript_store.merge_event(event, attachment_lookup={"abc": "payload"}.get)
+    transcript_store.merge_event(
+        event, attachment_lookup={"abc": "payload"}.get, condensed=True
+    )
     event.data = {"blob": "attachment://abc", "status": "done"}
-    transcript_store.merge_event(event, attachment_lookup=_no_attachment)
+    transcript_store.merge_event(
+        event, attachment_lookup=_no_attachment, condensed=True
+    )
     _write_transcript_files(transcript_store, tmp_path)
 
     assert json.loads((tmp_path / "attachments.json").read_text()) == {"abc": "payload"}
@@ -488,23 +496,23 @@ def test_transcript_event_store_deduplicates_messages_using_pool_hash(
 ) -> None:
     transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     first = ChatMessageUser(content="same")
-    second = ChatMessageUser(content="same")
-    assert first.id != second.id
+    copy = first.model_copy()
+    other = ChatMessageUser(content="same")
+    assert first.id != other.id
 
-    transcript_store.merge_event(
-        make_model_event([first]), attachment_lookup=_no_attachment
-    )
-    transcript_store.merge_event(
-        make_model_event([second]), attachment_lookup=_no_attachment
-    )
+    for message in [first, copy, other]:
+        transcript_store.merge_event(
+            make_model_event([message]), attachment_lookup=_no_attachment
+        )
     _write_transcript_files(transcript_store, tmp_path)
 
     events_data = json.loads((tmp_path / "events_data.json").read_text())
     events = json.loads((tmp_path / "events.json").read_text())
 
-    assert len(events_data["messages"]) == 1
+    assert [m["id"] for m in events_data["messages"]] == [first.id, other.id]
     assert events[0]["input_refs"] == [[0, 1]]
     assert events[1]["input_refs"] == [[0, 1]]
+    assert events[2]["input_refs"] == [[1, 2]]
 
 
 def test_transcript_event_store_rejects_events_after_close(tmp_path: Path) -> None:

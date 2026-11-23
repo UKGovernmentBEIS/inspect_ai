@@ -1,5 +1,7 @@
+import csv
 import gzip
 import hashlib
+import importlib.metadata
 import io
 import os
 import stat
@@ -638,9 +640,15 @@ async def _open_executable_for_arch(
                         TRACE_SANDBOX_TOOLS,
                         f"musl executable {executable_name} not bundled in PyPI package; attempting S3 download",
                     )
-                else:
+                elif _record_lists_binary(executable_name):
                     raise PrerequisiteError(
                         f"Tool support executable {executable_name} is missing from the PyPI package installation. This indicates a problem with the package. Please reinstall inspect_ai."
+                    )
+                else:
+                    trace_message(
+                        logger,
+                        TRACE_SANDBOX_TOOLS,
+                        f"{executable_name} not bundled in this install (e.g. built from the sdist); attempting S3 download",
                     )
 
         # S3 Download Attempt. "pypi" might be wrongly detected, e.g., when UV_NO_INSTALLER_METADATA=1
@@ -683,6 +691,25 @@ def _get_executable_name(arch: Architecture, dev: bool, musl: bool) -> str:
 
 def _binaries_dir() -> Path:
     return Path(inspect_ai.__file__).parent / "binaries"
+
+
+def _record_lists_binary(executable_name: str) -> bool:
+    """Whether the installed distribution's RECORD lists the given binary.
+
+    The released wheel bundles the glibc binaries, so a RECORD entry for a
+    binary that is missing on disk means a broken install. Installs built from
+    the sdist (``pip install --no-binary``, conda-forge) never had it, and
+    fetch it from S3 as intended. Reads the raw RECORD because
+    ``Distribution.files`` omits paths missing on disk on Python 3.12+.
+    """
+    try:
+        record = importlib.metadata.distribution("inspect-ai").read_text("RECORD")
+    except importlib.metadata.PackageNotFoundError:
+        return False
+    if record is None:
+        return False
+    target = f"inspect_ai/binaries/{executable_name}"
+    return any(row and row[0] == target for row in csv.reader(record.splitlines()))
 
 
 async def _download_from_s3(filename: str) -> bool:

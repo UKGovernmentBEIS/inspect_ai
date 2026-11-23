@@ -246,6 +246,7 @@ proxy started from the injected tools (`ai/agent/_bridge/sandbox/bridge.py:171`)
 and a sandbox service; [model-proxy-lifecycle.md](model-proxy-lifecycle.md)
 traces that lifecycle. A sandbox service is an inbound channel from the sandbox
 to the host, which Pattern 1's tool path does not have.
+[agent-bridge-trust-model.md](agent-bridge-trust-model.md) describes the bridge's components, data flow and trust boundary.
 
 ### Where tool calls execute
 
@@ -308,7 +309,8 @@ comes from the scope as well as from tool construction:
   `bash_session()` shell starts (and restarts) in the `cwd`, and fails to start
   if the user cannot enter it; `text_editor()` resolves relative paths against
   the `cwd`. `exec_remote()` uses the scope's user and `cwd` when its options
-  omit them and keeps explicit values; the agent bridge launches its proxy
+  omit them, keeps an explicit user and joins a relative `cwd` to the
+  scope's; the agent bridge launches its proxy
   this way, as root when the tools user is root. The sandbox MCP server runs
   as the scope's user (`ai/util/_sandbox/_cli.py`, `tools_user_param()`).
 - **Refuse.** The model-facing tools above, configured with a different user
@@ -319,13 +321,49 @@ comes from the scope as well as from tool construction:
   scope only if it was created under the same user and sandbox; outside any
   scope a saved shell can still be used and keeps running as the user it was
   created as. Nested scopes raise.
+- **Bridge peer check.** A sandbox agent bridge whose sandbox is the scope's
+  passes the scope's user to its model proxy, and nothing secret. The proxy
+  runs as the tools user and resolves the user before it binds; a user that
+  does not resolve, uid 0 or uid 65534 (the uids the socket table reports
+  for sockets it cannot attribute) stops it. For each connection, before
+  reading it, the proxy finds the client's socket in `/proc/net/tcp` or
+  `/proc/net/tcp6` by the accepted socket's own addresses, and serves the
+  connection only when exactly one live socket matches and the scope's user
+  owns it. Others get HTTP 403 on every route, bridged tools' MCP endpoints
+  included. The kernel records each socket's owner, and no process can
+  create a socket owned by another uid without that uid's privileges. It
+  then queries the accepted socket again and closes it unread unless it is
+  still connected at the same addresses: a client that sends a request and
+  resets the connection would otherwise leave its address pair, and its
+  row, to another user's later connection
+  (`guest/_agent_bridge/peer_uid.py`). Clients keep using `localhost`, so
+  the proxy listens on both `127.0.0.1` and `[::1]` at its port and never
+  sets `SO_REUSEPORT`; another user cannot then listen at either address. A
+  sandbox with no IPv6 loopback is served on `127.0.0.1` alone. The bridge
+  yields only after the proxy prints that it listens, so a user already
+  holding the port makes the bridge fail rather than receive the agent's
+  requests. The check does not stop the scope's user from relaying its own
+  bridge to another user. The proxy forwards through the bridge's sandbox
+  service, whose queue belongs to the tools user for every bridge, so no
+  other user, the sandbox's default user included, can submit requests to
+  it directly. Outside a scope the proxy listens on `127.0.0.1` and serves
+  any connection.
+  The proxy start and the polls of its output, the kill, the kill by job
+  key and the service queue's commands run outside the sandbox's
+  concurrency limits, so other commands holding capacity cannot time out
+  the listening wait or stall the bridge's shielded cleanup. Checking and
+  installing the sandbox tools happen before that wait and keep the normal
+  limits: a busy sandbox can delay them but not make them time out. This
+  is a liveness trade-off, not a security boundary (decision: Ransom,
+  2026-11-11).
 - **Sandbox operations.** `SandboxEnvironment.exec()`, `read_file()` and
   `write_file()` calls on the scope's sandbox that name no user run as the
   scope's user; a call that names a user keeps it. The sample's sandbox proxy
-  applies this default (`ai/util/_sandbox/events.py`,
-  `sandbox_operation_user()` in `ai/util/_sandbox/identity.py`). Inspect's own
-  operations keep the sandbox's default user. They are marked where they run
-  (see the framework-operation contract below): the privileged-command
+  applies this default (`ai/util/_sandbox/events.py`; see
+  [The user at the boundary](sandbox-identity-default.md#the-user-at-the-boundary)).
+  Inspect's own operations keep the sandbox's default user. They are marked
+  where they run (see the framework-operation contract below): the
+  privileged-command
   helpers (`_privileged.py`), the framework-directory helper
   (`_framework_directory.py`), the sandbox-tools transport
   (`_json_rpc_transport.py`) and `start-server` launch
@@ -337,7 +375,17 @@ comes from the scope as well as from tool construction:
   does so as the default user while other members are still running, and
   member user isolation does not protect peers from it. Calls on the provider
   object that `as_type()` returns bypass the default, and so do calls on
-  another sandbox. The scope's `cwd` is not applied to these calls.
+  another sandbox. Unmarked calls also resolve their working directory and
+  relative paths against the scope's `cwd`, whatever user they name (see
+  [The scope's `cwd` at the boundary](sandbox-identity-default.md#the-scopes-cwd-at-the-boundary)).
+  For a call that runs as the member, a relative path gives the member no
+  access it lacks. A call that names a privileged user, such as
+  `user="root"`, keeps that user's authority in a directory the member may
+  control, so an intentionally privileged operation needs a trusted working
+  directory and destination, as the
+  [verified-directory](#host-verified-directories) and
+  [verify-before-use](#verify-before-use) contracts require; an absolute
+  path alone does not make a member-controlled destination trusted.
 
 Custom tools inherit the scope's user with no change of their own: a tool that
 calls `exec()`, `read_file()` or `write_file()` without a user runs as the
@@ -386,13 +434,15 @@ user raises `SandboxUserUnsupportedError` naming the scope rather than reading
 or writing as its default user; marked framework operations still pass no
 user. `install_skills()` inside a scope keeps its existing behaviour when it
 is given a `user`: a write with the default user's authority, then `chown` to
-that user. Given no `user`, it installs as the scope's user: the write, the
-`pwd` for a relative directory and `chmod +x` all name that user, and no
-`chown` runs, because the writer owns the files. On a provider whose
-`write_file()` cannot take a user, that install raises
-`SandboxUserUnsupportedError` before writing anything. Inside a marked block
-(in-loop scoring), an install with no `user` takes the legacy default-user
-path, as at final scoring.
+that user. Given no `user`, it installs with the scope's user's authority and
+changes no ownership, so it adds no root operation in a directory that user
+controls: files it creates are owned by that user, and a file it overwrites
+keeps whatever owner the provider's write leaves. In a scope with a `cwd`, a
+relative skills directory resolves against that `cwd`. On a provider whose
+`write_file()` cannot take a user, that install raises before writing
+anything. Inside a marked block (in-loop scoring), an install with no `user`
+takes the legacy default-user path, as at final scoring. The steps and their limits are in
+[`install_skills()`](sandbox-identity-default.md#install_skills).
 
 Docker runs system `tar` inside the container, following symlinks without
 recursing into directories. The bounded archive reader rejects anything

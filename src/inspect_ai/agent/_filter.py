@@ -14,6 +14,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.model._message_ids import edited_message, with_edited_id
 
 MessageFilter = Callable[[list[ChatMessage]], Awaitable[list[ChatMessage]]]
 """Filter messages sent to or received from agent handoffs."""
@@ -50,7 +51,9 @@ async def content_only(messages: list[ChatMessage]) -> list[ChatMessage]:
 
         # convert tool messages to user messages
         elif isinstance(message, ChatMessageTool):
-            filtered.append(ChatMessageUser(id=message.id, content=message.content))
+            filtered.append(
+                with_edited_id(message, ChatMessageUser(content=message.content))
+            )
 
         # filter assistant content
         else:
@@ -86,9 +89,7 @@ async def content_only(messages: list[ChatMessage]) -> list[ChatMessage]:
             ]
 
             # append message with updated content and tool call
-            filtered.append(
-                message.model_copy(update={"content": content, "tool_calls": None})
-            )
+            filtered.append(edited_message(message, content=content, tool_calls=None))
 
     return filtered
 
@@ -110,7 +111,7 @@ async def remove_tools(messages: list[ChatMessage]) -> list[ChatMessage]:
         if isinstance(message, ChatMessageTool):
             continue
         if isinstance(message, ChatMessageAssistant):
-            message = message.model_copy(update=dict(tool_calls=None))
+            message = edited_message(message, tool_calls=None)
         filtered.append(message)
 
     return filtered

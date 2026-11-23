@@ -28,8 +28,10 @@ from inspect_ai.model._call_tools import (
 from inspect_ai.tool import ToolError
 from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError
 from inspect_ai.util._limit import LimitExceededError
-from inspect_ai.util._sandbox.environment import SandboxUnavailableError
-from inspect_ai.util._sandbox.events import SandboxTimeoutError
+from inspect_ai.util._sandbox.environment import (
+    SandboxTimeoutError,
+    SandboxUnavailableError,
+)
 from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 from inspect_ai.util._sandbox.service import raise_if_control_flow
 

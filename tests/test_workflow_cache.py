@@ -37,6 +37,7 @@ CREDENTIAL_JOBS = [
     ("publish.yml", "publish"),
     ("release.yml", "build"),
     ("release.yml", "publish-pypi"),
+    ("release.yml", "announce"),
     ("npm-publish.yml", "build"),
     ("npm-publish.yml", "publish"),
     # Builds released binaries; attest signs whatever build uploaded.

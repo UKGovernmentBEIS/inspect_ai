@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Literal, NamedTuple
 import anyio
 
 from inspect_ai._util._async import run_coroutine, tg_collect
-from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.file import FileInfo, basename, to_uri
 from inspect_ai._util.log_layout import (
@@ -19,6 +19,7 @@ from inspect_ai._util.log_layout import (
     eval_shards_dir,
     log_basename,
 )
+from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai.log._log import EvalLog, EvalSampleSummary, EvalShardEntry
 from inspect_ai.log._recorders.chunked.format import classify_sample_shape
 from inspect_ai.log._recorders.eval import (
@@ -30,6 +31,7 @@ from inspect_ai.log._recorders.eval import (
 )
 from inspect_ai.log._recorders.recorder import SampleRecordKey
 
+from ._delete import Companion, delete_companion, list_companion
 from ._errors import ShardSetError, ShardSetIncomplete
 from ._owned import run_owned
 from ._plan import (
@@ -61,7 +63,7 @@ from ._publish import (
     supported_location,
 )
 from ._walk import ShardDir, check_s3_location, list_shard_set
-from ._write import check_task_matches, write_merged_zip
+from ._write import SampleMember, check_task_matches, write_merged_zip
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.task import Task
@@ -87,6 +89,7 @@ def merge_eval_log_shards(
     sample_ids: Sequence[str | int] | None = None,
     sample_count: int | None = None,
     allow_incomplete: bool = False,
+    delete_shards: bool = False,
 ) -> ShardMergeResult:
     """Merge the shard logs of a sharded run into one eval log.
 
@@ -100,6 +103,18 @@ def merge_eval_log_shards(
     task whose name, scorer names, metric names, epochs or epoch reducer
     names differ from what the shards recorded, but does not compare their
     options.
+
+    Sample members are copied in the compression the shard (or an earlier
+    merged log) already used, without recompressing them. Shards Inspect
+    writes use zstd; a shard written with deflate stays deflate in the
+    merged log. Readers of merged logs, including the viewer, accept both.
+    The merge does not rewrite zstd frame settings. A frame the viewer
+    cannot decode — a history window over 32 MiB, or a single frame of at
+    least 256 MiB compressed, which Inspect's writer avoids by capping
+    each frame at 200 MiB of uncompressed input — is copied as-is and can
+    produce a merged sample the viewer cannot open. Inspect's own writer
+    stays under those limits. An incomplete or skippable zstd frame fails
+    the merge with `zstandard.ZstdError`.
 
     See [Sharding](https://inspect.aisi.org.uk/sharding.html) for the shard
     layout, when a set is complete, selections, scoring, merging shards run
@@ -120,24 +135,42 @@ def merge_eval_log_shards(
             used, or on a first merge the whole dataset.
         allow_incomplete: Write a `started` or `error` merged log when the
             set is incomplete, rather than raise `ShardSetIncomplete`.
+        delete_shards: After the merge, delete the shards directory. Only a
+            complete (`success`) merged log has its shards deleted; otherwise
+            the merge raises and deletes nothing. Use it only on a finished
+            run that nothing else writes to. If deletion is interrupted, run
+            the merge again with it to finish. Cannot be combined with
+            `allow_incomplete`.
 
     Returns:
-        The merged log's header, and whether it was written.
+        The merged log's header, and whether it was written. When
+        `delete_shards` is set and the call returns, the shards were deleted.
 
     Raises:
         ShardSetError: The shards cannot be merged (`ShardSelectionError`
             when they hold samples outside the selection), `task` is not
             the task they ran, or a local merged log is a symbolic link.
+            With `delete_shards`: a local shards directory is a symbolic
+            link, a name in an S3 shards directory is one S3 would read as
+            another key, or something was left in the shards directory
+            after deletion.
         ShardSetIncomplete: The set is incomplete and `allow_incomplete` is
-            not set. Nothing is written.
+            not set. Nothing is written or deleted.
         WriteConflictError: Another merge holds the lock or published first.
             Run the merge again once it has finished. A lock file left by
             a merge that crashed stays until you delete it.
+        zstandard.ZstdError: A sample member's zstd frame is incomplete
+            or skippable.
+        zlib.error: A sample member's deflate stream is incomplete, or
+            bytes follow the end of the stream.
         FileNotFoundError: Neither the merged log nor any shard exists.
         TypeError: `task` is not a `Task`.
+        OSError: A delete failed (with `delete_shards`). The error keeps
+            its type; run the merge again with `delete_shards` to finish.
         ValueError: Invalid arguments: both `sample_ids` and
-            `sample_count`, an empty or string `sample_ids`, or a
-            `sample_count` below 1; or `log` is not a local path, `file://`
+            `sample_count`, an empty or string `sample_ids`, a
+            `sample_count` below 1, or both `allow_incomplete` and
+            `delete_shards`; or `log` is not a local path, `file://`
             URI or `s3://` URL, is not named `<name>.eval` or
             `<name>.shards`, names a recovered log, or is an S3 location
             that S3 would read as another key.
@@ -149,6 +182,7 @@ def merge_eval_log_shards(
             sample_ids=sample_ids,
             sample_count=sample_count,
             allow_incomplete=allow_incomplete,
+            delete_shards=delete_shards,
         )
     )
 
@@ -160,6 +194,7 @@ async def merge_eval_log_shards_async(
     sample_ids: Sequence[str | int] | None = None,
     sample_count: int | None = None,
     allow_incomplete: bool = False,
+    delete_shards: bool = False,
 ) -> ShardMergeResult:
     """Merge the shard logs of a sharded run into one eval log.
 
@@ -172,13 +207,18 @@ async def merge_eval_log_shards_async(
             f"task must be the Task the shards ran, not {type(task).__name__}. "
             "Build the task as you passed it to eval() and pass that."
         )
-    location, merged_path, shards_dir = merge_paths(log)
-    given = given_selection(sample_ids, sample_count)
-    check_s3_location(merged_path)
-    check_s3_location(shards_dir)
+    (location, merged_path, shards_dir), given = check_merge_arguments(
+        log,
+        sample_ids,
+        sample_count,
+        allow_incomplete=allow_incomplete,
+        delete_shards=delete_shards,
+    )
 
     async with AsyncFilesystem() as fs:
         with merge_guard(merged_path):
+            # taken before the pass, so nothing written after it is deleted
+            listed = await list_companion(fs, shards_dir) if delete_shards else None
             existing = await _read_merged(fs, merged_path)
             merge_pass = await _merge_pass(
                 fs,
@@ -188,11 +228,32 @@ async def merge_eval_log_shards_async(
                 given,
                 task,
                 allow_incomplete=allow_incomplete,
+                deleting=delete_shards,
             )
+            if listed is not None:
+                await _delete_shards(fs, merged_path, shards_dir, listed, merge_pass)
 
     header = merge_pass.header
     header.location = location
     return ShardMergeResult(log=header, written=merge_pass.written)
+
+
+async def _delete_shards(
+    fs: AsyncFilesystem,
+    merged_path: str,
+    shards_dir: str,
+    listed: Companion,
+    merge_pass: "_Pass",
+) -> None:
+    """Delete the listed shards once the pass has left a `success` merged log."""
+    header = merge_pass.header
+    if header.status != "success":
+        raise ShardSetError(
+            f"{merged_path} has status '{header.status}', so its shards were not "
+            "deleted. Only the shards of a complete merged log are deleted."
+        )
+    current = [(e.shard, e.log) for e in _ledger(header)]
+    await delete_companion(fs, shards_dir, listed, current)
 
 
 class _Merged(NamedTuple):
@@ -201,6 +262,7 @@ class _Merged(NamedTuple):
     header: EvalLog
     records: set[SampleRecordKey]
     etag: str | None
+    members: CentralDirectory
 
 
 class _Pass(NamedTuple):
@@ -239,6 +301,44 @@ def merge_paths(log: str) -> MergePaths:
     merged, shards_dir = _derive_paths(target)
     location = to_uri(merged) if log.startswith("file://") else merged
     return MergePaths(location, merged, shards_dir)
+
+
+class MergeArguments(NamedTuple):
+    """The checked arguments of a merge (see :func:`check_merge_arguments`)."""
+
+    paths: MergePaths
+    """The merged log and its shards directory."""
+
+    given: Selection | None
+    """The selection passed, or ``None``."""
+
+
+def check_merge_arguments(
+    log: str,
+    sample_ids: Sequence[str | int] | None,
+    sample_count: int | None,
+    *,
+    allow_incomplete: bool,
+    delete_shards: bool,
+) -> MergeArguments:
+    """Check the arguments of a merge before any I/O.
+
+    Raises:
+        ValueError: An unsupported or recovered-log location, an invalid
+            selection, an S3 location that S3 would read as another key, or
+            both `allow_incomplete` and `delete_shards`.
+    """
+    if allow_incomplete and delete_shards:
+        raise ValueError(
+            "delete_shards (--delete-shards) cannot be combined with "
+            "allow_incomplete (--allow-incomplete): only the shards of a "
+            "complete merged log are deleted."
+        )
+    paths = merge_paths(log)
+    given = given_selection(sample_ids, sample_count)
+    check_s3_location(paths.merged)
+    check_s3_location(paths.shards_dir)
+    return MergeArguments(paths, given)
 
 
 def _derive_paths(log: str) -> tuple[str, str]:
@@ -298,7 +398,7 @@ async def _read_merged(fs: AsyncFilesystem, merged_path: str) -> _Merged | None:
                 f"records: it was changed outside the merge. Delete {merged_path} "
                 "so the next merge rebuilds it from the shards."
             )
-    return _Merged(header, merged_records(cd, merged_path), reader.etag)
+    return _Merged(header, merged_records(cd, merged_path), reader.etag, cd)
 
 
 async def _merge_pass(
@@ -310,6 +410,7 @@ async def _merge_pass(
     task: "Task",
     *,
     allow_incomplete: bool,
+    deleting: bool,
 ) -> _Pass:
     listing = await list_shard_set(fs, shards_dir, numeric_shards=True)
     check_attempt_names(listing.shards)
@@ -326,7 +427,7 @@ async def _merge_pass(
                 f"Neither {merged_path} nor any shard in {shards_dir} exists."
             )
         check_task_matches(task, existing.header, merged_path)
-        return _recorded_pass(existing, given, allow_incomplete)
+        return _recorded_pass(existing, given, allow_incomplete, deleting)
 
     ledger = (
         {e.shard: e for e in _ledger(existing.header)} if existing is not None else {}
@@ -336,9 +437,13 @@ async def _merge_pass(
         if shard.name in ledger:
             check_attempt_order(shard, ledger[shard.name])
     present = {s.name for s in shards}
-    check_vanished(
-        [name for name in ledger if name not in present], merged_path, shards_dir
-    )
+    vanished = [name for name in ledger if name not in present]
+    if deleting and vanished and not changed:
+        # a deletion that stopped part way: the rest of the shards match
+        assert existing is not None
+        check_task_matches(task, existing.header, merged_path)
+        return _recorded_pass(existing, given, allow_incomplete, deleting)
+    check_vanished(vanished, merged_path, shards_dir)
 
     reads, readers = await _read_attempts(fs, changed)
     by_shard = {read.shard: read for read in reads}
@@ -388,19 +493,23 @@ async def _merge_pass(
     epochs = base.eval.config.epochs or 1
     status = plan_status(entries, keys, selection, epochs, base.eval.dataset.samples)
     if status.status != "success" and not allow_incomplete:
-        raise _incomplete(merged_path, status)
+        raise _incomplete(merged_path, status, deleting)
 
     if existing is not None and not changed and selection.same_as(recorded):
         return _Pass(existing.header, False)
 
+    kept = _kept_members(existing.members, taken) if existing is not None else set()
     with tempfile.TemporaryDirectory() as temp_dir:
         carried_zip: zipfile.ZipFile | None = None
+        carried_reader: AsyncZipReader | None = None
         try:
             carried_summaries: dict[SampleRecordKey, EvalSampleSummary] = {}
-            if carried:
+            if carried or kept:
                 assert existing is not None
                 copy = await merged_log_copy(fs, merged_path, existing.etag, temp_dir)
                 carried_zip = zipfile.ZipFile(copy)
+                carried_reader = AsyncZipReader(fs, copy, verify_crc=True)
+                kept = _kept_members(await carried_reader.entries(), taken)
                 carried_summaries = await run_owned(
                     functools.partial(_read_carried_summaries, carried_zip, merged_path)
                 )
@@ -417,17 +526,17 @@ async def _merge_pass(
                         f"{merged_path} so the next merge rebuilds it from the shards."
                     )
 
-            async def read_member(key: SampleRecordKey) -> bytes:
+            async def read_member(key: SampleRecordKey) -> SampleMember:
                 read = taken.get(key)
-                if read is not None:
-                    reader = readers[read.shard]
-                    return await reader.read_member_fully(read.members[key])
-                assert carried_zip is not None
-                return await run_owned(
-                    functools.partial(
-                        carried_zip.read, _sample_filename(key.sample_id, key.epoch)
+                if read is not None and key not in kept:
+                    return SampleMember(
+                        readers[read.shard], read.members[key], read.file.name
                     )
+                assert carried_reader is not None
+                entry = await carried_reader.get_member_entry(
+                    _sample_filename(key.sample_id, key.epoch)
                 )
+                return SampleMember(carried_reader, entry, merged_path)
 
             name = log_basename(merged_path)
             total = selected_total(selection, held_ids) * epochs
@@ -469,7 +578,10 @@ async def _merge_pass(
 
 
 def _recorded_pass(
-    existing: _Merged, given: Selection | None, allow_incomplete: bool
+    existing: _Merged,
+    given: Selection | None,
+    allow_incomplete: bool,
+    deleting: bool,
 ) -> _Pass:
     """A pass that keeps the merged log as recorded (its shards deleted)."""
     header = existing.header
@@ -487,11 +599,11 @@ def _recorded_pass(
         header.eval.dataset.samples,
     )
     if header.status != "success" and not allow_incomplete:
-        raise _incomplete(header.location, status)
+        raise _incomplete(header.location, status, deleting)
     return _Pass(header, False)
 
 
-def _incomplete(location: str, status: Status) -> ShardSetIncomplete:
+def _incomplete(location: str, status: Status, deleting: bool) -> ShardSetIncomplete:
     merged_status: Literal["started", "error"] = (
         "error" if status.status == "error" else "started"
     )
@@ -503,9 +615,15 @@ def _incomplete(location: str, status: Status) -> ShardSetIncomplete:
     if status.failed:
         parts.append(f"failed shards: {', '.join(status.failed)}")
     detail = f" ({'; '.join(parts)})" if parts else ""
+    advice = (
+        "Only the shards of a complete merged log are deleted; to abandon the "
+        "run, delete its shards directory by hand."
+        if deleting
+        else "Pass allow_incomplete (--allow-incomplete on the command line) to "
+        "write an incomplete merged log."
+    )
     return ShardSetIncomplete(
-        f"The shards of {location} are incomplete{detail}. Pass allow_incomplete "
-        "to write an incomplete merged log.",
+        f"The shards of {location} are incomplete{detail}. {advice}",
         status=merged_status,
         missing=status.missing,
         running=status.running,
@@ -580,6 +698,32 @@ async def _read_attempt_header(fs: AsyncFilesystem, shard: ShardDir) -> EvalLog:
     reader = AsyncZipReader(fs, info.name, verify_crc=True)
     cd = await reader.entries()
     return await _read_header_async(reader, {e.filename for e in cd.entries}, info.name)
+
+
+def _kept_members(
+    merged: CentralDirectory, taken: dict[SampleRecordKey, AttemptRead]
+) -> set[SampleRecordKey]:
+    """The keys read from shards that the merged log already holds unchanged.
+
+    A member counts as unchanged when its CRC-32 and uncompressed size equal
+    the shard member's. The merge copies these from the merged log, not the
+    shard: they are then read from a local copy, which on S3 it downloads
+    once for all of them.
+    """
+    kept = set()
+    for key, read in taken.items():
+        entry = merged.entry(_sample_filename(key.sample_id, key.epoch))
+        if entry is not None and _same_data(entry, read.members[key]):
+            kept.add(key)
+    return kept
+
+
+def _same_data(a: ZipEntry, b: ZipEntry) -> bool:
+    return (
+        a.crc32 is not None
+        and a.crc32 == b.crc32
+        and a.uncompressed_size == b.uncompressed_size
+    )
 
 
 def _read_carried_summaries(

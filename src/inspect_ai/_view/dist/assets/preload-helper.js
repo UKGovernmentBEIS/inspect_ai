@@ -1,4 +1,4 @@
-//#region \0vite/preload-helper.js
+// \0vite/preload-helper.js
 var scriptRel = "modulepreload";
 var assetsURL = function(dep, importerUrl) {
 	return new URL(dep, importerUrl).href;
@@ -72,8 +72,14 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 				if (cspNonce) link.setAttribute("nonce", cspNonce);
 				document.head.appendChild(link);
 				if (isCss) return new Promise((res, rej) => {
-					link.addEventListener("load", res);
-					link.addEventListener("error", () => rej(/* @__PURE__ */ new Error(`Unable to preload CSS for ${dep}`)));
+					const handleSettle = (e) => {
+						link.removeEventListener("load", handleSettle);
+						link.removeEventListener("error", handleSettle);
+						if (e.type === "error") rej(/* @__PURE__ */ new Error(`Unable to preload CSS for ${dep}`));
+						else res(e);
+					};
+					link.addEventListener("load", handleSettle);
+					link.addEventListener("error", handleSettle);
 				});
 			});
 		}).filter((p) => p !== void 0));
@@ -92,5 +98,4 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 		return baseModule().catch(handlePreloadError);
 	});
 };
-//#endregion
 export { __vitePreload as t };

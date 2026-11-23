@@ -81,9 +81,9 @@
   author: "[Debu Sinha](https://github.com/debu-sinha)"
   categories: ["Analysis"]
 
-- name: "[Inspect falsify](https://github.com/studio-11-co/falsify-inspect)"
+- name: "[Inspect falsify](https://github.com/falsify-dev/falsify-inspect)"
   description: |
-    Pre-register an evaluation's success criteria (metric, threshold, dataset hash, seed) as a tamper-evident PRML manifest before the run, then verify eval logs against the locked claim via installed hooks.
+    Record an evaluation's pass criteria (metric, threshold, dataset hash, seed) in a hashed PRML manifest, then check an eval log's result, model and dataset against them via an Inspect hook or a CI gate command.
   author: "[Cüneyt Öztürk](https://falsify.dev)"
   categories: ["Analysis"]
 
@@ -121,6 +121,12 @@
   description: |
     Rubric-based scorer that preserves assessment details in Inspect score metadata and can report assessment failures as unscored.
   author: "[Hermes Labs](https://hermes-labs.ai)"
+  categories: ["Analysis"]
+
+- name: "[Scorio](https://github.com/mohsenhariri/scorio/blob/python-v0.2.4/docs/integrations/inspect.rst)"
+  description: |
+    Bayes@N posterior means and standard deviations for repeated binary scores.
+  author: "[Mohsen Hariri](https://github.com/mohsenhariri/scorio)"
   categories: ["Analysis"]
 
 - name: "[Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/)"
@@ -190,13 +196,6 @@
   author: "[Lizard](https://github.com/lizard-build)"
   categories: ["Sandboxes"]
 
-- name: "[EC2 Sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
-  description: |
-    Python package that provides a EC2 virtual machine sandbox environment for Inspect.
-  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
-  categories: ["Sandboxes"]
-
-
 - name: "[Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
   description: Use virtual machines, running within a Proxmox instance, as Inspect sandboxes.
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
@@ -240,6 +239,18 @@
   author: "[briq](https://github.com/briq-cloud/inspect-briq)"
   categories: ["Sandboxes"]
 
+- name: "[boxd Sandbox](https://github.com/boxd-sh/boxd-inspect)"
+  description: |
+    Runs each sample in its own boxd machine, a full Ubuntu VM. Tasks with a compose.yaml or Dockerfile run unchanged, with Docker inside the machine.
+  author: "[boxd](https://boxd.sh/?ref=inspect_ai)"
+  categories: ["Sandboxes"]
+
+- name: "[kosa8 Sandbox](https://github.com/kosa8ai/inspect-kosa8)"
+  description: |
+    Runs each sample in its own kosa8 Cloud microVM, deleted when the sample ends. Sandboxes can sleep and wake with their memory and files kept.
+  author: "[kosa8](https://kosa8.com/?ref=inspect_ai)"
+  categories: ["Sandboxes"]
+
 
 - name: "[Inspect Costs Plugin](https://github.com/jasongwartz/inspect_costs_plugin/)"
   description: |
@@ -279,3 +290,41 @@
     returns probabilities, so the pass threshold can be chosen after the run.
   author: "[Nace](https://github.com/nace-ai)"
   categories: ["Tooling"]
+
+- name: "[Inspect Grounding](https://github.com/Chris316-git/inspect-grounding)"
+  description: |
+    Deterministic numeric-grounding scorer — flags numbers in model output that do not appear in the input, tool results or metadata. No judge model or API calls.
+  author: "[Yanheng Li](https://github.com/Chris316-git)"
+  categories: ["Analysis"]
+
+- name: "[inspect-oscal](https://github.com/Johnbjoseph-cybersec/inspect-oscal)"
+  description: |
+    Converts Inspect eval logs into validated OSCAL assessment-results, mapping scores to NIST AI RMF subcategories, with each log's SHA-256 as evidence. Evidence for GRC teams, not a compliance verdict.
+  author: "[John B Joseph](https://github.com/Johnbjoseph-cybersec)"
+  categories: ["Analysis"]
+
+- name: "[anchorset](https://github.com/ogous/anchorset/blob/main/docs/INSPECT.md)"
+  description: |
+    Regression tests for your LLM evals, and checks on the judge that grades them. Re-grades the model_graded_qa
+    answers in an Inspect log with an old and a new judge and shows which labels moved.
+  author: "[Ogous Chan Ali](https://github.com/ogous)"
+  categories: ["Analysis"]
+
+- name: "[ARCI verdict](https://github.com/ajaysurya1221/agent-reliability-ci/blob/main/docs/recipes/verdict.md)"
+  description: |
+    Regression verdict from two eval logs — reads a baseline and a candidate Inspect JSON log (epochs as rounds) and returns PASS, BLOCK or INCONCLUSIVE from a rule file fixed before the runs, with an exact sequential test. The error bound is stated only under its conditions; a rule written after the logs exist is labelled descriptive.
+  author: "[Ajay Surya Senthilrajan](https://github.com/ajaysurya1221)"
+  categories: ["Analysis"]
+
+- name: "[tattlescan](https://github.com/Vidushi2709/tattletale/tree/main/tattlescan)"
+  description: |
+    Scanners for Inspect Scout that flag when an agent tells the user one thing and its tool calls do another: false success,
+    no consent, wrong details, unmentioned actions and wrong amounts. Built for τ²-bench airline transcripts.
+  author: "[Vidushi Anand](https://github.com/Vidushi2709)"
+  categories: ["Analysis"]
+
+- name: "[baseline-increment](https://github.com/Lakshmi-Chakradhar-Vijayarao/baseline-increment#from-your-evaluation-harness)"
+  description: |
+    Does a detector, judge or confidence score add information beyond cheap baselines (length, task, model, difficulty)? Reads Inspect logs (`baseline-increment from-inspect`), takes the label from one scorer and the detector from another, and runs a refit conditional-randomisation test whose false-flag rate is published from a simulation suite.
+  author: "[Lakshmi Chakradhar Vijayarao](https://github.com/Lakshmi-Chakradhar-Vijayarao)"
+  categories: ["Analysis"]

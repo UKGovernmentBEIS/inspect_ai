@@ -2,6 +2,7 @@ import json
 from typing import (
     TYPE_CHECKING,
     Any,
+    Collection,
     Iterable,
     Literal,
     Mapping,
@@ -162,11 +163,17 @@ class ExcludingObjectBuilder:
     selectively: feed it the ``(event, value)`` pairs a streaming parse
     yields, and ``data`` holds the included top-level fields when the parse
     ends. An excluded key's subtree is never built, so it costs no memory.
+    With `include_fields`, every top-level key not in it is excluded too.
     """
 
-    def __init__(self, exclude_fields: set[str]) -> None:
+    def __init__(
+        self,
+        exclude_fields: set[str],
+        include_fields: Collection[str] | None = None,
+    ) -> None:
         self.data: dict[str, Any] = {}
         self._excluded = exclude_fields
+        self._included = include_fields
         self._depth = 0
         self._key = ""
         self._builder: Any | None = None
@@ -179,12 +186,45 @@ class ExcludingObjectBuilder:
 
         if self._depth == 1 and event == "map_key":
             self._key = value
-            self._builder = None if value in self._excluded else ijson.ObjectBuilder()
+            excluded = value in self._excluded or (
+                self._included is not None and value not in self._included
+            )
+            self._builder = None if excluded else ijson.ObjectBuilder()
         elif self._builder is not None:
             self._builder.event(event, value)
             if self._depth == 1:
                 self.data[self._key] = self._builder.value
                 self._builder = None
+
+
+class JSONPushParser:
+    """Parse one JSON document from byte chunks pushed to it.
+
+    The push counterpart of ``ijson.parse`` (with ``use_float=True``): each
+    call returns the ``(prefix, event, value)`` events its chunk completed,
+    so a caller that is already passing the bytes elsewhere can parse them
+    without reading them twice. Raises ijson's errors as ``ijson.parse``
+    does.
+    """
+
+    def __init__(self) -> None:
+        self._events = ijson.sendable_list()
+        self._parser = ijson.parse_coro(self._events, use_float=True)
+
+    def feed(self, chunk: bytes) -> list[tuple[str, str, Any]]:
+        """Parse the next chunk and return the events it completed."""
+        self._parser.send(chunk)
+        return self._take()
+
+    def close(self) -> list[tuple[str, str, Any]]:
+        """End the document and return its last events; raises if it is incomplete."""
+        self._parser.close()
+        return self._take()
+
+    def _take(self) -> list[tuple[str, str, Any]]:
+        events = list(self._events)
+        del self._events[:]
+        return events
 
 
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
@@ -202,6 +242,20 @@ def json_equal(a: Any, b: Any) -> bool:
     if isinstance(a, list) and isinstance(b, list):
         return len(a) == len(b) and all(json_equal(x, y) for x, y in zip(a, b))
     return type(a) is type(b) and bool(a == b)
+
+
+def json_normalize_numbers(x: Any) -> Any:
+    """`x` with integral floats as ints, so `json_equal` values serialize alike.
+
+    Booleans are left alone (`json.dumps` keeps them distinct from numbers).
+    """
+    if isinstance(x, float) and x.is_integer():
+        return int(x)
+    if isinstance(x, dict):
+        return {k: json_normalize_numbers(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [json_normalize_numbers(v) for v in x]
+    return x
 
 
 def jsonable_python(x: Any) -> Any:

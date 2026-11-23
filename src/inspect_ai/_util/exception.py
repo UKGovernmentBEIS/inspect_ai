@@ -4,6 +4,17 @@ class TerminateSampleError(RuntimeError):
         super().__init__(reason)
 
 
+class SampleRefusedError(RuntimeError):
+    """A sample that can't run where its model calls go, such as one a sentinel sidecar wasn't registered to judge.
+
+    It is never retried, since a retry would be refused the same way, and never scored, since the sample never ran. It counts toward `fail_on_error` like any other sample error.
+    """
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
+
+
 class TerminateTaskError(RuntimeError):
     def __init__(self, reason: str) -> None:
         self.reason = reason

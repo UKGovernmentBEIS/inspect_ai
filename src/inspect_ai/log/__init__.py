@@ -16,6 +16,11 @@ from ._config_update import (
     effective_generate_config,
 )
 from ._convert import convert_eval_logs
+from ._disposition import (
+    SampleSelector,
+    exclude_samples,
+    zero_samples,
+)
 from ._edit import (
     LogEdit,
     LogUpdate,
@@ -174,6 +179,9 @@ __all__ = [
     "edit_eval_log",
     "invalidate_samples",
     "uninvalidate_samples",
+    "exclude_samples",
+    "zero_samples",
+    "SampleSelector",
     "recover_eval_log",
     "recoverable_eval_logs",
     "IncompleteAction",

@@ -831,4 +831,6 @@ def test_sentinel_is_the_last_positional_parameter(fn: Callable[..., Any]) -> No
         for p in inspect.signature(fn).parameters.values()
         if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
     ]
-    assert names[-1] == "sentinel"
+    # the sidecar client's setting follows it, for the same reason
+    expected = ["sentinel"] if fn is Task.__init__ else ["sentinel", "sentinel_proxy"]
+    assert names[-len(expected) :] == expected
