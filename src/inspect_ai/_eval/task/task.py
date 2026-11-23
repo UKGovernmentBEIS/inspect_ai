@@ -67,7 +67,7 @@ from inspect_ai.util._sandbox.environment import (
 from inspect_ai.viewer import ViewerConfig
 
 from .epochs import Epochs
-from .sample_source import SampleSource
+from .sample_source import HANDLE_DATASET_NAME, HandleChannel, SampleSource
 
 logger = getLogger(__name__)
 
@@ -201,8 +201,10 @@ class Task:
                 (recorded in the eval log).
             max_samples: Maximum number of this task's samples to run in
                 parallel. A `max_samples` passed to `eval()`, `eval_set()` or
-                the CLI overrides it. If neither is set, the default comes
-                from the model's connection limit.
+                the CLI overrides it, except for a task fed through its
+                handle (`samples_from_handle()`), whose own value wins. If
+                neither is set, the default comes from the model's
+                connection limit.
             version: Version of task (to distinguish evolutions
                 of the task spec or breaking changes to it)
             metadata:  Additional metadata to associate with the task.
@@ -447,8 +449,9 @@ def task_with(
         early_stopping: Early stopping callbacks.
         max_samples: Maximum number of this task's samples to run in
             parallel. A `max_samples` passed to `eval()`, `eval_set()` or
-            the CLI overrides it. If neither is set, the default comes
-            from the model's connection limit.
+            the CLI overrides it, except for a task fed through its handle
+            (`samples_from_handle()`), whose own value wins. If neither is
+            set, the default comes from the model's connection limit.
         name: Task name. If not specified is automatically
             determined based on the name of the task directory (or "task")
             if its anonymous task (e.g. created in a notebook and passed to
@@ -667,7 +670,18 @@ def resolve_dataset_or_source(
     a dataset as the complete sample set (e.g. `slice_dataset` validating
     `--sample-id`) learn that more samples may be produced at runtime via
     their `dynamic` flag, passed by callers that hold the task.
+
+    A task fed through its handle (`samples_from_handle()`) gets an empty
+    dataset with the reserved name `samples_from_handle`, which its log
+    records; any other dataset with that name is refused.
     """
+    if isinstance(dataset, HandleChannel):
+        return ResolvedDataset(MemoryDataset([], name=HANDLE_DATASET_NAME), dataset)
+    if isinstance(dataset, Dataset) and dataset.name == HANDLE_DATASET_NAME:
+        raise ValueError(
+            f"The dataset name '{HANDLE_DATASET_NAME}' is reserved for tasks fed "
+            "through a handle."
+        )
     if isinstance(dataset, SampleSource):
         return ResolvedDataset(MemoryDataset(list(dataset.initial_samples())), dataset)
     else:

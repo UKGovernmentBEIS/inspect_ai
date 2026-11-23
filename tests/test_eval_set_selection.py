@@ -10,7 +10,15 @@ from typing import Any
 
 import pytest
 
-from inspect_ai import Task, TaskSource, enqueue_task, eval_set, task
+from inspect_ai import (
+    Task,
+    TaskEndedError,
+    TaskSource,
+    enqueue_task,
+    eval_set,
+    samples_from_handle,
+    task,
+)
 from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._eval.eval_set_manifest import (
     INSPECT_EVAL_SET_CAPTURE,
@@ -1869,3 +1877,102 @@ def test_a_whole_selection_survives_being_written_and_read_back(
     assert back == selection
     assert back.overrides is not None and selection.overrides is not None
     assert back.overrides.checkpoint == selection.overrides.checkpoint
+
+
+@solver
+def selection_rollout_solver() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.metadata.get("raise"):
+            raise ValueError("rollout failed")
+        return state
+
+    return solve
+
+
+@task
+def selection_rollout() -> Task:
+    CONSTRUCTED_ROLLOUTS.append(1)
+    # its own fail_on_error wins over the worker's forced False
+    return Task(
+        dataset=samples_from_handle(),
+        solver=[selection_rollout_solver()],
+        fail_on_error=True,
+    )
+
+
+CONSTRUCTED_ROLLOUTS: list[int] = []
+
+
+@solver
+def feed_selection_rollout() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # the first rollout task fails on its first sample; the creator
+        # replaces it
+        [failing] = enqueue_task(selection_rollout())
+        run = await failing.enqueue_sample(Sample(input="x", metadata={"raise": True}))
+        assert run.error is not None
+        try:
+            await failing.enqueue_sample(Sample(input="y"))
+        except TaskEndedError:
+            pass
+        [fresh] = enqueue_task(selection_rollout())
+        async with fresh:
+            run = await fresh.enqueue_sample(Sample(input="z"))
+        state.metadata["fed_run"] = str(run.id)
+        return state
+
+    return solve
+
+
+@task
+def selection_feeding_task() -> Task:
+    return Task(dataset=[Sample(input="hello")], solver=[feed_selection_rollout()])
+
+
+def test_eval_set_selection_creator_feeds_a_rollout_task(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A selected creator builds, adds and feeds a task the worker did not select."""
+    reset_pruning()
+    CONSTRUCTED_ROLLOUTS.clear()
+    tasks = [selection_feeding_task(), selection_task_two()]
+    capture = enumerate_eval_set(monkeypatch, tmp_path, tasks=tasks)
+    selection = faceted_selection(
+        EvalSetCapture(
+            **(
+                capture.model_dump()
+                | {
+                    "tasks": [
+                        t
+                        for t in capture.tasks
+                        if t.registry_name is not None
+                        and t.registry_name.endswith("selection_feeding_task")
+                    ]
+                }
+            )
+        ),
+        "mockllm/model",
+    )
+    CONSTRUCTED_ROLLOUTS.clear()
+    try:
+        success, logs = run_selection(
+            monkeypatch,
+            tmp_path,
+            selection,
+            tmp_path / "logs",
+            tasks=[selection_feeding_task(), selection_task_two()],
+        )
+    finally:
+        reset_pruning()
+
+    # the factory body ran for both rollout tasks: they were not pruned
+    assert len(CONSTRUCTED_ROLLOUTS) == 2
+    rollouts = [log for log in logs if log.eval.task == "selection_rollout"]
+    assert sorted(log.status for log in rollouts) == ["error", "success"]
+    assert all(log.eval.model == "mockllm/model" for log in rollouts)
+    creator = [log for log in logs if log.eval.task == "selection_feeding_task"]
+    assert [log.status for log in creator] == ["success"]
+    # the worker's own task list was still pruned at resolution
+    assert not any(log.eval.task == "selection_task_two" for log in logs)
+    # the failed rollout does not decide the worker's result
+    assert success

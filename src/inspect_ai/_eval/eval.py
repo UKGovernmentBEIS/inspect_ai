@@ -122,13 +122,15 @@ from .run import eval_run
 from .task import Epochs, PreviousTask, Task, TaskSource
 from .task.enqueue import (
     RunQueue,
+    attempt_scope,
     bind_run_queue,
     creator_model,
-    creator_model_scope,
+    is_fed,
     unbind_run_queue,
 )
 from .task.images import InputMediaPolicy
 from .task.resolved import ResolvedTask, resolved_model_names
+from .task.sample_source import HANDLE_DATASET_NAME
 from .task.tasks import Tasks
 
 log = logging.getLogger(__name__)
@@ -306,7 +308,8 @@ def eval(
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
         max_samples: Maximum number of samples to run in parallel within each task
-            (overrides a task's own `max_samples`; default is max_connections)
+            (overrides a task's own `max_samples`, except for a task fed through
+            its handle; default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
@@ -314,11 +317,14 @@ def eval(
             (defaults to number of models being evaluated). A task cancelled
             before it starts is started outside this limit and ends at once
             with an error log reporting the cancellation, so it never takes a
-            slot.
+            slot. A task fed through its handle (`samples_from_handle()`) does
+            not count toward this limit.
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
-            to run in parallel.
+            to run in parallel. A sample waiting on a sample it sent through a
+            task's handle keeps its sandbox, so leave room for both; `inspect
+            ctl config --max-sandboxes` raises the limit while the run goes on.
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
@@ -594,7 +600,8 @@ async def eval_async(
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
         max_samples: Maximum number of samples to run in parallel within each task
-            (overrides a task's own `max_samples`; default is max_connections)
+            (overrides a task's own `max_samples`, except for a task fed through
+            its handle; default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
@@ -602,9 +609,12 @@ async def eval_async(
             (defaults to number of models being evaluated). A task cancelled
             before it starts is started outside this limit and ends at once
             with an error log reporting the cancellation, so it never takes a
-            slot.
+            slot. A task fed through its handle (`samples_from_handle()`) does
+            not count toward this limit.
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)
-        max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
+        max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel. A sample waiting on a sample it sent through a
+            task's handle keeps its sandbox, so leave room for both; `inspect
+            ctl config --max-sandboxes` raises the limit while the run goes on.
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images, even if specified as a filename or URL (defaults to False)
@@ -1238,8 +1248,10 @@ def _resolve_enqueued_tasks(
     consistently with the run. Tasks added inside a running task attempt
     resolve once, under that attempt's model (:func:`creator_model`), in place
     of the run's models; elsewhere they resolve once per run model. Raises
-    ``ValueError`` if the tasks can't be resolved, and ``RuntimeError`` for a
-    placeholder left by eval-set selection pruning (``is_placeholder``).
+    ``ValueError`` if the tasks can't be resolved or a task fed through its
+    handle is passed as a ``ResolvedTask`` or ``PreviousTask``, and
+    ``RuntimeError`` for a placeholder left by eval-set selection pruning
+    (``is_placeholder``).
     """
     attempt_model = creator_model()
     if attempt_model is not None:
@@ -1278,6 +1290,14 @@ def _resolve_enqueued_tasks(
     ]
     if not resolved:
         raise ValueError("No tasks to enqueue (resolution produced none).")
+    first = tasks[0] if isinstance(tasks, list) and tasks else tasks
+    if isinstance(first, (ResolvedTask, PreviousTask)) and any(
+        is_fed(resolved_task.task) for resolved_task in resolved
+    ):
+        raise ValueError(
+            "Tasks fed through a handle (samples_from_handle()) must start "
+            "fresh; pass the Task."
+        )
     for resolved_task in resolved:
         if is_placeholder(resolved_task.task):
             raise RuntimeError(
@@ -1351,11 +1371,14 @@ def eval_retry(
             (defaults to number of models being evaluated). A task cancelled
             before it starts is started outside this limit and ends at once
             with an error log reporting the cancellation, so it never takes a
-            slot.
+            slot. A task fed through its handle (`samples_from_handle()`) does
+            not count toward this limit.
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
-            to run in parallel.
+            to run in parallel. A sample waiting on a sample it sent through a
+            task's handle keeps its sandbox, so leave room for both; `inspect
+            ctl config --max-sandboxes` raises the limit while the run goes on.
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
         sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds
@@ -1609,7 +1632,9 @@ async def eval_retry_async(
             ends at once with an error log reporting the cancellation, so it
             never takes a slot.
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)
-        max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
+        max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel. A sample waiting on a sample it sent through a
+            task's handle keeps its sandbox, so leave room for both; `inspect
+            ctl config --max-sandboxes` raises the limit while the run goes on.
         sandbox_cleanup: Cleanup sandbox environments after task completes
            (defaults to True)
         sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds
@@ -1753,6 +1778,15 @@ async def eval_retry_async(
                 pass  # no recovery data available — proceed with flushed samples
             except Exception as ex:
                 log.warning(f"Recovery failed for {eval_log.location}: {ex}")
+
+    # a task fed through its handle ran only the samples its creator sent
+    for eval_log in retry_eval_logs:
+        if eval_log.eval.dataset.name == HANDLE_DATASET_NAME:
+            raise PrerequisiteError(
+                f"Task '{eval_log.eval.task}' took its samples through its "
+                "handle (samples_from_handle()), so it cannot be retried on "
+                "its own; retry the task that added it."
+            )
 
     # eval them in turn
     eval_logs: list[EvalLog] = []
@@ -2113,7 +2147,7 @@ def eval_resolve_tasks(
             init_active_model(m, config)
             if task_source is not None:
                 if seed is None:
-                    with creator_model_scope(None):
+                    with attempt_scope(None):
                         seed = task_source.initial_tasks()
                 batch: Tasks = seed
             else:
@@ -2133,6 +2167,14 @@ def eval_resolve_tasks(
                     warn_unconsumed_task_args=(i == 0 and task_source is None),
                     input_media_policy=input_media_policy,
                 )
+            )
+
+    for resolved_task in resolved_tasks:
+        if is_fed(resolved_task.task):
+            raise PrerequisiteError(
+                f"Task '{resolved_task.task.name}' takes its samples through its "
+                "handle (samples_from_handle()), so it cannot be run or retried "
+                "on its own; run or retry the task that adds it."
             )
 
     if isinstance(approval, str | ApprovalPolicyConfig):

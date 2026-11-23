@@ -222,7 +222,7 @@ from inspect_ai.util._store import init_subtask_store
 
 from ..context import init_task_context
 from ..task import Task
-from .enqueue import TaskRecord, creator_model_scope, get_run_queue
+from .enqueue import TaskRecord, attempt_scope, get_run_queue
 from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
@@ -237,6 +237,7 @@ from .log import TaskLogger, collect_eval_data, plan_to_eval_plan
 from .results import eval_results
 from .sample_source import (
     EnqueuedSample,
+    HandleChannel,
     SampleEnqueuer,
     SampleSource,
     clear_sample_enqueuer,
@@ -937,7 +938,7 @@ async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None
     tasks the callback returned propagate.
     """
     if options.task_source is not None and options.run_samples:
-        with creator_model_scope(None):
+        with attempt_scope(None):
             try:
                 tasks = await options.task_source.task_complete(eval_log)
             except Exception as ex:
@@ -1387,6 +1388,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     if sample_feed is not None:
         sample_enqueuer = SampleEnqueuer()
         sample_enqueuer_token = register_sample_enqueuer(sample_enqueuer)
+        if isinstance(sample_feed, HandleChannel):
+            sample_feed.attach(sample_enqueuer)
 
     # resolve the plan (unroll chains)
     solver = solver or task.solver
@@ -1990,7 +1993,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 await sample_feed.sample_abandoned(abandoned, epoch)
                             )
                         if options.task_source is not None:
-                            with creator_model_scope(None):
+                            with attempt_scope(None):
                                 _enqueue_source_tasks(
                                     await options.task_source.sample_abandoned(
                                         abandoned, epoch, task
@@ -2561,6 +2564,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         finally:
             if sample_enqueuer_token is not None:
                 clear_sample_enqueuer(sample_enqueuer_token)
+            if isinstance(sample_feed, HandleChannel):
+                sample_feed.detach()
 
             # every sample task has exited by here (the try encloses the task
             # group), so any still-unaccounted samples can no longer record
@@ -3905,7 +3910,7 @@ async def _task_run_sample_attempt(
                         await sample_feed.sample_complete(source_sample)
                     )
                 if task_source is not None:
-                    with creator_model_scope(None):
+                    with attempt_scope(None):
                         _enqueue_source_tasks(
                             await task_source.sample_complete(source_sample, task)
                         )
