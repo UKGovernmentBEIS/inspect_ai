@@ -116,6 +116,9 @@ class _FakeActiveSample:
         self.pending_interactions: tuple[object, ...] = ()
 
     def interrupt(self, action: Literal["score", "error", "cancel"]) -> None:
+        # first resolution wins, as in ActiveSample.interrupt
+        if self.interrupt_action is not None:
+            return
         self.interrupts.append(action)
         self.interrupt_action = action
 
@@ -976,23 +979,24 @@ async def test_cancel_sample_initializing_repeat_is_noop(
     assert sample.interrupts == ["cancel"]
 
 
-async def test_cancel_sample_running_repeat_reinterrupts(
+async def test_cancel_sample_running_repeat_is_noop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The repeat no-op is scoped to initializing: a running row re-interrupts.
+    """A running sample already interrupted keeps its first resolution.
 
-    Re-firing a running sample's cancel scope is a real action (the runner
-    reads the live action when it handles the interrupt), so the running row
-    keeps today's ``changed: true`` answer.
+    Same answer as the initializing row: a later 'score' neither replaces a
+    pending 'cancel' nor reports a change.
     """
     sample = _FakeActiveSample()
     sample.interrupt_action = "cancel"
     _patch_active_samples(monkeypatch, [sample])
 
-    result = await cancel_sample("e1", "s1", 1, action="cancel")
+    result = await cancel_sample("e1", "s1", 1, action="score")
     assert result is not None
-    assert result["ok"] is True and result["changed"] is True
-    assert sample.interrupts == ["cancel"]
+    assert result["ok"] is True and result["changed"] is False
+    assert result["reason"] == "cancel already requested (cancel)"
+    assert cast(CancelSampleAlreadyRequested, result)["interrupt"] == "cancel"
+    assert sample.interrupts == []
 
 
 async def test_cancel_sample_initializing_error_gated_by_fails_on_error(
