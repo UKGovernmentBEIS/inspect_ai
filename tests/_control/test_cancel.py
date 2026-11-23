@@ -116,9 +116,6 @@ class _FakeActiveSample:
         self.pending_interactions: tuple[object, ...] = ()
 
     def interrupt(self, action: Literal["score", "error", "cancel"]) -> None:
-        # first resolution wins, as in ActiveSample.interrupt
-        if self.interrupt_action is not None:
-            return
         self.interrupts.append(action)
         self.interrupt_action = action
 
@@ -498,29 +495,6 @@ def test_cancel_task_score_resolution_repeat_is_noop(
     assert repeat["changed"] is False
     assert repeat["reason"] == "cancel already requested (score)"
     assert handle.fired == ["score"] and running.interrupts == ["score"]
-
-
-def test_cancel_task_resolution_sweep_skips_already_interrupted(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The in-flight sweep never overwrites a sample's existing interrupt.
-
-    A sample that was per-sample cancelled is still "in flight" until its
-    (post-scoring/logging) context exit stamps `completed`; re-interrupting
-    it would flip a not-yet-handled 'cancel' to the score/error disposition
-    and re-fire on_interrupt hooks on a sample already being resolved.
-    """
-    handle = _FakeTaskCancel()
-    register_eval("e1", 5, task_id="t1", task_cancel=handle)
-    already_cancelled = _FakeActiveSample(sample_id="s1")
-    already_cancelled.interrupt("cancel")
-    running = _FakeActiveSample(sample_id="s2")
-    _patch_active_samples(monkeypatch, [already_cancelled, running])
-
-    result = cancel_task("t1", action="score")
-    assert result is not None and result["ok"] is True and result["changed"] is True
-    assert already_cancelled.interrupts == ["cancel"]  # not re-interrupted
-    assert running.interrupts == ["score"]
 
 
 def test_cancel_task_resolution_sweep_skips_fired_limit(

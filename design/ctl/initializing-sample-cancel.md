@@ -71,7 +71,7 @@ The initializing row of the `sample/cancel` decision table changes; every other 
 | **initializing** (`ActiveSample`, `started is None`, no intent stamped) | **applied — deferred interrupt**: the intent is stamped now and fires as the sample starts; `changed: true`, with a `reason` saying the sample will resolve when it finishes initializing | **applied the same way** — `score`/`error` resolve at start exactly as the task-level self-check resolves them in this window; `error` is gated by `fails_on_error` as on a running sample (the `ActiveSample` is registered, so the gate sees it — no start-time downgrade is needed, unlike the task-level blind spot) |
 | initializing, **intent already stamped** | `changed: false` no-op — "cancel already requested (`<action>`)" | same no-op (first resolution wins) |
 | **departed, not yet registered** (stage 2) | 409 — unchanged, retryable; reworded to say the sample has left the queue but is not yet registered | 409 — same |
-| running / queued / terminal / unknown | unchanged | unchanged |
+| running / queued / terminal / unknown | unchanged (a running sample with an interrupt already set has since gained the same no-op as the row above) | unchanged (same) |
 
 Notes:
 
