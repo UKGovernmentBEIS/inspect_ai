@@ -52,6 +52,7 @@ While many tasks can be defined with only a dataset, solver, and scorer, there a
 | `metrics` | Metrics to use in place of scorer metrics. | [Metrics](metrics.qmd) |
 | `model` | Model for evaluation (typically specified by `eval` rather than the task). | [Models](models.qmd) |
 | `model_roles` | Named models for use with `get_model()` (e.g. a grader). | [Model Roles](models.qmd#model-roles) |
+| `required_model_roles` | Model roles that must be specified for the task to run. | [Required Roles](models.qmd#required-roles) |
 | `config` | Config for model generation (also typically specified in `eval`). | [Generate Config](options.qmd#model-generation) |
 | `fail_on_error` | Failure tolerance for samples. | [Failure Threshold](handling-errors.qmd#failure-threshold) |
 | `continue_on_fail` | Continue running after sample errors, failing only at the end. | [Handling Errors](handling-errors.qmd) |
@@ -413,6 +414,8 @@ The table below lists task and runtime parameters and the layers at which each c
 | `max_tokens`, etc.)       |               |                  |                      |                                         |
 +---------------------------+---------------+------------------+----------------------+-----------------------------------------+
 | `model_roles`             | yes           | yes              | yes                  | `--model-role`                          |
++---------------------------+---------------+------------------+----------------------+-----------------------------------------+
+| `required_model_roles`    | yes           | yes              |                      |                                         |
 +---------------------------+---------------+------------------+----------------------+-----------------------------------------+
 | **Execution limits**      |               |                  |                      |                                         |
 +---------------------------+---------------+------------------+----------------------+-----------------------------------------+

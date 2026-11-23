@@ -46,6 +46,28 @@ def resolve_model_roles(
         return None
 
 
+def resolve_required_model_roles(
+    required_model_roles: list[str] | None,
+) -> list[str] | None:
+    """Validate a task's `required_model_roles`.
+
+    Raises:
+        TypeError: If the value is not a list of role names. A bare string is
+            rejected because it would otherwise be read as one role per
+            character.
+    """
+    if required_model_roles is None:
+        return None
+    if not isinstance(required_model_roles, list) or not all(
+        isinstance(role, str) for role in required_model_roles
+    ):
+        raise TypeError(
+            "required_model_roles must be a list of model role names "
+            f"(got {required_model_roles!r})."
+        )
+    return list(required_model_roles)
+
+
 def _resolve_role_model(role: str, model: str | Model) -> Model:
     # memoize=False for strings / copy for Model instances so that each role
     # gets a distinct Model instance; otherwise roles sharing the same model
@@ -96,3 +118,36 @@ def resolve_model_costs(
                 f"Use set_model_cost() or --model-cost-config to "
                 f"configure pricing."
             )
+
+
+def validate_required_model_roles(resolved_tasks: list[ResolvedTask]) -> None:
+    """Check that every model role required by the tasks has a model.
+
+    A role has a model when one (or a list of them) is assigned to it at the
+    eval level or in the task's own `model_roles`.
+
+    Raises:
+        PrerequisiteError: If a required model role has no model. The error
+            names every such role across the tasks.
+    """
+    # missing role -> names of the tasks that require it
+    missing: dict[str, list[str]] = {}
+    for task in resolved_tasks:
+        assigned = task.model_roles or {}
+        for role in task.task.required_model_roles or []:
+            if role not in assigned:
+                requiring = missing.setdefault(role, [])
+                if task.task.name not in requiring:
+                    requiring.append(task.task.name)
+
+    if missing:
+        roles = ", ".join(
+            f"'{role}' (required by {', '.join(requiring)})"
+            for role, requiring in missing.items()
+        )
+        options = " ".join(f"--model-role {role}=<model>" for role in missing)
+        raise PrerequisiteError(
+            f"Required model roles were not specified: {roles}. "
+            f"Specify them with {options} or with the model_roles argument "
+            "to eval() or Task."
+        )

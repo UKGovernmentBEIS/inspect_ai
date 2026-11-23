@@ -46,7 +46,11 @@ from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog, EvalLogInfo, HeadlineMetric
 from inspect_ai.model import GenerateConfig
 from inspect_ai.model._model import Model, ModelRoles
-from inspect_ai.model._util import resolve_model, resolve_model_roles
+from inspect_ai.model._util import (
+    resolve_model,
+    resolve_model_roles,
+    resolve_required_model_roles,
+)
 from inspect_ai.review._policy import (
     ReviewPolicy,
     ReviewPolicyConfig,
@@ -126,6 +130,7 @@ class Task:
         *,
         description: str | None = None,
         max_samples: int | None = None,
+        required_model_roles: list[str] | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
         """Create a task.
@@ -143,6 +148,11 @@ class Task:
             model: Default model for task (Optional, defaults to eval model).
             config: Model generation config for default model (does not apply to model roles)
             model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
+            required_model_roles: Model roles the task cannot run without. The
+                eval fails before running any samples unless each one is
+                assigned a model, either by `model_roles` here or at the eval
+                level (the `model_roles` argument to `eval()` or
+                `--model-role`). Defaults to no required roles.
             sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
             checkpoint: Checkpoint configuration for this task. `True` (or a
                 `CheckpointConfig`) enables checkpointing with the default
@@ -259,6 +269,7 @@ class Task:
         self.model = resolve_model(model)
         self.config = config
         self.model_roles = resolve_model_roles(model_roles)
+        self.required_model_roles = resolve_required_model_roles(required_model_roles)
         self.sandbox = resolve_sandbox_environment(sandbox)
         self.checkpoint = normalize_checkpoint(checkpoint)
         self.approval = resolve_approval(approval)
@@ -339,6 +350,7 @@ def task_with(
     model: str | Model | NotGiven = NOT_GIVEN,
     config: GenerateConfig | NotGiven = NOT_GIVEN,
     model_roles: ModelRoles | NotGiven = NOT_GIVEN,
+    required_model_roles: list[str] | None | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
     checkpoint: CheckpointConfig | bool | None | NotGiven = NOT_GIVEN,
     on_checkpoint: OnCheckpointCallback | None | NotGiven = NOT_GIVEN,
@@ -390,6 +402,11 @@ def task_with(
         model: Default model for task (Optional, defaults to eval model).
         config: Model generation config for default model (does not apply to model roles)
         model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
+        required_model_roles: Model roles the task cannot run without. The
+            eval fails before running any samples unless each one is
+            assigned a model, either by the task's `model_roles` or at the
+            eval level (the `model_roles` argument to `eval()` or
+            `--model-role`).
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         checkpoint: Checkpoint configuration for this task. `True` (or a
             `CheckpointConfig`) enables checkpointing with the default
@@ -492,6 +509,8 @@ def task_with(
         task.config = config
     if not isinstance(model_roles, NotGiven):
         task.model_roles = resolve_model_roles(model_roles)
+    if not isinstance(required_model_roles, NotGiven):
+        task.required_model_roles = resolve_required_model_roles(required_model_roles)
     if not isinstance(sandbox, NotGiven):
         task.sandbox = resolve_sandbox_environment(sandbox)
     if not isinstance(checkpoint, NotGiven):

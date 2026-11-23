@@ -165,6 +165,8 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
             placeholder that eval-set selection pruning left in place of a
             task it did not build.
         ValueError: If the tasks can't be resolved (propagated from resolution).
+        PrerequisiteError: If a task requires a model role (its
+            ``required_model_roles``) that has no model.
     """
     enqueuer = get_task_enqueuer()
     if enqueuer is None:
