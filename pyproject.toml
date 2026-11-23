@@ -145,15 +145,15 @@ mypy_path = "tests"
 [[tool.mypy.overrides]]
 module = ["inspect_ai.*"]
 warn_return_any = true
-disallow_untyped_defs = true
-disallow_any_generics = true
-disallow_subclassing_any = true
-disallow_untyped_calls = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-extra_checks = true
-disable_error_code = "unused-ignore"
+ disallow_untyped_defs = true
+ disallow_any_generics = true
+ disallow_subclassing_any = true
+ disallow_untyped_calls = true
+ disallow_incomplete_defs = true
+ check_untyped_defs = true
+ disallow_untyped_decorators = true
+ extra_checks = true
+ disable_error_code = "unused-ignore"
 
 [tool.check-wheel-contents]
 ignore = ["W002", "W009"]
@@ -205,8 +205,9 @@ dependencies = [
   "universal-pathlib>=0.2.6",
   "uvicorn",
   "zipfile-zstd>=0.0.4; python_version < '3.14'",
+  "backports.zstd>=1.0.0; python_version < '3.14'",
   "zipp>=3.19.1",  # not directly required, pinned by Snyk to avoid a vulnerability
-  "zstandard>=0.20.0",
+  # "zstandard>=0.20.0",  # removed – replaced by stdlib/compression.zstd or backports.zstd
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -353,3 +354,6 @@ mistralai = "6 hours"
 openai = "6 hours"
 together = "6 hours"
 xai-sdk = "6 hours"
+
+[tool.uv]
+# (rest of the file unchanged)
