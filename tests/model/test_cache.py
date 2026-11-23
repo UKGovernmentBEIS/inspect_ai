@@ -1309,6 +1309,10 @@ async def test_cache_normalized_outputs_are_cached(
     assert _not_cached_warnings() == []
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Windows refuses the rename while a reader holds the entry open",
+)
 def test_cache_concurrent_writers_and_reader(cache_root: Path):
     # writers and reader share the cache directory through INSPECT_CACHE_DIR
     context = multiprocessing.get_context("spawn")
