@@ -2113,9 +2113,19 @@ documented. Behaviour changes:
 - **Error text** forwarded to the CLI is the existing `provider_error_payload`
   of the limit error (its type, value and limit), unchanged; for a combined
   error those are its primary fields.
-- **Spend.** The agents' changes either refuse a call sooner (a reached
-  turn limit, an unpriced model) or make a limit error propagate further,
-  with two exceptions that admit calls refused today. The start-time price
+- **Spend.** Most of the agents' changes either refuse a call sooner (a
+  reached turn limit, an unpriced model) or make a limit error propagate
+  further. Three let work continue that today stops. Covered exits catch
+  more: a limit entered inside `run(limits=[...])` (a plain block's, an
+  `as_solver()` limit's, a time limit's) is returned by `run()`, and a
+  limit entered inside a default deepagent background child is reported as
+  its `stopped` result, where today both escape and can end the sample
+  ("Compatibility and migration"), so the parent's later calls run. Those
+  calls are bounded by the limits still in force around them (the
+  sample's and any enclosing scope's), not by the closed inner limit, and
+  with no enclosing limit configured nothing bounds them, as for any
+  agent; the metering premises and the overshoot stated below still
+  apply. The other two admit calls refused today. The start-time price
   check no longer requires prices for role models, so an eval whose
   approver, reviewer or monitor role model is unpriced, which today fails
   before any sample runs, now runs those models' suspended calls. And with
