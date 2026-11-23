@@ -1028,8 +1028,13 @@ def test_pad_server_tool_blocks_for_token_counting() -> None:
             "caller": caller(source),
         }
 
-    def placeholder(id: str, name: str) -> dict[str, Any]:
-        return {"type": "server_tool_use", "id": id, "name": name, "input": {}}
+    def placeholder(
+        id: str, name: str, caller: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        block = {"type": "server_tool_use", "id": id, "name": name, "input": {}}
+        if caller is not None:
+            block["caller"] = caller
+        return block
 
     text = {"type": "text", "text": "done"}
     messages: list[dict[str, Any]] = [
@@ -1077,7 +1082,7 @@ def test_pad_server_tool_blocks_for_token_counting() -> None:
     )
 
     assert padded[0]["content"] == [
-        placeholder("s1", "web_search"),
+        placeholder("s1", "web_search", caller(None)),
         *messages[0]["content"],
     ]
     assert padded[1]["content"] == [
@@ -1085,9 +1090,9 @@ def test_pad_server_tool_blocks_for_token_counting() -> None:
         *messages[1]["content"],
     ]
     assert padded[2]["content"] == [
-        placeholder("s3", "web_search"),
-        messages[2]["content"][0],
         placeholder("c2", "code_execution"),
+        placeholder("s3", "web_search", caller("c2")),
+        messages[2]["content"][0],
         messages[2]["content"][1],
     ]
     # everything else is untouched
@@ -1097,8 +1102,9 @@ def test_pad_server_tool_blocks_for_token_counting() -> None:
 
 # server tool blocks an assistant message can open with when a client tool call
 # ended the prior turn while the server tool call was still running (the use
-# block of "srvtoolu_ws1" / "srvtoolu_ce1" stays with the prior message), and
-# the blocks count_tokens must send for that message counted on its own
+# blocks of "srvtoolu_ws1", "srvtoolu_ce1" and "srvtoolu_ce2" stay with the prior
+# message), and the blocks count_tokens must send for that message counted on its
+# own
 _PRIOR_TURN_RESULTS: dict[str, tuple[list[dict[str, Any]], list[tuple[str, str]]]] = {
     "web_search": (
         [
@@ -1151,6 +1157,36 @@ _PRIOR_TURN_RESULTS: dict[str, tuple[list[dict[str, Any]], list[tuple[str, str]]
             ("server_tool_use", "srvtoolu_ws2"),
             ("web_search_tool_result", "srvtoolu_ws2"),
             ("code_execution_tool_result", "srvtoolu_ce1"),
+        ],
+    ),
+    "dynamic_filtering_results_only": (
+        [
+            {
+                "type": "web_search_tool_result",
+                "tool_use_id": "srvtoolu_ws3",
+                "content": [],
+                "caller": {
+                    "type": "code_execution_20260120",
+                    "tool_id": "srvtoolu_ce2",
+                },
+            },
+            {
+                "type": "code_execution_tool_result",
+                "tool_use_id": "srvtoolu_ce2",
+                "content": {
+                    "type": "code_execution_result",
+                    "stdout": "",
+                    "stderr": "",
+                    "return_code": 0,
+                    "content": [],
+                },
+            },
+        ],
+        [
+            ("server_tool_use", "srvtoolu_ce2"),
+            ("server_tool_use", "srvtoolu_ws3"),
+            ("web_search_tool_result", "srvtoolu_ws3"),
+            ("code_execution_tool_result", "srvtoolu_ce2"),
         ],
     ),
 }

@@ -6099,7 +6099,16 @@ def pad_tool_messages_for_token_counting(
 
 
 # server tool result block types mapped to the server tool that produces them
-_SERVER_TOOL_RESULT_TOOL_NAMES: dict[str, str] = {
+_SERVER_TOOL_RESULT_TOOL_NAMES: dict[
+    str,
+    Literal[
+        "web_search",
+        "web_fetch",
+        "code_execution",
+        "bash_code_execution",
+        "text_editor_code_execution",
+    ],
+] = {
     "web_search_tool_result": "web_search",
     "web_fetch_tool_result": "web_fetch",
     "code_execution_tool_result": "code_execution",
@@ -6117,7 +6126,7 @@ def pad_server_tool_blocks_for_token_counting(
     generate does:
     - Every server tool result block (e.g. `web_search_tool_result`) must have
       its `server_tool_use` block earlier in the request
-    - Every `server_tool_use` block issued from inside code execution (web search
+    - Every server tool block issued from inside code execution (web search
       with dynamic filtering) must have the code execution `server_tool_use`
       block named by its `caller.tool_id` earlier in the request
 
@@ -6128,7 +6137,8 @@ def pad_server_tool_blocks_for_token_counting(
     without the earlier one holding the use block, which the API rejects
     ("unexpected `tool_use_id` found in `web_search_tool_result` blocks", "source
     tool ... not found for tool use block"). Insert a minimal placeholder
-    `server_tool_use` block ahead of each such block.
+    `server_tool_use` block ahead of each such block, in the order a real
+    response would have them (code execution first, then the nested call).
 
     This slightly overcounts tokens but that's acceptable for compaction triggering.
 
@@ -6146,37 +6156,37 @@ def pad_server_tool_blocks_for_token_counting(
         padded: list[Any] = []
         changed = False
         for block in content:
-            if isinstance(block, dict):
-                block_type = block.get("type")
-                missing_use: tuple[str, str] | None = None
-                if block_type == "server_tool_use":
-                    caller = block.get("caller")
-                    source_id = (
-                        caller.get("tool_id") if isinstance(caller, dict) else None
-                    )
-                    if source_id and source_id not in seen_use_ids:
-                        missing_use = (source_id, "code_execution")
-                    if block.get("id"):
-                        seen_use_ids.add(block["id"])
-                elif block_type in _SERVER_TOOL_RESULT_TOOL_NAMES:
-                    tool_use_id = block.get("tool_use_id")
-                    if tool_use_id and tool_use_id not in seen_use_ids:
-                        missing_use = (
-                            tool_use_id,
-                            _SERVER_TOOL_RESULT_TOOL_NAMES[block_type],
-                        )
-                if missing_use is not None:
-                    use_id, name = missing_use
-                    seen_use_ids.add(use_id)
+            if isinstance(block, dict) and (
+                block["type"] == "server_tool_use"
+                or block["type"] in _SERVER_TOOL_RESULT_TOOL_NAMES
+            ):
+                caller = block.get("caller")
+                source_id = caller.get("tool_id") if caller else None
+                if source_id and source_id not in seen_use_ids:
+                    seen_use_ids.add(source_id)
                     changed = True
                     padded.append(
-                        {
-                            "type": "server_tool_use",
-                            "id": use_id,
-                            "name": name,
-                            "input": {},
-                        }
+                        ServerToolUseBlockParam(
+                            type="server_tool_use",
+                            id=source_id,
+                            name="code_execution",
+                            input={},
+                        )
                     )
+                if block["type"] == "server_tool_use":
+                    seen_use_ids.add(block["id"])
+                elif block["tool_use_id"] not in seen_use_ids:
+                    seen_use_ids.add(block["tool_use_id"])
+                    changed = True
+                    placeholder = ServerToolUseBlockParam(
+                        type="server_tool_use",
+                        id=block["tool_use_id"],
+                        name=_SERVER_TOOL_RESULT_TOOL_NAMES[block["type"]],
+                        input={},
+                    )
+                    if caller:
+                        placeholder["caller"] = caller
+                    padded.append(placeholder)
             padded.append(block)
 
         if changed:
