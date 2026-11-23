@@ -1100,11 +1100,13 @@ them would fail ordinary resumes.
 The exit checks and the pre-dispatch refusal read
 a node's state after its error may have been lost, so they rely on metered
 usage never decreasing as calls are recorded: a limit that has been reached
-stays reached. Turns only grow, and so does cost, given valid prices:
-every rate a charge is computed from is finite and non-negative, so every
-charge is too. That is a premise of this design, not part of it: Inspect
-does not validate prices or charges today, and doing so is a separate
-change ("Not this design"). A token limit's `type` can today be
+stays reached. Turns only grow, and so does cost, given valid inputs:
+every rate a charge is computed from is finite and non-negative, every
+usage count a provider's response converts to is non-negative, and so
+every computed charge is finite and non-negative. That is a premise of
+this design, not part of it: Inspect does not validate prices, converted
+usage or charges today, and doing so is a separate change ("Not this
+design"). A token limit's `type` can today be
 an arithmetic formula over cumulative `input` and `output` tokens, with `+`,
 `-`, `*`, `/` and unary minus (`_compile_token_formula()` and
 `_TokenMetering.value()`, `src/inspect_ai/util/_limit.py`;
@@ -1119,7 +1121,11 @@ and inspect_petri finds only `all`, `output`, `input` and non-negative
 weighted sums such as `(input * 0.1) + output` in use. So formulas are
 limited to that family: a *non-negative weighted sum*,
 `c + a * input + b * output` with `a >= 0` and `b >= 0` (any constant `c`).
-Its floor never decreases as either count grows.
+Its floor never decreases as either count grows, and the cumulative
+counts it reads do not decrease given the non-negative usage premise
+above. A converter that subtracts cached tokens from input does not lower
+`input` either, since token metering adds cached input back into it
+(`_TokenMetering.value()`).
 
 `_compile_token_formula()` enforces the family by its grammar, at
 construction. Its existing AST walk becomes a reduction of the expression to
@@ -2596,12 +2602,17 @@ None.
   (`Model._generate_prepared()`); without it, nothing is recorded or checked for
   the call. An output `refused_output()` produces inside `_generate()`
   follows the normal path (a turn and the post-call check).
-- Validating prices and charges. "Cost only grows" ("Token metering must
-  not decrease") assumes every rate a charge is computed from (a
-  configured `ModelCost`, a serving model's price, LiteLLM proxy metadata)
-  is finite and non-negative. None is validated today: a NaN rate makes
-  cost usage NaN, which no comparison refuses, and a negative rate can
-  reopen an exceeded node. This exists on main and is its own change.
+- Validating prices, converted usage and charges. "Cost only grows"
+  ("Token metering must not decrease") assumes every rate a charge is
+  computed from (a configured `ModelCost`, a serving model's price,
+  LiteLLM proxy metadata) is finite and non-negative, and so is every
+  usage count a provider response converts to. None is validated today: a
+  NaN rate makes cost usage NaN, which no comparison refuses; a negative
+  rate can reopen an exceeded node; and the OpenAI Completions, Responses
+  and Grok converters subtract cached tokens from input tokens without a
+  floor, so a response reporting more cached than prompt tokens gives
+  negative fresh input and, at valid rates, a negative charge that also
+  reopens an exceeded node. This exists on main and is its own change.
 - `SampleLimitEvent` is emitted by every token, cost, turn and message node
   that raises, scoped or not, so the viewer shows an agent's limit as a sample
   limit. inspect_swarm subclasses nodes to avoid it.
