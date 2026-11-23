@@ -405,9 +405,8 @@ tokens per call, run against this branch's base):
    scope's own context (its task and the tasks started inside it, nested
    scopes included) while it was open, whatever its kind; the node carries
    the scope's marker (rule 1). A sibling task's limit that reaches a scope belongs to the
-   sibling and propagates. A limit error with a termination in its history
-   is never caught by `apply_limits()` or `run()`. `run(limits=None)`,
-   which can return only the state, catches nothing. A tool, handoff or bridged host tool owns the
+   sibling and propagates. `run(limits=None)`, which can return only the
+   state, catches nothing. A tool, handoff or bridged host tool owns the
    limits entered inside the call, of any kind, by the same test,
    and every message limit raised in the call, which measured the call's
    own conversation (see "Ownership"). A limit error with no source has
@@ -496,6 +495,26 @@ and combine the group's limits when the first leaf is a limit. For any
 other group `_first_control()` combines the group's limits even behind a
 leading ordinary error or refusal, as it finds the limit today
 ("Precedence").
+
+Combining keeps every member's termination discoverable. A limit raised
+while an approver or a request or response filter terminated the sample
+can be a non-primary member of a combined error. A
+`TerminateSampleError` anywhere in the original exception's causal
+history (a member's cause, context or group, or the cause or context of a
+group wrapper around the members, which neither limit leaf need carry) is
+still found by `find_control_flow()`
+(`src/inspect_ai/util/_sandbox/service.py`) on the combined error,
+as it is on the group it was built from, including when `apply_limits()`
+or `run()` returns the combined error and the caller raises it later. How
+the members' histories are kept reachable is the implementation's choice.
+Discoverable is not delivered: a combined error that `run()` returns
+normally carries its termination only to a caller that raises it again.
+A caller that keeps the returned error, as deepagent's synchronous and
+background dispatchers do when they turn it into a result string
+(`_dispatch()` and `_run_background()` in `src/inspect_ai/agent/_deepagent/agent_tool.py`),
+ends the termination there. Today such a group escapes `run()` and the
+bridge finds the termination; under the covered-exit rule it is returned,
+the same as a bare owned limit with a termination in its history today.
 
 The sample's own limits are entered first (token, cost, message, turn),
 so a call that crosses both the sample's token and cost limits raises an
@@ -623,21 +642,9 @@ refused, and if its owner ends normally, its exit check finds it (see "Not
 this design").
 
 `apply_limits()` handles an exception escaping its body in one test, a
-*covered exit*: every leaf of the exception is a `LimitExceededError`,
+*covered exit*: every leaf of the exception is a `LimitExceededError`, and
 every limit in it (each member of a combined error) is covered by the
-scope, and no `TerminateSampleError` is in its history:
-`find_control_flow()` (`src/inspect_ai/util/_sandbox/service.py`), which
-searches group members, `__cause__` and `__context__`, finds none. A limit
-error that carries a termination is therefore never caught by
-`apply_limits()` or `run()`; it propagates unchanged. Where it ends up is
-today's: the sandbox service's dispatcher searches its history
-(`raise_if_control_flow()`), so under the bridge the sample ends on the
-termination; the native sample runner does not search a limit error's
-history, so one that reaches it is recorded as a limit, as today ("The
-owner's exit check"; "Not this design"). The combined errors this design raises itself
-(the tool reduction, the response filter, the bridge) are built inside the
-handler that caught the original exception, so implicit `__context__`
-chaining keeps a termination in it findable. A limit is covered when it is one of the scope's own limits (of any
+scope. A limit is covered when it is one of the scope's own limits (of any
 kind: a `time_limit()` or `working_limit()` passed to `run()` or
 `apply_limits()` is the scope's own, as today), or a node inside the scope
 (rule 6): one entered in the scope's own context, its task and the tasks
@@ -650,8 +657,8 @@ with `catch_errors=True`, the exception is swallowed. With
 `catch_errors=False` (`as_tool()`, `as_solver()`, handoffs) the exception
 propagates unchanged, a group as a group, as today, and each receiver
 handles it as below. Anything that is not a covered exit propagates
-unchanged: an unrelated error, a termination, a limit error carrying a
-termination, a cancellation, an error holding a limit of an enclosing or sibling scope (even beside the scope's
+unchanged: an unrelated error, a termination, a cancellation, an error
+holding a limit of an enclosing or sibling scope (even beside the scope's
 own), or a limit error whose source is unknown. A sourceless error of any
 type, such as a `custom` error (documented under "Custom Limit" in
 `docs/setting-limits.qmd`, and raised by an inspect_swarm member agent to
@@ -922,10 +929,7 @@ records it, `EvalSample.limit` from its primary fields.
 Everything else is unchanged. A limit error that escapes the solvers is
 recorded as it is today. A non-limit error (a group whose first leaf is
 not a limit) goes to the error handling as today, so an error still outranks a
-limit at the runner. A termination keeps its own `except` clause, which
-catches a `TerminateSampleError` that escapes the solvers; the runner does
-not search a limit error's history for one, so a limit error carrying a
-termination is recorded as a limit, as today. An
+limit at the runner. A termination keeps its own `except` clause. An
 operator interrupt and a limit delivered by cancellation (the working limit,
 or a limit a sandbox service routes to the sample) keep their handling
 inside `run()`, which sets the outcome before the join, so the exit check
@@ -1988,19 +1992,13 @@ documented. Behaviour changes:
   a plain `with cost_limit()` inside an agent under
   `run(limits=[token_limit(N)])` is now returned by `run()` instead of
   propagating, and so is a plain `with time_limit(5)` that expires inside
-  it. `run(limits=[...])` returns the limits entered inside it, whatever
-  their kind, with one exception: a limit error with a termination in its
-  history is never returned. That changes one case: a bare error from one
-  of `run()`'s own limits raised from or during a `TerminateSampleError`
-  now propagates out of `run()`, where today `run()` returns it; a group
-  carrying one propagates, as today. Under the bridge the sample then ends
-  on the termination (`EvalSample.limit` of type `operator` with the
-  termination's reason). In a native solver that does not catch it, the
-  runner records it as a limit (`EvalSample.limit` of its primary type),
-  as it records such an error reaching it today; the sample no longer
-  continues past it. Native
-  tools still map an owned limit to the `limit` tool error without looking
-  at its history, as today. `run(limits=None)`, which
+  it. The rule for `run(limits=[...])` has no exceptions: it
+  returns the limits entered inside it. An owned limit group with a
+  termination in a non-primary member's history is also returned now,
+  where today it escapes `run()` and the bridge acts on the termination;
+  a caller that keeps the returned error (deepagent's dispatchers) no
+  longer delivers that termination unless it raises the error again
+  ("Trees and entry numbers"). `run(limits=None)`, which
   returns only the state, catches nothing, as today. With `catch_errors=False` a
   group propagates unchanged, as today. At normal exit it raises its own
   limits that are exceeded, combined;
@@ -2024,7 +2022,18 @@ documented. Behaviour changes:
   including deepagent's default background children, still sends its errors
   to the sample, so a child's limit of its parent's `run()` still ends the
   sample rather than returning from that `run()`, as today. The runtime
-  guarantees state this as a prerequisite rather than changing it.
+  guarantees state this as a prerequisite rather than changing it. One
+  result changes with the covered-exit rule: a default background child
+  with no limits of its own still enters `apply_limits([],
+  catch_errors=True)` (`_run_background()` in
+  `src/inspect_ai/agent/_deepagent/agent_tool.py`), so a limit entered
+  inside the child (a plain `with token_limit()` in its agent) is now
+  caught there and reported as the child's `stopped` result, and the parent
+  continues, where today it escapes the child and ends the sample. The
+  synchronous default dispatcher (`_dispatch()`) calls `run(limits=None)`,
+  which catches nothing, so the same limit there still propagates, as
+  today. A limit of the parent's `run()` or of the sample still escapes a
+  background child and ends the sample.
 - **Cache hits under an exceeded limit raise.** A cached response under an
   already-exceeded token or cost limit is still served, and now raises that
   limit after it (the check that follows every generation), where today it
@@ -2244,7 +2253,13 @@ under trio with `--runtrio`.
   not leave `run()` at its exit (`run()` returns `(state, None)`), the
   caller's next model call is refused with it, and if the solver instead
   returns, the sample is recorded as limited by it; a synchronous deepagent
-  subagent's swallowed limit is reported as its result;
+  subagent's swallowed limit is reported as its result; a default
+  background deepagent child (no limits of its own) whose agent exceeds a
+  plain `with token_limit()` inside it completes with the `stopped`
+  result naming that limit and the parent continues, while the same agent
+  dispatched synchronously with no limits propagates the error and ends
+  the sample, and a background child that exceeds its parent `run()`'s
+  token limit still ends the sample;
   - plain blocks: inside `with token_limit(n)`, after a call exceeds the
     block's limit and the error is caught inside the block, a further call
     made inside the block is refused with that limit; a catch inside the
@@ -2319,13 +2334,7 @@ under trio with `--runtrio`.
   swallows an exceeded sample token limit and returns is recorded as
   limited; a solver that uses exactly the budget and returns is not; a solver that catches the limit and raises
   `state.token_limit` is not; a resume for scoring over a spent budget is
-  not; a native solver awaiting
-  `run(limits=[token_limit(...), cost_limit(...)])` whose agent raises a
-  group of both limits' errors, the cost limit's raised from a
-  `TerminateSampleError`, gets no return from `run()`: the group escapes
-  and the sample is recorded with the token limit (the combined error's
-  primary fields), as the runner records such a group today; a sample with
-  a cost limit whose solver calls an unpriced model fails
+  not; a sample with a cost limit whose solver calls an unpriced model fails
   with `UnmeteredCallError`;
   - the runner's reduction (`first_or_combined_limit()`): a solver that
     enters a `with token_limit()` inside the sample's cost limit and lets
@@ -2369,13 +2378,17 @@ under trio with `--runtrio`.
     combined error propagates through `run()` (the message limit is not
     its own), where today the bridge keeps only the first leaf;
   - `test_forward_provider_errors_leaves_termination_to_the_dispatcher`
-    gains one case: inside the wrapped call, an agent under
+    gains a non-primary-member case: inside the wrapped call, an agent under
     `run(limits=[token_limit(...), cost_limit(...)])` raises a group of the
     token limit's error and the cost limit's, the latter raised from a
-    `TerminateSampleError`; `run()` does not catch it, the group
-    propagates, `find_control_flow()` on it yields that termination, and
-    the bridge ends the sample on the termination with its failure
-    unrequested;
+    `TerminateSampleError`; `run()` returns their combined error (token
+    primary) and the call raises it;
+    the wrapper re-raises it, `find_control_flow()` on it yields that
+    termination, and the bridge's failure stays unrequested; group-level
+    controls do the same with the termination as the group's own cause,
+    and separately its context, with neither limit leaf carrying it; a no-rethrow
+    control keeps the returned combined error as a result, as deepagent's
+    dispatchers do, and the dispatcher sees no termination;
   - a bridge inside a tool, end to end: an `as_tool()` agent whose body
     sends two bridged requests at once, one whose prompt reaches the
     sample's `message_limit(2)` and one whose priced usage takes a
@@ -2500,9 +2513,7 @@ Each step is one PR, in this order. Each keeps the suite green.
    `tests/agent/test_bridge_provider_errors.py`.
 3. **Owners and reductions.** `_limit.py`: `apply_limits()` covered exits
    (a limit is covered when it is the scope's own or its node carries the
-   scope's marker; an error with a termination in its history, found by
-   `find_control_flow()`, is never covered; the runner's handling of a
-   limit error carrying a termination is unchanged) and the exit check over its own limits on a normal return.
+   scope's marker) and the exit check over its own limits on a normal return.
    `src/inspect_ai/agent/_run.py`: the return after the block, and
    entering the scope as `apply_limits(limits or [],
    catch_errors=limits is not None)`: today `run(limits=None)` enters a
@@ -2599,12 +2610,6 @@ None.
   check and the checkpoint dump and restore at the nodes the runner
   entered rather than the tree roots, and deciding what a stored nested
   payload, which holds the enclosing totals, restores into.
-- Delivering a termination carried in a limit error's history on the
-  native path. The sample runner's `except LimitExceededError` records
-  the limit without searching its history, as today, while the sandbox
-  service's dispatcher delivers the termination
-  (`raise_if_control_flow()`). Making the runner search with
-  `find_control_flow()` is a separate change.
 - Where a policy call's error ends up. A sentinel stage's, tool result
   review's or approval's error keeps today's routes, which differ by stage
   and between native and bridged execution (`SentinelFailure` unwrapped at
