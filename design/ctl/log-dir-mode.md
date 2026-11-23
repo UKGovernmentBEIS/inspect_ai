@@ -607,10 +607,13 @@ them, as live `/tasks` folds attempts by `task_id`
 **A sharded run and an ordinary retry of it.** An unsharded log whose
 `task_id` equals a shard set's task id is an `eval_retry` of the merged log
 (only that path gives an unsharded log the merged log's `task_id`; shards
-keep their own). Both fold into one logical task, and the newest attempt is
-current, as for any task: the retry's `{created}` stamp is later than the
-merged log it retries, so the retry is current. The shard set is a prior
-attempt: counted in `attempts`, and its shards are not read (only its
+keep their own). Both fold into one logical task, and the retry is current
+whatever the file names say: the shard set is placed as the oldest attempt
+(`snapshot.py`). File names need not agree: the launcher mints the merged
+log's name, while a retry's `{created}` stamp follows the merged header's
+`created`, minted at the merge, so a retry's name can sort before the
+merged log's. The shard set is a prior attempt: counted
+in `attempts`, and its shards are not read (only its
 merged log, for its task id), so the row's `shards` is null as for any
 unsharded current attempt (decision: Ransom, 2026-10-13). An
 unsharded log with that `task_id` that cannot be read (a crashed retry)

@@ -147,8 +147,8 @@ Every call runs one pass, under the overlap guard ("Overlapping merges"):
    the results over every merged sample, and publish it.
 
 A steady-state pass over unchanged shards therefore costs one listing of
-the companion plus the merged log's header and central directory, which is
-what makes repeated merges of a run with hundreds of shards cheap.
+the companion and one of each directory in it, plus the merged log's header
+and central directory, and reads no shard log.
 
 When the user has removed the whole companion, the pass finds no attempt
 and returns the merged log as recorded, after matching the task against
@@ -281,7 +281,8 @@ selection; the merged results carry no early-stopping summary. A fractional
 ### The merged log
 
 The merged log is an ordinary finished `.eval` file: sample members,
-`summaries.json`, `reductions.json` and `header.json`, never a journal,
+`summaries.json`, `reductions.json` when there are reductions, and
+`header.json`, never a journal,
 whatever its status, so readers never take the running-log path for it.
 `build_header` in `_plan.py` builds a fresh header. It carries `version`,
 `plan` and the `eval` spec from the template shard (the first shard in
@@ -594,10 +595,13 @@ are listed, both must be `success` and the older of the two decides, since
 either may be stale (`test_api_logs_older_of_merged_and_recovered_decides`
 in `tests/_view/test_view_server.py`). A shard written after the merge, a
 tie (S3 mtimes have one-second resolution), and every shard of a
-`started`, `error` or `cancelled` merged log stay visible, so ongoing work
-is never hidden. The rule keys on the layout and status only, not the ledger, so it
-works for any merger that writes after reading its shards and publishes
-`success` only when every shard has finished. The view server reads only
+`started`, `error` or `cancelled` merged log stay visible. The rule keys
+on the layout, the merged log's status and the mtimes only, not the ledger
+or the shard's own status, so it works for any merger that writes after
+reading its shards and publishes `success` only when every shard has
+finished. A tag or metadata edit to a `success` merged log advances its
+mtime without merging, so it can hide a shard attempt written after the
+last merge, even one still running, until the next merge. The view server reads only
 the headers of merged logs newer than one of their shards, caches each
 status by mtime and size, checks the access policy before reading, and
 sends full rather than incremental `/log-files` responses while hiding can
@@ -630,9 +634,11 @@ so they agree on which files are shards and which attempt is current:
 - the shard-set walk and attempt order (`src/inspect_ai/log/_shards/_walk.py`,
   tests in `tests/log/test_shards.py` and `tests/_control/test_log_dir.py`).
   The merge refuses every non-numbered directory and stray file in a
-  companion, where ctl reports them and still lists logs nested in
-  ancillary directories as ordinary logs; both refuse names that S3 would
-  read as another key;
+  companion. ctl reports stray files, but treats any directory directly in
+  the companion whose name does not start with a dot and that holds
+  attempts as a shard, numbered or not (it calls the walk without
+  `numeric_shards`), and lists logs nested in ancillary directories as
+  ordinary logs; both refuse names that S3 would read as another key;
 - the delimited directory listing and the CRC-checked zip reader.
 
 ## Guarantees and limits
@@ -671,9 +677,11 @@ their own sections.
   - **Model context.** A metric that calls `get_model()` sees the merging
     caller's model, not the shards' (decision: Ransom, 2026-11-04;
     `test_a_metric_that_needs_a_model_uses_the_callers`).
-  - **Edits.** Sample and header edits to the merged log are carried by
-    incremental passes, which a fresh merge does not have
-    (`test_merged_log_edits_are_kept`).
+  - **Edits.** Header edits to the merged log are carried by incremental
+    passes, which a fresh merge does not have
+    (`test_merged_log_edits_are_kept`); a sample edit (`edit_score()`) is
+    carried the same way until its shard changes ("The sample set"), which
+    no repository test checks.
   - **Overlap.** An overlap with an unchanged shard is detected only once a
     record it holds falls in a read shard's selection or that shard is read
     again, so until then an incremental pass can accept a set a fresh merge
@@ -857,3 +865,7 @@ Limits users meet are listed in [Sharding,
 - **Per-epoch sharding**, which `sample_id` and `limit` cannot express.
 - **Sanitising control characters** in log-derived names that `inspect
   log` commands print.
+- **Hiding a running shard after a merged-log edit.** The viewer's rule
+  trusts a `success` merged log's mtime as coverage, so an edit to a stale
+  merged log can hide a later attempt ("Viewer listing"); checking the
+  ledger or the attempt's status would close it.
