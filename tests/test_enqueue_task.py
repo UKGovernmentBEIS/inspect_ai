@@ -9,6 +9,7 @@ in-run caller).
 import contextlib
 import gc
 import threading
+import traceback
 import types
 import weakref
 from contextvars import Context, copy_context
@@ -1815,6 +1816,49 @@ async def test_handle_send_error_order(events: _Events) -> None:
     with anyio.fail_after(30):
         logs = await eval_async(_creator_task(body), model="mockllm/model")
     assert _by_task(logs)["creator"].status == "success"
+
+
+async def test_each_waiting_sender_gets_its_own_task_ended_error(
+    events: _Events,
+) -> None:
+    ended: dict[str, TaskEndedError] = {}
+
+    async def body() -> None:
+        [handle] = enqueue_task(
+            task_with(rollout_task(fail_on_error=True), max_samples=1)
+        )
+
+        async def send(label: str, metadata: dict[str, Any]) -> None:
+            try:
+                await handle.enqueue_sample(Sample(input=label, metadata=metadata))
+            except TaskEndedError as ex:
+                ended[label] = ex
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(
+                send, "a", {"started": "a", "wait": "release_a", "raise": True}
+            )
+            await events["a"].wait()
+            # b and c wait for the only sample slot
+            tg.start_soon(send, "b", {})
+            tg.start_soon(send, "c", {})
+            await anyio.wait_all_tasks_blocked()
+            events["release_a"].set()
+        log = await handle.result()
+        assert log is not None and log.status == "error"
+        assert ended["b"].log is log and ended["c"].log is log
+
+    with anyio.fail_after(30):
+        logs = await eval_async(_creator_task(body), model="mockllm/model")
+    assert _by_task(logs)["creator"].status == "success"
+    assert sorted(ended) == ["b", "c"]
+    assert ended["b"] is not ended["c"]
+    # neither traceback carries the other sender's frames
+    for error in ended.values():
+        frames = [
+            frame.f_code.co_name for frame, _ in traceback.walk_tb(error.__traceback__)
+        ]
+        assert frames.count("send") == 1
 
 
 async def test_send_after_the_creator_ends_raises(events: _Events) -> None:

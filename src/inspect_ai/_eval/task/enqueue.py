@@ -349,7 +349,7 @@ class RunQueue:
             display().update_task_count(-1)
         record.options = None
         if record.channel is not None:
-            record.channel.end(TaskEndedError(record.task, log))
+            record.channel.end(lambda: TaskEndedError(record.task, log))
         record.ended.set()
         self.wake.set()
 

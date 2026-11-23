@@ -508,7 +508,8 @@ def eval_set(
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking.
         max_samples: Maximum number of samples to run in parallel within each task
-            (overrides a task's own `max_samples`; default is max_connections)
+            (overrides a task's own `max_samples`, except for a task fed through
+            its handle; default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
@@ -516,11 +517,14 @@ def eval_set(
             (defaults to the greater of 10 and the number of models being
             evaluated). A task cancelled before it starts is started outside
             this limit and ends at once with an error log reporting the
-            cancellation, so it never takes a slot.
+            cancellation, so it never takes a slot. A task fed through its
+            handle (`samples_from_handle()`) does not count toward this limit.
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
-            to run in parallel.
+            to run in parallel. A sample waiting on a sample it sent through a
+            task's handle keeps its sandbox, so leave room for both; `inspect
+            ctl config --max-sandboxes` raises the limit while the run goes on.
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,

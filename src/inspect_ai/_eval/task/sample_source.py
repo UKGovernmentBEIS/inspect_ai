@@ -458,11 +458,13 @@ class HandleChannel(SampleSource):
         ):
             self._queue.end(record, None)
 
-    def end(self, error: BaseException) -> None:
-        """Close the channel and fail every unsettled request with ``error``.
+    def end(self, error: Callable[[], BaseException]) -> None:
+        """Close the channel and fail every unsettled request.
 
-        Also drops any samples still buffered for the attempt, so an ended
-        task holds none of its senders' samples.
+        Each request gets its own exception from ``error``, so one sender's
+        traceback never carries another's frames. Also drops any samples
+        still buffered for the attempt, so an ended task holds none of its
+        senders' samples.
         """
         self.closed = True
         self.pushed.set()
@@ -471,7 +473,7 @@ class HandleChannel(SampleSource):
             self.enqueuer = None
         requests, self.requests = self.requests, {}
         for request in requests.values():
-            request.future.set_exception(error)
+            request.future.set_exception(error())
 
     def attach(self, enqueuer: SampleEnqueuer) -> None:
         """Deliver every request, and later sends, to the attempt's buffer."""
