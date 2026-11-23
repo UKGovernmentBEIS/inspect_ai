@@ -277,12 +277,17 @@ shards hold the whole dataset. An incomplete outcome raises
 `ShardSetIncomplete` (with the status it would write, the missing ids, and
 the running and failed shards) and writes nothing, unless `allow_incomplete`
 asks for the `started` or `error` log (decision: Ransom and JJ Allaire,
-2026-09-18). A shard added after a `success` merge goes beyond the
-recorded selection (ids outside it, or more than its count), so the next
-merge refuses it (`ShardSelectionError`) unless it is given a selection
-that covers the new ids; with that wider
-selection the merged log returns to `started` until the added shard
-finishes (`test_an_added_shard_returns_a_success_log_to_started`).
+2026-09-18). The selection is checked against the ids the shards hold,
+not the ids a shard was launched with. Once a shard added after a
+`success` merge holds ids outside the recorded selection (or more distinct
+ids than its count), a merge refuses it (`ShardSelectionError`) unless it
+is given a selection that covers them; with that wider selection the
+merged log returns to `started` until the added shard finishes
+(`test_an_added_shard_returns_a_success_log_to_started`). An added shard
+that holds no samples yet passes the recorded selection and is merged as
+any running shard is: the set is incomplete, so the merge raises
+`ShardSetIncomplete`, or with `allow_incomplete` writes `started` with the
+recorded selection unchanged.
 
 A shard whose task stopped samples or epochs early finishes `success`
 without records for them, so its set is incomplete for its original

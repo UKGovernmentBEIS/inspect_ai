@@ -14,8 +14,8 @@ and commands that change a running eval are unavailable in the mode.
 > **Status: proposed, 2026-09-23; open questions resolved by Ransom the
 > same day (see "Open questions").** Companion to the eval sharding design
 > ([`../eval-sharding.md`](../eval-sharding.md)), which defines the `<name>.shards/<k>/` layout this mode
-> reads and leaves "targeted live-view improvements ... (`inspect ctl`, the
-> running-sample viewer)" to its Step 3. Builds on
+> reads and lists live-view support for shards under "Not this design".
+> Builds on
 > [`control-channel.md`](control-channel.md) (the ctl surface, the agent
 > output contract), [`endpoint-cost-audit.md`](endpoint-cost-audit.md) (the
 > cost vocabulary used in "Cost and scale") and [`security.md`](security.md)
@@ -43,8 +43,8 @@ through per-process discovery files (`discovery_dir`,
 `src/inspect_ai/_cli/ctl/_http.py`). By construction that socket is
 reachable only from the same machine and user (`security.md`, "Access
 model"). A sharded run puts each shard on its own machine (down to one
-sample per machine, the sharding design's target case of about 300 shards
-on S3). The operator, or the agent driving the run, sits on another host,
+sample per machine; this mode is sized for about 300 shards on S3, "Cost
+and scale"). The operator, or the agent driving the run, sits on another host,
 often behind networking rules that allow it to read the shared log bucket
 and nothing else. Today it has no ctl view of the run at all: every ctl
 command except `process anomalies` needs a discovered, reachable process, and
@@ -228,10 +228,9 @@ inventory" below.
 - **Recovered logs.** `inspect log recover` writes `<stem>-recovered.eval`
   beside the original, keeping the original's timestamp prefix and task id
   (`default_output_path`, `src/inspect_ai/log/_recover/_write.py:371-375`).
-  The checkpoint layout's `log_basename` strips both `.eval` and
-  `-recovered` when deriving a companion directory
-  (`src/inspect_ai/util/_checkpoint/_layout/eval_checkpoints_dir.py:23`),
-  and the sharding design reuses it so `<name>-recovered.eval` maps to
+  `log_basename` strips both `.eval` and `-recovered` when deriving a
+  companion directory (`src/inspect_ai/_util/log_layout.py`, shared by the
+  checkpoint and shard layouts), so `<name>-recovered.eval` maps to
   `<name>.shards/`.
 
 ### Existing readers and their request patterns
@@ -808,9 +807,12 @@ read into missing or pending data.
   reads (whole or streamed) against the central directory's CRC-32, which
   `ZipEntry` gains for this and for the journal-member cache key; a CRC mismatch, a
   decompression error or a JSON error re-reads the central directory and
-  the member, up to twice. So does, on S3, an `InvalidRange` (416) from a
-  member offset past the end of a shorter replacement, through the
-  `is_torn_read` predicate; other storage errors are not re-read (the
+  the member, up to twice, as does an S3 `PreconditionFailed` (412) on a
+  pinned central-directory read (`ObjectChangedError`; `read_consistently`,
+  `src/inspect_ai/_control/log_dir/consistency.py`). Member reads are not
+  pinned, and other storage errors are not re-read: an S3 `InvalidRange`
+  (416) from a member offset past the end of a shorter replacement fails
+  the read rather than re-reading it (the
   sharding merge does not re-read: [`eval-sharding.md`](../eval-sharding.md),
   "Reads, cancellation and threads"). A streamed read is validated when its stream is
   fully consumed (the field-excluding parse scans the whole member, so the
@@ -1298,8 +1300,7 @@ below per-prefix limits, and the mode never touches a worker.
   a new writer and a new persisted format on every worker, with S3 writes
   from 300 workers every N seconds, largely duplicating what the buffer
   manifest already carries; and the sharding design keeps `<name>.shards/`
-  to `.eval` files and their buffers ("Security", "The intended
-  selection"). It is the natural next step if the gaps in "Task rows" and "Sample
+  to `.eval` files and their buffers ("Layout", "Compatibility"). It is the natural next step if the gaps in "Task rows" and "Sample
   rows" prove to matter, mainly crash detection and running-sample
   progress.
 - **Transparent fallback.** When no live server is found, read logs
