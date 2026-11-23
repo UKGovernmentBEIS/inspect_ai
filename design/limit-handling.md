@@ -460,8 +460,8 @@ ownership is decided by scope membership (rule 6). Time and working limits get
 no number. Every node, of all six kinds, records the scope marker current
 when it is pushed on its tree, so a time or working limit is inside a
 scope by the same test as a token limit; only a limit error with no node
-(a sourceless error, which only user code and inspect_swarm's `custom`
-errors raise) carries no marker (decision: Ransom, 2026-11-20).
+(a sourceless error, which only user code raises, such as an
+inspect_swarm member agent's self-stop `custom` error) carries no marker (decision: Ransom, 2026-11-20).
 
 The public addition is on `LimitExceededError`:
 
@@ -653,7 +653,8 @@ unchanged: an unrelated error, a termination, a cancellation, an error
 holding a limit of an enclosing or sibling scope (even beside the scope's
 own), or a limit error whose source is unknown. A sourceless error of any
 type, such as a `custom` error (documented under "Custom Limit" in
-`docs/setting-limits.qmd`, and raised by inspect_swarm members), is never
+`docs/setting-limits.qmd`, and raised by an inspect_swarm member agent to
+stop itself), is never
 covered, so a group holding a covered token error and a sourceless custom
 error propagates, as it does today.
 
@@ -752,7 +753,10 @@ conversation, whichever node raised it, as
 `test_agent_as_tool_respects_sample_limits` pins today), or a limit with
 no source, of any type, which has no node and keeps today's mapping
 (decision: Ransom, 2026-11-23). Inspect's own nodes always set `source`,
-so only user code and inspect_swarm's `custom` errors are sourceless. No
+so only user code raises sourceless errors, such as the `custom` error an
+inspect_swarm member agent raises to stop itself (swarm caps, levers and
+gates raise from their nodes, with a source, and stay foreign to a tool
+the member calls). No
 spend bound depends on how such an error is mapped: a real limit behind a
 hand-made error still refuses the next call under it and is found at its
 owner's exit check. A limit error is *owned by the call*
@@ -1675,6 +1679,18 @@ What the swarm must change:
   it (implementation plan, step 1). Its token and cost `_check_self()`
   overrides take part in the check; its message `check()` and its `record()` overrides are called directly,
   as today.
+- **The sample-first workaround.** `SwarmTokenNode._sample_first()`
+  (`inspect_swarm/src/inspect_swarm/_budget.py`) checks the pair's
+  cost-tree ancestors from inside the token check, so that under
+  `Budget(derive=False)` the sample's cost limit raises ahead of a cap's
+  token node. The combined check already finds that cost limit and lists
+  it first by entry number (rules 3 and 4), and its nested `parent.check()`
+  would make the traversal check the sample cost node twice, emitting two
+  `SampleLimitEvent`s for one crossing. The nested check is removed with
+  step 1; the cap's `stop_swarm("swarm_cap")` callback stays. Swarm-side
+  coverage: under `Budget(derive=False)`, a call crossing a cost-pair cap
+  and the sample cost limit records one sample cost `SampleLimitEvent`,
+  and the cap's stop callback still runs.
 - **Ownership over every limit.** Its member wrapper classifies an
   escaping limit error by its `source` (`classify_errors()` in `_member.py`), and
   `MemberBackground._run()` contains a background limit error by its
@@ -2584,7 +2600,8 @@ Each step is one PR, in this order. Each keeps the suite green.
 inspect_swarm adapts in its own repository ("What inspect_swarm can delete
 or simplify"). Its `SwarmTurnNode._check_self()` takes `raise_for_equal`
 before or with step 1, which passes that argument to every `_check_self()`;
-an override without it raises `TypeError` there. Its pricing change goes
+an override without it raises `TypeError` there; the nested cost check in
+`SwarmTokenNode._sample_first()` is removed with the same step. Its pricing change goes
 with step 2, and its ownership over every member of `limits` with step 3
 or 4.
 
