@@ -73,7 +73,13 @@ Ransom, 2026-09-21). It mirrors sandbox checkpointing's
   refuses. A log nested deeper (in a shard's `scans/`, say, including a
   companion nested there) is an ordinary log (decision: Ransom, 2026-10-05).
   `is_shard_path` states the rule, and `list_shard_set` lists exactly those
-  files, so every consumer agrees on which files are shards.
+  files, so the merge and ctl log-dir mode agree on which files are shards.
+  The viewer's shard hiding uses its own, name-based rule ("Viewer
+  listing", `merged_log_candidates_for_shard`): it treats any log in a
+  directory directly under a `*.shards` directory as a shard of that
+  companion, so it can also hide a log in a
+  companion nested inside a shard's ancillary directory, which the merge
+  treats as an ordinary log.
 - **No override root.** Shards always live beside the merged log; there is
   no `shards_location` setting (decision: Ransom, 2026-09-21).
 
@@ -193,14 +199,17 @@ written:
   before (by digest); the read selections are pairwise disjoint; and the
   merged records each read shard owned number exactly its ledger count
   (`check_reads`);
-- the merged log is structurally consistent with its ledger: its sample
-  records number the sum of the ledger counts (`check_ledger_count`), every
-  record has a summary, every sample member name parses, and the ledger
-  names each shard once and no attempt with a backslash. A merged log whose
-  records were added or removed outside the merge is refused with the
-  advice to delete it and rebuild from the shards; an edit that keeps the
-  records (a changed score) is not detected and is carried ("The sample
-  set");
+- the merged log is structurally consistent with its ledger. Every pass
+  checks its header and member layout: its sample records number the sum of
+  the ledger counts (`check_ledger_count`), every sample member name parses,
+  and the ledger names each shard once and no attempt with a backslash. A
+  pass that writes also requires a summary for every carried record, since
+  it copies them; a pass that writes nothing (including a deleting call
+  over unchanged shards) does not read the merged summaries, so a merged
+  log that lost them passes. A merged log whose records were added or
+  removed outside the merge is refused with the advice to delete it and
+  rebuild from the shards; an edit that keeps the records (a changed score)
+  is not detected and is carried ("The sample set");
 - the selection, given or recorded, covers every held id
   (`ShardSelectionError` names the ids outside it).
 
@@ -225,10 +234,18 @@ check keeps a changed shard's selection fixed, and the count checks make
 the dropped records exactly that shard's previous ones. So an incremental
 pass plans the same record keys as a fresh merge of the same companion, and
 while the merged samples are unedited it writes the same samples and
-results, which is what makes the merge idempotent and deterministic. Overlapping
-selections break the launcher's contract: a fresh merge refuses any
-overlap, and an incremental pass refuses one as soon as a record falls in
-the intersection.
+results, which is what makes the merge idempotent and deterministic.
+
+All of this assumes the launcher's contract that shard selections are
+disjoint. A fresh merge reads every selection and refuses any overlap. An
+incremental pass compares only the selections of the shards it reads, and
+an unchanged shard is represented by a digest and a count, which cannot
+reveal its selection. So an overlap with an unchanged shard is caught only
+when a record it already contributed falls in a read shard's selection, or
+when that shard is next read; until then the incremental merge can accept
+a set a fresh merge refuses
+(`test_overlap_without_shared_records_is_refused_once_a_shard_is_read_again`).
+The merged records are still each held once.
 
 Consequences, stated in the docs: deleting one `<k>/` by hand makes later
 merges refuse until the rest of the companion is deleted or the files are
@@ -549,8 +566,8 @@ The shared log listing excludes nothing, so `list_eval_logs`, `evals_df`
 and other enumerators list shards as ordinary partial logs beside the
 merged log. The viewer's listings hide a shard once a finished merged log
 covers it (decision: JJ Allaire, 2026-09-27): the view server's `/logs`
-and `/log-files`, the `listing.json` `write_log_listing` writes, and `inspect view bundle`, which also leaves
-covered shards out of the bundle. The rule (`filter_merged_shards` in
+and `/log-files`, the `listing.json` `write_log_listing` writes, and
+`inspect view bundle`, which also leaves covered shards out of the bundle. The rule (`filter_merged_shards` in
 `src/inspect_ai/log/_shard_listing.py`) hides a shard when its merged log
 is in the same listing, has status `success`, and is strictly newer than
 the shard by mtime. A shard written after the merge, a tie (S3 mtimes have
@@ -598,9 +615,10 @@ The merge guarantees that:
   reader path (viewer server, `read_eval_log`, dataframes, ctl) creates it
   or recomputes metrics (decision: Ransom, 2026-09-21);
 - it holds exactly the current attempts' records, with ids owned by one
-  shard each; an incremental pass and a fresh merge of the same companion
+  shard each; with disjoint shard selections, as the launcher's contract
+  requires, an incremental pass and a fresh merge of the same companion
   plan the same records and ledger, and while the merged samples are
-  unedited they write the same samples and results;
+  unedited they write the same samples and results ("The sample set");
 - it is `success` only when every current attempt is `success` and the
   records are exactly the selection times every epoch;
 - an overlapping merge is refused on local storage and S3 rather than
@@ -610,7 +628,8 @@ The merge guarantees that:
   was lost can leave the new merged log written; rerunning the merge is
   safe in both cases (`test_delete_shards_storage_error`);
 - a merge never overwrites a log it did not write, and refuses a merged log
-  that is structurally inconsistent with its ledger ("Validation");
+  whose records or ledger are inconsistent, within the checks "Validation"
+  lists for passes that write and passes that do not;
 - deletion removes only what its listing found, current attempts last, and
   is finished by rerunning.
 
