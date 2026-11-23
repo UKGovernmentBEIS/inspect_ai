@@ -414,6 +414,7 @@ class TaskLogger:
             location=self._location,
             log_images=self.eval.config.log_images is not False,
             log_shared=self.eval.config.log_shared,
+            wait_for_log=True,
         )
 
     async def reinit(self) -> None:
@@ -708,7 +709,17 @@ class TaskLogger:
         await self.recorder.log_start(self.eval, plan)
         # the first destination write: for a seeded retry attempt it already
         # carries the complete prior sample set
+        await self._flush_log()
+
+    async def _flush_log(self) -> bool:
+        """Flush the recorder and release queued shared updates once the header exists."""
         await self.recorder.flush(self.eval)
+        db = self._buffer_db
+        if db is not None and db.waiting_for_log:
+            if not self.destination_written:
+                return False
+            db.log_written()
+        return True
 
     async def start_sample(self, sample: EvalSampleSummary) -> None:
         if self._buffer_db is not None:
@@ -909,10 +920,9 @@ class TaskLogger:
                     return 0
                 below_threshold = require_threshold and len(pending) < self.flush_buffer
 
-            if below_threshold:
+            if below_threshold or not await self._flush_log():
                 reschedule_stale_flush = True
             else:
-                await self.recorder.flush(self.eval)
                 flushed = len(pending)
 
                 async with self._flush_pending_lock:

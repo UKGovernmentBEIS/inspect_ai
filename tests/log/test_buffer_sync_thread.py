@@ -1,4 +1,6 @@
+import errno
 import gc
+import os
 import sqlite3
 import threading
 import time
@@ -323,6 +325,108 @@ def test_sync_worker_returns_to_idle_once_it_takes_the_request(
 
     # idle while uploading, so a write made meanwhile requests another upload
     assert phases == [SyncPhase.IDLE]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")
+@pytest.mark.parametrize("stale_handle", [False, True])
+def test_directory_loss_stops_only_shared_updates(
+    shared_db: SampleBufferDatabase,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    stale_handle: bool,
+) -> None:
+    run = tmp_path / ".buffer" / "shared"
+    _request_sync(shared_db, "published")
+    _wait_until(lambda: (run / "manifest.json").exists(), "missing first upload")
+    if stale_handle:
+        identity = run.stat()
+        fstat = os.fstat
+
+        def stale_fstat(fd: int) -> os.stat_result:
+            result = fstat(fd)
+            if os.path.samestat(result, identity):
+                raise OSError(errno.ESTALE, "Stale file handle")
+            return result
+
+        monkeypatch.setattr(os, "fstat", stale_fstat)
+    else:
+        run.rename(run.with_name("archived"))
+    _request_sync(shared_db, "during move")
+    _wait_until(lambda: shared_db.shared_sync_interval is None, "worker still active")
+    if not stale_handle:
+        run.mkdir()
+    _write_event(shared_db, "local only")
+    data = shared_db.get_sample_data("sample", 1)
+    assert data is not None
+    assert [event.event["data"] for event in data.events] == [
+        "published",
+        "during move",
+        "local only",
+    ]
+    if not stale_handle:
+        assert list(run.iterdir()) == []
+    shared_db.close()
+    assert (
+        sum(
+            str(run) in message and "Shared updates stopped" in message
+            for message in caplog.messages
+        )
+        == 1
+    )
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shared buffer")
+@pytest.mark.parametrize("entry", [".buffer", "shared", "manifest.json"])
+def test_link_stops_shared_sync_once(
+    shared_db: SampleBufferDatabase,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    entry: str,
+) -> None:
+    run = tmp_path / ".buffer" / "shared"
+    link = {".buffer": run.parent, "shared": run, "manifest.json": run / entry}[entry]
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(tmp_path / "absent")
+    _request_sync(shared_db)
+    _wait_until(
+        lambda: shared_db.shared_sync_interval is None, "shared sync still active"
+    )
+    _request_sync(shared_db)
+    shared_db.close()
+    assert (
+        sum(
+            str(run) in message and "Shared updates stopped" in message
+            for message in caplog.messages
+        )
+        == 1
+    )
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shared buffer permissions")
+def test_unwritable_buffer_parent_stops_shared_sync_once(
+    shared_db: SampleBufferDatabase, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    run = tmp_path / ".buffer" / "shared"
+    run.parent.mkdir(mode=0o555)
+    if os.access(run.parent, os.W_OK):
+        pytest.skip("test user can override directory permissions")
+
+    _request_sync(shared_db, "first")
+    _wait_until(
+        lambda: shared_db.shared_sync_interval is None, "shared sync still active"
+    )
+    run.parent.chmod(0o755)
+    _request_sync(shared_db, "local only")
+    data = shared_db.get_sample_data("sample", 1)
+    assert data is not None
+    assert [event.event["data"] for event in data.events] == ["first", "local only"]
+    shared_db.close()
+
+    assert not run.exists()
+    (warning,) = [msg for msg in caplog.messages if "Shared updates stopped" in msg]
+    assert str(run) in warning
+    assert os.strerror(errno.EACCES) in warning
 
 
 def test_sync_exception_does_not_prevent_later_sync(

@@ -117,6 +117,16 @@ This is required because the live log viewing feature relies on a local database
  inspect eval ctf.py --log-shared 30
 ```
 
+### Shared POSIX filesystems
+
+Inspect publishes each live update in `.buffer/<log name>/`. The configured log directory may be a symbolic link. The `.buffer` and run directories must be real directories. Inspect keeps `.buffer` between runs. Each writer needs write and search (execute) permission on `.buffer`, even if users run evaluations at different times. Grant read permission on `.buffer` as well to users who list running tasks or run the end-of-evaluation cleanup sweep.
+
+For group viewing, use a shared group and a writer umask that grants group read access, or set an inheritable ACL on the directory. Each update creates a new file, so permissions granted directly on an individual file can be lost on replacement.
+
+Shared updates begin after the first successful log snapshot. If a permission error delays that snapshot, Inspect waits for the next log flush. After restoring access, you can use `inspect ctl task log-flush` to write any pending completed samples.
+
+If permissions or a read-only filesystem prevent Inspect from opening or creating the run directory, it warns once and stops shared updates for that run. The same applies if Inspect encounters a linked buffer directory or manifest, or loses the run directory after syncing begins. In each case the evaluation continues to record locally.
+
 ## Sample Details
 
 Click a sample to drill into its messages, scoring, and metadata.

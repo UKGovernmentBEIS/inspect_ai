@@ -1,9 +1,14 @@
+import errno
 import hashlib
 import os
 import re
+import secrets
+import stat
+import sys
 import tempfile
+import weakref
 from collections.abc import Iterable, Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, contextmanager, suppress
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
@@ -219,6 +224,9 @@ class SampleBufferFilestore(SampleBuffer):
     ) -> None:
         self._fs = filesystem(location)
         self._dir = f"{sample_buffer_filestore_dir(location, self._fs)}{self._fs.sep}"
+        self._posix = os.name == "posix" and self._fs.is_local()
+        self._create = create
+        self._local: _PosixBufferDirectory | None = None
         self.update_interval = update_interval
 
         # Tag the ephemeral buffer objects synced to S3 (see _write_bytes for the
@@ -229,11 +237,43 @@ class SampleBufferFilestore(SampleBuffer):
             else {}
         )
 
-        if create:
+        if create and not self._posix:
             self._fs.mkdir(self._dir, exist_ok=True)
 
             # place a file in the dir to force it to be created
             self._write_bytes(f"{self._dir}.keep", b"")
+
+    def _local_directory(self) -> "_PosixBufferDirectory":
+        if self._local is None:
+            try:
+                self._local = _PosixBufferDirectory(
+                    Path(self._dir), create=self._create
+                )
+            except OSError as ex:
+                if ex.errno in (errno.ENOTDIR, errno.ELOOP):
+                    raise SharedBufferUnavailable(
+                        f"Shared buffer requires real directories at {self._dir}: {ex}"
+                    ) from ex
+                if ex.errno in (errno.EACCES, errno.EPERM, errno.EROFS):
+                    raise SharedBufferUnavailable(
+                        f"Cannot access shared buffer directory {self._dir}: {ex}"
+                    ) from ex
+                raise
+        return self._local
+
+    @contextmanager
+    def sync_directory(self) -> Iterator[None]:
+        """Keep the manifest read and all writes in one verified run directory."""
+        if not self._posix:
+            yield
+            return
+        directory = self._local_directory()
+        directory.verify()
+        try:
+            yield
+        finally:
+            # Detect a move even if publishing into the original directory failed.
+            directory.verify()
 
     def _write_bytes(self, path: str, data: bytes) -> None:
         """Write bytes to the filestore, tagging S3 objects as ephemeral.
@@ -245,6 +285,9 @@ class SampleBufferFilestore(SampleBuffer):
         of this session and retry untagged so shared-log sync keeps working (the
         objects simply won't be lifecycle-expirable by tag).
         """
+        if self._posix:
+            self._local_directory().write(path.removeprefix(self._dir), data)
+            return
         try:
             with open_file(path, "wb", fs_options=self._write_fs_options) as f:
                 f.write(data)
@@ -301,6 +344,8 @@ class SampleBufferFilestore(SampleBuffer):
         )
 
     def read_manifest(self) -> Manifest | None:
+        if self._local is not None:
+            return self._local.read_manifest()
         try:
             with open_file(self._manifest_file(), "r") as f:
                 contents = f.read()
@@ -417,7 +462,11 @@ class SampleBufferFilestore(SampleBuffer):
 
     @override
     def cleanup(self) -> None:
-        cleanup_sample_buffer_filestore(self._dir, self._fs)
+        directory = self._local
+        if self._posix and self._create and directory is None:
+            return  # A queued writer has never published anything.
+        if cleanup_sample_buffer_filestore(self._dir, self._fs, directory=directory):
+            self._local = None
 
     @classmethod
     @override
@@ -425,7 +474,7 @@ class SampleBufferFilestore(SampleBuffer):
         buffer_dir = Path(sample_buffer_dir(log_dir))
         if buffer_dir.exists():
             return [
-                f"{basename(path.name)}.{EVAL_LOG_FORMAT}"
+                f"{path.name}.{EVAL_LOG_FORMAT}"
                 for path in buffer_dir.iterdir()
                 if path.is_dir()
             ]
@@ -660,6 +709,7 @@ async def cleanup_sample_buffer_filestores(log_dir: str) -> None:
     # read log buffer dirs (bail if there is no buffer_dir)
     fs = filesystem(log_dir)
     buffer_dir = sample_buffer_dir(log_dir, fs)
+    local_posix = os.name == "posix" and fs.is_local()
     try:
         log_buffers = [
             buffer for buffer in fs.ls(buffer_dir) if buffer.type == "directory"
@@ -671,13 +721,20 @@ async def cleanup_sample_buffer_filestores(log_dir: str) -> None:
     # (remove the buffer dir if there is no .eval or the eval is finished)
     for log_buffer in log_buffers:
         try:
-            log_file = f"{log_dir}{fs.sep}{basename(log_buffer.name)}.{EVAL_LOG_FORMAT}"
+            name = (
+                Path(log_buffer.name).name if local_posix else basename(log_buffer.name)
+            )
+            log_file = f"{log_dir}{fs.sep}{name}.{EVAL_LOG_FORMAT}"
             log_header = await read_eval_log_async(log_file, header_only=True)
             if log_header.status != "started":
                 cleanup_sample_buffer_filestore(log_buffer.name, fs)
 
         except FileNotFoundError:
             cleanup_sample_buffer_filestore(log_buffer.name, fs)
+
+    if local_posix:
+        # A writer may already have the empty parent open to create its run.
+        return
 
     # remove the .buffer dir if it's empty
     try:
@@ -687,13 +744,23 @@ async def cleanup_sample_buffer_filestores(log_dir: str) -> None:
         pass
 
 
-def cleanup_sample_buffer_filestore(buffer_dir: str, fs: FileSystem) -> None:
+def cleanup_sample_buffer_filestore(
+    buffer_dir: str, fs: FileSystem, *, directory: "_PosixBufferDirectory | None" = None
+) -> bool:
     try:
-        fs.rm(buffer_dir, recursive=True)
+        if os.name == "posix" and fs.is_local():
+            with suppress(FileNotFoundError, SharedBufferUnavailable):
+                if directory is None:
+                    directory = _PosixBufferDirectory(
+                        Path(fs.fs._strip_protocol(buffer_dir)), create=False
+                    )
+                directory.cleanup()
+        else:
+            fs.rm(buffer_dir, recursive=True)
     except Exception as ex:
-        logger.warning(
-            f"Error cleaning up sample buffer database at {buffer_dir}: {ex}"
-        )
+        logger.warning("Error cleaning up shared buffer at %s: %s", buffer_dir, ex)
+        return False
+    return True
 
 
 def segment_sample_data(
@@ -730,11 +797,150 @@ def segment_file_name(id: str | int, epoch: int) -> str:
 
 
 def sample_buffer_dir(log_dir: str, fs: FileSystem | None = None) -> str:
-    log_dir = log_dir.rstrip("/\\")
     fs = fs or filesystem(log_dir)
+    if os.name == "posix" and fs.is_local():
+        return str(Path(fs.fs._strip_protocol(log_dir)) / ".buffer")
+    log_dir = log_dir.rstrip("/\\")
     return f"{log_dir}{fs.sep}.buffer"
 
 
 def sample_buffer_filestore_dir(location: str, fs: FileSystem) -> str:
     """Filestore directory for the log at ``location`` (under the log dir's `.buffer`)."""
+    if os.name == "posix" and fs.is_local():
+        log = Path(fs.fs._strip_protocol(location))
+        stem = os.path.splitext(log.name)[0]
+        if stem in ("", ".", ".."):
+            raise ValueError(f"Invalid log name for a shared buffer: {location!r}")
+        return str(log.parent / ".buffer" / stem)
     return f"{sample_buffer_dir(dirname(location), fs)}{fs.sep}{os.path.splitext(basename(location))[0]}"
+
+
+class SharedBufferUnavailable(OSError):
+    """The local writer cannot safely use its shared buffer."""
+
+
+@contextmanager
+def _buffer_parent(path: Path, *, create: bool = False) -> Iterator[int]:
+    # Allow symlinks in the configured log path, then open .buffer without following one.
+    log_dir = path.parent.parent
+    if create:
+        log_dir.mkdir(parents=True, exist_ok=True)
+    root = _open_dir(log_dir)
+    try:
+        if create:
+            with suppress(FileExistsError):
+                os.mkdir(".buffer", dir_fd=root)
+        parent = _open_dir(".buffer", parent=root)
+        try:
+            yield parent
+        finally:
+            os.close(parent)
+    finally:
+        os.close(root)
+
+
+def _open_dir(name: str | Path, *, parent: int | None = None) -> int:
+    flags = os.O_DIRECTORY | (os.O_NOFOLLOW if parent is not None else 0)
+    # Darwin's fcntl.h defines O_SEARCH as O_EXEC | O_DIRECTORY.
+    search = getattr(
+        os,
+        "O_SEARCH",
+        getattr(os, "O_PATH", 0x40000000 if sys.platform == "darwin" else 0),
+    )
+    if search:
+        try:
+            return os.open(name, flags | search, dir_fd=parent)
+        except OSError as ex:
+            if ex.errno not in (errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP):
+                raise
+    return os.open(name, flags | os.O_RDONLY, dir_fd=parent)
+
+
+class _PosixBufferDirectory:
+    def __init__(self, path: Path, *, create: bool) -> None:
+        self.path = path
+        with _buffer_parent(path, create=create) as parent:
+            if create:
+                with suppress(FileExistsError):
+                    os.mkdir(path.name, dir_fd=parent)
+            self.fd = _open_dir(path.name, parent=parent)
+        # close() on a database preserves recovery files for later cleanup. A
+        # retained writer therefore owns its directory until cleanup or collection.
+        weakref.finalize(self, os.close, self.fd)
+
+    def verify(self) -> None:
+        try:
+            with _buffer_parent(self.path) as parent:
+                if self._matches(parent):
+                    return
+        except OSError as ex:
+            if ex.errno not in (errno.ENOENT, errno.ENOTDIR, errno.ELOOP, errno.ESTALE):
+                raise
+        raise SharedBufferUnavailable(
+            f"Shared buffer directory was removed or replaced: {self.path}"
+        )
+
+    def _matches(self, parent: int) -> bool:
+        pinned = os.fstat(self.fd)
+        current = os.stat(self.path.name, dir_fd=parent, follow_symlinks=False)
+        return os.path.samestat(current, pinned)
+
+    def read_manifest(self) -> Manifest | None:
+        def opener(name: str, flags: int) -> int:
+            return os.open(name, flags | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=self.fd)
+
+        try:
+            with open(MANIFEST, "rb", opener=opener) as stream:
+                if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                    raise SharedBufferUnavailable(
+                        f"Expected a regular manifest at {self.path / MANIFEST}"
+                    )
+                return Manifest.model_validate_json(stream.read())
+        except FileNotFoundError:
+            return None
+        except OSError as ex:
+            if ex.errno in (errno.ELOOP, errno.EISDIR):
+                raise SharedBufferUnavailable(
+                    f"Expected a regular manifest at {self.path / MANIFEST}"
+                ) from ex
+            raise
+
+    def write(self, name: str, data: bytes) -> None:
+        if name in ("", ".", "..") or "/" in name:
+            raise ValueError(f"Invalid shared buffer filename: {name!r}")
+        mode = 0o666
+        with suppress(FileNotFoundError):
+            entry = os.stat(name, dir_fd=self.fd, follow_symlinks=False)
+            if stat.S_ISREG(entry.st_mode) and entry.st_uid == os.geteuid():
+                mode &= entry.st_mode
+        temp = f".inspect-{secrets.token_hex(16)}.tmp"
+        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode, dir_fd=self.fd)
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(data)
+            os.replace(temp, name, src_dir_fd=self.fd, dst_dir_fd=self.fd)
+        except BaseException:
+            with suppress(FileNotFoundError):
+                os.unlink(temp, dir_fd=self.fd)
+            raise
+
+    def cleanup(self) -> None:
+        self.verify()
+        # Buffer files are flat. A replacement of the public path must never
+        # redirect unlink into another directory.
+        readable = os.open(".", os.O_RDONLY | os.O_DIRECTORY, dir_fd=self.fd)
+        try:
+            with os.scandir(readable) as entries:
+                names = [
+                    entry.name
+                    for entry in entries
+                    if not entry.is_dir(follow_symlinks=False)
+                ]
+            for name in names:
+                with suppress(FileNotFoundError):
+                    os.unlink(name, dir_fd=readable)
+        finally:
+            os.close(readable)
+        with _buffer_parent(self.path) as parent:
+            if self._matches(parent):
+                os.rmdir(self.path.name, dir_fd=parent)
