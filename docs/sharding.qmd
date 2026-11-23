@@ -68,8 +68,6 @@ Only one merge of a log can write at a time. A merge of a local log holds a lock
 
 A shard log that holds samples cancelled by `inspect ctl task drain` or `inspect ctl task cancel` is refused, before writing anything, because those samples still need to run. Run that shard again, then merge.
 
-The merge does not delete the shards. Once you have checked the merged log, delete the `.shards` directory yourself, for example with `rm -r logs/<name>.shards` or `aws s3 rm --recursive s3://<bucket>/logs/<name>.shards/`. Later merges then return the merged log as it is. When a later unsharded run of the task supersedes a merged log, the merged log and its `.shards` directory stay until you remove them.
-
 The merge computes metrics as a fresh, unsharded run does. A scorer's metrics see each sample's metadata from the dataset, as the sample's `sample_init` event records it, not metadata a solver changed. A sample logged without its events (its record could not be serialized) is refused.
 
 Shards run with `score=False` (`--no-score`) merge to a log with no metrics, as an unsharded unscored run does. The merge refuses shards where some ran with scoring and others without.
@@ -80,9 +78,28 @@ Merged metrics see samples, scores and metadata exactly as the log stores them, 
 
 The merge computes metrics over the samples in sample ID order (IDs sorted as text), then epoch, and its results equal those of an unsharded run of the same samples in that order. A metric whose results depend on sample order can differ from a particular unsharded run, just as it differs between runs with `shuffle=True`.
 
+### Removing shards
+
+The merge keeps the shards unless you ask it to delete them. Once you have checked the merged log, merge again with `--delete-shards` (or `delete_shards=True`):
+
+``` bash
+inspect log merge-shards logs/<name>.eval --task mytask.py \
+  -T difficulty=hard --delete-shards
+```
+
+If nothing has changed since the merge you checked, this writes nothing and then deletes the `.shards` directory. It deletes only when the merged log is complete (`success`) and holds the newest log of every shard directory; otherwise it raises an error and deletes nothing. `--delete-shards` cannot be combined with `--allow-incomplete`.
+
+Use it only on a finished run: no workers still running, no edits or scoring of the merged log or shards, and no other merge of the run. Keep the merged log and its shards unchanged from the first deleting call until cleanup succeeds, including between retries. Something written to the run while the shards are deleted can be lost, as when you delete them by hand. Deletion cannot be undone, except from object versions on a versioned S3 bucket.
+
+If deletion is interrupted, part of the `.shards` directory remains and later merges may refuse it. Merge again with `--delete-shards` to finish.
+
+You can still delete the `.shards` directory by hand (`rm -r`, `aws s3 rm --recursive`); once all of it is gone, later merges return the merged log as it is. If a removal by hand stops part way, finish it by hand.
+
+When a later unsharded run of the task supersedes a merged log, the merged log and its `.shards` directory stay until you remove them.
+
 ### Eval sets
 
-`eval_set()` does not merge shards. It refuses a log directory that holds a `.shards` directory. Merge the shards as above. If samples failed or are missing, retry each incomplete shard in its own numbered directory with the same selection, run samples that no shard selected as new shards, and merge again. Then move the `.shards` directory out of the log directory before you run an eval set there.
+`eval_set()` does not merge shards. It refuses a log directory that holds a `.shards` directory. Merge the shards as above. If samples failed or are missing, retry each incomplete shard in its own numbered directory with the same selection, run samples that no shard selected as new shards, and merge again. Then move the `.shards` directory out of the log directory, or delete it with `--delete-shards`, before you run an eval set there.
 
 ### The merge command
 
@@ -90,7 +107,7 @@ The merge computes metrics over the samples in sample ID order (IDs sorted as te
 
 Pass the model options (`--model`, `--model-base-url`, `-M`, `--model-config` and `--model-role`) when the task factory, its metrics or its epoch reducer uses that model context. Passing the workers' values is the safe default. A model given here is created as `inspect eval` creates it, so it needs its provider's credentials. Without `--model` the task is built with the `none` model active.
 
-The selection options are the Python function's: `--sample-id` takes exact sample ids, comma separated (not patterns, and no `task:` prefix), and `--sample-count` a number of samples. `--allow-incomplete` writes a `started` or `error` log for an incomplete set. These options, `--task` and `--json` are read only from the command line.
+The selection options are the Python function's: `--sample-id` takes exact sample ids, comma separated (not patterns, and no `task:` prefix), and `--sample-count` a number of samples. `--allow-incomplete` writes a `started` or `error` log for an incomplete set. `--delete-shards` deletes the `.shards` directory after the merge (see [Removing shards](#removing-shards)). These options, `--task` and `--json` are read only from the command line.
 
 A run launched with `--model-spec` or `--run-config` merges with the equivalent options, taken from the spec or run config the launcher gave its workers:
 
@@ -99,7 +116,7 @@ A run launched with `--model-spec` or `--run-config` merges with the equivalent 
 
 The command refuses `INSPECT_EVAL_RUN_CONFIG`, and `INSPECT_EVAL_MODEL_SPEC` unless `--model`, `--model-base-url`, `--model-config` or `-M` is given, since they would change the task. Do not use `inspect log export-config` of a shard log to rebuild these options: it records the model and roles after the task applied its own.
 
-The command prints where it merged, or `No changes since the last merge` when nothing changed, and the merged log's status. It exits 0 when the merged log is written or unchanged, including an incomplete log written with `--allow-incomplete`, and 1 on any failure. Invalid usage (an unknown option, a missing `--task`) exits 2.
+The command prints where it merged, or `No changes since the last merge` when nothing changed, and the merged log's status. With `--delete-shards` it then prints `shards: deleted <name>.shards`. It exits 0 when the merged log is written or unchanged, including an incomplete log written with `--allow-incomplete`, and 1 on any failure. Invalid usage (an unknown option, a missing `--task`) exits 2.
 
 With `--json` it prints one JSON object on stdout and sends everything else, including the task's own output, to stderr:
 
@@ -118,9 +135,9 @@ On failure the object is an error, `{"error": {"kind": ..., "exception": ..., "m
 | `not_found` | Neither the merged log nor any shard exists, or a shard log the merge listed was removed before it was read, as a worker's retry does with an older attempt. In the second case run the merge again once the workers have exited. |
 | `incomplete` | The set is incomplete. `incomplete` holds the `status` the log would have, the `missing` sample ids (an array for an effective ID selection, including one retained from an earlier merge; `null` otherwise), and the `running` and `failed` shards. |
 | `outside_selection` | The shards hold samples outside the selection, listed in `outside` (`null` with `--sample-count`). |
-| `refused` | The shards cannot be merged, or the task differs from the one they ran. |
+| `refused` | The shards cannot be merged, or the task differs from the one they ran. With `--delete-shards`, also a name in the shards directory that S3 would read as another key, a local shards directory that is a symbolic link, or a shards directory that is not empty after deletion. |
 | `conflict` | Another merge holds the lock or published first. Run the command again once it has finished. A lock left by a merge that crashed stays until you delete it, as described above. |
-| `storage_error` | Reading or writing the logs failed. |
+| `storage_error` | Reading, writing or deleting the logs failed. After a failed delete, run the command again with `--delete-shards` to finish. |
 | `internal` | Anything else, such as a metric that raises. Its traceback is on stderr. |
 
 On Ctrl-C, the command prints no merge report or JSON error envelope; Click prints `Aborted!` to stderr and it exits 1. If it was interrupted while publishing, the merged log may already be written: run it again, which reports `No changes` if so.

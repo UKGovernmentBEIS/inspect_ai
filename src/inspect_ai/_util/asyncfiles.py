@@ -1972,6 +1972,37 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 files.append(info.model_copy(update={"name": f"{prefix_path}/{name}"}))
         return DirListing(files=files, dirs=dirs)
 
+    async def list_s3_keys(self, base: str) -> list[str]:
+        """Every object under the S3 prefix ``base/``, as ``s3://`` URLs.
+
+        One recursive ``list_objects_v2`` sweep. Unlike ``iter_files``, it
+        keeps directory markers (keys ending in ``/``, including ``base/``
+        itself). Only keys under ``base`` followed by ``/`` are listed, so
+        ``base-x/`` is not.
+
+        Raises:
+            ValueError: `base` is not an ``s3://`` URL.
+        """
+        if not is_s3_filename(base):
+            raise ValueError(f"Not an S3 URL: {base}")
+        bucket, prefix = s3_bucket_and_key(base)
+        prefix = prefix.rstrip("/") + "/" if prefix else ""
+        if current_async_backend() == "asyncio":
+            client = await self.s3_client_async()
+            paginator = client.get_paginator("list_objects_v2")
+            pages = [
+                page async for page in paginator.paginate(Bucket=bucket, Prefix=prefix)
+            ]
+        else:
+            pages = await anyio.to_thread.run_sync(
+                _s3_list_all_pages, self.s3_client(), bucket, prefix
+            )
+        return [
+            f"s3://{bucket}/{obj['Key']}"
+            for page in pages
+            for obj in page.get("Contents", [])
+        ]
+
     @override
     async def __aenter__(self) -> "AsyncFilesystem":
         existing = _current_async_fs.get()
@@ -2461,6 +2492,11 @@ def s3_iter_files(
 def _s3_list_pages(s3: Any, bucket: str, prefix: str) -> list[dict[str, Any]]:
     paginator = s3.get_paginator("list_objects_v2")
     return list(paginator.paginate(Bucket=bucket, Prefix=prefix, Delimiter="/"))
+
+
+def _s3_list_all_pages(s3: Any, bucket: str, prefix: str) -> list[dict[str, Any]]:
+    paginator = s3.get_paginator("list_objects_v2")
+    return list(paginator.paginate(Bucket=bucket, Prefix=prefix))
 
 
 def _scandir_listing(directory: str, prefix_path: str, as_uri: bool) -> DirListing:
