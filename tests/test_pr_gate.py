@@ -533,7 +533,6 @@ def test_fetch_ctx_records_linked_issue_repository(monkeypatch, tmp_path):
 def test_fetch_ctx_lists_one_page_of_files(
     monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
-    # Paginating the file list cost up to about 30 requests for a large PR.
     (tmp_path / ".github").mkdir()
     (tmp_path / ".github" / "qualified.yml").write_text("users:\n  - 111222\n")
     monkeypatch.chdir(tmp_path)

@@ -56,9 +56,9 @@ from typing import Any, NamedTuple
 
 TEAM_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 TRIVIAL_MAX_LINES = 25
-# The gate reads one page of changed files. That is the whole list for any PR
-# that could be trivial, since each of its files has a changed line, so this
-# must be at least TRIVIAL_MAX_LINES.
+# The gate reads only the first page of changed files. Each file of a trivial
+# PR has a changed line, so a full page of at least TRIVIAL_MAX_LINES files
+# can't be trivial and the rest of the list can't change the verdict.
 FILES_PAGE_SIZE = 100
 # Besides pages under docs/: the README and the extensions listing, which
 # AGENTS.md invites one-line PRs to.
