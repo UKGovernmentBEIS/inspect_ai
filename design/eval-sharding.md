@@ -203,10 +203,12 @@ written:
   records no longer matches its ledger counts (records added or removed
   outside the merge), with the advice to delete it and rebuild from the
   shards (`test_merge_refuses_a_merged_log_changed_outside_the_merge`). A
-  change that keeps the count, such as a record replaced by one with
-  another id or an edited score, is not detected and is carried ("The
-  sample set"). A pass that returns the merged log as recorded (no attempt
-  left, or a resumed deletion) trusts it;
+  change that keeps the count, such as an edited score or a record
+  replaced by one with another id, can go undetected and be carried ("The
+  sample set"); a replacement id outside an id selection is still refused
+  by the selection check below, and a writing pass refuses a carried record
+  with no summary. A pass that returns the merged log as recorded (no
+  attempt left, or a resumed deletion) trusts it;
 - the selection, given or recorded, covers every held id
   (`ShardSelectionError` names the ids outside it).
 
@@ -228,9 +230,14 @@ records whose ids fall in the selection of a shard read in this pass are
 read attempt holds is *taken*. This is exact because a shard selects whole
 samples, so each id belongs to the one shard that selected it; the digest
 check keeps a changed shard's selection fixed, and the count checks make
-the dropped records exactly that shard's previous ones. So an incremental
-pass plans the same record keys as a fresh merge of the same companion,
-whenever the fresh merge accepts the set (see the overlap rule below).
+the dropped records exactly that shard's previous ones, as long as the
+merged log's records are the ones the merge wrote. So an incremental pass
+plans the same record keys as a fresh merge of the same companion,
+whenever the fresh merge accepts the set (see the overlap rule below) and
+no record in the merged log was replaced outside the merge. A record
+replaced there by one with another id, keeping the count, is carried as if
+its shard owned it: an incremental pass then holds the replacement, where a
+fresh merge holds the shard's own record ("Validation").
 
 All of this assumes the launcher's contract that shard selections are
 disjoint. A fresh merge reads every selection and refuses any overlap. An
@@ -270,8 +277,12 @@ shards hold the whole dataset. An incomplete outcome raises
 `ShardSetIncomplete` (with the status it would write, the missing ids, and
 the running and failed shards) and writes nothing, unless `allow_incomplete`
 asks for the `started` or `error` log (decision: Ransom and JJ Allaire,
-2026-09-18). Shards added after a `success` merge return the merged log to
-`started` until they finish.
+2026-09-18). A shard added after a `success` merge goes beyond the
+recorded selection (ids outside it, or more than its count), so the next
+merge refuses it (`ShardSelectionError`) unless it is given a selection
+that covers the new ids; with that wider
+selection the merged log returns to `started` until the added shard
+finishes (`test_an_added_shard_returns_a_success_log_to_started`).
 
 A shard whose task stopped samples or epochs early finishes `success`
 without records for them, so its set is incomplete for its original
@@ -343,7 +354,9 @@ taken from the merged log. The member bytes stream through: each sample is decom
 copied and parsed include-only (`_SampleParse` in `_write.py`), building
 only its id, epoch, scores, error, invalidation and its `sample_init`
 event's metadata. The merge keeps every sample's scores and initial
-metadata in memory until the results are computed, because metrics take
+metadata in memory until the results are computed, and every merged
+record's summary (from the attempts read and the merged log) until the
+log is written, because metrics take
 all of them at once and recomputing from less is the lossy input it rules
 out (decision: Ransom and JJ Allaire, 2026-09-18: recompute from full
 samples, not summaries, which truncate score answers, explanations and
@@ -543,7 +556,8 @@ command"](../docs/sharding.qmd); tests are in `tests/log/test_shards.py`.
   such a run into them.
 - **Exact selection.** The selection is the API's: exact ids matched as
   text, or a count, not `inspect eval`'s patterns. The merged log records
-  each id with the shards' typed id.
+  a held id with the type the shards recorded and an id not yet held as
+  given, so `--sample-id 1,2` with only id 1 held records `[1, "2"]`.
 - **Failures for launchers.** Merge and setup failures are classified by
   phase and exception type, so an error in the task's own code never reads
   as a merge refusal, and reported in one failure boundary; with JSON
@@ -698,8 +712,12 @@ their own sections.
   by the conditional publish
   (`test_concurrent_first_merges_on_s3_publish_once`,
   `test_an_older_snapshot_published_after_a_newer_one_is_refused_on_s3`).
-- A merge never overwrites an ordinary log
-  (`test_merge_refuses_stray_logs_and_an_ordinary_log`).
+- A merge refuses an ordinary log already at `<name>.eval` when it reads
+  the destination (`test_merge_refuses_stray_logs_and_an_ordinary_log`).
+  On S3 a first publication creates the object only if it is still absent;
+  local publication is an unconditional atomic replace, so an ordinary log
+  written there by another process after the merge read the destination
+  is overwritten.
 - The merge builds no model and loads no file a log names
   (`test_a_merge_builds_no_model_from_the_shard_logs`,
   `test_score_names_from_the_log_never_load_files`), and every thread it
@@ -710,7 +728,8 @@ their own sections.
   `test_delete_shards_on_s3_interrupted_then_finished`). It deletes no name
   written after its listing
   (`test_delete_shards_leaves_attempt_written_after_listing`), stays inside
-  the companion (`test_delete_shards_does_not_follow_symlinks`,
+  a companion left unchanged during deletion, as the quiescence requirement
+  demands (`test_delete_shards_does_not_follow_symlinks`,
   `test_delete_shards_stays_in_prefix`), and after a failed delete leaves
   the new merged log written (`test_delete_shards_storage_error`).
 - `eval_set()` refuses a log directory holding shards
@@ -811,19 +830,23 @@ Limits users meet are listed in [Sharding,
   parameter; opting in with one is the consistent extension if a metric
   needs the shards' model. The command builds the task from its own
   command line only.
-- **Deletion** stays inside the companion: local walks do not follow links,
+- **Deletion** stays inside a companion that is not changed while it runs
+  (the quiescence requirement, "Deleting shards"): local walks do not
+  follow links,
   links are removed as links, a linked companion is refused, S3 listings
   are confined to the companion's prefix with its trailing `/`, and every
   S3 name passes the name check before anything is written or deleted. The
   ledger decides whether deletion runs, never what it deletes. Deletion
   uses the caller's credentials and consults no access policy; the viewer,
-  which has one, deletes no companion.
+  which has one, deletes no companion. A concurrent writer that replaces a
+  listed local directory with a link during deletion can redirect a
+  removal outside the companion.
 - **Viewer.** Shard hiding checks the access policy before reading a merged
   log's header, and a merged log the requester may not read hides nothing.
 - **Resource use.** A hostile shard can make a merge expensive, as the same
-  file makes `read_eval_log` expensive. The merge streams member bytes and
+  file makes `read_eval_log` expensive. The merge streams member bytes,
   keeps every sample's scores and initial metadata until results are
-  computed; a sample holding a number the streaming parser refuses is
+  computed and every record's summary until the log is written; a sample holding a number the streaming parser refuses is
   parsed whole ("The merged log", "Members").
 - **Lock file.** Its contents are informational and never parsed for a
   decision.
@@ -869,3 +892,7 @@ Limits users meet are listed in [Sharding,
   trusts a `success` merged log's mtime as coverage, so an edit to a stale
   merged log can hide a later attempt ("Viewer listing"); checking the
   ledger or the attempt's status would close it.
+- **Conditional local publication**, so an ordinary log written at
+  `<name>.eval` after the merge read the destination is not replaced.
+- **Deletion that tolerates a changing companion**, such as a listed
+  directory replaced by a link while deletion runs.
