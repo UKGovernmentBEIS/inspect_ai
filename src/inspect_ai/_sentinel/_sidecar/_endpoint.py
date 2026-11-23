@@ -59,8 +59,17 @@ class EvalAccess:
     """The token the eval made for the sidecar, which never changes. It is sent only in a registration to a sidecar that holds no token for the eval, and signs everything else."""
     lock: anyio.Lock = field(default_factory=anyio.Lock, repr=False)
     """Held while the eval registers, so a sidecar that lost the task is registered again once, not by every sample that finds it lost."""
-    registrations: int = 0
-    """How many registrations of the task the sidecar has taken."""
+    registrations_begun: int = 0
+    """How many registrations of the task the eval has begun to send, each counted before it is sent. The sidecar may replace what it held for the task with any of them, so a sample's registration counts only while this is what it was when the sample's was sent."""
+    registered: bool = False
+    """Whether the sidecar has answered a registration of the task, and so holds the eval's token."""
+    restarts_found: int = 0
+    """How many times the sidecar was found to hold no token for an eval it had registered, as after a restart. It lost with the token everything it held for the eval: the monitor state of each attempt it had begun judging."""
+
+    async def wait_for_registration(self) -> None:
+        """Wait while a registration of the task is on its way, however it ends."""
+        async with self.lock:
+            pass
 
     def credentials(self, method: str) -> dict[str, Any]:
         """The eval's id, and a signature of a call to a method made now, for the call's params."""
@@ -119,7 +128,7 @@ class Sidecar:
             SidecarCallError: If the call failed, or was answered with an error, including `unauthorized` when the sidecar keeps another token for the eval or the call's timestamp is outside its window.
         """
         access = self.access
-        if access is None or access.registrations == 0:
+        if access is None or not access.registered:
             raise SidecarCallError(
                 method, "the eval hasn't registered with the sidecar"
             )
@@ -137,7 +146,7 @@ class Sidecar:
             SidecarCallError: If the call failed, or the sidecar refused the answer.
         """
         access = self.access
-        if access is None or access.registrations == 0:
+        if access is None or not access.registered:
             raise SidecarCallError(
                 "answer_question", "the eval hasn't registered with the sidecar"
             )
