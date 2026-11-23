@@ -378,7 +378,7 @@ tokens per call, run against this branch's base):
    whose `limits` lists every one of them. No owner decides by choosing one
    of them. Building it is the one place limits are ordered: `limits`
    lists them by entry number, the earliest entered first, then the
-   limits with no entry number (a `custom` limit, a time or working
+   limits with no entry number (a sourceless limit, a time or working
    limit, a node never entered) in the order they arrived, and the
    combined error's ordinary fields are the first one's (its *primary*
    fields). Every other single-valued record (`EvalSample.limit`, the
@@ -407,10 +407,9 @@ tokens per call, run against this branch's base):
    limits entered inside the call, of any kind, by the same test,
    and every message limit raised in the call, which measured the call's
    own conversation (see "Ownership"). A limit error with no source has
-   no node and is inside no scope: `apply_limits()` lets it propagate. At
-   a tool, handoff or host tool a sourceless `custom` or message error is
-   the call's own and is mapped as today; a sourceless error of any other
-   type (token, cost, turn, time, working) is foreign and propagates.
+   no node and is inside no scope: `apply_limits()` and `run()` let it
+   propagate, and at a tool, handoff or host tool it is the call's own,
+   whatever its type, and is mapped as today.
 7. **Each owner checks its own limits at exit.** A limit error that
    reaches its owner stands. When an `apply_limits()` scope ends normally,
    Inspect checks the token, cost and turn limits that scope entered, and
@@ -461,8 +460,8 @@ ownership is decided by scope membership (rule 6). Time and working limits get
 no number. Every node, of all six kinds, records the scope marker current
 when it is pushed on its tree, so a time or working limit is inside a
 scope by the same test as a token limit; only a limit error with no node
-(a sourceless `custom` error) carries no marker (decision: Ransom,
-2026-11-20).
+(a sourceless error, which only user code and inspect_swarm's `custom`
+errors raise) carries no marker (decision: Ransom, 2026-11-20).
 
 The public addition is on `LimitExceededError`:
 
@@ -652,10 +651,11 @@ propagates unchanged, a group as a group, as today, and each receiver
 handles it as below. Anything that is not a covered exit propagates
 unchanged: an unrelated error, a termination, a cancellation, an error
 holding a limit of an enclosing or sibling scope (even beside the scope's
-own), or a limit error whose source is unknown. A sourceless `custom` error
-(documented under "Custom Limit" in `docs/setting-limits.qmd`, and raised by
-inspect_swarm members) is never covered, so a group holding a covered token
-error and a sourceless custom error propagates, as it does today.
+own), or a limit error whose source is unknown. A sourceless error of any
+type, such as a `custom` error (documented under "Custom Limit" in
+`docs/setting-limits.qmd`, and raised by inspect_swarm members), is never
+covered, so a group holding a covered token error and a sourceless custom
+error propagates, as it does today.
 
 A caught error is always observable: it is returned, never dropped.
 `run()` with a `limits` list, empty or not, returns `(state, error)` with
@@ -749,10 +749,13 @@ limit is *the call's own* when it is a limit of any kind entered
 in the call's own context (the call's task and the tasks started inside
 it, which carry its scope marker, rule 1) while the call ran, a message limit (it measured the call's own
 conversation, whichever node raised it, as
-`test_agent_as_tool_respects_sample_limits` pins today), or a `custom`
-limit with no source, which has no node and keeps today's mapping. A
-sourceless error of any other type was never entered in the call, so it
-is not the call's own. A limit error is *owned by the call*
+`test_agent_as_tool_respects_sample_limits` pins today), or a limit with
+no source, of any type, which has no node and keeps today's mapping
+(decision: Ransom, 2026-11-23). Inspect's own nodes always set `source`,
+so only user code and inspect_swarm's `custom` errors are sourceless. No
+spend bound depends on how such an error is mapped: a real limit behind a
+hand-made error still refuses the next call under it and is found at its
+owner's exit check. A limit error is *owned by the call*
 when every limit in it (each member of a combined error) is the call's own.
 Nested scopes keep their membership in the scopes around them (rule 1):
 the limits an `as_tool()` agent enters in its own `apply_limits()` scope
@@ -782,8 +785,7 @@ tool error; a handoff still answers its own limit) pin this nesting.
   the handoff's limits, and its `except LimitExceededError`
   applies the same test: an error not owned
   by the call (one of its limits is neither a message limit, a sourceless
-  `custom` limit, nor a limit entered inside the handoff; a sourceless
-  token error included) is re-raised. An owned error keeps today's handoff
+  limit, nor a limit entered inside the handoff) is re-raised. An owned error keeps today's handoff
   result, the handed-off agent's new messages followed by the "exceeded
   its <type> limit" message, with the combined error's
   type. As today, only a bare error is caught; a group propagates through
@@ -1098,7 +1100,11 @@ them would fail ordinary resumes.
 The exit checks and the pre-dispatch refusal read
 a node's state after its error may have been lost, so they rely on metered
 usage never decreasing as calls are recorded: a limit that has been reached
-stays reached. Cost and turns only grow. A token limit's `type` can today be
+stays reached. Turns only grow, and so does cost, given valid prices:
+every rate a charge is computed from is finite and non-negative, so every
+charge is too. That is a premise of this design, not part of it: Inspect
+does not validate prices or charges today, and doing so is a separate
+change ("Not this design"). A token limit's `type` can today be
 an arithmetic formula over cumulative `input` and `output` tokens, with `+`,
 `-`, `*`, `/` and unary minus (`_compile_token_formula()` and
 `_TokenMetering.value()`, `src/inspect_ai/util/_limit.py`;
@@ -1230,7 +1236,7 @@ order, of which only the limit handling changes:
     remaining provider calls under node state alone: each refuses a
     reached token, cost or turn node on its own path and checks its own
     conversation's message limit. So it continues when the kept limit is
-    a message limit, a sourceless `custom` limit, or a token, cost or turn
+    a message limit, a sourceless limit, or a token, cost or turn
     limit entered only on another request's path (decision: Ransom,
     2026-11-19).
   - A host-tool request admitted before the limit was kept runs on the
@@ -1578,8 +1584,9 @@ provider reports a priced serving model (a router), into the sample's
 usage and into every cost node that is not suspended, such as an
 inspect_swarm meter (`None` limit); cost suspension still keeps it off the
 nodes. The admission rule for routers is unchanged. Token and turn limits were already checked after
-such calls; what is new is that unsuspended cost nodes are checked after
-them too, so a node whose own check raises without a limit, such as
+such calls, and so were cost nodes when the call's cost resolved to a
+number (a router's serving-model cost). What is new is that unsuspended
+cost nodes are checked after a call whose resolved cost is `None` too, so a node whose own check raises without a limit, such as
 inspect_swarm's closed lever gate, raises after the call where today it
 raises at the next dispatch.
 
@@ -1922,13 +1929,10 @@ documented. Behaviour changes:
   including a message limit and the tool's own limits: a mixed error ends
   at the owner of all of it, where today the tool replied with its first
   limit. An error holding only limits the tool or handoff entered itself or
-  entered below it (of any kind), sourceless `custom` limits and message
+  entered below it (of any kind), sourceless limits and message
   limits behaves as before; a handoff still
   returns the handed-off agent's new messages and its limit message for
-  them. A limit error of another type raised with no source (code that
-  builds `LimitExceededError("token", ...)` itself) is no longer the
-  call's own and propagates; every error Inspect's limit nodes raise
-  carries its node as `source`.
+  them.
 - **Unpriced models under a cost limit fail.** A call to a model with no
   cost data, made while a sample, agent or swarm cost limit is active, is
   refused before dispatch with an `UnmeteredCallError` (a
@@ -1986,7 +1990,7 @@ documented. Behaviour changes:
   error and every limit in it is its own or inside it (entered in its own
   context, nested scopes included, whatever its kind); its
   `limit_error` is their combined error. Any other leaf or limit, including
-  a sourceless `custom` limit, an enclosing message limit or a sibling
+  a sourceless limit of any type, an enclosing message limit or a sibling
   task's limit, propagates the whole error unchanged, as today. A bare
   error from a limit inside the scope (a plain block's or an `as_solver()`
   limit inside the agent) is now returned by `run(limits=[...])` where
@@ -2045,7 +2049,7 @@ documented. Behaviour changes:
   provider call a bridged request or host tool made once the bridge had
   kept a limit, with a copy of the kept error (`_refuse_after_a_recorded_limit()` and `call_tool()` in the bridge's `service.py`). Now admitted work is stopped by node state alone, so more
   of it can finish after a kept limit: a generation request already in
-  flight when a message limit, a sourceless `custom` limit or a limit on
+  flight when a message limit, a sourceless limit or a limit on
   another request's path is kept; an already-running host tool's child
   `run()` agent, until its own limits stop it; and admitted work under a
   kept limit whose budget a live override has since raised. The exact
@@ -2107,8 +2111,11 @@ documented. Behaviour changes:
   on which `with` blocks the host entered. A CLI that floods requests after a
   limit gets the kept limit's error reply with no model call (rules 3 and 8),
   as today. The bridge's kept set holds one entry per limit node (sourceless
-  errors by identity, and only Inspect's own code raises those into it), so
-  repeated requests do not grow it.
+  errors by identity), so the same limit reached again is kept once. User
+  code (a request filter, a host tool) can supply sourceless errors, but
+  once a limit is kept every later generation and host-tool request is
+  refused at entry, before any such code runs, so only work admitted
+  before the limit was kept can add errors to the set.
 - **Error text** forwarded to the CLI is the existing `provider_error_payload`
   of the limit error (its type, value and limit), unchanged; for a combined
   error those are its primary fields.
@@ -2121,7 +2128,7 @@ documented. Behaviour changes:
   the bridge's dispatch guard removed, work a sandboxed agent's requests
   already started can continue after the bridge keeps a limit (admitted
   requests and host-tool child agents after an off-path, message or
-  `custom` limit, or after a live override raises a budget), bounded by
+  sourceless limit, or after a live override raises a budget), bounded by
   the work in flight and the limits on its own path ("After a limit is
   kept"); new requests are still refused at entry. Suspension is set by
   host code (the approval, review and sentinel machinery Inspect runs), not
@@ -2293,9 +2300,8 @@ under trio with `--runtrio`.
   handoff passes on a foreign token limit and still answers its own; a
   handoff whose agent exceeds a `with token_limit()` entered inside it, and
   one whose agent exceeds a `time_limit()` entered inside it, return the
-  agent's new messages and the handoff limit message, as today; a handed-off
-  agent that raises a sourceless token error propagates it out of the
-  handoff, while one that raises a sourceless `custom` error or reaches a
+  agent's new messages and the handoff limit message, as today; a
+  handed-off agent that raises a sourceless `custom` error or reaches a
   message limit gets the handoff limit message, as today; an
   `as_tool()` agent with its own `cost_limit()`, called inside
   `run(limits=[token_limit(N)])`, whose one call crosses both limits,
@@ -2307,12 +2313,10 @@ under trio with `--runtrio`.
   today.
 - `tests/tools/test_call_tools.py`, `decisive_tool_exception()` and the
   call's ownership test, beside
-  `test_native_group_with_limit_leaf_is_reported_as_the_limit` (its group
-  cases change their `_token_limit()` fixture, a token error with no
-  source, to raise from a `token_limit()` node entered and exceeded inside
-  the tool, and keep their `limit` tool error; a control raising the
-  sourceless token error propagates it out of `execute_tools()`, since it
-  is not the call's own): a native tool run under an enclosing `cost_limit()` enters a `token_limit()` and
+  `test_native_group_with_limit_leaf_is_reported_as_the_limit` (unchanged:
+  its `_token_limit()` fixture, a token error with no source, stays the
+  call's own, as do the sourceless token fixtures in
+  `tests/model/test_tool_exec_shared.py`): a native tool run under an enclosing `cost_limit()` enters a `token_limit()` and
   raises a group of that token limit's error and the enclosing cost
   limit's; the call does not own all of it, so their combined error
   (`limits` both) propagates out of `execute_tools()` (today the first
@@ -2356,7 +2360,7 @@ under trio with `--runtrio`.
     sample errors as today; an operator interrupt with an exceeded sample
     limit keeps its operator outcome.
 - `tests/agent/test_agent_overflow_compaction.py`: a forced compaction whose
-  summary call reaches the sample token limit falls back to the overflow
+  summary call takes usage past (not just to) the sample token budget falls back to the overflow
   filter as today, and the agent's next generation is refused with the
   sample token limit (the sample ends on it); if the overflow filter cannot
   shorten the conversation and the agent returns, the sample's exit check
@@ -2477,13 +2481,9 @@ under trio with `--runtrio`.
 - `tests/tools/test_tools_bridge.py`: a bridged host tool's own limit is
   still the `limit` tool error text and does not end the sample (the
   existing `test_bridged_limit_replies_with_the_native_tool_error` and
-  `test_sandbox_bridge_host_tool_limit_does_not_end_the_sample`, whose
-  `_token_limit()` fixture builds a token error with no source and changes
-  to raise from a `token_limit()` node the tool enters and exceeds, so the
-  error is the call's own). A sourceless-token control raises the old
-  fixture's error inside the tool: it is not the call's own (rule 6), so
-  it is added to the bridge's kept limits while the scaffold gets the same
-  tool-error text, and the sample ends on it when the agent unwinds. Beside `test_bridged_limit_replies_with_the_native_tool_error`,
+  `test_sandbox_bridge_host_tool_limit_does_not_end_the_sample`,
+  unchanged: their `_token_limit()` fixture, a token error with no source,
+  stays the call's own, rule 6). Beside `test_bridged_limit_replies_with_the_native_tool_error`,
   with the `_serve_grouped()` harness: a host tool served under a
   `message_limit()` and then an enclosing `turn_limit()`, both entered
   outside the tool, raises a group of the message limit's error and the
@@ -2596,6 +2596,12 @@ None.
   (`Model._generate_prepared()`); without it, nothing is recorded or checked for
   the call. An output `refused_output()` produces inside `_generate()`
   follows the normal path (a turn and the post-call check).
+- Validating prices and charges. "Cost only grows" ("Token metering must
+  not decrease") assumes every rate a charge is computed from (a
+  configured `ModelCost`, a serving model's price, LiteLLM proxy metadata)
+  is finite and non-negative. None is validated today: a NaN rate makes
+  cost usage NaN, which no comparison refuses, and a negative rate can
+  reopen an exceeded node. This exists on main and is its own change.
 - `SampleLimitEvent` is emitted by every token, cost, turn and message node
   that raises, scoped or not, so the viewer shows an agent's limit as a sample
   limit. inspect_swarm subclasses nodes to avoid it.
