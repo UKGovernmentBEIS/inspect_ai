@@ -1,7 +1,7 @@
 import hashlib
 from logging import getLogger
 from pathlib import Path, PurePosixPath
-from typing import Final, NamedTuple, Sequence
+from typing import NamedTuple, Sequence
 from weakref import WeakKeyDictionary
 
 import anyio
@@ -23,17 +23,6 @@ from .read import read_skills
 from .types import Skill, SkillInfo
 
 logger = getLogger(__name__)
-
-INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT: Final = True
-"""`install_skills()` runs a scope member's `chmod +x` from `/`.
-
-Inside a `sandbox_identity()` scope, an `install_skills()` call that names no
-user runs `chmod +x` for scripts as the member from `/`, not from the
-provider's default working directory, which the member may not be able to
-enter.
-Companion packages check for this name to detect the behaviour on an
-installed inspect_ai, so keep it.
-"""
 
 
 async def install_skills(
