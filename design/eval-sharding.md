@@ -642,34 +642,35 @@ Each guarantee below is the one a named test in `tests/log/test_shards.py`
 their own sections.
 
 - A merge of shards run with sample ids holds every selected sample and
-  epoch. For deterministic metrics that are mathematically
-  order-insensitive, with a deterministic epoch reducer, over values the
-  stored JSON preserves (for example mean, accuracy and stderr over plain
-  scores), each named metric value it
-  computes equals the corresponding value of a fresh merge of the same
-  companion and of an unsharded run, up to floating-point error, wherever
-  the native run has results
-  (`test_merge_of_sample_id_shards_matches_an_unsharded_run`,
-  `test_incremental_merges_equal_fresh_merges`). The exceptions:
-  - **Randomness.** `bootstrap_stderr` and bootstrap `ci` (clustered too)
-    draw from NumPy's global random state, which the merge does not reset
-    ("Results"); a custom epoch reducer that draws at random is likewise
-    rerun by every merge without reset random state.
-  - **Input order.** The merge feeds metrics in id, then epoch order; a
-    native run in epoch, then dataset order. An order-sensitive metric can
-    differ ("Results"), and so can the last bits of a floating-point
-    aggregate such as `mean()`, whose summation order follows the input
-    order: scores 0.1, 0.1, 0.4 averaged in two orders give
-    0.20000000000000004 and 0.19999999999999998, and values that cancel
-    (1e16, -1e16, 1.0) can differ by far more. So can anything that follows the first score
-    seen: a wildcard metric (`{"*": [...]}`) expands in the key order of
-    the first dictionary score, so the results can come out in a different
-    order, and the default headline, which is the first result, can name a
-    different metric.
+  epoch. For the task in
+  `test_merge_of_sample_id_shards_matches_an_unsharded_run`, the merge's
+  results equal an unsharded run's; for the task in
+  `test_incremental_merges_equal_fresh_merges`, an incremental pass's
+  samples and header (results included, identity fields aside) equal a
+  fresh merge's.
+- Merged results can differ from an unsharded run's, or an incremental
+  pass's from a fresh merge's, in these known ways. The list is of the
+  known differences, not a guarantee that nothing else differs:
+  - **Randomness.** Random metrics (`bootstrap_stderr`, bootstrap `ci`,
+    clustered too) and random epoch reducers are rerun without setting or
+    resetting random state ("Results").
+  - **Input order.** The merge feeds metrics in id-then-epoch order, a
+    native run in epoch-then-dataset order; order-sensitive metrics,
+    anything keyed on the first score seen (such as wildcard metric
+    expansion and the default headline), and the rounding of
+    floating-point sums can differ, by a lot when values cancel.
   - **JSON round-tripping.** Metrics see scores and metadata in their
     stored JSON form, so a tuple becomes a list
     (`test_merged_metrics_see_metadata_as_stored_in_the_log`,
     `test_merged_metrics_see_scores_as_stored_in_the_log`).
+  - **All samples errored.** When every sample errored before scoring, a
+    native run has no results, while the merge writes one per declared
+    scorer with zero scored samples and each metric's empty-input value
+    (`empty_metric_value` in `src/inspect_ai/_eval/task/results.py`;
+    "Results").
+  - **Model context.** A metric that calls `get_model()` sees the merging
+    caller's model, not the shards' (decision: Ransom, 2026-11-04;
+    `test_a_metric_that_needs_a_model_uses_the_callers`).
   - **Edits.** Sample and header edits to the merged log are carried by
     incremental passes, which a fresh merge does not have
     (`test_merged_log_edits_are_kept`).
@@ -680,10 +681,6 @@ their own sections.
     (`test_overlap_without_shared_records_is_refused_once_a_shard_is_read_again`).
   - **Identity.** `eval_id`, `run_id` and `created` are kept by incremental
     passes and minted anew by a fresh merge.
-  - **All samples errored.** When every sample errored before scoring, a
-    native run has no results, while the merge writes one per declared
-    scorer with zero scored samples and each metric's empty-input value
-    ("Results").
 - A pass reads only changed and new shards
   (`test_incremental_merge_reads_only_changed_shards`), and an incomplete
   set raises and writes nothing without `allow_incomplete`
@@ -699,16 +696,15 @@ their own sections.
   (`test_a_merge_builds_no_model_from_the_shard_logs`,
   `test_score_names_from_the_log_never_load_files`), and every thread it
   starts is owned (`test_merge_thread_calls_go_through_run_owned`).
-- Deletion leaves each shard its current attempt or none when interrupted
-  and is finished by rerunning
-  (`test_delete_shards_interrupted_then_finished`), deletes no name written
-  after its listing (`test_delete_shards_leaves_attempt_written_after_listing`),
-  stays inside the companion (`test_delete_shards_does_not_follow_symlinks`,
-  `test_delete_shards_stays_in_prefix`), and after a failed delete leaves
-  the new merged log written (`test_delete_shards_storage_error`) and the
-  deletion finishable by rerunning
+- Deletion leaves each shard its current attempt or none when interrupted,
+  and an interrupted or failed deletion is finished by rerunning
   (`test_delete_shards_interrupted_then_finished`,
-  `test_delete_shards_on_s3_interrupted_then_finished`).
+  `test_delete_shards_on_s3_interrupted_then_finished`). It deletes no name
+  written after its listing
+  (`test_delete_shards_leaves_attempt_written_after_listing`), stays inside
+  the companion (`test_delete_shards_does_not_follow_symlinks`,
+  `test_delete_shards_stays_in_prefix`), and after a failed delete leaves
+  the new merged log written (`test_delete_shards_storage_error`).
 - `eval_set()` refuses a log directory holding shards
   (`tests/test_eval_set.py::test_eval_set_refuses_a_log_dir_holding_shards`),
   and `eval_retry` refuses an id- or count-selected merged log
@@ -838,7 +834,9 @@ Limits users meet are listed in [Sharding,
 - **S3 server-side composition** (`UploadPartCopy`) of the merged log,
   for very large logs.
 - **A lossless metric-input cache** in the merged log, to avoid reading
-  carried samples on every writing pass.
+  carried samples on every writing pass. Such a cache would be an extra
+  zip member, and `seed_from_prior_log` keeps unknown zip members, so it
+  would be copied into seeded retries.
 - **A stale-lock check** for local merges (a same-host dead process).
 - **Other storage backends** for the merge (GCS, Azure).
 - **Chunked-shape samples** in shards, once the recorder writes them.
@@ -859,11 +857,3 @@ Limits users meet are listed in [Sharding,
 - **Per-epoch sharding**, which `sample_id` and `limit` cannot express.
 - **Sanitising control characters** in log-derived names that `inspect
   log` commands print.
-- **An empty first result hides the default headline.** List-wrapped
-  dictionary metrics (`metrics=[{"*": [mean()]}]`) add an empty result for
-  the empty simple-metric list ahead of the dictionary results, and the
-  default headline reads only the first result, so the log has none
-  (`src/inspect_ai/_eval/task/results.py`, `src/inspect_ai/log/_headline.py`);
-  this affects unsharded logs too.
-- `seed_from_prior_log` keeps unknown zip members, so any future extra
-  member would be copied into seeded retries.
