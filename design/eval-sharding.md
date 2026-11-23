@@ -643,8 +643,9 @@ their own sections.
 
 - A merge of shards run with sample ids holds every selected sample and
   epoch. For deterministic metrics that are mathematically
-  order-insensitive, over values the stored JSON preserves (for example
-  mean, accuracy and stderr over plain scores), each named metric value it
+  order-insensitive, with a deterministic epoch reducer, over values the
+  stored JSON preserves (for example mean, accuracy and stderr over plain
+  scores), each named metric value it
   computes equals the corresponding value of a fresh merge of the same
   companion and of an unsharded run, up to floating-point error, wherever
   the native run has results
@@ -652,7 +653,8 @@ their own sections.
   `test_incremental_merges_equal_fresh_merges`). The exceptions:
   - **Randomness.** `bootstrap_stderr` and bootstrap `ci` (clustered too)
     draw from NumPy's global random state, which the merge does not reset
-    ("Results").
+    ("Results"); a custom epoch reducer that draws at random is likewise
+    rerun by every merge without reset random state.
   - **Input order.** The merge feeds metrics in id, then epoch order; a
     native run in epoch, then dataset order. An order-sensitive metric can
     differ ("Results"), and so can the last bits of a floating-point
