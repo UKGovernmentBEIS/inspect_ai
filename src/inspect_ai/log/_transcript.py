@@ -1,5 +1,8 @@
 import contextlib
+import contextvars
+import functools
 import os
+import threading
 import weakref
 from collections import ChainMap, deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -602,9 +605,8 @@ class Transcript:
         resident_tail: int = 100,
         history_provider: TranscriptHistoryProvider | None = None,
     ) -> None:
-        # The transcript and its subscribers are not thread-safe. Log records
-        # from another thread are recorded on this loop (see
-        # `log_to_transcript`); other events from another thread are not.
+        # The transcript and its subscribers are not thread-safe, so events
+        # from other threads are recorded on this loop (see `_on_loop_thread`).
         self._loop_thread = current_loop_thread()
         self._event_logger = None
         self._event_loggers = []
@@ -751,6 +753,9 @@ class Transcript:
         self._timelines.append(timeline)
 
     def _event(self, event: Event) -> None:
+        self._on_loop_thread(self._add_event, event)
+
+    def _add_event(self, event: Event) -> None:
         track_pending = event.uuid is not None
         event_key = self._ensure_event_key(event)
         # Duplicate detection covers RESIDENT events only — tracking every
@@ -848,6 +853,9 @@ class Transcript:
         return self._agent_spans.agent_span(span_id)
 
     def _event_updated(self, event: Event) -> None:
+        self._on_loop_thread(self._update_event, event)
+
+    def _update_event(self, event: Event) -> None:
         if self._is_resident(event):
             self._process_event(event)
             self._set_attachment_refs(event)
@@ -859,6 +867,34 @@ class Transcript:
             self._process_event(event, retain_attachments=False)
             self._update_pending(event)
             self._prune_unreferenced_attachments()
+
+    def _on_loop_thread(self, record: Callable[[Event], None], event: Event) -> None:
+        """Record an event on the event loop thread of this transcript.
+
+        The transcript and its subscribers are not thread-safe. On another
+        thread (for example in `to_thread`, which copies the context and so
+        the transcript), this function schedules `record` on the loop thread
+        and returns. The callback runs in a copy of the caller's context,
+        because trio does not copy it. The loop runs the callbacks in the
+        order of the calls, so an update comes after the event that it
+        updates. The transcript does not contain the event until the callback
+        runs, and subscribers get the event as it is when the callback runs.
+
+        The caller creates the event, so the event keeps its time and span.
+        If the loop is closed, the transcript does not get the event, and no
+        error goes to the caller. With `asyncio.run` or `anyio.run`, the eval
+        log is written before the loop closes. If the loop is stopped but not
+        closed, the callback stays in the queue. A transcript that was created
+        where no loop runs records on the calling thread.
+        """
+        loop_thread = self._loop_thread
+        if loop_thread is None or loop_thread.ident == threading.get_ident():
+            record(event)
+        else:
+            with contextlib.suppress(RuntimeError):
+                loop_thread.call_soon(
+                    functools.partial(contextvars.copy_context().run, record, event)
+                )
 
     def _update_pending(self, event: Event) -> None:
         """Reflect ``event``'s current pending state in the sidecar."""

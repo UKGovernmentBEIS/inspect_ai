@@ -361,3 +361,57 @@ def test_log_after_loop_closed_is_not_recorded(backend: str) -> None:
         _log_warning_in_thread("worker")
 
     assert list(tr.events) == []
+
+
+async def test_worker_thread_event_does_not_make_loop_event_skip_subscriber() -> None:
+    """An event a worker thread adds must not make an event the loop adds at the same time skip a subscriber (issue 6692)."""
+    tr = Transcript()
+    loop_thread = threading.get_ident()
+    seen: list[tuple[int, str]] = []
+    worker_added = threading.Event()
+    release_worker = threading.Event()
+
+    def subscriber(event: Event) -> None:
+        seen.append((threading.get_ident(), _label(event)))
+        if threading.get_ident() != loop_thread:
+            worker_added.set()
+            assert release_worker.wait(timeout=10)
+
+    def worker() -> None:
+        tr._event(InfoEvent(data="worker"))
+        worker_added.set()
+
+    tr._subscribe(subscriber)
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(anyio.to_thread.run_sync, worker)
+        assert await anyio.to_thread.run_sync(worker_added.wait, 10)
+        tr.info("loop")
+        release_worker.set()
+
+    assert sorted(label for _, label in seen) == ["loop", "worker"]
+    assert {thread for thread, _ in seen} == {loop_thread}
+
+
+async def test_worker_thread_event_update_comes_after_the_event() -> None:
+    """A worker thread's event and its update reach subscribers on the loop thread, in that order."""
+    tr = Transcript()
+    loop_thread = threading.get_ident()
+    event = InfoEvent(data="worker", pending=True)
+    # (thread, whether the transcript already holds the event): False for the add, True for the update
+    seen: list[tuple[int, bool]] = []
+    tr._subscribe(
+        lambda _event: seen.append(
+            (threading.get_ident(), any(e is event for e in tr.events))
+        )
+    )
+
+    def worker() -> None:
+        tr._event(event)
+        event.pending = None
+        tr._event_updated(event)
+
+    await anyio.to_thread.run_sync(worker)
+
+    assert seen == [(loop_thread, False), (loop_thread, True)]
+    assert list(tr.events) == [event]
+    assert tr.pending_events == []
