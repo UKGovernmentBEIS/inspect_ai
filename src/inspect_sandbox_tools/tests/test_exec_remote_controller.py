@@ -451,7 +451,7 @@ class TestPollDeliversOutputAfterLeaderExits:
         result, stdout, _ = await self._poll_to_completion(controller, pid)
 
         # the reader stops with the read (of up to 4096 bytes) that reaches the limit
-        assert len(stdout) < limit + room + 4096
+        assert limit + room <= len(stdout) < limit + room + 4096
         assert (result.state, result.exit_code) == ("completed", 0)
 
     @pytest.mark.asyncio
