@@ -834,3 +834,109 @@ def test_sentinel_is_the_last_positional_parameter(fn: Callable[..., Any]) -> No
     # the sidecar client's setting follows it, for the same reason
     expected = ["sentinel"] if fn is Task.__init__ else ["sentinel", "sentinel_proxy"]
     assert names[-len(expected) :] == expected
+
+
+# a task file whose sentinel reads a file named relative to the directory it is
+# built in, as a protocol naming a function by its file's path does; the task
+# fails once, so there is a retry
+NOTED_TASK = """
+from pathlib import Path
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import solver
+from inspect_sentinel import BeforeToolCall, Decision, Protocol, protocol
+
+FAILED_ONCE = Path(__file__).parent / "failed_once"
+
+
+@protocol
+def noted(note: str) -> Protocol:
+    reason = Path(note).read_text()
+
+    async def decide(context, step: BeforeToolCall, escalations) -> Decision | None:
+        return Decision.reject(reason)
+
+    return decide
+
+
+@solver
+def fail_once():
+    async def solve(state, generate):
+        if not FAILED_ONCE.exists():
+            FAILED_ONCE.touch()
+            raise RuntimeError("first attempt fails")
+        return state
+
+    return solve
+
+
+@task
+def noted_task():
+    return Task(
+        dataset=[Sample(input="x", target="y")],
+        solver=fail_once(),
+        sentinel=noted(note="note.txt"),
+    )
+"""
+
+
+def write_noted_task(project: Path) -> Path:
+    tasks = project / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "note.txt").write_text("noted")
+    task_file = tasks / "noted_task.py"
+    task_file.write_text(NOTED_TASK)
+    return task_file
+
+
+@pytest.mark.parametrize("retry_from", ["parent", "elsewhere"])
+def test_eval_retry_builds_the_logged_sentinel_in_the_task_files_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, retry_from: str
+) -> None:
+    task_file = write_noted_task(tmp_path / "project")
+    if retry_from == "parent":
+        monkeypatch.chdir(tmp_path / "project")
+        task = "tasks/noted_task.py"
+    else:
+        # run outside the project, so the log records the task file by its
+        # absolute path, and retry from yet another directory
+        (tmp_path / "run").mkdir()
+        (tmp_path / "retry").mkdir()
+        monkeypatch.chdir(tmp_path / "run")
+        task = str(task_file)
+    log = eval(task, model="mockllm/model", log_dir=str(tmp_path / "logs"))[0]
+    assert log.status == "error"
+    if retry_from == "elsewhere":
+        monkeypatch.chdir(tmp_path / "retry")
+
+    retried = eval_retry(log, log_dir=str(tmp_path / "logs"))[0]
+
+    assert retried.status == "success", retried.error
+    assert config_data(retried) == {"name": "noted", "params": {"note": "note.txt"}}
+
+
+def test_cli_eval_retry_builds_the_logged_sentinel_in_the_task_files_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_noted_task(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    log = eval("tasks/noted_task.py", model="mockllm/model", log_dir="logs")[0]
+    assert log.status == "error"
+
+    result = subprocess.run(
+        [sys.executable, "-c", CLI_MAIN, "eval-retry", log.location]
+        + ["--log-dir", "logs", "--display", "none"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+    assert result.returncode == 0, result.stderr
+    [retried] = [
+        read_eval_log(str(file))
+        for file in (tmp_path / "logs").glob("*.eval")
+        if str(file) != log.location
+    ]
+    assert retried.status == "success", retried.error

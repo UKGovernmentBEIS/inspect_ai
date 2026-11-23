@@ -1916,7 +1916,6 @@ async def eval_retry_async(
         )
         approval = eval_log.eval.config.approval
         review = eval_log.eval.config.review
-        sentinel = eval_log.eval.config.sentinel
         notification: bool | str | None = eval_log.eval.config.notification
         message_limit = eval_log.eval.config.message_limit
         config_token_limit = eval_log.eval.config.token_limit
@@ -2052,6 +2051,7 @@ async def eval_retry_async(
                     ),
                     log=eval_log,
                     log_info=None,
+                    sentinel=eval_log.eval.config.sentinel,
                 ),
                 model=model,
                 model_roles=model_roles,
@@ -2066,7 +2066,6 @@ async def eval_retry_async(
                 metadata=metadata,
                 approval=approval,
                 review=review,
-                sentinel=sentinel,
                 sentinel_proxy=sentinel_proxy,
                 notification=notification,
                 log_level=log_level,

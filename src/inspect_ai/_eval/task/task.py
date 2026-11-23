@@ -25,7 +25,11 @@ if TYPE_CHECKING:
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
 
-from inspect_ai._sentinel._config import SentinelSpec, resolve_sentinel_spec
+from inspect_ai._sentinel._config import (
+    SentinelConfig,
+    SentinelSpec,
+    resolve_sentinel_spec,
+)
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.registry import (
@@ -584,6 +588,9 @@ class PreviousTask:
     sandbox: SandboxEnvironmentSpec | None
     log: EvalLog
     log_info: EvalLogInfo | None
+    # eval-retry's: the sentinel the log records, which replaces the task's
+    # own as an eval's sentinel does
+    sentinel: SentinelConfig | None = None
 
 
 def resolve_approval(
