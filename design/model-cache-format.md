@@ -13,7 +13,9 @@ not parse or validate is a cache miss. `inspect cache list --pruneable` and
 alone. Before storing an output, the cache reads the serialized entry back
 with the lookup's own reader and stores it only if the result equals the
 original (leaving `metadata` fields out of the comparison), so a cache hit
-returns what was stored.
+returns what was stored. Each entry is written to a temporary file in its
+directory and renamed into place, so a reader sees either a whole entry or
+none.
 
 Entries written by earlier versions (pickles) are never loaded. New entries
 use a different file name (`<key>.jsonl` beside the old `<key>`), so an
@@ -48,8 +50,12 @@ Goals:
   cache miss. It never raises into `generate()`.
 - A cache hit returns the output that was stored. An output that does not
   read back equal is not cached, so a hit never changes content, tool calls
-  or their arguments; the only change a hit can show is that a `metadata`
-  value of a non-JSON type comes back in its JSON form (Store).
+  or their arguments; the only changes a hit can show are that a `metadata`
+  value of a non-JSON type comes back in its JSON form and that an empty
+  `completion` comes back filled from the message text, as validation fills
+  it (Store).
+- A reader never sees a partly written entry, and concurrent writers of the
+  same key leave one whole entry, not a mix of both.
 - List and prune read only a bounded header, never the cached output, so
   they judge an entry by its header alone: a file whose header does not
   parse or validate is skipped, and an entry with a valid expired header is
@@ -68,8 +74,8 @@ Non-goals:
   it does not authenticate who wrote the entry.
 - Migrating existing pickle entries. No command or option converts them,
   because converting means unpickling (decision: Ransom, 2026-11-20).
-- Atomic writes, a cache index, size limits or compression (see Not this
-  design and Alternatives).
+- A cache index, size limits or compression (see Not this design and
+  Alternatives).
 - Changing the cache key computation.
 
 ## Current behaviour
@@ -84,11 +90,21 @@ All in `src/inspect_ai/model/_cache.py` unless noted.
   (`_path_is_in_cache`, `_is_safe_model_name`) keep entries inside the root.
 - **Store.** `cache_store` writes `pickle.dump((expiry, output))`, where
   `expiry` is a timezone-aware UTC `datetime` or `None` (`_cache_expiry`).
-  The write is not atomic. Any exception is traced and the output is not
-  cached. Content-filter outputs are never cached.
+  The write is not atomic: the entry is opened with `open(filename, "wb")`
+  and written in place, so a concurrent reader can see a partly written file,
+  and two processes storing the same key can leave a file that mixes both
+  bodies yet parses. An exception while writing is traced and the output is
+  not cached. Content-filter outputs are never cached.
+- **Path setup.** Both `cache_store` and `cache_fetch` resolve the entry
+  path with `_cache_entry_path` before their exception handler. It catches
+  only the `ValueError` of the outside-the-cache refusal; `cache_path`
+  creates the cache root with `mkdir`, so a failure there (for example a
+  regular file at `INSPECT_CACHE_DIR/generate`, which gives
+  `FileExistsError`) raises into `generate()` from both.
 - **Lookup.** `cache_fetch` opens the key's file and calls `pickle.load()`,
   then checks the value is a `ModelOutput` and that it has not expired; an
-  expired entry is deleted. Any exception is traced and treated as a miss.
+  expired entry is deleted. An exception while reading is traced and
+  treated as a miss (path setup, above, is outside that handler).
   The only caller is `Model._generate` (`src/inspect_ai/model/_model.py`),
   which also calls `cache_store`.
 - **List and prune.** `cache_list_expired` walks the whole cache tree (or
@@ -117,8 +133,15 @@ All in `src/inspect_ai/model/_cache.py` unless noted.
   inspect_evals, inspect_swe, inspect_swarm or inspect_vscode calls the
   generate-cache API or reads its directory.
 - **JSON fidelity.** The output models' validators are data
-  transformations (stop-reason migration, document name and MIME type from
-  the string, message ID assignment when absent). None imports or evaluates
+  transformations (stop-reason migration, tool-call type migration, document
+  name and MIME type from the string, message ID assignment when absent, and
+  `ModelOutput.set_completion`, which sets an empty `completion` to the first
+  choice's message text). The last one changes a value an in-memory output
+  can hold: the Anthropic provider's `pause_turn` continuation merges the
+  first response's content into the continuation's message and keeps the
+  continuation's empty `completion`, so such an output reads back with a
+  different `completion`. Outputs read from eval logs have already been
+  through the validator, so the corpus below cannot show it. None imports or evaluates
   anything, constructs an object the input chooses, or opens a path the
   input names; the one file access is `mimetypes.guess_type` in
   `ContentDocument.set_name_and_mime_type` (`src/inspect_ai/_util/content.py`),
@@ -191,8 +214,7 @@ deserializer.
   legacy entries (below). An entry with a valid expired header is returned
   whether its body is complete, truncated or invalid: it can no longer be
   served either way. Files with an invalid header are skipped (traced),
-  since they may be partial writes in progress or entries of another format
-  version.
+  since they may be damaged files or entries of another format version.
 - **Prune** (`cache_prune`) re-classifies each file it is given in the same
   way, from the header alone, before deleting it, keeping today's
   inside-the-cache check, and deletes only current-format entries with a
@@ -224,8 +246,10 @@ unchanged. Before writing, the writer checks the round trip: it serializes
 the output, parses and validates those bytes with the lookup's own reader,
 and compares the result with the original using `==`, leaving the `metadata`
 fields (`ModelOutput.metadata`, `ChatMessageAssistant.metadata`,
-`ModelFallback.metadata`) out of the comparison. It writes the same bytes
-only if they are equal. If serialization or reading fails, or the result is
+`ModelFallback.metadata`) out of the comparison and treating an empty
+`completion` on the original as the first choice's message text, which is
+what `set_completion` gives on reading (so merged `pause_turn` outputs stay
+cached). It writes the same bytes only if they are equal. If serialization or reading fails, or the result is
 not equal, the output is not cached: `generate()` returns it normally, and a
 `warn_once` per model says caching was skipped and why. Lookup is unchanged.
 
@@ -251,9 +275,10 @@ the types JSON cannot carry. Among the outputs it refuses:
 `metadata` values of non-JSON types that do serialize come back in their
 JSON form (a `datetime` as a string), which is what the eval log records for
 the same output; leaving `metadata` out of the comparison keeps such outputs
-cached. So a cache hit never returns changed content, tool calls or
-arguments, and the `metadata` normalization is the only difference a hit
-can show. Of the 6,916 real outputs measured in Current behaviour, none was
+cached. Likewise a hit returns an empty `completion` filled from the message
+text, as a read of the eval log does. So a cache hit never returns changed
+content, tool calls or arguments, and these two normalizations are the only
+differences a hit can show. Of the 6,916 real outputs measured in Current behaviour, none was
 refused. The guarantee is `==` equality, not type identity: a value that
 compares equal to its JSON form, such as an `IntEnum` or a `defaultdict` in
 tool-call arguments, is cached and comes back as an `int` or a `dict`; no
@@ -266,13 +291,29 @@ where pickle caches them today.
 
 ### Concurrency and failure
 
-Writes stay non-atomic, as today. A lookup that sees a partly written file
-finds an invalid header or body and treats it as a miss. List and prune see
-only the header: a partly written file whose header line is incomplete is
-skipped, and one whose complete header is already expired is listed and
-pruned like any other expired entry. There is no new locking. No cache
-failure on any path raises into `generate()`; the CLI commands keep their
-current error behaviour.
+Writes are atomic. The writer creates a temporary file in the entry's own
+directory with `tempfile.mkstemp` (exclusive creation, under a name such as
+`.<key>.jsonl.<random>.tmp` that matches no entry pattern), writes the
+bytes, closes it and renames it over `<key>.jsonl` with `os.replace`. A
+reader therefore opens either the previous whole entry, the new whole entry
+or no file; when two processes store the same key, the last rename wins and
+the entry is one writer's whole file. If anything fails before the rename,
+the temporary file is removed, the existing entry is untouched, and the
+output is not cached (traced). On Windows the rename fails while another
+process has the entry open; that store is skipped the same way. There is no
+`fsync`: after a system crash an entry may be empty or partial, which
+readers treat as invalid. There is no new locking.
+
+List and prune never match temporary files, so they neither list nor delete
+a write in progress. `cache_size` counts and `cache_clear` removes
+temporary files left by a process killed between creating and renaming
+one.
+
+No cache failure raises into `generate()`. `cache_fetch` and `cache_store`
+resolve the entry path and create directories inside their exception
+handler, so a failure there is traced and is a miss or a skipped store,
+like a failure while reading or writing; the outside-the-cache refusal keeps
+its warning. The CLI commands keep their current error behaviour.
 
 ### Format versions
 
@@ -320,6 +361,12 @@ format change bumps `version`.
   missed type is a hit that returns changed data. Rejected for the
   store-time round-trip check, which compares what lookup would return with
   the original (decision: Ransom, 2026-11-20).
+- **A body hash in the header, checked on lookup, instead of atomic
+  writes.** It would turn a mixed or partial file into a miss, but readers
+  would still see such files, every lookup would hash the body, and list and
+  prune, which read only the header, could not use it. A temporary file
+  renamed into place prevents those files from existing (decision: Ransom,
+  2026-11-23).
 - **Deleting a key's legacy file when its new entry is stored.** Cleans up
   without a prune, but deletes entries an older Inspect sharing the
   directory still uses, and adds a write-path side effect. Prune is the
@@ -371,7 +418,8 @@ pickle's 9.9 KB (pickle stores the repeated string once) and 36.9 KB with
   the `inspect cache list --pruneable` and `inspect cache prune` help and
   table title say so. `cache_size` and `cache_clear` are unchanged.
 - **Outputs.** A cache hit returns the stored output, with non-JSON
-  `metadata` values in their JSON form (see Store). Outputs that do not read
+  `metadata` values in their JSON form and an empty `completion` filled from
+  the message text (see Store). Outputs that do not read
   back equal (for example YAML-parsed dates, non-string keys or objects in
   tool-call arguments, surrogate code points, some NaN values) and outputs
   that
@@ -385,6 +433,9 @@ pickle's 9.9 KB (pickle stores the repeated string once) and 36.9 KB with
 Untrusted input reaching the new code: the bytes of any file under the cache
 root, file names in it, and symlinks. Handling:
 
+- The writer creates its temporary file with exclusive creation, so a name
+  planted in the directory is never opened for writing, and `os.replace`
+  replaces a symlink at the entry path rather than writing through it.
 - Lookup reads one path derived from the key; list and prune open only files
   whose names match an entry pattern, after today's inside-the-cache check,
   which resolves symlinks.
@@ -458,8 +509,29 @@ or a model provider (they use `mockllm` and `INSPECT_CACHE_DIR` under
   `Model._generate` replaces `output.time` with the measured duration before
   storing: an output whose `time` is `float("nan")` is not stored (no entry,
   one warning).
-- **Metadata normalization is still cached.** An output with a `datetime` in
-  `metadata` is cached, and the hit returns it as its ISO string.
+- **Normalized outputs are still cached.** The counterpart cases of the
+  lossy-outputs test, each cached and returned on the second call without
+  reaching the provider: an output with a `datetime` in `metadata`, whose
+  hit returns it as its ISO string; and an output with an empty
+  `completion` and non-empty message text (the shape of a merged Anthropic
+  `pause_turn` output), whose hit returns `completion` equal to that text.
+- **Concurrent writers and a reader.** Two processes repeatedly store
+  different large outputs (megabytes of text) under one key while a third
+  repeatedly fetches it. After the first store completes, every fetch is a
+  hit equal to one of the two outputs, and no temporary file remains at the
+  end. Written in place, a fetch sees a partly written file in a large share
+  of reads (a spike of this shape found 238 of 585 reads partial in place,
+  none with a temporary file and rename), so the test fails without atomic
+  writes.
+- **Failed rename.** With `os.replace` patched to raise, a store leaves the
+  existing entry unchanged and no temporary file, and `generate()` returns
+  its output.
+- **Temporary files are not entries.** A leftover `.<key>.jsonl.<random>.tmp`
+  holding a valid expired entry is not listed or pruned, is counted by
+  `cache_size`, and is removed by `cache_clear`.
+- **Path setup failures are misses.** With a regular file at
+  `INSPECT_CACHE_DIR/generate`, `generate(cache=True)` returns the output on
+  two identical calls, calling the provider both times, and raises nothing.
 - **Containment tests keep their purpose.** The existing tests that check
   lookup, list, prune and clear stay inside the cache directory
   (`test_cache_store_and_fetch_stay_in_cache_dir`,
@@ -489,11 +561,13 @@ or a model provider (they use `mockllm` and `INSPECT_CACHE_DIR` under
    `<key>.jsonl`; `cache_list_expired` and `cache_prune` on entry-name
    patterns with header-only reads and legacy detection; remove the `pickle`
    import; the store-time round-trip check and the warning for outputs not
-   cached.
+   cached; the temporary-file-and-rename write; path setup inside the
+   lookup and store handlers.
    Tests: never-deserialized, tripwire, round trip, non-ASCII text, invalid
    headers, invalid bodies, expiry, legacy entries, lossy outputs, NaN
-   refused, metadata normalization, the containment tests, and the updated existing
-   tests.
+   refused, normalized outputs, concurrent writers and a reader, failed
+   rename, temporary files, path setup failures, the containment tests, and
+   the updated existing tests.
 2. **CLI and docs** (`src/inspect_ai/_cli/cache.py`, `docs/caching.qmd`).
    Pruneable table title and help text; a caching docs section on the entry
    format, that entries from earlier versions are not reused, and that
@@ -507,9 +581,8 @@ None.
 
 ## Not this design
 
-- **Atomic cache writes** (write to a temporary file and rename). Partial
-  files are already misses; atomic writes would avoid the wasted generation
-  when two identical calls race.
+- **Removing orphaned temporary files** left by a process killed during a
+  store, by prune or by age. `cache_clear` removes them.
 - **Pickle compatibility shims.** `ModelOutput.__setstate__` and the
   `getattr(..., "cache_breakpoint", None)` helpers in `_openai.py` and
   `anthropic.py` exist for old pickled cache entries; once nothing in the
