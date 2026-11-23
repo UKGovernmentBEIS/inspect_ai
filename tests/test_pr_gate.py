@@ -533,8 +533,7 @@ def test_fetch_ctx_records_linked_issue_repository(monkeypatch, tmp_path):
 def test_fetch_ctx_lists_one_page_of_files(
     monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
-    # The file listing is the only call whose count could grow with the PR.
-    # One page holds every file of any PR that could be trivial.
+    # Paginating the file list cost up to about 30 requests for a large PR.
     (tmp_path / ".github").mkdir()
     (tmp_path / ".github" / "qualified.yml").write_text("users:\n  - 111222\n")
     monkeypatch.chdir(tmp_path)
@@ -552,9 +551,9 @@ def test_fetch_ctx_lists_one_page_of_files(
     pr_gate.fetch_ctx(LOCAL_REPO, 42, "somebody", 999999, "NONE")
 
     assert [c for c in calls if "/files" in c[0]] == [
-        (f"repos/{LOCAL_REPO}/pulls/42/files?per_page=100",)
+        (f"repos/{LOCAL_REPO}/pulls/42/files?per_page={pr_gate.FILES_PAGE_SIZE}",)
     ]
-    assert 100 >= pr_gate.TRIVIAL_MAX_LINES
+    assert pr_gate.FILES_PAGE_SIZE >= pr_gate.TRIVIAL_MAX_LINES
 
 
 # --- enforcement: a close verdict closes the PR unless it changed during the
