@@ -2031,8 +2031,10 @@ documented. Behaviour changes:
   caught there and reported as the child's `stopped` result, and the parent
   continues, where today it escapes the child and ends the sample. The
   synchronous default dispatcher (`_dispatch()`) calls `run(limits=None)`,
-  which catches nothing, so the same limit there still propagates, as
-  today. A limit of the parent's `run()` or of the sample still escapes a
+  which catches nothing, so the same limit leaves `run()`; it runs inside
+  the deepagent's `agent` tool call, whose `execute_tools()` maps it to the
+  `limit` tool error (the node was entered inside the call, rule 6) and the
+  parent continues, as today. A limit of the parent's `run()` or of the sample still escapes a
   background child and ends the sample.
 - **Cache hits under an exceeded limit raise.** A cached response under an
   already-exceeded token or cost limit is still served, and now raises that
@@ -2257,8 +2259,9 @@ under trio with `--runtrio`.
   background deepagent child (no limits of its own) whose agent exceeds a
   plain `with token_limit()` inside it completes with the `stopped`
   result naming that limit and the parent continues, while the same agent
-  dispatched synchronously with no limits propagates the error and ends
-  the sample, and a background child that exceeds its parent `run()`'s
+  dispatched synchronously with no limits through the `agent` tool and
+  `execute_tools()` gives the `limit` tool error, the parent continues and
+  the sample records no limit, as today, and a background child that exceeds its parent `run()`'s
   token limit still ends the sample;
   - plain blocks: inside `with token_limit(n)`, after a call exceeds the
     block's limit and the error is caught inside the block, a further call
