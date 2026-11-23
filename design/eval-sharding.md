@@ -199,13 +199,14 @@ written:
   before (by digest); the read selections are pairwise disjoint; and the
   merged records each read shard owned number exactly its ledger count
   (`check_reads`);
-- a pass that plans from the shards refuses a merged log whose records
-  were added or removed outside the merge, with the advice to delete it and
-  rebuild from the shards
-  (`test_merge_refuses_a_merged_log_changed_outside_the_merge`). A pass
-  that returns the merged log as recorded (no attempt left, or a resumed
-  deletion) trusts it. An edit that keeps the records (a changed score) is
-  carried ("The sample set");
+- a pass that plans from the shards refuses a merged log whose number of
+  records no longer matches its ledger counts (records added or removed
+  outside the merge), with the advice to delete it and rebuild from the
+  shards (`test_merge_refuses_a_merged_log_changed_outside_the_merge`). A
+  change that keeps the count, such as a record replaced by one with
+  another id or an edited score, is not detected and is carried ("The
+  sample set"). A pass that returns the merged log as recorded (no attempt
+  left, or a resumed deletion) trusts it;
 - the selection, given or recorded, covers every held id
   (`ShardSelectionError` names the ids outside it).
 
@@ -640,8 +641,14 @@ Each guarantee below is the one a named test in `tests/log/test_shards.py`
 their own sections.
 
 - A merge of shards run with sample ids holds every selected sample and
-  epoch, and the same results and reductions as an unsharded run of the
-  same task with deterministic metrics (`test_merge_of_sample_id_shards_matches_an_unsharded_run`).
+  epoch, and, for the test's task, the same results and reductions as an
+  unsharded run of that task
+  (`test_merge_of_sample_id_shards_matches_an_unsharded_run`). This holds
+  for deterministic metrics whose inputs survive the stored JSON form
+  unchanged; a tuple in a score or in dataset or score metadata (or any
+  other type JSON does not keep) can give a different result ("Results";
+  `test_merged_metrics_see_metadata_as_stored_in_the_log`,
+  `test_merged_metrics_see_scores_as_stored_in_the_log`).
 - With disjoint selections and no edits to the merged log (its samples or
   its header), an incremental pass and a fresh merge of the same companion
   hold the same sample members, and their headers are equal apart from the
