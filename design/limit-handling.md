@@ -845,16 +845,8 @@ it raises ("Current behaviour"), and this design changes none of them:
 - A result-review error propagates out of the call after the tool has run.
   The call does not map it.
 
-What it changes is what happens to a sentinel-stage or result-review error
-once that handling has produced a bare limit error, as `_sentinel_exception()`
-in native tools and `_guarded()` in the bridge do, and as a result-review
-error already is. From there it is a limit error like any other: a
-reduction that meets it with other limits combines them (rule 4), and a
-combined error holding it is not mapped by the call either; an enclosing owner (an outer tool, `run()`, the
-sample) applies rule 6 to it; and the sandbox bridge adds it to its kept
-limits beside any it already holds (rule 8), so a tool-stage message limit
-of a request admitted before a token limit was kept is raised with that
-token limit when the agent unwinds, where today the bridge keeps only one.
+Once policy handling has left a bare limit error, rules 4, 6 and 8 apply to
+it as to any other.
 
 The rest of the design relies on one fact about these calls: they run with
 token, turn and cost limits suspended (rule 5), and suspension leaves
@@ -923,13 +915,12 @@ when `plan()` returns or raises; the group is joined in
 its cancellation cleanup, reach a sample limit there, catch the error and
 return, after `plan()` has returned. So the check runs after all of the
 sample's work has joined, and only when the solvers returned normally: it
-covers the token, cost and turn nodes the runner entered for the sample
-(`state._token_limit`, `state._cost_limit` and the turn node it creates),
-and an attempt whose solvers raised, were cancelled or were interrupted
-keeps its outcome. It does not use `sample_limits()`, which returns the
-outermost node of each tree: an enclosing scope's when the eval runs inside
-a scoped limit, whose budget the sample's own violation need not exceed. It
-raises every one of those nodes that is exceeded at exit, each with its
+reads the sample's token, cost and turn limits from the limit trees, as
+`sample_limits()` does (each tree's root, which is the sample's own: "An
+eval is not run inside an enclosing limit"), not from the node objects held
+on `TaskState`, which a solver can replace with a copy, and an attempt whose
+solvers raised, were cancelled or were interrupted keeps its outcome. It
+raises every one of those limits that is exceeded at exit, each with its
 `SampleLimitEvent`, as one combined error (rule 4), and the existing `except LimitExceededError`
 records it, `EvalSample.limit` from its primary fields.
 
@@ -1122,6 +1113,20 @@ refuses nothing and does not count at exit. Inspect validates none of
 these inputs today, `_compile_token_formula()` keeps today's behaviour,
 and validation is a separate change ("Not this design").
 
+### An eval is not run inside an enclosing limit
+
+The sample's token, cost and turn limits are the outermost nodes of their
+trees, as `sample_limits()` and the checkpoint code
+(`dump_sample_runtime()`, `restore_sample_runtime()`) already assume. That
+is a premise of this design, like valid prices and token formulas. An eval
+run inside an enclosing scoped limit of one of those kinds (a caller of
+`eval_async()` inside its own `token_limit()`, `cost_limit()` or
+`turn_limit()`) is not handled for that kind: the sample's exit check and
+a checkpoint restore target the enclosing node, so a sample limit a solver
+swallows goes unrecorded and a restore seeds the enclosing counters, as
+today, and an exceeded enclosing limit that a solver swallowed is recorded
+as the sample's. Fixing it is a separate change ("Not this design").
+
 ### Checkpoints
 
 The checkpoint payload is unchanged. A checkpoint stores the sample roots'
@@ -1298,9 +1303,9 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
 1. **A sample limit reaches the runtime.** A sample token, cost or turn
    limit that raises for any of its agents' model calls, native or
    bridged, in a tool, a handoff, a subagent or a filter, reaches the
-   runtime's code as a `LimitExceededError` whose `source` is the node the
-   runner entered for the sample (the one `sample_limits()` returns unless
-   the eval runs inside an enclosing scoped limit), or whose `limits` include
+   runtime's code as a `LimitExceededError` whose `source` is the sample's
+   node (the one `sample_limits()` returns; "An eval is not run inside an
+   enclosing limit"), or whose `limits` include
    that node's error (a combined error), bare or in a group. This holds while the limit
    remains the deciding outcome under each site's existing ranking of
    limits against other errors, which this design keeps ("Precedence"): a
@@ -2308,11 +2313,7 @@ under trio with `--runtrio`.
   swallows an exceeded sample token limit and returns is recorded as
   limited; a solver that uses exactly the budget and returns is not; a solver that catches the limit and raises
   `state.token_limit` is not; a resume for scoring over a spent budget is
-  not; an eval run inside an enclosing `token_limit(100)`, `cost_limit(100)`
-  or `turn_limit(100)` whose own limit of 1 is exceeded, and whose solver
-  swallows the error and returns, is recorded with the sample's limit of 1
-  (for turns, two already-admitted concurrent generations take the count
-  to 2), one case per kind; a sample with a cost limit whose solver calls an unpriced model fails
+  not; a sample with a cost limit whose solver calls an unpriced model fails
   with `UnmeteredCallError`;
   - the runner's reduction (`first_or_combined_limit()`): a solver that
     enters a `with token_limit()` inside the sample's cost limit and lets
@@ -2388,12 +2389,6 @@ under trio with `--runtrio`.
   - a refusal first in a group of only limits and refusals still fails the
     sample; a group `[ModelRefusalError, ValueError, LimitExceededError]`
     keeps the limit and logs the others, as today;
-  - a bridged sentinel monitor call and an approval call made for a
-    request in flight after the bridge kept a limit still run (pinned, as
-    today), and the agent ends on the kept limit when it unwinds; a host
-    tool whose `as_tool()` child runs a monitor while a limit is kept
-    during its execution gets no `SentinelFailure`, and the sample ends on
-    the kept limit;
   - after a limit is kept, two fresh sequential host-tool requests, one to
     an `as_tool()` agent and one to a tool calling `run()` with a monitor
     configured, each get the `limit` tool-error reply and make no tool,
@@ -2434,11 +2429,6 @@ under trio with `--runtrio`.
     provider call; a newly reached outer token limit at
     the next request's entry joins the kept limit, and the reply's error
     holds both;
-  - a request admitted before the bridge kept a token limit whose
-    tool-stage sentinel monitor then reaches an inherited message limit
-    (unwrapped bare by `_guarded()`, as today) adds the message limit to
-    the kept ones, and the agent's unwind raises the combined error of
-    both, the earlier entered first;
   - a host tool whose model call reaches the sample limit after a member
     limit was kept adds the sample limit to the kept ones;
   - through `_run_bridged_agent()` (a one-sample eval with a served scaffold,
@@ -2505,8 +2495,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    scope's marker) and the exit check over its own limits on a normal return.
    `src/inspect_ai/agent/_run.py`: the return after the block.
    `src/inspect_ai/_eval/task/run.py`: combining the limits of the
-   escaping group, and the exit check over the token, cost and turn nodes
-   it entered for the sample after
+   escaping group, and the exit check over the sample's token, cost and turn limits, read
+   from the limit trees as `sample_limits()` reads them, after
    the sample task group has joined when the solvers returned, skipped
    when the attempt is `resume_for_scoring`.
    Tests: the owner-exit cases, which need these checks: the `run()` and
@@ -2589,6 +2579,11 @@ None.
   decrease as tokens are used; `_compile_token_formula()` accepts
   `input - output` today, and rejecting such formulas belongs to the same
   change. This exists on main and is its own change.
+- An eval run inside an enclosing scoped limit ("An eval is not run
+  inside an enclosing limit"). Fixing it means pointing the sample's exit
+  check and the checkpoint dump and restore at the nodes the runner
+  entered rather than the tree roots, and deciding what a stored nested
+  payload, which holds the enclosing totals, restores into.
 - Where a policy call's error ends up. A sentinel stage's, tool result
   review's or approval's error keeps today's routes, which differ by stage
   and between native and bridged execution (`SentinelFailure` unwrapped at
