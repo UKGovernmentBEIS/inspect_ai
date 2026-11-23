@@ -229,11 +229,7 @@ read attempt holds is *taken*. This is exact because a shard selects whole
 samples, so each id belongs to the one shard that selected it; the digest
 check keeps a changed shard's selection fixed, and the count checks make
 the dropped records exactly that shard's previous ones. So an incremental
-pass plans the same record keys as a fresh merge of the same companion, and
-while the merged samples are unedited it writes the same samples, ledger
-and metric inputs in the same order. Results are then equal too for
-deterministic metrics and reducers; a stochastic metric ("Results") can
-differ between the two, as between any two merges of the same inputs.
+pass plans the same record keys as a fresh merge of the same companion.
 
 All of this assumes the launcher's contract that shard selections are
 disjoint. A fresh merge reads every selection and refuses any overlap. An
@@ -241,10 +237,8 @@ incremental pass compares only the selections of the shards it reads, and
 an unchanged shard is represented by a digest and a count, which cannot
 reveal its selection. So an overlap with an unchanged shard is caught only
 when a record it already contributed falls in a read shard's selection, or
-when that shard is next read; until then the incremental merge can accept
-a set a fresh merge refuses
-(`test_overlap_without_shared_records_is_refused_once_a_shard_is_read_again`).
-The merged records are still each held once.
+when that shard is next read. The merged records are still each held
+once.
 
 Consequences, stated in the docs: deleting one `<k>/` by hand makes later
 merges refuse until the rest of the companion is deleted or the files are
@@ -253,11 +247,8 @@ samples is refused until it moves to its own `<k>/` or the merged log is
 deleted and rebuilt. Header edits to the merged log (tags, metadata) are
 carried to every later pass. A sample edited in the merged log (with
 `edit_score()`, say) is carried as edited until its shard changes, and the
-results of every writing pass are computed over the carried copy, so after
-such an edit an incremental merge's results can differ from a fresh merge
-of the same companion until that shard is read again
-(`test_merged_log_edits_are_kept`). `invalidated` follows the merged
-samples.
+results of every writing pass are computed over the carried copy.
+`invalidated` follows the merged samples.
 
 ### Status
 
@@ -305,8 +296,12 @@ the rest as listed:
   `INSPECT_EVAL_LOG_FILE_PATTERN` is unchanged (decision: Ransom,
   2026-10-13: the pattern is almost certain never to change);
 - `eval_set_id` when the shards share one;
-- `dataset.sample_ids`, the selection merged against; `config.sample_id`
-  and `config.limit` are unset;
+- `dataset.sample_ids`: for an id selection, the requested ids; for a
+  count or no selection, only the ids the merged samples hold, so there the
+  completeness target is the ledger's recorded sample count or the dataset
+  size, not this list
+  (`test_merge_records_and_reads_back_each_selection_form`);
+  `config.sample_id` and `config.limit` are unset;
 - `eval.shards`, the ledger;
 - `status`, `error` and `invalidated` ("Status", "The sample set");
 - `results` and the reductions ("Results"), and `stats` summed from the
@@ -342,21 +337,20 @@ previous merged log) used, raw, under names rebuilt from each key rather
 than copied from a source directory, so a crafted member name cannot place
 data under another key (`RawMemberWriter` in `src/inspect_ai/_util/zipfile.py`).
 A changed shard's member whose CRC and size equal the merged log's copy is
-taken from the merged log. Each sample is decompressed as it streams and
-parsed include-only (`_SampleParse` in `_write.py`): only its id, epoch,
-scores, error, invalidation and its `sample_init` event's metadata are
-built, so for an ordinary sample peak memory follows the largest single
-JSON value rather than the transcript. A sample holding a number the
-streaming parser refuses (NaN, infinity, or a number too large for it) is
-read and decompressed again and parsed whole (`_parse_whole`), as
-`read_eval_log(exclude_fields=...)` falls back, so for that sample memory
-follows its whole size, transcript included
-(`test_a_sample_the_streaming_parser_refuses_is_parsed_whole`). What the
-merge does keep in full is every sample's scores, because metrics take all
-of them at once and recomputing from less is the lossy input it rules out
-(decision: Ransom and JJ Allaire, 2026-09-18: recompute from full samples,
-not summaries, which truncate score answers, explanations and metadata).
-The merge never builds an `EvalLog` holding samples.
+taken from the merged log. The member bytes stream through: each sample is decompressed as it is
+copied and parsed include-only (`_SampleParse` in `_write.py`), building
+only its id, epoch, scores, error, invalidation and its `sample_init`
+event's metadata. The merge keeps every sample's scores and initial
+metadata in memory until the results are computed, because metrics take
+all of them at once and recomputing from less is the lossy input it rules
+out (decision: Ransom and JJ Allaire, 2026-09-18: recompute from full
+samples, not summaries, which truncate score answers, explanations and
+metadata). A sample holding a number the streaming parser refuses (NaN,
+infinity, or a number too large for it) is read and decompressed again and
+parsed whole (`_parse_whole`), as `read_eval_log(exclude_fields=...)` falls
+back, so that sample is held whole, transcript included, while it is
+parsed (`test_a_sample_the_streaming_parser_refuses_is_parsed_whole`). The
+merge never builds an `EvalLog` holding samples.
 
 ### Results
 
@@ -380,10 +374,11 @@ recipe that keeps the task's reducer.
 The results are `eval_results` over all merged samples, as the task runner
 computes them, in the caller's model context: the merge builds no model
 from the shards' recorded model, base URL, model arguments or roles
-(decision: Ransom, 2026-11-04). The metric inputs are those of a fresh,
-unsharded run (decision: Ransom, 2026-10-27): each score sees the sample's
-dataset metadata as its `sample_init` event recorded it, not metadata a
-solver changed, and the scorer's unqualified name. It follows that:
+(decision: Ransom, 2026-11-04). The metric inputs are built as a fresh,
+unsharded run builds them (decision: Ransom, 2026-10-27): each score sees
+the sample's dataset metadata as its `sample_init` event recorded it, not
+metadata a solver changed, and the scorer's unqualified name. It follows
+that:
 
 - a sample with scores but no `sample_init` event (logged without events)
   is refused;
@@ -396,16 +391,13 @@ solver changed, and the scorer's unqualified name. It follows that:
 - metrics see values in their stored JSON form, so a tuple is a list and a
   datetime a string; the merge does not detect or recover such types
   (decisions: Ransom, 2026-10-29 and 2026-11-02);
-- metrics run over samples in sample id order (ids as text), then epoch, so
-  an order-dependent metric equals an unsharded run of the same samples in
-  that order (decision: Ransom, 2026-10-29);
+- metrics run over samples in sample id order (ids as text), then epoch
+  (decision: Ransom, 2026-10-29), while a native run feeds them in its plan
+  order, epoch then dataset position;
 - the merge reruns the task's metrics without setting or resetting any
-  random state. A stochastic metric, such as the built-in
+  random state, so a stochastic metric, such as the built-in
   `bootstrap_stderr` or a bootstrap `ci` (clustered or not), draws from
-  NumPy's global random state, so its value can differ between an
-  incremental and a fresh merge, or between two merges of the same inputs,
-  as it does between two unsharded runs. What the merge makes equal is the
-  metric inputs and their order.
+  NumPy's global random state.
 
 Native `eval_retry` builds reused samples' metric inputs differently (final
 metadata, stored score key); the merge follows the fresh run and leaves
@@ -641,23 +633,32 @@ Each guarantee below is the one a named test in `tests/log/test_shards.py`
 their own sections.
 
 - A merge of shards run with sample ids holds every selected sample and
-  epoch, and, for the test's task, the same results and reductions as an
-  unsharded run of that task
-  (`test_merge_of_sample_id_shards_matches_an_unsharded_run`). This holds
-  for deterministic metrics whose inputs survive the stored JSON form
-  unchanged; a tuple in a score or in dataset or score metadata (or any
-  other type JSON does not keep) can give a different result ("Results";
-  `test_merged_metrics_see_metadata_as_stored_in_the_log`,
-  `test_merged_metrics_see_scores_as_stored_in_the_log`).
-- With disjoint selections and no edits to the merged log (its samples or
-  its header), an incremental pass and a fresh merge of the same companion
-  hold the same sample members, and their headers are equal apart from the
-  merged log's identity and location (`eval_id`, `run_id`, `created`,
-  which a fresh merge mints anew), through added, replaced and failed
-  attempts, for the deterministic metrics of the test task
-  (`test_incremental_merges_equal_fresh_merges`; "The sample set"). Header
-  edits to the merged log are carried by incremental passes only
-  (`test_merged_log_edits_are_kept`).
+  epoch. For deterministic, order-insensitive metrics over values the
+  stored JSON preserves (for example mean, accuracy and stderr over plain
+  scores), it gives the same results as a fresh merge of the same
+  companion and as an unsharded run
+  (`test_merge_of_sample_id_shards_matches_an_unsharded_run`,
+  `test_incremental_merges_equal_fresh_merges`). The exceptions:
+  - **Randomness.** `bootstrap_stderr` and bootstrap `ci` (clustered too)
+    draw from NumPy's global random state, which the merge does not reset
+    ("Results").
+  - **Input order.** The merge feeds metrics in id, then epoch order; a
+    native run in epoch, then dataset order. An order-sensitive metric can
+    differ ("Results").
+  - **JSON round-tripping.** Metrics see scores and metadata in their
+    stored JSON form, so a tuple becomes a list
+    (`test_merged_metrics_see_metadata_as_stored_in_the_log`,
+    `test_merged_metrics_see_scores_as_stored_in_the_log`).
+  - **Edits.** Sample and header edits to the merged log are carried by
+    incremental passes, which a fresh merge does not have
+    (`test_merged_log_edits_are_kept`).
+  - **Overlap.** An overlap with an unchanged shard is detected only once a
+    record it holds falls in a read shard's selection or that shard is read
+    again, so until then an incremental pass can accept a set a fresh merge
+    refuses
+    (`test_overlap_without_shared_records_is_refused_once_a_shard_is_read_again`).
+  - **Identity.** `eval_id`, `run_id` and `created` are kept by incremental
+    passes and minted anew by a fresh merge.
 - A pass reads only changed and new shards
   (`test_incremental_merge_reads_only_changed_shards`), and an incomplete
   set raises and writes nothing without `allow_incomplete`
@@ -673,9 +674,6 @@ their own sections.
   (`test_a_merge_builds_no_model_from_the_shard_logs`,
   `test_score_names_from_the_log_never_load_files`), and every thread it
   starts is owned (`test_merge_thread_calls_go_through_run_owned`).
-- For ordinary samples, peak memory does not grow with transcript size
-  (`test_merge_peak_memory_does_not_grow_with_transcript_size`; the
-  whole-parse fallback is in "The merged log").
 - Deletion leaves each shard its current attempt or none when interrupted
   and is finished by rerunning
   (`test_delete_shards_interrupted_then_finished`), deletes no name written
@@ -792,10 +790,10 @@ Limits users meet are listed in [Sharding,
 - **Viewer.** Shard hiding checks the access policy before reading a merged
   log's header, and a merged log the requester may not read hides nothing.
 - **Resource use.** A hostile shard can make a merge expensive, as the same
-  file makes `read_eval_log` expensive. For ordinary samples memory follows
-  the largest JSON value and all samples' scores, not transcripts; a sample
-  holding a number the streaming parser refuses is parsed whole ("The
-  merged log", "Members").
+  file makes `read_eval_log` expensive. The merge streams member bytes and
+  keeps every sample's scores and initial metadata until results are
+  computed; a sample holding a number the streaming parser refuses is
+  parsed whole ("The merged log", "Members").
 - **Lock file.** Its contents are informational and never parsed for a
   decision.
 
