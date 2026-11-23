@@ -229,7 +229,8 @@ read attempt holds is *taken*. This is exact because a shard selects whole
 samples, so each id belongs to the one shard that selected it; the digest
 check keeps a changed shard's selection fixed, and the count checks make
 the dropped records exactly that shard's previous ones. So an incremental
-pass plans the same record keys as a fresh merge of the same companion.
+pass plans the same record keys as a fresh merge of the same companion,
+whenever the fresh merge accepts the set (see the overlap rule below).
 
 All of this assumes the launcher's contract that shard selections are
 disjoint. A fresh merge reads every selection and refuses any overlap. An
@@ -385,9 +386,14 @@ that:
 - a score whose key no declared scorer produced (set by a solver) is
   refused, because a fresh run and a retry pass it to metrics differently
   (decision: Ransom, 2026-10-28);
-- shards run without scoring merge to a log with no scorer results, as an
-  unscored run does, and a set mixing scored and unscored samples is
-  refused;
+- a set mixing scored samples and samples that ran without scoring is
+  refused. When some sample ran without scoring and did not error, the
+  merge computes results with no scorers, as an unscored run does. When
+  every sample errored before scoring (for example `score=False` or
+  `fail_on_error=False` with every solver raising), the shard logs and a
+  native run have no results, but the merge keeps the task's declared
+  scorers and writes a result per scorer with zero scored samples and NaN
+  metrics (`_results` in `_write.py`);
 - metrics see values in their stored JSON form, so a tuple is a list and a
   datetime a string; the merge does not detect or recover such types
   (decisions: Ransom, 2026-10-29 and 2026-11-02);
@@ -637,7 +643,8 @@ their own sections.
   order-insensitive, over values the stored JSON preserves (for example
   mean, accuracy and stderr over plain scores), each named metric value it
   computes equals the corresponding value of a fresh merge of the same
-  companion and of an unsharded run, up to floating-point error
+  companion and of an unsharded run, up to floating-point error, wherever
+  the native run has results
   (`test_merge_of_sample_id_shards_matches_an_unsharded_run`,
   `test_incremental_merges_equal_fresh_merges`). The exceptions:
   - **Randomness.** `bootstrap_stderr` and bootstrap `ci` (clustered too)
@@ -668,6 +675,9 @@ their own sections.
     (`test_overlap_without_shared_records_is_refused_once_a_shard_is_read_again`).
   - **Identity.** `eval_id`, `run_id` and `created` are kept by incremental
     passes and minted anew by a fresh merge.
+  - **All samples errored.** When every sample errored before scoring, a
+    native run has no results, while the merge writes one per declared
+    scorer with zero scored samples and NaN metrics ("Results").
 - A pass reads only changed and new shards
   (`test_incremental_merge_reads_only_changed_shards`), and an incomplete
   set raises and writes nothing without `allow_incomplete`
@@ -689,8 +699,10 @@ their own sections.
   after its listing (`test_delete_shards_leaves_attempt_written_after_listing`),
   stays inside the companion (`test_delete_shards_does_not_follow_symlinks`,
   `test_delete_shards_stays_in_prefix`), and after a failed delete leaves
-  the new merged log written and finishable
-  (`test_delete_shards_storage_error`).
+  the new merged log written (`test_delete_shards_storage_error`) and the
+  deletion finishable by rerunning
+  (`test_delete_shards_interrupted_then_finished`,
+  `test_delete_shards_on_s3_interrupted_then_finished`).
 - `eval_set()` refuses a log directory holding shards
   (`tests/test_eval_set.py::test_eval_set_refuses_a_log_dir_holding_shards`),
   and `eval_retry` refuses an id- or count-selected merged log

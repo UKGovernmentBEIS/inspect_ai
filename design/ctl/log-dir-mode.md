@@ -1018,8 +1018,9 @@ the source for sample state:
   one holder and no pending or conflicted keys either way. The merged
   summary rows are the shards' rows as copied by the merge, except where
   the merged log was edited afterwards: `edit_score` on a finished merged
-  log is supported while its shards are unchanged (sharding
-  implementation, "The sample set"), and it changes that row's scores
+  log is supported while its shards are unchanged
+  ([`eval-sharding.md`](../eval-sharding.md), "The sample set"), and it
+  changes that row's scores
   (`src/inspect_ai/log/_score.py:13`) but not its key, status, tokens or
   messages, which are all the aggregate row takes from summaries. So the
   row is the same; per-sample content is not, which is why the shortcut
