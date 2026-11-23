@@ -199,3 +199,27 @@ def test_check_names_a_dist_that_is_not_a_committed_directory(
 
     assert result.returncode != 0
     assert NOT_A_TREE in result.stdout
+
+
+def test_check_fails_when_dist_is_a_gitlink_to_the_built_tree(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A submodule entry whose id is the build's tree hash is not a directory."""
+    repo = Repo(tmp_path)
+    repo.commit_dist()
+    built = subprocess.run(
+        ["git", "rev-parse", "HEAD:" + str(DIST)],
+        cwd=repo.root,
+        env=repo.env,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    repo.git("rm", "-r", "-q", "--cached", str(DIST))
+    repo.git("update-index", "--add", "--cacheinfo", f"160000,{built},{DIST}")
+    repo.git("commit", "-q", "-m", "gitlink")
+
+    result = repo.run_check()
+
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert NOT_A_TREE in result.stdout
