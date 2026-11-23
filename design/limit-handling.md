@@ -29,7 +29,7 @@ of it: an enclosing `run()`, the sample, or a runtime such as
 inspect_swarm. Suspending a kind of limit hides
 that kind from the calls in the block: approval, review and sentinel calls,
 which suspend token, turn and cost limits, neither charge nor check them,
-as today. Once the sandbox bridge has kept a limit, it refuses every new
+as today, and an error such a call raises keeps today's routing. Once the sandbox bridge has kept a limit, it refuses every new
 request and host-tool request at entry, whatever is suspended; work
 already admitted stops only at reached limits on its own path.
 
@@ -96,9 +96,7 @@ Its edge cases all come from the same few interactions in Inspect:
   this design").
 - **Groups are reduced before they are compared.** A task group's errors
   are reduced to the first in several places before any limit-aware code
-  sees them, and a sentinel wraps a limit its monitor reached in another
-  error type. Either way an outer limit can be dropped in favour of an inner
-  one or hidden from its owner.
+  sees them, so an outer limit can be dropped in favour of an inner one.
 - **Limit errors are consumed by code that does not own them.** A tool maps
   any `LimitExceededError` to a tool error, a handoff catches any, and a
   bridged host tool answers any as a tool error. A sample limit reached inside
@@ -287,14 +285,14 @@ Errors are consumed in these places:
   - `collect()` uses `unwrap_exception_group("single")`, which unwraps only a
     one-member group, so it keeps every candidate
     (`src/inspect_ai/util/_collect.py`).
-- In-process sentinel execution wraps any exception escaping a monitor or
-  protocol in `SentinelFailure(error)` (`src/inspect_ai/_sentinel/_dispatch.py`).
-  A limit reached by a monitor's model call therefore leaves `generate()` as
-  a `SentinelFailure`. Native tools unwrap it when the decisive error is a
-  limit (`_sentinel_exception()` in `_call_tools.py`), and so does the
-  sample runner (`_task_run_sample_attempt()` in `src/inspect_ai/_eval/task/run.py`). `apply_limits()` and the bridge's
-  `_forward_provider_errors()` do not, so the bridge answers it as an
-  ordinary error and keeps no limit.
+- Approval, tool result review and in-process sentinel monitors run model
+  calls of their own around a tool or generation (*policy calls*). An error
+  a policy call raises takes its own route: in-process sentinel execution
+  wraps any exception escaping a monitor or protocol in
+  `SentinelFailure(error)` (`src/inspect_ai/_sentinel/_dispatch.py`), which
+  native tools, the bridge and the sample runner each handle in their own
+  way, and a result-review error propagates out of the tool call after the
+  tool has run (`_apply_tool_review()` in `_call_tools.py`).
 - The sample runner flattens an escaping exception to its first leaf
   (`raise_unwrapped()` with `inner_exception()` from `src/inspect_ai/util/_anyio.py`, in `_task_run_sample_attempt()`). It records any
   `LimitExceededError` as the sample's limit, whatever its source
@@ -409,7 +407,9 @@ tokens per call, run against this branch's base):
    own conversation (see "Ownership"). A limit error with no source has
    no node and is inside no scope: `apply_limits()` and `run()` let it
    propagate, and at a tool, handoff or host tool it is the call's own,
-   whatever its type, and is mapped as today.
+   whatever its type, and is mapped as today. The mapping covers errors
+   the call's body raises; an error a policy call raises keeps today's
+   routing ("Policy calls").
 7. **Each owner checks its own limits at exit.** A limit error that
    reaches its owner stands. When an `apply_limits()` scope ends normally,
    Inspect checks the token, cost and turn limits that scope entered, and
@@ -611,7 +611,7 @@ by the order of `limits`, which only sets the primary fields (rule 4).
 | `apply_limits()` | catches a bare owned error only | with `catch_errors=True`, catches an error, bare, combined or a group, when every leaf is a limit error and every limit in it is the scope's own or inside the scope (entered in its own context; below); its `limit_error` is their combined error; otherwise the error propagates unchanged |
 | Sample runner (`_task_run_sample_attempt()`) | first leaf of the group | its first leaf, or, when that is a limit, the combined error of its limits; `EvalSample.limit` from the combined error's primary fields |
 | `decisive_tool_exception()` (`_call_tools.py`), for native tools and a bridged host tool's `_raised()` (`host_tool.py`) | termination, unexpected error, first limit, first leaf | termination, unexpected error, the combined error of all the limits, first leaf; the caller then applies the ownership test to every limit in it ("Ownership") |
-| `decisive_sentinel_exception()` (`_call_tools.py`) | termination, other error, first leaf | unchanged: a monitor's calls run with token, turn and cost limits suspended, so the only limit it can reach is a message limit ("Sentinel failures") |
+| `decisive_sentinel_exception()` (`_call_tools.py`) | termination, other error, first leaf | unchanged: a monitor's calls run with token, turn and cost limits suspended, so the only limit it can reach is a message limit ("Policy calls") |
 | Bridge `_first_control()`, a group of only limits and refusals | its first leaf | its first leaf, or, when that is a limit, the combined error of its limits: a leading refusal still wins |
 | Bridge `_first_control()`, any other group | its first limit (other errors are logged) | the combined error of its limits (other errors are logged) |
 | Bridge kept limit | one, replaced by a same-tree ancestor or sample root | every limit reached, kept as a set; refusals and the unwind raise their combined error |
@@ -745,7 +745,11 @@ the sandbox bridge keeps a limit is under "After a limit is kept".
 
 ### Ownership
 
-Rule 6 at the call boundaries. A call enters no limits of its own, so a
+Rule 6 at the call boundaries. The mapping applies to errors raised by
+the tool or agent body. An error raised by a policy call (a sentinel stage,
+tool result review or approval) keeps today's routing, including
+`SentinelFailure` and its unwrapping, and this design changes none of it
+("Policy calls"). A call enters no limits of its own, so a
 limit is *the call's own* when it is a limit of any kind entered
 in the call's own context (the call's task and the tasks started inside
 it, which carry its scope marker, rule 1) while the call ran, a message limit (it measured the call's own
@@ -774,10 +778,7 @@ tool error; a handoff still answers its own limit) pin this nesting.
   (a termination and an unexpected error still decide first, as today).
   If the error is owned by the call, it is mapped to the `limit` tool
   error as today, with the combined error's message. That covers `as_tool()` limits, any `with token_limit()` inside
-  a tool, and message limits, except a message limit raised by a sentinel
-  protocol's own model call in a tool-call or tool-result stage, or in the
-  generate stage of a generation made inside the tool (an `as_tool()`
-  agent's), which keeps the sentinel path (Sentinel failures). An error that is not owned is handled like a
+  a tool, and message limits. An error that is not owned is handled like a
   termination raised in a tool: its `ToolEvent` is completed, its siblings
   in the stage are cancelled, and the error propagates out of
   `execute_tools()` as the combined `LimitExceededError`, not as a group:
@@ -817,64 +818,20 @@ tool error, as today.
 limits through. The sandbox service's route of a raw limit error to the sample
 is unchanged: the bridge never raises one through it.
 
-### Sentinel failures
+### Policy calls
 
-The in-process sentinel wrapper is unchanged: it still wraps any exception
-escaping a monitor or protocol in `SentinelFailure`
-(`src/inspect_ai/_sentinel/_dispatch.py`). Under rule 5 a monitor's
-own model calls run with token, turn and cost limits suspended, so they
-cannot reach one of those limits or be refused by one. The one limit a monitor can reach is a message limit: suspension
-leaves message limits active, and `generate()` checks the innermost message
-limit before dispatch (`Model.generate()`,
-`check_message_limit()`), so a monitor whose own prompt
-reaches an inherited message cap raises a message limit. It keeps today's
-handling: the wrapper turns it into a `SentinelFailure`. In a native
-tool's tool-call (before-tool) or tool-result (after-tool) stage, and in
-the generate stage of a generation made inside a native tool (an
-`as_tool()` agent's, whose `SentinelFailure` escapes the tool body),
-`execute_tools()` unwraps it into the stage's or call's exception as today
-(`_sentinel_exception()` and `call_tool_task()`'s `except SentinelFailure`
-in `_call_tools.py`), and it propagates out of `execute_tools()` as the bare
-message limit, without the ownership mapping: it does not become a
-`limit` tool error, even though the same limit reached in the tool's
-body would. The sample runner then records it as the sample's message
-limit. Ownership (`execute_tools()`) refers here.
-From a native generate stage outside any native tool (a solver's or a
-top-level agent's own generation) it reaches the sample runner as a
-`SentinelFailure`, not a `LimitExceededError`, so the runner's
-`except LimitExceededError` does not record it: `handle_error()` only
-selects the inner monitor error for reporting (`_task_run_sample_attempt()` in `src/inspect_ai/_eval/task/run.py`), and the
-sample ends in an error, with the ordinary error-retry handling and no
-`EvalSampleLimit`, as today. In a bridge the outcome depends on the
-request:
+Approval, tool result review and sentinel monitors run model calls of their
+own around a tool or generation. The ownership mapping applies to errors
+raised by the tool or agent body ("Ownership"). An error raised by a policy
+call (a sentinel stage, tool result review or approval) keeps today's
+routing ("Current behaviour"), including `SentinelFailure` and its
+unwrapping; this design changes none of it.
 
-- In a bridged generation's generate stage (the sentinel run around the
-  request's own generation), it becomes an ordinary error reply, with no
-  kept limit.
-- In the tool-call and tool-result stages a bridged request runs (the
-  tool-call stage while approving the generation's calls,
-  `apply_bridge_tool_approval()`; the tool-result stage at
-  the request's entry, `_bridge_generate_impl()`), `_guarded()`
-  unwraps a deciding monitor limit and re-raises it bare
-  (`src/inspect_ai/agent/_bridge/_sentinel.py`), so the message
-  limit reaches the request's error handling and joins the bridge's kept
-  limits, as any limit (rule 8), and is raised with them when the agent
-  unwinds.
-- In a bridged host tool, `tool_call_error()` does not map it, so
-  `_raised()` treats it as an unexpected error, which requests sample failure
-  (`_raised()` and `_execute_granted()` in `src/inspect_ai/agent/_bridge/sandbox/host_tool.py`).
-  When the agent unwinds, `_error_after_unwind()` selects a requested
-  failure ahead of the kept limit (`sandbox/bridge.py`). So a
-  monitor in an in-flight host tool that reaches a message limit ends the
-  sample in an error, even when the bridge has already kept a token, cost
-  or turn limit. That is the exception guarantee 4 makes for an exit
-  decided by a non-limit error ("What a runtime can rely on"), and the
-  priority is unchanged.
-
-Message limits are outside the owners' exit checks, so a message limit
-turned into an error reply (the generate stage) or a sample failure (a host
-tool) is not recorded later; one the bridge kept from a tool stage is
-raised when the agent unwinds. This design does not change either path.
+The rest of the design relies on one fact about these calls: they run with
+token, turn and cost limits suspended (rule 5), and suspension leaves
+message limits active, so the only limit a policy call can reach is a
+message limit (`generate()` checks the innermost message limit before
+dispatch, `check_message_limit()` in `Model.generate()`).
 
 ### The owner's exit check
 
@@ -1807,7 +1764,7 @@ entry number). An error that reaches its owner stands (decision: Ransom,
 
 **Raise a monitor's limit bare from the sentinel wrapper.** With token,
 turn and cost suspended for monitors, a monitor can reach only a message limit, which keeps today's
-`SentinelFailure` handling ("Sentinel failures") (decision: Ransom,
+`SentinelFailure` handling ("Policy calls") (decision: Ransom,
 2026-11-16).
 
 **Exempt role models at start by name.** Skipping the start-time price
@@ -1923,7 +1880,8 @@ documented. Behaviour changes:
   entered below it (of any kind), sourceless limits and message
   limits behaves as before; a handoff still
   returns the handed-off agent's new messages and its limit message for
-  them.
+  them. An error a policy call raises (a sentinel stage, tool result
+  review or approval) keeps today's routing ("Policy calls").
 - **Unpriced models under a cost limit fail.** A call to a model with no
   cost data, made while a sample, agent or swarm cost limit is active, is
   refused before dispatch with an `UnmeteredCallError` (a
@@ -2304,19 +2262,7 @@ under trio with `--runtrio`.
   tool error. A `time_limit()` entered inside the tool that expires is the
   `limit` tool error, as today (the call owns it by its marker). The existing
   `test_a_group_of_sentinel_limits_keeps_its_first_limit`
-  (`tests/sentinel/test_sentinel_dispatch.py`) stays as it is. A new
-  `test_a_sentinel_tool_stage_message_limit_propagates` there pins the
-  sentinel exception: a sentinel protocol whose before-tool, then
-  after-tool, model call reaches an inherited message limit propagates the
-  bare message limit out of `execute_tools()`; its control sends the same
-  prompt from the tool body and gets the `limit` tool error. Beside it, an
-  `as_tool()` agent whose generation's generate-stage protocol call (before
-  and, separately, after the generation) reaches the inherited message
-  limit propagates the bare message limit out of `execute_tools()`, and the
-  sample records a message `EvalSampleLimit` with no sample error; the
-  outside-tool control runs the same protocol around the solver's own
-  generation, and the sample ends in a `SentinelFailure` error with no
-  `EvalSampleLimit`, as today. Both run on asyncio and Trio.
+  (`tests/sentinel/test_sentinel_dispatch.py`) stays as it is.
 - `tests/test_eval.py` (or the existing sample-limit tests): a solver that
   swallows an exceeded sample token limit and returns is recorded as
   limited; a solver that uses exactly the budget and returns is not; a solver that catches the limit and raises
@@ -2520,7 +2466,10 @@ Each step is one PR, in this order. Each keeps the suite green.
 4. **Ownership in tools.** `_call_tools.py`: `decisive_tool_exception`
    returning the combined error of a group's limits
    (`decisive_sentinel_exception` is unchanged), the call leaf and the
-   ownership test over every limit in `call_tool_task`, and the same test
+   ownership test over every limit in `call_tool_task`, applied to the
+   body's error only (an error from a sentinel stage,
+   `_apply_tool_review()` or approval keeps its route, "Policy calls"),
+   and the same test
    in `agent_handoff()`'s `except`. The combining and the ownership test go
    together: the native-tool cases in `tests/tools/test_call_tools.py` need
    both, since a mixed error propagates only once the ownership test runs.
@@ -2588,6 +2537,12 @@ None.
   decrease as tokens are used; `_compile_token_formula()` accepts
   `input - output` today, and rejecting such formulas belongs to the same
   change. This exists on main and is its own change.
+- Where a policy call's error ends up. A sentinel stage's, tool result
+  review's or approval's error keeps today's routes, which differ by stage
+  and between native and bridged execution (`SentinelFailure` unwrapped at
+  some native stages and not others; an error reply, a kept limit or a
+  sample error in the bridge; a bare error after the tool has run for
+  result review). Making them uniform is a separate change.
 - `SampleLimitEvent` is emitted by every token, cost, turn and message node
   that raises, scoped or not, so the viewer shows an agent's limit as a sample
   limit. inspect_swarm subclasses nodes to avoid it.
