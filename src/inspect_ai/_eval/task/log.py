@@ -327,8 +327,10 @@ class TaskLogger:
             viewer=viewer,
         )
 
-        # stack recorder and location
+        # stack recorder and location (set when init() has the recorder's
+        # entry; None before that, and again after reinit())
         self.recorder = recorder
+        self._location: str | None = None
         # the prior log's `eval.created`, which this attempt's must follow
         self._prior_created = prior_created
         self.header_only = header_only
@@ -397,6 +399,12 @@ class TaskLogger:
         self._discarded = False
 
     async def init(self) -> None:
+        """Start this attempt's log: the recorder entry and the buffer database.
+
+        Called by ``task_run`` when the attempt starts. The location is set
+        only once ``recorder.log_init()`` returns, so a failure before then
+        leaves the logger holding nothing.
+        """
         self._bump_created_past_prior()
         self._bump_created_past_existing_logs()
         self._location = await self.recorder.log_init(self.eval)
@@ -417,7 +425,11 @@ class TaskLogger:
         )
 
     async def reinit(self) -> None:
-        """Reset this logger for a retry attempt with a fresh eval entry."""
+        """Reset this logger for a retry attempt with a fresh eval entry.
+
+        Releases what the failed attempt held; the retry's own ``task_run``
+        calls :meth:`init`.
+        """
         from inspect_ai._control.eval_state import detach_eval_live
 
         # the superseded attempt's EvalState holds providers bound to THIS
@@ -448,13 +460,14 @@ class TaskLogger:
         self._prior_seeded = False
         self._seeded_pending = set()
         # the retry attempt gets a fresh log, which must re-record the run's
-        # full accumulated process-scoped updates in init() below
+        # full accumulated process-scoped updates in init()
         self._process_updates_recorded = 0
         # log_finish() (or discard() above) has cleaned up the buffer db; a
         # stale one would collide with the new attempt's (the location repeats
         # if `created` lands on the same second)
         await self._release_buffer_db(keep=False)
-        await self.init()
+        # the retry never reports its predecessor's file as its own
+        self._location = None
 
     def _bump_created_past_prior(self) -> None:
         """Make `eval.created` at least a second later than the prior log's.
@@ -504,7 +517,8 @@ class TaskLogger:
         )
 
     @property
-    def location(self) -> str:
+    def location(self) -> str | None:
+        """The attempt's log file, or ``None`` before :meth:`init` sets it."""
         return self._location
 
     @property
@@ -553,6 +567,8 @@ class TaskLogger:
         """
         if self._finished:
             return True
+        if self._location is None:
+            return False
         return self.recorder.destination_written(self.eval)
 
     @property
@@ -790,6 +806,8 @@ class TaskLogger:
         if sample is None:
             from inspect_ai.log._file import read_eval_log_sample_async
 
+            if self.location is None:
+                return None
             try:
                 sample = await read_eval_log_sample_async(
                     self.location, id, epoch, exclude_fields=exclude_fields
@@ -1004,13 +1022,13 @@ class TaskLogger:
         run's accumulated process-scoped updates this log has recorded.
         Called at the two points that bracket the gap between "logger
         exists" and "logger is a live fan-out target": from :meth:`init`, to
-        snapshot retunes that predate the log (a retry attempt or a later
-        eval-set child); and from ``task_run`` immediately before
-        ``register_eval``, because all of a run's initial loggers are
-        init()ed up front in ``prepare_options`` while retunes fan out only
-        to *registered* evals — without the catch-up, a task queued behind
-        ``--max-tasks`` would never record a retune applied while it waited,
-        even though the process-global override still governs it. The
+        snapshot retunes that predate the log (a task that waited in the
+        queue, a retry attempt or a later eval-set child); and from
+        ``task_run`` immediately before ``register_eval``, because retunes
+        fan out only to *registered* evals — without the catch-up, a retune
+        applied while the attempt seeded its prior samples or wrote its
+        header would never be recorded, even though the process-global
+        override still governs it. The
         catch-up must precede ``register_eval``: both run on the eval's
         single event loop and ``register_eval`` is sync, so no retune can
         land between the final watermark check here and registration (after
@@ -1175,9 +1193,14 @@ class TaskLogger:
         drop — the entry leak is the very thing this method exists to close.
         Detaches control handlers and quiesces already captured flush/config
         calls before dropping their recorder. A discarded log is not marked
-        finished: its destination may never have been written.
+        finished: its destination may never have been written. A logger that
+        holds no recorder entry (never initialised, or reset by
+        :meth:`reinit`) has nothing to discard.
         """
         from inspect_ai._control.eval_state import detach_eval_live
+
+        if self._location is None:
+            return
 
         detach_eval_live(self.eval.eval_id)
         async with self._flush_lock:

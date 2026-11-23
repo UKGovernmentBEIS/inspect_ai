@@ -558,7 +558,9 @@ anything is committed:
 Any error raises to the caller and nothing of the batch is added. Then, in
 the same step, it commits: adds the names to the run's set, orders the
 batch sequence-major (the order `run_batches` uses at `max_tasks == 1`),
-creates each record in `queued` at the end of the queue, registers it with
+creates each record in `queued` at the end of the queue (its logs are
+returned in the order given, or sequence-major at `max_tasks == 1`, as
+`run_batches` returns them), registers it with
 the control channel, grows the display's task count (except for the seed,
 which the task screen counts when it opens) and rings `wake`.
 
@@ -628,7 +630,8 @@ names.
 
 Callers: `eval_run` for the seed (errors raise from `eval()`, as today);
 `enqueue_task()`, after resolving its argument with
-`_resolve_enqueued_tasks` (errors raise to its caller); `_enqueue_source_tasks`,
+`_resolve_enqueued_tasks` (errors raise to its caller, except for a call from
+an `on_run_start` hook, below); `_enqueue_source_tasks`,
 synchronous as today, for `TaskSource` callback returns; and the dispatcher
 for a `next_tasks()` batch (errors end the run, as today).
 
@@ -645,6 +648,14 @@ after Ctrl-C, a latched cancellation, a `debug_errors` error) with it. The
 dispatcher's `next_tasks()` add applies the same check, though it runs in
 the loop before the `finally` closes the queue. The direct `enqueue_task()`
 refusal after close, and add errors while the run is open, are unchanged.
+
+**Run-start hook additions are held.** `on_run_start` hooks run after the
+queue is bound and before `eval_run` opens it. `enqueue()` there resolves the
+tasks at the call (resolution errors reach the hook) and holds the resolved
+batch; `eval_run` adds the held batches right after the seed (`add_held()`),
+counted with the seed when the task screen opens, so they start after it. Their
+configuration, selection and task id checks run then, after the hook has
+returned, and a failure raises from `eval()` before any seed task starts.
 
 Selection is resolved at the call because it is synchronous, so its errors
 reach the caller. The cost is the batch boundary: today a whole buffered

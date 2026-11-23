@@ -30,6 +30,7 @@ from inspect_ai._control.eval_state import (
     register_completed_eval,
     reset_run_registries,
     task_gracefully_resolved,
+    task_retry_abandoned,
 )
 from inspect_ai._control.server import (
     control_server,
@@ -511,7 +512,10 @@ def eval_set(
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
-            (defaults to the greater of 10 and the number of models being evaluated)
+            (defaults to the greater of 10 and the number of models being
+            evaluated). A task cancelled before it starts is started outside
+            this limit and ends at once with an error log reporting the
+            cancellation, so it never takes a slot.
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -697,8 +701,15 @@ def eval_set(
         )
         run_ids.update(log.eval.run_id for log in results)
 
-        # check for cancelled
-        if evals_cancelled(results):
+        # check for cancelled: a cancelled log, or a requested task with no
+        # log (it was still queued when the run was cancelled). A task whose
+        # retry an operator abandoned in an earlier pass is ended with no log
+        # and no attempt; that is not a cancellation of the run.
+        returned = {log.eval.task_id for log in results}
+        if evals_cancelled(results) or any(
+            task.id not in returned and not task_retry_abandoned(task.id)
+            for task in tasks
+        ):
             raise KeyboardInterrupt
 
         # return results
