@@ -1,8 +1,9 @@
 import json
 import pathlib
 import re
+import shutil
 import zipfile
-from typing import Literal, NamedTuple
+from typing import Any, Callable, Literal, NamedTuple
 
 import pytest
 from pydantic import JsonValue
@@ -12,6 +13,7 @@ from inspect_ai import Task
 from inspect_ai import eval as inspect_eval
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.file import filesystem, to_uri
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
@@ -32,7 +34,12 @@ from inspect_ai.log._edit import (
     TagsEdit,
     edit_eval_log,
 )
-from inspect_ai.log._file import read_eval_log, write_eval_log
+from inspect_ai.log._file import (
+    LogDestination,
+    contained_log_destination,
+    read_eval_log,
+    write_eval_log,
+)
 from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._recorders.chunked import convert_eval_logs_to_chunked
 from inspect_ai.log._recorders.chunked.convert import (
@@ -139,6 +146,174 @@ def test_convert_eval_logs(
         assert model_event_call_message_content.startswith("Hey there, hipster!")
     else:
         assert model_event_call_message_content.startswith("attachment:")
+
+
+_CONVERTERS: dict[str, Callable[[str, str], None]] = {
+    "convert": lambda path, output_dir: convert_eval_logs(path, "json", output_dir),
+    "chunked": convert_eval_logs_to_chunked,
+}
+
+
+def _nested_log_dir(tmp_path: pathlib.Path) -> tuple[pathlib.Path, pathlib.Path]:
+    input_file = (
+        _TESTS_DIR
+        / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    )
+    log_dir = tmp_path / "logs"
+    (log_dir / "sub").mkdir(parents=True)
+    shutil.copy(input_file, log_dir / "sub" / input_file.name)
+    return input_file, log_dir
+
+
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_keeps_nested_names(tmp_path: pathlib.Path, converter: str):
+    input_file, log_dir = _nested_log_dir(tmp_path)
+    output_dir = tmp_path / "out"
+
+    _CONVERTERS[converter](str(log_dir), str(output_dir))
+
+    extension = ".json" if converter == "convert" else ".eval"
+    output_file = (output_dir / "sub" / input_file.name).with_suffix(extension)
+    assert output_file.exists()
+
+
+@pytest.mark.parametrize("link", ["dir", "file"])
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_refuses_symlinks_out_of_output_dir(
+    tmp_path: pathlib.Path, converter: str, link: str
+):
+    input_file, log_dir = _nested_log_dir(tmp_path)
+    output_dir = tmp_path / "out"
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    if link == "dir":
+        output_dir.mkdir()
+        (output_dir / "sub").symlink_to(elsewhere, target_is_directory=True)
+    else:
+        extension = ".json" if converter == "convert" else ".eval"
+        output_file = (output_dir / "sub" / input_file.name).with_suffix(extension)
+        output_file.parent.mkdir(parents=True)
+        output_file.symlink_to(elsewhere / "converted")
+
+    with pytest.raises(ValueError, match="would be written outside"):
+        _CONVERTERS[converter](str(log_dir), str(output_dir))
+
+    assert list(elsewhere.iterdir()) == []
+
+
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_refuses_symlinks_out_of_local_url_output_dir(
+    tmp_path: pathlib.Path, converter: str
+):
+    _, log_dir = _nested_log_dir(tmp_path)
+    output_dir = tmp_path / "out"
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    output_dir.mkdir()
+    (output_dir / "sub").symlink_to(elsewhere, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="would be written outside"):
+        _CONVERTERS[converter](str(log_dir), f"local://{output_dir}")
+
+    assert list(elsewhere.iterdir()) == []
+
+
+def _record_chunked_destinations(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    checked: list[str] = []
+
+    def record(*args: Any, **kwargs: Any) -> LogDestination:
+        destination = contained_log_destination(*args, **kwargs)
+        checked.append(destination.destination)
+        return destination
+
+    monkeypatch.setattr(
+        "inspect_ai.log._recorders.chunked.convert.contained_log_destination", record
+    )
+    return checked
+
+
+def test_chunked_convert_dir_writes_where_it_checked_tilde(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+):
+    input_file, log_dir = _nested_log_dir(tmp_path)
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.chdir(tmp_path)
+    checked = _record_chunked_destinations(monkeypatch)
+
+    convert_eval_logs_to_chunked(str(log_dir), "~/out")
+
+    written = home.resolve() / "out" / "sub" / input_file.name
+    assert checked == [str(written)]
+    assert written.is_file()
+    assert not (tmp_path / "~").exists()
+
+
+def test_chunked_convert_dir_writes_where_it_checked_file_url(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+):
+    input_file, log_dir = _nested_log_dir(tmp_path)
+    output_dir = tmp_path / "out dir"
+    checked = _record_chunked_destinations(monkeypatch)
+
+    convert_eval_logs_to_chunked(str(log_dir), to_uri(str(output_dir)))
+
+    written = output_dir.resolve() / "sub" / input_file.name
+    assert checked == [str(written)]
+    assert written.is_file()
+    assert not (tmp_path / "out%20dir").exists()
+
+
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_writes_to_remote_output_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, converter: str
+):
+    memory_fs = filesystem("memory://").fs
+    monkeypatch.setattr(type(memory_fs), "store", {})
+    monkeypatch.setattr(type(memory_fs), "pseudo_dirs", [""])
+    input_file, log_dir = _nested_log_dir(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    _CONVERTERS[converter](str(log_dir), "memory://out")
+
+    extension = ".json" if converter == "convert" else ".eval"
+    output_name = pathlib.PurePosixPath(input_file.name).with_suffix(extension).name
+    assert memory_fs.isfile(f"/out/sub/{output_name}")
+    assert not (tmp_path / "memory:").exists()
+
+
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_refuses_dot_components(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, converter: str
+):
+    memory_fs = filesystem("memory://").fs
+    monkeypatch.setattr(type(memory_fs), "store", {})
+    monkeypatch.setattr(type(memory_fs), "pseudo_dirs", [""])
+    memory_fs.pipe(
+        "/logs/sub/../../escaped/2024-01-01T00-00-00+00-00_task_abc.eval", b"log"
+    )
+    output_dir = tmp_path / "out"
+
+    with pytest.raises(ValueError, match="has an invalid path"):
+        _CONVERTERS[converter]("memory://logs", str(output_dir))
+
+    assert not (tmp_path / "escaped").exists()
+
+
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_refuses_url_chain_names(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, converter: str
+):
+    memory_fs = filesystem("memory://").fs
+    monkeypatch.setattr(type(memory_fs), "store", {})
+    monkeypatch.setattr(type(memory_fs), "pseudo_dirs", [""])
+    memory_fs.pipe("/logs/sub::x/2024-01-01T00-00-00+00-00_task_abc.eval", b"log")
+
+    with pytest.raises(ValueError, match="has an invalid path"):
+        _CONVERTERS[converter]("memory://logs", "memory://out")
+
+    assert memory_fs.find("/out") == []
 
 
 @pytest.mark.parametrize("stream", [True, 3], ids=["stream", "stream-3"])

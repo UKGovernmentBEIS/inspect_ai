@@ -185,23 +185,24 @@ def model_retry_config(
         if (
             effective_timeout is not None
             and retry_state.seconds_since_start is not None
-            and retry_state.seconds_since_start - _time_with_a_person()
+            and retry_state.seconds_since_start - _time_apart_from_the_call()
             >= effective_timeout
         ):
             return True
         return False
 
-    def _time_with_a_person() -> float:
+    def _time_apart_from_the_call() -> float:
         # The time a person took to answer a sentinel sidecar's question
-        # about the call. It is not the model call's own time, so it doesn't
-        # count toward the timeout. It is zero unless a sentinel in a sidecar
-        # asked a person about this agent call. Only `Model._generate`'s
-        # loop, which sets `sample_waits`, runs inside such a call.
+        # about the call, and the time its requests took to register the
+        # sample with the sidecar. It is not the model call's own time, so
+        # it doesn't count toward the timeout. It is zero outside an agent
+        # call through a sidecar. Only `Model._generate`'s loop, which sets
+        # `sample_waits`, runs inside such a call.
         if not sample_waits:
             return 0.0
-        from inspect_ai._sentinel._sidecar._received import time_with_a_person
+        from inspect_ai._sentinel._sidecar._received import time_apart_from_the_call
 
-        return time_with_a_person()
+        return time_apart_from_the_call()
 
     config: ModelRetryConfig = {
         "wait": wait,
