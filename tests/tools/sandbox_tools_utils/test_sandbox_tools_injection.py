@@ -1420,6 +1420,17 @@ async def test_probe_verdict(probe: ExecResult[str], state: str, reason: str) ->
     assert access.error is None
 
 
+def _raised_from_os_error(error: Exception) -> Exception:
+    """``error`` raised from an OSError, as a provider wrapping a lower failure."""
+    try:
+        try:
+            raise OSError("exec failed")
+        except OSError as cause:
+            raise error from cause
+    except Exception as ex:
+        return ex
+
+
 @pytest.mark.parametrize(
     "error, state",
     [
@@ -1429,15 +1440,30 @@ async def test_probe_verdict(probe: ExecResult[str], state: str, reason: str) ->
             id="unsupported-user",
         ),
         pytest.param(
+            _raised_from_os_error(SandboxUserUnsupportedError("cannot run as root")),
+            "unusable",
+            id="unsupported-user-chained",
+        ),
+        pytest.param(
             RuntimeError("runuser: may not be used by non-root users"),
             "ambiguous",
             id="provider-raises",
+        ),
+        pytest.param(
+            _raised_from_os_error(RuntimeError("cannot exec as root")),
+            "ambiguous",
+            id="provider-raises-chained",
         ),
         pytest.param(ConnectionError("sandbox gone"), "ambiguous", id="other-error"),
         pytest.param(
             SandboxUnavailableError("container is not running"),
             "failed",
             id="unavailable",
+        ),
+        pytest.param(
+            _raised_from_os_error(SandboxUnavailableError("container stopped")),
+            "failed",
+            id="unavailable-chained",
         ),
         pytest.param(TimeoutError("exec timed out"), "failed", id="timeout"),
         pytest.param(
@@ -1451,8 +1477,15 @@ async def test_probe_exception(error: Exception, state: str) -> None:
 
     access = await sandbox_tools._probe_root_access(CannedSandbox(raising))
     assert access.state == state
-    assert access.error is error
     assert str(error) in access.reason
+    # The decision lives as long as the sandbox, and the tracebacks in an
+    # exception's chain hold the sample, so only the error the tools raise as
+    # their cause is kept, with its chain.
+    if state == "failed":
+        assert access.error is error
+        assert error.__traceback__ is not None
+    else:
+        assert access.error is None
 
 
 async def test_probe_cancellation_propagates_and_records_nothing() -> None:
@@ -1508,7 +1541,8 @@ async def test_local_root_probe_is_quiet_through_wrappers(
     assert _warn_once_messages == []
     if os.name != "posix" or os.geteuid() != 0:
         assert access.state == "unusable"
-        assert isinstance(access.error, SandboxUserUnsupportedError)
+        # the provider's SandboxUserUnsupportedError
+        assert "cannot execute as 'root'" in access.reason
     elif sys.platform == "linux":
         # root, but possibly with capabilities dropped: definitive either way
         assert access.state in ("usable", "unusable")

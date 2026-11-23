@@ -32,7 +32,6 @@ from inspect_ai.util._sandbox.context import (
 )
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.identity import (
-    SANDBOX_OPERATIONS_USE_SCOPE_CWD,
     SandboxIdentityError,
     sandbox_identity,
     sandbox_identity_active,
@@ -402,7 +401,6 @@ async def test_operations_use_the_scope_cwd() -> None:
         "/tmp",
     ]
     assert [e.file for e in events[3:]] == ["/home/w-1/f", "/home/w-1/d/f", "/etc/f"]
-    assert SANDBOX_OPERATIONS_USE_SCOPE_CWD is True
 
 
 async def test_scope_cwd_is_not_used_by_framework_operations_or_elsewhere() -> None:

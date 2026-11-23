@@ -1,7 +1,7 @@
 import hashlib
 from logging import getLogger
 from pathlib import Path, PurePosixPath
-from typing import Final, NamedTuple, Sequence
+from typing import NamedTuple, Sequence
 from weakref import WeakKeyDictionary
 
 import anyio
@@ -15,6 +15,7 @@ from inspect_ai.util._sandbox.environment import (
 )
 from inspect_ai.util._sandbox.identity import (
     sandbox_file_user_params,
+    sandbox_operation_file,
     sandbox_operation_user,
 )
 
@@ -22,17 +23,6 @@ from .read import read_skills
 from .types import Skill, SkillInfo
 
 logger = getLogger(__name__)
-
-INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT: Final = True
-"""`install_skills()` runs a scope member's `chmod +x` from `/`.
-
-Inside a `sandbox_identity()` scope, an `install_skills()` call that names no
-user runs `chmod +x` for scripts as the member from `/`, not from the
-provider's default working directory, which the member may not be able to
-enter.
-Companion packages check for this name to detect the behaviour on an
-installed inspect_ai, so keep it.
-"""
 
 
 async def install_skills(
@@ -47,7 +37,9 @@ async def install_skills(
         skills: Agent skills to install.
         sandbox: Sandbox environment name to copy skills to.
         user: User to write skills files with.
-        dir: Directory to install into (defaults to "./skills").
+        dir: Directory to install into (defaults to "./skills"). When `user`
+            is omitted inside a `sandbox_identity()` scope with a `cwd`, a
+            relative `dir` resolves against that `cwd`.
 
     Returns:
         List of `SkillInfo` with skill names, descriptions, and locations.
@@ -66,6 +58,10 @@ async def install_skills(
     member = sandbox_operation_user(sbox, None) if user is None else None
     if member is not None:
         sandbox_file_user_params(sbox, "write_file", None)
+        # as the member's own write_file() would resolve it; an explicit
+        # user's default-user writes keep the provider's working directory,
+        # so they do not follow links in a directory the member controls
+        dir = sandbox_operation_file(sbox, dir or "skills")
     install_user = member or user
 
     # install skills

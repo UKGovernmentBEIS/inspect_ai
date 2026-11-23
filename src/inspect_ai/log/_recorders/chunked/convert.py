@@ -45,7 +45,11 @@ from ..._condense import (
     walk_input,
     walk_json_value,
 )
-from ..._file import log_files_from_ls
+from ..._file import (
+    contained_log_destination,
+    log_files_from_ls,
+    resolve_local_path,
+)
 from ..._log import EvalSample
 from ..._skeleton import sample_skeleton
 from ..eval import (
@@ -101,6 +105,7 @@ def convert_eval_logs_to_chunked(
     if not fs.exists(path):
         raise PrerequisiteError(f"Error: path '{path}' does not exist.")
 
+    output_dir = resolve_local_path(output_dir)
     output_fs = filesystem(output_dir)
     if output_dir.endswith(output_fs.sep):
         output_dir = output_dir[: -len(output_fs.sep)]
@@ -109,7 +114,7 @@ def convert_eval_logs_to_chunked(
     path_is_dir = fs.info(path).type == "directory"
 
     # convert a single file (input file is relative to 'path' for directories)
-    def convert_file(input_file: str) -> None:
+    def convert_file(input_file: str, output_file: str | None = None) -> None:
         input_name, _ = os.path.splitext(input_file)
         input_dir = os.path.dirname(input_name.replace("\\", "/"))
 
@@ -123,7 +128,8 @@ def convert_eval_logs_to_chunked(
 
         output_fs.mkdir(target_dir, exist_ok=True)
 
-        output_file = f"{output_dir}{output_fs.sep}{output_file_basename}.eval"
+        if output_file is None:
+            output_file = f"{output_dir}{output_fs.sep}{output_file_basename}.eval"
         if exists(output_file) and not overwrite:
             raise FileExistsError(
                 f"Output file {output_file} already exists "
@@ -146,13 +152,16 @@ def convert_eval_logs_to_chunked(
     else:
         root_dir = fs.info(path).name
         eval_logs = log_files_from_ls(fs.ls(path, recursive=True), ["eval"], True)
-        input_files = [
-            eval_log.name.replace(f"{root_dir}/", "", 1) for eval_log in eval_logs
+        destinations = [
+            contained_log_destination(
+                eval_log.name, root_dir, output_dir, extension="eval"
+            )
+            for eval_log in eval_logs
         ]
         display().print("Converting log files to chunked samples...")
-        with display().progress(total=len(input_files)) as p:
-            for input_file in input_files:
-                convert_file(input_file)
+        with display().progress(total=len(destinations)) as p:
+            for destination in destinations:
+                convert_file(destination.relative, destination.destination)
                 p.update()
 
 

@@ -1672,6 +1672,7 @@ async def _bridge_generate_impl(
         if producer is not None and fresh is not output:
             # a copy the steps share, as approval and the scaffold get `fresh`
             producer = replace(producer, handed=fresh.message.model_copy(deep=True))
+            _record_agent_tool_call_ids(producer.event, fresh)
         output = fresh
         bridge._handouts.propose(output.message.tool_calls or [])
         # each call's handout, named before review so its approvals and
@@ -1786,18 +1787,57 @@ def _fresh_call_ids(
         return output
     for call_id in reused:
         forget_tool_call(call_id)
-    generated = output
-    output = output.model_copy(deep=True)
-    message = output.message
+    ids = [
+        f"call_{uuid()}" if call.id in reused else call.id
+        for call in output.message.tool_calls or []
+    ]
+    renamed = output.model_copy(deep=True)
+    renamed.choices[0].message = with_agent_tool_call_ids(output.message, ids)
+    return renamed
+
+
+def with_agent_tool_call_ids(
+    message: ChatMessageAssistant,
+    ids: Sequence[str],
+    keep_provider_state: bool = True,
+) -> ChatMessageAssistant:
+    """`message` as the agent receives it, with its tool calls under `ids` in order.
+
+    The message the bridge hands over when it gives calls fresh ids
+    (`_fresh_call_ids`), and the one replay rebuilds from a logged output and
+    its `ModelEvent.agent_tool_call_ids`, so the two can't differ. A call
+    keeps its Google reasoning anchors (`_renamed_anchors`). A copy, under an
+    id derived from `message`'s (`with_edited_id`); a reader of a log passes
+    `keep_provider_state=False`, as it must not copy the provider state
+    recorded under `message`'s id.
+    """
+    renamed = message.model_copy(deep=True)
     fresh: dict[str, list[str]] = {}
-    for call in message.tool_calls or []:
-        if call.id in reused:
-            fresh.setdefault(call.id, []).append(f"call_{uuid()}")
-            call.id = fresh[call.id][-1]
-    if not isinstance(message.content, str):
-        message.content = _renamed_anchors(message.content, fresh)
-    with_edited_id(generated.message, message)
-    return output
+    for call, call_id in zip(renamed.tool_calls or [], ids, strict=True):
+        if call.id != call_id:
+            fresh.setdefault(call.id, []).append(call_id)
+            call.id = call_id
+    if not isinstance(renamed.content, str):
+        renamed.content = _renamed_anchors(renamed.content, fresh)
+    return with_edited_id(message, renamed, keep_provider_state)
+
+
+def _record_agent_tool_call_ids(event: "ModelEvent", fresh: ModelOutput) -> None:
+    """Record on `event` the id the agent receives for each of its output's calls (`ModelEvent.agent_tool_call_ids`).
+
+    `fresh` is the event's output with fresh call ids (`_fresh_call_ids`),
+    its calls in the same order, since the bridge records this only for a
+    response it passes to the agent as the event logged it
+    (`_Generations.producer`). Set before approval, as a rejected turn's
+    replayed results carry these ids too. The event has completed, so the
+    update is written as the bridge's other late updates are
+    (`_link_result_messages`); a model event sink that has not yet emitted
+    the event writes it with the ids.
+    """
+    from inspect_ai.log._transcript import transcript
+
+    event.agent_tool_call_ids = [call.id for call in fresh.message.tool_calls or []]
+    transcript()._event_updated(event)
 
 
 def _renamed_anchors(

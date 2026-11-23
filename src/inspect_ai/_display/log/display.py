@@ -135,15 +135,12 @@ class LogDisplay(Display):
                 stacklevel=4,
             )
         elif isinstance(task.result, TaskError):
-            logging.error(
-                f"{title} failed ({task.result.samples_completed}/{task.profile.samples} logged)",
-                exc_info=(
-                    task.result.exc_type,
-                    task.result.exc_value,
-                    task.result.traceback,
-                ),
-                stacklevel=4,
-            )
+            message = f"{title} failed ({task.result.samples_completed}/{task.profile.samples} logged)"
+            if task.result.exc_info is not None:
+                logging.error(message, exc_info=task.result.exc_info, stacklevel=4)
+            else:
+                # the live exception was already released: log its text
+                logging.error(f"{message}\n{task.result.text}", stacklevel=4)
         elif isinstance(task.result, TaskSuccess):
             config = task_config_str(task.profile)
             stats = self._task_stats_str(task.result.stats)

@@ -1,7 +1,7 @@
 import posixpath
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, Final, Iterator, Literal, NamedTuple
+from typing import Any, Iterator, Literal, NamedTuple
 
 from ._framework_operation import in_framework_sandbox_operation
 from ._privileged import privileged_shell
@@ -30,29 +30,29 @@ def sandbox_identity(
 ) -> Iterator[None]:
     """Run model-facing work in a sandbox as `user`.
 
-    Inside the block, built-in tools that run commands in `sandbox` run them
-    as `user`: `bash()`, `python()`, `grep()`, `list_files()`, `read_file()`,
-    `bash_session()` and `text_editor()`. `bash()`, `python()`, `grep()`,
-    `list_files()` and `read_file()` also start in `cwd`, a `bash_session()`
-    shell created in the block starts (and restarts) there, and `text_editor()`
-    resolves relative paths against it. A `bash_session()` shell created in the
-    block works only with the sandbox tools server that created it, and needs
-    inspect-sandbox-tools 1.3.0 or later. A tool configured with a different
-    `user` raises `SandboxIdentityError`, and so do `computer()`, which
-    cannot run as a user, and `skill()`, which does not
-    yet install skills as a user. `exec_remote()` uses the
-    scope's user and cwd when omitted, keeps an explicit user and resolves a
-    relative `cwd` against the scope's `cwd`. Other
+    Inside the block, built-in tools that run commands in `sandbox` run them as
+    `user`: `bash()`, `python()`, `grep()`, `list_files()`, `read_file()`,
+    `view_image()`, `bash_session()` and `text_editor()`. `bash()`, `python()`,
+    `grep()`, `list_files()`, `read_file()` and `view_image()` also start in
+    `cwd`, a `bash_session()` shell created in the block starts (and restarts)
+    there, and `text_editor()` resolves relative paths against it. A
+    `bash_session()` shell created in the block works only with the sandbox
+    tools server that created it, and needs inspect-sandbox-tools 1.3.0 or
+    later. A tool configured with a different `user` raises
+    `SandboxIdentityError`, and so do `computer()`, which cannot run as a user,
+    and `skill()`, which does not yet install skills as a user. `exec_remote()`
+    uses the scope's user and cwd when omitted, keeps an explicit user and
+    resolves a relative `cwd` against the scope's `cwd`. Other
     sandbox-tool launches inherit the scope's user when omitted; they keep
     their existing working-directory behavior.
 
-    `bash()`, `python()`, `grep()`, `list_files()` and `read_file()` set `HOME`
-    to the user's home from the sandbox's passwd database, looked up once per
-    block. They keep the inherited `HOME` if the user has no passwd entry and
-    raise `RuntimeError` if the entry has an empty home. `bash_session()`,
-    `text_editor()` and `exec_remote()` set `HOME` only when switching user; if
-    their tools process already runs as that user, they keep its inherited
-    `HOME`.
+    `bash()`, `python()`, `grep()`, `list_files()`, `read_file()` and
+    `view_image()` set `HOME` to the user's home from the sandbox's passwd
+    database, looked up once per block. They keep the inherited `HOME` if the
+    user has no passwd entry and raise `RuntimeError` if the entry has an empty
+    home. `bash_session()`, `text_editor()` and `exec_remote()` set `HOME` only
+    when switching user; if their tools process already runs as that user, they
+    keep its inherited `HOME`.
 
     Inside the block `sandbox` is also the default sandbox (as with
     `sandbox_default()`), and tools that find their sandbox by injection use it.
@@ -195,15 +195,6 @@ def sandbox_operation_user(env: SandboxEnvironment, user: str | None) -> str | N
     if user is not None or in_framework_sandbox_operation():
         return user
     return sandbox_identity_user(env, None, strict=False)
-
-
-SANDBOX_OPERATIONS_USE_SCOPE_CWD: Final = True
-"""Sandbox operations inside a scope with a `cwd` default to that `cwd`.
-
-See `sandbox_operation_cwd()` and `sandbox_operation_file()`. Companion
-packages check for this name to detect the behaviour on an installed
-inspect_ai, so keep it.
-"""
 
 
 def sandbox_operation_cwd(env: SandboxEnvironment, cwd: str | None) -> str | None:

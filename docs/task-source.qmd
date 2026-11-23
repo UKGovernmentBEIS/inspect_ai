@@ -63,13 +63,13 @@ from inspect_ai import eval
 eval(MySource(), model="openai/gpt-6-luna", limit=10)
 ```
 
-`initial_tasks()` is synchronous and returns the seed. It is resolved up front like any task list, so it must return immediately rather than `await`. `next_tasks()` is async, called after each batch completes, and may block (for example, awaiting external input); return `None` to end the run.
+`initial_tasks()` is synchronous and returns the seed. It is resolved up front like any task list, so it must return immediately rather than `await`. `next_tasks()` is async, called when no task is queued or running, and may block (for example, awaiting external input); return `None` to end the run. No task starts while it blocks. Each `next_tasks()` call may run in a different task, so a source must not keep a task group, cancel scope or context variable token open from one call to the next; keep state on the source object instead.
 
 Each task gets its own `eval_id`, `task_id`, and log file; all share one run id.
 
 ## Returning follow-up tasks
 
-`sample_complete` and `task_complete` fire as work completes. Besides observing results, they can return tasks to add to the run, which run after the current batch. `sample_complete` also receives the `Task` the sample ran under (the sample alone doesn't identify its task):
+`sample_complete` and `task_complete` fire as work completes. Besides observing results, they can return tasks to add to the run. They start when a `max_tasks` slot is free, before the next `next_tasks()` call. `sample_complete` also receives the `Task` the sample ran under (the sample alone doesn't identify its task):
 
 ```python
 class Curriculum(TaskSource):
@@ -152,13 +152,13 @@ def spawn_followup():
     return solve
 ```
 
-Enqueued tasks run under the current run id and share a buffer with tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running.
+Enqueued tasks run under the current run id and start when a `max_tasks` slot is free, like tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running, and raises at the call for a configuration or sample selection error. Called from an `on_run_start` hook, it resolves the tasks at the call, but their configuration and sample selection checks run after the hooks return; a failing check ends the run before any task starts. The added tasks start after the run's own tasks. Sample selectors that name a task (`task:id`) resolve when the task is added, so tasks whose selectors name each other must be added in one call. Call `enqueue_task()` on the run's event loop. From a thread started with `anyio.to_thread.run_sync()`, use `anyio.from_thread.run_sync(lambda: enqueue_task(...))`. From any other thread, capture `token = anyio.lowlevel.current_token()` and `context = contextvars.copy_context()` in the running task and call `anyio.from_thread.run_sync(context.run, enqueue_task, tasks, token=token)`.
 
 Called from inside a running task (a solver, scorer or tool), `enqueue_task()` adds the tasks once, under that task's model. Called anywhere else, including from a `TaskSource` callback, it adds them once per model of the run, as for tasks the callbacks return. A task that sets its own `model` keeps it. Model roles and generate config come from the run.
 
 ## Concurrency
 
-A `TaskSource` run is live: a task added mid-run starts as soon as there is free capacity, rather than waiting for a batch boundary.
+A task added mid-run starts as soon as there is free capacity, rather than waiting for a batch boundary.
 
 Capacity is bounded by `max_tasks` (the number of concurrent task × model units). If the seed fills every slot, a follow-up waits until a slot frees, so to run follow-ups alongside the seed, set `max_tasks` above the number of seed units. A seed of two tasks across two models is four units, so `--max-tasks 6` leaves room:
 

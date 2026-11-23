@@ -3281,3 +3281,363 @@ def test_api_log_download_encodes_non_latin1_filename(
     resp.raise_for_status()
     assert "utf-8''" in resp.headers["content-disposition"]
     assert [body.released for body in bodies] == [1]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HTTP(S) log reads do not follow redirects
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class _LogHTTPServer:
+    """A local HTTP server that serves one directory, or redirects every request.
+
+    Supports HEAD, GET and single `Range: bytes=a-b` requests, which is what
+    fsspec's HTTP filesystem sends. Records each request path it receives.
+    """
+
+    def __init__(
+        self,
+        root: Path | None = None,
+        redirect_to: str | None = None,
+        host: str = "127.0.0.1",
+    ):
+        import http.server
+        import socket
+        import threading
+
+        requests: list[str] = []
+        self.requests = requests
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, format: str, *args: Any) -> None:
+                pass
+
+            def do_HEAD(self) -> None:
+                self._respond(body=False)
+
+            def do_GET(self) -> None:
+                self._respond(body=True)
+
+            def _respond(self, body: bool) -> None:
+                requests.append(self.path)
+                if redirect_to is not None:
+                    self.send_response(302)
+                    self.send_header("Location", redirect_to + self.path)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                assert root is not None
+                target = root / urllib.parse.unquote(self.path.lstrip("/"))
+                if not target.is_file():
+                    self.send_error(404)
+                    return
+                data = target.read_bytes()
+                status = 200
+                range_header = self.headers.get("Range")
+                if range_header is not None:
+                    start_s, end_s = range_header.removeprefix("bytes=").split("-")
+                    start = int(start_s)
+                    end = int(end_s) if end_s else len(data) - 1
+                    data = data[start : end + 1]
+                    status = 206
+                self.send_response(status)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Accept-Ranges", "bytes")
+                self.end_headers()
+                if body:
+                    self.wfile.write(data)
+
+        server_class = http.server.ThreadingHTTPServer
+        url_host = host
+        if ":" in host:
+
+            class IPv6Server(http.server.ThreadingHTTPServer):
+                address_family = socket.AF_INET6
+
+            server_class = IPv6Server
+            url_host = f"[{host}]"
+        self._server = server_class((host, 0), Handler)
+        self.url = f"http://{url_host}:{self._server.server_address[1]}"
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+
+    def close(self) -> None:
+        self._server.shutdown()
+        self._server.server_close()
+
+
+@contextlib.contextmanager
+def _http_view_client(base_url: str) -> Generator[TestClient, Any, None]:
+    """A view server whose log paths map to URLs under `base_url`."""
+
+    class mapping_policy(FileMappingPolicy):
+        async def map(self, request: Request, file: str) -> str:
+            return f"{base_url}/{file}"
+
+        async def unmap(self, request: Request, file: str) -> str:
+            return file.removeprefix(f"{base_url}/")
+
+    app = fastapi_server.view_server_app(mapping_policy=mapping_policy())
+    with fastapi.testclient.TestClient(app, raise_server_exceptions=False) as client:
+        yield client
+
+
+@pytest.fixture
+def http_log_servers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Generator[tuple[_LogHTTPServer, _LogHTTPServer, str], Any, None]:
+    """A server holding a log, and a second server redirecting to the first.
+
+    Yields (target, redirector, log file name).
+    """
+    # Async HTTP filesystems are cached and keep the event loop they were
+    # created on; each TestClient runs its own loop.
+    monkeypatch.setattr(inspect_ai._view.common, "_async_connections", {})
+    fsspec.get_filesystem_class("http").clear_instance_cache()
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_eval_log(tmp_path, fname)
+    target = _LogHTTPServer(root=tmp_path)
+    redirector = _LogHTTPServer(redirect_to=target.url)
+    try:
+        yield target, redirector, fname
+    finally:
+        redirector.close()
+        target.close()
+
+
+_HTTP_READ_ROUTES = [
+    "/log-size/{fname}",
+    "/log-info/{fname}",
+    "/log-bytes/{fname}?start=0&end=99",
+    "/log-download/{fname}",
+    "/logs/{fname}",
+    "/logs/{fname}?header-only=0",
+    "/log-headers?file={quoted}",
+]
+
+
+def _http_route(route: str, fname: str) -> str:
+    return route.format(fname=fname, quoted=urllib.parse.quote_plus(fname))
+
+
+@pytest.mark.parametrize("route", _HTTP_READ_ROUTES)
+def test_http_log_read_does_not_follow_redirect(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str], route: str
+) -> None:
+    target, redirector, fname = http_log_servers
+    with _http_view_client(redirector.url) as client:
+        resp = client.get(_http_route(route, fname))
+    assert resp.status_code == 502
+    assert resp.json() == {"detail": fastapi_server.HTTP_REDIRECT_REFUSED_MESSAGE}
+    assert redirector.requests
+    assert target.requests == []
+
+
+def test_http_log_read_redirect_log_omits_url_secrets(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    target, _redirector, fname = http_log_servers
+    secret_target = target.url.replace("http://", "http://user:target-secret@")
+    redirector = _LogHTTPServer(redirect_to=secret_target)
+
+    class mapping_policy(FileMappingPolicy):
+        async def map(self, request: Request, file: str) -> str:
+            return f"{redirector.url}/{file}?sig=request-secret"
+
+        async def unmap(self, request: Request, file: str) -> str:
+            return file
+
+    app = fastapi_server.view_server_app(mapping_policy=mapping_policy())
+    try:
+        with caplog.at_level(logging.WARNING, logger=fastapi_server.__name__):
+            with fastapi.testclient.TestClient(app) as client:
+                resp = client.get(f"/log-bytes/{fname}?start=0&end=99")
+    finally:
+        redirector.close()
+    assert resp.status_code == 502
+    assert target.requests == []
+    assert "was not followed" in caplog.text
+    assert redirector.url in caplog.text
+    assert "secret" not in caplog.text
+
+
+def _ipv6_loopback_available() -> bool:
+    import socket
+
+    try:
+        with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as sock:
+            sock.bind(("::1", 0))
+        return True
+    except OSError:
+        return False
+
+
+@pytest.mark.parametrize("url_form", ["ipv6_host", "colons_in_file_name"])
+@pytest.mark.parametrize(
+    "route",
+    # /logs and /log-headers read through fsspec's URL parser, which already
+    # treats `::` as a chain separator, so they fail on these URLs on main
+    [r for r in _HTTP_READ_ROUTES if not r.startswith(("/logs/", "/log-headers"))],
+)
+def test_http_log_read_with_double_colon_is_not_a_chain(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str],
+    tmp_path: Path,
+    route: str,
+    url_form: str,
+) -> None:
+    """A direct HTTP URL containing `::` reads, and its redirects are refused."""
+    if url_form == "ipv6_host":
+        if not _ipv6_loopback_available():
+            pytest.skip("IPv6 loopback is not available")
+        host = "::1"
+        _target, _redirector, fname = http_log_servers
+    else:
+        host = "127.0.0.1"
+        fname = "2025-01-01T00-00-00+00-00_task::taskid.eval"
+        write_eval_log(tmp_path, fname)
+    target = _LogHTTPServer(root=tmp_path, host=host)
+    redirector = _LogHTTPServer(redirect_to=target.url, host=host)
+    try:
+        with _http_view_client(target.url) as client:
+            direct = client.get(_http_route(route, fname))
+        direct.raise_for_status()
+        target_requests = len(target.requests)
+        # cached HTTP filesystems keep the first client's event loop
+        inspect_ai._view.common._async_connections.clear()
+        fsspec.get_filesystem_class("http").clear_instance_cache()
+        with _http_view_client(redirector.url) as client:
+            redirected = client.get(_http_route(route, fname))
+    finally:
+        redirector.close()
+        target.close()
+    assert target_requests > 0
+    assert redirected.status_code == 502
+    assert len(target.requests) == target_requests
+
+
+@pytest.mark.parametrize("cache", ["simplecache", "filecache", "blockcache"])
+def test_http_log_read_refuses_chained_http_url(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str], cache: str
+) -> None:
+    target, redirector, fname = http_log_servers
+    log_dir = f"{cache}::{redirector.url}"
+    app = fastapi_server.view_server_app(
+        access_policy=fastapi_server.OnlyDirAccessPolicy(log_dir)
+    )
+    with fastapi.testclient.TestClient(app, raise_server_exceptions=False) as client:
+        resp = client.get(f"/log-bytes/{log_dir}/{fname}?start=0&end=99")
+    assert resp.status_code >= 400
+    assert redirector.requests == []
+    assert target.requests == []
+    with inspect_ai._util.file.refuse_http_redirects():
+        with pytest.raises(ValueError, match="Chained URLs over HTTP"):
+            filesystem(f"{log_dir}/{fname}")
+
+
+@skip_if_trio
+async def test_async_connection_keeps_non_http_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An app that opens the S3 connection at startup keeps using it.
+
+    Options changed after startup (here `version_aware`) would otherwise make
+    the request-time lookup build a second instance.
+    """
+    monkeypatch.setattr(inspect_ai._view.common, "_async_connections", {})
+    s3 = inspect_ai._view.common.async_connection("s3://")
+    s3_options = dict(
+        inspect_ai._util.file.DEFAULT_FS_OPTIONS["s3"], version_aware=True
+    )
+    monkeypatch.setitem(inspect_ai._util.file.DEFAULT_FS_OPTIONS, "s3", s3_options)
+    with inspect_ai._util.file.refuse_http_redirects():
+        assert inspect_ai._view.common.async_connection("s3://") is s3
+
+
+@pytest.mark.parametrize("route", _HTTP_READ_ROUTES)
+def test_http_log_read_direct(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str],
+    tmp_path: Path,
+    route: str,
+) -> None:
+    target, _redirector, fname = http_log_servers
+    data = (tmp_path / fname).read_bytes()
+    with _http_view_client(target.url) as client:
+        resp = client.get(_http_route(route, fname))
+    resp.raise_for_status()
+    if route.startswith("/log-size"):
+        assert resp.json() == len(data)
+    elif route.startswith("/log-info"):
+        assert resp.json()["size"] == len(data)
+    elif route.startswith("/log-bytes"):
+        assert resp.content == data[:100]
+    elif route.startswith("/log-download"):
+        assert resp.content == data
+    elif route.startswith("/log-headers"):
+        assert resp.json()[0]["eval"]["task"] == "task"
+    else:
+        assert resp.json()["eval"]["task"] == "task"
+
+
+def test_refuse_http_redirects_scope(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str],
+) -> None:
+    target, redirector, fname = http_log_servers
+    url = f"{redirector.url}/{fname}"
+    with inspect_ai._util.file.refuse_http_redirects():
+        with pytest.raises(
+            inspect_ai._util.file.HTTPRedirectError, match="was not followed"
+        ):
+            filesystem(url).read_bytes(url)
+    assert target.requests == []
+
+    # outside the context a redirect is followed as before
+    data = filesystem(url).read_bytes(url)
+    assert data == filesystem(f"{target.url}/{fname}").read_bytes(
+        f"{target.url}/{fname}"
+    )
+
+
+class _StopViewServer(Exception):
+    pass
+
+
+def _view_server_preflight(log_dir: str, monkeypatch: pytest.MonkeyPatch) -> str:
+    """Run view_server() up to app construction and return the resolved log dir.
+
+    Also checks that redirect refusal has ended before the app is built.
+    """
+    resolved: list[str] = []
+
+    def stop(log_dir: str, **kwargs: Any) -> None:
+        assert not inspect_ai._util.file.http_redirects_refused()
+        resolved.append(log_dir)
+        raise _StopViewServer()
+
+    monkeypatch.setattr(fastapi_server, "standalone_view_app", stop)
+    with pytest.raises(_StopViewServer):
+        fastapi_server.view_server(log_dir=log_dir)
+    return resolved[0]
+
+
+def test_view_server_startup_does_not_follow_redirect(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, redirector, _fname = http_log_servers
+    with pytest.raises(
+        inspect_ai._util.file.HTTPRedirectError, match="was not followed"
+    ):
+        _view_server_preflight(f"{redirector.url}/logs", monkeypatch)
+    assert redirector.requests
+    assert target.requests == []
+
+
+def test_view_server_startup_direct(
+    http_log_servers: tuple[_LogHTTPServer, _LogHTTPServer, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, _redirector, fname = http_log_servers
+    log_dir = _view_server_preflight(f"{target.url}/{fname}", monkeypatch)
+    assert log_dir == f"{target.url}/{fname}"
+    assert target.requests

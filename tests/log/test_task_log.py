@@ -15,10 +15,11 @@ import pytest
 from test_helpers.task_logger import TaskLoggerShim
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai import Task, eval
+from inspect_ai import Epochs, Task, eval
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.run import eval_run
 from inspect_ai._eval.task import log as task_log_module
+from inspect_ai._eval.task.enqueue import RunQueue
 from inspect_ai._eval.task.log import (
     TaskLogger,
     resolve_package_revision,
@@ -26,7 +27,7 @@ from inspect_ai._eval.task.log import (
 )
 from inspect_ai._util.asyncfiles import AsyncFilesystem, ComposeSource
 from inspect_ai._util.background import background_task_group, set_background_task_group
-from inspect_ai._util.error import EvalError
+from inspect_ai._util.error import EvalError, PrerequisiteError
 from inspect_ai._util.git import GitContext
 from inspect_ai._util.package import DirectUrl, VcsInfo
 from inspect_ai.dataset import Sample
@@ -103,10 +104,11 @@ class TestResolveTaskDistribution:
 
 
 @pytest.mark.anyio
-async def test_eval_run_cleans_initialized_loggers_when_setup_fails(
+async def test_eval_run_initializes_no_logger_when_seed_configuration_fails(
     monkeypatch,
 ) -> None:
-    cleaned_loggers: list[object] = []
+    # a task's log starts with its attempt: a seed configuration error raises
+    # before any logger holds a recorder entry, so there is nothing to clean up
     init_count = 0
 
     class FakeTaskLogger:
@@ -116,25 +118,25 @@ async def test_eval_run_cleans_initialized_loggers_when_setup_fails(
         async def init(self) -> None:
             nonlocal init_count
             init_count += 1
-            if init_count == 2:
-                raise RuntimeError("setup failed")
-
-        async def cleanup(self) -> None:
-            cleaned_loggers.append(self)
 
     monkeypatch.setattr("inspect_ai._eval.run.TaskLogger", FakeTaskLogger)
 
     tasks = [
         Task(dataset=[Sample(input="input", target="target")]),
-        Task(dataset=[Sample(input="input", target="target")]),
+        Task(
+            dataset=[Sample(input="input", target="target")],
+            epochs=Epochs(1, "at_least_2"),
+        ),
     ]
     model = get_model("mockllm/model")
     resolved_tasks = resolve_tasks(tasks, {}, model, None, None, None)
+    queue = RunQueue("run-id", lambda tasks: [], [])
 
-    with pytest.raises(RuntimeError, match="setup failed"):
+    with pytest.raises(PrerequisiteError):
         await eval_run(
             eval_set_id=None,
             run_id="run-id",
+            queue=queue,
             tasks=resolved_tasks,
             parallel=1,
             eval_config=EvalConfig(log_realtime=True),
@@ -144,11 +146,19 @@ async def test_eval_run_cleans_initialized_loggers_when_setup_fails(
             run_samples=False,
         )
 
-    assert len(cleaned_loggers) == 1
+    assert init_count == 0
+    assert queue.records == []
+    assert queue.closed
 
 
 def _sample() -> EvalSample:
     return EvalSample(id="sample", epoch=1, input="question", target="answer")
+
+
+def _initialized_location(logger: TaskLogger) -> str:
+    """The location of a logger whose log has been initialised."""
+    assert logger.location is not None
+    return logger.location
 
 
 def _eval_spec() -> EvalSpec:
@@ -1056,6 +1066,8 @@ async def test_task_logger_reinit_waits_for_in_flight_stale_flush_and_restarts(
             await recorder.flush_started.wait()
         recorder.allow_flush.set()
         await logger.reinit()
+        # the retry's attempt starts its log
+        await logger.init()
         await logger.complete_sample(
             _sample().model_copy(update={"id": "after-retry"}), flush=True
         )
@@ -1088,7 +1100,7 @@ async def test_task_logger_reinit_releases_unfinished_attempt_but_keeps_its_log(
     )
     logger._location = await recorder.log_init(logger.eval)
     await logger.log_start(EvalPlan())
-    failed_location = logger.location
+    failed_location = _initialized_location(logger)
     assert Path(failed_location).exists()
     (failed_key,) = recorder.data
     assert not logger.finished
@@ -1096,12 +1108,16 @@ async def test_task_logger_reinit_releases_unfinished_attempt_but_keeps_its_log(
 
     await logger.reinit()
 
-    assert Path(failed_location).exists()
+    # the retry's attempt starts its own log
+    assert logger.location is None
+    assert not logger.destination_written
     assert failed_key not in recorder.data
+    await logger.init()
+    assert Path(failed_location).exists()
     assert len(recorder.data) == 1
     assert logger.location != failed_location
     await logger.log_start(EvalPlan())
-    assert Path(logger.location).exists()
+    assert Path(_initialized_location(logger)).exists()
 
 
 async def test_task_logger_reinit_leaves_finished_attempt_log(
@@ -1117,13 +1133,15 @@ async def test_task_logger_reinit_leaves_finished_attempt_log(
     logger._location = await recorder.log_init(logger.eval)
     await logger.log_start(EvalPlan())
     await logger.log_finish("error", EvalStats(), None, None, _error("boom"))
-    finished_location = logger.location
+    finished_location = _initialized_location(logger)
     assert logger.finished
 
     await logger.reinit()
 
     assert Path(finished_location).exists()
     assert not logger.finished
+    assert len(recorder.data) == 0
+    await logger.init()
     assert len(recorder.data) == 1
 
 
@@ -1297,13 +1315,16 @@ async def test_dynamic_seed_filters_epochs_without_sample_ids(
             logger.note_reused_sample(samples[0])
             await logger.log_finish("success", EvalStats(), prune_unplanned=True)
         assert (
-            b"excluded-epoch-private-payload" not in Path(logger.location).read_bytes()
+            b"excluded-epoch-private-payload"
+            not in Path(_initialized_location(logger)).read_bytes()
         )
-        log = await read_eval_log_async(logger.location)
+        log = await read_eval_log_async(_initialized_location(logger))
         assert {(s.id, s.epoch) for s in log.samples or []} == {(1, 1)}
         assert {
             (s.id, s.epoch)
-            for s in await read_eval_log_sample_summaries_async(logger.location)
+            for s in await read_eval_log_sample_summaries_async(
+                _initialized_location(logger)
+            )
         } == {(1, 1)}
 
 
@@ -1336,7 +1357,7 @@ async def test_dynamic_seed_keeps_epochs_above_the_prior_count(
     logger._location = await recorder.log_init(logger.eval)
     await logger.seed_from_prior(prior, keep=None, prior_epochs=2)
     await logger.log_start(EvalPlan())
-    log = await read_eval_log_async(logger.location)
+    log = await read_eval_log_async(_initialized_location(logger))
     assert {(s.id, s.epoch) for s in log.samples or []} == {(1, 1), (1, 3)}
 
 
@@ -1383,7 +1404,7 @@ async def test_dynamic_seed_adds_only_admitted_samples(
     assert await logger.read_sample(2, 1) is None
     assert await logger.read_prior_sample(3, 1) is None
     await logger.log_finish("error", EvalStats(), error=_error("interrupted retry"))
-    log = await read_eval_log_async(logger.location)
+    log = await read_eval_log_async(_initialized_location(logger))
     assert {(s.id, s.epoch) for s in log.samples or []} == {(1, 1), (2, 1)}
 
 
@@ -1409,7 +1430,7 @@ async def test_dynamic_seed_admission_does_not_overwrite_current_attempt(
     served = await logger.read_sample(2, 1)
     assert served is not None and served.input == "fresh rerun"
     await logger.log_finish("success", EvalStats(), prune_unplanned=True)
-    final = await read_eval_log_async(logger.location)
+    final = await read_eval_log_async(_initialized_location(logger))
     assert [(s.id, s.input) for s in final.samples or []] == [(2, "fresh rerun")]
 
 
@@ -1483,7 +1504,7 @@ async def test_dynamic_seed_reads_prior_once_per_attempt(
         await recorder.log_discard(logger.eval)
     else:
         await logger.log_finish("success", EvalStats(), prune_unplanned=True)
-        final = await read_log(logger.location)
+        final = await read_log(_initialized_location(logger))
         assert {s.id for s in final.samples or []} == set(range(12))
     assert closed == [True]
     assert not recorder._seed_sources
@@ -1626,7 +1647,7 @@ async def test_dynamic_seed_admission_failure_releases_recorder(
     await logger.log_finish("error", EvalStats(), error=_error("admission interrupted"))
     assert not recorder.data
     assert not recorder._seed_sources
-    final = await read_eval_log_async(logger.location)
+    final = await read_eval_log_async(_initialized_location(logger))
     assert {s.id for s in final.samples or []} == {1, 2}
 
 
@@ -1674,7 +1695,7 @@ async def test_json_seed_preserves_exact_unicode_ids(
     assert await logger.read_prior_sample(1, 1) is None
     await logger.log_start(EvalPlan())
     await logger.log_finish("error", EvalStats())
-    final = await read_eval_log_async(logger.location)
+    final = await read_eval_log_async(_initialized_location(logger))
     assert {s.id for s in final.samples or []} == {sample_id} | (
         {"001"} if not restricted else set()
     )
@@ -1709,7 +1730,7 @@ async def test_json_seed_prefers_distinct_exact_ids(
         logger.note_reused_sample(actual)
     await logger.log_start(EvalPlan())
     await logger.log_finish("success", EvalStats(), prune_unplanned=True)
-    final = await read_eval_log_async(logger.location)
+    final = await read_eval_log_async(_initialized_location(logger))
     assert final.samples is not None
     assert {(s.id, s.epoch) for s in final.samples} == expected_keys
 
@@ -1734,14 +1755,17 @@ async def test_seed_pruning_survives_intermediate_flushes(
     )
 
     async def check_snapshot(expected_ids: set[int]) -> None:
-        log = await read_eval_log_async(logger.location)
+        log = await read_eval_log_async(_initialized_location(logger))
         assert log.samples is not None
         assert {s.id for s in log.samples} == expected_ids
         assert {
-            s.id for s in await read_eval_log_sample_summaries_async(logger.location)
+            s.id
+            for s in await read_eval_log_sample_summaries_async(
+                _initialized_location(logger)
+            )
         } == expected_ids
         with pytest.raises(IndexError):
-            await read_eval_log_sample_async(logger.location, 3, 1)
+            await read_eval_log_sample_async(_initialized_location(logger), 3, 1)
 
     for _ in range(2):
         await recorder.flush(logger.eval)
@@ -1780,11 +1804,14 @@ async def test_pruning_all_seeds_persists_an_empty_journal(
     assert scope.cancelled_caught == cancel
     for _ in range(2):
         await recorder.flush(logger.eval)
-        log = await read_eval_log_async(logger.location)
+        log = await read_eval_log_async(_initialized_location(logger))
         expected = {1, 2, 3, 4} if cancel else set()
         assert {s.id for s in log.samples or []} == expected
         assert {
-            s.id for s in await read_eval_log_sample_summaries_async(logger.location)
+            s.id
+            for s in await read_eval_log_sample_summaries_async(
+                _initialized_location(logger)
+            )
         } == expected
     await recorder.log_discard(logger.eval)
 
@@ -1822,7 +1849,7 @@ async def test_task_logger_seed_keeps_complete_archive_without_rewriting(
     logger._location = await recorder.log_init(logger.eval)
     await logger.seed_from_prior(prior, keep=keep)
     await logger.log_start(EvalPlan())
-    snapshot = await read_eval_log_async(logger.location)
+    snapshot = await read_eval_log_async(_initialized_location(logger))
     assert snapshot.eval.eval_id == logger.eval.eval_id
     assert snapshot.status == "started"
     assert snapshot.samples == [sample]
@@ -1868,9 +1895,12 @@ async def test_task_logger_seed_from_prior_log(
 
     await logger.log_start(EvalPlan())
     assert {
-        s.id for s in await read_eval_log_sample_summaries_async(logger.location)
+        s.id
+        for s in await read_eval_log_sample_summaries_async(
+            _initialized_location(logger)
+        )
     } == {1, 2, 3}
-    header = await read_eval_log_async(logger.location, header_only=True)
+    header = await read_eval_log_async(_initialized_location(logger), header_only=True)
     assert header.eval.eval_id == "retry-attempt"
 
 
@@ -1943,7 +1973,10 @@ async def test_task_logger_seeded_records_surface_as_the_sweep_resolves_them(
     # unresolved seeded record is the sample's final record
     assert await logger.sample_summaries() is None
     assert {
-        s.id for s in await read_eval_log_sample_summaries_async(logger.location)
+        s.id
+        for s in await read_eval_log_sample_summaries_async(
+            _initialized_location(logger)
+        )
     } == {1, 2, 3}
 
 
@@ -2005,12 +2038,15 @@ async def test_task_logger_finish_prunes_unresolved_seeded_records_on_natural_su
         prune_unplanned=prune_unplanned,
     )
 
-    log = await read_eval_log_async(logger.location)
+    log = await read_eval_log_async(_initialized_location(logger))
     assert log.status == status
     assert log.samples is not None
     assert {s.id for s in log.samples} == expected_ids
     assert {
-        s.id for s in await read_eval_log_sample_summaries_async(logger.location)
+        s.id
+        for s in await read_eval_log_sample_summaries_async(
+            _initialized_location(logger)
+        )
     } == expected_ids
 
 
@@ -2045,11 +2081,14 @@ async def test_task_logger_prune_survives_failed_compaction(
     assert warning.call_count == 1
     assert "simulated compaction failure" in warning.call_args.args[0]
 
-    log = await read_eval_log_async(logger.location)
+    log = await read_eval_log_async(_initialized_location(logger))
     assert log.samples is not None
     assert {s.id for s in log.samples} == {1}
     assert {
-        s.id for s in await read_eval_log_sample_summaries_async(logger.location)
+        s.id
+        for s in await read_eval_log_sample_summaries_async(
+            _initialized_location(logger)
+        )
     } == {1}
 
 
@@ -2098,7 +2137,7 @@ async def test_compact_reopens_the_zip_when_cancelled_before_the_worker_starts(
     }
     # the finish that follows (compacting for real this time) sees the same
     await logger.log_finish("success", EvalStats(), prune_unplanned=True)
-    log = await read_eval_log_async(logger.location)
+    log = await read_eval_log_async(_initialized_location(logger))
     assert log.samples is not None and {s.id for s in log.samples} == {1}
 
 
@@ -2314,7 +2353,10 @@ async def test_task_logger_seed_from_prior_relogs_across_formats(
     assert summaries is not None and {s.id for s in summaries} == {1}
     await logger.log_start(EvalPlan())
     assert {
-        s.id for s in await read_eval_log_sample_summaries_async(logger.location)
+        s.id
+        for s in await read_eval_log_sample_summaries_async(
+            _initialized_location(logger)
+        )
     } == {1, 2}
 
 
@@ -2371,15 +2413,17 @@ async def test_task_logger_seed_preserves_record_id_matching(
     summaries = await logger.sample_summaries()
     assert summaries is not None and len(summaries) == 2
     await recorder.flush(logger.eval)
-    disk_summaries = await read_eval_log_sample_summaries_async(logger.location)
+    disk_summaries = await read_eval_log_sample_summaries_async(
+        _initialized_location(logger)
+    )
     assert len(disk_summaries) == 2
     assert all(s.error is None for s in disk_summaries)
 
     await logger.log_finish("success", EvalStats())
-    finished = await read_eval_log_async(logger.location)
+    finished = await read_eval_log_async(_initialized_location(logger))
     assert finished.samples is not None and len(finished.samples) == 2
     for id in request_ids:
-        read = await read_eval_log_sample_async(logger.location, id, 1)
+        read = await read_eval_log_sample_async(_initialized_location(logger), id, 1)
         assert read.error is None
         assert read.error_retries == samples[1].error_retries
 
@@ -2450,7 +2494,10 @@ async def test_task_logger_seed_from_prior_in_memory_samples(tmp_path: Path) -> 
     assert prior is not None and prior.input == "q4"
     await logger.log_start(EvalPlan())
     assert {
-        s.id for s in await read_eval_log_sample_summaries_async(logger.location)
+        s.id
+        for s in await read_eval_log_sample_summaries_async(
+            _initialized_location(logger)
+        )
     } == {
         1,
         2,
@@ -2475,9 +2522,9 @@ async def test_task_logger_seed_from_prior_missing_log_runs_unseeded(
 
     assert not logger.prior_seeded
     assert any("not found" in str(call.args[0]) for call in warning.call_args_list)
-    assert not Path(logger.location).exists()
+    assert not Path(_initialized_location(logger)).exists()
     await logger.log_start(EvalPlan())
-    assert Path(logger.location).exists()
+    assert Path(_initialized_location(logger)).exists()
 
 
 async def test_task_logger_seed_from_prior_storage_failure_raises(
@@ -2500,7 +2547,7 @@ async def test_task_logger_seed_from_prior_storage_failure_raises(
         await logger.seed_from_prior(prior, keep=None)
 
     assert not logger.prior_seeded
-    assert not Path(logger.location).exists()
+    assert not Path(_initialized_location(logger)).exists()
 
 
 async def test_task_logger_log_finish_stops_stale_flush_timer(tmp_path) -> None:
@@ -2831,7 +2878,7 @@ async def test_task_logger_discard_quiesces_live_controls_after_finish_failure(
             assert not logger._stale_flush_stops
             assert not logger.finished
             assert not recorder.data
-            assert Path(logger.location).exists()
+            assert Path(_initialized_location(logger)).exists()
     finally:
         clear_all_eval_states()
 
@@ -3109,3 +3156,15 @@ async def test_task_logger_destination_written_finished_without_recorder() -> No
     logger._finished = True
     assert logger.destination_written is True
     assert recorder.asked == 1
+
+
+async def test_task_logger_without_an_entry_has_nothing_to_discard() -> None:
+    # a logger whose log never started (queued, or reset by reinit) holds no
+    # recorder entry
+    recorder = _FlushRecorder()
+    logger = _flush_logger(recorder=recorder)
+    logger._location = None
+
+    assert logger.destination_written is False
+    await logger.discard()
+    assert recorder.discard_count == 0
