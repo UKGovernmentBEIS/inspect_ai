@@ -70,6 +70,15 @@ See the [Amazon S3](#sec-amazon-s3) section below for details on logging evaluat
 See the [Hugging Face Storage Buckets](#sec-hugging-face-storage-buckets) section below for details on logging evaluations to Hugging Face buckets.
 See the [Azure](#sec-azure) section below for details on logging evaluations to Azure.
 
+### Set Up a Log Directory for Multiple Users {#shared-log-directory}
+
+When several accounts run evals with `--log-shared` in the same directory on Linux or macOS, Inspect keeps a `.buffer` folder there between runs. If one person's live updates appear but the next person's do not, check the permissions on that folder.
+
+- Give each account that runs evals write and execute permission on `.buffer` so it can create its own run folder. Accounts that list running tasks or clean up old runs also need read permission on `.buffer`.
+- Set permissions so viewers can open each new run folder and read the files inside. Use a shared group and configure each runner's `umask` to allow that access, or set an inheritable access control list (ACL) on the directory. Inspect replaces files as it publishes updates, so permissions set on an individual file can be lost.
+
+The log directory itself can be a symbolic link. Use ordinary directories for `.buffer` and the run folders inside it.
+
 ## Log Format {#sec-log-format}
 
 Inspect log files use JSON to represent the hierarchy of data produced by an evaluation. Depending on your configuration and what version of Inspect you are running, the log JSON will be stored in one of two file types:
