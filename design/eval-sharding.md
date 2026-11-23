@@ -635,8 +635,8 @@ their own sections.
 - A merge of shards run with sample ids holds every selected sample and
   epoch. For deterministic, order-insensitive metrics over values the
   stored JSON preserves (for example mean, accuracy and stderr over plain
-  scores), it gives the same results as a fresh merge of the same
-  companion and as an unsharded run
+  scores), each named metric value it computes equals the corresponding
+  value of a fresh merge of the same companion and of an unsharded run
   (`test_merge_of_sample_id_shards_matches_an_unsharded_run`,
   `test_incremental_merges_equal_fresh_merges`). The exceptions:
   - **Randomness.** `bootstrap_stderr` and bootstrap `ci` (clustered too)
@@ -644,7 +644,11 @@ their own sections.
     ("Results").
   - **Input order.** The merge feeds metrics in id, then epoch order; a
     native run in epoch, then dataset order. An order-sensitive metric can
-    differ ("Results").
+    differ ("Results"). So can anything that follows the first score
+    seen: a wildcard metric (`{"*": [...]}`) expands in the key order of
+    the first dictionary score, so the results can come out in a different
+    order, and the default headline, which is the first result, can name a
+    different metric.
   - **JSON round-tripping.** Metrics see scores and metadata in their
     stored JSON form, so a tuple becomes a list
     (`test_merged_metrics_see_metadata_as_stored_in_the_log`,
@@ -832,5 +836,11 @@ Limits users meet are listed in [Sharding,
 - **Per-epoch sharding**, which `sample_id` and `limit` cannot express.
 - **Sanitising control characters** in log-derived names that `inspect
   log` commands print.
+- **An empty first result hides the default headline.** List-wrapped
+  dictionary metrics (`metrics=[{"*": [mean()]}]`) add an empty result for
+  the empty simple-metric list ahead of the dictionary results, and the
+  default headline reads only the first result, so the log has none
+  (`src/inspect_ai/_eval/task/results.py`, `src/inspect_ai/log/_headline.py`);
+  this affects unsharded logs too.
 - `seed_from_prior_log` keeps unknown zip members, so any future extra
   member would be copied into seeded retries.
