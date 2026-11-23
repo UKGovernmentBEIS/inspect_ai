@@ -29,7 +29,8 @@ of it: an enclosing `run()`, the sample, or a runtime such as
 inspect_swarm. Suspending a kind of limit hides
 that kind from the calls in the block: approval, review and sentinel calls,
 which suspend token, turn and cost limits, neither charge nor check them,
-as today, and an error such a call raises keeps today's routing. Once the sandbox bridge has kept a limit, it refuses every new
+as today, and an error such a call raises keeps today's policy-specific
+handling. Once the sandbox bridge has kept a limit, it refuses every new
 request and host-tool request at entry, whatever is suspended; work
 already admitted stops only at reached limits on its own path.
 
@@ -409,7 +410,9 @@ tokens per call, run against this branch's base):
    propagate, and at a tool, handoff or host tool it is the call's own,
    whatever its type, and is mapped as today. The mapping covers errors
    the call's body raises; an error a policy call raises keeps today's
-   routing ("Policy calls").
+   policy-specific handling and is not mapped by that call, and the bare
+   limit error it leaves behind follows rules 4, 6 and 8 like any other
+   ("Policy calls").
 7. **Each owner checks its own limits at exit.** A limit error that
    reaches its owner stands. When an `apply_limits()` scope ends normally,
    Inspect checks the token, cost and turn limits that scope entered, and
@@ -747,9 +750,10 @@ the sandbox bridge keeps a limit is under "After a limit is kept".
 
 Rule 6 at the call boundaries. The mapping applies to errors raised by
 the tool or agent body. An error raised by a policy call (a sentinel stage,
-tool result review or approval) keeps today's routing, including
-`SentinelFailure` and its unwrapping, and this design changes none of it
-("Policy calls"). A call enters no limits of its own, so a
+tool result review or approval) keeps today's policy-specific handling,
+including `SentinelFailure` and its unwrapping, and is not mapped by that
+call; a bare limit error it leaves behind follows rules 4, 6 and 8 like
+any other ("Policy calls"). A call enters no limits of its own, so a
 limit is *the call's own* when it is a limit of any kind entered
 in the call's own context (the call's task and the tasks started inside
 it, which carry its scope marker, rule 1) while the call ran, a message limit (it measured the call's own
@@ -824,14 +828,29 @@ Approval, tool result review and sentinel monitors run model calls of their
 own around a tool or generation. The ownership mapping applies to errors
 raised by the tool or agent body ("Ownership"). An error raised by a policy
 call (a sentinel stage, tool result review or approval) keeps today's
-routing ("Current behaviour"), including `SentinelFailure` and its
-unwrapping; this design changes none of it.
+policy-specific handling ("Current behaviour"): `SentinelFailure` wraps it
+and is unwrapped where it is today, and the call whose policy raised it
+does not map it. This design changes none of that.
+
+What it changes is what happens to such an error once that handling has
+produced a bare limit error, as `_sentinel_exception()` in native tools and
+`_guarded()` in the bridge do, and as a result-review error already is. From
+there it is a limit error like any other: a reduction that meets it with
+other limits combines them (rule 4), and a combined error holding it is not
+mapped by the call either; an enclosing owner (an outer tool, `run()`, the
+sample) applies rule 6 to it; and the sandbox bridge adds it to its kept
+limits beside any it already holds (rule 8), so a tool-stage message limit
+of a request admitted before a token limit was kept is raised with that
+token limit when the agent unwinds, where today the bridge keeps only one.
 
 The rest of the design relies on one fact about these calls: they run with
 token, turn and cost limits suspended (rule 5), and suspension leaves
-message limits active, so the only limit a policy call can reach is a
-message limit (`generate()` checks the innermost message limit before
-dispatch, `check_message_limit()` in `Model.generate()`).
+message limits active, so the only limit a policy call's own model calls can
+reach is a message limit (`generate()` checks the innermost message limit
+before dispatch, `check_message_limit()` in `Model.generate()`). Policy
+code can still enter limits of its own, such as a `time_limit()` in a
+review callback; those are ordinary nodes, with the scope marker of the
+context they are entered in (rule 1).
 
 ### The owner's exit check
 
@@ -1881,7 +1900,9 @@ documented. Behaviour changes:
   limits behaves as before; a handoff still
   returns the handed-off agent's new messages and its limit message for
   them. An error a policy call raises (a sentinel stage, tool result
-  review or approval) keeps today's routing ("Policy calls").
+  review or approval) keeps today's policy-specific handling and is not
+  mapped by that call; once it is a bare limit error it is combined, owned
+  and kept like any other ("Policy calls").
 - **Unpriced models under a cost limit fail.** A call to a model with no
   cost data, made while a sample, agent or swarm cost limit is active, is
   refused before dispatch with an `UnmeteredCallError` (a
@@ -2389,6 +2410,11 @@ under trio with `--runtrio`.
     provider call; a newly reached outer token limit at
     the next request's entry joins the kept limit, and the reply's error
     holds both;
+  - a request admitted before the bridge kept a token limit whose
+    tool-stage sentinel monitor then reaches an inherited message limit
+    (unwrapped bare by `_guarded()`, as today) adds the message limit to
+    the kept ones, and the agent's unwind raises the combined error of
+    both, the earlier entered first;
   - a host tool whose model call reaches the sample limit after a member
     limit was kept adds the sample limit to the kept ones;
   - through `_run_bridged_agent()` (a one-sample eval with a served scaffold,
