@@ -294,13 +294,15 @@ where pickle caches them today.
 Writes are atomic. The writer creates a temporary file in the entry's own
 directory, under a random name that matches no entry pattern, writes the
 bytes, closes it and renames it over `<key>.jsonl` with `os.replace`. The
-temporary file is created exclusively (`O_EXCL`) and with the permissions
-an ordinary create gives under the process umask, as
-`_create_local_tempfile` in `src/inspect_ai/_util/atomic_write.py` does, so
-a published entry has the same mode as one written by `open(filename,
-"wb")` today. (`tempfile.mkstemp` would make every entry owner-only, so a
-cache directory shared through `INSPECT_CACHE_DIR` would become unreadable
-to other accounts.) A
+temporary file is created exclusively (`O_EXCL`). A published entry has
+the mode `open(filename, "wb")` gives it today: when it replaces an existing
+regular `<key>.jsonl`, that file's permission bits are kept, and a new entry
+gets the permissions an ordinary create gives under the process umask, as
+`atomic_write` in `src/inspect_ai/_util/atomic_write.py` does for both
+cases. (`tempfile.mkstemp` would make every entry owner-only, so a cache
+directory shared through `INSPECT_CACHE_DIR` would become unreadable to
+other accounts, and a plain create would reset a restricted or
+group-shared entry's mode on every rewrite.) A
 reader therefore opens either the previous whole entry, the new whole entry
 or no file; when two processes store the same key, the last rename wins and
 the entry is one writer's whole file. If anything fails before the rename,
@@ -532,9 +534,11 @@ or a model provider (they use `mockllm` and `INSPECT_CACHE_DIR` under
 - **Failed rename.** With `os.replace` patched to raise, a store leaves the
   existing entry unchanged and no temporary file, and `generate()` returns
   its output.
-- **Entry permissions.** Under the test's umask, a stored entry has the
+- **Entry permissions.** Under the test's umask, a new stored entry has the
   same mode as a file created with `open(path, "wb")` in the same
-  directory (not owner-only). Skipped on Windows.
+  directory (not owner-only), and storing over an existing `<key>.jsonl`
+  whose mode differs from that (`0600`, `0660`) keeps the existing mode.
+  Skipped on Windows.
 - **Temporary files are not entries.** A leftover temporary file
   holding a valid expired entry is not listed or pruned, is counted by
   `cache_size`, and is removed by `cache_clear`.
