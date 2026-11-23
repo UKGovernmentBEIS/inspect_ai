@@ -775,8 +775,9 @@ tool error; a handoff still answers its own limit) pin this nesting.
   If the error is owned by the call, it is mapped to the `limit` tool
   error as today, with the combined error's message. That covers `as_tool()` limits, any `with token_limit()` inside
   a tool, and message limits, except a message limit raised by a sentinel
-  tool-call or tool-result stage's own model call, which keeps the
-  sentinel path (Sentinel failures). An error that is not owned is handled like a
+  protocol's own model call in a tool-call or tool-result stage, or in the
+  generate stage of a generation made inside the tool (an `as_tool()`
+  agent's), which keeps the sentinel path (Sentinel failures). An error that is not owned is handled like a
   termination raised in a tool: its `ToolEvent` is completed, its siblings
   in the stage are cancelled, and the error propagates out of
   `execute_tools()` as the combined `LimitExceededError`, not as a group:
@@ -828,13 +829,18 @@ limit before dispatch (`Model.generate()`,
 `check_message_limit()`), so a monitor whose own prompt
 reaches an inherited message cap raises a message limit. It keeps today's
 handling: the wrapper turns it into a `SentinelFailure`. In a native
-tool's tool-call (before-tool) or tool-result (after-tool) stage,
-`execute_tools()` unwraps it into the stage's exception as today
-(`_sentinel_exception()` and `call_tool_task()` in `_call_tools.py`), and it propagates out of `execute_tools()` as the bare
+tool's tool-call (before-tool) or tool-result (after-tool) stage, and in
+the generate stage of a generation made inside a native tool (an
+`as_tool()` agent's, whose `SentinelFailure` escapes the tool body),
+`execute_tools()` unwraps it into the stage's or call's exception as today
+(`_sentinel_exception()` and `call_tool_task()`'s `except SentinelFailure`
+in `_call_tools.py`), and it propagates out of `execute_tools()` as the bare
 message limit, without the ownership mapping: it does not become a
 `limit` tool error, even though the same limit reached in the tool's
-body would. Ownership (`execute_tools()`) refers here.
-From a native generate stage it reaches the sample runner as a
+body would. The sample runner then records it as the sample's message
+limit. Ownership (`execute_tools()`) refers here.
+From a native generate stage outside any native tool (a solver's or a
+top-level agent's own generation) it reaches the sample runner as a
 `SentinelFailure`, not a `LimitExceededError`, so the runner's
 `except LimitExceededError` does not record it: `handle_error()` only
 selects the inner monitor error for reporting (`_task_run_sample_attempt()` in `src/inspect_ai/_eval/task/run.py`), and the
@@ -1101,65 +1107,28 @@ them would fail ordinary resumes.
 
 ### Token metering must not decrease
 
-The exit checks and the pre-dispatch refusal read
-a node's state after its error may have been lost, so they rely on metered
-usage never decreasing as calls are recorded: a limit that has been reached
-stays reached. Turns only grow, and so does cost, given valid inputs:
-every rate a charge is computed from is finite and non-negative, every
-usage count a provider's response converts to is non-negative, and so
-every computed charge is finite and non-negative. That is a premise of
-this design, not part of it: Inspect does not validate prices, converted
-usage or charges today, and doing so is a separate change ("Not this
-design"). A token limit's `type` can today be
-an arithmetic formula over cumulative `input` and `output` tokens, with `+`,
-`-`, `*`, `/` and unary minus (`_compile_token_formula()` and
-`_TokenMetering.value()`, `src/inspect_ai/util/_limit.py`;
-the Token Limit sections of `docs/setting-limits.qmd`). Some formulas decrease as tokens are
-used: under `token_limit(10, type="input - output")`, two returns of 20 input
-and 1 output tokens, then 1 input and 20 output tokens, take metered usage
-from 19 to 0, so a swallowed error leaves a limit that refuses nothing and
-does not count at exit.
-
-A survey of this repository, inspect_swarm, inspect_sentinel, inspect_swe
-and inspect_petri finds only `all`, `output`, `input` and non-negative
-weighted sums such as `(input * 0.1) + output` in use. So formulas are
-limited to that family: a *non-negative weighted sum*,
-`c + a * input + b * output` with `a >= 0` and `b >= 0` (any constant `c`).
-Its floor never decreases as either count grows, and the cumulative
-counts it reads do not decrease given the non-negative usage premise
-above. A converter that subtracts cached tokens from input does not lower
-`input` either, since token metering adds cached input back into it
-(`_TokenMetering.value()`).
-
-`_compile_token_formula()` enforces the family by its grammar, at
-construction. Its existing AST walk becomes a reduction of the expression to
-three finite coefficients `(c, a, b)`, the formula `c + a * input + b * output`:
-
-- a numeric constant `k` is `(k, 0, 0)`; `input` is `(0, 1, 0)`; `output`
-  is `(0, 0, 1)`;
-- unary plus keeps the coefficients and unary minus negates them;
-- `x + y` and `x - y` add and subtract them;
-- `x * y` is allowed only when one side reduces to a constant (its `a` and
-  `b` are 0), and scales the other side's coefficients by it;
-- `x / y` is allowed only when `y` reduces to a nonzero constant, and scales
-  `x`'s coefficients by `1 / y`;
-- anything else (a product or quotient of two expressions that both depend
-  on `input` or `output`, division by zero, a non-finite coefficient) is
-  refused.
-
-The result must have `a >= 0` and `b >= 0`. Metering then evaluates
-`floor(c + a * input + b * output)` from the coefficients, so what is
-accepted is exactly what is metered. There is no sampling and no tolerance:
-an expression outside the grammar, such as `input * output`,
-`input / output`, `input - output` or a polynomial in `input`, raises
-`ValueError` when the limit is built: "token limit: formula '<formula>' must
-be a non-negative weighted sum of input and output, such as '(input * 0.1)
-+ output'; formulas whose value can decrease as tokens are used are not
-supported." Every token limit is built through `_TokenMetering`, so the check
-covers `token_limit()`, `TokenLimit` (task and eval configuration and the
-`--token-limit` string form), a `TokenLimit` read back from a log for a
-retry, and inspect_swarm's member limits restored with
-`token_limit(value, type=...)` (`_limit_from_dict()` in `inspect_swarm/src/inspect_swarm/_member.py`).
+The exit checks and the pre-dispatch refusal read a node's state after its
+error may have been lost, so they rely on metered usage never decreasing as
+calls are recorded: a limit that has been reached stays reached. That is a
+premise of this design, not part of it, and it holds given valid inputs.
+Turns only grow. Cost grows when every rate a charge is computed from is
+finite and non-negative and every usage count a provider's response
+converts to is non-negative, so every computed charge is finite and
+non-negative. Token usage grows when, in addition, a token limit's `type`
+formula (`_compile_token_formula()` and `_TokenMetering.value()`,
+`src/inspect_ai/util/_limit.py`; the Token Limit sections of
+`docs/setting-limits.qmd`) does not decrease as the cumulative `input` and
+`output` counts grow; token metering adds cached input back into `input`,
+so a converter that subtracts cached tokens from input does not lower it.
+`all`, `output`, `input` and non-negative weighted sums such as
+`(input * 0.1) + output`, the only formulas found in use in this
+repository, inspect_swarm, inspect_sentinel, inspect_swe and
+inspect_petri, qualify. A formula whose value can fall as tokens are used,
+such as `input - output`, voids recovery for that limit, as an invalid
+price voids it for a cost limit: a swallowed error can leave a limit that
+refuses nothing and does not count at exit. Inspect validates none of
+these inputs today, `_compile_token_formula()` keeps today's behaviour,
+and validation is a separate change ("Not this design").
 
 ### Checkpoints
 
@@ -2082,19 +2051,6 @@ documented. Behaviour changes:
   and inspect_swarm enters member limits around each member's own bridged
   agent, so one member's limit never reaches another member's bridge.
   `dispatch_guard()` was private and had no other user.
-- **Token limit formulas.** A token limit `type` formula must now be a
-  non-negative weighted sum of `input` and `output` ("Token metering must
-  not decrease"); `token_limit(10, type="input - output")` and formulas
-  that multiply or divide the two counts raise `ValueError` when the limit
-  is built, including when an eval with such a formula is retried from its
-  log. No such formula was found in use. `all`, `output`, `input` and
-  weighted sums such as `(input * 0.1) + output` are still accepted, but a
-  retained formula is evaluated from its reduced coefficients, which
-  regroups the floating-point arithmetic and can change the floored count
-  by one: `input / 3 + output / 3` with 7 input and 2 output tokens meters
-  3 today and 2 after the change (`2.9999999999999996` floored). This
-  applies wherever the formula is evaluated, including when a checkpoint
-  restore re-meters the same raw counts.
 - **Private internals.** `_encloses()`, `_sample_roots()` and `_in_tree()`
   are removed, and so are `dispatch_guard()`, its ContextVar and the
   bridge's `_refuse_after_a_recorded_limit()`. `_TurnLimit._check_self()` gains a parameter. Token, cost,
@@ -2118,8 +2074,8 @@ documented. Behaviour changes:
   error holding an enclosing limit ends the caller), the new turn semantics, the
   suspension rule, that every model called under a cost limit needs cost
   data of its own (routers included), that calls reporting no usage are
-  not counted, and that a token formula must be a non-negative weighted sum (the
-  formula paragraphs under both Token Limit sections of `docs/setting-limits.qmd`).
+  not counted, and recommend non-negative weighted sums of `input` and
+  `output` for token formulas.
 
 ## Security
 
@@ -2250,13 +2206,7 @@ under trio with `--runtrio`.
   refused by a reached token, turn or cost limit, and a reached message
   limit still refuses it; inside `suspend_limits()`, a `_CostLimit` subclass whose `_check_self()` always
   raises (as inspect_swarm's closed stop gate does) is not checked, and the
-  same node refuses an unsuspended call;
-  `token_limit()` and `TokenLimit` (including the `"input-output:10"`
-  string form) refuse `input - output`, `input / output`
-  and `input * output` with the family message, and accept `all`, `output`,
-  `input`, `(input * 0.1) + output`, `input / 10 + output` and
-  `2 * input - input`; a polynomial in `input` such as
-  `input + input * (input - 1)` is refused.
+  same node refuses an unsuspended call.
 - `tests/util/test_limit.py`, `run()` and `apply_limits()`: an owned limit
   raised inside the agent's task group is returned; a group of an owned
   token limit and an enclosing limit (a sample message limit, or an outer
@@ -2359,7 +2309,14 @@ under trio with `--runtrio`.
   sentinel exception: a sentinel protocol whose before-tool, then
   after-tool, model call reaches an inherited message limit propagates the
   bare message limit out of `execute_tools()`; its control sends the same
-  prompt from the tool body and gets the `limit` tool error.
+  prompt from the tool body and gets the `limit` tool error. Beside it, an
+  `as_tool()` agent whose generation's generate-stage protocol call (before
+  and, separately, after the generation) reaches the inherited message
+  limit propagates the bare message limit out of `execute_tools()`, and the
+  sample records a message `EvalSampleLimit` with no sample error; the
+  outside-tool control runs the same protocol around the solver's own
+  generation, and the sample ends in a `SentinelFailure` error with no
+  `EvalSampleLimit`, as today. Both run on asyncio and Trio.
 - `tests/test_eval.py` (or the existing sample-limit tests): a solver that
   swallows an exceeded sample token limit and returns is recorded as
   limited; a solver that uses exactly the budget and returns is not; a solver that catches the limit and raises
@@ -2527,9 +2484,7 @@ Each step is one PR, in this order. Each keeps the suite green.
    raising every node that raises (skipping suspended kinds, cost
    included, as the per-kind checks do), recording without a check, turn
    limits refusing at equality before dispatch,
-   `record_turn` recording only,
-   the affine grammar and non-negative weights in `_compile_token_formula()`,
-   with metering from the reduced coefficients.
+   `record_turn` recording only.
    `src/inspect_ai/model/_model.py`: each model call recording, then
    running the check once, where its accounting runs today
    (generation, cache hit, native compaction, sidecar recovery), and the
@@ -2619,8 +2574,8 @@ None.
   (`Model._generate_prepared()`); without it, nothing is recorded or checked for
   the call. An output `refused_output()` produces inside `_generate()`
   follows the normal path (a turn and the post-call check).
-- Validating prices, converted usage and charges. "Cost only grows"
-  ("Token metering must not decrease") assumes every rate a charge is
+- Validating prices, converted usage, charges and token formulas.
+  "Token metering must not decrease" assumes every rate a charge is
   computed from (a configured `ModelCost`, a serving model's price,
   LiteLLM proxy metadata) is finite and non-negative, and so is every
   usage count a provider response converts to. None is validated today: a
@@ -2629,7 +2584,10 @@ None.
   and Grok converters subtract cached tokens from input tokens without a
   floor, so a response reporting more cached than prompt tokens gives
   negative fresh input and, at valid rates, a negative charge that also
-  reopens an exceeded node. This exists on main and is its own change.
+  reopens an exceeded node. It also assumes token-limit formulas do not
+  decrease as tokens are used; `_compile_token_formula()` accepts
+  `input - output` today, and rejecting such formulas belongs to the same
+  change. This exists on main and is its own change.
 - `SampleLimitEvent` is emitted by every token, cost, turn and message node
   that raises, scoped or not, so the viewer shows an agent's limit as a sample
   limit. inspect_swarm subclasses nodes to avoid it.
