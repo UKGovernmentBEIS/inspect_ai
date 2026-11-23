@@ -637,7 +637,7 @@ their own sections.
   order-insensitive, over values the stored JSON preserves (for example
   mean, accuracy and stderr over plain scores), each named metric value it
   computes equals the corresponding value of a fresh merge of the same
-  companion and of an unsharded run, up to floating-point rounding
+  companion and of an unsharded run, up to floating-point error
   (`test_merge_of_sample_id_shards_matches_an_unsharded_run`,
   `test_incremental_merges_equal_fresh_merges`). The exceptions:
   - **Randomness.** `bootstrap_stderr` and bootstrap `ci` (clustered too)
@@ -647,8 +647,9 @@ their own sections.
     native run in epoch, then dataset order. An order-sensitive metric can
     differ ("Results"), and so can the last bits of a floating-point
     aggregate such as `mean()`, whose summation order follows the input
-    order (scores 0.1, 0.1, 0.4 averaged in two orders give
-    0.20000000000000004 and 0.19999999999999998). So can anything that follows the first score
+    order: scores 0.1, 0.1, 0.4 averaged in two orders give
+    0.20000000000000004 and 0.19999999999999998, and values that cancel
+    (1e16, -1e16, 1.0) can differ by far more. So can anything that follows the first score
     seen: a wildcard metric (`{"*": [...]}`) expands in the key order of
     the first dictionary score, so the results can come out in a different
     order, and the default headline, which is the first result, can name a
