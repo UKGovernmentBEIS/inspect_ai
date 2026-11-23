@@ -103,7 +103,9 @@ If you are running VS Code, you can click the **View Log** link within the task 
 
 If you are running with the `inspect view` command-line then you can access logs for in-progress tasks using the [Log History](#log-history) as described above.
 
-### Sharing Live Logs {#s3-logs}
+[]{#s3-logs}
+
+### Sharing Live Logs
 
 Multiple users can view live logs located on Amazon S3 (or any shared filesystem) by specifying an additional `--log-shared` option indicating that live log information should be written to the shared filesystem:
 
