@@ -199,21 +199,13 @@ written:
   before (by digest); the read selections are pairwise disjoint; and the
   merged records each read shard owned number exactly its ledger count
   (`check_reads`);
-- the merged log is structurally consistent with its ledger. Every pass
-  that reads it checks that every sample member name parses and that the
-  ledger names each shard once and no attempt with a backslash. A pass over
-  a companion with attempts also checks that its sample records number the
-  sum of the ledger counts (`check_ledger_count`); a pass that returns the
-  merged log as recorded, because no attempt is left or because a deleting
-  call resumes over vanished shards with the rest unchanged, trusts the
-  recorded log and its status without recounting. A pass that writes also
-  requires a summary for every carried record, since it copies them; a
-  pass that writes nothing (including a deleting call over unchanged
-  shards) does not read the merged summaries, so a merged log that lost
-  them passes. A merged log whose records were added or
-  removed outside the merge is refused with the advice to delete it and
-  rebuild from the shards; an edit that keeps the records (a changed score)
-  is not detected and is carried ("The sample set");
+- a pass that plans from the shards refuses a merged log whose records
+  were added or removed outside the merge, with the advice to delete it and
+  rebuild from the shards
+  (`test_merge_refuses_a_merged_log_changed_outside_the_merge`). A pass
+  that returns the merged log as recorded (no attempt left, or a resumed
+  deletion) trusts it. An edit that keeps the records (a changed score) is
+  carried ("The sample set");
 - the selection, given or recorded, covers every held id
   (`ShardSelectionError` names the ids outside it).
 
@@ -298,8 +290,10 @@ selection; the merged results carry no early-stopping summary. A fractional
 The merged log is an ordinary finished `.eval` file: sample members,
 `summaries.json`, `reductions.json` and `header.json`, never a journal,
 whatever its status, so readers never take the running-log path for it.
-`build_header` in `_plan.py` takes every field from the template shard (the
-first shard in shard order) except:
+`build_header` in `_plan.py` builds a fresh header. It carries `version`,
+`plan` and the `eval` spec from the template shard (the first shard in
+shard order), with these `eval` fields replaced, and computes or carries
+the rest as listed:
 
 - `eval_id`, `run_id` and `created`, minted at the first merge and carried
   after, so incremental passes present as one log;
@@ -312,11 +306,17 @@ first shard in shard order) except:
 - `eval_set_id` when the shards share one;
 - `dataset.sample_ids`, the selection merged against; `config.sample_id`
   and `config.limit` are unset;
+- `eval.shards`, the ledger;
+- `status`, `error` and `invalidated` ("Status", "The sample set");
 - `results` and the reductions ("Results"), and `stats` summed from the
   ledger (earliest start, latest completion, usage added per model and
   role);
-- `log_updates` carried from the existing merged log;
-- `eval.shards`, the ledger.
+- `log_updates` carried from the existing merged log, so tags and metadata
+  are the template's eval-time values with the merged log's edits applied.
+
+The header-level `total_samples` and `config_updates` are left unset (the
+results carry their own `total_samples`). `build_header` is the reference
+for anything not listed here.
 
 **The ledger** is the typed `EvalSpec.shards` field, `EvalShards` holding
 `EvalShardEntry` records (`src/inspect_ai/log/_log.py`), rather than
@@ -623,8 +623,8 @@ read `eval.shards`. The two share one implementation of each layout rule,
 so they agree on which files are shards and which attempt is current:
 
 - the name rules and `merged_log_task_id` (`src/inspect_ai/_util/log_layout.py`),
-  so ctl gives a shard set with no readable merged log the `task_id` the
-  merge gives it;
+  so ctl gives a shard set with no readable merged log but a readable
+  first shard the `task_id` the merge gives it;
 - the shard-set walk and attempt order (`src/inspect_ai/log/_shards/_walk.py`,
   tests in `tests/log/test_shards.py` and `tests/_control/test_log_dir.py`).
   The merge refuses every non-numbered directory and stray file in a

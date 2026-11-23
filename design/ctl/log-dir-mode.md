@@ -516,8 +516,8 @@ The walk produces a listing of logical tasks without paging through
   adds nothing. A worker that ran a scanner adds `<k>/scans/` and one
   `scans/scan_id=<id>/` per scan (Scout writes each scan directory flat):
   two LISTs per shard for one scan, so `3N + 2` for the run. That is the
-  price of listing what `eval_set()` lists; its recursive
-  `list_eval_logs` already pages through every one of those objects.
+  price of agreeing with the merge's `is_shard_path` about which logs
+  below a `<k>/` are shard attempts and which are ordinary logs.
 
 ### Logical tasks
 
@@ -570,28 +570,26 @@ one attempt.
   the task row's `unreadable` as an older merged log, so the row is
   `incomplete`. It does not get a row of its own.
 - The shard set is one attempt of the logical task identified by the
-  merged log's `eval.task_id` when the merged log exists and records one,
-  and otherwise by
-  `merged_log_task_id(X, task=, model=)` with the `task` and `model` of
-  the first shard in shard order, the first `<k>/` with an attempt and so
-  the merge's template shard (`src/inspect_ai/_util/log_layout.py`,
-  shared with the merge,
-  which stamps the same id at its first merge;
-  [`eval-sharding.md`](../eval-sharding.md), "The merged log"): `{id}`
-  parsed from `X` when `X` rebuilds from it under the file name pattern,
-  else an id derived from `X`. With no readable shard either, the set
-  takes `{id}` parsed from `X`, or `X` itself when the name does not
-  parse.
+  newest merged log's `eval.task_id` when that log can be read. Otherwise
+  (no merged log, or the newest one unreadable, even when an older one is
+  readable) the set is keyed by `merged_log_task_id(X, task=, model=)`
+  with the `task` and `model` of the first shard in shard order (the
+  first `<k>/` with an attempt), the merge's template shard
+  (`src/inspect_ai/_util/log_layout.py`, shared with the merge, which
+  stamps the same id at its first merge;
+  [`eval-sharding.md`](../eval-sharding.md), "The merged log"). So while
+  either the merged log or the first shard can be read, the set folds with
+  a retry that carries the merged log's `task_id`, under any file name
+  pattern (`test_a_shard_set_keeps_the_merges_task_id_with_or_without_its_log`
+  in `tests/_control/test_log_dir.py`). When neither can be read, the set
+  falls back to `{id}` parsed from `X`, or `X` itself (`_set_key` in
+  `snapshot.py`); under a pattern without `{id}` that key can differ from
+  the retry's `task_id`, and folding is not guaranteed.
 - The merged log's `task_id` is needed to key the shard set, so the
   merged log of every shard set is read first (its plan: CD and header),
   including one an unsharded retry supersedes, which is otherwise not
   read. Its shards are read only when the set is current. A merged log
-  that cannot be read is listed in the task row's `unreadable`, and the
-  set is keyed as with no merged log, even when an older merged log is
-  readable: by `merged_log_task_id` from its first shard, and by the id
-  parsed from `X` only when that shard cannot be read either. Since the
-  merge stamps the same id, such a set still folds with a retry that
-  carries the merged log's `task_id`, under any file name pattern.
+  that cannot be read is listed in the task row's `unreadable`.
 - A task id has at most one shard set: the first companion by path. A
   second companion with the same task id is not read beyond its merged
   log; the companion, and its merged log when it cannot be read, are
@@ -1331,8 +1329,9 @@ below per-prefix limits, and the mode never touches a worker.
   mode reads the shared filestore only.
 - **Skip known ancillary directories below a `<k>/`** (`scans/`, or
   everything below a `<k>/`, as earlier revisions did). Saves the LISTs
-  for scan output. Rejected (Ransom, 2026-10-05): `eval_set()` lists the
-  logs there as ordinary logs, and ctl must agree with it on the same root.
+  for scan output. Rejected (Ransom, 2026-10-05): the merge's
+  `is_shard_path` treats the logs there as ordinary logs, and ctl must
+  agree with it on the same root.
 - **Recursive listing, which is cheaper early in a run.** With few segment
   objects a recursive listing of `<name>.shards/` is one or two pages
   instead of 301 LISTs. Rejected for predictability: its cost grows with
@@ -1476,7 +1475,7 @@ real moto server on an ephemeral port). New tests go in a new
   shards, the cold `task list` row equals the full row, and cold and warm
   `sample list`, `sample show` and `sample events` return the same source
   (the shard), score and events.
-- **Shard paths agree with `eval_set()`.** For the root, the outer
+- **Shard paths agree with the merge's `is_shard_path`.** For the root, the outer
   companion and one `<k>/` of the fixture above, local and on `mock_s3`:
   the files ctl uses as shard attempts, reports as stray and lists as
   ordinary logs are exactly the files `list_eval_logs` finds, split by
