@@ -85,7 +85,7 @@ You can also define scopes for cache expiration (e.g. cache for a specific task 
 ``` python
 cache = CachePolicy(
     expiry="1M",
-    scopes={"role": "attacker", "team": "red"})
+    scopes={"role": "attacker", "team": "red"},
 )
 ```
 

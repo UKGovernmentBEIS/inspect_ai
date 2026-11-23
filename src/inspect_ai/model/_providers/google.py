@@ -837,6 +837,7 @@ class GoogleGenAIAPI(ModelAPI):
                     candidate_count=config.num_choices,
                     presence_penalty=config.presence_penalty,
                     frequency_penalty=config.frequency_penalty,
+                    seed=config.seed,
                     response_logprobs=config.logprobs,
                     logprobs=config.top_logprobs,
                     safety_settings=safety_settings_to_list(self.safety_settings),
@@ -2698,6 +2699,10 @@ def usage_metadata_to_model_usage(
     # cached count from `input_tokens` and surface it separately.
     cached = metadata.cached_content_token_count or 0
     prompt = metadata.prompt_token_count or 0
+    # Prompt tokens from built-in tool results (search, code execution, URL
+    # context) are reported outside `prompt_token_count` but are input the
+    # model read, and are part of `total_token_count`.
+    tool_use_prompt = metadata.tool_use_prompt_token_count or 0
     # Gemini also reports thoughts separately from candidates. Fold them into
     # `output_tokens` to match the OpenAI/Anthropic convention — reasoning is
     # included in output (Gemini bills thinking at the output rate), with
@@ -2705,7 +2710,7 @@ def usage_metadata_to_model_usage(
     # token limits (`token_limit(type="output")`) counting thinking tokens.
     thoughts = metadata.thoughts_token_count or 0
     return ModelUsage(
-        input_tokens=max(prompt - cached, 0),
+        input_tokens=max(prompt - cached, 0) + tool_use_prompt,
         output_tokens=(metadata.candidates_token_count or 0) + thoughts,
         total_tokens=metadata.total_token_count or 0,
         input_tokens_cache_read=cached or None,
@@ -2881,6 +2886,9 @@ def finish_reason_to_stop_reason(finish_reason: FinishReason) -> StopReason:
             | FinishReason.BLOCKLIST
             | FinishReason.PROHIBITED_CONTENT
             | FinishReason.SPII
+            | FinishReason.IMAGE_SAFETY
+            | FinishReason.IMAGE_PROHIBITED_CONTENT
+            | FinishReason.IMAGE_RECITATION
         ):
             return "content_filter"
         case _:

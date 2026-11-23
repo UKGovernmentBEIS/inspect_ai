@@ -569,10 +569,12 @@ def test_claude_4_6_opus(model_name: str) -> None:
         "anthropic.claude-fable-5",
         "anthropic.claude-fable-5-1",
         "anthropic.claude-fable-5-2",
+        "anthropic.claude-mythos-5-2",
         # Point releases (hyphen + dot forms)
         "claude-fable-5-1",
         "claude-mythos-5-1",
         "claude-fable-5-2",
+        "claude-mythos-5-2",
         # Tier-named / codename variants (forward-compat)
         "claude-opus-5-0",
         "claude-sonnet-5-20260101",

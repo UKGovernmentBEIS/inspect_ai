@@ -235,7 +235,7 @@ Task(
 )
 ```
 
-Sandbox environments can be invoked with an optional configuration parameter, which is passed as the `config` argument to the `startup()` and `setup()` methods. In Python this is done with a tuple
+Sandbox environments can be invoked with an optional configuration parameter, which is passed as the `config` argument to the `task_init()`, `sample_init()`, `sample_cleanup()` and `task_cleanup()` methods. In Python this is done with a tuple
 
 ``` python
 Task(

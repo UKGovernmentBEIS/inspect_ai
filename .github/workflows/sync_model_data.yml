@@ -32,7 +32,7 @@ jobs:
       # the file. actions-cache none: this job holds API keys, so it restores
       # no cache (tests/test_workflow_cache.py).
       - name: Install Python dependencies
-        uses: meridianlabs-ai/actions/install-python-dependencies@c2d2df77e8241823e823b3c633f651b8160ef1d5 # main, 2026-11-02
+        uses: meridianlabs-ai/actions/install-python-dependencies@65f1b6bdb9b1af7eb0bc89942c624dd4efef1316 # main, 2026-11-02
         with:
           versions: locked
           python-version: "3.11"
@@ -97,7 +97,7 @@ jobs:
           done
 
       - name: Create pull request
-        uses: peter-evans/create-pull-request@15733dbdfeedb4f7fdb73d13c6f5ac83b710fab8 # v8.1.2
+        uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
         with:
           add-paths: |
             src/inspect_ai/model/_model_data/together.yml

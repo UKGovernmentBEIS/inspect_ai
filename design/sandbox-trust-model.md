@@ -359,10 +359,11 @@ comes from the scope as well as from tool construction:
 - **Sandbox operations.** `SandboxEnvironment.exec()`, `read_file()` and
   `write_file()` calls on the scope's sandbox that name no user run as the
   scope's user; a call that names a user keeps it. The sample's sandbox proxy
-  applies this default (`ai/util/_sandbox/events.py`,
-  `sandbox_operation_user()` in `ai/util/_sandbox/identity.py`). Inspect's own
-  operations keep the sandbox's default user. They are marked where they run
-  (see the framework-operation contract below): the privileged-command
+  applies this default (`ai/util/_sandbox/events.py`; see
+  [The user at the boundary](sandbox-identity-default.md#the-user-at-the-boundary)).
+  Inspect's own operations keep the sandbox's default user. They are marked
+  where they run (see the framework-operation contract below): the
+  privileged-command
   helpers (`_privileged.py`), the framework-directory helper
   (`_framework_directory.py`), the sandbox-tools transport
   (`_json_rpc_transport.py`) and `start-server` launch
@@ -374,12 +375,17 @@ comes from the scope as well as from tool construction:
   does so as the default user while other members are still running, and
   member user isolation does not protect peers from it. Calls on the provider
   object that `as_type()` returns bypass the default, and so do calls on
-  another sandbox. The same calls, except marked ones, use the scope's `cwd`:
-  `exec()` with no `cwd` runs in it, and a relative `cwd`, file path or
-  `sandbox_with()` lookup resolves against it (`sandbox_operation_cwd()` and
-  `sandbox_operation_file()`). Docker runs the commands behind `read_file()`
-  and `write_file()` from `/`, so they do not depend on the user being able to
-  enter the image's working directory.
+  another sandbox. Unmarked calls also resolve their working directory and
+  relative paths against the scope's `cwd`, whatever user they name (see
+  [The scope's `cwd` at the boundary](sandbox-identity-default.md#the-scopes-cwd-at-the-boundary)).
+  For a call that runs as the member, a relative path gives the member no
+  access it lacks. A call that names a privileged user, such as
+  `user="root"`, keeps that user's authority in a directory the member may
+  control, so an intentionally privileged operation needs a trusted working
+  directory and destination, as the
+  [verified-directory](#host-verified-directories) and
+  [verify-before-use](#verify-before-use) contracts require; an absolute
+  path alone does not make a member-controlled destination trusted.
 
 Custom tools inherit the scope's user with no change of their own: a tool that
 calls `exec()`, `read_file()` or `write_file()` without a user runs as the
@@ -428,13 +434,15 @@ user raises `SandboxUserUnsupportedError` naming the scope rather than reading
 or writing as its default user; marked framework operations still pass no
 user. `install_skills()` inside a scope keeps its existing behaviour when it
 is given a `user`: a write with the default user's authority, then `chown` to
-that user. Given no `user`, it installs as the scope's user: the write, the
-`pwd` for a relative directory and `chmod +x` all name that user, and no
-`chown` runs, because the writer owns the files. On a provider whose
-`write_file()` cannot take a user, that install raises
-`SandboxUserUnsupportedError` before writing anything. Inside a marked block
-(in-loop scoring), an install with no `user` takes the legacy default-user
-path, as at final scoring.
+that user. Given no `user`, it installs with the scope's user's authority and
+changes no ownership, so it adds no root operation in a directory that user
+controls: files it creates are owned by that user, and a file it overwrites
+keeps whatever owner the provider's write leaves. In a scope with a `cwd`, a
+relative skills directory resolves against that `cwd`. On a provider whose
+`write_file()` cannot take a user, that install raises before writing
+anything. Inside a marked block (in-loop scoring), an install with no `user`
+takes the legacy default-user path, as at final scoring. The steps and their limits are in
+[`install_skills()`](sandbox-identity-default.md#install_skills).
 
 Docker runs system `tar` inside the container, following symlinks without
 recursing into directories. The bounded archive reader rejects anything

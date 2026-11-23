@@ -3206,3 +3206,74 @@ async def test_eval_scoring_hook_cancellation_closes_sample_streams(
     finally:
         for receive in receivers:
             receive.close()
+
+
+@solver
+def _fails_twice_past_the_time_limit() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        async def fail(error: Exception) -> None:
+            # outlasts the sample's time limit, then fails
+            with anyio.CancelScope(shield=True):
+                await anyio.sleep(1.5)
+            raise error
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(fail, ValueError("the first failure"))
+            tg.start_soon(fail, KeyError("the second failure"))
+        return state
+
+    return solve
+
+
+# The suite skips ids that begin `[trio` unless it runs only its Trio variants,
+# and this test starts an eval of its own on each backend.
+@pytest.mark.parametrize("backend", ["trio", "asyncio"], ids=["on trio", "on asyncio"])
+def test_a_sample_error_of_one_failure_in_a_group_is_recorded_as_itself(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+
+    @solver
+    def fails_past_the_time_limit() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with anyio.CancelScope(shield=True):
+                await anyio.sleep(1.5)
+            raise ValueError("the only failure")
+
+        return solve
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=fails_past_the_time_limit()),
+        model="mockllm/model",
+        time_limit=1,
+        display="none",
+    )
+
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None
+    assert error.message == "ValueError('the only failure')"
+
+
+@pytest.mark.parametrize("backend", ["trio", "asyncio"], ids=["on trio", "on asyncio"])
+def test_a_sample_error_of_failures_in_a_group_keeps_each_in_its_traceback(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=_fails_twice_past_the_time_limit()),
+        model="mockllm/model",
+        time_limit=1,
+        display="none",
+    )
+
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None
+    assert "the first failure" in error.traceback
+    if backend == "trio":
+        # Under Trio the group reaches the sample's error once its time limit
+        # has run out, and is recorded whole. On asyncio, a task group's
+        # errors are unwrapped where the group ends, which keeps the first.
+        assert "the second failure" in error.traceback
