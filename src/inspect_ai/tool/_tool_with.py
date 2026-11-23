@@ -64,9 +64,9 @@ def tool_with(
     info = registry_info(tool).model_copy()
     if parallel is not None:
         info.metadata[TOOL_PARALLEL] = parallel
-    elif viewer is not None:
+    if viewer is not None:
         info.metadata[TOOL_VIEWER] = viewer
-    elif model_input is not None:
+    if model_input is not None:
         info.metadata[TOOL_MODEL_INPUT] = model_input
 
     # set attributes

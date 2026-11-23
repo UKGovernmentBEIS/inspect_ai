@@ -1,7 +1,9 @@
 # mypy: disable-error-code="unused-ignore"
 
+import importlib
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 
@@ -35,9 +37,20 @@ _MAX_TRIES_DEFAULT = 3
 _MAX_TRIES_CI = 5
 _TRANSIENT_HTTP_STATUSES = {429, 502}
 
+# `datasets` re-raises a Hub timeout as this ConnectionError; some versions
+# discard the original cause, so the message is all that identifies it.
+_HF_UNREACHABLE_PATTERN = re.compile(
+    r"Couldn't reach '.+' on the Hub \(LocalEntryNotFoundError\)"
+)
+# Values the Hugging Face libraries treat as true for boolean env variables.
+_HF_ENV_TRUE_VALUES = {"1", "ON", "YES", "TRUE"}
+
 
 def _should_retry_hf_error(err: BaseException) -> bool:
     """Return True if `err` is a transient HF failure worth retrying."""
+    if _has_httpx_timeout(err):
+        return True
+
     try:
         from huggingface_hub.errors import HfHubHTTPError, LocalEntryNotFoundError
 
@@ -74,7 +87,60 @@ def _should_retry_hf_error(err: BaseException) -> bool:
     except ImportError:
         pass
 
+    if isinstance(err, ConnectionError):
+        return (
+            _HF_UNREACHABLE_PATTERN.fullmatch(str(err)) is not None
+            and not _hf_offline()
+        )
+
     return False
+
+
+def _has_httpx_timeout(err: BaseException) -> bool:
+    """Whether `err`, or an exception in its cause chain, is an HTTPX timeout.
+
+    Hub 1.x raises `httpx` timeouts and later releases raise `httpx2` timeouts;
+    either may be wrapped by another exception on the way out of `datasets`.
+    Any timeout is retried (not only those for huggingface.co) because
+    `HF_ENDPOINT` can point at a mirror.
+    """
+    timeout_types: list[type[BaseException]] = []
+    for module_name in ("httpx", "httpx2"):
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError:
+            continue
+        timeout_types.append(module.TimeoutException)
+    if not timeout_types:
+        return False
+
+    seen: set[int] = set()
+    current: BaseException | None = err
+    while current is not None and id(current) not in seen:
+        if isinstance(current, tuple(timeout_types)):
+            return True
+        seen.add(id(current))
+        current = current.__cause__ or (
+            None if current.__suppress_context__ else current.__context__
+        )
+    return False
+
+
+def _hf_offline() -> bool:
+    """Whether `datasets` is in offline mode, resolved as the library does.
+
+    `HF_DATASETS_OFFLINE` overrides the Hub-wide flag whenever it is set. For
+    the Hub-wide flag, a non-empty `HF_HUB_OFFLINE` (even `0`) takes precedence
+    over `TRANSFORMERS_OFFLINE`.
+    """
+
+    def is_true(value: str | None) -> bool:
+        return (value or "").upper() in _HF_ENV_TRUE_VALUES
+
+    datasets_flag = os.getenv("HF_DATASETS_OFFLINE")
+    if datasets_flag is not None:
+        return is_true(datasets_flag)
+    return is_true(os.getenv("HF_HUB_OFFLINE") or os.getenv("TRANSFORMERS_OFFLINE"))
 
 
 def _hf_max_tries() -> int:
