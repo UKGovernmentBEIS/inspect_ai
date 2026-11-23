@@ -2038,15 +2038,23 @@ async def test_handle_calls_off_the_run_loop(events: _Events) -> None:
             await anyio.to_thread.run_sync(off_loop)
 
         [handle] = enqueue_task(rollout_task())
-        with pytest.raises(RuntimeError, match="event loop"):
-            await anyio.to_thread.run_sync(handle.close)
+        [cancelled] = enqueue_task(rollout_task())
+        for method in (handle.close, cancelled.cancel):
+            with pytest.raises(RuntimeError, match="event loop") as refused:
+                await anyio.to_thread.run_sync(method)
+            assert "anyio.from_thread.run_sync()" in str(refused.value)
 
-        # through anyio.from_thread it works
+        # through anyio.from_thread it works, as the error says
         def through_loop() -> list[TaskHandle]:
-            return anyio.from_thread.run_sync(lambda: enqueue_task(rollout_task()))
+            anyio.from_thread.run_sync(handle.close)
+            anyio.from_thread.run_sync(cancelled.cancel)
+            [other] = anyio.from_thread.run_sync(lambda: enqueue_task(rollout_task()))
+            assert anyio.from_thread.run(other.result) is None
+            return [other]
 
-        [other] = await anyio.to_thread.run_sync(through_loop)
-        assert await other.result() is None
+        await anyio.to_thread.run_sync(through_loop)
+        assert _record_by_id(cancelled.task_id).phase == "ended"
+        assert await cancelled.result() is None
         assert await handle.result() is None
 
     with anyio.fail_after(30):

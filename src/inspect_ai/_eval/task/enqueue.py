@@ -396,8 +396,9 @@ def _require_run_loop(queue: RunQueue, call: str = "enqueue_task()") -> None:
         if call != "enqueue_task()":
             raise RuntimeError(
                 f"{call} must be called on the running eval's event loop. From a "
-                "thread started with anyio.to_thread.run_sync(), call it through "
-                "anyio.from_thread.run()."
+                "thread started with anyio.to_thread.run_sync(), call synchronous "
+                "methods through anyio.from_thread.run_sync() and async methods "
+                "through anyio.from_thread.run()."
             )
         raise RuntimeError(
             "enqueue_task() must be called on the running eval's event loop. From "
