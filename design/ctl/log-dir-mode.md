@@ -587,9 +587,11 @@ one attempt.
   including one an unsharded retry supersedes, which is otherwise not
   read. Its shards are read only when the set is current. A merged log
   that cannot be read is listed in the task row's `unreadable`, and the
-  set takes the id parsed from `X`, as with no merged log, even when an
-  older merged log is readable. Under a file name pattern without `{id}`
-  such a set does not fold with its retry (decision: Ransom, 2026-10-16).
+  set is keyed as with no merged log, even when an older merged log is
+  readable: by `merged_log_task_id` from its first shard, and by the id
+  parsed from `X` only when that shard cannot be read either. Since the
+  merge stamps the same id, such a set still folds with a retry that
+  carries the merged log's `task_id`, under any file name pattern.
 - A task id has at most one shard set: the first companion by path. A
   second companion with the same task id is not read beyond its merged
   log; the companion, and its merged log when it cannot be read, are
