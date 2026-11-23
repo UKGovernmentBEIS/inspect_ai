@@ -531,10 +531,13 @@ command"](../docs/sharding.qmd); tests are in `tests/log/test_shards.py`.
   them.
 - **Only what builds the task.** The generate config is the default
   (decision: Ransom, 2026-11-05: no surveyed task factory reads it when
-  built). Model specs and run configs are not accepted, and their
-  environment variables are refused rather than ignored because they would
-  change the task; the docs say how to translate such a run into the
-  accepted options.
+  built). Model specs and run configs are not accepted as options. The
+  run-config environment variable is always refused, and the model-spec
+  environment variable is refused unless a single-model option given on
+  the command line overrides it, as it would under `inspect eval`; either
+  would otherwise change the task. [Sharding, "The merge
+  command"](../docs/sharding.qmd) lists the options and how to translate
+  such a run into them.
 - **Exact selection.** The selection is the API's: exact ids matched as
   text, or a count, not `inspect eval`'s patterns. The merged log records
   each id with the shards' typed id.
@@ -580,12 +583,17 @@ and other enumerators list shards as ordinary partial logs beside the
 merged log. The viewer's listings hide a shard once a finished merged log
 covers it (decision: JJ Allaire, 2026-09-27): the view server's `/logs`
 and `/log-files`, the `listing.json` `write_log_listing` writes, and
-`inspect view bundle`, which also leaves covered shards out of the bundle. The rule (`filter_merged_shards` in
+`inspect view bundle`, which also leaves covered shards out of the
+bundle. The rule (`filter_merged_shards` in
 `src/inspect_ai/log/_shard_listing.py`) hides a shard when its merged log
 is in the same listing, has status `success`, and is strictly newer than
-the shard by mtime. A shard written after the merge, a tie (S3 mtimes have
-one-second resolution), and every shard of a `started`, `error`,
-`cancelled` merged log stay visible, so ongoing work is never hidden. The rule keys on the layout and status only, not the ledger, so it
+the shard by mtime. When both `<name>.eval` and `<name>-recovered.eval`
+are listed, both must be `success` and the older of the two decides, since
+either may be stale (`test_api_logs_older_of_merged_and_recovered_decides`
+in `tests/_view/test_view_server.py`). A shard written after the merge, a
+tie (S3 mtimes have one-second resolution), and every shard of a
+`started`, `error` or `cancelled` merged log stay visible, so ongoing work
+is never hidden. The rule keys on the layout and status only, not the ledger, so it
 works for any merger that writes after reading its shards and publishes
 `success` only when every shard has finished. The view server reads only
 the headers of merged logs newer than one of their shards, caches each
@@ -634,11 +642,15 @@ their own sections.
 - A merge of shards run with sample ids holds every selected sample and
   epoch, and the same results and reductions as an unsharded run of the
   same task with deterministic metrics (`test_merge_of_sample_id_shards_matches_an_unsharded_run`).
-- With disjoint selections and unedited merged samples, an incremental pass
-  writes the same header and members as a fresh merge of the same
-  companion, through added, replaced and failed attempts, for the
-  deterministic metrics of the test task
-  (`test_incremental_merges_equal_fresh_merges`; "The sample set").
+- With disjoint selections and no edits to the merged log (its samples or
+  its header), an incremental pass and a fresh merge of the same companion
+  hold the same sample members, and their headers are equal apart from the
+  merged log's identity and location (`eval_id`, `run_id`, `created`,
+  which a fresh merge mints anew), through added, replaced and failed
+  attempts, for the deterministic metrics of the test task
+  (`test_incremental_merges_equal_fresh_merges`; "The sample set"). Header
+  edits to the merged log are carried by incremental passes only
+  (`test_merged_log_edits_are_kept`).
 - A pass reads only changed and new shards
   (`test_incremental_merge_reads_only_changed_shards`), and an incomplete
   set raises and writes nothing without `allow_incomplete`
