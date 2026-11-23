@@ -805,8 +805,8 @@ def _process_scope_note(global_knobs: list[str], siblings: int) -> str | None:
     ``global_knobs`` is the set (``--max-connections`` / ``--max-sandboxes``
     / ``--max-subprocesses`` / the retry overrides) supplied on this
     invocation; ``siblings`` counts the tasks the retune can
-    reach (the process's active tasks, plus the named target when it is
-    completed). Returns ``None`` when there's nothing to flag — no such knob
+    reach (the process's running, pending and queued tasks, plus the named
+    target when it is completed). Returns ``None`` when there's nothing to flag — no such knob
     was set, or the target task is the only one the change can reach, so
     "process-wide" is invisible.
     """

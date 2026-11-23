@@ -173,19 +173,22 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     from inspect_ai._control.pause import process_paused, process_paused_now
     from inspect_ai.log._samples import active_samples
 
-    states = get_eval_states()
-
     # Resolve reused evals' summaries-derived stats (lazy: the first request
     # pays the per-log reads — concurrently — instead of eval-set startup
     # paying them serially whether or not a control client ever connects;
     # subsequent requests are free). Unbounded fan-out matches the bulk
     # header reads in `read_eval_logs_async`: effective concurrency is
     # governed by the filesystem's connection pool.
-    deferred = [s for s in states if s.deferred_sample_stats is not None]
+    deferred = [s for s in get_eval_states() if s.deferred_sample_stats is not None]
     if deferred:
         await tg_collect(
             [partial(resolve_deferred_sample_stats, state) for state in deferred]
         )
+
+    # Snapshot after the await, with no await from here on: a task moves from
+    # the queued registry to its EvalState in one synchronous step, so both
+    # views read together list it exactly once.
+    states = get_eval_states()
 
     # Group live samples by eval_id (per-attempt, not folded).
     samples_by_eval: dict[str, list[ActiveSample]] = defaultdict(list)

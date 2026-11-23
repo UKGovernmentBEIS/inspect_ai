@@ -8147,6 +8147,46 @@ def test_resolve_scope_siblings_counts_active_only() -> None:
     assert scope.pid == 7  # carried for the busy-escalation pointer
 
 
+def test_resolve_scope_queued_task_is_reached_but_not_a_default_target() -> None:
+    """Queued tasks count in the blast radius but are not the default target."""
+    from inspect_ai._cli.ctl._mutate import _resolve_scope
+
+    summaries = [
+        _full_summary("aaa111", "t1", status="running"),
+        _full_summary("bbb222", "t2", status="queued"),
+        _full_summary("ccc333", "t3", status="completed"),
+    ]
+    default = _resolve_scope([], summaries, None, per_task_option="--max-samples")
+    assert default is not None
+    assert default.task_id == "aaa111"  # the sole running task
+    assert default.siblings == 2  # the running and the queued task
+    named = _resolve_scope([], summaries, "bbb222")
+    assert named is not None
+    assert named.task_id == "bbb222"
+    assert named.siblings == 2  # the queued target is counted once
+
+
+def test_config_process_knob_notes_queued_tasks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A process-wide retune with one running and one queued task notes its reach."""
+    _patch_surface(
+        monkeypatch,
+        [
+            _full_summary("aaa111", "t1", status="running"),
+            _full_summary("bbb222", "t2", status="queued"),
+        ],
+    )
+    _stub_limits(monkeypatch)
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-connections", "5", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["target"]["task_id"] == "aaa111"
+    assert any("process-wide" in note for note in payload["notes"])
+
+
 def test_sample_list_unscoped_skips_busy_eval(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

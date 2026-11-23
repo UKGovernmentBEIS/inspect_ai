@@ -9,6 +9,8 @@ sample that will be retried is ``pending``; one that won't is ``cancelled``.
 
 from typing import TYPE_CHECKING, Any, Literal, cast
 
+import pytest
+
 from inspect_ai._control.state import _summary_from_eval_sample_summary
 from inspect_ai.log import EvalSampleSummary
 
@@ -1081,3 +1083,104 @@ def test_task_summary_sums_event_counts_across_retry_attempts() -> None:
         assert summary["http_retries"] == 8
     finally:
         clear_all_eval_states()
+
+
+@pytest.mark.parametrize("handoff", ["end", "register"])
+async def test_task_list_keeps_a_task_whose_handoff_completes_during_deferred_reads(
+    handoff: str,
+) -> None:
+    """A queued task leaving the registry mid-listing is still listed once.
+
+    The listing awaits reused logs' deferred statistics; a queued task that
+    ends (or registers) during that await moves from the queued registry to
+    its EvalState, and the listing must show it from one or the other.
+    """
+    from types import SimpleNamespace
+
+    import anyio
+
+    from inspect_ai import Task
+    from inspect_ai._control.eval_state import (
+        DeferredSampleStats,
+        register_completed_eval,
+        register_eval,
+        reset_run_registries,
+    )
+    from inspect_ai._control.state import current_eval_summaries
+    from inspect_ai._eval.loader import resolve_tasks
+    from inspect_ai._eval.task.enqueue import RunQueue
+    from inspect_ai._eval.task.run import TaskRunOptions
+    from inspect_ai.dataset import Sample
+    from inspect_ai.log import EvalConfig
+    from inspect_ai.model import get_model
+
+    read_started = anyio.Event()
+    release = anyio.Event()
+
+    async def reused_stats() -> DeferredSampleStats:
+        read_started.set()
+        await release.wait()
+        return DeferredSampleStats(total_messages=1, completed=1, errored=0)
+
+    queue = RunQueue("run", lambda tasks: [], [])
+    queue.open(
+        lambda resolved, names: [
+            cast(
+                TaskRunOptions,
+                SimpleNamespace(
+                    logger=SimpleNamespace(
+                        eval=SimpleNamespace(
+                            eval_id="e_queued",
+                            task="queued_task",
+                            task_id=task.id,
+                            run_id="run",
+                        )
+                    ),
+                    config=EvalConfig(),
+                ),
+            )
+            for task in resolved
+        ],
+        task_retry_attempts=0,
+    )
+    [resolved] = resolve_tasks(
+        Task(dataset=[Sample(input="x")], name="queued_task"),
+        {},
+        get_model("mockllm/model"),
+        None,
+        None,
+        None,
+    )
+    rows: list[dict[str, Any]] = []
+    try:
+        register_completed_eval(
+            "e_reused",
+            total=1,
+            completed=1,
+            task="reused",
+            task_id="t_reused",
+            deferred_sample_stats=reused_stats,
+        )
+        [record] = queue.add([resolved], seed=True)
+
+        async def listing() -> None:
+            rows.extend(await current_eval_summaries(0.0))
+
+        with anyio.fail_after(10):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(listing)
+                await read_started.wait()
+                if handoff == "end":
+                    queue.end(record, None)
+                else:
+                    register_eval(
+                        "e_queued", 1, task="queued_task", task_id=record.task_id
+                    )
+                    record.on_registered()
+                release.set()
+    finally:
+        reset_run_registries()
+
+    listed = [row for row in rows if row["task_id"] == record.task_id]
+    assert len(listed) == 1
+    assert listed[0]["status"] == ("completed" if handoff == "end" else "running")

@@ -174,7 +174,8 @@ def _resolve_scope(
     and task log-flush today; task cancel/drain are expected to reuse it): an
     explicit ``TASK`` targets that task; no ``TASK`` defaults to the sole
     process — a single-active-task process resolves to that task (completed
-    eval-set siblings don't count), a multi-task process resolves to the
+    eval-set siblings and queued tasks don't count), a multi-task process
+    resolves to the
     process-level scope. ``model`` composes with both paths — an explicit
     ``TASK``'s matches are filtered to tasks running a matching model (see
     ``_resolve_target_eval``), and the no-``TASK`` defaults resolve over the
@@ -227,7 +228,7 @@ def _resolve_scope(
         # "process-wide is exactly the named task" while a *different*
         # (active) task would absorb the retune
         siblings = _active_siblings(summaries, socket_path)
-        if not _is_active(target):
+        if not _is_reachable(target):
             siblings += 1
         return _DirectiveScope(
             socket_path=socket_path,
@@ -306,22 +307,34 @@ def _resolve_scope(
 def _is_active(summary: dict[str, Any]) -> bool:
     """Whether a task summary is still running or pending.
 
-    The one predicate behind scope resolution's sole-task default, the
-    orphan-vs-reused-log routing, and the blast-radius sibling count — kept
-    single so a new active-like status can't desynchronize them.
+    The predicate behind scope resolution's sole-task default and the
+    orphan-vs-reused-log routing. A ``queued`` task (not started) is not a
+    default target, so a command without ``TASK`` still resolves to the one
+    running task while others wait; the blast-radius count uses
+    :func:`_is_reachable` instead.
     """
     return summary.get("status") in ("running", "pending")
 
 
-def _active_siblings(summaries: list[dict[str, Any]], socket_path: str) -> int:
-    """Count the running/pending tasks sharing a process.
+def _is_reachable(summary: dict[str, Any]) -> bool:
+    """Whether a process-scoped retune can still reach the task.
 
-    The blast-radius denominator for process-scoped knobs: completed eval-set
-    siblings share the socket but can't be affected by a retune, so counting
-    them would overstate the note (and defeat its single-task suppression).
+    A running or pending task, or a ``queued`` one, which uses the
+    process-wide settings when it starts.
+    """
+    return _is_active(summary) or summary.get("status") == "queued"
+
+
+def _active_siblings(summaries: list[dict[str, Any]], socket_path: str) -> int:
+    """Count the tasks sharing a process that a process-scoped retune reaches.
+
+    The blast-radius denominator for process-scoped knobs: running, pending
+    and queued tasks (see :func:`_is_reachable`). Completed eval-set siblings
+    share the socket but can't be affected by a retune, so counting them
+    would overstate the note (and defeat its single-task suppression).
     """
     return sum(
         1
         for s in summaries
-        if str(s.get("socket_path")) == socket_path and _is_active(s)
+        if str(s.get("socket_path")) == socket_path and _is_reachable(s)
     )
