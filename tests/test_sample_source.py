@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from typing_extensions import override
 
 from inspect_ai import (
+    SampleAbandonedError,
     SampleSource,
     Task,
     TaskEndedError,
@@ -24,6 +25,7 @@ from inspect_ai import (
     enqueue_sample,
     enqueue_task,
     eval,
+    eval_async,
     eval_retry,
     eval_set,
     samples_from_handle,
@@ -3485,3 +3487,95 @@ def test_eval_retry_refuses_a_fed_tasks_log(tmp_path: Path) -> None:
         eval_retry(fed, log_dir=str(tmp_path))
     assert len(factory_calls) == calls
     assert {info.name for info in list_eval_logs(str(tmp_path))} == before
+
+
+@pytest.mark.parametrize("action", ["sample_cancel", "drain", "score", "error"])
+async def test_sample_abandoned_before_running_settles_its_sender(
+    tmp_path: Path, action: str
+) -> None:
+    from inspect_ai._control.cancel import cancel_sample, cancel_task, drain_task
+    from inspect_ai._control.eval_state import latest_eval_for_task
+
+    running = anyio.Event()
+    release = anyio.Event()
+    outcomes: dict[str, EvalSample | SampleAbandonedError] = {}
+    ids: list[str] = []
+    still_held: list[bool] = []
+
+    @solver
+    def hold() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            running.set()
+            await release.wait()
+            return state
+
+        return solve
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(
+            Task(
+                dataset=samples_from_handle(),
+                solver=[hold()],
+                max_samples=1,
+                fail_on_error=False,
+                name="fed",
+            )
+        )
+        queue = get_run_queue()
+        assert queue is not None
+        record = queue.find(handle.task_id)
+        assert record is not None and record.channel is not None
+        channel = record.channel
+
+        async def send(label: str) -> None:
+            try:
+                outcomes[label] = await handle.enqueue_sample(Sample(input=label))
+            except SampleAbandonedError as ex:
+                outcomes[label] = ex
+                # settled by the abandonment itself, while the task runs on
+                still_held.append(str(ex.sample.id) in channel.requests)
+                still_held.append(record.phase == "ended")
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(send, "a")
+            await running.wait()
+            # b waits for the only sample slot
+            tg.start_soon(send, "b")
+            await anyio.wait_all_tasks_blocked()
+            ids.extend(channel.requests)
+            eval_state = latest_eval_for_task(handle.task_id)
+            assert eval_state is not None
+            if action == "sample_cancel":
+                cancelled = await cancel_sample(
+                    eval_state.eval_id, ids[1], 1, action="cancel"
+                )
+                assert cancelled is not None and cancelled["ok"]
+            else:
+                stamped = (
+                    drain_task(handle.task_id)
+                    if action == "drain"
+                    else cancel_task(
+                        handle.task_id,
+                        action="score" if action == "score" else "error",
+                    )
+                )
+                assert stamped is not None and stamped["ok"]
+            release.set()
+        await handle.result()
+
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            _creator(body), model="mockllm/model", log_dir=str(tmp_path)
+        )
+    assert all(log.status == "success" for log in logs)
+    abandoned = outcomes["b"]
+    assert isinstance(abandoned, SampleAbandonedError)
+    assert abandoned.sample.id == ids[1] and ids[1].startswith("send-")
+    assert still_held == [False, False]
+    # a follows the directive's own rule
+    ran = outcomes["a"]
+    assert isinstance(ran, EvalSample) and ran.id == ids[0]
+    if action in ("sample_cancel", "drain"):
+        assert ran.error is None
+    elif action == "error":
+        assert ran.error is not None
