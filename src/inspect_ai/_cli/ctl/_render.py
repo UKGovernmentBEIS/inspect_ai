@@ -867,7 +867,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
             cells.append(str(s.get("resolving") or ""))
         cells.append(_format_started(s.get("started_at", 0)))
         if any_retries:
-            cells.append(str(int(s.get("attempts", 1) or 1)))
+            attempts = s.get("attempts")
+            cells.append(str(1 if attempts is None else int(attempts)))
         if any_shards:
             cells.append(_format_shards(s))
         rows.append(tuple(cells))

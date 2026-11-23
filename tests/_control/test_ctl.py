@@ -249,6 +249,23 @@ def test_tasks_table_shows_queued_and_finished_tasks_with_no_samples(
     assert "queued" in retried and "complete" not in retried
 
 
+def test_tasks_table_shows_zero_attempts_for_a_queued_task_beside_a_retried_one(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    empty = {"total": 0, "completed": 0, "in_flight": 0, "queued": 0}
+    _print_human_table(
+        [
+            _task_row("aaa111", "t1", attempts=2),
+            _task_row("bbb222", "t2", status="queued", samples=empty, attempts=0),
+        ]
+    )
+    lines = capsys.readouterr().out.splitlines()
+    column = lines[0].index("attempts")
+    rows = [ln for ln in lines if ln.startswith(("aaa111", "bbb222"))]
+    cells = {ln[:6]: ln[column:].split()[0] for ln in rows}
+    assert cells == {"aaa111": "2", "bbb222": "0"}
+
+
 def test_tasks_table_hides_solver_column_when_absent(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
