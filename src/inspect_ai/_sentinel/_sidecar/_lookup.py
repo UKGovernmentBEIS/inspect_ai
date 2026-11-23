@@ -155,7 +155,10 @@ async def request_result(received: ReceivedCall, replied: bool) -> Looked:
 
 
 async def ask_request_result(
-    received: ReceivedCall, request_id: str, wait: float | None = None
+    received: ReceivedCall,
+    request_id: str,
+    wait: float | None = None,
+    question: str | None = None,
 ) -> Answer:
     """Ask the call's sidecar what it holds of a request, with `request_result`, noting which run of the sidecar the answer's running totals belong to.
 
@@ -165,6 +168,7 @@ async def ask_request_result(
         received: What is kept of the call.
         request_id: The request's `x-irid`.
         wait: How long the sidecar holds the answer while it is still judging, in seconds, or None for its default.
+        question: The id of a question about the request that a person is being shown. The sidecar then also holds the answer while that question is open.
 
     Raises:
         SidecarCallError: If the call failed, or was answered with an error.
@@ -174,6 +178,8 @@ async def ask_request_result(
     params: dict[str, Any] = {"id": request_id}
     if wait is not None:
         params["wait"] = wait
+    if question is not None:
+        params["question"] = question
     result: dict[str, Any] = await received.sidecar.eval_call("request_result", params)
     return Answer(result, restarts_found)
 
