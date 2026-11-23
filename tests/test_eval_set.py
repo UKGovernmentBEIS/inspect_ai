@@ -5119,6 +5119,7 @@ def test_eval_set_task_cancelled_while_queued_runs_in_the_next_round(
 
     a_runs: list[int] = []
     b_runs: list[int] = []
+    cancelled: list[dict[str, Any]] = []
 
     @solver
     def first_round_cancels_b() -> Solver:
@@ -5126,8 +5127,8 @@ def test_eval_set_task_cancelled_while_queued_runs_in_the_next_round(
             a_runs.append(1)
             if len(a_runs) == 1:
                 row = (await ctl_tasks())["B"]
-                status, body = await ctl_task_directive(row["task_id"], "cancel")
-                assert status == 200 and body["task_queued"] is True, body
+                _, body = await ctl_task_directive(row["task_id"], "cancel")
+                cancelled.append(body)
                 raise ValueError("A fails in the first round")
             return state
 
@@ -5159,6 +5160,7 @@ def test_eval_set_task_cancelled_while_queued_runs_in_the_next_round(
         "A": "success",
         "B": "success",
     }
+    assert [body.get("task_queued") for body in cancelled] == [True]
     assert len(a_runs) == 2
     assert len(b_runs) == 1
 

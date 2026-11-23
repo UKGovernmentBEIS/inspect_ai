@@ -941,21 +941,24 @@ async def test_ctl_cancel_of_attempt_before_it_registers_aborts_it(
             init_entered.set()
             with anyio.CancelScope(shield=True):
                 await release.wait()
-            await anyio.sleep_forever()
+            # the pending abort lands here
+            await anyio.lowlevel.checkpoint()
         await init(self)
 
     async def cancel_b() -> None:
         with anyio.fail_after(10):
             await init_entered.wait()
-        task_id = (await ctl_tasks())["B"]["task_id"]
-        seen["status"] = (await ctl_tasks())["B"]["status"]
-        seen["first"] = await ctl_task_directive(task_id, "cancel")
-        seen["repeats"] = [
-            (await ctl_task_directive(task_id, verb, **params))[1].get("reason")
-            for verb in ("cancel", "drain")
-            for params in ({}, {"dry_run": True})
-        ]
-        release.set()
+        try:
+            task_id = (await ctl_tasks())["B"]["task_id"]
+            seen["status"] = (await ctl_tasks())["B"]["status"]
+            seen["first"] = await ctl_task_directive(task_id, "cancel")
+            seen["repeats"] = [
+                (await ctl_task_directive(task_id, verb, **params))[1].get("reason")
+                for verb in ("cancel", "drain")
+                for params in ({}, {"dry_run": True})
+            ]
+        finally:
+            release.set()
         with anyio.fail_after(10):
             await _record("B").ended.wait()
         seen["finished_status"] = (await ctl_tasks())["B"]["status"]
@@ -1014,9 +1017,11 @@ async def test_ctl_cancel_while_unregistered_attempt_prepares_retry_ends_it(
     async def cancel_b() -> None:
         with anyio.fail_after(10):
             await reinit_entered.wait()
-        task_id = (await ctl_tasks())["B"]["task_id"]
-        seen["cancel"] = await ctl_task_directive(task_id, "cancel")
-        release.set()
+        try:
+            task_id = (await ctl_tasks())["B"]["task_id"]
+            seen["cancel"] = await ctl_task_directive(task_id, "cancel")
+        finally:
+            release.set()
 
     monkeypatch.setattr(TaskLogger, "init", failing_init)
     monkeypatch.setattr(TaskLogger, "reinit", held_reinit)
