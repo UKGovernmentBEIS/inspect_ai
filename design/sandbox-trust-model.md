@@ -310,7 +310,8 @@ comes from the scope as well as from tool construction:
   if the user cannot enter it; `text_editor()` resolves relative paths against
   the `cwd`. `exec_remote()` uses the scope's user and `cwd` when its options
   omit them, keeps an explicit user and joins a relative `cwd` to the
-  scope's; the agent bridge launches its proxy
+  scope's, except inside a marked framework operation (see the
+  framework-operation contract below); the agent bridge launches its proxy
   this way, as root when the tools user is root. The sandbox MCP server runs
   as the scope's user (`ai/util/_sandbox/_cli.py`, `tools_user_param()`).
 - **Refuse.** The model-facing tools above, configured with a different user
@@ -398,11 +399,12 @@ and means "the sandbox's default user" by `user=None` must go through a marked
 helper, which wraps the single sandbox call in the private
 `framework_sandbox_operation()` context manager
 (`ai/util/_sandbox/_framework_operation.py`). Inside the marked block an
-omitted user stays the default user; the scope, injection targeting, the
-sandbox-tools request user and the model-facing tools' strict resolution are
-unchanged. The marker is never placed around model-chosen work; in-loop
-scoring, which runs trusted task code, is the one marked block that runs code
-Inspect does not fix. A scope cannot be opened inside a marked block:
+omitted user stays the default user, for `exec_remote()` as for `exec()`, and
+`exec_remote()` does not use the scope's `cwd`; the scope, injection targeting,
+the user of other sandbox-tools requests and the model-facing tools' strict
+resolution are unchanged. The marker is never placed around model-chosen
+work; in-loop scoring, which runs trusted task code, is the one marked block
+that runs code Inspect does not fix. A scope cannot be opened inside a marked block:
 `sandbox_identity()` raises `SandboxIdentityError` there, so a scorer that
 opens one during in-loop scoring fails instead of silently running its
 userless calls as the default user. A tripwire test lists the marked modules

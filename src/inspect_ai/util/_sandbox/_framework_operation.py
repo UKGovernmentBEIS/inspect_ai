@@ -13,11 +13,11 @@ from typing import Iterator
 def framework_sandbox_operation() -> Iterator[None]:
     """Mark sandbox operations in the block as Inspect's own.
 
-    Inside the block, `exec()`, `read_file()` and `write_file()` calls that name
-    no user run as the sandbox's default user even inside a `sandbox_identity()`
-    scope. Only the boundary default is affected: the scope, injection
-    targeting, the sandbox-tools request user and the model-facing tools' strict
-    resolution are unchanged.
+    Inside the block, `exec()`, `exec_remote()`, `read_file()` and `write_file()`
+    calls that name no user run as the sandbox's default user even inside a
+    `sandbox_identity()` scope. Only the boundary default is affected: the
+    scope, injection targeting, the user of other sandbox-tools requests and the
+    model-facing tools' strict resolution are unchanged.
 
     Wrap only calls whose `user=None` means the sandbox's default user, and
     never code that runs model-chosen work. The one deliberate exception is

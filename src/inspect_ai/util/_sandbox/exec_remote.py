@@ -440,11 +440,12 @@ class ExecRemoteProcess:
             params["stdin_open"] = True
         if self._options.env:
             params["env"] = self._options.env
-        from .identity import sandbox_identity_cwd
+        from .identity import sandbox_operation_cwd
 
-        if cwd := sandbox_identity_cwd(self._sandbox, self._options.cwd):
+        if cwd := sandbox_operation_cwd(self._sandbox, self._options.cwd):
             params["cwd"] = cwd
-        if (user := tools_user_param(self._sandbox, self._options.user)) is not None:
+        user = tools_user_param(self._sandbox, self._options.user, operation=True)
+        if user is not None:
             params["user"] = user
 
         try:
