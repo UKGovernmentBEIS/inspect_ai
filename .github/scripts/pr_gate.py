@@ -4,8 +4,8 @@ Runs from pr-gate.yml on pull_request_target. Passes a PR if ANY of:
   1. author_association is OWNER / MEMBER / COLLABORATOR         (qualified)
   2. author's account id is in .github/qualified.yml              (qualified)
   3. PR carries the `qualified` label (maintainer endorsement)    (qualified)
-  4. trivial docs carve-out: every changed file is docs and the
-     total diff is < 25 lines                                     (trivial)
+  4. trivial docs carve-out: every changed file is a docs page (see
+     is_docs_file) and the total diff is < 25 lines               (trivial)
   5. a linked closing issue is labeled `accepted` (or
      `good first issue`, which implies accepted)                  (issue-approved)
 Only issues that live in the PR's base repository (GH_REPO) count for checks
@@ -22,10 +22,12 @@ Veto (checks 1-3 still pass — a human vouching for the PR outranks):
     checks 4-5 — the project has declined to prioritize that work, and the
     issue (not a new PR) is where re-prioritization happens.
 Otherwise: comment + close (DRY_RUN: apply the `gate-dry-run` label only).
-The explanatory comment is posted once per PR — a reopen that fails again
-is closed again without repeating it — and only a comment posted by the
-gate's own identity (the Actions token) with the marker counts as already
-posted; anyone else's comment carrying the marker does not.
+The gate re-runs when a PR is pushed to or its description is edited, so a
+PR that passed can be closed later. The explanatory comment is posted on
+every close except a reopen that fails again, which is closed again without
+repeating it; only a comment posted by the gate's own identity (the Actions
+token) with the marker counts as already posted, not anyone else's comment
+carrying the marker.
 PRs created before POLICY_START are never gated — the policy applies going
 forward; the pre-existing queue is dispositioned by hand.
 
@@ -40,7 +42,8 @@ title/body through a shell.
 
 Environment: GH_TOKEN, GH_REPO ("owner/name"), PR_NUMBER, PR_AUTHOR,
 PR_AUTHOR_ID (numeric — matched against qualified.yml), PR_AUTHOR_ASSOC,
-PR_CREATED_AT (ISO 8601), DRY_RUN ("true"/"false").
+PR_CREATED_AT (ISO 8601), PR_EVENT_ACTION (the pull_request event's action),
+DRY_RUN ("true"/"false").
 """
 
 from __future__ import annotations
@@ -53,6 +56,9 @@ from typing import Any, NamedTuple
 
 TEAM_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 TRIVIAL_MAX_LINES = 25
+# Besides pages under docs/: the README and the extensions listing, which
+# AGENTS.md invites one-line PRs to.
+DOCS_FILES = {"README.md", "docs/extensions/extensions.yml"}
 # PRs created before this are never gated. Set to the qualified-or-accepted
 # policy's adoption date (2026-09-01) so PRs opened under the earlier rules
 # are judged by them (i.e. not at all — enforcement was off until then).
@@ -103,15 +109,34 @@ def parse_qualified(text: str) -> set[int]:
 
 
 def is_docs_file(filename: str) -> bool:
-    return filename.lower().endswith((".md", ".qmd")) or filename.startswith("docs/")
+    """A Quarto page or `_*.md` include under docs/, or one of DOCS_FILES.
+
+    An allowlist: agent instructions (wherever they are), policy files, and
+    scripts, filters and config under docs/ are not docs.
+    """
+    if filename in DOCS_FILES:
+        return True
+    if not filename.startswith("docs/"):
+        return False
+    name = filename.rsplit("/", 1)[-1].lower()
+    return name.endswith(".qmd") or (name.startswith("_") and name.endswith(".md"))
 
 
 def is_trivial(files: list[dict]) -> bool:
-    """Trivial carve-out: docs-only files and < TRIVIAL_MAX_LINES changed."""
+    """Trivial carve-out: docs-only files and < TRIVIAL_MAX_LINES changed.
+
+    A rename must also come from a docs path. A change with no changed lines
+    (binary file, pure rename, mode change) is not trivial: its size can't be
+    measured in lines.
+    """
     if not files:
         return False
-    if not all(is_docs_file(f["filename"]) for f in files):
-        return False
+    for f in files:
+        paths = [f["filename"], f.get("previous_filename") or f["filename"]]
+        if not all(is_docs_file(p) for p in paths):
+            return False
+        if f.get("additions", 0) + f.get("deletions", 0) == 0:
+            return False
     total = sum(f.get("additions", 0) + f.get("deletions", 0) for f in files)
     return total < TRIVIAL_MAX_LINES
 
@@ -186,8 +211,9 @@ agreed it wants, and spares you writing code we can't merge.
    evals…) — publish it as an [extension package]({EXTENSIONS_URL}): you own
    it, there's no review queue, and a one-line PR adds it to the listing.
 
-Trivial documentation fixes (typos, broken links — docs files only, under 25
-changed lines) are always welcome directly.
+Trivial documentation fixes (typos, broken links — pages under `docs/` or the
+top-level README only, under 25 changed lines) and additions to the extensions
+listing are always welcome directly.
 
 ```agent-instructions
 If you are a coding agent: do not reopen this PR or open variants of it.
@@ -312,6 +338,33 @@ def is_gate_comment(comment: dict) -> bool:
     )
 
 
+def live_pr(repo: str, pr_number: int) -> dict:
+    """The PR as it is now: a queued run's event payload can be out of date."""
+    pr: dict = gh_json(f"repos/{repo}/pulls/{pr_number}")
+    return pr
+
+
+def is_open_and_ready(pr: dict) -> bool:
+    return pr["state"] == "open" and not pr["draft"]
+
+
+def pr_changed(before: dict, after: dict) -> bool:
+    """True if the commits, target branch or description differ.
+
+    Not the whole `head`, which embeds the fork's repository and changes with
+    any push to it.
+    """
+    return (
+        before["head"]["sha"] != after["head"]["sha"]
+        or before["base"]["ref"] != after["base"]["ref"]
+        or before["body"] != after["body"]
+    )
+
+
+def has_label(pr: dict, name: str) -> bool:
+    return any(label["name"].lower() == name for label in pr["labels"])
+
+
 def already_commented(repo: str, pr_number: int) -> bool:
     comments = gh_json(f"repos/{repo}/issues/{pr_number}/comments", "--paginate")
     return any(is_gate_comment(c) for c in comments)
@@ -323,6 +376,7 @@ def main() -> int:
     author = os.environ["PR_AUTHOR"]
     author_id = int(os.environ["PR_AUTHOR_ID"])
     assoc = os.environ["PR_AUTHOR_ASSOC"]
+    action = os.environ["PR_EVENT_ACTION"]
     dry_run = os.environ.get("DRY_RUN", "true").lower() != "false"
 
     if author.endswith("[bot]"):
@@ -334,6 +388,7 @@ def main() -> int:
         print(f"created {created_at}, before policy start — grandfathered")
         return 0
 
+    before = live_pr(repo, pr_number)
     ctx = fetch_ctx(repo, pr_number, author, author_id, assoc)
     v = decide(ctx)
     print(f"verdict={v.verdict} tier={v.tier} reason={v.reason} dry_run={dry_run}")
@@ -357,8 +412,26 @@ def main() -> int:
         )
         return 0
 
-    if already_commented(repo, pr_number):
-        print("gate comment already present — closing without repeating it")
+    repeat = action == "reopened" and already_commented(repo, pr_number)
+
+    # A push, description edit or retarget during this run starts a run of its
+    # own after this one, which decides; this run may have mixed old and new
+    # inputs. A queued run can also start after the PR was closed, and a
+    # maintainer may have applied `qualified` meanwhile.
+    after = live_pr(repo, pr_number)
+    if (
+        pr_changed(before, after)
+        or not is_open_and_ready(after)
+        or has_label(after, "qualified")
+    ):
+        print(
+            "PR changed, closed, became a draft or was labelled `qualified` "
+            "during this run — leaving it alone"
+        )
+        return 0
+
+    if repeat:
+        print("reopened and gate comment already present — not repeating it")
     else:
         body = deferred_close_comment() if v.tier == "deferred" else close_comment()
         gh("api", f"repos/{repo}/issues/{pr_number}/comments", "-f", f"body={body}")
