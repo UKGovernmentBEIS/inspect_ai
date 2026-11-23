@@ -223,7 +223,9 @@ def _refuse_shard_companions(log_files: list[EvalLogInfo]) -> None:
             "retry each incomplete shard in its own numbered directory with "
             "the same selection, run samples no shard selected as new shards, "
             "and merge again. Then move the .shards directory out of the log "
-            "directory."
+            "directory, or delete it with `inspect log merge-shards "
+            "--delete-shards` (or `delete_shards=True`), before you run an eval "
+            "set there."
         )
 
 

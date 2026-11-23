@@ -894,6 +894,31 @@ def test_eval_set_refuses_a_log_dir_holding_shards(tmp_path: Path, option: str) 
     assert _files_below(log_dir) - {Path(".eval-set-id")} == files
 
 
+def test_eval_set_accepts_log_dir_after_delete_shards(tmp_path: Path) -> None:
+    from inspect_ai.log import merge_eval_log_shards
+
+    log_dir = tmp_path / "logs"
+    task = Task(name="foo", dataset=[Sample(id=i, input="hi") for i in (1, 2)])
+    name = "2026-10-16T10-00-00-00-00_foo_A"
+    for k, ids in enumerate([[1], [2]]):
+        eval(
+            task,
+            model="mockllm/model",
+            sample_id=ids,
+            log_dir=str(log_dir / f"{name}.shards" / str(k)),
+            display="none",
+        )
+    args: dict[str, Any] = dict(
+        log_dir=str(log_dir), model="mockllm/model", display="none"
+    )
+    with pytest.raises(PrerequisiteError, match="--delete-shards"):
+        eval_set(task, **args)
+
+    merge_eval_log_shards(str(log_dir / f"{name}.eval"), task, delete_shards=True)
+    success, logs = eval_set(task, **args)
+    assert success and len(logs) == 1
+
+
 def test_eval_set_retry_pass_lists_the_log_dir_again(tmp_path: Path) -> None:
     runs: Counter[Any] = Counter()
 
