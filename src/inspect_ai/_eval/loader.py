@@ -13,7 +13,7 @@ from shortuuid import uuid
 from inspect_ai._eval.task.images import InputMediaPolicy
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.util import split_spec, task_file, task_run_dir
-from inspect_ai._sentinel._config import resolve_sentinel_spec
+from inspect_ai._sentinel._config import resolve_retry_sentinel_spec
 from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
@@ -334,11 +334,11 @@ def resolve_previous_tasks(
                 loaded_task = load_tasks([previous_task.task], loaded_task_args)[0]
             if previous_task.sentinel is not None:
                 # built where the task's own sentinel was, in the task file's
-                # directory, so a relative path its configuration records
-                # resolves from there; and once the task file has registered
-                # the factories it names
-                with chdir_python(task_run_dir(loaded_task)):
-                    loaded_task.sentinel = resolve_sentinel_spec(previous_task.sentinel)
+                # directory, once the task file has registered the factories
+                # it names
+                loaded_task.sentinel = resolve_retry_sentinel_spec(
+                    previous_task.sentinel, task_run_dir(loaded_task)
+                )
             if sample_shuffle is not None:
                 if not loaded_task.dataset.shuffled:
                     loaded_task.dataset.shuffle(

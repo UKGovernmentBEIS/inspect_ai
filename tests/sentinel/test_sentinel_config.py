@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, get_type_hints
 import pytest
 import semver
 from pydantic import ValidationError
-from test_helpers.fake_sentinel import report_version
+from test_helpers.fake_sentinel import report_version, source_path
 
 from inspect_ai import (
     Task,
@@ -940,3 +940,61 @@ def test_cli_eval_retry_builds_the_logged_sentinel_in_the_task_files_directory(
         if str(file) != log.location
     ]
     assert retried.status == "success", retried.error
+
+
+# a task file with no sentinel of its own, which fails once
+PLAIN_TASK = NOTED_TASK.replace('sentinel=noted(note="note.txt"),', "")
+
+
+@protocol
+def noted_source(note: str, reads: str) -> Protocol:
+    # reads a source file named by a relative path, as inspect_sentinel finds
+    # one, and appends what it read to `reads`, a file named by its absolute
+    # path (a retry may load this module again, so not a list in it)
+    with open(reads, "a") as file:
+        file.write(source_path(note).read_text() + "\n")
+
+    async def decide(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        return None
+
+    return decide
+
+
+@pytest.mark.parametrize(
+    ("in_task_dir", "read"),
+    [
+        # an eval's own sentinel, whose file is relative to where it ran
+        (False, "beside the eval"),
+        # a file of the same name beside the task file wins
+        (True, "beside the task file"),
+    ],
+)
+def test_eval_retry_looks_for_a_source_file_where_the_retry_runs_when_the_task_files_directory_has_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, in_task_dir: bool, read: str
+) -> None:
+    tasks = tmp_path / "tasks"
+    tasks.mkdir()
+    (tasks / "plain_task.py").write_text(PLAIN_TASK)
+    (tmp_path / "note.txt").write_text("beside the eval")
+    if in_task_dir:
+        (tasks / "note.txt").write_text("beside the task file")
+    reads = tmp_path / "reads.txt"
+    monkeypatch.chdir(tmp_path)
+    log = eval(
+        "tasks/plain_task.py",
+        model="mockllm/model",
+        sentinel=noted_source(note="note.txt", reads=str(reads)),
+        log_dir="logs",
+    )[0]
+    assert log.status == "error"
+
+    retried = eval_retry(log, log_dir="logs")[0]
+
+    assert retried.status == "success", retried.error
+    assert reads.read_text().splitlines() == ["beside the eval", read]
+    assert config_data(retried) == {
+        "name": "noted_source",
+        "params": {"note": "note.txt", "reads": str(reads)},
+    }

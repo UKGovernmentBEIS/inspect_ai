@@ -16,10 +16,13 @@ escalations. There are no compositions (`observe_only`, `threshold`,
 """
 
 import inspect
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import wraps
 from importlib import metadata
+from pathlib import Path
 from typing import (
     Any,
     Generic,
@@ -575,3 +578,25 @@ def report_version(
 
     monkeypatch.setattr("inspect_ai._util.version.version", version)
     monkeypatch.setattr("inspect_ai._sentinel._config.version", version)
+
+
+_source_fallback: ContextVar[Path | None] = ContextVar("source_fallback", default=None)
+
+
+@contextmanager
+def source_fallback(directory: str) -> Iterator[None]:
+    token = _source_fallback.set(Path(directory).resolve())
+    try:
+        yield
+    finally:
+        _source_fallback.reset(token)
+
+
+def source_path(file: str) -> Path:
+    """A source file a configuration names by a relative path, as `inspect_sentinel` finds it: in the working directory, else in `source_fallback()`'s directory where it is there."""
+    path = Path.cwd() / file
+    fallback = _source_fallback.get()
+    if fallback is None or path.exists():
+        return path
+    second = fallback / file
+    return second if second.exists() else path

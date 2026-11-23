@@ -1,6 +1,8 @@
 import importlib
+import os
 import typing
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from contextlib import nullcontext
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeAlias, Union, cast
 
@@ -19,6 +21,7 @@ from pydantic import (
 from inspect_ai._util.config import parse_cli_args
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import exists, local_path
+from inspect_ai._util.path import chdir_python
 from inspect_ai._util.registry import is_registry_object
 from inspect_ai._util.version import has_required_version
 
@@ -215,6 +218,24 @@ def resolve_sentinel_spec(spec: SentinelSpec) -> Sentinels:
         sentinels = cast(Sentinels, spec)
     resolve_sentinel_root(sentinels)
     return sentinels
+
+
+def resolve_retry_sentinel_spec(spec: SentinelSpec, task_dir: str) -> Sentinels:
+    # a logged sentinel, rebuilt for a retry in the task file's directory,
+    # where a sentinel made in the task file recorded its relative paths; a
+    # relative source file it names that is not there is looked for in the
+    # directory the retry runs in, where an eval's own sentinel recorded them.
+    # inspect_sentinel decides, on whether the file exists; one older than
+    # its `source_fallback()` looks in the task file's directory only
+    _require_sentinel()
+    integration = importlib.import_module("inspect_sentinel._integration")
+    source_fallback = getattr(integration, "source_fallback", None)
+    retry_dir = os.getcwd()
+    with (
+        chdir_python(task_dir),
+        source_fallback(retry_dir) if source_fallback else nullcontext(),
+    ):
+        return resolve_sentinel_spec(spec)
 
 
 def _is_constructed(spec: object) -> bool:
