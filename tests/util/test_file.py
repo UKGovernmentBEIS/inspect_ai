@@ -71,8 +71,15 @@ def test_filesystem_file_info():
     assert info.size == 0
 
 
-def test_s3_write_does_not_check_bucket(
-    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("fs_options", "checks_bucket"),
+    [({}, False), ({"auto_mkdir": True}, True)],
+)
+def test_s3_write_checks_bucket_only_when_asked(
+    fs_options: dict[str, Any],
+    checks_bucket: bool,
+    mock_s3: None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     s3_class = importlib.import_module("s3fs").S3FileSystem
     original_call = s3_class._call_s3
@@ -84,14 +91,10 @@ def test_s3_write_does_not_check_bucket(
 
     monkeypatch.setattr(s3_class, "_call_s3", recording_call)
 
-    path = "s3://test-bucket/no-bucket-check.txt"
-    with file(path, "w") as f:
+    with file("s3://test-bucket/bucket-check.txt", "w", fs_options=fs_options) as f:
         f.write("x")
 
-    # the head_object from exists() shows that requests are being recorded
-    assert filesystem(path).exists(path)
-    assert "head_object" in calls
-    assert "head_bucket" not in calls
+    assert ("head_bucket" in calls) is checks_bucket
 
 
 def test_is_writeable_strips_trailing_sep():
