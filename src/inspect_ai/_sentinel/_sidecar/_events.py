@@ -12,9 +12,6 @@ from ._received import Judgment, ReceivedCall
 
 logger = getLogger(__name__)
 
-SIDECAR_METADATA = "sentinel_sidecar"
-"""The key of a sidecar report's provenance in the event's `metadata`: the proxy, the endpoint's version and release mode, the call's `x-irid`, whether the report was trimmed, and the models the step's monitors and protocols called."""
-
 
 def record_sidecar_reports(
     judgment: Judgment,
@@ -33,20 +30,20 @@ def record_sidecar_reports(
         step_id = step.call if step.call is not None else generate_id
         if step.models:
             _warn_of_unused_roles(step.models, sidecar)
-        # where the report came from, in the event's metadata: the log
-        # format has no field for it
         where: dict[str, Any] = {
             "proxy": sidecar.origin,
             "version": sidecar.version,
             "release": sidecar.release,
-            "request": request,
+            "request_id": request,
             "trimmed": bool(judgment.trimmed),
             "models": step.models or None,
         }
-        if step.reviews:
-            # the ids of the questions the step asked a person.
-            # `log_reviews` logs each question's record with its id.
-            where["reviews"] = step.reviews
+        # the questions the step asked a person go on its root event.
+        # `log_reviews` logs each question's record with its id.
+        at_root: dict[str, Any] = {
+            **where,
+            "reviews": [{"id": id} for id in step.reviews] if step.reviews else None,
+        }
         if judgment.trimmed or step.recorded is None:
             # a step without its records holds only what Inspect acts on,
             # with no monitor or protocol, so no function, to name. The
@@ -60,10 +57,10 @@ def record_sidecar_reports(
                         "step_id": step_id,
                         "conversation": conversation,
                         "stage": step.stage,
-                        "function": "",
                         "kind": "decision",
                         "status": "reported",
-                        **_with_sidecar(_decision(step.decision), where),
+                        "sidecar": at_root,
+                        **_decision(step.decision),
                     }
                 )
             )
@@ -77,18 +74,11 @@ def record_sidecar_reports(
                         "step_id": step_id,
                         "conversation": conversation,
                         "stage": step.stage,
-                        **_with_sidecar(_report(record), where),
+                        "sidecar": at_root if record.get("path", "") == "" else where,
+                        **_report(record),
                     }
                 )
             )
-
-
-def _with_sidecar(report: dict[str, Any], where: dict[str, Any]) -> dict[str, Any]:
-    # the report's own metadata, with where it came from beside it
-    return {
-        **report,
-        "metadata": {**(report.get("metadata") or {}), SIDECAR_METADATA: where},
-    }
 
 
 def _warn_of_unused_roles(models: list[dict[str, Any]], sidecar: Sidecar) -> None:

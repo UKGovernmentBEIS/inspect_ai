@@ -3187,6 +3187,22 @@
               }
             ]
           },
+          "sentinel_proxy": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "required",
+                  "off"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentinel Proxy"
+          },
           "time_limit": {
             "anyOf": [
               {
@@ -3907,7 +3923,7 @@
         "type": "object"
       },
       "EvalSample": {
-        "description": "Sample from evaluation task.",
+        "description": "Sample from evaluation task.\n\nA sample remembers whether its attachment references have been resolved:\n`resolve_sample_attachments()` (and reading a log with\n`resolve_attachments`) marks the sample it returns, and writing a log\nuses the mark to tell literal text that begins with `attachment://` or\n`tc://` from a reference. The mark is not serialized. A sample without\nit (built by hand, or passed through `model_dump()` and\n`model_validate()`) is taken to hold references, as read from a log\nwithout resolving attachments.",
         "properties": {
           "attachments": {
             "additionalProperties": {
@@ -4273,6 +4289,20 @@
               }
             ],
             "title": "Scores"
+          },
+          "sentinel_stats": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SentinelStats"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentinel Stats"
           },
           "setup": {
             "anyOf": [
@@ -4854,6 +4884,20 @@
               }
             ],
             "title": "Scores"
+          },
+          "sentinel_stats": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SentinelStats"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentinel Stats"
           },
           "started_at": {
             "anyOf": [
@@ -5780,6 +5824,20 @@
             },
             "title": "Role Usage",
             "type": "object"
+          },
+          "sentinel_stats": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SentinelEvalStats"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentinel Stats"
           },
           "started_at": {
             "anyOf": [
@@ -10629,6 +10687,109 @@
         "title": "SentinelEntry",
         "type": "object"
       },
+      "SentinelEvalStats": {
+        "description": "A sentinel's stats added up over an eval's samples whose stats are complete.\n\n`complete` is false where any sample was left out.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "actions": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "proceed",
+                    "modify",
+                    "reject",
+                    "terminate",
+                    "escalate"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actions"
+          },
+          "complete": {
+            "default": true,
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "human_reviews": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentinelReviewCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "incomplete_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incomplete Reason"
+          },
+          "incomplete_samples": {
+            "default": 0,
+            "title": "Incomplete Samples",
+            "type": "integer"
+          },
+          "samples": {
+            "default": 0,
+            "title": "Samples",
+            "type": "integer"
+          },
+          "sidecar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentinelSidecarStats"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SentinelStepCounts"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "model_input",
+                    "model_output",
+                    "tool_call",
+                    "tool_result"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          }
+        },
+        "required": [
+          "complete",
+          "samples",
+          "incomplete_samples"
+        ],
+        "title": "SentinelEvalStats",
+        "type": "object"
+      },
       "SentinelEvent": {
         "description": "Report from a sentinel monitor or protocol about one step.\n\nA report's metadata is recorded in the event's `metadata` field.\n\nExperimental: not yet a stable API; may change without notice.",
         "properties": {
@@ -10654,6 +10815,17 @@
             "default": false,
             "title": "Audit",
             "type": "boolean"
+          },
+          "completed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed"
           },
           "conversation": {
             "title": "Conversation",
@@ -10769,12 +10941,33 @@
             ],
             "title": "Pending"
           },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "references": {
             "items": {
               "$ref": "#/components/schemas/Reference"
             },
             "title": "References",
             "type": "array"
+          },
+          "sidecar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentinelSidecar"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "span_id": {
             "anyOf": [
@@ -10803,7 +10996,8 @@
               "cancelled",
               "bypassed",
               "superseded",
-              "error"
+              "error",
+              "unjudged"
             ],
             "title": "Status",
             "type": "string"
@@ -10848,6 +11042,17 @@
           "working_start": {
             "title": "Working Start",
             "type": "number"
+          },
+          "working_time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Working Time"
           }
         },
         "required": [
@@ -10865,6 +11070,390 @@
           "references"
         ],
         "title": "SentinelEvent",
+        "type": "object"
+      },
+      "SentinelReviewCounts": {
+        "description": "Questions a sentinel asked a person, and how they ended.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "answered": {
+            "default": 0,
+            "title": "Answered",
+            "type": "integer"
+          },
+          "asked": {
+            "default": 0,
+            "title": "Asked",
+            "type": "integer"
+          },
+          "cancelled": {
+            "default": 0,
+            "title": "Cancelled",
+            "type": "integer"
+          },
+          "timed_out": {
+            "default": 0,
+            "title": "Timed Out",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asked",
+          "answered",
+          "timed_out",
+          "cancelled"
+        ],
+        "title": "SentinelReviewCounts",
+        "type": "object"
+      },
+      "SentinelSidecar": {
+        "description": "Where a report a sentinel sidecar made came from: the sidecar behind a model's proxy, and the agent's model call it judged.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "models": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SentinelSidecarModel"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Models"
+          },
+          "proxy": {
+            "title": "Proxy",
+            "type": "string"
+          },
+          "release": {
+            "enum": [
+              "whole",
+              "early"
+            ],
+            "title": "Release",
+            "type": "string"
+          },
+          "reply_received": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply Received"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "request_received": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Received"
+          },
+          "reviews": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SentinelSidecarReview"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviews"
+          },
+          "trimmed": {
+            "default": false,
+            "title": "Trimmed",
+            "type": "boolean"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "proxy",
+          "version",
+          "release",
+          "trimmed"
+        ],
+        "title": "SentinelSidecar",
+        "type": "object"
+      },
+      "SentinelSidecarModel": {
+        "description": "A model a sentinel sidecar's monitors and protocols called while judging a step.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "title": "SentinelSidecarModel",
+        "type": "object"
+      },
+      "SentinelSidecarReview": {
+        "description": "A question a sentinel sidecar asked a person about a step, and how it ended.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "answered": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered"
+          },
+          "asked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asked"
+          },
+          "cause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cause"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "enum": [
+                  "answered",
+                  "timed_out",
+                  "cancelled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "SentinelSidecarReview",
+        "type": "object"
+      },
+      "SentinelSidecarStats": {
+        "description": "What only a sentinel sidecar's stats have: the sidecar, and the model calls Inspect sent through it.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "model_calls": {
+            "default": 0,
+            "title": "Model Calls",
+            "type": "integer"
+          },
+          "proxy": {
+            "title": "Proxy",
+            "type": "string"
+          },
+          "results_withheld": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Results Withheld"
+          },
+          "unknown_calls": {
+            "default": 0,
+            "title": "Unknown Calls",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "proxy",
+          "model_calls",
+          "unknown_calls"
+        ],
+        "title": "SentinelSidecarStats",
+        "type": "object"
+      },
+      "SentinelStats": {
+        "description": "What a sentinel did over a sample, filled the same way whether it ran inside Inspect or in a sidecar.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "actions": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "proceed",
+                    "modify",
+                    "reject",
+                    "terminate",
+                    "escalate"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actions"
+          },
+          "complete": {
+            "default": true,
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "human_reviews": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentinelReviewCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "incomplete_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incomplete Reason"
+          },
+          "sidecar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentinelSidecarStats"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SentinelStepCounts"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "model_input",
+                    "model_output",
+                    "tool_call",
+                    "tool_result"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          }
+        },
+        "required": [
+          "complete"
+        ],
+        "title": "SentinelStats",
+        "type": "object"
+      },
+      "SentinelStepCounts": {
+        "description": "Steps a sentinel saw at one stage, and whether each was judged.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "judged": {
+            "default": 0,
+            "title": "Judged",
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "unjudged": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Unjudged",
+            "type": "object"
+          }
+        },
+        "required": [
+          "total",
+          "judged",
+          "unjudged"
+        ],
+        "title": "SentinelStepCounts",
         "type": "object"
       },
       "SnapshotDetails": {
@@ -12618,7 +13207,7 @@
         "type": "object"
       },
       "ToolInfo": {
-        "description": "Specification of a tool (JSON Schema compatible)\n\nIf you are implementing a ModelAPI, most LLM libraries can\nbe passed this object (dumped to a dict) directly as a function\nspecification. For example, in the OpenAI provider:\n\n```python\nChatCompletionToolParam(\n    type=\"function\",\n    function=tool.model_dump(exclude_none=True),\n)\n```\n\nIn some cases the field names don't match up exactly. In that case\ncall `model_dump()` on the `parameters` field. For example, in the\nAnthropic provider:\n\n```python\nToolParam(\n    name=tool.name,\n    description=tool.description,\n    input_schema=tool.parameters.model_dump(exclude_none=True),\n)\n```",
+        "description": "Specification of a tool (JSON Schema compatible)\n\nIf you are implementing a ModelAPI, most LLM libraries can\nbe passed this object (dumped to a dict) directly as a function\nspecification. For example, in the OpenAI provider:\n\n```python\nChatCompletionToolParam(\n    type=\"function\",\n    function=tool.model_dump(mode=\"json\", exclude_none=True),\n)\n```\n\nIn some cases the field names don't match up exactly. In that case\ncall `model_dump()` on the `parameters` field. For example, in the\nAnthropic provider:\n\n```python\nToolParam(\n    name=tool.name,\n    description=tool.description,\n    input_schema=tool.parameters.model_dump(mode=\"json\", exclude_none=True),\n)\n```\n\nDump in JSON mode, as shown, so parameter defaults such as an `Enum`\nmember are converted to JSON values.",
         "properties": {
           "description": {
             "title": "Description",

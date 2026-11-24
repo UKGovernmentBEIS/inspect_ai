@@ -31,7 +31,6 @@ from inspect_ai._sentinel._sidecar._endpoint import (
     probe,
     proxy_client,
 )
-from inspect_ai._sentinel._sidecar._events import SIDECAR_METADATA
 from inspect_ai._sentinel._sidecar._lookup import RESULT_WAIT, request_result
 from inspect_ai._sentinel._sidecar._received import (
     ReceivedCall,
@@ -577,8 +576,7 @@ def test_an_eval_that_requires_a_sidecar_fails_its_task_without_one() -> None:
     assert log.status == "error"
     assert log.error is not None
     assert "A sentinel sidecar is required" in log.error.message
-    # the setting isn't part of the log format
-    assert "sentinel_proxy" not in log.eval.config.model_dump()
+    assert log.eval.config.sentinel_proxy == "required"
 
 
 def test_an_eval_told_to_look_finds_a_sidecar() -> None:
@@ -4229,8 +4227,8 @@ def test_each_report_says_which_models_judged_it(
     # the sidecar's own roles judged, whatever the eval set, and the log says so
     assert log.samples is not None
     [event] = _sentinel_events(log.samples[0])
-    assert event.metadata is not None
-    assert event.metadata[SIDECAR_METADATA]["models"] == [
+    assert event.sidecar is not None and event.sidecar.models is not None
+    assert [m.model_dump(exclude_none=True) for m in event.sidecar.models] == [
         {"role": "monitor", "model": "mockllm/judge"},
         {"model": "mockllm/named"},
     ]
@@ -5113,11 +5111,11 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
     events = _sentinel_events(sample)
     irid = stand_in.model_calls[0].headers["x-irid"]
     assert all(e.step_id == "call_1" and e.stage == "tool_call" for e in events)
-    # where each came from, in its metadata, as the log format has no field
-    assert all(e.metadata and SIDECAR_METADATA in e.metadata for e in events)
-    assert events[0].metadata is not None
-    where = events[0].metadata[SIDECAR_METADATA]
-    assert (where["proxy"], where["version"], where["release"], where["request"]) == (
+    # where each came from
+    assert all(e.sidecar is not None for e in events)
+    where = events[0].sidecar
+    assert where is not None
+    assert (where.proxy, where.version, where.release, where.request_id) == (
         "http://proxy.test",
         1,
         "whole",
@@ -5129,9 +5127,9 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
         assert (event.kind, event.action, event.function) == (
             "decision",
             "reject",
-            "",
+            None,
         )
-        assert where["trimmed"]
+        assert where.trimmed
     else:
         # one per report, as in process
         observed, decided = events
@@ -5146,7 +5144,7 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
             "Tokyo is not allowed.",
         )
         assert decided.function == "decide"
-        assert not where["trimmed"]
+        assert not where.trimmed
 
 
 def test_a_step_without_records_keeps_its_decisions_metadata() -> None:
@@ -5180,9 +5178,9 @@ def test_a_step_without_records_keeps_its_decisions_metadata() -> None:
     sample = _run_agent(stand_in)
 
     [event] = _sentinel_events(sample)
-    assert event.metadata is not None
-    assert event.metadata["rule"] == "no_tokyo"
-    assert event.metadata[SIDECAR_METADATA]["trimmed"] is False
+    assert event.metadata == {"rule": "no_tokyo"}
+    assert event.sidecar is not None and event.sidecar.trimmed is False
+    assert event.function is None
 
 
 @scorer(metrics=[mean()])

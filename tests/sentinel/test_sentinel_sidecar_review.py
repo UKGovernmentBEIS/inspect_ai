@@ -2450,8 +2450,8 @@ def test_a_persons_review_is_kept_in_the_evals_log(
     assert (review["decision"], review["resolution"]) == ("approve", "answered")
     # the step that asked names the question's id, which links the two
     [step] = [e for e in sample.events if isinstance(e, SentinelEvent)]
-    assert step.metadata is not None
-    assert step.metadata["sentinel_sidecar"]["reviews"] == [review["id"]]
+    assert step.sidecar is not None and step.sidecar.reviews is not None
+    assert [r.id for r in step.sidecar.reviews] == [review["id"]]
     # the person's answer was used, so no warning says otherwise
     assert not [w for w in _warned(sample) if "wasn't used" in w]
 
