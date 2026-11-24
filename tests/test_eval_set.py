@@ -97,7 +97,8 @@ from inspect_ai.log._recorders.buffer.database import (
 from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model import CachePolicy, Model, ModelOutput, get_model
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
+from inspect_ai.model._model import active_model, model_roles
 from inspect_ai.scorer import (
     Metric,
     SampleScore,
@@ -158,6 +159,26 @@ def test_eval_set(retry_immediate: bool) -> None:
         )
         assert not success
         assert logs[0].status == "error"
+
+
+def test_eval_set_leaves_the_callers_model_context_unchanged(tmp_path: Path) -> None:
+    before_model = active_model()
+    before_roles = model_roles()
+    before_config = active_generate_config()
+
+    success, _ = eval_set(
+        tasks=Task(dataset=[Sample(input="Say hello", target="hello")]),
+        log_dir=str(tmp_path),
+        model="mockllm/model",
+        model_roles={"grader": "mockllm/grader"},
+        max_connections=1,
+        temperature=0.5,
+    )
+
+    assert success
+    assert active_model() is before_model
+    assert model_roles() is before_roles
+    assert active_generate_config() is before_config
 
 
 @pytest.mark.slow

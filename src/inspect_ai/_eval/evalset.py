@@ -1,4 +1,5 @@
 import contextlib
+import functools
 import hashlib
 import logging
 import os
@@ -6,9 +7,19 @@ import re
 import threading
 from collections.abc import Callable, Iterator, Sequence
 from collections.abc import Set as AbstractSet
+from contextvars import copy_context
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, TypeVar, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    NamedTuple,
+    ParamSpec,
+    Set,
+    TypeVar,
+    cast,
+)
 
 import rich
 from pydantic import BaseModel
@@ -167,6 +178,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _T = TypeVar("_T")
+_P = ParamSpec("_P")
 
 
 class Log(NamedTuple):
@@ -303,6 +315,24 @@ def _overridden_epochs(
     return epochs
 
 
+def _in_copied_context(fn: Callable[_P, _T]) -> Callable[_P, _T]:
+    """Run `fn` in a copy of the caller's context.
+
+    `eval_set()` sets up the eval (`eval_init`, `eval_resolve_tasks`)
+    synchronously in its caller's context, which sets the active model,
+    generate config, model roles and other context variables. Running in a
+    copy keeps those settings from staying in the caller's context after it
+    returns, as `eval()` does by running on its own event loop.
+    """
+
+    @functools.wraps(fn)
+    def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _T:
+        return copy_context().run(fn, *args, **kwargs)
+
+    return wrapper
+
+
+@_in_copied_context
 def eval_set(
     tasks: Tasks,
     log_dir: str | None = None,
