@@ -4268,6 +4268,47 @@ async def test_a_result_checked_before_a_checkpoint_is_checked_once_more_after_r
     ]
 
 
+@pytest.mark.parametrize("sandbox", [False, True])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_result_checked_before_its_proposal_was_evicted_is_not_checked_again(
+    dialect: str, sandbox: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A result checked with its proposal's context is not checked again once the proposal is evicted; a changed result still is."""
+    from inspect_ai.agent._bridge import _sentinel
+
+    monkeypatch.setattr(_sentinel, "_MAX_PROPOSALS", 2)
+    seen: Steps = []
+    calls = [
+        replace(READ, id=f"c{i}", arguments={"path": f"{i}.txt"}) for i in range(6)
+    ]
+    model = Scripted(*(calls_output(call) for call in calls), calls_output())
+    bridge = started_with(
+        sandbox, model.model, AgentState(messages=[ChatMessageUser(content=TASK)])
+    )
+
+    with active([bridge_recording(seen)]):
+        # one call per turn, each request carrying every earlier result
+        for turn in range(len(calls) + 1):
+            await dialect_turns_request(
+                dialect,
+                bridge,
+                [(call, f"r{i}") for i, call in enumerate(calls[:turn])],
+            )
+        await dialect_turns_request(
+            dialect,
+            bridge,
+            [(call, "changed" if i == 0 else f"r{i}") for i, call in enumerate(calls)],
+        )
+
+    assert set(bridge._handouts.handed) == {call.id for call in calls}
+    afters = [step for step in seen if isinstance(step, AfterToolCall)]
+    assert [(step.call.id, step.input is None) for step in afters] == [
+        *((call.id, False) for call in calls),
+        (calls[0].id, True),
+    ]
+    assert afters[-1].result.text == as_handed(dialect, "changed")
+
+
 # arguments JSON carries alike, which a model can tell apart
 ALIKE_ARGUMENTS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
     "zeros": ({"offset": 0.0}, {"offset": -0.0}),

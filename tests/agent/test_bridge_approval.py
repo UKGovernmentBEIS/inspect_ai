@@ -8942,12 +8942,15 @@ async def test_a_result_checked_for_one_target_is_checked_again_after_its_propos
 @pytest.mark.usefixtures("fake_sentinel")
 @pytest.mark.parametrize("fallback", ["evict", "restore"])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
-async def test_a_replay_after_its_proposal_is_gone_is_checked_once_more(
+async def test_a_replay_after_its_proposal_is_gone_is_checked_at_most_once_more(
     dialect: HostDialect, fallback: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Once a result's proposal is evicted or lost to a resume, its replay is another step: checked once, as the handout's target without context, then not again.
+    """Once a result's proposal is gone, its replay is checked as the handout's target without context.
 
-    A later handout of the call resolving to another target is still checked.
+    After an eviction the check that passed with context covers it, so it is
+    not checked again. After a resume it is another step: checked once, then
+    not again. A later handout of the call resolving to another target is
+    still checked.
     """
     call = ToolCall(id="same", function="summarize", arguments={"path": "p"})
     done = ModelOutput.from_content("mockllm/model", "Done.")
@@ -8988,7 +8991,9 @@ async def test_a_replay_after_its_proposal_is_gone_is_checked_once_more(
             _continue(first)
             await first.request(bridge)
         # the handout's target, without context
-        assert [(f, context) for f, _, context in seen[checked:]] == [("status", False)]
+        assert [(f, context) for f, _, context in seen[checked:]] == (
+            [("status", False)] if fallback == "restore" else []
+        )
         second = _HostConversation(dialect, "Second", declare("summarize")[0])
         second_calls = await second.request(bridge)
         second.results(second_calls, ["secret"])

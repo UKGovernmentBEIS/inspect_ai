@@ -304,6 +304,10 @@ class _Result(NamedTuple):
     """Each check's call's view, as its digest was taken of it; None where its
     viewer failed and the check rejects that."""
 
+    covers: tuple[str | None, ...]
+    """For each check with its proposal's context, the digest of the same step
+    without it, which its passing covers (`_Handouts.covered`); otherwise None."""
+
     execution_id: str | None = None
     """The handout whose result this is (`_Handed.execution_id`), or None
     where the bridge can't tell: an id handed out more than once or shared
@@ -419,10 +423,13 @@ class _Handouts:
     replay is the same step and is not checked again. Each target's step is
     its own: a result checked as more targets than before runs only the new
     ones. A step whose check is running (another request's) is waited for,
-    and one whose check failed fails again. The digests of passed steps are
-    kept in the checkpoint (`checked`); proposals are not, so after a resume
-    a result gets its targets' steps without context and is checked again,
-    as after its proposal's eviction.
+    and one whose check failed fails again. A step with a proposal's context
+    that passed also covers the same step without it (`covered`), for an id
+    that is not ambiguous: a result checked before its proposal's eviction
+    is not checked again after it. The digests of passed steps are kept in
+    the checkpoint (`checked`); proposals and covered steps are not, so after
+    a resume a result gets its targets' steps without context and is checked
+    again.
 
     The results in the state the bridge starts with were in the agent's
     conversation before the bridge ran, and are not checked again, as a native
@@ -453,6 +460,8 @@ class _Handouts:
         self.proposals: OrderedDict[tuple[str, str], SentinelCheck] = OrderedDict()
         # step digests (`_Steps`)
         self.checked: set[str] = set(saved.checked)
+        # digests of passed steps without their proposals' context (`_Result.covers`)
+        self.covered: set[str] = set()
         self.inherited: frozenset[str] = frozenset(saved.inherited)
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
@@ -704,10 +713,16 @@ class _Handouts:
             result = self._result(input, answer, steps)
             if result is None:
                 continue
+            handed = self.handed.get(answer.message.tool_call_id or "")
+            covered = (
+                self.covered
+                if handed is not None and not handed.ambiguous
+                else frozenset[str]()
+            )
             owned: list[int] = []
             for index, digest in enumerate(result.digests):
                 # a step another of the request's results has is checked by it
-                if digest in taken or digest in self.checked:
+                if digest in taken or digest in self.checked or digest in covered:
                     continue
                 if digest in self.failed:
                     raise self.failed[digest]
@@ -768,6 +783,10 @@ class _Handouts:
             checks.checks,
             tuple(_parts_digest(part, result) for part in checks.parts),
             checks.views,
+            tuple(
+                _parts_digest(part, result) if part is not None else None
+                for part in checks.covers
+            ),
             handed.execution_id
             if handed is not None and not handed.ambiguous
             else None,
@@ -860,6 +879,9 @@ class _Handouts:
                 self.failed.setdefault(digest, ex)
                 raise
             self.checked.add(digest)
+            cover = result.covers[index]
+            if cover is not None:
+                self.covered.add(cover)
 
     def release(self, claim: _Claim) -> None:
         # a check that did not finish is claimed again by the next request
@@ -879,6 +901,15 @@ def _without_context(check: SentinelCheck) -> SentinelCheck:
     come from the handed call and the bridged tools, not from the generation.
     """
     return check._replace(message="", message_id=_NO_MESSAGE_ID, producer=None)
+
+
+def _has_context(check: SentinelCheck) -> bool:
+    """Whether `check` has a proposal's context (`_without_context` removes it)."""
+    return (
+        bool(check.message)
+        or check.message_id != _NO_MESSAGE_ID
+        or check.producer is not None
+    )
 
 
 def _check_targets(check: SentinelCheck) -> list[HandedTarget]:
@@ -1003,6 +1034,10 @@ class _Checks(NamedTuple):
     views: tuple[ToolCallView | None, ...]
     """Each check's call's view (`_Result.views`)."""
 
+    covers: tuple[str | None, ...]
+    """Each check's step without its proposal's context, all but the result
+    (`_Result.covers`)."""
+
 
 class _Steps:
     """The steps a claim's results are checked with, as digests (`_Handouts`).
@@ -1051,7 +1086,13 @@ class _Steps:
             parts = tuple(
                 _check_part(check, view, place) for check, view in zip(checks, views)
             )
-            entry = (keep, _Checks(checks, parts, views))
+            covers = tuple(
+                _check_part(_without_context(check), view, place)
+                if _has_context(check)
+                else None
+                for check, view in zip(checks, views)
+            )
+            entry = (keep, _Checks(checks, parts, views, covers))
             self._checks[key] = entry
         return entry[1]
 
