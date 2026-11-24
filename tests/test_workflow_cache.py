@@ -1,11 +1,14 @@
 """Cache safety for the shared-action call sites.
 
-Jobs that hold credentials restore no cache, and every job that does not save
-to the Actions cache declares a cache-mode.
+Jobs that hold credentials, and jobs whose result vouches for a release
+artifact, restore no cache. Every job that does not save to the Actions cache
+declares a cache-mode.
 
 A malicious package installed by any job can write to the shared Actions
 cache, so a job holding secrets, an id-token or write permissions must not
-restore one. The shared install actions move the uv setup behind a call, so a
+restore one. The same holds for an integrity gate: an earlier revision of a PR
+can write its PR's cache, so a gate that restored it would check its own
+build against attacker-chosen tooling. The shared install actions move the uv setup behind a call, so a
 call counts as a restore from the Actions cache unless it sets
 actions-cache: none.
 
@@ -46,6 +49,11 @@ CREDENTIAL_JOBS = [
     ("sandbox-tools-build.yml", "validate"),
 ]
 
+# Jobs whose pass is the check that a committed artifact matches its source.
+# dist-validation is the only check tying the committed viewer bundle, which
+# the wheel ships, to the pinned ts-mono source.
+INTEGRITY_GATE_JOBS = [("log_viewer.yml", "dist-validation")]
+
 # The cache-mode each job that does not save to the Actions cache must declare.
 # actions-cache none -> cache-mode none; restore-only -> a cache-mode that
 # blocks a write (slow-tool-tests-dev uses read). docs is the one restore-only
@@ -56,6 +64,7 @@ CACHE_MODE_JOBS = {
     ("suppressions.yml", "suppressions"): "none",
     ("suppressions-comment.yml", "comment"): "none",
     ("build.yml", "slow-tool-tests-dev"): "read",
+    ("log_viewer.yml", "dist-validation"): "none",
 }
 NO_CACHE_MODE_JOBS = {("build.yml", "docs")}
 
@@ -111,6 +120,11 @@ def assert_restores_no_cache(steps: list[dict[str, Any]]) -> None:
 
 @pytest.mark.parametrize("workflow,job", CREDENTIAL_JOBS)
 def test_credential_holding_jobs_restore_no_cache(workflow: str, job: str) -> None:
+    assert_restores_no_cache(job_steps(workflow, job))
+
+
+@pytest.mark.parametrize("workflow,job", INTEGRITY_GATE_JOBS)
+def test_integrity_gate_jobs_restore_no_cache(workflow: str, job: str) -> None:
     assert_restores_no_cache(job_steps(workflow, job))
 
 
