@@ -34,7 +34,9 @@ from inspect_ai.log import (
     recompute_metrics,
     write_eval_log_async,
 )
+from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.log._file import read_eval_log, read_eval_log_async
+from inspect_ai.log._score import edit_score
 from inspect_ai.log._transcript import init_transcript
 from inspect_ai.model import ChatCompletionChoice, GenerateConfig, ModelOutput
 from inspect_ai.model._chat_message import (
@@ -42,7 +44,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.scorer import accuracy, exact, match
-from inspect_ai.scorer._metric import SampleScore, Score
+from inspect_ai.scorer._metric import SampleScore, Score, ScoreEdit
 from inspect_ai.scorer._scorer import Scorer, scorer
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState
@@ -1906,6 +1908,27 @@ async def test_score_dict_append_keeps_named_header_scorer_without_scores(
         ("_unaggregated_scorer", "tag"),
         ("match", "strict"),
     ]
+
+
+@pytest.mark.parametrize("recorded", ["", "accuracy_strict"])
+async def test_edit_score_invalid_recorded_name_leaves_log_unchanged(
+    recorded: str,
+) -> None:
+    """An invalid recorded score name fails `edit_score()` before it edits anything."""
+    scored = await _score_async_with_named_scorers()
+    assert scored.eval.scorers is not None and scored.samples is not None
+    scored.eval.scorers[2].score_name = recorded
+    before = scored.model_dump_json()
+
+    with pytest.raises(ValueError, match="score name"):
+        edit_score(
+            scored,
+            scored.samples[0].id,
+            "accuracy_strict",
+            ScoreEdit(value="I", provenance=ProvenanceData(author="test")),
+        )
+
+    assert scored.model_dump_json() == before
 
 
 async def test_score_streamed_sample_name_conflict_fails_before_its_scorers() -> None:
