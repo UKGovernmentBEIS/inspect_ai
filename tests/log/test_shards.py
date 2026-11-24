@@ -4034,7 +4034,9 @@ def test_s3_locations_s3_would_read_as_another_key_are_refused(
     roots = [f"{s3_root}/", f"/{s3_root}/"]
     before = [_s3_objects(root) for root in roots]
     with pytest.raises(ValueError, match="S3 would read it as"):
-        merge_eval_log_shards(f"s3://test-bucket/{location}", _task())
+        merge_eval_log_shards(
+            f"s3://test-bucket/{location}", _task(), delete_shards=delete
+        )
     assert [_s3_objects(root) for root in roots] == before
 
 
@@ -4514,16 +4516,23 @@ def task_file(tmp_path: Path) -> Path:
     return path
 
 
-def _cli_paths(root: Path, name: str) -> tuple[str, str]:
+def _cli_paths(root: Path | str, name: str) -> tuple[str, str]:
     stem = f"{root}/logs/2026-10-16T10-00-00-00-00_{name}_{RUN_ID}"
     return f"{stem}.eval", f"{stem}.shards"
 
 
 def _cli_workers(
-    task_file: Path, name: str, selections: list[list[int]], **kwargs: Any
+    task_file: Path,
+    name: str,
+    selections: list[list[int]],
+    root: str | None = None,
+    **kwargs: Any,
 ) -> tuple[str, str]:
-    """Run one worker per selection; return the merged log and shards dir."""
-    merged, shards = _cli_paths(task_file.parent, name)
+    """Run one worker per selection; return the merged log and shards dir.
+
+    The logs go under `root`, by default the task file's directory.
+    """
+    merged, shards = _cli_paths(root or task_file.parent, name)
     for k, ids in enumerate(selections):
         eval(
             f"{task_file}@{name}",
@@ -5890,3 +5899,629 @@ def test_a_sample_member_that_does_not_match_its_crc_fails_the_merge(
     with pytest.raises(ZipCrcError, match="samples/5_epoch_1.json"):
         merge_eval_log_shards(merged, _task())
     assert not os.path.exists(merged)
+
+
+# Deleting a merged log's shards (`delete_shards=True`).
+
+_OLDER = "2026-01-01T00-00-00-00-00"
+
+# an older attempt and every kind of entry a companion holds besides attempts
+_EXTRAS = [
+    f"0/{_OLDER}_{TASK}_older.eval",
+    "0/scans/scan_id=x/rows.parquet",
+    "1/.buffer/seg/segment.0.zip",
+    f"1/{_OLDER}_{TASK}.checkpoints/1",
+    "notes.txt",
+]
+
+
+def _put(location: str, data: bytes = b"x") -> None:
+    if location.startswith("s3://"):
+        key = location.removeprefix("s3://test-bucket/")
+        boto3.client("s3").put_object(Bucket="test-bucket", Key=key, Body=data)
+    else:
+        path = Path(location)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+
+
+def _bytes(location: str) -> bytes:
+    if location.startswith("s3://"):
+        key = location.removeprefix("s3://test-bucket/")
+        body = boto3.client("s3").get_object(Bucket="test-bucket", Key=key)["Body"]
+        return cast(bytes, body.read())
+    return Path(location).read_bytes()
+
+
+def _left(shards: str) -> list[str]:
+    """Everything in `shards` relative to it, `""` for the directory itself.
+
+    Locally directories are listed; on S3 every key, directory markers
+    included.
+    """
+    if shards.startswith("s3://"):
+        prefix = shards.removeprefix("s3://test-bucket/") + "/"
+        return [key[len(prefix) :] for key in _s3_keys(prefix)]
+    if not os.path.lexists(shards):
+        return []
+    found = [""]
+    for directory, dirs, files in os.walk(shards):
+        for name in [*dirs, *files]:
+            found.append(Path(directory, name).relative_to(shards).as_posix())
+    return sorted(found)
+
+
+def _with_extras(root: str) -> tuple[str, str]:
+    """A two-shard run whose companion holds `_EXTRAS` too."""
+    merged, shards = _paths(root)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    _run(shards, "1", sample_id=[4, 5, 6])
+    for name in _EXTRAS:
+        _put(f"{shards}/{name}")
+    return merged, shards
+
+
+@pytest.fixture(params=["local", "s3"])
+def deletable(request: pytest.FixtureRequest, tmp_path: Path) -> tuple[str, str]:
+    if request.param == "s3":
+        return _with_extras(f"s3://test-bucket/{request.getfixturevalue('s3_root')}")
+    return _with_extras(str(tmp_path))
+
+
+@pytest.fixture
+def local_deletable(tmp_path: Path) -> tuple[str, str]:
+    return _with_extras(str(tmp_path))
+
+
+def _ledger_attempts(merged: str) -> dict[str, str]:
+    shards = read_eval_log(merged, header_only=True).eval.shards
+    assert shards is not None
+    return {entry.shard: entry.log for entry in shards.ledger}
+
+
+def _held(shards: str) -> dict[str, list[str]]:
+    """The `.eval` names in each shard directory."""
+    if not os.path.exists(shards):
+        return {}
+    return {
+        shard.name: sorted(p.name for p in shard.glob("*.eval"))
+        for shard in Path(shards).iterdir()
+        if shard.is_dir()
+    }
+
+
+def _check_current_or_none(merged: str, shards: str) -> None:
+    """Each shard holds its recorded current attempt, or no attempt."""
+    left = _left(shards)
+    for shard, log in _ledger_attempts(merged).items():
+        held = [e for e in left if re.fullmatch(rf"{re.escape(shard)}/[^/]+\.eval", e)]
+        assert held in ([], [f"{shard}/{log}"]), (shard, held)
+
+
+def _fail_unlink(
+    monkeypatch: pytest.MonkeyPatch, fail: Callable[[str], bool]
+) -> list[str]:
+    """Make deletion's local unlink raise `PermissionError` where `fail` says."""
+    from inspect_ai.log._shards import _delete
+
+    unlink = _delete._unlink
+    deleted: list[str] = []
+
+    def failing(path: str) -> None:
+        if fail(path):
+            raise PermissionError(13, "Permission denied", path)
+        unlink(path)
+        deleted.append(path)
+
+    monkeypatch.setattr(_delete, "_unlink", failing)
+    return deleted
+
+
+def _fail_on_second_current(
+    monkeypatch: pytest.MonkeyPatch, merged: str, shards: str
+) -> None:
+    """Fail deletion after one shard's current attempt was deleted."""
+    current = {f"{shards}/{k}/{log}" for k, log in _ledger_attempts(merged).items()}
+    seen: list[str] = []
+
+    def fail(path: str) -> bool:
+        if path in current:
+            seen.append(path)
+        return len(seen) == 2 and path == seen[1]
+
+    _fail_unlink(monkeypatch, fail)
+
+
+def _fail_s3_delete(
+    monkeypatch: pytest.MonkeyPatch, current: set[str] | None = None
+) -> list[str]:
+    """Make deletion's S3 deletes raise `ClientError`.
+
+    Every delete fails, or with `current` only the delete of the second of
+    those names, once the first is deleted. Returns the names deletion was
+    asked to delete, in order.
+    """
+    from botocore.exceptions import ClientError
+
+    delete_file = AsyncFilesystem.delete_file
+    calls: list[str] = []
+    first_deleted: list[anyio.Event] = []
+
+    async def failing(self: AsyncFilesystem, filename: str) -> None:
+        calls.append(filename)
+        if current is not None and filename not in current:
+            await delete_file(self, filename)
+            return
+        if current is not None and not first_deleted:
+            first_deleted.append(anyio.Event())
+            await delete_file(self, filename)
+            first_deleted[0].set()
+            return
+        if first_deleted:
+            await first_deleted[0].wait()
+        raise ClientError(
+            {"Error": {"Code": "AccessDenied", "Message": "Access Denied"}},
+            "DeleteObject",
+        )
+
+    monkeypatch.setattr(AsyncFilesystem, "delete_file", failing)
+    return calls
+
+
+def _partly_deleted(monkeypatch: pytest.MonkeyPatch, root: Path) -> tuple[str, str]:
+    """A merged run whose deletion stopped after one shard lost its current attempt."""
+    merged, shards = _with_extras(str(root))
+    merge_eval_log_shards(merged, _task())
+    with monkeypatch.context() as patched:
+        _fail_on_second_current(patched, merged, shards)
+        with pytest.raises(PermissionError):
+            merge_eval_log_shards(merged, _task(), delete_shards=True)
+    held = _held(shards)
+    assert sorted(len(names) for names in held.values()) == [0, 1], held
+    return merged, shards
+
+
+def test_merge_deletes_nothing_by_default(local_deletable: tuple[str, str]) -> None:
+    merged, shards = local_deletable
+    before = _files(shards)
+    assert merge_eval_log_shards(merged, _task()).written
+    assert _files(shards) == before
+
+
+async def test_delete_shards_removes_companion(deletable: tuple[str, str]) -> None:
+    from inspect_ai.log import merge_eval_log_shards_async
+
+    merged, shards = deletable
+    assert all(name in _left(shards) for name in _EXTRAS)
+    result = await merge_eval_log_shards_async(merged, _task(), delete_shards=True)
+    assert result.written and result.log.status == "success"
+    assert _left(shards) == []
+    again = await merge_eval_log_shards_async(merged, _task())
+    assert not again.written and again.log.status == "success"
+    assert again.log.eval.eval_id == result.log.eval.eval_id
+
+
+async def test_delete_shards_removes_s3_directory_markers(
+    s3_shards: tuple[str, str], s3_root: str
+) -> None:
+    from inspect_ai.log import merge_eval_log_shards_async
+
+    merged, shards = s3_shards
+    for marker in ["", "0/", "1/", "0/scans/", "0/scans/scan_id=x/"]:
+        _put(f"{shards}/{marker}", b"")
+    assert "" in _left(shards) and "0/scans/" in _left(shards)
+    result = await merge_eval_log_shards_async(merged, _task(), delete_shards=True)
+    assert result.log.status == "success"
+    assert _left(shards) == []
+
+
+def test_delete_shards_after_unchanged_merge(deletable: tuple[str, str]) -> None:
+    merged, shards = deletable
+    assert merge_eval_log_shards(merged, _task()).written
+    before = _bytes(merged)
+    result = merge_eval_log_shards(merged, _task(), delete_shards=True)
+    assert not result.written and result.log.status == "success"
+    assert _bytes(merged) == before
+    assert _left(shards) == []
+
+
+def test_delete_shards_merges_shard_changed_since_merge(
+    two_shards: tuple[str, str],
+) -> None:
+    merged, shards = two_shards
+    merge_eval_log_shards(merged, _task())
+    newer = _run(shards, "1", sample_id=[4, 5, 6])
+    result = merge_eval_log_shards(merged, _task(), delete_shards=True)
+    assert result.written
+    assert _ledger_attempts(merged)["1"] == Path(newer.location).name
+    assert _keys(merged) == {(str(i), 1) for i in range(1, 7)}
+    assert _left(shards) == []
+
+
+def test_delete_shards_leaves_attempt_written_after_listing(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import shutil
+
+    from inspect_ai.log._shards._delete import list_companion
+
+    merged, shards = two_shards
+    [current] = Path(shards, "1").glob("*.eval")
+    late = Path(shards, "1", f"2099-01-01T00-00-00-00-00_{TASK}_late.eval")
+
+    async def listed_then_written(fs: AsyncFilesystem, shards_dir: str) -> Any:
+        listed = await list_companion(fs, shards_dir)
+        shutil.copy2(current, late)
+        return listed
+
+    with monkeypatch.context() as patched:
+        patched.setattr(
+            "inspect_ai.log._shards._api.list_companion", listed_then_written
+        )
+        with pytest.raises(ShardSetError, match=f"not empty.*{late.name}"):
+            merge_eval_log_shards(merged, _task(), delete_shards=True)
+    # the pass merged the late attempt; only it is left
+    assert _ledger_attempts(merged)["1"] == late.name
+    assert _left(shards) == ["", "1", f"1/{late.name}"]
+
+    result = merge_eval_log_shards(merged, _task(), delete_shards=True)
+    assert not result.written and result.log.status == "success"
+    assert _left(shards) == []
+
+
+def test_delete_shards_with_allow_incomplete_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    merged, _ = _paths(tmp_path)
+    with monkeypatch.context() as patched:
+        _refuse_storage(patched)
+        with pytest.raises(ValueError, match="cannot be combined"):
+            merge_eval_log_shards(
+                merged, _task(), allow_incomplete=True, delete_shards=True
+            )
+
+
+def test_delete_shards_refuses_incomplete_set(tmp_path: Path) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    before = _files(str(tmp_path))
+    with pytest.raises(ShardSetIncomplete) as raised:
+        merge_eval_log_shards(merged, _task(), delete_shards=True)
+    assert "allow_incomplete" not in str(raised.value)
+    assert "by hand" in str(raised.value)
+    assert _files(str(tmp_path)) == before and not os.path.exists(merged)
+
+
+@pytest.mark.parametrize("stage", ["others", "current", "dirs", "crash"])
+def test_delete_shards_interrupted_then_finished(
+    local_deletable: tuple[str, str], monkeypatch: pytest.MonkeyPatch, stage: str
+) -> None:
+    from inspect_ai.log._shards import _delete
+
+    merged, shards = local_deletable
+    merge_eval_log_shards(merged, _task())
+    before = _bytes(merged)
+    with monkeypatch.context() as patched:
+        if stage == "others":
+            _fail_unlink(patched, lambda path: path.endswith("notes.txt"))
+        elif stage == "dirs":
+
+            def fail(dirs: Any) -> None:
+                raise PermissionError(13, "Permission denied", dirs[0])
+
+            patched.setattr(_delete, "_remove_dirs", fail)
+        else:
+            _fail_on_second_current(patched, merged, shards)
+        with pytest.raises(PermissionError) as raised:
+            merge_eval_log_shards(merged, _task(), delete_shards=True)
+    assert "delete_shards=True" in "".join(raised.value.__notes__)
+    _check_current_or_none(merged, shards)
+    if stage == "others":
+        # no current attempt was deleted
+        assert set(_ledger_attempts(merged).values()) <= {
+            Path(path).name for path in _left(shards)
+        }
+    if stage == "dirs":
+        assert _held(shards) == {"0": [], "1": []}
+    if stage == "crash":
+        lock = Path(merged.replace(".eval", ".merge.lock"))
+        lock.write_text('{"pid": 1, "host": "elsewhere"}')
+        with pytest.raises(WriteConflictError, match="elsewhere"):
+            merge_eval_log_shards(merged, _task(), delete_shards=True)
+        lock.unlink()
+
+    result = merge_eval_log_shards(merged, _task(), delete_shards=True)
+    assert not result.written and result.log.status == "success"
+    assert _bytes(merged) == before
+    assert _left(shards) == []
+
+
+@pytest.mark.parametrize("change", ["status", "selection", "shard"])
+def test_delete_shards_rerun_refuses_partly_deleted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    import shutil
+
+    merged, shards = _partly_deleted(monkeypatch, tmp_path)
+    kwargs: dict[str, Any] = {}
+    error: type[Exception] = ShardSetError
+    match = "vanished"
+    if change == "status":
+        _edit_header(merged, lambda header: header.update(status="started"))
+        error, match = ShardSetIncomplete, "by hand"
+    elif change == "selection":
+        kwargs["sample_ids"] = [1, 2, 3, 4, 5]
+        match = "can no longer change"
+    else:
+        [remaining] = [k for k, names in _held(shards).items() if names]
+        [current] = Path(shards, remaining).glob("*.eval")
+        shutil.copy2(
+            current,
+            Path(shards, remaining, f"2099-01-01T00-00-00-00-00_{TASK}_new.eval"),
+        )
+    before = _files(str(tmp_path))
+    with pytest.raises(error, match=match):
+        merge_eval_log_shards(merged, _task(), delete_shards=True, **kwargs)
+    assert _files(str(tmp_path)) == before
+
+
+def test_plain_merge_refuses_partly_deleted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    merged, shards = _partly_deleted(monkeypatch, tmp_path)
+    before = _files(str(tmp_path))
+    with pytest.raises(ShardSetError, match="vanished"):
+        merge_eval_log_shards(merged, _task())
+    assert _files(str(tmp_path)) == before
+
+
+def test_delete_shards_does_not_follow_symlinks(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    (outside / "dir").mkdir(parents=True)
+    (outside / "dir" / "kept.txt").write_text("kept")
+    (outside / "file.txt").write_text("kept")
+    merged, shards = _paths(tmp_path / "run")
+    _run(shards, "0", sample_id=[1, 2, 3, 4, 5, 6])
+    os.symlink(outside / "dir", f"{shards}/0/linked-dir")
+    os.symlink(outside / "file.txt", f"{shards}/0/linked-file")
+    merge_eval_log_shards(merged, _task(), delete_shards=True)
+    assert not os.path.lexists(shards)
+    assert (outside / "dir" / "kept.txt").read_text() == "kept"
+    assert (outside / "file.txt").read_text() == "kept"
+
+    # a companion that is itself a link is refused before anything is written
+    target = tmp_path / "target"
+    _run(str(target), "0", sample_id=[1, 2, 3, 4, 5, 6])
+    linked_merged, linked_shards = _paths(tmp_path / "linked")
+    (tmp_path / "linked").mkdir()
+    os.symlink(target, linked_shards)
+    before = _files(str(target))
+    with pytest.raises(ShardSetError, match="symbolic link"):
+        merge_eval_log_shards(linked_merged, _task(), delete_shards=True)
+    assert _files(str(target)) == before
+    assert not os.path.exists(linked_merged) and os.path.islink(linked_shards)
+
+
+def test_delete_shards_stays_in_prefix(
+    s3_shards: tuple[str, str], s3_root: str
+) -> None:
+    merged, shards = s3_shards
+    siblings = [
+        f"{s3_root}/{NAME}.shards-x/0/keep.eval",
+        f"{s3_root}/{NAME}.shardsx",
+        f"{s3_root}/{NAME}.shards.txt",
+    ]
+    for key in siblings:
+        _put(f"s3://test-bucket/{key}")
+    merge_eval_log_shards(merged, _task(), delete_shards=True)
+    assert _s3_keys(f"{s3_root}/") == sorted(
+        [*siblings, merged.removeprefix("s3://test-bucket/")]
+    )
+
+
+def test_delete_shards_refuses_unsafe_s3_name(
+    s3_shards: tuple[str, str], s3_root: str
+) -> None:
+    merged, shards = s3_shards
+    # deeper than the merge lists, so only deletion's listing sees it
+    _put(f"{shards}/0/scans/rows#1.parquet")
+    before = _s3_objects(f"{s3_root}/")
+    with pytest.raises(ShardSetError, match="S3 would read it as.*Rename it"):
+        merge_eval_log_shards(merged, _task(), delete_shards=True)
+    assert _s3_objects(f"{s3_root}/") == before
+
+
+def test_delete_shards_storage_error(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch, task_file: Path
+) -> None:
+    merged, shards = two_shards
+    with monkeypatch.context() as patched:
+        _fail_unlink(patched, lambda path: True)
+        with pytest.raises(PermissionError) as raised:
+            merge_eval_log_shards(merged, _task(), delete_shards=True)
+    assert "delete_shards=True" in "".join(raised.value.__notes__)
+    assert read_eval_log(merged, header_only=True).status == "success"
+
+    cli_merged, _ = _cli_workers(task_file, "plain", [[1, 2], [3, 4]])
+    with monkeypatch.context() as patched:
+        _fail_unlink(patched, lambda path: True)
+        error = _failed(
+            _merge_cli(
+                cli_merged,
+                "--task",
+                f"{task_file}@plain",
+                "--delete-shards",
+                "--json",
+            ),
+            "storage_error",
+        )
+    assert error["exception"] == "PermissionError"
+    assert "--delete-shards" in error["message"]
+
+
+def test_delete_shards_on_s3_interrupted_then_finished(
+    s3_root: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from botocore.exceptions import ClientError
+
+    merged, shards = _with_extras(f"s3://test-bucket/{s3_root}")
+    merge_eval_log_shards(merged, _task())
+    before = _bytes(merged)
+    current = {f"{shards}/{k}/{log}" for k, log in _ledger_attempts(merged).items()}
+    with monkeypatch.context() as patched:
+        calls = _fail_s3_delete(patched, current)
+        with pytest.raises(ClientError) as raised:
+            merge_eval_log_shards(merged, _task(), delete_shards=True)
+    assert "delete_shards=True" in "".join(raised.value.__notes__)
+    # every other entry was deleted before the current attempts
+    assert set(calls[-2:]) == current and not current & set(calls[:-2])
+    [left] = _left(shards)
+    assert f"{shards}/{left}" in current
+    _check_current_or_none(merged, shards)
+
+    result = merge_eval_log_shards(merged, _task(), delete_shards=True)
+    assert not result.written and result.log.status == "success"
+    assert _bytes(merged) == before
+    assert _left(shards) == []
+
+
+def test_delete_shards_storage_error_on_s3(
+    s3_shards: tuple[str, str],
+    s3_root: str,
+    monkeypatch: pytest.MonkeyPatch,
+    task_file: Path,
+) -> None:
+    from botocore.exceptions import ClientError
+
+    merged, _ = s3_shards
+    with monkeypatch.context() as patched:
+        _fail_s3_delete(patched)
+        with pytest.raises(ClientError) as raised:
+            merge_eval_log_shards(merged, _task(), delete_shards=True)
+    assert "delete_shards=True" in "".join(raised.value.__notes__)
+    assert read_eval_log(merged, header_only=True).status == "success"
+
+    cli_merged, _ = _cli_workers(
+        task_file, "plain", [[1, 2], [3, 4]], root=f"s3://test-bucket/{s3_root}/cli"
+    )
+    with monkeypatch.context() as patched:
+        _fail_s3_delete(patched)
+        error = _failed(
+            _merge_cli(
+                cli_merged,
+                "--task",
+                f"{task_file}@plain",
+                "--delete-shards",
+                "--json",
+            ),
+            "storage_error",
+        )
+    assert error["exception"] == "botocore.ClientError"
+    assert "--delete-shards" in error["message"]
+
+
+def _pause_between_deletes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[anyio.Event, anyio.Event]:
+    """Pause deletion before it deletes the current attempts."""
+    from inspect_ai.log._shards import _delete
+
+    reached, release = anyio.Event(), anyio.Event()
+    delete_files = _delete._delete_files
+    calls = [0]
+
+    async def pausing(fs: AsyncFilesystem, files: Any) -> None:
+        calls[0] += 1
+        if calls[0] == 2:
+            reached.set()
+            await release.wait()
+        await delete_files(fs, files)
+
+    monkeypatch.setattr(_delete, "_delete_files", pausing)
+    return reached, release
+
+
+async def test_delete_shards_holds_lock(
+    local_deletable: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai.log import merge_eval_log_shards_async
+
+    merged, shards = local_deletable
+    reached, release = _pause_between_deletes(monkeypatch)
+    results: list[Any] = []
+
+    async def deleting() -> None:
+        results.append(
+            await merge_eval_log_shards_async(merged, _task(), delete_shards=True)
+        )
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(deleting)
+        with anyio.fail_after(30):
+            await reached.wait()
+        with pytest.raises(WriteConflictError, match="merge.lock"):
+            await merge_eval_log_shards_async(merged, _task())
+        release.set()
+    assert results[0].written and _left(shards) == []
+    assert not os.path.exists(merged.replace(".eval", ".merge.lock"))
+
+
+async def test_delete_shards_cancelled(
+    local_deletable: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai.log import merge_eval_log_shards_async
+
+    merged, shards = local_deletable
+    reached, _ = _pause_between_deletes(monkeypatch)
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(
+            functools.partial(
+                merge_eval_log_shards_async, merged, _task(), delete_shards=True
+            )
+        )
+        with anyio.fail_after(30):
+            await reached.wait()
+        tg.cancel_scope.cancel()
+    monkeypatch.undo()
+    # the other entries are gone, the current attempts kept
+    recorded = (await read_eval_log_async(merged, header_only=True)).eval.shards
+    assert recorded is not None
+    assert _held(shards) == {e.shard: [e.log] for e in recorded.ledger}
+    assert not os.path.exists(merged.replace(".eval", ".merge.lock"))
+
+    result = await merge_eval_log_shards_async(merged, _task(), delete_shards=True)
+    assert not result.written and result.log.status == "success"
+    assert _left(shards) == []
+
+
+def test_merge_shards_command_deletes_shards(task_file: Path) -> None:
+    merged, shards = _cli_workers(task_file, "plain", [[1, 2], [3, 4]])
+    spec = f"{task_file}@plain"
+    error = _failed(
+        _merge_cli(
+            merged, "--task", spec, "--delete-shards", "--allow-incomplete", "--json"
+        ),
+        "invalid_arguments",
+    )
+    assert "cannot be combined" in error["message"]
+    assert not _imported(task_file) and os.path.exists(shards)
+
+    result = _merge_cli(merged, "--task", spec, "--delete-shards")
+    assert result.exit_code == 0, result.stderr
+    assert result.stdout == (
+        f"Merged 2 shards into {merged}\n  status: success\n"
+        f"  shards: deleted {shards}\n"
+    )
+    assert not os.path.exists(shards)
+
+    output = _merged(_merge_cli(merged, "--task", spec, "--delete-shards", "--json"))
+    header = read_eval_log(merged, header_only=True)
+    assert output == {
+        "location": merged,
+        "status": "success",
+        "written": False,
+        "task": "plain",
+        "task_id": RUN_ID,
+        "eval_id": header.eval.eval_id,
+        "shards": 2,
+    }

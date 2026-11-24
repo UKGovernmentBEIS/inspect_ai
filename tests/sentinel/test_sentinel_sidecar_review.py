@@ -12,6 +12,7 @@ the same way. The first tests check that a call with no sidecar is unchanged.
 
 import asyncio
 import json
+import math
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
@@ -173,6 +174,14 @@ class ReviewingSidecar(StandInSidecar):
     The sidecar then rejects the call, and refuses the person's answer because
     the question has closed.
     """
+    closes_while_shown: bool = False
+    """Whether each question times out at the sidecar while the person is still shown it.
+
+    A `request_result` that names the question finds it timed out, and its
+    call rejected.
+    """
+    open_checks_lost: int = 0
+    """How many `request_result` calls that name a question the proxy fails with a 502."""
     judged_step: bool = False
     """Whether an approved call's judgment includes the step that asked the question.
 
@@ -345,6 +354,13 @@ class ReviewingSidecar(StandInSidecar):
                 return httpx2.Response(502, text="Bad Gateway")
             if call["method"] == "answer_question" and self.answers_lost > 0:
                 self.answers_lost -= 1
+                return httpx2.Response(502, text="Bad Gateway")
+            if (
+                call["method"] == "request_result"
+                and call["params"].get("question") is not None
+                and self.open_checks_lost > 0
+            ):
+                self.open_checks_lost -= 1
                 return httpx2.Response(502, text="Bad Gateway")
             if (
                 call["method"] == "request_result"
@@ -578,6 +594,24 @@ class ReviewingSidecar(StandInSidecar):
 
     def _request_result(self, params: dict[str, Any]) -> dict[str, Any]:
         paused = self.paused[params["id"]]
+        if (
+            self.closes_while_shown
+            and params.get("question") is not None
+            and paused.state == "awaiting_review"
+        ):
+            ended = time.time()
+            paused.reviews.append(
+                {
+                    "id": params["question"],
+                    "try_number": 1,
+                    "stage": paused.stage,
+                    "call": "call_1",
+                    "asked": ended - 60,
+                    "resolution": "timed_out",
+                    "resolved": ended,
+                }
+            )
+            self._rejected(paused, "No person answered in time.")
         if self.records_dropped and paused.reviews:
             return {"id": params["id"], "records": "dropped"}
         if paused.failure is not None and self.error_arriving_lookups > 0:
@@ -2481,6 +2515,53 @@ def test_a_person_whose_answer_came_too_late_is_warned_it_wasnt_used(
     # the call ended as the sidecar decided, not as the person chose
     assert _LOOKED_UP == []
     assert stand_in.judged_reply_requests == []
+
+
+def test_a_prompt_nobody_answers_is_withdrawn_once_the_sidecar_closes_its_question(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the person never answers, so only the sidecar closing the question can
+    # end the wait
+    person = Person("approve", takes=math.inf)
+    person.install(monkeypatch)
+    stand_in = ReviewingSidecar(
+        pauses=["tool_call"], turns=[_OSLO, Turn()], closes_while_shown=True
+    )
+
+    log = _run(stand_in)
+
+    # The sample went on with what the sidecar decided. The person was shown
+    # the question once, and no answer was sent for them.
+    assert log.status == "success"
+    assert len(person.asked) == 1
+    assert _called(stand_in, "answer_question") == []
+    sample = _sample(log)
+    assert [w for w in _warned(sample) if "wasn't used" in w] == []
+    [logged] = _reviews_logged(sample)
+    assert logged["review"]["resolution"] == "timed_out"
+
+
+def test_a_check_that_fails_leaves_the_prompt_open_and_the_persons_answer_is_used(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(review_module, "OPEN_CHECK_RETRY_PAUSE", 0.01)
+    lost = 3
+    stand_in = ReviewingSidecar(
+        pauses=["tool_call"], turns=[_OSLO, Turn()], open_checks_lost=lost
+    )
+
+    async def every_check_has_failed() -> None:
+        while stand_in.open_checks_lost > 0:
+            await anyio.sleep(0.01)
+
+    # the person answers only once every failing check has failed
+    Person("approve", meanwhile=every_check_has_failed).install(monkeypatch)
+
+    log = _run(stand_in)
+
+    assert log.status == "success"
+    [answer] = _called(stand_in, "answer_question")
+    assert answer["decision"] == "approve"
 
 
 def test_a_person_is_warned_when_the_sidecar_cant_say_whether_their_answer_was_used(

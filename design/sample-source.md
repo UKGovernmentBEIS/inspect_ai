@@ -87,7 +87,7 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   NamedTuple: `task.dataset` is a `MemoryDataset` of the seed (empty allowed —
   the plain-dataset empty check is bypassed) and `task.sample_source` carries
   the source. Everything downstream that reads `task.dataset` (log spec,
-  sandbox startup, auto-id assignment of the seed in `prepare_options`) is
+  sandbox startup, auto-id assignment of the seed in `configure_task`) is
   unchanged.
 - **No eval-level changes** — the source travels on the `Task` itself; `eval()`
   / `eval_run` / `TaskRunOptions` needed no new parameter. (`TaskRunOptions`
@@ -176,8 +176,8 @@ The imperative primitive (mirrors `enqueue_task`): `enqueue_sample(samples)`
 adds samples to the running task from *arbitrary* code (a solver, a scorer, a
 tool). Backed by a `ContextVar`-scoped `SampleEnqueuer` registered by
 `task_run` for the task's lifetime — per-task, so concurrent tasks in one
-process can't cross-enqueue. Unlike `enqueue_task` (which works on plain runs
-as a follow-up batch), `enqueue_sample` **requires** the running task to be
+process can't cross-enqueue. Unlike `enqueue_task` (which works on every run),
+`enqueue_sample` **requires** the running task to be
 SampleSource-driven: a plain task's fixed `tg_collect` path has no loop to run
 additions, so the call raises a clear `RuntimeError` instead of silently
 dropping samples.
@@ -245,15 +245,16 @@ dropping samples.
   retry reuse — `eval_log_sample_source` rejects a prior log when
   `eval.dataset.samples != len(dataset)`, and a retry's fresh seed is
   seed-sized — so the spec must not be rewritten to the grown size at finish.
-- **Sandboxes**: the task-level sandbox startup pass runs up front over the
-  seed, and *incrementally* for samples the source adds: each added batch goes
-  through `SandboxManager.start_for_samples` (threaded into the dispatcher as
+- **Sandboxes**: each task's attempt sets up its seed samples' sandboxes
+  after its task-start hooks, and the feeder does the same *incrementally* for
+  samples the source adds: each added batch goes through
+  `SandboxManager.start_for_samples` (threaded into the task as
   `TaskRunOptions.startup_sandboxes`) before spawning, so a sandbox config
   first seen in an added sample — including the task-level config when the
   seed is empty — still gets `task_init` (image build/pull, validation) and a
   registered `task_cleanup`. Already-started configs are a set-membership
   no-op. Per-sample sandboxes then run via `sandboxenv_context` as usual.
-- **Provider state a late `task_init` registers is owned by the batch, not
+- **Provider state a late `task_init` registers is owned by the run, not
   the feeder.** `start_for_samples` runs inside the feeder task, which
   `SampleScheduler.run` starts as a *sibling* of the sample tasks; the
   run-level `task_cleanup` runs in `eval_run`'s own context. A `ContextVar`
@@ -265,9 +266,9 @@ dropping samples.
   removed). The fix is explicit ownership rather than a default on the
   variable: `SandboxManager.open()` binds a fresh
   `SandboxLifecycleState` (`util/_sandbox/lifecycle.py`) in `eval_run`'s
-  context before any task of the batch is spawned — even when no initial
+  context before any task of the run is spawned — even when no initial
   sample has a sandbox — and `SandboxManager.shutdown()` runs the
-  accumulated cleanups and then releases it. Every task of the batch
+  accumulated cleanups and then releases it. Every task of the run
   inherits a reference to the same object, so provider hooks (`task_init`,
   `sample_init`, `sample_cleanup`, `task_cleanup`) *mutate* the state they
   inherit and never rebind or clear it: a second config's `task_init` keeps
@@ -275,14 +276,13 @@ dropping samples.
   startup file it alone registered — a legacy `.compose.yaml` or a reused
   auto-compose path that an earlier initialization or a live sample already
   registered is kept, since their `compose` commands still name it (the
-  batch's live samples and its final cleanup are untouched either way) —
+  run's live samples and its final cleanup are untouched either way) —
   and `task_cleanup` releases the entries it
   processes so repeat calls (one per started config) are no-ops. Because the
-  scope is per `eval_run`, sequential `TaskSource` batches (which reuse the
-  outer task) and independent evaluations in one process each start from an
-  empty registry; a process-wide mutable default would instead have carried
-  one batch's projects into the next batch's cleanup or "not yet cleaned up"
-  report. Outside any scope (the provider driven directly, without a
+  scope is per `eval_run`, independent evaluations in one process each start
+  from an empty registry; a process-wide mutable default would instead have
+  carried one run's projects into the next run's cleanup or "not yet cleaned
+  up" report. Outside any scope (the provider driven directly, without a
   `SandboxManager`) a registry belongs to the task whose `task_init` bound it,
   for one lifecycle: a `task_init` in another task (a child that inherited
   the binding) or after that registry's `task_cleanup` binds its own, so
@@ -314,7 +314,7 @@ samples and tolerates ids missing from the seed; samples enqueued during a
 terminal `next_samples()` still run.
 
 `tests/util/sandbox/test_docker_cleanup.py` — the Docker provider's cleanup
-registry under batch ownership, with the daemon stubbed at the compose-command
+registry under run ownership, with the daemon stubbed at the compose-command
 layer and compose files generated and removed for real: `task_init` in a
 feeder task and `sample_init` in a sibling share the scope's registry for
 every config family (bare Docker, Dockerfile, `ComposeConfig`, explicit

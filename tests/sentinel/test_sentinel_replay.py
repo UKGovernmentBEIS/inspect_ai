@@ -1,5 +1,6 @@
 """Steps rebuilt from a log (`steps_from_events`) equal the steps live, field by field."""
 
+import base64
 import bisect
 import dataclasses
 import json
@@ -2330,7 +2331,7 @@ def scaffold_log(
 def assert_bridged_steps_follow_the_conversation(
     log: EvalLog, replay: Sequence["ReplayStep"]
 ) -> list["ReplayStep"]:
-    """Assert each of a bridge's rebuilt tool steps shows its call as its model call's output has it, with that model call's input and output message (`assistant_message`, one object for the model call's steps, holding the step's call, with the step's `message_id`), and its result as the first later bridged request that carries the call's id has it; return those steps."""
+    """Assert each of a bridge's rebuilt tool steps shows its call as its model call's output has it, under the id the agent received it under (`agent_tool_call_ids`, else the model's), with that model call's input and output message as the agent received it (`assistant_message`, one object for the model call's steps, holding the step's call, with the step's `message_id`), and its result as the first later bridged request that carries the call's id has it; return those steps."""
     events = logged_sample(log).events
     turns = [
         (index, e)
@@ -2342,14 +2343,28 @@ def assert_bridged_steps_follow_the_conversation(
     for step in rebuilt:
         made_by, _, call_id = step.id.partition("/")
         [(at, turn)] = [(i, e) for i, e in turns if e.uuid == made_by]
-        [proposed] = [
-            c for c in turn.output.message.tool_calls or [] if c.id == call_id
-        ]
+        calls = turn.output.message.tool_calls or []
+        ids = turn.agent_tool_call_ids or [c.id for c in calls]
+        [proposed] = [replace(c, id=id) for c, id in zip(calls, ids) if id == call_id]
         assert called(step) == proposed
         assert comparable(step.step.input) == comparable(turn.input)
         message = tool_step(step).assistant_message
         assert message is not None
-        assert comparable(message) == comparable(turn.output.message)
+        assert [c.id for c in message.tool_calls or []] == ids
+        # the agent's message differs from the model's only in its call ids,
+        # their Google reasoning anchors, and, where they differ, its own
+        # message id
+        ids_left_out = {"id": None, "tool_calls": None, "content": None}
+        assert comparable(message.model_copy(update=ids_left_out)) == comparable(
+            turn.output.message.model_copy(update=ids_left_out)
+        )
+        assert message.text == turn.output.message.text
+        assert [replace(c, id="") for c in message.tool_calls or []] == [
+            replace(c, id="") for c in calls
+        ]
+        assert (message.id == turn.output.message.id) == (
+            turn.agent_tool_call_ids is None
+        )
         assert message.id == tool_step(step).message_id
         assert proposed in (message.tool_calls or [])
         assert message is shared.setdefault(made_by, message)
@@ -2421,15 +2436,17 @@ def test_a_scaffold_s_own_tool_calls_steps_equal_live(
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_a_bridged_call_under_a_reused_id_carries_the_model_s_message(
+def test_a_bridged_call_under_a_reused_id_carries_the_message_the_agent_received(
     backend: str,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # the model reuses read_1 for another call: live, the bridge hands it over
-    # under a fresh id and its steps' message carries that id; replay shows
-    # the call as the model wrote it, with the model call's own message. Two
-    # calls were proposed under read_1, so neither has a result step
+    # the model reuses read_1 for another call: the bridge hands it over under
+    # a fresh id and records it. Replay shows the call under that id, with
+    # its own result and the message the bridge handed over, as live does.
+    # The first call's result under read_1 has no step: two calls were
+    # proposed under read_1, and the log doesn't show which one a result
+    # under it answers
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         log, seen = scaffold_log(
@@ -2440,38 +2457,40 @@ def test_a_bridged_call_under_a_reused_id_carries_the_model_s_message(
         )
         replay = replayed(log)
     rebuilt = assert_bridged_steps_follow_the_conversation(log, replay)
+    live = [s for s in seen.values() if isinstance(s, BeforeToolCall | AfterToolCall)]
+    fresh = live[2].call.id
+    assert fresh != "read_1"
     assert [(s.stage, s.id.split("/")[1]) for s in rebuilt] == [
         ("tool_call", "read_1"),
-        ("tool_call", "read_1"),
+        ("tool_call", fresh),
+        ("tool_result", fresh),
     ]
-    live = [s for s in seen.values() if isinstance(s, BeforeToolCall | AfterToolCall)]
-    assert [(type(s).__name__, s.call.id == "read_1") for s in live] == [
-        ("BeforeToolCall", True),
-        ("AfterToolCall", True),
-        ("BeforeToolCall", False),
-        ("AfterToolCall", False),
+    assert isinstance(live[1], AfterToolCall) and live[1].call.id == "read_1"
+    paired = [live[0], live[2], live[3]]
+    assert [(type(s).__name__, s.call) for s in paired] == [
+        (type(s.step).__name__, called(s)) for s in rebuilt
     ]
-    # the first call's step carries the same message live and in replay
-    assert comparable(tool_step(rebuilt[0]).assistant_message) == comparable(
-        live[0].assistant_message
-    )
-    # the second call's: live, the message the bridge handed over, with the
-    # fresh call id and its own message id; replay, the model call's output,
-    # under the reused id; they differ only in those ids
+    assert [comparable(s.result) for s in paired if isinstance(s, AfterToolCall)] == [
+        comparable(resulted(s)) for s in rebuilt if s.stage == "tool_result"
+    ]
+    # each step carries the message live's does: for the second call, the
+    # message the bridge handed over, with the fresh call id and its own
+    # message id
     handed = live[2].assistant_message
     assert handed is not None and handed.id == live[2].message_id
-    assert [c.id for c in handed.tool_calls or []] == [live[2].call.id]
-    written = tool_step(rebuilt[1]).assistant_message
-    assert written is not None and written.id == tool_step(rebuilt[1]).message_id
-    assert [c.id for c in written.tool_calls or []] == ["read_1"]
-    assert written.id != handed.id
-    assert [replace(c, id="") for c in written.tool_calls or []] == [
-        replace(c, id="") for c in handed.tool_calls or []
-    ]
-    ids_left_out = {"id": None, "tool_calls": None}
-    assert comparable(written.model_copy(update=ids_left_out)) == comparable(
-        handed.model_copy(update=ids_left_out)
+    assert [c.id for c in handed.tool_calls or []] == [fresh]
+    for step, check in zip(rebuilt, paired):
+        written = tool_step(step).assistant_message
+        assert written is not None and check.assistant_message is not None
+        assert written.id == check.assistant_message.id
+        assert tool_step(step).message_id == check.message_id
+        assert comparable(written) == comparable(check.assistant_message)
+    model_message = next(
+        e.output.message
+        for e in logged_sample(log).events
+        if isinstance(e, ModelEvent) and e.agent_tool_call_ids == [fresh]
     )
+    assert handed.id != model_message.id
     assert replay_warnings(caplog) == []
 
 
@@ -3269,6 +3288,97 @@ def test_a_google_bridge_result_goes_to_its_call_with_a_sentinel(
         assert replay_warnings(caplog) == []
 
 
+def anchored_calls(*calls: ToolCall) -> ModelOutput:
+    """Gemini's response with `calls`, each after a signed reasoning anchor naming its id, as the Google provider records them."""
+    return ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=[
+                        ContentText(text="Reading."),
+                        *[
+                            ContentReasoning(
+                                reasoning=base64.b64encode(
+                                    f"signature {index}".encode()
+                                ).decode(),
+                                redacted=True,
+                                internal={"gemini_function_call_id": call.id},
+                            )
+                            for index, call in enumerate(calls)
+                        ],
+                    ],
+                    tool_calls=list(calls),
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+
+@pytest.mark.parametrize("reuse", ["in_one_response", "across_turns"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_google_bridge_call_under_a_fresh_id_carries_the_message_the_agent_received(
+    reuse: str,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # the Google bridge hands calls sharing an id in one response, or reusing
+    # an earlier call's, over under fresh ids, and renames their reasoning
+    # anchors to match. Replay's steps carry the message the agent received,
+    # anchors included, and the result the agent sent for each renamed call,
+    # as live. Across turns, the first call's result under read_1 has no step,
+    # as two calls were proposed under read_1
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+    turns = (
+        [anchored_calls(read("a.txt", "null"), read("b.txt", "null")), done()]
+        if reuse == "in_one_response"
+        else [
+            anchored_calls(read("a.txt", "read_1")),
+            anchored_calls(read("b.txt", "read_1")),
+            done(),
+        ]
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(gemini_scaffold()),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    [log] = eval(task, model=get_model("mockllm/model", custom_outputs=turns))
+    assert log.status == "success", log.error
+    made = [
+        e
+        for e in logged_sample(log).events
+        if isinstance(e, ModelEvent) and e.requested_model is not None
+    ]
+    [renamed] = [e for e in made if e.agent_tool_call_ids is not None]
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        replay = assert_replay_rebuilds_bridge_steps(
+            log, seen, unbuilt=0 if reuse == "in_one_response" else 1
+        )
+    assert replay_warnings(caplog) == []
+    rebuilt = assert_bridged_steps_follow_the_conversation(log, replay)
+    assert [s.stage for s in rebuilt] == (
+        ["tool_call"] * 2 + ["tool_result"] * 2
+        if reuse == "in_one_response"
+        else ["tool_call", "tool_call", "tool_result"]
+    )
+    fresh = [s for s in rebuilt if s.id.startswith(f"{renamed.uuid}/")]
+    assert {called(s).id for s in fresh} <= set(renamed.agent_tool_call_ids or [])
+    for step in fresh:
+        message = tool_step(step).assistant_message
+        assert message is not None and not isinstance(message.content, str)
+        anchors = [
+            part.internal["gemini_function_call_id"]
+            for part in message.content
+            if isinstance(part, ContentReasoning) and isinstance(part.internal, dict)
+        ]
+        assert anchors == renamed.agent_tool_call_ids
+
+
 @tool
 def r7_read_file() -> Tool:
     async def execute(path: str) -> str:
@@ -3943,7 +4053,7 @@ COMPACTED_AT_FOUR_FRESH = 570
 @pytest.mark.parametrize("files", ["abcd", "abac"])
 @pytest.mark.parametrize("client", ["openai", "anthropic"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_calls_under_a_reused_id_take_no_compacted_result(
+def test_calls_under_a_reused_id_take_their_own_result_not_a_compacted_one(
     files: str,
     client: str,
     backend: str,
@@ -3953,9 +4063,12 @@ def test_calls_under_a_reused_id_take_no_compacted_result(
     # four reads, all under Mistral's SDK-default "null" id, and compaction
     # (keeping three results) replacing the first read's result in the
     # request carrying the fourth's. The bridge hands a read of another file
-    # than the first over under a fresh id, and keeps "null" for the first
-    # file read again. The conversation proposed four calls under "null", so
-    # none has a result step, and none takes the removed result
+    # than the first over under a fresh id, and records it, and keeps "null"
+    # for the first file read again. Each read under its fresh id has its own
+    # result. The first file's reads have none: other calls were proposed
+    # under "null" (the renamed reads, by the model's id), and the log
+    # doesn't show which a result under it answers. None takes the removed
+    # result
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
@@ -4005,17 +4118,28 @@ def test_calls_under_a_reused_id_take_no_compacted_result(
         caplog.clear()
         with caplog.at_level(logging.WARNING):
             replay = replayed_inputs(log, inputs)
-        assert [
-            (s.stage, uuids.index(s.id.split("/")[0]))
-            for s in bridged_steps(log, replay)
-        ] == [("tool_call", turn) for turn in range(4)], inputs
+        steps = bridged_steps(log, replay)
+        want: list[tuple[str, int]] = []
+        for turn, name in enumerate(files):
+            want.append(("tool_call", turn))
+            if name != "a":
+                want.append(("tool_result", turn))
+        assert [(s.stage, uuids.index(s.id.split("/")[0])) for s in steps] == want, (
+            inputs
+        )
+        assert_exact_results(steps)
+        assert all(
+            resulted(s).text != TOOL_RESULT_REMOVED
+            for s in steps
+            if s.stage == "tool_result"
+        )
         assert replay_warnings(caplog) == []
 
 
 @pytest.mark.parametrize("spans", ["agent", "none"])
 @pytest.mark.parametrize("client", ["openai", "anthropic"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_sequential_bridges_take_no_result_under_an_id_each_reused(
+def test_sequential_bridges_pair_results_by_the_ids_each_handed_over(
     spans: str,
     client: str,
     backend: str,
@@ -4026,8 +4150,8 @@ def test_sequential_bridges_take_no_result_under_an_id_each_reused(
     # under "null": the first reads a.txt, the second b.txt and then a.txt
     # three times, with compaction (keeping three results) replacing b.txt's
     # result in its last request. The second bridge keeps "null" for b.txt and
-    # hands each a.txt over under a fresh id. In their own agent spans the
-    # agents are two conversations; without one, they are one
+    # hands each a.txt over under a fresh id, which it records. In their own
+    # agent spans the agents are two conversations; without one, they are one
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
 
     @solver
@@ -4075,10 +4199,12 @@ def test_sequential_bridges_take_no_result_under_an_id_each_reused(
         if isinstance(m, ChatMessageTool) and m.text == TOOL_RESULT_REMOVED
     ]
     assert removed == [(6, "null")]
-    # in two conversations, the first agent's one call under "null" has its
-    # result, and the second agent's four calls have none; in one
-    # conversation, no call has a result
-    want = [(0, "t0:null")] if spans == "agent" else []
+    # each a.txt read under its fresh id has its own result. In the first
+    # agent's own conversation, "null" is one call's, so it has its result.
+    # In a conversation where the model also proposed the renamed a.txt
+    # reads under "null", the call kept under it has none, as the log
+    # doesn't show which call a result under "null" answers
+    want = [0, 3, 4, 5] if spans == "agent" else [3, 4, 5]
     for inputs in ["expanded", "pooled"]:
         caplog.clear()
         with caplog.at_level(logging.WARNING):
@@ -4088,10 +4214,14 @@ def test_sequential_bridges_take_no_result_under_an_id_each_reused(
             uuids.index(s.id.split("/")[0]) for s in steps if s.stage == "tool_call"
         ] == [0, 2, 3, 4, 5], inputs
         assert [
-            (uuids.index(s.id.split("/")[0]), resulted(s).text)
+            uuids.index(s.id.split("/")[0]) for s in steps if s.stage == "tool_result"
+        ] == want, inputs
+        assert_exact_results(steps)
+        assert all(
+            resulted(s).text != TOOL_RESULT_REMOVED
             for s in steps
             if s.stage == "tool_result"
-        ] == want, inputs
+        )
         assert replay_warnings(caplog) == []
 
 
@@ -4196,6 +4326,511 @@ def test_concurrent_identical_calls_under_one_id_take_no_result(
         assert replay_warnings(caplog) == []
 
 
+@pytest.mark.parametrize(
+    "ids", [("c1", "c2"), ("null", "null")], ids=["distinct", "null"]
+)
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_concurrent_different_calls_take_their_own_results(
+    ids: tuple[str, str],
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # two tool loops of one agent each propose a different call before either
+    # sends its result, so each loop's first request looks like a retry of
+    # the other's. Each distinct call has its own result. Under "null", the
+    # bridge hands the second call over under a fresh id and records it: that
+    # call has its own result, and the first, kept under "null", has none, as
+    # the model proposed both under it
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(concurrent_scaffold()),
+    )
+    first = r7_tool_calls(read("a.txt", ids[0]))
+    second = r7_tool_calls(read("b.txt", ids[1]))
+    [log] = eval(task, model=outputs(first, second, done(), done()))
+    assert log.status == "success", log.error
+    made = [
+        e
+        for e in logged_sample(log).events
+        if isinstance(e, ModelEvent) and e.requested_model is not None
+    ]
+    recorded = [e.agent_tool_call_ids for e in made if e.agent_tool_call_ids]
+    assert len(recorded) == (1 if ids[0] == ids[1] else 0)
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed_inputs(log, inputs)
+        steps = bridged_steps(log, replay)
+        results = 2 if ids[0] != ids[1] else 1
+        assert (
+            sorted(s.stage for s in steps)
+            == ["tool_call"] * 2 + ["tool_result"] * results
+        ), inputs
+        assert len({s.id for s in steps}) == 2
+        assert_exact_results(steps)
+        assert replay_warnings(caplog) == []
+
+
+def replayed_without_agent_tool_call_ids(
+    log: EvalLog, inputs: str
+) -> list["ReplayStep"]:
+    """`replayed_inputs`, with every `ModelEvent.agent_tool_call_ids` removed, as in a log written before the bridge recorded them."""
+    from inspect_ai._sentinel import _replay
+
+    sample = logged_sample(log)
+    events: list[Event] = [
+        e.model_copy(update={"agent_tool_call_ids": None})
+        if isinstance(e, ModelEvent)
+        else e
+        for e in sample.events
+    ]
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    return steps_from_events(
+        sample.messages,
+        events,
+        pool,
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval),
+    )
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_log_without_agent_tool_call_ids_pairs_by_the_model_s_ids(
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # a log written before the bridge recorded the ids the agent received: a
+    # call the bridge handed over under a fresh id is read by the model's id,
+    # in the model's message, so two calls under read_1 take no result
+    log, _ = scaffold_log(
+        backend,
+        monkeypatch,
+        r7_tool_calls(read("a.txt", "read_1")),
+        r7_tool_calls(read("b.txt", "read_1")),
+    )
+    made = [
+        e
+        for e in logged_sample(log).events
+        if isinstance(e, ModelEvent) and e.requested_model is not None
+    ]
+    assert [e.agent_tool_call_ids is not None for e in made] == [False, True, False]
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed_without_agent_tool_call_ids(log, inputs)
+        steps = bridged_steps(log, replay)
+        assert [(s.stage, s.id) for s in steps] == [
+            ("tool_call", f"{made[0].uuid}/read_1"),
+            ("tool_call", f"{made[1].uuid}/read_1"),
+        ], inputs
+        for step, turn in zip(steps, made):
+            message = tool_step(step).assistant_message
+            assert message is not None
+            assert comparable(message) == comparable(turn.output.message)
+            assert tool_step(step).message_id == turn.output.message.id
+        assert replay_warnings(caplog) == []
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_log_without_agent_tool_call_ids_takes_no_result_under_a_reused_id(
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # `test_calls_under_a_reused_id_take_their_own_result_not_a_compacted_one`
+    # in a log written before the bridge recorded the ids the agent received:
+    # four calls under "null" in one conversation, so none has a result
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(
+            retrying_scaffold(
+                "openai",
+                retry=False,
+                compaction=CompactionEdit(threshold=COMPACTED_AT_FOUR_FRESH),
+                padding=PADDING,
+            )
+        ),
+    )
+    [log] = eval(
+        task,
+        model=outputs(
+            *[r7_tool_calls(read(f"{name}.txt", "null")) for name in "abcd"],
+            done(),
+        ),
+    )
+    assert log.status == "success", log.error
+    uuids = [
+        e.uuid
+        for e in logged_sample(log).events
+        if isinstance(e, ModelEvent) and e.requested_model is not None
+    ]
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed_without_agent_tool_call_ids(log, inputs)
+        assert [
+            (s.stage, uuids.index(s.id.split("/")[0]), s.id.split("/")[1])
+            for s in bridged_steps(log, replay)
+        ] == [("tool_call", turn, "null") for turn in range(4)], inputs
+        assert replay_warnings(caplog) == []
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+def test_a_call_renamed_from_a_dropped_call_s_id_leaves_that_call_without_a_result(
+    inputs: str,
+) -> None:
+    # after the round 1 review: a bridge outside any agent span drops its call
+    # under "null"; an agent in its own span runs another call under "null";
+    # then a bridge outside any agent span continues that agent's messages,
+    # and the bridge hands its call, which the model proposed under "null",
+    # over under "fresh". The result under "null" the continued messages
+    # carry is the agent's call's, not the dropped call's. The model proposed
+    # two calls under "null" outside any agent span, so the dropped call has
+    # no result, as in a log without the recorded ids
+    from inspect_ai._sentinel import _replay
+
+    def proposing(path: str, id: str = "null") -> ChatMessageAssistant:
+        return ChatMessageAssistant(
+            id=f"msg-{path}",
+            content="",
+            tool_calls=[
+                ToolCall(id=id, function="read_file", arguments={"path": path})
+            ],
+        )
+
+    def made(
+        uuid: str,
+        input: list[ChatMessage],
+        output: ChatMessageAssistant,
+        span_id: str | None = None,
+        ids: list[str] | None = None,
+    ) -> ModelEvent:
+        return ModelEvent(
+            uuid=uuid,
+            span_id=span_id,
+            origin="agent",
+            model="mockllm/model",
+            requested_model="inspect",
+            input=input,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput.from_message(output),
+            agent_tool_call_ids=ids,
+        )
+
+    start: list[ChatMessage] = [ChatMessageUser(content="Read the files.")]
+    kept = proposing("kept.txt")
+    continued = [
+        *start,
+        kept,
+        ChatMessageTool(id="kept-result", content="kept", tool_call_id="null"),
+    ]
+    third_result = ChatMessageTool(
+        id="third-result", content="third", tool_call_id="fresh"
+    )
+    events: list[Event] = solving(
+        [
+            made("lost", start, proposing("lost.txt")),
+            SpanBeginEvent(id="agent-b", name="agent b", type="agent"),
+            made("kept", start, kept, "agent-b"),
+            made(
+                "kept-done", continued, ChatMessageAssistant(content="done"), "agent-b"
+            ),
+            SpanEndEvent(id="agent-b"),
+            made("third", continued, proposing("third.txt"), ids=["fresh"]),
+            made(
+                "third-done",
+                [*continued, proposing("third.txt", "fresh"), third_result],
+                ChatMessageAssistant(content="done"),
+            ),
+        ]
+    )
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    replay = steps_from_events(
+        [],
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version="0.3.292", sentinel=False),
+    )
+    assert [
+        (s.stage, s.id, resulted(s).id if s.stage == "tool_result" else None)
+        for s in replay
+        if s.stage.startswith("tool")
+    ] == [
+        ("tool_call", "lost/null", None),
+        ("tool_call", "kept/null", None),
+        ("tool_result", "kept/null", "kept-result"),
+        ("tool_call", "third/fresh", None),
+        ("tool_result", "third/fresh", "third-result"),
+    ]
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("bridges", ["one", "two"])
+def test_a_call_the_model_proposes_under_an_id_handed_out_before_takes_its_result(
+    bridges: str, inputs: str
+) -> None:
+    # after the round 2 review: a bridge hands a call the model proposed
+    # under "null" (an id its starting history holds) over under a new id,
+    # and then the model proposes a call under that new id: the same call
+    # again in the same bridge, which keeps the id, or, with "two", another
+    # call in a second bridge outside any agent span, whose model read the id.
+    # The ids come from the bridge's own renaming (`_fresh_call_ids`). The
+    # later call takes its result, as in a log without the recorded ids; the
+    # renamed call has none, as its id is the later call's too
+    from inspect_ai._sentinel import _replay
+    from inspect_ai.agent._bridge.util import _fresh_call_ids
+
+    def proposing(path: str, id: str) -> ChatMessageAssistant:
+        return ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(id=id, function="read_file", arguments={"path": path})
+            ],
+        )
+
+    def made(
+        uuid: str,
+        input: list[ChatMessage],
+        output: ChatMessageAssistant,
+        ids: list[str] | None = None,
+    ) -> ModelEvent:
+        return ModelEvent(
+            uuid=uuid,
+            origin="agent",
+            model="mockllm/model",
+            requested_model="inspect",
+            input=input,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput.from_message(output),
+            agent_tool_call_ids=ids,
+        )
+
+    def handed_over(
+        bridge: AgentBridge, output: ChatMessageAssistant, history: set[str]
+    ) -> ChatMessageAssistant:
+        handed = _fresh_call_ids(bridge, ModelOutput.from_message(output), history)
+        calls = handed.message.tool_calls or []
+        bridge._handouts.propose(calls)
+        bridge._handouts.hand_over(calls, calls, None)
+        return handed.message
+
+    start_a: list[ChatMessage] = [
+        ChatMessageUser(content="Read a file."),
+        proposing("old.txt", "null"),
+        ChatMessageTool(content="old", tool_call_id="null"),
+    ]
+    bridge_a = AgentBridge(AgentState(messages=list(start_a)))
+    first = proposing("a.txt", "null")
+    handed_first = handed_over(bridge_a, first, {"null"})
+    assert handed_first.tool_calls
+    fresh = handed_first.tool_calls[0].id
+    assert fresh != "null"
+    continued_a = [
+        *start_a,
+        handed_first,
+        ChatMessageTool(id="result-a", content="a", tool_call_id=fresh),
+    ]
+    if bridges == "one":
+        bridge_b, start_b, later = bridge_a, continued_a, proposing("a.txt", fresh)
+    else:
+        start_b = [ChatMessageUser(content=f"Read b.txt under the call id {fresh}.")]
+        bridge_b = AgentBridge(AgentState(messages=list(start_b)))
+        later = proposing("b.txt", fresh)
+    held = {"null", fresh} if bridges == "one" else set()
+    assert handed_over(bridge_b, later, held) == later
+    events: list[Event] = solving(
+        [
+            made("a", start_a, first, [fresh]),
+            made("a-done", continued_a, ChatMessageAssistant(content="done")),
+            made("b", start_b, later),
+            made(
+                "b-done",
+                [
+                    *start_b,
+                    later,
+                    ChatMessageTool(id="result-b", content="b", tool_call_id=fresh),
+                ],
+                ChatMessageAssistant(content="done"),
+            ),
+        ]
+    )
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    replay = steps_from_events(
+        [],
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version="0.3.292", sentinel=False),
+    )
+    assert [
+        (s.stage, s.id, resulted(s).id if s.stage == "tool_result" else None)
+        for s in replay
+        if s.stage.startswith("tool")
+    ] == [
+        ("tool_call", f"a/{fresh}", None),
+        ("tool_call", f"b/{fresh}", None),
+        ("tool_result", f"b/{fresh}", "result-b"),
+    ]
+
+
+@pytest.mark.parametrize("inputs", ["expanded", "pooled"])
+@pytest.mark.parametrize("other", ["bridged", "native"])
+def test_a_renamed_call_takes_no_result_under_an_id_another_conversation_proposed(
+    other: str, inputs: str
+) -> None:
+    # a bridge outside any agent span hands a call over under a new id, and
+    # the agent drops the response; an agent in its own span, bridged or
+    # native, whose model was given that id, proposes another call under it;
+    # then a bridge outside any agent span continues that agent's messages.
+    # The result under the id is the other agent's call's, not the dropped
+    # call's, so the dropped call has none, as in a log without the
+    # recorded ids
+    from inspect_ai._sentinel import _replay
+
+    fresh = "call_fresh"
+
+    def proposing(path: str, id: str) -> ChatMessageAssistant:
+        return ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(id=id, function="read_file", arguments={"path": path})
+            ],
+        )
+
+    def made(
+        uuid: str,
+        input: list[ChatMessage],
+        output: ChatMessageAssistant,
+        span_id: str | None = None,
+        ids: list[str] | None = None,
+        bridged: bool = True,
+    ) -> ModelEvent:
+        return ModelEvent(
+            uuid=uuid,
+            span_id=span_id,
+            origin="agent",
+            model="mockllm/model",
+            requested_model="inspect" if bridged else None,
+            input=input,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput.from_message(output),
+            agent_tool_call_ids=ids,
+        )
+
+    start: list[ChatMessage] = [
+        ChatMessageUser(content="Read a file."),
+        proposing("old.txt", "null"),
+        ChatMessageTool(content="old", tool_call_id="null"),
+    ]
+    given: list[ChatMessage] = [
+        ChatMessageUser(content=f"Read b.txt under the call id {fresh}.")
+    ]
+    later = proposing("b.txt", fresh)
+    continued = [
+        *given,
+        later,
+        ChatMessageTool(id="result-b", content="b", tool_call_id=fresh),
+    ]
+    events: list[Event] = solving(
+        [
+            made("lost", start, proposing("a.txt", "null"), ids=[fresh]),
+            SpanBeginEvent(id="agent-b", name="agent b", type="agent"),
+            made("b", given, later, "agent-b", bridged=other == "bridged"),
+            made(
+                "b-done",
+                continued,
+                ChatMessageAssistant(content="done"),
+                "agent-b",
+                bridged=other == "bridged",
+            ),
+            SpanEndEvent(id="agent-b"),
+            made(
+                "c",
+                [*continued, ChatMessageUser(content="Go on.")],
+                ChatMessageAssistant(content="done"),
+            ),
+        ]
+    )
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    replay = steps_from_events(
+        [],
+        events,
+        pool,
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version="0.3.292", sentinel=False),
+    )
+    bridged_steps = [
+        (s.stage, s.id, resulted(s).id if s.stage == "tool_result" else None)
+        for s in replay
+        if s.stage.startswith("tool") and s.id.startswith(("lost/", "b/"))
+    ]
+    assert bridged_steps == [
+        ("tool_call", f"lost/{fresh}", None),
+        *(
+            [
+                ("tool_call", f"b/{fresh}", None),
+                ("tool_result", f"b/{fresh}", "result-b"),
+            ]
+            if other == "bridged"
+            else []
+        ),
+    ]
+
+
+def test_agent_tool_call_ids_that_don_t_match_the_calls_skip_their_steps(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # a model call whose recorded ids aren't one per call: replay can't tell
+    # which id the agent received for which call, so it skips that model
+    # call's tool steps and names it in a warning; other calls are unchanged
+    log, _ = scaffold_log(
+        "asyncio",
+        monkeypatch,
+        r7_tool_calls(read("a.txt", "read_1")),
+        r7_tool_calls(read("b.txt", "read_2")),
+    )
+    sample = logged_sample(log)
+    made = [
+        e
+        for e in sample.events
+        if isinstance(e, ModelEvent) and e.requested_model is not None
+    ]
+    events: list[Event] = [
+        e.model_copy(update={"agent_tool_call_ids": ["x", "y"]}) if e is made[1] else e
+        for e in sample.events
+    ]
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        replay = replay_events(log, events)
+    assert [(s.stage, s.id) for s in bridged_steps(log, replay)] == [
+        ("tool_call", f"{made[0].uuid}/read_1"),
+        ("tool_result", f"{made[0].uuid}/read_1"),
+    ]
+    [warning] = replay_warnings(caplog)
+    assert repr(made[1].uuid) in warning
+    assert "agent_tool_call_ids" in warning
+
+
 @agent(name="history_scaffold")
 def history_scaffold(history_id: str, side: bool) -> Agent:
     """An OpenAI-client tool loop, bridged with `CompactionEdit` keeping one result, whose first request already holds a call under `history_id` and its result (a history the agent started with); with `side`, it sends a request with its own history and no tools first, as a title request does. It answers each call with `t<turn>:<call id>`."""
@@ -4269,7 +4904,7 @@ def history_scaffold(history_id: str, side: bool) -> Agent:
 @pytest.mark.parametrize("side", [False, True], ids=["first", "after_side"])
 @pytest.mark.parametrize("history_id", ["null", "call_0"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_a_call_under_an_id_the_starting_history_holds_takes_no_result(
+def test_a_call_under_an_id_the_starting_history_holds_takes_its_own_result(
     history_id: str,
     side: bool,
     backend: str,
@@ -4279,10 +4914,10 @@ def test_a_call_under_an_id_the_starting_history_holds_takes_no_result(
     # the agent starts from a history with a call under `history_id` and its
     # result, and the model proposes one call under "null"; compaction
     # replaces the history's result in the next request. Under "null", the
-    # bridge hands the call over under a fresh id, and the history's id
-    # counts as a call proposed under it, so the call has no result step and
-    # doesn't take the removed result. Under another id, the call keeps its
-    # result. With `side`, a request with its own history comes first
+    # bridge hands the call over under a fresh id and records it, so the call
+    # has its own result under that id and doesn't take the removed result.
+    # Under another id, the call keeps its id and its result. With `side`, a
+    # request with its own history comes first
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
@@ -4309,14 +4944,13 @@ def test_a_call_under_an_id_the_starting_history_holds_takes_no_result(
         caplog.clear()
         with caplog.at_level(logging.WARNING):
             replay = replayed_inputs(log, inputs)
-        assert [
-            (s.stage, uuids.index(s.id.split("/")[0]), resulted(s).text)
-            if s.stage == "tool_result"
-            else (s.stage, uuids.index(s.id.split("/")[0]))
-            for s in bridged_steps(log, replay)
-        ] == [("tool_call", 0)] + (
-            [] if history_id == "null" else [("tool_result", 0, f"t0:null{PADDING}")]
-        ), inputs
+        steps = bridged_steps(log, replay)
+        assert [(s.stage, uuids.index(s.id.split("/")[0])) for s in steps] == [
+            ("tool_call", 0),
+            ("tool_result", 0),
+        ], inputs
+        assert (called(steps[0]).id == "null") == (history_id != "null")
+        assert resulted(steps[1]).text == f"t0:{called(steps[1]).id}{PADDING}"
         assert replay_warnings(caplog) == []
 
 
@@ -4987,9 +5621,11 @@ def test_a_bridge_checking_one_call_id_more_than_once_replays(case: str) -> None
     else:
         # the bridge checked a step under the call id more than once
         assert len(tool_checks) > len(set(tool_checks))
-    # replay rebuilds each call the model wrote, with the result the model
-    # next received under its id, whatever the bridge checked; a call under an
-    # id the model proposed for more than one call has no result
+    # replay rebuilds each call the model wrote, under the id the agent
+    # received it under, with the result the model next received under that
+    # id, whatever the bridge checked; a reused id's steps are live's checks
+    # but the first call's result: the model proposed two calls under c1, so
+    # the log doesn't show which a result under c1 answers
     steps = replayed(log)
     generates = [(stage, id) for stage, id, _ in checks if stage.startswith("model")]
     assert [
@@ -4997,6 +5633,14 @@ def test_a_bridge_checking_one_call_id_more_than_once_replays(case: str) -> None
     ] == generates
     rebuilt = bridged_steps(log, steps)
     assert len(rebuilt) == len([s for s in steps if s.stage.startswith("tool")])
+    if case.startswith("reused"):
+        assert [(s.stage, s.id.split("/")[1]) for s in rebuilt] == [
+            check for check in tool_checks if check != ("tool_result", "c1")
+        ]
+        fresh = tool_checks[-1][1]
+        assert fresh != "c1"
+    else:
+        fresh = "c1"
     assert [(s.stage, s.id.split("/")[1], called(s).arguments) for s in rebuilt] == {
         "reported_twice": [
             ("tool_call", "c1", {"x": 1, "y": 1}),
@@ -5004,11 +5648,13 @@ def test_a_bridge_checking_one_call_id_more_than_once_replays(case: str) -> None
         ],
         "reused_id": [
             ("tool_call", "c1", {"text": "one"}),
-            ("tool_call", "c1", {"text": "two"}),
+            ("tool_call", fresh, {"text": "two"}),
+            ("tool_result", fresh, {"text": "two"}),
         ],
         "reused_by_host": [
             ("tool_call", "c1", {"text": "one"}),
-            ("tool_call", "c1", {"x": 1, "y": 1}),
+            ("tool_call", fresh, {"x": 1, "y": 1}),
+            ("tool_result", fresh, {"x": 1, "y": 1}),
         ],
         "retried": [
             ("tool_call", "c1", {"text": "one"}),
@@ -5017,8 +5663,8 @@ def test_a_bridge_checking_one_call_id_more_than_once_replays(case: str) -> None
     }[case]
     assert [resulted(s).text for s in rebuilt if s.stage == "tool_result"] == {
         "reported_twice": ["2"],
-        "reused_id": [],
-        "reused_by_host": [],
+        "reused_id": ["two"],
+        "reused_by_host": ["2"],
         "retried": ["one"],
     }[case]
 
@@ -5841,6 +6487,16 @@ def bridged_call_ids(log: EvalLog, replay: Sequence["ReplayStep"]) -> list[str]:
         for s in bridged_steps(log, replay)
         if s.stage == "tool_call"
     ]
+
+
+def assert_exact_results(steps: Sequence["ReplayStep"]) -> None:
+    """Assert each bridged `tool_result` step's result is its own call's, where the scaffold answers each call naming the id it received the call under (`t<turn>:<id>`, or `loop<n>:<id>` from `concurrent_scaffold`)."""
+    for step in steps:
+        if step.stage == "tool_result":
+            text = resulted(step).text
+            match = re.match(r"(?:t|loop)\d+:(\S+?)(?:\s|$)", text)
+            assert match is not None, text
+            assert match.group(1) == called(step).id, (text, called(step).id)
 
 
 def tool_step(step: "ReplayStep") -> BeforeToolCall | AfterToolCall:

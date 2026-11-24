@@ -60,7 +60,7 @@ SANDBOX_CLI = f"{SANDBOX_TOOLS_DIR}/{SANDBOX_TOOLS_BASE_NAME}"
 
 
 def tools_user_param(
-    sandbox: "SandboxEnvironment", user: str | None
+    sandbox: "SandboxEnvironment", user: str | None, *, operation: bool = False
 ) -> str | dict[str, object] | None:
     """Value of a sandbox tool request's ``user`` param.
 
@@ -68,10 +68,18 @@ def tools_user_param(
     the sandbox; otherwise the sandbox's default exec identity, which the tools
     switch to (a no-op when they already run as it). None when none is known, so
     the tools keep their own identity.
-    """
-    from .identity import sandbox_identity_user
 
-    user = sandbox_identity_user(sandbox, user, strict=False)
+    With ``operation``, the user resolves as for ``exec()``
+    (``sandbox_operation_user()``): inside ``framework_sandbox_operation()`` an
+    omitted ``user`` skips the scope and becomes the default exec identity.
+    """
+    from .identity import sandbox_identity_user, sandbox_operation_user
+
+    user = (
+        sandbox_operation_user(sandbox, user)
+        if operation
+        else sandbox_identity_user(sandbox, user, strict=False)
+    )
     if user:
         return user
     if sandbox._tools_default_user:

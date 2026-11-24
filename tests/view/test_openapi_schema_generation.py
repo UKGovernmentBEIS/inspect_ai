@@ -18,6 +18,7 @@ from pydantic import BaseModel, Discriminator, RootModel, Tag
 
 from inspect_ai._view._openapi import build_openapi_schema
 from inspect_ai._view.schema import _merge_same_shape_models
+from inspect_ai.scorer._metric import ScoreEdit
 
 # ---------------------------------------------------------------------------
 # Test models — each has a single `field` with a specific pattern
@@ -428,6 +429,27 @@ def test_json_value_is_empty_schema() -> None:
 
     assert "JsonValue" in schemas
     assert schemas["JsonValue"] == {}
+
+
+def test_score_edit_openapi_schema_keeps_typed_fields() -> None:
+    app = FastAPI(title="test", version="0.1.0")
+
+    @app.post("/score-edit")
+    def _endpoint(edit: ScoreEdit) -> ScoreEdit:
+        return edit
+
+    schemas = build_openapi_schema(app)["components"]["schemas"]
+    schema = schemas["ScoreEdit"]
+
+    assert set(schema["properties"]) == {
+        "value",
+        "answer",
+        "explanation",
+        "reason",
+        "metadata",
+        "provenance",
+    }
+    assert not any(name.startswith("ScoreEdit-") for name in schemas)
 
 
 def _reference(description: str, extra: dict[str, Any] | None = None) -> Any:

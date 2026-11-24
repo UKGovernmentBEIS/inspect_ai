@@ -1,7 +1,7 @@
 import posixpath
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, Final, Iterator, Literal, NamedTuple
+from typing import Any, Iterator, Literal, NamedTuple
 
 from ._framework_operation import in_framework_sandbox_operation
 from ._privileged import privileged_shell
@@ -42,7 +42,8 @@ def sandbox_identity(
     `SandboxIdentityError`, and so do `computer()`, which cannot run as a user,
     and `skill()`, which does not yet install skills as a user. `exec_remote()`
     uses the scope's user and cwd when omitted, keeps an explicit user and
-    resolves a relative `cwd` against the scope's `cwd`. Other
+    resolves a relative `cwd` against the scope's `cwd`, except in Inspect's
+    own sandbox operations, where it resolves them as `exec()` does. Other
     sandbox-tool launches inherit the scope's user when omitted; they keep
     their existing working-directory behavior.
 
@@ -74,10 +75,9 @@ def sandbox_identity(
     gives resolves against it: a `cwd` passed to `exec()` or `exec_remote()`, a
     `read_file()` or `write_file()` path, and a `sandbox_with()` lookup that is
     not `on_path`. `exec()` with no `cwd` runs in it. An absolute path or `cwd`
-    is kept. Inspect's own sandbox operations and calls on the provider
-    returned by `as_type()` do not use the scope's `cwd`, except that an
-    `exec_remote()` in Inspect's own sandbox operations with no `cwd` still
-    runs in it; a relative `cwd` there is kept unchanged.
+    is kept. Inspect's own sandbox operations do not use the scope's `cwd`, and
+    neither do `exec()`, `read_file()` and `write_file()` calls on the provider
+    returned by `as_type()`.
 
     The scope is held in a context variable, so tasks started inside the block
     inherit it.
@@ -197,17 +197,8 @@ def sandbox_operation_user(env: SandboxEnvironment, user: str | None) -> str | N
     return sandbox_identity_user(env, None, strict=False)
 
 
-SANDBOX_OPERATIONS_USE_SCOPE_CWD: Final = True
-"""Sandbox operations inside a scope with a `cwd` default to that `cwd`.
-
-See `sandbox_operation_cwd()` and `sandbox_operation_file()`. Companion
-packages check for this name to detect the behaviour on an installed
-inspect_ai, so keep it.
-"""
-
-
 def sandbox_operation_cwd(env: SandboxEnvironment, cwd: str | None) -> str | None:
-    """The working directory an `exec()` on `env` runs in.
+    """The working directory an `exec()` or `exec_remote()` on `env` runs in.
 
     Inside a `sandbox_identity()` scope for `env` that has a `cwd`, unless the
     call is part of a `framework_sandbox_operation()`, an omitted `cwd` becomes
