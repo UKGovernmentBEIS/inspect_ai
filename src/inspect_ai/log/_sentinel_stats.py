@@ -80,7 +80,10 @@ class SentinelStats(BaseModel):
     """Decisions taken, by action."""
 
     human_reviews: SentinelHumanReviewCounts | None = Field(default=None)
-    """Questions the sentinel's `human()` asked a person, and how they ended."""
+    """Questions the sentinel's `human()` asked a person, and how they ended.
+
+    Only reviews a sentinel's `human()` asked for. Approvals by `inspect_ai.approval` approvers and reviews by `inspect_ai.review` reviewers are not counted here.
+    """
 
     complete: bool = Field(default=True)
     """Whether the counts cover the whole sample."""
