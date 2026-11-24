@@ -139,7 +139,11 @@ Every call runs one pass, under the overlap guard ("Overlapping merges"):
    vanished (its `<k>/` has no attempt left) and the intended selection is
    the recorded one, return the existing header with `written=False`, after
    matching the task against it and checking its stored status.
-4. *Rebuild* otherwise: read every current attempt (central directory,
+4. *Refuse* when a ledger entry has vanished ("Validation"), unless the call
+   is finishing an interrupted deletion: with `delete_shards`, every
+   remaining attempt unchanged and the recorded selection, the pass keeps
+   the merged log as in step 3 ("Finishable").
+5. *Rebuild* otherwise: read every current attempt (central directory,
    header and summaries; a running attempt's header and summaries come from
    its journal, as every Python reader takes them), validate ("Validation"),
    plan the sample set, the status and the header from the attempts read,
