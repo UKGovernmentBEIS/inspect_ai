@@ -29,7 +29,10 @@ An honest snapshot therefore never contains anything but regular files
 and directories. The restored files come from an untrusted
 repo, so the resume-side checks — the snapshot listing check in
 ``restore_repo`` and the ``lstat`` regular-file check in :func:`read` —
-reject anything else, and never fire on legitimate data.
+reject anything else, and never fire on legitimate data. The snapshot's
+recorded modes and extended attributes are not kept either:
+``restore_repo`` leaves ``context/`` owner-only and every restored file
+at 0600.
 """
 
 from __future__ import annotations

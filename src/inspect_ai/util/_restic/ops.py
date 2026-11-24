@@ -7,6 +7,8 @@ source(s)/target, and tag.
 
 from __future__ import annotations
 
+import contextlib
+import errno
 import io
 import json
 import os
@@ -22,9 +24,14 @@ import anyio
 
 from .summary import ResticBackupSummary
 
+_RESTORED_DIR_MODE = 0o700
+_RESTORED_FILE_MODE = 0o600
+"""Modes the restored tree is given, whatever the snapshot recorded. The
+host's own context files are created by ``tempfile.mkstemp``, also 0600."""
+
 
 class RestoredTreeError(RuntimeError):
-    """A snapshot to be restored holds non-regular nodes or exceeds the bounds."""
+    """A snapshot to restore, or the tree restored from it, failed a structural check."""
 
 
 async def init_repo(restic: Path, repo: str, password: str) -> None:
@@ -109,32 +116,48 @@ async def restore_repo(
     writes anything and the restored layout is never interpreted. One
     ``restic ls --json latest`` call yields the snapshot record and its
     node listing (:func:`_list_latest_snapshot`); the snapshot must record
-    exactly one source path, every node must be a ``dir`` or ``file``, and
-    the entry count / summed sizes must fit ``max_files`` / ``max_bytes``
-    (:func:`_check_snapshot_nodes`). The source directory is then restored
-    with restic's ``<snapshot>:<subfolder>`` syntax, which places its
-    contents directly in ``target`` with no path chain to walk or rename.
+    exactly one source path, every node must be a ``dir`` or ``file``, no
+    path may be listed twice, no file may record a mode bit beyond the
+    permission bits, and the entry count / summed sizes must fit
+    ``max_files`` / ``max_bytes`` (:func:`_check_snapshot_nodes`). The
+    source directory is then restored with restic's
+    ``<snapshot>:<subfolder>`` syntax, which places its contents directly
+    in ``target`` with no path chain to walk or rename.
     The listing's sizes are the repo's own claims, so the restore runs with
     ``--verify``: restic reads each restored file back and fails if its
     size or content disagrees with the node, which is what makes the byte
     bound hold for what actually lands on disk.
+
+    The snapshot's recorded metadata is not kept. Extended attributes are
+    excluded from the restore, ``target`` is made owner-only before restic
+    runs and stays that way (:func:`_prepare_target`), and once restic
+    exits every restored directory is set to 0700 and every file to 0600
+    (:func:`_normalize_restored_tree`). A mode that cannot be set fails
+    the restore, except on a filesystem that reports modes as unsupported.
+    Not reset: the owner and group restic applied (any, when it runs as
+    root; otherwise at most a group the user belongs to), and on Windows
+    the recorded security descriptor.
 
     ``target`` must be a directory or absent; a symlink is refused without
     being followed (:func:`_prepare_target`). It is emptied before restic
     runs: restic overwrites the snapshot's members but leaves other names
     alone, so files an interrupted fire left in the same directory would
     otherwise survive as state newer than the committed checkpoint. A
-    failed or cancelled restore leaves its partial tree in ``target``; the
-    exception propagates so nothing reads it, and the next restore into
-    the directory empties it first.
+    failed or cancelled restore leaves its partial tree in ``target``,
+    normalized on a best-effort basis; the exception propagates so nothing
+    reads it, and the next restore into the directory empties it first.
 
     Raises:
         RestoredTreeError: the snapshot holds something other than regular
-            files and directories, or exceeds the bounds.
+            files and directories, lists a path twice, records a
+            non-permission mode bit on a file, or exceeds the bounds; or
+            the restored tree holds something other than regular files
+            and directories.
         RuntimeError: ``target`` is a symlink or not a directory, the repo
             has no snapshot, the snapshot records no/several source paths,
             or its source path is not a directory in the listing.
-        OSError: ``target`` could not be created or emptied.
+        OSError: ``target`` could not be created or emptied, or a mode
+            could not be set.
         subprocess.CalledProcessError: ``restic restore`` failed, including
             a ``--verify`` mismatch.
     """
@@ -152,25 +175,34 @@ async def restore_repo(
         nodes, paths[0], max_files=max_files, max_bytes=max_bytes
     )
     _empty_dir(target_dir)
-    await anyio.run_process(
-        [
-            str(restic),
-            "-r",
-            repo,
-            "restore",
-            "--target",
-            str(target_dir),
-            "--verify",
-            "--",
-            f"{snapshot['id']}:{subfolder}",
-        ],
-        env=restic_env(password),
-        check=True,
-    )
+    try:
+        await anyio.run_process(
+            [
+                str(restic),
+                "-r",
+                repo,
+                "restore",
+                "--target",
+                str(target_dir),
+                "--verify",
+                "--exclude-xattr",
+                "*",
+                "--",
+                f"{snapshot['id']}:{subfolder}",
+            ],
+            env=restic_env(password),
+            check=True,
+        )
+    except BaseException:
+        # Best effort only: the restore's own failure is what propagates.
+        with contextlib.suppress(OSError, RestoredTreeError):
+            _normalize_restored_tree(target_dir)
+        raise
+    _normalize_restored_tree(target_dir)
 
 
 def _prepare_target(target: str) -> Path:
-    """``target`` as an absolute path, created if absent.
+    """``target`` as an absolute, owner-only directory, created if absent.
 
     Checked with ``lstat`` before anything resolves the path: the
     ``mkdir(exist_ok=True)`` that creates the context dir on the caller's
@@ -178,20 +210,72 @@ def _prepare_target(target: str) -> Path:
     directory, and resolving one would redirect both the restore and the
     pre-restore emptying at wherever it points on the host. A symlink or a
     non-directory at ``target`` is refused.
+
+    The directory is set to mode 0700 and left there. Restic never touches
+    the target's own metadata, so other users cannot reach the tree while
+    it still carries recorded modes, including after a failed restore or
+    a killed process.
     """
     path = Path(os.path.abspath(target))
     try:
         st = os.lstat(path)
     except FileNotFoundError:
         path.mkdir(parents=True)
-        return path
-    if stat.S_ISLNK(st.st_mode):
-        raise RuntimeError(
-            f"restic restore: target is a symlink; refusing to follow it: {path}"
-        )
-    if not stat.S_ISDIR(st.st_mode):
-        raise RuntimeError(f"restic restore: target is not a directory: {path}")
+    else:
+        if stat.S_ISLNK(st.st_mode):
+            raise RuntimeError(
+                f"restic restore: target is a symlink; refusing to follow it: {path}"
+            )
+        if not stat.S_ISDIR(st.st_mode):
+            raise RuntimeError(f"restic restore: target is not a directory: {path}")
+    _chmod(path, _RESTORED_DIR_MODE)
     return path
+
+
+def _chmod(path: str | Path, mode: int) -> None:
+    """``os.chmod``, tolerating a filesystem that does not support modes.
+
+    Restic ignores ``ENOTSUP`` too when it applies a node's mode, so on
+    such a filesystem no recorded mode was applied either. Any other
+    failure propagates and fails the restore.
+    """
+    try:
+        os.chmod(path, mode)
+    except OSError as ex:
+        if ex.errno != errno.ENOTSUP:
+            raise
+
+
+def _normalize_restored_tree(root: Path) -> None:
+    """Set every directory under ``root`` to 0700 and every file to 0600.
+
+    The listing check compares paths as strings, so it cannot be the only
+    control: on a case-insensitive filesystem a listed file and a listed
+    directory can be one path, and restic then applies the directory's
+    mode (exempt from that check) to the regular file. Modes are therefore
+    set from what is on disk once restic has exited.
+
+    Entries are classified without following symlinks; one that is neither
+    a regular file nor a directory raises :class:`RestoredTreeError`. A
+    directory is chmodded before it is read, so one restored unreadable
+    does not stop the walk. Iterative, because the listing bounds entries
+    but not depth, and synchronous, so no cancellation point separates
+    restic's exit from the modes being replaced.
+    """
+    pending = [str(root)]
+    while pending:
+        with os.scandir(pending.pop()) as scan:
+            entries = list(scan)
+        for entry in entries:
+            if entry.is_dir(follow_symlinks=False):
+                _chmod(entry.path, _RESTORED_DIR_MODE)
+                pending.append(entry.path)
+            elif entry.is_file(follow_symlinks=False):
+                _chmod(entry.path, _RESTORED_FILE_MODE)
+            else:
+                raise RestoredTreeError(
+                    f"restored tree holds a non-regular entry: {entry.path}"
+                )
 
 
 def _empty_dir(path: Path) -> None:
@@ -277,6 +361,12 @@ def _check_snapshot_nodes(
     ``ls`` and ``restore`` read the same tree blobs, so the nodes restic
     goes on to write are the ones listed here (restic itself refuses
     malformed node names such as ``..``).
+    A path listed twice is rejected: an honest backup never produces one,
+    and restic then applies one node's metadata to the other's entry. A
+    file node must record an integer ``mode`` (absent means 0) with no bit
+    beyond the nine permission bits, which refuses setuid, setgid and
+    sticky files. Directories are exempt: the listing includes the source
+    path's ancestors, which may honestly be sticky or setgid.
     The node count (including the source path's ancestor directories,
     which restic lists too) is bounded by ``max_files`` and the summed
     file sizes by ``max_bytes``; a file node without an integer ``size``
@@ -288,16 +378,30 @@ def _check_snapshot_nodes(
     entries = 0
     total = 0
     dirs: set[str] = set()
+    seen: set[str] = set()
     for node in nodes:
         kind, path = node.get("type"), node.get("path")
         if not isinstance(path, str):
             raise RestoredTreeError(f"snapshot node without a path: {node}")
+        if path in seen:
+            raise RestoredTreeError(f"snapshot lists a path more than once: {path}")
+        seen.add(path)
         if kind == "dir":
             dirs.add(path)
         elif kind == "file":
             size = node.get("size")
             if not isinstance(size, int) or isinstance(size, bool):
                 raise RestoredTreeError(f"snapshot file node without a size: {path}")
+            mode = node.get("mode", 0)
+            if not isinstance(mode, int) or isinstance(mode, bool):
+                raise RestoredTreeError(
+                    f"snapshot file node with a non-integer mode: {path}"
+                )
+            if mode & ~0o777:
+                raise RestoredTreeError(
+                    f"snapshot file node records a mode bit beyond the permission "
+                    f"bits (setuid, setgid, sticky or a file-type bit): {path}"
+                )
             total += size
         else:
             raise RestoredTreeError(f"snapshot contains a {kind} node: {path}")

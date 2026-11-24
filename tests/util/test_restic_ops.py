@@ -14,9 +14,12 @@ Tests that drive a real restic binary live in
 
 from __future__ import annotations
 
+import errno
 import json
 import os
+import stat
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
@@ -244,11 +247,25 @@ _NO_SNAPSHOT_STDERR = (
 )
 
 
-def _ls_node(path: str, type: str, size: int | None = 0) -> dict[str, object]:
+_GO_MODE_DIR = 1 << 31
+_GO_MODE_SETUID = 1 << 23
+_GO_MODE_SETGID = 1 << 22
+_GO_MODE_STICKY = 1 << 20
+"""Go ``os.FileMode`` bits, the layout ``restic ls --json`` uses for ``mode``."""
+
+posix_modes = pytest.mark.skipif(
+    sys.platform == "win32", reason="POSIX permission bits"
+)
+
+
+def _ls_node(
+    path: str, type: str, size: int | None = 0, *, mode: object = None
+) -> dict[str, object]:
     """One ``restic ls --json`` node; ``size=None`` omits the key (malformed file).
 
-    Emits both record-kind keys as restic 0.17+ does (``struct_type`` is
-    the deprecated pre-0.17 name).
+    ``mode=None`` omits ``mode``, as restic does for a zero mode. Emits
+    both record-kind keys as restic 0.17+ does (``struct_type`` is the
+    deprecated pre-0.17 name).
     """
     node: dict[str, object] = {
         "name": path.rsplit("/", 1)[-1],
@@ -259,6 +276,8 @@ def _ls_node(path: str, type: str, size: int | None = 0) -> dict[str, object]:
     }
     if type == "file" and size is not None:
         node["size"] = size
+    if mode is not None:
+        node["mode"] = mode
     return node
 
 
@@ -347,6 +366,8 @@ async def test_restore_repo_restores_known_subfolder(
         "--target",
         str(target),
         "--verify",
+        "--exclude-xattr",
+        "*",
         "--",
         f"{_SNAPSHOT_ID}:{_SNAPSHOT_PATH}",
     ]
@@ -402,6 +423,318 @@ async def test_restore_repo_rejects_non_regular_node_before_restore(
         await _restore(target)
     assert [c[3] for c in calls] == ["ls"]
     assert list(target.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [
+        _GO_MODE_SETUID | 0o755,
+        _GO_MODE_SETGID | 0o755,
+        _GO_MODE_STICKY | 0o644,
+        _GO_MODE_SETUID | _GO_MODE_SETGID | 0o777,
+        _GO_MODE_DIR | 0o755,
+    ],
+)
+async def test_restore_repo_rejects_file_node_with_non_permission_mode_bit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mode: int
+) -> None:
+    """A file recording setuid, setgid, sticky or a type bit fails before restore."""
+    listing = _ls_chain(
+        _ls_node(f"{_SNAPSHOT_PATH}/store.json", "file", size=2, mode=mode)
+    )
+    calls = _fake_restic(monkeypatch, listing, _write_store)
+    target = tmp_path / "ctx"
+
+    with pytest.raises(RestoredTreeError, match=r"mode bit.*store\.json"):
+        await _restore(target)
+    assert [c[3] for c in calls] == ["ls"]
+    assert list(target.iterdir()) == []
+
+
+@pytest.mark.parametrize("mode", ["0644", True, 420.0, [420]])
+async def test_restore_repo_rejects_file_node_with_non_integer_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mode: object
+) -> None:
+    """A malformed mode is rejected, not coerced."""
+    listing = _ls_chain(
+        _ls_node(f"{_SNAPSHOT_PATH}/store.json", "file", size=2, mode=mode)
+    )
+    calls = _fake_restic(monkeypatch, listing, _write_store)
+
+    with pytest.raises(RestoredTreeError, match=r"non-integer mode.*store\.json"):
+        await _restore(tmp_path / "ctx")
+    assert [c[3] for c in calls] == ["ls"]
+
+
+@pytest.mark.parametrize("mode", [None, 0o600, 0o644, 0o666, 0o777])
+async def test_restore_repo_accepts_file_node_with_permission_bits_only(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mode: int | None
+) -> None:
+    """Any plain permission mode restores; an absent ``mode`` is restic's zero mode."""
+    listing = _ls_chain(
+        _ls_node(f"{_SNAPSHOT_PATH}/store.json", "file", size=2, mode=mode)
+    )
+    calls = _fake_restic(monkeypatch, listing, _write_store)
+
+    await _restore(tmp_path / "ctx")
+
+    assert [c[3] for c in calls] == ["ls", "restore"]
+
+
+async def test_restore_repo_accepts_special_mode_bits_on_directories(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Sticky and setgid ancestors or source dirs are honest: ``/tmp``, a ``g+s`` log dir."""
+    listing: list[dict[str, object]] = [
+        _ls_header(),
+        _ls_node("/host", "dir", mode=_GO_MODE_DIR | _GO_MODE_STICKY | 0o777),
+        _ls_node("/host/sample", "dir", mode=_GO_MODE_DIR | _GO_MODE_SETGID | 0o775),
+        _ls_node(_SNAPSHOT_PATH, "dir", mode=_GO_MODE_DIR | _GO_MODE_SETGID | 0o775),
+        _ls_node(f"{_SNAPSHOT_PATH}/store.json", "file", size=2, mode=0o600),
+    ]
+    calls = _fake_restic(monkeypatch, listing, _write_store)
+
+    await _restore(tmp_path / "ctx")
+
+    assert [c[3] for c in calls] == ["ls", "restore"]
+
+
+@pytest.mark.parametrize(
+    "kinds", [("file", "dir"), ("dir", "file"), ("file", "file"), ("dir", "dir")]
+)
+async def test_restore_repo_rejects_path_listed_twice(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, kinds: tuple[str, str]
+) -> None:
+    """Two nodes at one path fail before restore, whatever their kinds or order."""
+    path = f"{_SNAPSHOT_PATH}/store.json"
+    listing = _ls_chain(*(_ls_node(path, kind, size=2) for kind in kinds))
+    calls = _fake_restic(monkeypatch, listing, _write_store)
+    target = tmp_path / "ctx"
+
+    with pytest.raises(RestoredTreeError, match=r"more than once.*store\.json"):
+        await _restore(target)
+    assert [c[3] for c in calls] == ["ls"]
+    assert list(target.iterdir()) == []
+
+
+def _mode(path: Path) -> int:
+    return stat.S_IMODE(os.lstat(path).st_mode)
+
+
+@posix_modes
+async def test_restore_repo_replaces_restored_modes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """What lands on disk gets host-chosen modes, whatever the listing said.
+
+    The listing here is clean while the restore leaves special and
+    group/other bits behind, as restic can on a case-insensitive
+    filesystem where two listed paths are one file. The target is already
+    owner-only when restic runs.
+    """
+    target = tmp_path / "ctx"
+    target.mkdir(mode=0o777)
+    target.chmod(0o2777)
+    target_mode_at_restore: list[int] = []
+
+    def restore(path: Path) -> None:
+        target_mode_at_restore.append(_mode(path))
+        _write_store(path)
+        (path / "store.json").chmod(0o4777)
+        (path / "events.json").write_text("[]")
+        (path / "events.json").chmod(0o2666)
+        shared = path / "shared"
+        shared.mkdir()
+        (shared / "x.json").write_text("{}")
+        (shared / "x.json").chmod(0o666)
+        shared.chmod(0o1777)
+        locked = path / "locked"
+        locked.mkdir()
+        (locked / "y.json").write_text("{}")
+        locked.chmod(0)
+
+    _fake_restic(monkeypatch, _STORE_ONLY, restore)
+
+    try:
+        await _restore(target)
+        assert _mode(target / "locked") == 0o700
+    finally:
+        (target / "locked").chmod(0o700)
+
+    assert target_mode_at_restore == [0o700]
+    assert _mode(target) == 0o700
+    assert _mode(target / "shared") == 0o700
+    for name in ("store.json", "events.json", "shared/x.json", "locked/y.json"):
+        assert _mode(target / name) == 0o600, name
+    assert (target / "store.json").read_text() == "{}"
+
+
+@posix_modes
+async def test_restore_repo_replaces_modes_in_deeply_nested_tree(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The listing bounds entries, not depth; the walk must not recurse."""
+    depth = sys.getrecursionlimit() + 100
+    target = tmp_path / "ctx"
+    if len(str(target)) + 2 * depth + 32 > os.pathconf(tmp_path, "PC_PATH_MAX"):
+        pytest.skip("a chain deeper than the recursion limit exceeds PATH_MAX here")
+    chain = [str(target)]
+
+    def restore(path: Path) -> None:
+        for _ in range(depth):
+            os.mkdir(chain[-1] + "/d")
+            chain.append(chain[-1] + "/d")
+        leaf = Path(chain[-1]) / "store.json"
+        leaf.write_text("{}")
+        leaf.chmod(0o666)
+
+    _fake_restic(monkeypatch, _STORE_ONLY, restore)
+
+    try:
+        await _restore(target)
+
+        assert len(chain) == depth + 1
+        assert _mode(Path(chain[-1]) / "store.json") == 0o600
+        assert _mode(Path(chain[-1])) == 0o700
+    finally:
+        # Removed here, leaf first: pytest's tmp_path cleanup recurses.
+        if len(chain) > 1:
+            Path(chain[-1], "store.json").unlink(missing_ok=True)
+        for directory in reversed(chain[1:]):
+            os.rmdir(directory)
+
+
+@pytest.mark.parametrize("kind", ["symlink", "fifo"])
+@posix_modes
+async def test_restore_repo_rejects_non_regular_entry_in_restored_tree(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, kind: str
+) -> None:
+    """A non-regular entry on disk after restore raises and is not chmodded through."""
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}")
+    outside.chmod(0o644)
+
+    def restore(path: Path) -> None:
+        if kind == "symlink":
+            os.symlink(outside, path / "store.json")
+        else:
+            os.mkfifo(path / "store.json")
+
+    _fake_restic(monkeypatch, _STORE_ONLY, restore)
+
+    with pytest.raises(RestoredTreeError, match=r"non-regular entry.*store\.json"):
+        await _restore(tmp_path / "ctx")
+    assert _mode(outside) == 0o644
+
+
+@posix_modes
+async def test_restore_repo_replaces_modes_when_restic_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A failed restore's partial tree is normalized, and the retry can empty it."""
+    target = tmp_path / "ctx"
+
+    def fail_midway(path: Path) -> None:
+        (path / "partial.json").write_text("{")
+        (path / "partial.json").chmod(0o4777)
+        locked = path / "locked"
+        locked.mkdir()
+        (locked / "x.json").write_text("{")
+        locked.chmod(0)
+        raise subprocess.CalledProcessError(1, ["restic", "restore"])
+
+    _fake_restic(monkeypatch, _STORE_ONLY, fail_midway)
+    try:
+        with pytest.raises(subprocess.CalledProcessError):
+            await _restore(target)
+        assert _mode(target / "locked") == 0o700
+    finally:
+        (target / "locked").chmod(0o700)
+    assert _mode(target) == 0o700
+    assert _mode(target / "partial.json") == 0o600
+
+    _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
+    await _restore(target)
+    assert [p.name for p in target.iterdir()] == ["store.json"]
+
+
+@posix_modes
+async def test_restore_repo_failure_propagates_when_partial_tree_is_irregular(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Normalizing a failed restore is best effort: restic's failure still propagates."""
+
+    def fail_midway(path: Path) -> None:
+        os.mkfifo(path / "store.json")
+        raise subprocess.CalledProcessError(1, ["restic", "restore"])
+
+    _fake_restic(monkeypatch, _STORE_ONLY, fail_midway)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        await _restore(tmp_path / "ctx")
+
+
+@posix_modes
+async def test_restore_repo_replaces_modes_when_cancelled_mid_restore(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Cancellation while restic writes still normalizes what was written."""
+    target = tmp_path / "ctx"
+    written = anyio.Event()
+
+    async def fake_run_process(command: list[str], **kwargs: object) -> SimpleNamespace:
+        if "ls" in command:
+            lines = "\n".join(json.dumps(record) for record in _STORE_ONLY)
+            return SimpleNamespace(stdout=lines.encode())
+        (target / "partial.json").write_text("{")
+        (target / "partial.json").chmod(0o4777)
+        written.set()
+        await anyio.sleep_forever()
+        raise AssertionError("unreachable")
+
+    monkeypatch.setattr(anyio, "run_process", fake_run_process)
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(_restore, target)
+        await written.wait()
+        tg.cancel_scope.cancel()
+
+    assert _mode(target) == 0o700
+    assert _mode(target / "partial.json") == 0o600
+
+
+async def test_restore_repo_tolerates_filesystem_without_modes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A filesystem that reports modes as unsupported still restores, as under restic."""
+
+    def chmod(path: object, mode: int) -> None:
+        raise OSError(errno.ENOTSUP, os.strerror(errno.ENOTSUP), str(path))
+
+    calls = _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
+    monkeypatch.setattr(os, "chmod", chmod)
+
+    await _restore(tmp_path / "ctx")
+
+    assert [c[3] for c in calls] == ["ls", "restore"]
+
+
+async def test_restore_repo_fails_when_a_mode_cannot_be_set(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Any other chmod failure fails the restore rather than keeping recorded modes."""
+    target = tmp_path / "ctx"
+    real_chmod = os.chmod
+
+    def chmod(path: object, mode: int) -> None:
+        if str(path).endswith("store.json"):
+            raise PermissionError(errno.EPERM, os.strerror(errno.EPERM), str(path))
+        real_chmod(str(path), mode)
+
+    _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
+    monkeypatch.setattr(os, "chmod", chmod)
+
+    with pytest.raises(PermissionError, match=r"store\.json"):
+        await _restore(target)
 
 
 async def test_restore_repo_rejects_source_path_missing_from_listing(
