@@ -672,7 +672,11 @@ the combined error; a deepagent background subagent reads it from the
 scope after its block, as today. `run(limits=None)` returns only the state,
 so it has nowhere to report an error and catches nothing: it enters its
 scope with `catch_errors=False`, and every limit error propagates from it,
-as today. The order of `limits` does not matter
+as today. A deepagent background subagent with no limits of its own
+catches nothing either: `_run_background()` enters its scope with
+`catch_errors=bool(limits)`, as `_dispatch()` calls `run(limits=None)` for
+such a subagent, so a limit entered inside it propagates and ends the
+sample, as today. The order of `limits` does not matter
 for catching: a group of the scope's own token limit and a cost limit
 entered inside the scope is caught like any other covered group, and
 `run()` returns their combined error, also when the scope entered only a
@@ -2022,20 +2026,10 @@ documented. Behaviour changes:
   including deepagent's default background children, still sends its errors
   to the sample, so a child's limit of its parent's `run()` still ends the
   sample rather than returning from that `run()`, as today. The runtime
-  guarantees state this as a prerequisite rather than changing it. One
-  result changes with the covered-exit rule: a default background child
-  with no limits of its own still enters `apply_limits([],
-  catch_errors=True)` (`_run_background()` in
-  `src/inspect_ai/agent/_deepagent/agent_tool.py`), so a limit entered
-  inside the child (a plain `with token_limit()` in its agent) is now
-  caught there and reported as the child's `stopped` result, and the parent
-  continues, where today it escapes the child and ends the sample. The
-  synchronous default dispatcher (`_dispatch()`) calls `run(limits=None)`,
-  which catches nothing, so the same limit leaves `run()`; it runs inside
-  the deepagent's `agent` tool call, whose `execute_tools()` maps it to the
-  `limit` tool error (the node was entered inside the call, rule 6) and the
-  parent continues, as today. A limit of the parent's `run()` or of the sample still escapes a
-  background child and ends the sample.
+  guarantees state this as a prerequisite rather than changing it. A limit
+  of the parent's `run()` or of the sample, or one entered inside a
+  background child with no limits of its own, still escapes the child and
+  ends the sample.
 - **Cache hits under an exceeded limit raise.** A cached response under an
   already-exceeded token or cost limit is still served, and now raises that
   limit after it (the check that follows every generation), where today it
@@ -2117,10 +2111,9 @@ documented. Behaviour changes:
   reached turn limit, an unpriced model) or make a limit error propagate
   further. Three let work continue that today stops. Covered exits catch
   more: a limit entered inside `run(limits=[...])` (a plain block's, an
-  `as_solver()` limit's, a time limit's) is returned by `run()`, and a
-  limit entered inside a default deepagent background child is reported as
-  its `stopped` result, where today both escape and can end the sample
-  ("Compatibility and migration"), so the parent's later calls run. Those
+  `as_solver()` limit's, a time limit's) is returned by `run()`, where
+  today it escapes and can end the sample ("Compatibility and migration"),
+  so the parent's later calls run. Those
   calls are bounded by the limits still in force around them (the
   sample's and any enclosing scope's), not by the closed inner limit, and
   with no enclosing limit configured nothing bounds them, as for any
@@ -2267,11 +2260,8 @@ under trio with `--runtrio`.
   returns, the sample is recorded as limited by it; a synchronous deepagent
   subagent's swallowed limit is reported as its result; a default
   background deepagent child (no limits of its own) whose agent exceeds a
-  plain `with token_limit()` inside it completes with the `stopped`
-  result naming that limit and the parent continues, while the same agent
-  dispatched synchronously with no limits through the `agent` tool and
-  `execute_tools()` gives the `limit` tool error, the parent continues and
-  the sample records no limit, as today, and a background child that exceeds its parent `run()`'s
+  plain `with token_limit()` inside it ends the sample with that limit, as
+  today, and a background child that exceeds its parent `run()`'s
   token limit still ends the sample;
   - plain blocks: inside `with token_limit(n)`, after a call exceeds the
     block's limit and the error is caught inside the block, a further call
@@ -2533,6 +2523,12 @@ Each step is one PR, in this order. Each keeps the suite green.
    catching scope over `[]`, which catches nothing only because no limit is
    its own; once a scope also covers the limits entered inside it, that
    scope would catch such a limit and drop it at `return state`.
+   `src/inspect_ai/agent/_deepagent/agent_tool.py`: `_run_background()`
+   enters `apply_limits(limits, catch_errors=bool(limits))`, mirroring
+   `_dispatch()`, which calls `run(limits=None)` for a subagent with no
+   limits; a catching scope over `[]` would otherwise report a limit
+   entered inside the child as its `stopped` result instead of ending the
+   sample.
    `src/inspect_ai/_eval/task/run.py`: combining the limits of the
    escaping group, and the exit check over the sample's token, cost and turn limits, read
    from the limit trees as `sample_limits()` reads them, after
