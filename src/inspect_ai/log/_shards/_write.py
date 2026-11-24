@@ -83,9 +83,15 @@ def check_task_matches(task: "Task", header: EvalLog, source: str) -> None:
     empty list (no reduction). Passing the task the shards ran, with the same
     options, is the caller's responsibility.
 
+    Shards rescored under other score names (`score()` with a dict of scorers)
+    are refused too: the merge computes each score's metrics from the task's
+    scorer of that name, which is no longer the scorer that produced it.
+
     Raises:
-        ShardSetError: The task differs from what `header` records.
+        ShardSetError: The task differs from what `header` records, or
+            `header` records score names the task's scorers don't produce.
     """
+    from inspect_ai._eval.score import _header_score_names
     from inspect_ai._eval.task.log import resolve_eval_metrics, resolve_eval_scorers
     from inspect_ai.scorer._metric import to_metric_specs
     from inspect_ai.scorer._reducer import reducer_log_names
@@ -126,6 +132,24 @@ def check_task_matches(task: "Task", header: EvalLog, source: str) -> None:
                 f"ran in its {field} ({given!r}, not {ran!r}). Pass the task the "
                 "shards ran."
             )
+    score_names = _task_score_names(task)
+    recorded_names = _header_score_names(recorded.scorers or [])
+    if recorded_names != score_names:
+        raise ShardSetError(
+            f"The scores of {source} were renamed after it ran: it records the "
+            f"score names {recorded_names!r}, not the task's {score_names!r}. "
+            "Merge the shards as the run wrote them, then rescore the merged log."
+        )
+
+
+def _task_score_names(task: "Task") -> list[str]:
+    """The score name a run of `task` gives each of its scorers, in order."""
+    from inspect_ai.scorer._scorer import unique_scorer_name
+
+    score_names: list[str] = []
+    for scorer in task.scorer or []:
+        score_names.append(unique_scorer_name(scorer, score_names))
+    return score_names
 
 
 def _metric_names(metrics: Any) -> Any:
@@ -562,11 +586,8 @@ def _results(
             others ran without scoring.
     """
     from inspect_ai._eval.task.results import eval_results
-    from inspect_ai.scorer._scorer import unique_scorer_name
 
-    scorer_names: list[str] = []
-    for scorer in task.scorer or []:
-        scorer_names.append(unique_scorer_name(scorer, scorer_names))
+    scorer_names = _task_score_names(task)
     declared = {
         name: registry_unqualified_name(scorer)
         for name, scorer in zip(scorer_names, task.scorer or [])

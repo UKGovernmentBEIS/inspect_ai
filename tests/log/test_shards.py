@@ -2094,6 +2094,39 @@ def test_merge_refuses_a_scorer_change_that_keeps_the_identifier(
         merge_eval_log_shards(merged, other, allow_incomplete=True)
 
 
+def test_merge_refuses_shards_rescored_under_other_score_names(
+    tmp_path: Path,
+) -> None:
+    """Shards whose scores were renamed with `score()` aren't merged under the task's names."""
+    from inspect_ai import score
+    from inspect_ai.scorer import includes
+
+    def two_scorers() -> Task:
+        changed = _task()
+        changed.scorer = [match(), includes()]
+        return changed
+
+    def swap_names(log: EvalLog) -> None:
+        swapped = score(
+            log,
+            {"includes": match(), "match": includes()},
+            action="overwrite",
+            display="none",
+        )
+        log.eval.scorers = swapped.eval.scorers
+        log.samples = swapped.samples
+        log.results = swapped.results
+        log.reductions = swapped.reductions
+
+    merged, shards = _paths(tmp_path)
+    _rewrite(_run(shards, "0", two_scorers(), sample_id=[1, 2, 3]), swap_names)
+    _rewrite(_run(shards, "1", two_scorers(), sample_id=[4, 5, 6]), swap_names)
+
+    with pytest.raises(ShardSetError, match="score names"):
+        merge_eval_log_shards(merged, two_scorers())
+    assert not os.path.exists(merged)
+
+
 def _mismatched(field: str) -> Task:
     """A task like `_task()` that differs from it in `field`."""
     if field == "task name":
