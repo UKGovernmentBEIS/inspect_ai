@@ -63,7 +63,12 @@ from ._publish import (
     supported_location,
 )
 from ._walk import ShardDir, check_s3_location, list_shard_set
-from ._write import SampleMember, check_task_matches, write_merged_zip
+from ._write import (
+    SampleMember,
+    check_score_names,
+    check_task_matches,
+    write_merged_zip,
+)
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.task import Task
@@ -497,6 +502,9 @@ async def _merge_pass(
 
     if existing is not None and not changed and selection.same_as(recorded):
         return _Pass(existing.header, False)
+
+    # check_headers() made base's scorers those of every header merged here
+    check_score_names(task, base, base_source)
 
     kept = _kept_members(existing.members, taken) if existing is not None else set()
     with tempfile.TemporaryDirectory() as temp_dir:

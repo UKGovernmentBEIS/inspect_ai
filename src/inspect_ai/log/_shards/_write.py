@@ -83,15 +83,9 @@ def check_task_matches(task: "Task", header: EvalLog, source: str) -> None:
     empty list (no reduction). Passing the task the shards ran, with the same
     options, is the caller's responsibility.
 
-    Shards rescored under other score names (`score()` with a dict of scorers)
-    are refused too: the merge computes each score's metrics from the task's
-    scorer of that name, which is no longer the scorer that produced it.
-
     Raises:
-        ShardSetError: The task differs from what `header` records, or
-            `header` records score names the task's scorers don't produce.
+        ShardSetError: The task differs from what `header` records.
     """
-    from inspect_ai._eval.score import _header_score_names
     from inspect_ai._eval.task.log import resolve_eval_metrics, resolve_eval_scorers
     from inspect_ai.scorer._metric import to_metric_specs
     from inspect_ai.scorer._reducer import reducer_log_names
@@ -132,13 +126,35 @@ def check_task_matches(task: "Task", header: EvalLog, source: str) -> None:
                 f"ran in its {field} ({given!r}, not {ran!r}). Pass the task the "
                 "shards ran."
             )
+
+
+def check_score_names(task: "Task", header: EvalLog, source: str) -> None:
+    """Refuse to compute results for scores renamed after their run.
+
+    The merge computes each score's metrics from the task's scorer of that
+    name. A log rescored by `score()` with a dict of scorers records other
+    score names, so a name can belong to another scorer than the one that
+    produced the score. Only a pass that writes checks this: a merged log
+    rescored under other names stays as it is while its shards are unchanged.
+
+    Raises:
+        ShardSetError: `header` records an invalid score name, or score names
+            that a run of the task doesn't give its scorers.
+    """
+    from inspect_ai._eval.score import _header_score_names
+
+    try:
+        recorded = _header_score_names(header.eval.scorers or [])
+    except ValueError as ex:
+        raise ShardSetError(f"{source} cannot be merged: {ex}") from ex
     score_names = _task_score_names(task)
-    recorded_names = _header_score_names(recorded.scorers or [])
-    if recorded_names != score_names:
+    if recorded != score_names:
         raise ShardSetError(
-            f"The scores of {source} were renamed after it ran: it records the "
-            f"score names {recorded_names!r}, not the task's {score_names!r}. "
-            "Merge the shards as the run wrote them, then rescore the merged log."
+            f"{source} records the score names {recorded!r}, not the "
+            f"{score_names!r} a run of the task gives its scorers: its scores "
+            "were renamed with score() after it ran. The merge computes metrics "
+            "under the task's score names. Merge shards as their runs wrote "
+            "them, and rescore the merged log afterwards."
         )
 
 

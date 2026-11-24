@@ -2127,6 +2127,46 @@ def test_merge_refuses_shards_rescored_under_other_score_names(
     assert not os.path.exists(merged)
 
 
+def test_merge_stays_unchanged_after_the_merged_log_is_rescored_with_a_dict(
+    tmp_path: Path,
+) -> None:
+    """Rescoring the merged log under other names doesn't break a repeated merge of the same shards."""
+    from inspect_ai import score
+
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    _run(shards, "1", sample_id=[4, 5, 6])
+    merge_eval_log_shards(merged, _task())
+    renamed = score(
+        read_eval_log(merged), {"strict": match()}, action="overwrite", display="none"
+    )
+    write_eval_log(renamed, merged)
+
+    result = merge_eval_log_shards(merged, _task())
+
+    assert result.written is False
+    assert result.log.results is not None
+    assert [s.name for s in result.log.results.scores] == ["strict"]
+    assert merge_eval_log_shards(merged, _task(), delete_shards=True).written is False
+    assert not os.path.exists(shards)
+
+
+def test_merge_refuses_shards_with_an_invalid_recorded_score_name(
+    tmp_path: Path,
+) -> None:
+    def empty_name(log: EvalLog) -> None:
+        assert log.eval.scorers is not None
+        log.eval.scorers[0].score_name = ""
+
+    merged, shards = _paths(tmp_path)
+    _rewrite(_run(shards, "0", sample_id=[1, 2, 3]), empty_name)
+    _rewrite(_run(shards, "1", sample_id=[4, 5, 6]), empty_name)
+
+    with pytest.raises(ShardSetError, match="Invalid score name"):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged)
+
+
 def _mismatched(field: str) -> Task:
     """A task like `_task()` that differs from it in `field`."""
     if field == "task name":
