@@ -298,7 +298,7 @@ for any task added during a run: a queued fed task is not listed by the
 control channel's task list and cannot be cancelled or drained there, only
 through its handle (`RunQueue.cancel`). Listing and cancelling queued tasks
 through the control channel belongs to
-[task-dispatch.md](task-dispatch.md#control-channel).
+[task-dispatch.md](task-dispatch.md#control-channel-1).
 
 ### Terminal outcomes
 
@@ -445,14 +445,17 @@ handle wait depends on, and none is lent to a waiter:
 A run without that headroom waits, with no warning. Raising the sandbox
 or sample limit through the control channel while the run goes on frees
 the wait at once
-(`test_sandbox_headroom_for_a_send_can_be_raised_while_it_waits`). Raising
-`max_connections` does not: the control channel retunes only an adaptive
-connection controller's ceiling, and the controller grows its live limit
-only as requests complete, which no blocked hook does
-(`AdaptiveConcurrencyController.set_max` in
-`src/inspect_ai/util/_concurrency.py`). A connection wait of this kind
-needs its headroom when the run starts. The user docs ("Waiting on a
-handle") state the headroom.
+(`test_sandbox_headroom_for_a_send_can_be_raised_while_it_waits`). A
+connection wait depends on the model's pool. An explicit `max_connections`
+is a fixed pool (a `ResizableSemaphore`), whose limit the control channel's
+named-concurrency retune raises at once, freeing the wait
+([Configuration](../docs/control-channel.qmd#configuration)). An adaptive
+pool is different: the control channel raises only its ceiling, and the
+controller grows its live limit only as requests complete, which no
+blocked hook does (`AdaptiveConcurrencyController.set_max` in
+`src/inspect_ai/util/_concurrency.py`), so raising the ceiling cannot
+release the wait; an adaptive pool needs that headroom when the run
+starts. The user docs ("Waiting on a handle") state the headroom.
 
 ## Guarantees and limits
 
@@ -468,11 +471,11 @@ handle") state the headroom.
 - **A fed log never stands in for a requested task**: not in eval-set
   matching, `resume`, `eval_retry()` or the eval set's result.
 - **Limits.**
-  - A run whose `max_sandboxes` or `max_samples` leaves no room for the
-    work a handle wait depends on hangs until that limit is raised; one
-    whose connections are all held by hooks waiting on sent samples hangs
-    for good, since raising `max_connections` while it runs cannot free
-    them ("Waits and limits").
+  - A run whose `max_sandboxes`, `max_samples` or fixed connection pool
+    leaves no room for the work a handle wait depends on hangs until that
+    limit is raised; one whose adaptive connection pool is all held by hooks
+    waiting on sent samples hangs for good, since raising its ceiling while
+    it runs cannot free them ("Waits and limits").
   - A fed task does not count toward `max_tasks`, so a supervisor that
     sets `max_tasks` as a ceiling (a selection worker's) sees one extra
     running task for each fed task that has been sent a sample and has not
