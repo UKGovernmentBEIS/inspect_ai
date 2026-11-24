@@ -15,6 +15,7 @@ from test_helpers.fake_sentinel import report_version, source_path
 
 from inspect_ai import (
     Task,
+    enqueue_task,
     eval,
     eval_async,
     eval_retry,
@@ -372,6 +373,82 @@ def test_eval_retry_rebuilds_the_sentinel(tmp_path: Path) -> None:
         "block": {"name": "d2_rule", "params": {"reason": "retry"}}
     }
     assert active_root(retried) == "inspect_sentinel/concurrent"
+
+
+@solver
+def enqueue_tool_child(own_sentinel: bool) -> Solver:
+    # adds a child task whose model calls `addition` once, with a sentinel of
+    # its own or none
+    child_solver = [record_sentinel(), use_tools(addition()), generate()]
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="addition",
+                    tool_arguments={"x": 1, "y": 2},
+                ),
+                ModelOutput.from_content("mockllm/model", content="done"),
+            ],
+            memoize=False,
+        )
+        enqueue_task(
+            Task(
+                dataset=[Sample(input="x", target="y")],
+                solver=child_solver,
+                model=model,
+                sentinel=d2_rule(reason="child") if own_sentinel else None,
+                name="child",
+            )
+        )
+        return state
+
+    return solve
+
+
+@task
+def d2_enqueue_parent(marker: str, own_sentinel: bool) -> Task:
+    return Task(
+        dataset=[Sample(input="x", target="y")],
+        solver=[fail_once(marker), enqueue_tool_child(own_sentinel)],
+    )
+
+
+@pytest.mark.parametrize("own_sentinel", [False, True])
+def test_eval_retry_guards_an_enqueued_task_with_the_logged_sentinel(
+    tmp_path: Path, own_sentinel: bool
+) -> None:
+    # the logged sentinel overrides an enqueued task's own, as the eval's
+    # sentinel did in the run the log records
+    log_dir = tmp_path / "logs"
+    log = eval(
+        d2_enqueue_parent(str(tmp_path / "marker"), own_sentinel),
+        model="mockllm/model",
+        sentinel=d2_rule(reason="retry"),
+        log_dir=str(log_dir),
+    )[0]
+    assert log.status == "error"
+
+    retried = eval_retry(log, log_dir=str(log_dir))[0]
+
+    assert retried.status == "success", retried.error
+    [child] = [
+        read_eval_log(str(file))
+        for file in log_dir.glob("*.eval")
+        if read_eval_log(str(file), header_only=True).eval.task == "child"
+    ]
+    assert config_data(child) == {"name": "d2_rule", "params": {"reason": "retry"}}
+    assert active_root(child) == "d2_rule"
+    assert child.samples
+    events = child.samples[0].events
+    [tool_event] = [e for e in events if isinstance(e, ToolEvent)]
+    assert tool_event.error is not None
+    assert tool_event.error.type == "approval"
+    assert [
+        (e.action, e.explanation) for e in events if isinstance(e, SentinelEvent)
+    ] == [("reject", "retry")]
 
 
 def test_cli_sentinel_args_become_the_entry_params() -> None:

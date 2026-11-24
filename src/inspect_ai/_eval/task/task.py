@@ -588,8 +588,8 @@ class PreviousTask:
     sandbox: SandboxEnvironmentSpec | None
     log: EvalLog
     log_info: EvalLogInfo | None
-    # eval-retry's: the sentinel the log records, which replaces the task's
-    # own as an eval's sentinel does
+    # eval-retry's: the sentinel the log records, which the retry runs as the
+    # eval's sentinel, so it also replaces the sentinel of an enqueued task
     sentinel: SentinelConfig | None = None
 
 

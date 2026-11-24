@@ -47,7 +47,9 @@ from inspect_ai._display.core.active import display as task_display
 from inspect_ai._eval.task.scan import Scanners, scan_context
 from inspect_ai._sentinel._config import (
     SentinelProxy,
+    Sentinels,
     SentinelSpec,
+    resolve_retry_sentinel_spec,
     resolve_sentinel_spec,
     sentinel_config,
 )
@@ -131,6 +133,7 @@ from .task.enqueue import (
 from .task.images import InputMediaPolicy
 from .task.resolved import ResolvedTask, resolved_model_names, resolved_task_names
 from .task.tasks import Tasks
+from .task.util import task_run_dir
 
 log = logging.getLogger(__name__)
 
@@ -870,9 +873,15 @@ async def _eval_async_inner(
             input_media_policy="trusted_pre_run",
             review=review,
         )
-        eval_sentinel = (
-            resolve_sentinel_spec(sentinel) if sentinel is not None else None
-        )
+        eval_sentinel: Sentinels | None = None
+        if sentinel is not None:
+            eval_sentinel = resolve_sentinel_spec(sentinel)
+        elif isinstance(tasks, PreviousTask) and tasks.sentinel is not None:
+            # built only now that the task file has registered the factories
+            # the logged sentinel names
+            eval_sentinel = resolve_retry_sentinel_spec(
+                tasks.sentinel, task_run_dir(resolved_tasks[0].task)
+            )
 
         # warn and return empty string if we resolved no tasks
         if len(resolved_tasks) == 0:
