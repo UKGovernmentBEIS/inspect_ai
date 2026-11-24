@@ -33,6 +33,7 @@ from inspect_ai._cli.ctl._knobs import _KNOB_SCOPE
 from inspect_ai._cli.ctl._model import _format_backoff, _print_throughput_table
 from inspect_ai._cli.ctl._render import (
     _SHORT_ID_LEN,
+    _command_hint,
     _echo_error,
     _print_errored_samples_footer,
     _print_events,
@@ -9027,6 +9028,31 @@ def test_sanitize_removes_string_sequences_and_charset_payload() -> None:
     assert _sanitize_control("\x1b(0ok") == "ok"
 
 
+def test_command_hint_quotes_arguments_the_sanitizer_leaves_alone() -> None:
+    hint = _command_hint(
+        ["inspect", "ctl", "plain", "", "it's $(x)", "--log-dir", "/logs dir"],
+        fallback="inspect ctl",
+    )
+    assert hint == "`inspect ctl plain '' 'it'\"'\"'s $(x)' --log-dir '/logs dir'`"
+    assert _sanitize_control(hint) == hint
+
+
+@pytest.mark.parametrize(
+    "arg",
+    ["a\x1b'b", "a b\x1b", "a\x1b[' b", "a\x1b]0;b", "a\x07b", "a\x9bb"]
+    + ["a\tb", "a\nb", "a\u202eb", "a\udc80b", "a\u2028b"],
+)
+def test_command_hint_gives_no_command_for_a_non_printable_argument(arg: str) -> None:
+    """The argument is not repaired: a changed one would name something else."""
+    hint = _command_hint(
+        ["inspect", "ctl", "show", arg], fallback="inspect ctl show ID"
+    )
+    assert hint == (
+        "`inspect ctl show ID` (arguments not shown: one holds non-printable "
+        "characters)"
+    )
+
+
 def test_sanitize_drops_c0_del_and_c1_bytes() -> None:
     assert _sanitize_control("pass\x08\x08fail\x07\x7f") == "passfail"
     assert _sanitize_control("a\rb") == "ab"
@@ -9702,6 +9728,48 @@ def test_no_direct_click_echo_outside_the_wrappers() -> None:
         )
         Visitor(module_file.name).visit(tree)
     assert not offenders, f"direct output calls outside _echo/_echo_raw: {offenders}"
+
+
+def test_no_shell_quoting_outside_command_hint() -> None:
+    """The ctl package imports `shlex` only inside `_command_hint`.
+
+    A command quoted anywhere else is sanitized by `_echo` after it is
+    quoted, which can remove its quote characters.
+    """
+    import ast
+
+    import inspect_ai._cli.ctl as ctl_package
+
+    def imports_shlex(node: ast.AST) -> bool:
+        if isinstance(node, ast.Import):
+            return any(alias.name.split(".")[0] == "shlex" for alias in node.names)
+        return isinstance(node, ast.ImportFrom) and node.module == "shlex"
+
+    offenders: list[str] = []
+    allowed = 0
+    for module_file in sorted(Path(ctl_package.__file__).parent.rglob("*.py")):
+        tree = ast.parse(
+            module_file.read_text(encoding="utf-8"), filename=str(module_file)
+        )
+        in_command_hint = {
+            id(node)
+            for function in tree.body
+            if module_file.name == "_render.py"
+            and isinstance(function, ast.FunctionDef)
+            and function.name == "_command_hint"
+            for node in ast.walk(function)
+        }
+        for node in ast.walk(tree):
+            if not imports_shlex(node):
+                continue
+            if id(node) in in_command_hint:
+                allowed += 1
+            else:
+                offenders.append(
+                    f"{module_file.name} line {getattr(node, 'lineno', 0)}"
+                )
+    assert not offenders, f"shlex imported outside _command_hint: {offenders}"
+    assert allowed == 1
 
 
 # --- --log-dir mode: the contract (design/ctl/log-dir-mode.md) ----------------
