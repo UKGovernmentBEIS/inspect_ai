@@ -278,10 +278,11 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
             keys = dict_scores[0].value.keys()  # type: ignore
             for key in keys:
                 key_values = _dict_key_values(dict_scores, key, len(scores))
-                if len(key_values.values) == 0:
+                reducible = [v for v in key_values.values if _is_reducible(v)]
+                if len(reducible) == 0:
                     dict_result[key] = key_values.empty_result
                 else:
-                    dict_result[key] = max(key_values.values, key=value_to_float)
+                    dict_result[key] = max(reducible, key=value_to_float)
             return _reduced_score(dict_result, scores)
         elif isinstance(representative.value, list):
             list_scores = _partition_list_scores(scores)
@@ -384,10 +385,11 @@ def _count_dict(
     keys = dict_scores[0].value.keys()  # type: ignore
     for key in keys:
         key_values = _dict_key_values(dict_scores, key, len(scores))
-        if len(key_values.values) == 0:
+        reducible = [v for v in key_values.values if _is_reducible(v)]
+        if len(reducible) == 0:
             dict_result[key] = key_values.empty_result
         else:
-            counts: Counter[str | int | float | bool] = Counter(key_values.values)
+            counts: Counter[str | int | float | bool] = Counter(reducible)
             dict_result[key] = counter_fn(counts)
     return _reduced_score(dict_result, scores)
 
@@ -515,22 +517,21 @@ def _compute_scalar_stat(
 
 class _DictKeyValues(NamedTuple):
     values: list[str | int | float | bool]
-    """The key's values that are neither `None` nor NaN as given (a custom
-    `value_to_float` may still convert one of them to NaN)."""
+    """The key's values other than `None`. NaN is kept, so each reducer can
+    leave it out at the same point as for scalar and list scores."""
 
     empty_result: float | None
-    """Reduced value when `values` is empty: `None` if the key was `None` in
-    every score, otherwise NaN."""
+    """Reduced value when no usable value remains: `None` if the key was
+    `None` in every score, otherwise NaN."""
 
 
 def _dict_key_values(
     dict_scores: list[Score], key: str, total_scores: int
 ) -> _DictKeyValues:
-    r"""Collect the values under `key` that a dictionary reducer can use.
+    r"""Collect the values under `key`, leaving out `None` (missing).
 
-    `None` is a missing value and NaN is unscored, so neither is passed to the
-    reducer. A key that is `None` in every score reduces to `None`, which keeps
-    it visible to a metric's missing-value handling such as
+    A key that is `None` in every score reduces to `None`, which keeps it
+    visible to a metric's missing-value handling such as
     `aggregate(on_missing=...)`. A key with no usable values otherwise reduces
     to NaN, including when a score that is unscored at the root was left out
     of `dict_scores`: that score is NaN for every key.
@@ -542,14 +543,11 @@ def _dict_key_values(
             are unscored at the root.
     """
     values: list[str | int | float | bool] = []
-    all_none = len(dict_scores) == total_scores
     for score in dict_scores:
         value = score.as_dict()[key]
-        if value is None:
-            continue
-        all_none = False
-        if _is_reducible(value):
+        if value is not None:
             values.append(value)
+    all_none = not values and len(dict_scores) == total_scores
     return _DictKeyValues(
         values=values, empty_result=None if all_none else float("nan")
     )

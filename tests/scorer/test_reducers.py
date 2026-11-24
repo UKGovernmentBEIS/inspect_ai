@@ -435,10 +435,19 @@ def test_root_unscored_epoch_with_none_key_is_unscored(name: str) -> None:
 
 def test_at_least_counts_only_usable_values() -> None:
     # None and NaN can't count toward k, so too few usable values is a miss.
-    reduce = at_least(2)
+    # A threshold of 0 would count None as a hit if it were converted to 0.0.
+    reduce = at_least(2, value=0)
     for missing in [None, _NAN]:
         scores = [Score(value={"k": 1}), Score(value={"k": missing})]
         assert reduce(scores).value == {"k": 0}
+
+
+def test_dict_stat_leaves_out_nan_like_scalars_with_custom_converter() -> None:
+    # A converter that does not preserve NaN sees it in every shape, as before.
+    reduce = mean_score(value_to_float=lambda v: float(v == "pass"))
+    nan_epoch = Score(value={"k": _NAN})
+    assert reduce([Score(value={"k": "pass"}), nan_epoch]).value == {"k": 0.5}
+    assert reduce([Score(value="pass"), Score(value=_NAN)]).value == 0.5
 
 
 def test_majority_counts_none_toward_panel() -> None:
