@@ -1908,6 +1908,34 @@ async def test_score_dict_append_keeps_named_header_scorer_without_scores(
         ("_unaggregated_scorer", "tag"),
         ("match", "strict"),
     ]
+    assert scored.results is not None
+    entries = _score_entries(scored)
+    headline = scored.results.headline
+
+    recompute_metrics(scored)
+
+    assert [entry["name"] for entry in entries] == ["strict"]
+    assert _score_entries(scored) == entries
+    assert scored.results.headline == headline
+
+
+async def test_score_dict_overwrite_replaces_header_with_invalid_recorded_name(
+    tmp_path: pathlib.Path,
+) -> None:
+    """An overwrite replaces a header whose recorded name is invalid, without failing part way."""
+    unscored = await _unscored_log(tmp_path)
+    assert unscored.eval.scorers is not None
+    unscored.eval.scorers[0].score_name = ""
+
+    scored = await score_async(
+        unscored, {"strict": match()}, action="overwrite", copy=False
+    )
+
+    assert scored.eval.scorers is not None
+    assert [(s.name, s.score_name) for s in scored.eval.scorers] == [
+        ("match", "strict")
+    ]
+    assert _sample_score_keys(scored) == [["strict"], ["strict"]]
 
 
 @pytest.mark.parametrize("recorded", ["", "accuracy_strict"])

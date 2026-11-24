@@ -303,13 +303,13 @@ async def score_async(
     if appending:
         _header_score_names(header)
         existing = _existing_score_names(log, header)
+    records_names = appending and any(_score_name(s) is not None for s in header)
     if isinstance(scorers, Mapping):
         score_names: list[str] | None = list(scorers.keys())
         resolved_scorers = resolve_scorer(list(scorers.values()))
         _validate_score_names(list(scorers.keys()), existing)
     else:
         resolved_scorers = resolve_scorer(scorers)
-        records_names = appending and any(_score_name(s) is not None for s in header)
         score_names = (
             _generated_score_names(resolved_scorers, existing)
             if records_names
@@ -472,7 +472,13 @@ async def score_async(
         # Since the metrics calculation above is only be done using the scorers
         # and scores that were generated during this scoring run, we need to process
         # the results carefully, depending upon whether the action was "append" or "overwrite"
-        replace_header = bool(score_names) and _held_no_scores(log, sample_held_scores)
+        # A header that records names was written by score(): its scorers may
+        # have run without leaving a score, so an append never replaces it.
+        replace_header = (
+            bool(score_names)
+            and not records_names
+            and _held_no_scores(log, sample_held_scores)
+        )
         if action == "overwrite" or log.results is None or replace_header:
             # Completely replace the results (and reductions) with the new ones
             log.reductions = reductions
@@ -1154,14 +1160,9 @@ def _held_no_scores(log: EvalLog, sample_held_scores: list[bool]) -> bool:
     the recorded names would add an empty result before the new scores. Whether
     each sample held scores is recorded as it is read, so loaded and streamed
     samples are treated alike. An append that applies no scorers keeps the header,
-    as an empty list does. So does a header that records names: `score()` wrote
-    it, and its scorers may have run without leaving a score.
+    as an empty list does.
     """
-    return (
-        not (log.results and log.results.scores)
-        and not any(sample_held_scores)
-        and not any(_score_name(s) is not None for s in log.eval.scorers or [])
-    )
+    return not (log.results and log.results.scores) and not any(sample_held_scores)
 
 
 def _existing_score_names(log: EvalLog, header: list[EvalScorer]) -> set[str]:
