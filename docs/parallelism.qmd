@@ -118,7 +118,7 @@ A sample that waits on a sample it sent through a task's handle keeps everything
 - `max_samples`: it is per task, so a task whose samples wait on its own other samples needs room for both.
 - `max_connections`: a model connection is held for a whole `generate` call. A sample waited on from an `on_before_model_generate` hook needs a connection limit above the number of such waits.
 
-Inspect does not detect a wait that cannot finish because these limits are full; the run waits until a limit is raised.
+Inspect does not detect a wait that cannot finish because these limits are full; the run waits. Raising `--max-sandboxes` or `--max-samples` with [`inspect ctl config`](control-channel.qmd#configuration) frees the wait at once. With an explicit `max_connections` (a fixed pool), raise the model's pool with `--key <model> N` instead: the key is the model's name (for example `openai/gpt-6-luna`), listed under `concurrency keys` in the `inspect ctl config` output. `--max-connections` sets only the ceiling of an [adaptive connection pool](models-concurrency.qmd#adaptive-connections), and raising it does not free the wait: the pool grows only as requests complete, and a waiting hook holds its connection. Under adaptive connections, give the pool that headroom when the run starts.
 
 ## Sharding {#sec-sharding}
 
