@@ -72,7 +72,8 @@ the command forms.
   silently switch ctl from live processes to stale logs.
 - `task list --shards` turns shard aggregation off: every `<name>.shards/`
   is walked as an ordinary directory, nested ones included, so each shard,
-  the merged log and any stray log is an ordinary row. The
+  the merged log and any stray `.eval` log is an ordinary row (`.json` logs
+  stay in `unreadable`). The
   human output then leaves out the errored-samples footer, since a merged
   log's row holds its shards' samples and a sum over the rows would count
   them twice. In live mode `--shards` is accepted and does nothing
@@ -157,7 +158,12 @@ The mode depends on how a worker writes, which it does not change:
   enters the manifest when it starts, with its start-time summary (no token
   or message progress until it completes). It leaves the manifest in one of
   two ways. **The flush handoff:** the worker writes the log before dropping
-  the flushed rows, so a sample that leaves this way is already in the log.
+  the flushed rows, so a sample that leaves this way is already in the log
+  when that write is published. A local intermediate write skipped on a
+  file-in-use error (`write_local_snapshot` in
+  `src/inspect_ai/log/_recorders/file.py`) still drops the rows, so the
+  flushed key is in neither the log nor the buffer until a later write
+  succeeds.
   **A discarded attempt:** a sample-level retry (`retry_on_error`), or a
   retry an interrupt turned into an abandoned attempt, removes the
   attempt's rows without logging it (`src/inspect_ai/_eval/task/run.py`), and a
@@ -394,7 +400,7 @@ data (`read_member` in `snapshot.py`, `consistency.py`):
   version is checked with one metadata request (`log_version`); the plan's
   central directory is reused only if it came from that version. Because
   the flush handoff writes a sample to the log before dropping it from the
-  manifest, a key the manifest held that left it by being flushed is
+  manifest, a key the manifest held that left it by a published flush is
   reported from the manifest, the log, or both, never as pending or
   missing; a later key appears on the next poll. The guarantee depends only
   on reads made in the invocation, so concurrent pollers and stale or lost
@@ -406,7 +412,9 @@ data (`read_member` in `snapshot.py`, `consistency.py`):
   it from whatever metadata they report (Azure can answer from its listing
   cache), so within one invocation they can keep a stale view of a log and
   miss a key flushed after it. Members with no manifest have no second
-  object to order against.
+  object to order against. A skipped local write ("What the log directory
+  holds while a run is live") leaves nothing to read: the key reads
+  `pending` or missing until a later write succeeds.
 - **A retried key can drop out between syncs.** A key whose attempt was
   discarded for a sample-level retry is in neither object until a sync
   publishes its new attempt ("What the log directory holds while a run is
@@ -678,8 +686,9 @@ polling guidance, weighing request cost against seeing each buffer sync.
   while a re-run attempt runs, completes and is flushed
   (`test_every_read_follows_a_re_run_key_through_its_attempt`).
 - **No key lost to a torn read.** On local and S3 logs, a key that leaves
-  the manifest through the flush handoff is reported from the manifest or
-  the log, never as pending or missing; a mid-read replacement is re-read, and an exhausted
+  the manifest through a published flush is reported from the manifest or
+  the log, never as pending or missing (a skipped local intermediate write
+  leaves the key in neither until a later write succeeds); a mid-read replacement is re-read, and an exhausted
   re-read is reported, never turned into missing data
   (`test_read_consistently_retries_torn_reads_then_succeeds`,
   `test_exhausted_re_reads_fail_the_read_and_mark_list_reads_incomplete`,
@@ -690,8 +699,9 @@ polling guidance, weighing request cost against seeing each buffer sync.
   ("Cache"). Steady-state polls read only what changed ("Cost").
 - **Agreement with the merge** on which files are shard attempts and which
   entries in a companion are stray, through the shared walk, and on the
-  task id of a shard set with no readable merged log while the file name
-  pattern is unchanged ("Walking the directory", "Logical tasks").
+  task id of a shard set with no readable merged log while its first shard
+  is readable and the file name pattern is unchanged ("Walking the
+  directory", "Logical tasks").
 - **Limits.** Data lags the workers by their flush and sync cadences, which
   are not bounds: a failed upload, a stopped worker or a retuned
   `log_shared` stretches them, and nothing records a heartbeat. Without
@@ -809,8 +819,8 @@ applies with a different transport:
 - **Paths come from the listing, not from content.** Manifest and segment
   paths are derived from listed names by fixed rules
   (`.buffer/<stem>/manifest.json`, `segment.<n>.zip` from the manifest's
-  integer segment ids). The companion is derived from the merged log's
-  name; nothing recorded in a log locates a file. The local walk does not
+  integer segment ids). The merged log is matched by name to a listed
+  companion; nothing recorded in a log locates a file. The local walk does not
   follow directory symlinks, and a name in a shard set that S3 would read
   as another key is refused.
 - **Hostile or oversized inputs** cost memory and bandwidth on the caller's
