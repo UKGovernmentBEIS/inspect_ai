@@ -1000,8 +1000,9 @@ class _Steps:
     view), and the result. The result is all of its fields but its `id`,
     which the bridge gives each parsed message afresh. The fields left out
     are those of `STEP_DIGEST_EXCLUDED`. A value that can't be encoded gives
-    a digest no other step has. The digest also covers one thing the step
-    lacks: where the call sits in the request (`_check_part`).
+    a digest no other step has. The digest also covers two things the step
+    lacks: the bridged tool the check is of, and where the call sits in the
+    request (`_check_part`).
 
     A check's part of the digest is computed once per set of results it
     answers in the request (`checks`), and each result's once, so repeated
@@ -1079,12 +1080,19 @@ def _check_part(
     each occurrence's result is checked. The step itself doesn't show it. A
     result with no call in its request has no place, so results identical in
     every field, checked as one call, are one step.
+
+    The digest also covers the check's bridged tool (`target`): tools of
+    one name on two servers, with default viewers, show the same call and
+    view, and a result checked as one is still checked as the other.
     """
+    target = check.target
     return _parts_digest(
         current_conversation(),
         _serialized(check.call),
         _serialized(view) if view is not None else _unmatched(),
         place,
+        target.server if target is not None else None,
+        target.tool if target is not None else None,
     )
 
 

@@ -9250,6 +9250,76 @@ async def test_a_running_report_check_for_one_target_does_not_answer_for_another
 
 
 @pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_result_checked_as_one_servers_tool_is_checked_as_another_servers_tool_of_its_name(
+    dialect: HostDialect,
+) -> None:
+    """Two servers serve `read_file`, with default viewers; the same call and id, handed to each in turn, returns the same bytes from each.
+
+    The second handout adds the other server's tool as a target, and the
+    result is checked as it, though its call, view and bytes are those of a
+    check that passed as the first server's tool.
+    """
+    call = ToolCall(id="same", function="read_file", arguments={"path": "p"})
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[tool_calls_output(call), done, tool_calls_output(call), done],
+    )
+    public, private = "Read a public file.", "Read a private file."
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            server: {
+                "read_file": served_tool(
+                    AsyncMock(return_value="contents"), description=description
+                )
+            }
+            for server, description in (("first", public), ("second", private))
+        },
+    )
+    seen: list[AfterToolCall] = []
+
+    @protocol
+    def reject_without_context() -> Protocol:
+        async def after(
+            context: Context, step: AfterToolCall, escalations: Escalations
+        ) -> Decision | None:
+            seen.append(step)
+            if step.input is None:
+                return Decision.terminate("result without context")
+            return None
+
+        return after
+
+    with active_test_sentinel(reject_without_context()):
+        first = _HostConversation(
+            dialect, "Read p.", declare("read_file", description=public)[0]
+        )
+        first_calls = await first.request(bridge)
+        result = await call_host_tool(bridge)("first", "read_file", {"path": "p"})
+        first.results(first_calls, [str(result)])
+        await first.request(bridge)
+        assert [step.input is not None for step in seen] == [True]
+        second = _HostConversation(
+            dialect, "Read p.", declare("read_file", description=private)[0]
+        )
+        second_calls = await second.request(bridge)
+        assert bridge._handouts.handed["same"].ambiguous
+        result = await call_host_tool(bridge)("second", "read_file", {"path": "p"})
+        second.results(second_calls, [str(result)])
+        with pytest.raises(TerminateSampleError, match="result without context"):
+            await second.request(bridge)
+    assert len(seen) == 2
+
+
+@pytest.mark.usefixtures("fake_sentinel")
 @pytest.mark.parametrize("outcome", ["pass", "fail", "cancel"])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
 async def test_a_result_whose_check_runs_while_its_proposal_is_evicted_is_waited_for(
