@@ -5,6 +5,7 @@ import pytest
 from pydantic import BaseModel
 
 from inspect_ai import Epochs, Task, eval, score
+from inspect_ai._eval.task.results import eval_results
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.registry import registry_info
@@ -13,13 +14,18 @@ from inspect_ai.scorer import (
     Metric,
     Score,
     Scorer,
+    ScoreReducer,
     Value,
     accuracy,
+    at_least,
     includes,
+    majority_score,
     match,
+    max_score,
     mean,
     mean_score,
     metric,
+    mode_score,
     scorer,
     std,
     value_to_float,
@@ -1870,3 +1876,131 @@ def test_two_epoch_mean_skips_missing_epoch() -> None:
     assert log.results.scores[0].metrics["aggregate"].value == pytest.approx(1.0)
     assert log.reductions is not None
     assert log.reductions[0].samples[0].value == {"x": 1.0}
+
+
+def _key_results(
+    values_per_sample: list[list[dict[str, Any]]],
+    metrics: list[Metric | dict[str, list[Metric]]],
+    reducers: ScoreReducer | list[ScoreReducer] | None,
+) -> dict[str, tuple[dict[str, Any], int, int]]:
+    """Metric values, scored and unscored counts per EvalScore, by score name."""
+
+    @scorer(metrics=metrics)
+    def dict_scorer():
+        async def score(state: TaskState, target: Target) -> Score:
+            raise NotImplementedError
+
+        return score
+
+    scores = [
+        {
+            "dict_scorer": SampleScore(
+                score=Score(value=value),
+                sample_id=sample_id,
+                scorer="dict_scorer",
+            )
+        }
+        for sample_id, epochs in enumerate(values_per_sample, start=1)
+        for value in epochs
+    ]
+    results, _ = eval_results(
+        samples=len(values_per_sample),
+        scores=scores,
+        reducers=reducers,
+        scorers=[dict_scorer()],
+        metrics=None,
+        scorer_names=["dict_scorer"],
+    )
+    return {
+        eval_score.name: (
+            {name: metric.value for name, metric in eval_score.metrics.items()},
+            eval_score.scored_samples or 0,
+            eval_score.unscored_samples or 0,
+        )
+        for eval_score in results.scores
+    }
+
+
+_ONE_KEY_VALUES: list[list[dict[str, Any]]] = [
+    [{"k": 1}],
+    [{"k": 0}],
+    [{"k": None}],
+    [{"k": float("nan")}],
+]
+
+
+def test_per_key_metrics_treat_none_as_unscored() -> None:
+    """A None under a key is left out of per-key metrics and counted as unscored, like NaN."""
+    results = _key_results(
+        _ONE_KEY_VALUES, [{"k": [mean(), accuracy(), stderr()]}], reducers=[]
+    )
+    metrics, scored, unscored = results["k"]
+    assert metrics == {
+        "mean": pytest.approx(0.5),
+        "accuracy": pytest.approx(0.5),
+        "stderr": pytest.approx(0.5),
+    }
+    assert (scored, unscored) == (2, 2)
+
+
+@pytest.mark.parametrize(
+    "on_missing,expected",
+    [("skip", 0.5), ("zero", 1 / 3)],
+)
+def test_aggregate_still_applies_on_missing_to_none(
+    on_missing: Literal["skip", "zero"], expected: float
+) -> None:
+    """aggregate() still sees None as missing, alongside per-key metrics on the same key."""
+    results = _key_results(
+        _ONE_KEY_VALUES,
+        [{"k": [mean()]}, aggregate("k", mean(), on_missing=on_missing)],
+        reducers=[],
+    )
+    metrics, scored, unscored = results["dict_scorer"]
+    assert metrics["aggregate"] == pytest.approx(expected)
+    # aggregate is a whole-score metric: its counts come from root values
+    assert (scored, unscored) == (4, 0)
+    assert results["k"][0]["mean"] == pytest.approx(0.5)
+
+
+def test_aggregate_error_on_none_unchanged() -> None:
+    with pytest.raises(ValueError, match="is None"):
+        _key_results(_ONE_KEY_VALUES, [aggregate("k", mean())], reducers=[])
+
+
+@pytest.mark.parametrize(
+    "reducers,expected",
+    [(None, (0.5, 2, 0)), ([], (1 / 3, 3, 1))],
+    ids=["mean_reducer", "no_reducer"],
+)
+def test_per_key_none_handling_matches_with_and_without_reducer(
+    reducers: list[ScoreReducer] | None, expected: tuple[float, int, int]
+) -> None:
+    """None is dropped from the mean whether or not epochs are reduced first."""
+    results = _key_results(
+        [[{"k": True}, {"k": None}], [{"k": False}, {"k": False}]],
+        [{"k": [mean()]}],
+        reducers=reducers,
+    )
+    metrics, scored, unscored = results["k"]
+    assert metrics["mean"] == pytest.approx(expected[0])
+    assert (scored, unscored) == expected[1:]
+
+
+@pytest.mark.parametrize(
+    "reducer",
+    [at_least(1), mode_score(), majority_score(), max_score()],
+    ids=["at_least", "mode", "majority", "max"],
+)
+def test_all_none_key_reaches_aggregate_as_missing(reducer: ScoreReducer) -> None:
+    """Every reducer keeps an all-None key as None, so aggregate(on_missing=...) applies."""
+    values: list[list[dict[str, Any]]] = [
+        [{"k": None}, {"k": None}],
+        [{"k": 1}, {"k": 1}],
+    ]
+    zero = _key_results(
+        values, [aggregate("k", mean(), on_missing="zero")], reducers=reducer
+    )
+    assert zero["dict_scorer"][0]["aggregate"] == pytest.approx(0.5)
+    with pytest.raises(ValueError, match="is None"):
+        _key_results(values, [aggregate("k", mean())], reducers=reducer)

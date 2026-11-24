@@ -529,8 +529,13 @@ def scorers_from_metric_dict(
                     # Convert the score into a simple scalar value to apply metrics
                     metric_score = deepcopy(sample_score)
                     metric_score.score.value = cast(float, value[metric_key])
-                    if isinstance(metric_score.score.value, float) and math.isnan(
-                        metric_score.score.value
+                    # None (missing) is unscored here, like NaN: per-key
+                    # metrics have no missing-value policy, and value_to_float
+                    # would otherwise count it as 0.0. Whole-score metrics
+                    # such as aggregate() still receive the dict with None.
+                    if value[metric_key] is None or (
+                        isinstance(metric_score.score.value, float)
+                        and math.isnan(metric_score.score.value)
                     ):
                         unscored_samples += 1
                     else:
