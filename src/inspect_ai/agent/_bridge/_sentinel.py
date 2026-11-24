@@ -404,8 +404,9 @@ class _Handouts:
     than before runs only the new ones. A step whose check is running
     (another request's) is waited for, and one whose check failed fails
     again. The digests of passed steps are kept in the checkpoint
-    (`checked`), so a result checked before a resume is not checked again
-    after it.
+    (`checked`), but they don't match after a resume: a step's conversation
+    (`_check_part`) is then another, so a resumed run checks each result it
+    carries once more, without context.
 
     The results in the state the bridge starts with were in the agent's
     conversation before the bridge ran, and are not checked again, as a native
@@ -1065,9 +1066,13 @@ def _check_part(
     """The digest of a check's step without its proposal's context, all but its result (`_Steps`).
 
     A result checked while its proposal is kept is then the same step once
-    the proposal is evicted or lost to a resume, or its id is handed out
-    again, and is not checked again. The conversation is the request's,
-    which a check without context has. With no proposing message to tell
+    the proposal is evicted or its id is handed out again, and is not
+    checked again. The conversation is the request's
+    (`current_conversation()`), which a check without context has: the
+    innermost agent span, else the sample. A resumed run has a new one (a
+    run opens its agent span afresh, and a resumed sample has a new uuid),
+    so a step checked before a resume is another step after it. With no
+    proposing message to tell
     one occurrence of a call from another (the same call proposed again
     under its id, and run again with the same result), the digest also
     covers `place`, the id of the request's message carrying the call, so

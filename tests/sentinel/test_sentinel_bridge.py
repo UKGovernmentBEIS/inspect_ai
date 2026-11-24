@@ -4199,10 +4199,10 @@ async def test_a_bridge_does_not_resume_from_incomplete_result_checks(
 
 @pytest.mark.parametrize("sandbox", [False, True])
 @pytest.mark.parametrize("dialect", DIALECTS)
-async def test_a_result_checked_before_a_checkpoint_is_not_checked_again_after_resume(
+async def test_a_result_checked_before_a_checkpoint_is_checked_once_more_after_resume(
     dialect: str, sandbox: bool, tmp_path: Path
 ) -> None:
-    """A resumed bridge has no proposals, but its checkpoint keeps the passed steps, which have no context: a result checked before the checkpoint is not checked again; a changed result is."""
+    """A resumed run opens a new agent span, as `run()` does on each invocation, so its steps are in another conversation: a result checked before the checkpoint is checked once more, without context, then not again."""
     seen: Steps = []
     model = Scripted(calls_output(replace(READ, id=LATE)), calls_output())
     start = AgentState(messages=[ChatMessageUser(content=TASK)])
@@ -4211,11 +4211,12 @@ async def test_a_result_checked_before_a_checkpoint_is_not_checked_again_after_r
         with _patch_sample_runtime([]):
             checkpointer = real_checkpointer(tmp_path)
             bridge = started_with(sandbox, model.model, deepcopy(start), checkpointer)
-            with active([bridge_recording(seen)]):
-                handed = await dialect_proposal(dialect, bridge, TASK)
-                await dialect_history_request(
-                    dialect, bridge, replace(READ, id=handed), "safe"
-                )
+            async with span("agent", type="agent"):
+                with active([bridge_recording(seen)]):
+                    handed = await dialect_proposal(dialect, bridge, TASK)
+                    await dialect_history_request(
+                        dialect, bridge, replace(READ, id=handed), "safe"
+                    )
             await checkpointer.checkpoint()
             checkpointer.close()
 
@@ -4223,17 +4224,19 @@ async def test_a_result_checked_before_a_checkpoint_is_not_checked_again_after_r
             resumed = real_checkpointer(tmp_path, saved)
             try:
                 bridge = started_with(sandbox, model.model, deepcopy(start), resumed)
-                with active([bridge_recording(seen)]):
-                    for result in ["safe", "safe", "changed"]:
-                        await dialect_history_request(
-                            dialect, bridge, replace(READ, id=handed), result
-                        )
+                async with span("agent", type="agent"):
+                    with active([bridge_recording(seen)]):
+                        for result in ["safe", "safe", "changed"]:
+                            await dialect_history_request(
+                                dialect, bridge, replace(READ, id=handed), result
+                            )
             finally:
                 resumed.close()
 
     afters = [step for step in seen if isinstance(step, AfterToolCall)]
     assert [(step.result.text, step.input is None) for step in afters] == [
         (as_handed(dialect, "safe"), False),
+        (as_handed(dialect, "safe"), True),
         (as_handed(dialect, "changed"), True),
     ]
 

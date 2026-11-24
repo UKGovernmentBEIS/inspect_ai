@@ -11,7 +11,7 @@ import json
 import logging
 import re
 from collections import deque
-from contextlib import contextmanager, nullcontext
+from contextlib import AsyncExitStack, contextmanager, nullcontext
 from copy import deepcopy
 from dataclasses import replace
 from functools import partial
@@ -8953,12 +8953,16 @@ async def test_a_result_checked_for_one_target_is_checked_again_after_its_propos
 @pytest.mark.usefixtures("fake_sentinel")
 @pytest.mark.parametrize("fallback", ["evict", "restore"])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
-async def test_a_replay_after_its_proposal_is_gone_is_not_checked_again(
+async def test_a_replay_after_its_proposal_is_gone_is_checked_once_more_only_after_a_resume(
     dialect: HostDialect, fallback: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Once a result's proposal is gone, after an eviction or a resume, its replay is the step already checked and is not checked again.
+    """Once a result's proposal is gone, its replay is checked as the handout's target without context.
 
-    A later handout of the call resolving to another target is still checked.
+    After an eviction it is the step already checked, so it is not checked
+    again. A resumed run opens a new agent span, as `run()` does on each
+    invocation, so there it is another step: checked once, then not again.
+    A later handout of the call resolving to another target is still
+    checked.
     """
     call = ToolCall(id="same", function="summarize", arguments={"path": "p"})
     done = ModelOutput.from_content("mockllm/model", "Done.")
@@ -8976,29 +8980,39 @@ async def test_a_replay_after_its_proposal_is_gone_is_not_checked_again(
     bridge = _status_and_read_file_bridge(model)
     seen: list[tuple[str, str, bool]] = []
     with active_test_sentinel(terminate_on_a_secret_target_result(seen)):
-        first = _HostConversation(
-            dialect, "First", declare("summarize", description=STATUS)[0]
-        )
-        first_calls = await first.request(bridge)
-        first.results(first_calls, ["secret"])
-        await first.request(bridge)
-        if fallback == "restore":
-            bridge._handouts = _Handouts(bridge._handouts.saved())
-        else:
-            filler = ToolCall(id="filler", function="other", arguments={})
-            with monkeypatch.context() as patch:
-                patch.setattr(sentinel_module, "_MAX_PROPOSALS", 1)
-                bridge._handouts.hand_over(
-                    [filler],
-                    [filler],
-                    [SentinelCheck(filler, None, "", "")],
-                )
-        assert not any(call_id == "same" for call_id, _ in bridge._handouts.proposals)
-        checked = len(seen)
-        for _ in range(2):
-            _continue(first)
+        async with AsyncExitStack() as run:
+            await run.enter_async_context(span("agent", type="agent"))
+            first = _HostConversation(
+                dialect, "First", declare("summarize", description=STATUS)[0]
+            )
+            first_calls = await first.request(bridge)
+            first.results(first_calls, ["secret"])
             await first.request(bridge)
-        assert seen[checked:] == []
+            if fallback == "restore":
+                # the run ends; the resumed one has its own agent span
+                await run.aclose()
+                bridge._handouts = _Handouts(bridge._handouts.saved())
+                await run.enter_async_context(span("agent", type="agent"))
+            else:
+                filler = ToolCall(id="filler", function="other", arguments={})
+                with monkeypatch.context() as patch:
+                    patch.setattr(sentinel_module, "_MAX_PROPOSALS", 1)
+                    bridge._handouts.hand_over(
+                        [filler],
+                        [filler],
+                        [SentinelCheck(filler, None, "", "")],
+                    )
+            assert not any(
+                call_id == "same" for call_id, _ in bridge._handouts.proposals
+            )
+            checked = len(seen)
+            for _ in range(2):
+                _continue(first)
+                await first.request(bridge)
+        # the handout's target, without context
+        assert [(f, context) for f, _, context in seen[checked:]] == (
+            [("status", False)] if fallback == "restore" else []
+        )
         second = _HostConversation(dialect, "Second", declare("summarize")[0])
         second_calls = await second.request(bridge)
         second.results(second_calls, ["secret"])
