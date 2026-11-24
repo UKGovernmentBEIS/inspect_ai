@@ -628,22 +628,29 @@ def test_a_media_result_moved_out_of_the_tool_message_replays_as_it_ran() -> Non
 
 
 @solver
-def clears_the_result() -> Solver:
-    """Run a tool, then clear its result in the conversation under the same id."""
+def clears_the_result(
+    at_turn: int = 2, in_place: bool = False, update: dict[str, Any] | None = None
+) -> Solver:
+    """Run a tool, then change its result in the conversation under the same id before the model call `at_turn` (1: before the result is first sent): its content cleared, or `update` applied."""
+    changes = update if update is not None else {"content": "[cleared]"}
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         model = get_model()
         tools = [returns("original result")]
         for turn in range(3):
-            if turn == 2:
+            if turn == at_turn:
                 [index] = [
                     i
                     for i, message in enumerate(state.messages)
                     if isinstance(message, ChatMessageTool)
                 ]
-                state.messages[index] = state.messages[index].model_copy(
-                    update={"content": "[cleared]"}
-                )
+                if in_place:
+                    for name, value in changes.items():
+                        setattr(state.messages[index], name, value)
+                else:
+                    state.messages[index] = state.messages[index].model_copy(
+                        update=changes
+                    )
             output = await model.generate(state.messages, tools)
             state.messages.append(output.message)
             if output.message.tool_calls:
@@ -661,6 +668,41 @@ def test_a_result_cleared_later_replays_as_it_ran() -> None:
     [after] = [step for step in replay if step.stage == "tool_result"]
     assert isinstance(after.step, AfterToolCall)
     assert after.step.result.text == "original result"
+
+
+@pytest.mark.parametrize("in_place", [True, False])
+@pytest.mark.parametrize(
+    "update",
+    [
+        {"content": "[cleared]"},
+        {"error": ToolCallError("unknown", "[failed]")},
+        {"tool_call_id": "other"},
+    ],
+    ids=["content", "error", "call_id"],
+)
+def test_a_result_changed_before_it_was_sent_replays_as_it_ran(
+    in_place: bool, update: dict[str, Any]
+) -> None:
+    """The log holds only the changed copy under the result's id, so replay rebuilds the result the step saw from its `ToolEvent`, keeping its message id."""
+    replay = assert_replay_equals_live(
+        clears_the_result(at_turn=1, in_place=in_place, update=update),
+        outputs(call("returns"), done(), done()),
+    )
+    [after] = [step for step in replay if step.stage == "tool_result"]
+    assert isinstance(after.step, AfterToolCall)
+    shown = after.step.result
+    assert (shown.text, shown.error, shown.tool_call_id) == (
+        "original result",
+        None,
+        after.step.call.id,
+    )
+    # the model was only ever sent the changed copy, under the result's id
+    [_, second, _] = [step for step in replay if step.stage == "model_input"]
+    assert isinstance(second.step, BeforeGenerate)
+    [sent] = [m for m in second.step.input if isinstance(m, ChatMessageTool)]
+    assert sent.id == shown.id
+    for name, value in update.items():
+        assert getattr(sent, name) == value
 
 
 def helper(model: Any) -> Agent:
@@ -10859,14 +10901,29 @@ def test_an_approvals_view_replays_when_only_a_sentinel_changes_the_call(
 
 
 def test_a_result_is_the_message_the_tool_event_names() -> None:
+    """The logged copy under the event's message id that holds the event's result; else one rebuilt from the event, under its message id, never a copy that differs."""
     from inspect_ai._sentinel._replay import _Driver
 
     logged = ChatMessageTool(
-        id="m1", content="as the model saw it", tool_call_id="c1", function="f"
+        id="m1", content="as the call returned it", tool_call_id="c1", function="f"
     )
     driver = _Driver([], [], [logged], "sample", EvalInfo(None, True), None, ())
-    event = ToolEvent(id="c1", function="f", arguments={}, result="", message_id="m1")
+    event = ToolEvent(
+        id="c1",
+        function="f",
+        arguments={},
+        result="as the call returned it",
+        message_id="m1",
+    )
     assert driver._result(event) is logged
+    edited = event.model_copy(update={"result": "before an edit"})
+    rebuilt = driver._result(edited)
+    assert rebuilt is not logged
+    assert (rebuilt.id, rebuilt.text, rebuilt.tool_call_id) == (
+        "m1",
+        "before an edit",
+        "c1",
+    )
     unknown = event.model_copy(update={"message_id": "m2", "result": "rebuilt"})
     rebuilt = driver._result(unknown)
     assert (rebuilt.id, rebuilt.text) == ("m2", "rebuilt")

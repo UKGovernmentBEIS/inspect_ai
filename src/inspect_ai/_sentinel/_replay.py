@@ -2361,22 +2361,22 @@ class _Driver:
         return False if self.eval_info.inspect_ai_version is not None else None
 
     def _result(self, event: ToolEvent) -> ChatMessageTool:
+        """The result message the call produced, as its `tool_result` step showed it live.
+
+        Code can edit a tool message in place or replace it under its id, also before it is first sent, so the log may hold no copy with the event's result. Then the message is rebuilt from the event under the event's message id, never taken from an edited copy.
+        """
         if event.message_id is not None:
-            # code can edit a tool message in place, keeping its id: the copy
-            # holding the event's result is what the call produced
-            copies = [
-                message
-                for message in self._messages_by_id_all().get(event.message_id, [])
-                if isinstance(message, ChatMessageTool)
-            ]
             result = jsonable_python(event.result)
             found = next(
                 (
                     message
-                    for message in copies
-                    if json_equal(jsonable_python(message.content), result)
+                    for message in self._messages_by_id_all().get(event.message_id, [])
+                    if isinstance(message, ChatMessageTool)
+                    and message.tool_call_id == event.id
+                    and message.error == event.error
+                    and json_equal(jsonable_python(message.content), result)
                 ),
-                copies[0] if copies else None,
+                None,
             )
             if found is not None:
                 return found
