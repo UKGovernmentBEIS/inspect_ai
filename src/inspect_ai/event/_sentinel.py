@@ -143,7 +143,7 @@ class SentinelEvent(BaseEvent):
     """Instance path (e.g. "attempt/internet_attempt")."""
 
     function: str | None = Field(default=None)
-    """Name of the function that produced the report, or that raised for an `error` event, which tells apart the functions of an instance whose factory returned several; for the root's `error` event, the root's function, whichever layer below it raised. `None` for `cancelled`, `bypassed` and `unjudged` events, and for a sentinel sidecar's report of a step it sent without its records, as a trimmed one is (see `SentinelSidecar.trimmed`)."""
+    """Name of the function that produced the report, or that raised for an `error` event, which tells apart the functions of an instance whose factory returned several; for the root's `error` event, the root's function, whichever layer below it raised. `None` for `cancelled`, `bypassed` and `unjudged` events. Empty for a sentinel sidecar's report of a step it sent without its records, as a trimmed one is (see `SentinelSidecar.trimmed`)."""
 
     step_id: str
     """The step examined: at the generate stages (`model_input`, `model_output`) the generate's id, the `uuid` of its first `ModelEvent`, shared by both stages and by the generate's retried attempts; at the tool stages the tool call id."""
@@ -269,6 +269,11 @@ class SentinelEvent(BaseEvent):
             ]
             if self.references:
                 unexpected.append("references")
+            if self.status == "unjudged":
+                if self.explanation is not None:
+                    unexpected.append("explanation")
+                if self.audit:
+                    unexpected.append("audit")
             if unexpected:
                 raise ValueError(
                     f"A '{self.status}' SentinelEvent records no report, so "
@@ -286,9 +291,7 @@ class SentinelEvent(BaseEvent):
                 raise ValueError(
                     "A 'decision' SentinelEvent requires action and no suspicion."
                 )
-            # a sidecar's report names no function where the sidecar sent
-            # the step without its records, as a trimmed one does
-            if self.function is None and self.sidecar is None:
+            if self.function is None:
                 raise ValueError(f"A '{self.status}' SentinelEvent requires function.")
         has_decision = self.kind == "decision" and self.status in (
             "reported",

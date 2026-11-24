@@ -149,9 +149,13 @@ def _observation(**kwargs: Any) -> SentinelEvent:
         _observation(stage="tool_result", execution_id="call_token"),
         _observation(completed="2026-11-23T10:00:03+00:00", working_time=1.5),
         _sentinel_event(sidecar=_SIDECAR),
-        _sentinel_event(function=None, sidecar=dict(_SIDECAR, trimmed=True)),
+        _sentinel_event(function="", sidecar=dict(_SIDECAR, trimmed=True)),
         _sentinel_event(
-            status="unjudged", function=None, action=None, reason="provider_error"
+            status="unjudged",
+            function=None,
+            action=None,
+            explanation=None,
+            reason="provider_error",
         ),
     ],
 )
@@ -220,7 +224,7 @@ def test_sentinel_event_without_report_rejects_report_fields(
 ) -> None:
     fields: dict[str, Any] = dict(kind=kind, status=status, function=None, action=None)
     if status == "unjudged":
-        fields["reason"] = "cancelled"
+        fields.update(reason="cancelled", explanation=None)
     _sentinel_event(**fields)
     fields[field] = value
     with pytest.raises(ValidationError, match=field):
@@ -283,13 +287,20 @@ def test_sentinel_error_is_only_on_an_error_event(status: str) -> None:
         (dict(status="unjudged"), "only on, an 'unjudged'"),
         (dict(reason="cancelled"), "only on, an 'unjudged'"),
         (dict(status="unjudged", reason="cancelled", path="judge"), "empty path"),
+        (dict(status="unjudged", reason="cancelled", audit=True), "audit"),
+        (
+            dict(status="unjudged", reason="cancelled", explanation="why"),
+            "explanation",
+        ),
     ],
 )
 def test_sentinel_unjudged_is_a_root_event_with_a_reason(
     fields: dict[str, Any], match: str
 ) -> None:
     with pytest.raises(ValidationError, match=match):
-        _sentinel_event(function=None, action=None, **fields)
+        _sentinel_event(
+            **{"function": None, "action": None, "explanation": None, **fields}
+        )
 
 
 def test_sentinel_superseded_is_only_for_decisions() -> None:

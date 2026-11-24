@@ -46,7 +46,9 @@ def record_sidecar_reports(
         }
         if judgment.trimmed or step.recorded is None:
             # a step without its records holds only what Inspect acts on,
-            # with no monitor or protocol, so no function, to name. The
+            # with no monitor or protocol, so no function, to name. Its
+            # function is empty, not None: older Inspect versions require
+            # one on a reported event, and would fail to read the log. The
             # decision's own metadata is kept when the sidecar sent it: a
             # trimmed judgment leaves it out, and nothing restores it
             transcript()._event(
@@ -57,6 +59,7 @@ def record_sidecar_reports(
                         "step_id": step_id,
                         "conversation": conversation,
                         "stage": step.stage,
+                        "function": "",
                         "kind": "decision",
                         "status": "reported",
                         "sidecar": at_root,

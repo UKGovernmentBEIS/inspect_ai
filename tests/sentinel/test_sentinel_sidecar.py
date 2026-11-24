@@ -5086,9 +5086,11 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
         "stage": "tool_call",
         "call": "call_1",
         "decision": {"action": "reject", "message": "Tokyo is not allowed."},
+        "reviews": ["q_1"],
     }
     if not trimmed:
-        step["recorded"] = _RECORDED
+        # the decision is the root's, at the empty path
+        step["recorded"] = [_RECORDED[0], {**_RECORDED[1], "path": ""}]
     judgment: dict[str, Any] = {
         "outcome": "proceed",
         "steps": [step],
@@ -5127,9 +5129,11 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
         assert (event.kind, event.action, event.function) == (
             "decision",
             "reject",
-            None,
+            "",
         )
         assert where.trimmed
+        assert where.reviews is not None
+        assert [r.id for r in where.reviews] == ["q_1"]
     else:
         # one per report, as in process
         observed, decided = events
@@ -5139,12 +5143,16 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
             0.9,
         )
         assert (decided.path, decided.action, decided.message) == (
-            "no_tokyo",
+            "",
             "reject",
             "Tokyo is not allowed.",
         )
         assert decided.function == "decide"
         assert not where.trimmed
+        # the question's id is on the step's root event alone
+        assert observed.sidecar is not None and observed.sidecar.reviews is None
+        assert decided.sidecar is not None and decided.sidecar.reviews is not None
+        assert [r.id for r in decided.sidecar.reviews] == ["q_1"]
 
 
 def test_a_step_without_records_keeps_its_decisions_metadata() -> None:
@@ -5180,7 +5188,7 @@ def test_a_step_without_records_keeps_its_decisions_metadata() -> None:
     [event] = _sentinel_events(sample)
     assert event.metadata == {"rule": "no_tokyo"}
     assert event.sidecar is not None and event.sidecar.trimmed is False
-    assert event.function is None
+    assert event.function == ""
 
 
 @scorer(metrics=[mean()])
