@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, AbstractSet, NamedTuple
 
-from inspect_ai._util.log_layout import merged_log_candidates_for_shard
+from inspect_ai._util.log_layout import merged_log_for_shard
 
 if TYPE_CHECKING:
     from ._file import EvalLogInfo
@@ -30,13 +30,12 @@ def merged_logs_to_check(logs: list[EvalLogInfo]) -> list[EvalLogInfo]:
     mtimes = {log.name: log.mtime for log in logs}
     names: set[str] = set()
     for log in logs:
-        candidates = merged_log_candidates_for_shard(log.name)
-        if candidates is None or log.mtime is None:
+        merged = merged_log_for_shard(log.name)
+        if merged is None or log.mtime is None:
             continue
-        for candidate in candidates:
-            merged_mtime = mtimes.get(candidate)
-            if merged_mtime is not None and log.mtime < merged_mtime:
-                names.add(candidate)
+        merged_mtime = mtimes.get(merged)
+        if merged_mtime is not None and log.mtime < merged_mtime:
+            names.add(merged)
     return [log for log in logs if log.name in names]
 
 
@@ -72,30 +71,12 @@ def filter_merged_shards(
     visible: list[EvalLogInfo] = []
     visible_shards = False
     for log in logs:
-        candidates = merged_log_candidates_for_shard(log.name)
-        if candidates is None:
+        merged = merged_log_for_shard(log.name)
+        if merged is None:
             visible.append(log)
             continue
-        merged_mtime = _merged_log_mtime(candidates, mtimes, finished)
+        merged_mtime = mtimes.get(merged) if merged in finished else None
         if merged_mtime is None or log.mtime is None or log.mtime >= merged_mtime:
             visible.append(log)
             visible_shards = True
     return MergedShardsFilter(logs=visible, visible_shards=visible_shards)
-
-
-def _merged_log_mtime(
-    candidates: list[str],
-    mtimes: dict[str, float | None],
-    finished: AbstractSet[str],
-) -> float | None:
-    """Return the oldest mtime among the merged logs present in the listing.
-
-    When both ``<name>.eval`` and ``<name>-recovered.eval`` exist, either may
-    be stale, so the older one decides and fewer shards are hidden. Returns
-    ``None`` (hide nothing) unless every present merged log is finished.
-    """
-    present = [c for c in candidates if c in mtimes]
-    if not present or any(c not in finished for c in present):
-        return None
-    merged = [m for c in present if (m := mtimes[c]) is not None]
-    return min(merged) if len(merged) == len(present) else None

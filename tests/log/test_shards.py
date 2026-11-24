@@ -786,22 +786,6 @@ def failing() -> Any:
     _FAILING.clear()
 
 
-def test_merge_refuses_a_recovered_log_name(tmp_path: Path) -> None:
-    merged, shards = _paths(tmp_path)
-    _run(shards, "0", sample_id=[1, 2])
-    recovered = f"{tmp_path}/{NAME}-recovered.eval"
-    with pytest.raises(ValueError, match=f"{NAME}.eval.*{NAME}.shards"):
-        merge_eval_log_shards(recovered, _task())
-    assert not os.path.exists(recovered) and not os.path.exists(merged)
-
-    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    before = Path(merged).read_bytes()
-    with pytest.raises(ValueError, match="recovered"):
-        merge_eval_log_shards(recovered, _task())
-    assert not os.path.exists(recovered)
-    assert Path(merged).read_bytes() == before
-
-
 @pytest.mark.parametrize(
     "kwargs,message",
     [
@@ -3517,20 +3501,6 @@ async def test_a_merge_whose_log_was_removed_meanwhile_is_refused_on_s3(
     assert f"{s3_root}/{NAME}.eval" not in _s3_keys(f"{s3_root}/")
 
 
-def test_merge_refuses_a_recovered_shards_directory_name(tmp_path: Path) -> None:
-    import shutil
-
-    _, shards = _paths(tmp_path)
-    neighbour = _run(shards, "0", sample_id=[1, 2, 3])
-    recovered = f"{tmp_path}/{NAME}-recovered.shards"
-    shutil.copytree(shards, recovered)
-    before = _files(str(tmp_path))
-    with pytest.raises(ValueError, match=f"{NAME}.shards"):
-        merge_eval_log_shards(recovered, _task())
-    assert _files(str(tmp_path)) == before
-    assert os.path.exists(neighbour.location)
-
-
 # characters a file:// URI encodes or a URL parser reads specially
 _RESERVED = "sp ace%20d#ir?x"
 
@@ -3901,24 +3871,6 @@ def test_score_names_from_the_log_never_load_files(tmp_path: Path) -> None:
     assert not marker.exists()
 
 
-@pytest.mark.parametrize("suffix", [".shards", ".eval"])
-def test_merge_refuses_an_encoded_recovered_name(tmp_path: Path, suffix: str) -> None:
-    import shutil
-
-    from inspect_ai._util.file import to_uri
-
-    _, shards = _paths(tmp_path)
-    neighbour = _run(shards, "0", sample_id=[1, 2, 3])
-    recovered = f"{tmp_path}/{NAME}-recovered.shards"
-    shutil.copytree(shards, recovered)
-    before = _files(str(tmp_path))
-    encoded = to_uri(f"{tmp_path}/{NAME}") + "%2Drecovered" + suffix
-    with pytest.raises(ValueError, match="recovered"):
-        merge_eval_log_shards(encoded, _task())
-    assert _files(str(tmp_path)) == before
-    assert os.path.exists(neighbour.location)
-
-
 def test_merge_paths_keep_literal_percent_signs() -> None:
     from inspect_ai.log._shards._api import merge_paths
 
@@ -3927,8 +3879,6 @@ def test_merge_paths_keep_literal_percent_signs() -> None:
     assert paths.shards_dir == "/logs/run%2Drecovered.shards"
     s3 = merge_paths("s3://bucket/run%2Drecovered.shards/")
     assert s3.location == "s3://bucket/run%2Drecovered.eval"
-    with pytest.raises(ValueError, match="recovered"):
-        merge_paths("file:///logs/run%2Drecovered.eval")
 
 
 _LOCAL_FORMS = ["tilde", "relative", "dot", "absolute", "file-uri"]
@@ -4988,9 +4938,6 @@ def test_merge_shards_command_merge_errors(task_file: Path) -> None:
     merged, _ = _cli_workers(task_file, "plain", [[1, 2, 3, 4]])
     spec = f"{task_file}@plain"
 
-    recovered = merged.replace(".eval", "-recovered.eval")
-    _failed(_merge_cli(recovered, "--task", spec, "--json"), "invalid_arguments")
-    assert not _imported(task_file)
     error = _failed(
         _merge_cli(merged, "--task", spec, "--log-dir", "logs", "--json"),
         "invalid_arguments",

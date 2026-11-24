@@ -23,7 +23,7 @@ from inspect_ai._util.file import (
     local_path,
     url_protocol,
 )
-from inspect_ai._util.log_layout import log_basename
+from inspect_ai._util.log_layout import merged_log_name
 
 from ._errors import ShardSetError
 from ._owned import OwnedReads, run_owned
@@ -94,7 +94,7 @@ def is_local(location: str) -> bool:
 def merge_lock_path(merged: str) -> str:
     """``<dir>/<name>.merge.lock`` for the merged log ``<dir>/<name>.eval``."""
     path = local_path(merged)
-    return os.path.join(os.path.dirname(path), f"{log_basename(path)}{_LOCK_SUFFIX}")
+    return os.path.join(os.path.dirname(path), f"{merged_log_name(path)}{_LOCK_SUFFIX}")
 
 
 @contextmanager

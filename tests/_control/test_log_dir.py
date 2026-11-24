@@ -80,7 +80,7 @@ from inspect_ai._util.asyncfiles import AsyncFilesystem, FileContent
 from inspect_ai._util.file import filesystem, local_path
 from inspect_ai._util.log_layout import (
     eval_log_name,
-    log_basename,
+    merged_log_name,
     merged_log_task_id,
 )
 from inspect_ai.dataset import Sample
@@ -1042,7 +1042,8 @@ async def test_walk_of_a_qualified_webhdfs_url(
     assert [m.location for m in shard_set.members] == [
         f"{root}/{name}.shards/{k}/{name}.eval" for k in ("0", "1")
     ]
-    assert [m.location for m in shard_set.merged] == [f"{root}/{name}.eval"]
+    assert shard_set.merged is not None
+    assert shard_set.merged.location == f"{root}/{name}.eval"
     assert [f.location for f in listing.eval_files] == [f"{root}/other.eval"]
 
 
@@ -2310,15 +2311,14 @@ async def _shard_views(root: Path) -> tuple[LogDirIndex, list[TaskView]]:
     return index, views
 
 
-@pytest.mark.parametrize("merged", [None, "", "-recovered", "both"])
+@pytest.mark.parametrize("merged", [False, True])
 async def test_a_shard_set_is_one_row_over_its_shards(
-    tmp_path: Path, finished_log: EvalLog, merged: str | None
+    tmp_path: Path, finished_log: EvalLog, merged: bool
 ) -> None:
     companion = await _shard_set(tmp_path, finished_log, {"0": [1], "1": [2], "2": [3]})
     merged_log: Path | None = None
-    if merged is not None:
-        for suffix in ["", "-recovered"] if merged == "both" else [merged]:
-            merged_log = await _merged(tmp_path, finished_log, suffix=suffix)
+    if merged:
+        merged_log = await _merged(tmp_path, finished_log)
 
     _, rows = await _index(tmp_path)
     # the merged log has no row of its own
@@ -2334,7 +2334,6 @@ async def test_a_shard_set_is_one_row_over_its_shards(
         assert row["eval_id"] is None and row["run_id"] is None
         assert row["log_location"] == str(companion)
     else:
-        # the newest merged log: the recovered copy when both exist
         assert row["eval_id"] == "MERGEDEVAL000000000000"
         assert row["log_location"] == str(merged_log)
     # without a recorded intended selection the total is a lower bound
@@ -2359,14 +2358,7 @@ async def test_a_shard_set_is_one_row_over_its_shards(
         "overlapping": 0,
         "mismatched": 0,
     }
-    if merged == "both":
-        # the older merged log is not read and is listed
-        [older] = row["unreadable"]
-        assert older["log_location"] == str(tmp_path / f"{_SET_NAME}.eval")
-        assert "an older merged log" in older["reason"]
-        assert row["incomplete"] is True
-    else:
-        assert row["unreadable"] == [] and row["incomplete"] is False
+    assert row["unreadable"] == [] and row["incomplete"] is False
 
 
 async def test_a_superseded_shard_attempt_is_not_read(
@@ -2476,32 +2468,6 @@ def test_a_merged_log_with_no_task_id_keeps_the_sets_key(
         assert result.exit_code == 0, (args, result.output)
 
 
-async def test_an_unreadable_newest_merged_log_keys_the_set_as_the_merge_does(
-    tmp_path: Path, finished_log: EvalLog
-) -> None:
-    # a file name pattern without {id}: only a readable merged log gives the id
-    name = "2026-02-01T00-00-00+00-00_alpha"
-    minted = "MINTEDTASKID0000000000"
-    await _shard_set(tmp_path, finished_log, {"0": [1]}, name=name)
-    merged = await _merged(tmp_path, finished_log, name=name, task_id=minted)
-    recovered = tmp_path / f"{name}-recovered.eval"
-    recovered.write_bytes(b"not a zip")
-    _, [row] = await _index(tmp_path)
-    # the older plain merged log is not read, so its task id is not used;
-    # the set gets the id a merge would give it
-    assert row["task_id"] == merged_log_task_id(
-        name, task=finished_log.eval.task, model=finished_log.eval.model
-    )
-    assert row["current_attempt"] == "shards"
-    assert row["eval_id"] is None
-    assert row["log_location"] == str(recovered)
-    assert row["incomplete"] is True
-    failure, older = row["unreadable"]
-    assert failure["log_location"] == str(recovered)
-    assert older["log_location"] == str(merged)
-    assert "an older merged log" in older["reason"]
-
-
 @pytest.mark.parametrize(
     "pattern", ["{task}_{id}", "{task}", "{id}_{task}", "{model}_{task}"]
 )
@@ -2573,6 +2539,26 @@ async def test_a_shard_directory_with_no_attempt_is_not_a_shard(
     assert row["samples"]["total"] == 2 and row["incomplete"] is False
 
 
+async def test_a_recovered_log_beside_a_shard_set_is_an_ordinary_log(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    # only <name>.eval is the merged log of <name>.shards/
+    await _shard_set(tmp_path, finished_log, {"0": [1]})
+    merged = await _merged(tmp_path, finished_log)
+    recovered = await _merged(tmp_path, finished_log, suffix="-recovered")
+    async with AsyncFilesystem() as fs:
+        listing = await walk_log_dir(fs, str(tmp_path))
+    assert [f.location for f in listing.eval_files] == [str(recovered)]
+    [shard_set] = listing.shard_sets
+    assert shard_set.merged is not None
+    assert shard_set.merged.location == str(merged)
+    # it records the set's task id, so it is a newer attempt of that task
+    _, [row] = await _index(tmp_path)
+    assert row["attempts"] == 2 and row["current_attempt"] == "log"
+    assert row["log_location"] == str(recovered)
+    assert row["unreadable"] == []
+
+
 @pytest.mark.parametrize("root", ["dir", "companion", "shard"])
 async def test_the_walk_agrees_with_eval_set_on_shard_paths(
     tmp_path: Path, finished_log: EvalLog, root: str
@@ -2597,7 +2583,7 @@ async def test_the_walk_agrees_with_eval_set_on_shard_paths(
     }
     ordinary = {
         *(f.location for f in listing.eval_files),
-        *(f.location for s in listing.shard_sets for f in s.merged),
+        *(s.merged.location for s in listing.shard_sets if s.merged is not None),
     }
     logs = {local_path(i.name) for i in list_eval_logs(str(base), formats=["eval"])}
     assert shard_files | ordinary == logs and not shard_files & ordinary
@@ -2622,9 +2608,9 @@ async def test_the_walk_pairs_companions_with_logs_in_linear_work(
     def counting(location: str) -> str:
         nonlocal calls
         calls += 1
-        return log_basename(location)
+        return merged_log_name(location)
 
-    monkeypatch.setattr("inspect_ai._control.log_dir.walk.log_basename", counting)
+    monkeypatch.setattr("inspect_ai._control.log_dir.walk.merged_log_name", counting)
     async with AsyncFilesystem() as fs:
         listing = await walk_log_dir(fs, str(tmp_path))
     assert len(listing.eval_files) == 2 * n and listing.shard_sets == []
@@ -2754,18 +2740,17 @@ def test_a_second_shard_sets_unreadable_merged_log_is_reported(
     second = anyio.run(
         functools.partial(_shard_set, tmp_path / "b", finished_log, {"0": [2]})
     )
-    # a duplicate's shards and older merged log are not read or listed
+    # a duplicate's shards are not read or listed
     broken = second / "1" / f"{_SHARD_STAMP}_alpha_SHARD1TASK000000000000.eval"
     broken.parent.mkdir()
     broken.write_bytes(b"not a zip")
-    (tmp_path / "b" / f"{_SET_NAME}.eval").write_bytes(b"not a zip")
-    recovered = tmp_path / "b" / f"{_SET_NAME}-recovered.eval"
-    recovered.write_bytes(b"not a zip")
+    merged = tmp_path / "b" / f"{_SET_NAME}.eval"
+    merged.write_bytes(b"not a zip")
 
     payload = _json(_ctl(tmp_path, "task", "list", "--json"))
     [row] = payload["tasks"]
     assert row["task_id"] == _SET_ID and row["samples"]["total"] == 1
-    expected = {str(recovered), str(second)}
+    expected = {str(merged), str(second)}
     assert {u["log_location"] for u in row["unreadable"]} == expected
     assert {u["log_location"] for u in payload["unreadable"]} == expected
     listing = _json(_ctl(tmp_path, "sample", "list", _SET_ID, "--json"))

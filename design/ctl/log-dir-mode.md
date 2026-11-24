@@ -228,10 +228,12 @@ inventory" below.
 - **Recovered logs.** `inspect log recover` writes `<stem>-recovered.eval`
   beside the original, keeping the original's timestamp prefix and task id
   (`default_output_path`, `src/inspect_ai/log/_recover/_write.py:371-375`).
-  `log_basename` strips both `.eval` and `-recovered` when deriving a
-  companion directory (`src/inspect_ai/_util/log_layout.py`, shared by the
-  checkpoint and shard layouts), so `<name>-recovered.eval` maps to
-  `<name>.shards/`.
+  Checkpoints map it to `<name>.checkpoints/` (`log_basename` strips both
+  `.eval` and `-recovered`), but the shard layout strips only `.eval`
+  (`merged_log_name`, `src/inspect_ai/_util/log_layout.py`), so
+  `<name>-recovered.eval` is not a merged log of `<name>.shards/`
+  (decision: Ransom, 2026-11-23; [`eval-sharding.md`](../eval-sharding.md),
+  "Layout").
 
 ### Existing readers and their request patterns
 
@@ -535,8 +537,8 @@ listing mtime. Names with no timestamp prefix sort by mtime alone.
 **Sharded runs.** Every directory `X.shards/` the walk treats as a
 companion (one with no companion between it and the root; "Walking the
 directory") is a companion, and `X` is the
-basename the sharding design derives with `log_basename` (which strips
-`.eval` and `-recovered`; `src/inspect_ai/_util/log_layout.py`, which this
+basename the sharding design derives with `merged_log_name` (which strips
+`.eval`; `src/inspect_ai/_util/log_layout.py`, which this
 mode calls rather than re-implementing the rule).
 
 A companion whose listing has no attempt in any `<k>/` holds no shard set,
@@ -563,15 +565,13 @@ one attempt.
   in the same `<k>/` (a retry, or an original beside its `-recovered`
   copy) are superseded and not read, matching the merge's newest-wins
   rule.
-- Its merged log is the `.eval` in the companion's parent directory whose
-  `log_basename` is `X`: `X.eval` or `X-recovered.eval`, the newest by
-  attempt order when both exist. The other is not read and is listed in
-  the task row's `unreadable` as an older merged log, so the row is
-  `incomplete`. It does not get a row of its own.
+- Its merged log is `X.eval` in the companion's parent directory, when
+  present. It does not get a row of its own. An `X-recovered.eval` beside
+  it is an unsharded log (below): it records the set's task id, so it is
+  read as a newer attempt of the task.
 - The shard set is one attempt of the logical task identified by the
-  newest merged log's `eval.task_id` when that log can be read. Otherwise
-  (no merged log, or the newest one unreadable, even when an older one is
-  readable) the set is keyed by `merged_log_task_id(X, task=, model=)`
+  merged log's `eval.task_id` when that log can be read. Otherwise
+  (no merged log, or an unreadable one) the set is keyed by `merged_log_task_id(X, task=, model=)`
   with the `task` and `model` of the first shard in shard order (the
   first `<k>/` with an attempt), the merge's template shard
   (`src/inspect_ai/_util/log_layout.py`, shared with the merge, which
@@ -1496,7 +1496,8 @@ real moto server on an ephemeral port). New tests go in a new
 - **Attempt folding.** Retries of an unsharded task; an original and its
   `-recovered` copy (recovered is current), inside a `<k>/` and as
   ordinary logs; a recovered merged log `X-recovered.eval` beside
-  `X.shards/` (one row, no extra); an `eval_retry` log sharing a shard
+  `X.shards/` (an unsharded log, a newer attempt of the set's task); an
+  `eval_retry` log sharing a shard
   set's `task_id` beside the merged log and companion (one row, the retry
   current, a full task id resolves without ambiguity).
 - **Source selection.** For a seeded retry re-running an inherited key and
@@ -1627,8 +1628,7 @@ Each step is one PR; steps 1–5 are the MVP.
    `unlisted_dirs` field added to the shared walk and the descent into
    those directories with nested companions ordinary; stray files in
    `unreadable`; companions with no attempt dropped before pairing; logical sharded
-   rows, newest-attempt selection per `<k>/`, the recovered-merged-log
-   mapping, folding an ordinary retry with its shard set, one shard set per
+   rows, newest-attempt selection per `<k>/`, folding an ordinary retry with its shard set, one shard set per
    task id, the `shards` block, conflicts (counts, rows, `ambiguous`
    per-sample reads) and mismatch counts, `--shards` (the walk without
    shard aggregation). Depends only on the layout convention, so it
