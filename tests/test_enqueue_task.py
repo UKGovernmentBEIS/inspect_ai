@@ -9,11 +9,12 @@ in-run caller).
 import contextlib
 import gc
 import threading
+import traceback
 import types
 import weakref
 from contextvars import Context, copy_context
 from pathlib import Path
-from typing import Any, Awaitable, Callable, ClassVar, Iterator, cast
+from typing import Any, Awaitable, Callable, ClassVar, Iterator, Literal, cast
 
 import anyio
 import anyio.from_thread
@@ -21,7 +22,19 @@ import anyio.lowlevel
 import anyio.to_thread
 import pytest
 
-from inspect_ai import Epochs, Task, TaskSource, eval, eval_async, eval_set, task
+from inspect_ai import (
+    Epochs,
+    Task,
+    TaskEndedError,
+    TaskHandle,
+    TaskSource,
+    eval,
+    eval_async,
+    eval_set,
+    samples_from_handle,
+    task,
+    task_with,
+)
 from inspect_ai._display import display
 from inspect_ai._display.core import active as active_display_module
 from inspect_ai._display.core.display import TaskError
@@ -32,9 +45,10 @@ from inspect_ai._eval.eval import _resolve_enqueued_tasks
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.enqueue import (
     RunQueue,
+    TaskAttempt,
     TaskRecord,
+    attempt_scope,
     creator_model,
-    creator_model_scope,
     enqueue_task,
     get_run_queue,
 )
@@ -1370,7 +1384,7 @@ def test_resolve_enqueued_tasks_outside_attempt_resolves_per_run_model() -> None
     assert resolve(resolved_child) == ["mockllm/model", "mockllm/model"]
 
     # inside an attempt: once, under the attempt's model
-    with creator_model_scope(models[1]):
+    with attempt_scope(_attempt(models[1])):
         assert resolve(child()) == ["mockllm/model2"]
         assert resolve(resolved_child) == ["mockllm/model"]
 
@@ -1383,7 +1397,6 @@ def test_enqueue_task_after_creator_attempt_ends_resolves_per_run_model() -> Non
         def __init__(self) -> None:
             self.release: anyio.Event | None = None
             self.all_added: anyio.Event | None = None
-            self.ended = 0
             self.added = 0
             self.pulled = False
 
@@ -1401,21 +1414,17 @@ def test_enqueue_task_after_creator_attempt_ends_resolves_per_run_model() -> Non
                 )
             ]
 
-        async def task_complete(self, log: EvalLog) -> list[Task] | None:
-            if log.eval.task == "seed":
-                self.ended += 1
-                if self.ended == 2:
-                    self.events()[0].set()
-            return None
-
         async def next_tasks(self) -> list[Task] | None:
-            # keep the run open until the deferred additions are in, then
-            # return one more task so the run drains them
+            # called once no attempt runs, so both seed attempts have ended:
+            # release the deferred additions, keep the run open until they
+            # are in, then return one more task so the run drains them
             if self.pulled:
                 return None
             self.pulled = True
+            release, all_added = self.events()
+            release.set()
             with anyio.fail_after(30):
-                await self.events()[1].wait()
+                await all_added.wait()
             return [Task(dataset=[Sample(input="hi")], solver=[], name="last")]
 
     @solver
@@ -1444,31 +1453,1115 @@ def test_enqueue_task_after_creator_attempt_ends_resolves_per_run_model() -> Non
     assert _child_models(logs) == sorted(models * 2)
 
 
-async def test_creator_model_expires_when_attempt_ends() -> None:
+def _attempt(model: Any) -> TaskAttempt:
+    record = TaskRecord(
+        task_id="t",
+        task="t",
+        model=str(model),
+        index=0,
+        options=None,
+        retries_remaining=0,
+    )
+    return TaskAttempt(record, model)
+
+
+def test_creator_model_expires_when_attempt_ends() -> None:
     model = get_model("mockllm/model")
 
     # a context copied inside the attempt (as a background task's is) sees the
-    # attempt end, whether it returns, raises or is cancelled
-    with creator_model_scope(model):
-        returned = copy_context()
-        assert returned.run(creator_model) is model
-    assert returned.run(creator_model) is None
-
-    with pytest.raises(ValueError):
-        with creator_model_scope(model):
-            raised = copy_context()
-            raise ValueError()
-    assert raised.run(creator_model) is None
-
-    with anyio.CancelScope() as scope:
-        with creator_model_scope(model):
-            cancelled = copy_context()
-            scope.cancel()
-            await anyio.sleep_forever()
-    assert cancelled.run(creator_model) is None
+    # attempt end once the dispatcher marks it ended
+    attempt = _attempt(model)
+    with attempt_scope(attempt):
+        copied = copy_context()
+        assert copied.run(creator_model) is model
+    attempt.end()
+    assert copied.run(creator_model) is None
 
     # clearing it for a callback does not end the enclosing attempt
-    with creator_model_scope(model):
-        with creator_model_scope(None):
+    attempt = _attempt(model)
+    with attempt_scope(attempt):
+        with attempt_scope(None):
             assert creator_model() is None
         assert creator_model() is model
+
+
+# --- task handles (design/task-handles.md) ----------------------------------
+
+
+class _Events(dict[str, anyio.Event]):
+    """Events by name, each created on first use (on the run's loop)."""
+
+    def __missing__(self, key: str) -> anyio.Event:
+        event = anyio.Event()
+        self[key] = event
+        return event
+
+
+EVENTS = _Events()
+
+
+@pytest.fixture
+def events() -> Iterator[_Events]:
+    EVENTS.clear()
+    init_display_type("none")
+    yield EVENTS
+    EVENTS.clear()
+
+
+@solver
+def rollout_solver() -> Solver:
+    """Runs a sent sample as its metadata says: signal, wait, raise."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if "started" in state.metadata:
+            EVENTS[state.metadata["started"]].set()
+        if "wait" in state.metadata:
+            await EVENTS[state.metadata["wait"]].wait()
+        if state.metadata.get("raise"):
+            raise ValueError("rollout failed")
+        return state
+
+    return solve
+
+
+@task
+def rollout_task(fail_on_error: bool = False) -> Task:
+    return Task(
+        dataset=samples_from_handle(),
+        solver=[rollout_solver()],
+        fail_on_error=fail_on_error,
+        name="rollout_task",
+    )
+
+
+@solver
+def searcher(n_steps: int = 3, fail_at: int = -1) -> Solver:
+    """The overview's searcher: sends `n_steps` samples and records their runs."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        [handle] = enqueue_task(rollout_task())
+        runs: list[EvalSample] = []
+        async with handle as rollouts:
+            try:
+                for step in range(n_steps):
+                    sample = Sample(
+                        input=f"step {step}", metadata={"raise": step == fail_at}
+                    )
+                    runs.append(await rollouts.enqueue_sample(sample))
+            except BaseException:
+                rollouts.cancel()
+                raise
+        state.metadata["runs"] = [[str(r.id), r.error is not None] for r in runs]
+        state.metadata["handle_model"] = handle.model
+        return state
+
+    return solve
+
+
+@task
+def search(n_steps: int = 3, fail_at: int = -1) -> Task:
+    return Task(
+        dataset=[Sample(input="search")],
+        solver=[searcher(n_steps, fail_at)],
+        name="search",
+    )
+
+
+def _send_in_background(handle: TaskHandle, sample: Sample) -> None:
+    """Send ``sample`` from a background task, dropping its outcome."""
+
+    async def send() -> None:
+        with contextlib.suppress(RuntimeError):
+            await handle.enqueue_sample(sample)
+
+    run_in_background(send)
+
+
+def _by_task(logs: list[EvalLog]) -> dict[str, EvalLog]:
+    return {log.eval.task: log for log in logs}
+
+
+def _creator_task(body: Callable[[], Awaitable[None]], **kwargs: Any) -> Task:
+    return _hook_task("creator", body, **kwargs)
+
+
+def test_search_feeds_a_rollout_task_at_max_tasks_1() -> None:
+    logs = eval(search(fail_at=1), model="mockllm/model", display="none", max_tasks=1)
+    by_task = _by_task(logs)
+    assert by_task["search"].status == "success"
+    rollout = by_task["rollout_task"]
+    assert rollout.status == "success"
+    assert rollout.eval.dataset.name == "samples_from_handle"
+    assert rollout.samples is not None and len(rollout.samples) == 3
+    assert by_task["search"].samples is not None
+    runs = by_task["search"].samples[0].metadata["runs"]
+    token = rollout.eval.task_id[:8]
+    # each run came back under its sent id; the errored one with its error
+    assert runs == [
+        [f"send-{token}-0001", False],
+        [f"send-{token}-0002", True],
+        [f"send-{token}-0003", False],
+    ]
+
+
+def test_search_feeds_a_rollout_task_under_eval_set(tmp_path: Path) -> None:
+    success, logs = eval_set(
+        search(), log_dir=str(tmp_path), model="mockllm/model", max_tasks=1
+    )
+    assert success
+    assert sorted(log.eval.task for log in logs) == ["rollout_task", "search"]
+
+
+def test_each_creator_feeds_its_own_rollout_task_in_a_multi_model_run() -> None:
+    models = ["mockllm/model", "mockllm/model2"]
+    logs = eval(search(), model=models, display="none", max_tasks=1)
+    assert all(log.status == "success" for log in logs)
+    assert _child_models(logs, "rollout_task") == models
+    for log in logs:
+        if log.eval.task == "search":
+            assert log.samples is not None
+            assert log.samples[0].metadata["handle_model"] == log.eval.model
+
+
+@pytest.mark.parametrize("limit", ["raise", "time_limit", "working_limit"])
+async def test_creator_stopping_early_cancels_its_rollouts(
+    events: _Events, limit: str
+) -> None:
+    async def search_body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        async with handle:
+            try:
+                _send_in_background(
+                    handle,
+                    Sample(input="x", metadata={"started": "running", "wait": "never"}),
+                )
+                await events["running"].wait()
+                if limit == "raise":
+                    raise ValueError("search failed")
+                await anyio.sleep_forever()
+            except BaseException:
+                handle.cancel()
+                raise
+
+    kwargs: dict[str, Any] = {limit: 1} if limit != "raise" else {}
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            _creator_task(search_body, **kwargs), model="mockllm/model"
+        )
+    by_task = _by_task(logs)
+    rollout = by_task["rollout_task"]
+    assert rollout.status == "error"
+    assert rollout.error is not None and "abort" in rollout.error.message
+    creator = by_task["creator"]
+    if limit == "raise":
+        assert creator.status == "error"
+        assert creator.error is not None and "search failed" in creator.error.message
+    else:
+        assert creator.samples is not None and creator.samples[0].limit is not None
+        assert creator.samples[0].limit.type == limit.removesuffix("_limit")
+
+
+async def test_result_refuses_an_ordinary_added_task(events: _Events) -> None:
+    async def body() -> None:
+        [handle] = enqueue_task(child())
+        with pytest.raises(RuntimeError, match=r"result\(\) waits only on a task"):
+            await handle.result()
+        # the task is untouched: still queued behind the creator's slot
+        assert _record("child").phase == "queued"
+        handle.close()
+        assert _record("child").phase == "queued"
+        handle.cancel()
+
+    with anyio.fail_after(30):
+        logs = await eval_async(_creator_task(body), model="mockllm/model", max_tasks=1)
+    by_task = _by_task(logs)
+    assert by_task["creator"].status == "success"
+    assert by_task["child"].status == "error"
+
+
+async def test_fed_task_cancelled_while_queued_ends_with_no_log(
+    events: _Events, task_count_changes: list[int]
+) -> None:
+    reports: list[str] = []
+    outcomes: list[Any] = []
+
+    async def body() -> None:
+        from inspect_ai._control.pause import pause_process, resume_process
+
+        # closed before any sample was sent
+        [closed] = enqueue_task(rollout_task())
+        outcomes.append(await closed.result())
+        # cancelled with no sample sent
+        [idle] = enqueue_task(rollout_task())
+        idle.cancel()
+        outcomes.append(await idle.result())
+        # cancelled holding a sent request: a process pause keeps it queued
+        await pause_process()
+        try:
+            [held] = enqueue_task(rollout_task())
+            record = _record_by_id(held.task_id)
+            async with anyio.create_task_group() as tg:
+
+                async def send() -> None:
+                    with pytest.raises(TaskEndedError) as raised:
+                        await held.enqueue_sample(Sample(input="x"))
+                    outcomes.append(raised.value.log)
+
+                tg.start_soon(send)
+                await anyio.wait_all_tasks_blocked()
+                assert record.phase == "queued" and record.channel is not None
+                assert record.channel.requests
+                held.cancel()
+            assert not record.abort_requested
+            outcomes.append(await held.result())
+        finally:
+            await resume_process()
+
+    class Source(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_creator_task(body)]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            reports.append(log.eval.task)
+            return None
+
+    with anyio.fail_after(30):
+        logs = await eval_async(Source(), model="mockllm/model")
+    assert [log.eval.task for log in logs] == ["creator"]
+    assert logs[0].status == "success"
+    assert outcomes == [None, None, None, None]
+    assert reports == ["creator"]
+    # each fed task was counted when added and dropped when it ended unstarted
+    assert task_count_changes == [1, -1, 1, -1, 1, -1]
+
+
+def _record_by_id(task_id: str) -> TaskRecord:
+    queue = get_run_queue()
+    assert queue is not None
+    record = queue.find(task_id)
+    assert record is not None
+    return record
+
+
+async def test_close_and_async_with_let_running_rollouts_finish(
+    events: _Events,
+) -> None:
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        async with handle:
+            _send_in_background(
+                handle,
+                Sample(input="x", metadata={"started": "running", "wait": "go"}),
+            )
+            await events["running"].wait()
+        # closed: the running sample still finishes, then the task ends
+        events["go"].set()
+        log = await handle.result()
+        assert log is not None and log.status == "success"
+        assert log.samples is not None and len(log.samples) == 1
+
+    with anyio.fail_after(30):
+        logs = await eval_async(_creator_task(body), model="mockllm/model")
+    assert all(log.status == "success" for log in logs)
+
+
+async def test_handle_send_error_order(events: _Events) -> None:
+    async def body() -> None:
+        # after close() while a sent sample runs: RuntimeError, then
+        # TaskEndedError once the task has ended
+        [handle] = enqueue_task(rollout_task())
+        _send_in_background(
+            handle,
+            Sample(input="x", metadata={"started": "a", "wait": "release_a"}),
+        )
+        await events["a"].wait()
+        handle.close()
+        with pytest.raises(RuntimeError) as raised:
+            await handle.enqueue_sample(Sample(input="y"))
+        assert type(raised.value) is RuntimeError
+        events["release_a"].set()
+        log = await handle.result()
+        with pytest.raises(TaskEndedError) as ended:
+            await handle.enqueue_sample(Sample(input="y"))
+        assert ended.value.log is log
+
+        # cancel() of a running fed task: a send with no await between raises
+        # RuntimeError (the record has not ended), then TaskEndedError
+        [cancelled] = enqueue_task(rollout_task())
+        _send_in_background(
+            cancelled,
+            Sample(input="x", metadata={"started": "b", "wait": "never"}),
+        )
+        await events["b"].wait()
+        record = _record_by_id(cancelled.task_id)
+        cancelled.cancel()
+        assert record.phase != "ended"
+        with pytest.raises(RuntimeError) as raised:
+            await cancelled.enqueue_sample(Sample(input="y"))
+        assert type(raised.value) is RuntimeError
+        log = await cancelled.result()
+        assert log is not None and log.status == "error"
+        with pytest.raises(TaskEndedError):
+            await cancelled.enqueue_sample(Sample(input="y"))
+        cancelled.cancel()
+        with pytest.raises(TaskEndedError):
+            await cancelled.enqueue_sample(Sample(input="y"))
+
+        # a sample with an id is refused
+        [fresh] = enqueue_task(rollout_task())
+        with pytest.raises(ValueError):
+            await fresh.enqueue_sample(Sample(input="y", id="mine"))
+        fresh.close()
+
+    with anyio.fail_after(30):
+        logs = await eval_async(_creator_task(body), model="mockllm/model")
+    assert _by_task(logs)["creator"].status == "success"
+
+
+async def test_each_waiting_sender_gets_its_own_task_ended_error(
+    events: _Events,
+) -> None:
+    ended: dict[str, TaskEndedError] = {}
+
+    async def body() -> None:
+        [handle] = enqueue_task(
+            task_with(rollout_task(fail_on_error=True), max_samples=1)
+        )
+
+        async def send(label: str, metadata: dict[str, Any]) -> None:
+            try:
+                await handle.enqueue_sample(Sample(input=label, metadata=metadata))
+            except TaskEndedError as ex:
+                ended[label] = ex
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(
+                send, "a", {"started": "a", "wait": "release_a", "raise": True}
+            )
+            await events["a"].wait()
+            # b and c wait for the only sample slot
+            tg.start_soon(send, "b", {})
+            tg.start_soon(send, "c", {})
+            await anyio.wait_all_tasks_blocked()
+            events["release_a"].set()
+        log = await handle.result()
+        assert log is not None and log.status == "error"
+        assert ended["b"].log is log and ended["c"].log is log
+
+    with anyio.fail_after(30):
+        logs = await eval_async(_creator_task(body), model="mockllm/model")
+    assert _by_task(logs)["creator"].status == "success"
+    assert sorted(ended) == ["b", "c"]
+    assert ended["b"] is not ended["c"]
+    # neither traceback carries the other sender's frames
+    for error in ended.values():
+        frames = [
+            frame.f_code.co_name for frame, _ in traceback.walk_tb(error.__traceback__)
+        ]
+        assert frames.count("send") == 1
+
+
+async def test_send_after_the_creator_ends_raises(events: _Events) -> None:
+    kept: list[TaskHandle] = []
+    errors: list[BaseException] = []
+
+    async def creator() -> None:
+        [handle] = enqueue_task(rollout_task())
+        kept.append(handle)
+        _send_in_background(
+            handle,
+            Sample(input="x", metadata={"started": "running", "wait": "release"}),
+        )
+        await events["running"].wait()
+
+    async def other() -> None:
+        # runs until the creator's attempt has ended, the rollout still running
+        with anyio.fail_after(20):
+            await _record("creator").ended.wait()
+        try:
+            await kept[0].enqueue_sample(Sample(input="y"))
+        except BaseException as ex:
+            errors.append(ex)
+        events["release"].set()
+
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            [_creator_task(creator), _hook_task("other", other)],
+            model="mockllm/model",
+            max_tasks=2,
+        )
+    assert all(log.status == "success" for log in logs)
+    assert len(errors) == 1 and type(errors[0]) is RuntimeError
+
+
+async def test_drained_fed_task_refuses_sends(events: _Events) -> None:
+    from inspect_ai._control.cancel import drain_task
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        _send_in_background(
+            handle,
+            Sample(input="x", metadata={"started": "running", "wait": "release"}),
+        )
+        await events["running"].wait()
+        drain_task(handle.task_id)
+        with pytest.raises(RuntimeError) as raised:
+            await handle.enqueue_sample(Sample(input="y"))
+        assert type(raised.value) is RuntimeError
+        events["release"].set()
+        log = await handle.result()
+        assert log is not None and log.samples is not None and len(log.samples) == 1
+        with pytest.raises(TaskEndedError):
+            await handle.enqueue_sample(Sample(input="y"))
+
+    with anyio.fail_after(30):
+        logs = await eval_async(_creator_task(body), model="mockllm/model")
+    assert all(log.status == "success" for log in logs)
+
+
+def test_fed_task_handle_in_next_tasks_after_its_creator_ended() -> None:
+    kept: list[TaskHandle] = []
+    seen: list[Any] = []
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        kept.append(handle)
+        await handle.enqueue_sample(Sample(input="x"))
+
+    class Source(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_creator_task(body)]
+
+        async def next_tasks(self) -> list[Task] | None:
+            if not seen:
+                log = await kept[0].result()
+                seen.append(log)
+                with pytest.raises(TaskEndedError) as raised:
+                    await kept[0].enqueue_sample(Sample(input="y"))
+                seen.append(raised.value.log)
+            return None
+
+    logs = eval(Source(), model="mockllm/model", display="none")
+    rollout = _by_task(logs)["rollout_task"]
+    assert seen == [rollout, rollout]
+
+
+def test_fed_task_failing_after_a_sample_is_not_retried() -> None:
+    outcomes: list[Any] = []
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task(fail_on_error=True))
+        first = await handle.enqueue_sample(Sample(input="x", metadata={"raise": True}))
+        outcomes.append(first.error is not None)
+        with pytest.raises(TaskEndedError) as raised:
+            await handle.enqueue_sample(Sample(input="y"))
+        outcomes.append(raised.value.log)
+
+    logs = eval(
+        _creator_task(body),
+        model="mockllm/model",
+        display="none",
+        task_retry_attempts=2,
+    )
+    rollouts = [log for log in logs if log.eval.task == "rollout_task"]
+    assert len(rollouts) == 1 and rollouts[0].status == "error"
+    assert outcomes[0] is True
+    assert (
+        outcomes[1] is not None and outcomes[1].eval.task_id == rollouts[0].eval.task_id
+    )
+    assert _by_task(logs)["creator"].status == "success"
+
+
+@pytest.mark.parametrize("where", ["task_complete", "sample_complete"])
+def test_source_callbacks_cannot_add_a_fed_task(where: str) -> None:
+    refused: list[BaseException] = []
+
+    def add() -> list[Task] | None:
+        with pytest.raises(RuntimeError) as raised:
+            enqueue_task(rollout_task())
+        refused.append(raised.value)
+        # an ordinary task is still added from the same callback
+        enqueue_task(child())
+        return None
+
+    class Source(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [Task(dataset=[Sample(input="x")], name="seed")]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            if where == "task_complete" and log.eval.task == "seed":
+                return add()
+            return None
+
+        async def sample_complete(
+            self, sample: EvalSample, task: Task
+        ) -> list[Task] | None:
+            if where == "sample_complete" and task.name == "seed":
+                return add()
+            return None
+
+    logs = eval(Source(), model="mockllm/model", display="none")
+    assert sorted(log.eval.task for log in logs) == ["child", "seed"]
+    assert len(refused) == 1
+
+
+def test_fed_task_refusals(tmp_path: Path) -> None:
+    refused: list[str] = []
+
+    async def body() -> None:
+        with pytest.raises(ValueError, match="runs each sample once"):
+            enqueue_task(task_with(rollout_task(), epochs=2))
+        [resolved] = resolve_tasks(
+            rollout_task(), {}, get_model("mockllm/model"), None, None, None
+        )
+        with pytest.raises(ValueError, match="must start fresh"):
+            enqueue_task(resolved)
+        refused.append("ok")
+
+    class Source(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_creator_task(body)]
+
+        async def next_tasks(self) -> list[Task] | None:
+            if len(refused) == 1:
+                with pytest.raises(RuntimeError, match="inside a task"):
+                    enqueue_task(rollout_task())
+                refused.append("next_tasks")
+                # returned from a callback: refused by the run
+                return [rollout_task()]
+            return None
+
+    with pytest.raises(RuntimeError, match="inside a task"):
+        eval(Source(), model="mockllm/model", display="none", debug_errors=True)
+    assert refused == ["ok", "next_tasks"]
+
+    # run on its own
+    with pytest.raises(PrerequisiteError, match="takes its samples through"):
+        eval(rollout_task(), model="mockllm/model", display="none")
+    with pytest.raises(PrerequisiteError, match="takes its samples through"):
+        eval_set(rollout_task(), log_dir=str(tmp_path), model="mockllm/model")
+
+
+def test_fed_task_added_after_its_creator_ended_is_refused() -> None:
+    errors: list[BaseException] = []
+
+    async def body() -> None:
+        async def add_later() -> None:
+            with anyio.fail_after(20):
+                await _record("creator").ended.wait()
+            try:
+                enqueue_task(rollout_task())
+            except BaseException as ex:
+                errors.append(ex)
+            EVENTS["added"].set()
+
+        run_in_background(add_later)
+
+    async def other() -> None:
+        with anyio.fail_after(20):
+            await EVENTS["added"].wait()
+
+    EVENTS.clear()
+    logs = eval(
+        [_creator_task(body), _hook_task("other", other)],
+        model="mockllm/model",
+        display="none",
+        max_tasks=2,
+    )
+    assert sorted(log.eval.task for log in logs) == ["creator", "other"]
+    assert len(errors) == 1 and isinstance(errors[0], RuntimeError)
+
+
+async def test_handle_calls_off_the_run_loop(events: _Events) -> None:
+    async def body() -> None:
+        # off the loop: refused, as enqueue_task() is
+        def off_loop() -> None:
+            enqueue_task(rollout_task())
+
+        with pytest.raises(RuntimeError, match="event loop"):
+            await anyio.to_thread.run_sync(off_loop)
+
+        [handle] = enqueue_task(rollout_task())
+        [cancelled] = enqueue_task(rollout_task())
+        for method in (handle.close, cancelled.cancel):
+            with pytest.raises(RuntimeError, match="event loop") as refused:
+                await anyio.to_thread.run_sync(method)
+            assert "anyio.from_thread.run_sync()" in str(refused.value)
+
+        # through anyio.from_thread it works, as the error says
+        def through_loop() -> list[TaskHandle]:
+            anyio.from_thread.run_sync(handle.close)
+            anyio.from_thread.run_sync(cancelled.cancel)
+            [other] = anyio.from_thread.run_sync(lambda: enqueue_task(rollout_task()))
+            assert anyio.from_thread.run(other.result) is None
+            return [other]
+
+        await anyio.to_thread.run_sync(through_loop)
+        assert _record_by_id(cancelled.task_id).phase == "ended"
+        assert await cancelled.result() is None
+        assert await handle.result() is None
+
+    with anyio.fail_after(30):
+        logs = await eval_async(_creator_task(body), model="mockllm/model")
+    assert [log.eval.task for log in logs] == ["creator"]
+
+
+SEARCH_FILE = """
+from inspect_ai import Task, enqueue_task, samples_from_handle, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import Generate, TaskState, solver
+
+
+@task
+def rollout_task() -> Task:
+    return Task(dataset=samples_from_handle(), solver=[], fail_on_error=False)
+
+
+@solver
+def searcher():
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        [handle] = enqueue_task(rollout_task())
+        async with handle:
+            await handle.enqueue_sample(Sample(input="x"))
+        return state
+
+    return solve
+
+
+@task
+def search() -> Task:
+    return Task(dataset=[Sample(input="search")], solver=[searcher()])
+"""
+
+
+def test_whole_file_with_a_fed_task_is_refused(tmp_path: Path) -> None:
+    path = tmp_path / "search.py"
+    path.write_text(SEARCH_FILE)
+    with pytest.raises(PrerequisiteError, match="rollout_task"):
+        eval(str(path), model="mockllm/model", display="none")
+    with pytest.raises(PrerequisiteError, match="rollout_task"):
+        eval_set(str(path), log_dir=str(tmp_path / "set1"), model="mockllm/model")
+
+    logs = eval(f"{path}@search", model="mockllm/model", display="none")
+    assert sorted(log.eval.task for log in logs) == ["rollout_task", "search"]
+    success, logs = eval_set(
+        f"{path}@search", log_dir=str(tmp_path / "set2"), model="mockllm/model"
+    )
+    assert success
+    assert sorted(log.eval.task for log in logs) == ["rollout_task", "search"]
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_task_hook_adds_a_fed_task_its_samples_feed(
+    tmp_path: Path, log_format: Literal["eval", "json"]
+) -> None:
+    handles: list[TaskHandle] = []
+
+    @hooks(name=f"fed_task_start_hook_{log_format}", description="test")
+    class AddOnTaskStart(Hooks):
+        async def on_task_start(self, data: Any) -> None:
+            if not handles and data.spec.task == "creator":
+                [handle] = enqueue_task(rollout_task())
+                handles.append(handle)
+
+    async def body() -> None:
+        run = await handles[0].enqueue_sample(Sample(input="x"))
+        assert run.error is None
+
+    try:
+        logs = eval(
+            _creator_task(body),
+            model="mockllm/model",
+            display="none",
+            log_dir=str(tmp_path),
+            log_format=log_format,
+        )
+    finally:
+        _registry.pop(f"hooks:fed_task_start_hook_{log_format}", None)
+    # the channel closed with the creator's attempt, so the rollout ended
+    by_task = _by_task(logs)
+    assert by_task["rollout_task"].status == "success"
+    assert by_task["rollout_task"].samples is not None
+    assert len(by_task["rollout_task"].samples) == 1
+
+
+async def test_fed_task_takes_no_slot(events: _Events) -> None:
+    order: list[str] = []
+
+    async def queued() -> None:
+        order.append("ordinary")
+
+    async def body() -> None:
+        enqueue_task(_hook_task("ordinary", queued))
+        [a] = enqueue_task(rollout_task())
+        [b] = enqueue_task(rollout_task())
+        # two fed tasks run at once while the creator holds the only slot
+        async with anyio.create_task_group() as tg:
+            for handle, name in ((a, "a"), (b, "b")):
+                tg.start_soon(
+                    handle.enqueue_sample,
+                    Sample(input="x", metadata={"started": name, "wait": "both"}),
+                )
+            await events["a"].wait()
+            await events["b"].wait()
+            order.append("fed")
+            assert _record("ordinary").phase == "queued"
+            events["both"].set()
+        a.close()
+        b.close()
+
+    with anyio.fail_after(30):
+        logs = await eval_async(_creator_task(body), model="mockllm/model", max_tasks=1)
+    assert order == ["fed", "ordinary"]
+    assert all(log.status == "success" for log in logs)
+
+
+async def test_sent_sample_setup_failure_ends_the_fed_task(
+    tmp_path: Path, probe: type[DispatchProbeSandbox], events: _Events
+) -> None:
+    probe.failures["sent"] = 99
+    outcomes: list[Any] = []
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        first = await handle.enqueue_sample(Sample(input="a"))
+        outcomes.append(first.error)
+        with pytest.raises(TaskEndedError) as raised:
+            await handle.enqueue_sample(
+                Sample(input="b", sandbox=("dispatch_probe", "sent"))
+            )
+        outcomes.append(raised.value.log)
+
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            _creator_task(body),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            task_retry_attempts=2,
+        )
+    rollouts = [log for log in logs if log.eval.task == "rollout_task"]
+    assert len(rollouts) == 1 and rollouts[0].status == "error"
+    assert probe.calls.count("task_init:sent") == 1
+    assert outcomes[0] is None
+    assert outcomes[1] is rollouts[0]
+
+
+async def test_cancel_while_a_sent_sample_is_held_in_setup(
+    tmp_path: Path, probe: type[DispatchProbeSandbox], events: _Events
+) -> None:
+    probe.started["held"] = anyio.Event()
+    probe.hold["held"] = anyio.Event()
+    outcomes: list[Any] = []
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+
+        async def send(sample: Sample) -> None:
+            with pytest.raises(TaskEndedError) as raised:
+                await handle.enqueue_sample(sample)
+            outcomes.append(raised.value.log)
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(send, Sample(input="a", sandbox=("dispatch_probe", "held")))
+            await probe.started["held"].wait()
+            # the feeder is held in the first sample's setup: the second sits
+            # in the buffer, unadmitted
+            tg.start_soon(send, Sample(input="b"))
+            await anyio.wait_all_tasks_blocked()
+            handle.cancel()
+        record = _record_by_id(handle.task_id)
+        assert record.channel is not None and record.channel.requests == {}
+
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            _creator_task(body), model="mockllm/model", log_dir=str(tmp_path)
+        )
+    probe.hold["held"].set()
+    [rollout] = [log for log in logs if log.eval.task == "rollout_task"]
+    assert rollout.status == "error"
+    assert outcomes == [rollout, rollout]
+
+
+class _CancelOnRunStart(Hooks):
+    async def on_run_start(self, data: RunStart) -> None:
+        [handle] = enqueue_task(child())
+        handle.cancel()
+        # a task fed through its handle cannot be added outside a task
+        with pytest.raises(RuntimeError, match="inside a task"):
+            enqueue_task(rollout_task())
+
+
+def test_handle_cancel_of_a_task_added_at_run_start() -> None:
+    @hooks("cancel_on_run_start", description="adds and cancels a task")
+    def cancel_on_run_start() -> type[Hooks]:
+        return _CancelOnRunStart
+
+    try:
+        logs = eval(
+            Task(dataset=[Sample(input="hi")], solver=[], name="parent"),
+            model="mockllm/model",
+            display="none",
+        )
+    finally:
+        del _registry["hooks:cancel_on_run_start"]
+    by_task = _by_task(logs)
+    assert by_task["parent"].status == "success"
+    # cancelled before the run opened: it ends with the abort log
+    assert by_task["child"].status == "error"
+
+
+async def test_fed_task_starts_while_another_task_builds(
+    tmp_path: Path, probe: type[DispatchProbeSandbox], events: _Events
+) -> None:
+    probe.hold["slow"] = anyio.Event()
+
+    async def body() -> None:
+        # the other task's task_init is held: the sent sample still runs
+        [handle] = enqueue_task(rollout_task())
+        async with handle:
+            await handle.enqueue_sample(Sample(input="x"))
+        assert _record("building").phase == "attempt"
+        probe.hold["slow"].set()
+
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            [
+                _hook_task("building", _noop, sandbox=("dispatch_probe", "slow")),
+                _creator_task(body),
+            ],
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            max_tasks=2,
+        )
+    assert all(log.status == "success" for log in logs)
+
+
+async def test_sandbox_headroom_for_a_send_can_be_raised_while_it_waits(
+    tmp_path: Path, events: _Events
+) -> None:
+    from inspect_ai._control.limits import process_limits
+
+    returned: list[str] = []
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        async with handle:
+            run = await handle.enqueue_sample(Sample(input="x", sandbox="local"))
+        returned.append(str(run.id))
+
+    async def operator() -> None:
+        with anyio.fail_after(20):
+            while not (
+                (record := _find_record("rollout_task")) is not None
+                and record.phase == "attempt"
+            ):
+                await anyio.sleep(0.05)
+            await anyio.wait_all_tasks_blocked()
+        # the creator's sample holds the only sandbox, so its send waits
+        assert returned == []
+        await process_limits(max_sandboxes=2)
+
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            [_creator_task(body, sandbox="local"), _hook_task("operator", operator)],
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            max_tasks=2,
+            max_sandboxes=1,
+        )
+    assert all(log.status == "success" for log in logs)
+    assert len(returned) == 1
+
+
+def _find_record(name: str) -> TaskRecord | None:
+    queue = get_run_queue()
+    assert queue is not None
+    return next((r for r in queue.records if r.task == name), None)
+
+
+@pytest.mark.parametrize("cancelled_in", ["sample", "task_complete"])
+async def test_run_cancellation_keeps_a_fed_tasks_written_log(
+    tmp_path: Path, events: _Events, cancelled_in: str
+) -> None:
+    kept: list[TaskHandle] = []
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        kept.append(handle)
+        if cancelled_in == "sample":
+            await handle.enqueue_sample(
+                Sample(input="x", metadata={"started": "cancel", "wait": "never"})
+            )
+        else:
+            async with handle:
+                await handle.enqueue_sample(Sample(input="x"))
+            await anyio.sleep_forever()
+
+    class Source(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_creator_task(body)]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            # the rollout's log is written and taken by the dispatcher; a run
+            # cancellation lands while the source hears about it
+            if log.eval.task == "rollout_task":
+                events["cancel"].set()
+                await anyio.sleep_forever()
+            return None
+
+    with anyio.fail_after(30):
+        async with anyio.create_task_group() as tg:
+
+            async def run() -> None:
+                await eval_async(Source(), model="mockllm/model", log_dir=str(tmp_path))
+
+            tg.start_soon(run)
+            await events["cancel"].wait()
+            tg.cancel_scope.cancel()
+        final = await kept[0].result()
+    assert final is not None
+    expected = "cancelled" if cancelled_in == "sample" else "success"
+    assert final.status == expected
+    with pytest.raises(TaskEndedError) as raised:
+        await kept[0].enqueue_sample(Sample(input="y"))
+    assert raised.value.log is final
+
+
+async def test_log_start_failure_leaves_no_buffered_samples(
+    tmp_path: Path, events: _Events, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log_start = TaskLogger.log_start
+
+    async def failing_log_start(self: TaskLogger, *args: Any, **kwargs: Any) -> None:
+        if self.eval.task == "rollout_task":
+            raise OSError("log storage unavailable")
+        await log_start(self, *args, **kwargs)
+
+    monkeypatch.setattr(TaskLogger, "log_start", failing_log_start)
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        with pytest.raises(TaskEndedError) as raised:
+            await handle.enqueue_sample(Sample(input="x"))
+        assert raised.value.log is not None and raised.value.log.status == "error"
+        record = _record_by_id(handle.task_id)
+        assert record.channel is not None
+        assert record.channel.requests == {}
+        assert record.channel.enqueuer is None
+
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            _creator_task(body), model="mockllm/model", log_dir=str(tmp_path)
+        )
+    assert _by_task(logs)["creator"].status == "success"
+
+
+async def test_cancel_of_a_fed_attempt_before_it_registers(
+    tmp_path: Path, events: _Events, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    init = TaskLogger.init
+
+    async def held_init(self: TaskLogger) -> None:
+        # the rollout's attempt has been picked; hold it before registration
+        if self.eval.task == "rollout_task":
+            events["picked"].set()
+            await events["release_init"].wait()
+        await init(self)
+
+    monkeypatch.setattr(TaskLogger, "init", held_init)
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        _send_in_background(handle, Sample(input="x"))
+        await events["picked"].wait()
+        record = _record_by_id(handle.task_id)
+        assert record.phase == "attempt" and record.reached == "added"
+        handle.cancel()
+        assert not record.ended.is_set()
+        with pytest.raises(RuntimeError) as raised:
+            await handle.enqueue_sample(Sample(input="y"))
+        assert type(raised.value) is RuntimeError
+        events["release_init"].set()
+        log = await handle.result()
+        assert log is not None and log.status == "error"
+        with pytest.raises(TaskEndedError):
+            await handle.enqueue_sample(Sample(input="y"))
+
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            _creator_task(body), model="mockllm/model", log_dir=str(tmp_path)
+        )
+    assert _by_task(logs)["creator"].status == "success"
+
+
+async def test_fed_request_at_run_cancellation_ends_with_no_log(
+    tmp_path: Path, events: _Events
+) -> None:
+    outcomes: list[Any] = []
+    started: list[str] = []
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        try:
+            events["waiting"].set()
+            await anyio.sleep_forever()
+        except anyio.get_cancelled_exc_class():
+            # the waiter sits in this attempt's shielded cleanup while the
+            # run's cancellation ends dispatch
+            with anyio.CancelScope(shield=True), anyio.fail_after(10):
+                try:
+                    await handle.enqueue_sample(Sample(input="x"))
+                except TaskEndedError as ex:
+                    outcomes.append(ex.log)
+                outcomes.append(_record_by_id(handle.task_id).reached)
+            raise
+
+    class Source(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_creator_task(body)]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            started.append(log.eval.task)
+            return None
+
+    with anyio.fail_after(30):
+        async with anyio.create_task_group() as tg:
+
+            async def run() -> None:
+                await eval_async(Source(), model="mockllm/model", log_dir=str(tmp_path))
+
+            tg.start_soon(run)
+            await events["waiting"].wait()
+            tg.cancel_scope.cancel()
+    # the request's task never started: no attempt, no log
+    assert outcomes == [None, "added"]
+    assert "rollout_task" not in started
+
+
+def test_fed_tasks_own_retry_request_is_not_honoured() -> None:
+    outcomes: list[Any] = []
+
+    async def body() -> None:
+        [handle] = enqueue_task(rollout_task())
+        _send_in_background(
+            handle, Sample(input="x", metadata={"started": "running", "wait": "never"})
+        )
+        await EVENTS["running"].wait()
+        record = _record_by_id(handle.task_id)
+        assert record.attempt_cancel is not None
+        outcomes.append(record.attempt_cancel.can_retry)
+        record.attempt_cancel.request("retry")
+        outcomes.append(await handle.result())
+
+    EVENTS.clear()
+    logs = eval(
+        _creator_task(body),
+        model="mockllm/model",
+        display="none",
+        task_retry_attempts=2,
+    )
+    rollouts = [log for log in logs if log.eval.task == "rollout_task"]
+    assert len(rollouts) == 1 and rollouts[0].status == "error"
+    assert outcomes[0] is False
+    assert outcomes[1] is not None
+    assert outcomes[1].eval.eval_id == rollouts[0].eval.eval_id
