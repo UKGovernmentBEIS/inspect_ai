@@ -302,8 +302,12 @@ class ActiveSample:
         return len(self.error_retries)
 
     def start(self, tg: TaskGroup) -> None:
+        """Mark the sample started, firing an interrupt stamped while it initialized."""
         self.started = datetime.now(timezone.utc).timestamp()
         self.tg = tg
+        if self._interrupt_action is not None:
+            self._fire_on_interrupt("user_cancel")
+            tg.cancel_scope.cancel()
 
     def complete(self) -> None:
         self.completed = datetime.now(timezone.utc).timestamp()
@@ -418,15 +422,21 @@ class ActiveSample:
         ``"cancel"`` records it as cancelled (transcript preserved, no
         scoring, not counted as an error).
 
+        First resolution wins: once an action is set, later calls change
+        nothing. The runner reads :attr:`interrupt_action` when it handles
+        the cancel, so replacing it would change the outcome of an interrupt
+        already delivered.
+
         Before :meth:`start` (the sample is registered but still
         initializing — sandbox provisioning may be in flight) there is no
         task group to cancel, so the call only stamps the intent: the
-        sample reads :attr:`terminal`, and the task runner fires the
-        interrupt (by calling this method again) the moment the sample
-        starts, before any of its plan runs. The ``on_interrupt`` hook fires
+        sample reads :attr:`terminal`, and :meth:`start` fires the interrupt
+        before any of the sample's plan runs. The ``on_interrupt`` hook fires
         at that point too, so a binder sees the same sequence it sees for a
         running sample. See ``design/ctl/initializing-sample-cancel.md``.
         """
+        if self._interrupt_action is not None:
+            return
         self._interrupt_action = action
         self._fire_terminal()
         if self.tg is None:
