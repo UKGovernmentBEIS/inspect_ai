@@ -124,14 +124,13 @@ def open_file(
     options = default_fs_options(file)
     options.update(fs_options)
 
-    # s3 has no directories, so fsspec's makedirs before a write only adds a
-    # HeadBucket (and a GetBucketLocation if that is denied) to every write
-    auto_mkdir = urlparse(file).scheme != "s3"
+    # s3 has no directories: fsspec's makedirs before each write is a HeadBucket
+    # (then a GetBucketLocation, then a CreateBucket, as each one fails)
+    if url_protocol(file) == "s3":
+        options.setdefault("auto_mkdir", False)
 
     # open the file and return the stream
-    return fsspec.open(
-        file, mode=mode, encoding=encoding, auto_mkdir=auto_mkdir, **options
-    )
+    return fsspec.open(file, mode=mode, encoding=encoding, **options)
 
 
 # utility to copy a file
