@@ -3271,6 +3271,41 @@ def test_an_unchanged_computer_call_replays_its_item_without_safety_checks():
 
 
 @pytest.mark.parametrize(
+    "lacks",
+    [("pending_safety_checks",), ("pending_safety_checks", "status")],
+    ids=["as the API writes it", "as it replays, without a status too"],
+)
+async def test_a_computer_call_without_safety_checks_is_read(
+    lacks: tuple[str, ...],
+) -> None:
+    from inspect_ai.model import messages_from_openai_responses
+
+    item: Any = {
+        "type": "computer_call",
+        "id": "cu_1",
+        "call_id": "call_computer",
+        "status": "completed",
+        "actions": [{"type": "screenshot"}],
+        "pending_safety_checks": [],
+    }
+    for field in lacks:
+        del item[field]
+    sent: Any = dict(item)
+
+    messages = await messages_from_openai_responses(
+        [{"role": "user", "content": "hi"}, sent], "gpt-5.4-mini"
+    )
+
+    assistant = messages[-1]
+    assert isinstance(assistant, ChatMessageAssistant)
+    [call] = assistant.tool_calls or []
+    assert (call.id, call.function) == ("call_computer", "computer")
+    assert call.arguments == {"actions": [{"action": "screenshot"}]}
+    # the item isn't given what it lacks
+    assert sent == item
+
+
+@pytest.mark.parametrize(
     "raw", ['{"command":   "ls"}', '{"command": "ls"', "ls -la", "2024-01-01"]
 )
 def test_an_unchanged_function_call_replays_its_item(raw: str) -> None:

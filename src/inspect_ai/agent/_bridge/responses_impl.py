@@ -1201,7 +1201,12 @@ def messages_from_responses_input(
                     tool_calls.append(tool_call)
                 elif is_response_computer_tool_call(param):
                     ensure_id(param)
-                    computer_call = ResponseComputerToolCall.model_validate(param)
+                    # The API writes a call without `pending_safety_checks`, and
+                    # a call replays without `status`. Neither is read here, and
+                    # the item is left as it came.
+                    computer_call = ResponseComputerToolCall.model_validate(
+                        {"pending_safety_checks": [], "status": "completed", **param}
+                    )
                     tool_calls.append(
                         tool_call_from_openai_computer_tool_call(computer_call)
                     )
