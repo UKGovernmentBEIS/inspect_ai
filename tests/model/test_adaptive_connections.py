@@ -1090,7 +1090,10 @@ async def test_in_run_pool_keeps_first_limit_and_warns_once(
 async def test_in_run_ctl_retune_stands(
     caplog: pytest.LogCaptureFixture, tmp_path: Path
 ) -> None:
-    """Inside a run, a call asking for another limit leaves a ctl retune in place."""
+    """Inside a run, a call asking for another limit leaves a ctl retune in place.
+
+    Calls asking for the creation limit or the retuned limit do not warn.
+    """
     from inspect_ai._control.limits import process_limits
 
     limits: list[int] = []
@@ -1104,7 +1107,8 @@ async def test_in_run_ctl_retune_stands(
             await active.generate("a")
             await process_limits(key="mockllm/model", key_limit=8)
             await active.generate("b")
-            await active.generate("c", config=GenerateConfig(max_connections=5))
+            await active.generate("c", config=GenerateConfig(max_connections=8))
+            await active.generate("d", config=GenerateConfig(max_connections=5))
             return state
 
         return solve
@@ -1119,6 +1123,6 @@ async def test_in_run_ctl_retune_stands(
         log_dir=str(tmp_path),
     )
     assert log.status == "success"
-    assert limits == [3, 8, 8]
+    assert limits == [3, 8, 8, 8]
     (warning,) = _pool_limit_warnings(caplog)
     assert "limit of 8" in warning and "max_connections=5" in warning

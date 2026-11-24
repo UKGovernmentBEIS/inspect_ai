@@ -585,7 +585,7 @@ def request_static_limit(
 
     Inside a run the pool keeps the limit it was created with (only
     `inspect ctl config` retunes it), and the first call that asks for a
-    different limit logs a warning.
+    limit other than its creation limit and its current limit logs a warning.
 
     Args:
        key: Registry key of the pool.
@@ -606,6 +606,7 @@ def request_static_limit(
     if (
         requested is not None
         and requested != created_limit
+        and requested != semaphore.concurrency
         and key not in _static_pool_limit_warned
     ):
         _static_pool_limit_warned.add(key)
