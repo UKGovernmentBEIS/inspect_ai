@@ -73,6 +73,7 @@ from inspect_ai.approval._apply import apply_tool_approval, approval
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
     ApprovalEvent,
+    ErrorEvent,
     ModelEvent,
     SentinelEvent,
     SpanBeginEvent,
@@ -1367,6 +1368,7 @@ def test_a_bridged_scaffold_that_catches_a_sentinel_failure_is_stopped(
         for e in sample.events
         if isinstance(e, SentinelEvent) and e.status == "error"
     ] == ["PermissionError: sentinel denied"]
+    assert len([e for e in sample.events if isinstance(e, ErrorEvent)]) == 1
     # the turn was cancelled before the scaffold could catch its failure, and
     # nothing reached the model after it
     assert caught == []
