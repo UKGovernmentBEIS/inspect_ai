@@ -71,9 +71,8 @@ the command forms.
 - It has no environment-variable mirror: a left-over variable would
   silently switch ctl from live processes to stale logs.
 - `task list --shards` turns shard aggregation off: every `<name>.shards/`
-  is walked as an ordinary directory, so each shard, the merged log and any
-  stray log is an ordinary row. It lists what `--log-dir` pointed at each
-  companion would, for every shard set under the root in one command. The
+  is walked as an ordinary directory, nested ones included, so each shard,
+  the merged log and any stray log is an ordinary row. The
   human output then leaves out the errored-samples footer, since a merged
   log's row holds its shards' samples and a sum over the rows would count
   them twice. In live mode `--shards` is accepted and does nothing
