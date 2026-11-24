@@ -1,26 +1,33 @@
-"""End-to-end tests for adaptive_connections wiring through Model.generate."""
+"""End-to-end tests for connection-limit wiring (adaptive and static) through Model.generate."""
 
 from collections.abc import Callable
 from contextlib import nullcontext
+from pathlib import Path
 from typing import Any
 
 import pytest
 
+from inspect_ai import Task, eval_async
 from inspect_ai._util.retry import report_http_retry
+from inspect_ai.dataset import Sample
 from inspect_ai.model import (
     GenerateConfig,
     get_model,
 )
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.util import AdaptiveConcurrency
 from inspect_ai.util._concurrency import (
+    AdaptiveConcurrencyController,
     ConcurrencySemaphore,
     _active_controller,
     _AnyIOSemaphoreRegistry,
+    _create_anyio_semaphore,
     _request_had_retry,
     adaptive_controllers,
+    concurrency_semaphores,
     init_concurrency,
 )
 
@@ -964,3 +971,154 @@ async def test_adaptive_int_shorthand_at_field_level() -> None:
     # Easier: verify the controller exists at all (smoke test). The
     # `resolve_adaptive` unit test above covers the value-level mapping.
     assert ctrls[0].concurrency <= 50
+
+
+def _capture_static_limit(limits: list[int]) -> Callable[..., ModelOutput]:
+    """Build a custom_outputs fn that appends the static pool's limit on each call."""
+
+    def out(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        (pool,) = [
+            sem
+            for sem in concurrency_semaphores()
+            if sem.name == "mockllm/model"
+            and not isinstance(sem, AdaptiveConcurrencyController)
+        ]
+        limits.append(pool.concurrency)
+        return ModelOutput.from_content(model="mockllm", content="ok")
+
+    return out
+
+
+def _pool_limit_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        r.getMessage()
+        for r in caplog.records
+        if "Connection pool 'mockllm/model'" in r.getMessage()
+    ]
+
+
+async def test_explicit_max_connections_resizes_pool_outside_run(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Outside a run, each call's explicit max_connections sets the pool's limit."""
+    limits: list[int] = []
+    fn = _capture_static_limit(limits)
+    model = get_model("mockllm/model", custom_outputs=fn)
+    for max_connections in [1, 10, 2]:
+        await model.generate(
+            "hello", config=GenerateConfig(max_connections=max_connections)
+        )
+    assert limits == [1, 10, 2]
+    assert _pool_limit_warnings(caplog) == []
+
+
+async def test_explicit_max_connections_leaves_fixed_pool_unchanged() -> None:
+    """A registry whose pools can't be resized keeps the first limit."""
+
+    class FixedRegistry(_AnyIOSemaphoreRegistry):
+        async def get_or_create(
+            self,
+            name: str,
+            concurrency: int,
+            key: str | None,
+            visible: bool,
+            adaptive: AdaptiveConcurrency | None = None,
+            resizable: bool = False,
+        ) -> ConcurrencySemaphore:
+            k = key or name
+            if k not in self._semaphores:
+                self._semaphores[k] = _create_anyio_semaphore(
+                    name, concurrency, visible
+                )
+            return self._semaphores[k]
+
+    init_concurrency(FixedRegistry())
+    limits: list[int] = []
+    fn = _capture_static_limit(limits)
+    model = get_model("mockllm/model", custom_outputs=fn)
+    for max_connections in [1, 10]:
+        await model.generate(
+            "hello", config=GenerateConfig(max_connections=max_connections)
+        )
+    assert limits == [1, 1]
+
+
+async def test_direct_generate_after_eval_gets_its_own_limit(tmp_path: Path) -> None:
+    """A pool left behind by an eval is resized by a later direct call."""
+    limits: list[int] = []
+    fn = _capture_static_limit(limits)
+    model = get_model("mockllm/model", custom_outputs=fn)
+    await eval_async(
+        Task(dataset=[Sample(input="hi")]),
+        model=model,
+        max_connections=5,
+        log_dir=str(tmp_path),
+    )
+    await model.generate("hello", config=GenerateConfig(max_connections=50))
+    assert limits == [5, 50]
+
+
+async def test_in_run_pool_keeps_first_limit_and_warns_once(
+    caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    """Inside a run, tasks sharing a pool keep the first limit; one warning."""
+    limits: list[int] = []
+    fn = _capture_static_limit(limits)
+    model = get_model("mockllm/model", custom_outputs=fn)
+    samples = [Sample(input="a"), Sample(input="b")]
+    first = Task(
+        dataset=samples, config=GenerateConfig(max_connections=3), name="first"
+    )
+    second = Task(
+        dataset=samples, config=GenerateConfig(max_connections=7), name="second"
+    )
+    logs = await eval_async(
+        [first, second], model=model, max_tasks=1, log_dir=str(tmp_path)
+    )
+    assert [log.status for log in logs] == ["success", "success"]
+    assert limits == [3, 3, 3, 3]
+    (warning,) = _pool_limit_warnings(caplog)
+    assert "limit of 3" in warning and "max_connections=7" in warning
+    assert "inspect ctl config --key mockllm/model" in warning
+
+
+async def test_in_run_ctl_retune_stands(
+    caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    """Inside a run, a call asking for another limit leaves a ctl retune in place."""
+    from inspect_ai._control.limits import process_limits
+
+    limits: list[int] = []
+    fn = _capture_static_limit(limits)
+    model = get_model("mockllm/model", custom_outputs=fn)
+
+    @solver
+    def retune_then_generate() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            active = get_model()
+            await active.generate("a")
+            await process_limits(key="mockllm/model", key_limit=8)
+            await active.generate("b")
+            await active.generate("c", config=GenerateConfig(max_connections=5))
+            return state
+
+        return solve
+
+    (log,) = await eval_async(
+        Task(
+            dataset=[Sample(input="hi")],
+            solver=retune_then_generate(),
+            config=GenerateConfig(max_connections=3),
+        ),
+        model=model,
+        log_dir=str(tmp_path),
+    )
+    assert log.status == "success"
+    assert limits == [3, 8, 8]
+    (warning,) = _pool_limit_warnings(caplog)
+    assert "limit of 8" in warning and "max_connections=5" in warning

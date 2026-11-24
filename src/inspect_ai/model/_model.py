@@ -2351,6 +2351,7 @@ class Model:
         an attempt is parked and reacquire it before the attempt resumes
         (see :class:`ConnectionSlot`).
         """
+        from inspect_ai._eval import eval as eval_module
         from inspect_ai.util._concurrency import (
             AdaptiveConcurrencyController,
             _active_controller,
@@ -2358,6 +2359,7 @@ class Model:
             _request_was_cache_hit,
             adaptive_active,
             get_or_create_semaphore,
+            request_static_limit,
             resolve_adaptive,
         )
 
@@ -2396,7 +2398,7 @@ class Model:
                     _request_had_retry.reset(token_r)
                     _request_was_cache_hit.reset(token_h)
         else:
-            # static path (existing behavior, unchanged)
+            # static path
             max_connections = (
                 config.max_connections
                 if config.max_connections
@@ -2406,6 +2408,12 @@ class Model:
             )
             static_sem = await get_or_create_semaphore(
                 str(model_name), max_connections, key, True
+            )
+            request_static_limit(
+                key,
+                static_sem,
+                config.max_connections or None,
+                eval_module._eval_async_running,
             )
             async with _held_connection_slot(static_sem.semaphore) as slot:
                 yield slot
