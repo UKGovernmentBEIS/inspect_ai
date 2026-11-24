@@ -122,9 +122,12 @@ The mode adds two values to the closed `kind` vocabulary, raised only under
   `OSError`, because a missing object must not read as "the process is
   gone".
 
-Existing kinds keep their meanings. A missing directory or bucket, a
+Existing kinds keep their meanings. A missing local directory or S3
+bucket, a
 selector with no match, a sample that has not started (or runs without a
-shared buffer), and a log removed during the read are `not_found`. An
+shared buffer), and a log removed during the read are `not_found`. An S3
+prefix holding no objects lists as an empty directory, as S3 has no
+directories, so it gives no rows rather than `not_found`. An
 ambiguous selector is `ambiguous` through the same `_resolve_target_eval`
 as live mode, run over the mode's rows; so is a sample key two shards hold.
 A log that exists but does not parse, or a manifest or buffered events
@@ -142,9 +145,11 @@ and the `test_log_dir_*` contract tests in `test_ctl.py` check it.
 
 The mode depends on how a worker writes, which it does not change:
 
-- **The `.eval` log.** A running log has `_journal/start.json` and one
-  `_journal/summaries/<n>.json` member per flush, and no `header.json`;
-  readers build its header from the start record. `header.json` and
+- **The `.eval` log.** A running log has `_journal/start.json`, the
+  `_journal/summaries/<n>.json` members the recorder has published
+  (`src/inspect_ai/log/_recorders/eval.py`; a flush can add several), and
+  no `header.json`; readers build its header from the start record and read
+  every published summaries member. `header.json` and
   `summaries.json` are written when it finishes. Each flush replaces the
   whole object (on S3, a new ETag), so a completed sample reaches the log
   when its batch fills or the recorder's stale-flush timer fires, plus the
@@ -162,8 +167,9 @@ The mode depends on how a worker writes, which it does not change:
   when that write is published. A local intermediate write skipped on a
   file-in-use error (`write_local_snapshot` in
   `src/inspect_ai/log/_recorders/file.py`) still drops the rows, so the
-  flushed key is in neither the log nor the buffer until a later write
-  succeeds.
+  flushed record is in neither the log nor the buffer until a later write
+  succeeds; readers see the key's earlier logged record if it has one
+  (a requeue or seeded retry), otherwise `pending` or missing.
   **A discarded attempt:** a sample-level retry (`retry_on_error`), or a
   retry an interrupt turned into an abandoned attempt, removes the
   attempt's rows without logging it (`src/inspect_ai/_eval/task/run.py`), and a
@@ -297,8 +303,10 @@ read sequence).
 **A merged log whose companion is gone** (shards deleted after a merge) is
 an ordinary unsharded attempt.
 
-**Unreadable logs.** An unreadable log is reported, never dropped. An
-unreadable shard member belongs to its shard set by its directory, whatever
+**Unreadable logs.** An unreadable log the index needs is reported, never
+dropped. One exception: a shard read only to find the task id of a set an
+ordinary retry supersedes is not reported when it fails, since the set
+contributes no samples. An unreadable current shard member belongs to its shard set by its directory, whatever
 its file name, and blocks its task's per-sample reads
 (`test_an_unreadable_shard_marks_the_row_and_blocks_sample_reads`).
 Attributing an unreadable ordinary log to a task is best effort: it reads
@@ -413,8 +421,9 @@ data (`read_member` in `snapshot.py`, `consistency.py`):
   cache), so within one invocation they can keep a stale view of a log and
   miss a key flushed after it. Members with no manifest have no second
   object to order against. A skipped local write ("What the log directory
-  holds while a run is live") leaves nothing to read: the key reads
-  `pending` or missing until a later write succeeds.
+  holds while a run is live") withholds the latest record until a later
+  write succeeds: the key reads as its earlier logged record if it has one,
+  otherwise `pending` or missing.
 - **A retried key can drop out between syncs.** A key whose attempt was
   discarded for a sample-level retry is in neither object until a sync
   publishes its new attempt ("What the log directory holds while a run is
@@ -688,7 +697,8 @@ polling guidance, weighing request cost against seeing each buffer sync.
 - **No key lost to a torn read.** On local and S3 logs, a key that leaves
   the manifest through a published flush is reported from the manifest or
   the log, never as pending or missing (a skipped local intermediate write
-  leaves the key in neither until a later write succeeds); a mid-read replacement is re-read, and an exhausted
+  withholds the latest record until a later write succeeds, showing an
+  earlier logged record or none); a mid-read replacement is re-read, and an exhausted
   re-read is reported, never turned into missing data
   (`test_read_consistently_retries_torn_reads_then_succeeds`,
   `test_exhausted_re_reads_fail_the_read_and_mark_list_reads_incomplete`,
