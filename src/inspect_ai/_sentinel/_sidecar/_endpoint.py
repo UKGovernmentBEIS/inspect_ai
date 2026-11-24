@@ -108,6 +108,7 @@ class Sidecar:
     """A sidecar that answered the probe, reached through the model's proxy with the model's own credentials."""
 
     origin: str
+    """The proxy's scheme and host, as the model's base URL gives them, credentials included, since Inspect's calls to the sidecar authenticate with them."""
     release: Literal["whole", "early"]
     client: Any = field(repr=False)
     version: int = 1
@@ -118,6 +119,12 @@ class Sidecar:
     Inspect shows them in its approval UI.
     """
     access: EvalAccess | None = field(default=None, repr=False)
+
+    @property
+    def proxy_url(self) -> str:
+        """The proxy's address without its credentials, for messages and the log."""
+        return without_credentials(self.origin)
+
     """The eval's id and token for this sidecar, shared by every model of the task whose calls go through it."""
     _ids: "count[int]" = field(default_factory=lambda: count(1), repr=False)
 
@@ -283,6 +290,7 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
         SentinelProxyError: If a sidecar answered that Inspect can't work with.
     """
     origin = _origin(client.sdk.base_url)
+    shown = without_credentials(origin)
     try:
         response = await client.sdk.get(
             f"{origin}/sentinel/info",
@@ -290,7 +298,7 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
             options={"max_retries": 0, "timeout": PROBE_TIMEOUT},
         )
     except Exception as ex:
-        return NoSidecar(*_no_answer(origin, getattr(ex, "status_code", None), ex))
+        return NoSidecar(*_no_answer(shown, getattr(ex, "status_code", None), ex))
 
     try:
         info = response.json()
@@ -298,18 +306,18 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
         info = None
     if not isinstance(info, dict) or info.get("service") != "inspect_sentinel":
         return NoSidecar(
-            f"{origin} answered the probe, but not as a sidecar", definite=True
+            f"{shown} answered the probe, but not as a sidecar", definite=True
         )
 
     versions = info.get("versions")
     if not isinstance(versions, list) or not any(v in VERSIONS for v in versions):
         raise SentinelProxyError(
-            f"The sentinel sidecar at {origin} serves versions {versions} of its endpoint for evals, and this Inspect speaks {list(VERSIONS)}."
+            f"The sentinel sidecar at {shown} serves versions {versions} of its endpoint for evals, and this Inspect speaks {list(VERSIONS)}."
         )
     release = info.get("release", "whole")
     if release != "whole":
         raise SentinelProxyError(
-            f"The sentinel sidecar at {origin} releases replies early ({release!r}), which Inspect doesn't support yet. Run the sidecar with `--release whole`."
+            f"The sentinel sidecar at {shown} releases replies early ({release!r}), which Inspect doesn't support yet. Run the sidecar with `--release whole`."
         )
     version = max(v for v in versions if v in VERSIONS)
     # A sidecar that doesn't report `review`, such as one from before sidecars
@@ -339,6 +347,12 @@ def _origin(base_url: Any) -> str:
     url = str(base_url)
     scheme, _, rest = url.partition("://")
     return f"{scheme}://{rest.split('/', 1)[0]}"
+
+
+def without_credentials(origin: str) -> str:
+    """An origin without the user and password a base URL can carry, for showing or recording it."""
+    scheme, separator, host = origin.partition("://")
+    return f"{scheme}{separator}{host.rpartition('@')[2]}"
 
 
 def _response_type() -> type:

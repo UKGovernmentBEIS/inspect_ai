@@ -90,8 +90,8 @@ from ._retry import retryable_eval_logs
 from ._score import edit_score
 from ._sentinel_stats import (
     SentinelEvalStats,
-    SentinelReviewCounts,
-    SentinelSidecarStats,
+    SentinelHumanReviewCounts,
+    SentinelRemoteStats,
     SentinelStats,
     SentinelStepCounts,
 )
@@ -144,8 +144,8 @@ __all__ = [
     "EvalStats",
     "EvalStatus",
     "SentinelEvalStats",
-    "SentinelReviewCounts",
-    "SentinelSidecarStats",
+    "SentinelHumanReviewCounts",
+    "SentinelRemoteStats",
     "SentinelStats",
     "SentinelStepCounts",
     "EvalLogInfo",

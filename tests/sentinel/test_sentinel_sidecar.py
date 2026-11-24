@@ -174,6 +174,19 @@ async def test_a_sidecar_behind_the_models_base_url_is_found(
     assert asked.headers["authorization"] == "Bearer test-key"
 
 
+async def test_a_sidecar_is_shown_without_the_credentials_its_base_url_holds() -> None:
+    stand_in = StandInSidecar()
+
+    found = await _probed(
+        _model(stand_in, "openai", "http://user:secret@proxy.test/v1")
+    )
+
+    assert isinstance(found, Sidecar)
+    # its calls keep the credentials, and what is shown or logged drops them
+    assert found.origin == "http://user:secret@proxy.test"
+    assert found.proxy_url == "http://proxy.test"
+
+
 async def test_a_sidecar_behind_an_openai_compatible_models_base_url_is_found() -> None:
     stand_in = StandInSidecar()
 
@@ -4227,8 +4240,8 @@ def test_each_report_says_which_models_judged_it(
     # the sidecar's own roles judged, whatever the eval set, and the log says so
     assert log.samples is not None
     [event] = _sentinel_events(log.samples[0])
-    assert event.sidecar is not None and event.sidecar.models is not None
-    assert [m.model_dump(exclude_none=True) for m in event.sidecar.models] == [
+    assert event.remote is not None and event.remote.models is not None
+    assert [m.model_dump(exclude_none=True) for m in event.remote.models] == [
         {"role": "monitor", "model": "mockllm/judge"},
         {"model": "mockllm/named"},
     ]
@@ -5116,15 +5129,10 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
     irid = stand_in.model_calls[0].headers["x-irid"]
     assert all(e.step_id == "call_1" and e.stage == "tool_call" for e in events)
     # where each came from
-    assert all(e.sidecar is not None for e in events)
-    where = events[0].sidecar
+    assert all(e.remote is not None for e in events)
+    where = events[0].remote
     assert where is not None
-    assert (where.proxy, where.version, where.release, where.request_id) == (
-        "http://proxy.test",
-        1,
-        "whole",
-        irid,
-    )
+    assert (where.proxy_url, where.request_id) == ("http://proxy.test", irid)
     if trimmed:
         # the step's decision, without the protocol that made it
         [event] = events
@@ -5134,8 +5142,8 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
             "",
         )
         assert where.trimmed
-        assert where.reviews is not None
-        assert [r.id for r in where.reviews] == ["q_1"]
+        assert where.human_reviews is not None
+        assert [r.id for r in where.human_reviews] == ["q_1"]
     else:
         # one per report, as in process
         observed, decided = events
@@ -5151,10 +5159,60 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
         )
         assert decided.function == "decide"
         assert not where.trimmed
-        # the question's id is on the step's root event alone
-        assert observed.sidecar is not None and observed.sidecar.reviews is None
-        assert decided.sidecar is not None and decided.sidecar.reviews is not None
-        assert [r.id for r in decided.sidecar.reviews] == ["q_1"]
+        assert _review_ids(events) == [None, ["q_1"]]
+
+
+def _review_ids(events: list[SentinelEvent]) -> list[list[str] | None]:
+    return [
+        None
+        if e.remote is None or e.remote.human_reviews is None
+        else [r.id for r in e.remote.human_reviews]
+        for e in events
+    ]
+
+
+@pytest.mark.parametrize(
+    ("recorded", "review_ids"),
+    [
+        # no root record: the step's last
+        ([_RECORDED[0], _RECORDED[1]], [None, ["q_1"]]),
+        # two root records: the first alone
+        (
+            [
+                {**_RECORDED[1], "path": "", "kind": "superseded"},
+                {**_RECORDED[1], "path": ""},
+            ],
+            [["q_1"], None],
+        ),
+    ],
+    ids=["no-root", "two-roots"],
+)
+def test_a_steps_question_ids_are_on_one_of_its_events(
+    recorded: list[dict[str, Any]], review_ids: list[list[str] | None]
+) -> None:
+    step: dict[str, Any] = {
+        "stage": "tool_call",
+        "call": "call_1",
+        "decision": {"action": "reject", "message": "Tokyo is not allowed."},
+        "reviews": ["q_1"],
+        "recorded": recorded,
+    }
+    judgment: dict[str, Any] = {
+        "outcome": "proceed",
+        "steps": [step],
+        "proposed": {
+            "message": _turn_json(("call_1", "Tokyo"), ("call_2", "Oslo")),
+            "results": {"call_1": "Tokyo is not allowed."},
+        },
+    }
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(calls=[("call_2", "weather", {"city": "Oslo"})], judgment=judgment),
+            Turn(),
+        ]
+    )
+
+    assert _review_ids(_sentinel_events(_run_agent(stand_in))) == review_ids
 
 
 def test_a_step_without_records_keeps_its_decisions_metadata() -> None:
@@ -5189,7 +5247,7 @@ def test_a_step_without_records_keeps_its_decisions_metadata() -> None:
 
     [event] = _sentinel_events(sample)
     assert event.metadata == {"rule": "no_tokyo"}
-    assert event.sidecar is not None and event.sidecar.trimmed is False
+    assert event.remote is not None and event.remote.trimmed is False
     assert event.function == ""
 
 

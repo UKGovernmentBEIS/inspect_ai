@@ -29,9 +29,9 @@ from ._score_edit import ScoreEditEvent
 from ._sentinel import (
     SentinelAction,
     SentinelEvent,
-    SentinelSidecar,
-    SentinelSidecarModel,
-    SentinelSidecarReview,
+    SentinelRemote,
+    SentinelRemoteHumanReview,
+    SentinelRemoteModel,
     SentinelSuspicion,
 )
 from ._span import SpanBeginEvent, SpanEndEvent
@@ -69,9 +69,9 @@ __all__ = [
     "SentinelEvent",
     "SentinelAction",
     "SentinelSuspicion",
-    "SentinelSidecar",
-    "SentinelSidecarModel",
-    "SentinelSidecarReview",
+    "SentinelRemote",
+    "SentinelRemoteHumanReview",
+    "SentinelRemoteModel",
     "CommunicationEvent",
     "CommunicationKind",
     "CommunicationRecord",

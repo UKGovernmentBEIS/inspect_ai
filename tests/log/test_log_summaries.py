@@ -28,8 +28,8 @@ from inspect_ai.log._recorders.eval import EvalRecorder
 from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.recorder import SampleRecordKey
 from inspect_ai.log._sentinel_stats import (
-    SentinelReviewCounts,
-    SentinelSidecarStats,
+    SentinelHumanReviewCounts,
+    SentinelRemoteStats,
     SentinelStats,
     SentinelStepCounts,
 )
@@ -131,10 +131,12 @@ def test_sample_summary_has_the_samples_sentinel_stats() -> None:
             "tool_call": SentinelStepCounts(total=3, judged=2, unjudged={"error": 1})
         },
         actions={"proceed": 1, "reject": 1},
-        human_reviews=SentinelReviewCounts(asked=1, answered=1),
+        human_reviews=SentinelHumanReviewCounts(total=1, answered=1),
         complete=False,
         incomplete_reason="cancelled before scoring",
-        sidecar=SentinelSidecarStats(proxy="http://proxy.test", model_calls=2),
+        remote=SentinelRemoteStats(
+            proxy_url="http://proxy.test", version=1, release="whole", model_calls=2
+        ),
     )
     sample = EvalSample(id=1, epoch=1, input="x", target="y")
     assert sample.summary().sentinel_stats is None

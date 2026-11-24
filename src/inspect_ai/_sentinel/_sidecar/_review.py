@@ -649,7 +649,7 @@ async def ask_person(received: ReceivedCall) -> None:
         received.question_list_failures += 1
         if received.question_list_failures > LOOKUP_RETRIES:
             raise SentinelProxyError(
-                f"The sentinel sidecar at {sidecar.origin} couldn't be asked for the questions it holds for a person: {ex}"
+                f"The sentinel sidecar at {sidecar.proxy_url} couldn't be asked for the questions it holds for a person: {ex}"
             ) from ex
         await anyio.sleep(
             LOOKUP_RETRY_PAUSE * 2 ** (received.question_list_failures - 1)
@@ -668,7 +668,7 @@ async def ask_person(received: ReceivedCall) -> None:
         # keep asking with nothing to show a person. The error leaves out
         # the list's contents, because a question holds a call's arguments.
         raise SentinelProxyError(
-            f"The sentinel sidecar at {sidecar.origin} listed the questions it holds for a person in a form Inspect can't read."
+            f"The sentinel sidecar at {sidecar.proxy_url} listed the questions it holds for a person in a form Inspect can't read."
         )
     questions = [
         question
@@ -713,7 +713,7 @@ async def ask_person(received: ReceivedCall) -> None:
         received.answer_send_failures += 1
         if received.answer_send_failures > LOOKUP_RETRIES:
             raise SentinelProxyError(
-                f"A person's answer couldn't be sent to the sentinel sidecar at {sidecar.origin}: {lost}"
+                f"A person's answer couldn't be sent to the sentinel sidecar at {sidecar.proxy_url}: {lost}"
             ) from lost
         await anyio.sleep(LOOKUP_RETRY_PAUSE * 2 ** (received.answer_send_failures - 1))
 
@@ -766,7 +766,7 @@ async def _wait_until_question_closes(
                 )
         except SidecarCallError as ex:
             logger.debug(
-                f"Inspect couldn't ask the sentinel sidecar at {received.sidecar.origin} whether a question a person is shown is still open: {ex}"
+                f"Inspect couldn't ask the sentinel sidecar at {received.sidecar.proxy_url} whether a question a person is shown is still open: {ex}"
             )
             # less up to a tenth at random, so that the samples paused behind
             # one proxy don't all ask again at the same moment
@@ -812,7 +812,7 @@ async def _get_decision(
     ]
     if not offered:
         raise SentinelProxyError(
-            f"The sentinel sidecar at {received.sidecar.origin} asked a person a question with no choice Inspect can offer: {choices}."
+            f"The sentinel sidecar at {received.sidecar.proxy_url} asked a person a question with no choice Inspect can offer: {choices}."
         )
     try:
         return await _show_question(question, offered, received.history)
@@ -824,7 +824,7 @@ async def _get_decision(
         # the rejected call.
         failed = type(ex).__name__
         logger.warning(
-            f"A question from the sentinel sidecar at {received.sidecar.origin} couldn't be shown to a person, so it is answered with caution ({failed})."
+            f"A question from the sentinel sidecar at {received.sidecar.proxy_url} couldn't be shown to a person, so it is answered with caution ({failed})."
         )
         return (
             "reject" if "reject" in offered else "terminate",
@@ -981,13 +981,13 @@ async def _send_answer(
             # returns its record, and `log_reviews` then warns the person
             # that their answer wasn't used.
             logger.debug(
-                f"The sentinel sidecar at {sidecar.origin} no longer held a question when a person answered it: {ex}"
+                f"The sentinel sidecar at {sidecar.proxy_url} no longer held a question when a person answered it: {ex}"
             )
             return None
         if ex.code is None:
             # The call didn't reach the sidecar, or its answer was lost.
             logger.debug(
-                f"A person's answer couldn't be sent to the sentinel sidecar at {sidecar.origin}: {ex}"
+                f"A person's answer couldn't be sent to the sentinel sidecar at {sidecar.proxy_url}: {ex}"
             )
             return ex
         raise _refusal_error(sidecar, ex) from ex
@@ -996,7 +996,7 @@ async def _send_answer(
 
 def _refusal_error(sidecar: Any, ex: SidecarCallError) -> SentinelProxyError:
     return SentinelProxyError(
-        f"The sentinel sidecar at {sidecar.origin} won't take the eval's calls about a person's review: {ex}"
+        f"The sentinel sidecar at {sidecar.proxy_url} won't take the eval's calls about a person's review: {ex}"
     )
 
 
@@ -1108,6 +1108,6 @@ async def _cancel(received: ReceivedCall, request_id: str) -> Answer | None:
             return answer
         except Exception as ex:
             logger.debug(
-                f"The sentinel sidecar at {sidecar.origin} couldn't be told a call was given up: {ex}"
+                f"The sentinel sidecar at {sidecar.proxy_url} couldn't be told a call was given up: {ex}"
             )
     return None

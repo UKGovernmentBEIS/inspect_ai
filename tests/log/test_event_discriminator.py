@@ -99,14 +99,12 @@ def _sentinel_event(**kwargs: Any) -> SentinelEvent:
 
 _MODIFIED = ToolCall(id="call_1", function="bash", arguments={"cmd": "ls"})
 
-_SIDECAR: dict[str, Any] = dict(
-    proxy="http://proxy.test",
-    version=1,
-    release="whole",
+_REMOTE: dict[str, Any] = dict(
+    proxy_url="http://proxy.test",
     request_id="irid_1",
     request_received="2026-11-23T10:00:00+00:00",
     reply_received="2026-11-23T10:00:02+00:00",
-    reviews=[
+    human_reviews=[
         dict(
             id="q_1",
             asked="2026-11-23T10:00:01+00:00",
@@ -148,8 +146,8 @@ def _observation(**kwargs: Any) -> SentinelEvent:
         _observation(status="error", suspicion=None, error="ValueError: no model"),
         _observation(stage="tool_result", execution_id="call_token"),
         _observation(completed="2026-11-23T10:00:03+00:00", working_time=1.5),
-        _sentinel_event(sidecar=_SIDECAR),
-        _sentinel_event(function="", sidecar=dict(_SIDECAR, trimmed=True)),
+        _sentinel_event(remote=_REMOTE),
+        _sentinel_event(function="", remote=dict(_REMOTE, trimmed=True)),
         _sentinel_event(
             status="unjudged",
             function=None,
@@ -157,6 +155,8 @@ def _observation(**kwargs: Any) -> SentinelEvent:
             explanation=None,
             reason="provider_error",
         ),
+        # a status a later Inspect adds records no report
+        _sentinel_event(status="paused", function=None, action=None),
     ],
 )
 def test_sentinel_event_round_trips(event: SentinelEvent) -> None:
@@ -209,7 +209,7 @@ def test_sentinel_event_rejects_invalid_suspicion() -> None:
 
 
 @pytest.mark.parametrize("kind", ["observation", "decision"])
-@pytest.mark.parametrize("status", ["cancelled", "bypassed", "unjudged"])
+@pytest.mark.parametrize("status", ["cancelled", "bypassed", "unjudged", "paused"])
 @pytest.mark.parametrize(
     "field,value",
     [

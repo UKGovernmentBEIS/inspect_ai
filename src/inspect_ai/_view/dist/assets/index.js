@@ -105620,7 +105620,12 @@ var verdictLooks = {
 	word: "Escalated (no handler; proceeded)",
 	tone: "neutral"
 };
-var lookOf = (step) => step.verdict === "escalate" && step.returned ? unhandledEscalateLook : verdictLooks[step.verdict];
+/** A status a later Inspect adds records no report, so it reads as one. */ var unknownStatusLook = (status) => ({
+	icon: "sentinel",
+	word: status,
+	tone: "neutral"
+});
+var lookOf = (step) => step.verdict === "escalate" && step.returned ? unhandledEscalateLook : getOwn(verdictLooks, step.verdict) ?? unknownStatusLook(step.verdict);
 var toneOfDecision = (decision) => {
 	switch (decision) {
 		case "reject":
