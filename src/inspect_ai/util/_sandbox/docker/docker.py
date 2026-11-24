@@ -63,7 +63,6 @@ from .failure import (
     classify_exec_failure,
     raise_for_unsupported_user,
 )
-from .internal import build_internal_image, is_internal_image, is_internal_image_built
 from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name
 
@@ -135,18 +134,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                         f"ERROR: Docker service '{name}' includes an explicitly configured container_name ('{container_name}'). This is not permitted, as container names should be provisioned by Docker compose and an explicit container_name will not work with epochs > 1."
                     )
 
-                # build internal images
-                image = service.get("image", None)
-                if image and is_internal_image(image):
-                    if not prebuilt:
-                        await build_internal_image(image)
-                    elif not await is_internal_image_built(image):
-                        raise PrerequisiteError(
-                            PREBUILT_IMAGES_ERROR_PREFIX
-                            + f"the internal image '{image}' is not present in the Docker image store."
-                        )
                 # pull any remote images
-                elif service.get("build", None) is None and not service.get("x-local"):
+                image = service.get("image", None)
+                if service.get("build", None) is None and not service.get("x-local"):
                     # skip the pull if the image is already available locally
                     # (avoids noisy errors for images loaded via 'docker load')
                     if image and await docker_image_exists_locally(image):

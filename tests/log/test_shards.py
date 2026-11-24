@@ -37,7 +37,6 @@ from inspect_ai.log import (
     read_eval_log_async,
     write_eval_log,
 )
-from inspect_ai.log._file import is_log_file
 from inspect_ai.log._log import EvalShardEntry
 from inspect_ai.log._recorders.recorder import SampleRecordKey
 from inspect_ai.log._shards._plan import (
@@ -50,7 +49,6 @@ from inspect_ai.log._shards._walk import (
     ShardDir,
     ShardSetListing,
     attempt_sort_key,
-    is_shard_path,
     list_shard_set,
 )
 from inspect_ai.model import get_model
@@ -122,8 +120,8 @@ def _companion(root: Path) -> Path:
     _touch(shards / "3" / ".buffer" / "seg" / "segment.0.zip")
     # an empty shard directory is left out
     (shards / "4").mkdir()
-    # a dot-prefixed directory is not a shard; its logs are stray
-    _touch(shards / ".hidden" / f"{T1}_task_d.eval")
+    # directories not named with digits are stray and not listed
+    _touch(shards / "extra" / f"{T1}_task_d.eval")
     _touch(shards / ".hidden" / "notes.txt")
     # stray: eval and json logs in the companion root, a json log in a shard
     _touch(shards / f"{T1}_task_e.eval")
@@ -131,9 +129,8 @@ def _companion(root: Path) -> Path:
     _touch(shards / "0" / f"{T1}_task_a.json")
     # a file that is not a log is ignored in the root
     _touch(shards / "run.merge.lock")
-    # logs nested deeper are not listed, and are not shard paths
+    # logs nested deeper are not listed
     _touch(shards / "2" / "scans" / f"{T1}_task_f.eval")
-    _touch(shards / ".hidden" / "sub" / f"{T1}_task_g.eval")
     return shards
 
 
@@ -164,167 +161,51 @@ async def test_list_shard_set_applies_the_shard_set_rules(tmp_path: Path) -> Non
         Path(s.path).relative_to(shards_dir).as_posix(): s.reason for s in listing.stray
     }
     assert list(stray) == [
-        f".hidden/{T1}_task_d.eval",
+        ".hidden",
         f"0/{T1}_task_a.json",
         f"{T1}_task_e.eval",
         f"{T1}_task_e.json",
+        "extra",
     ]
-    assert "starts with '.'" in stray[f".hidden/{T1}_task_d.eval"]
+    assert "not named with digits only" in stray[".hidden"]
+    assert "not named with digits only" in stray["extra"]
     assert "json log in a shard directory" in stray[f"0/{T1}_task_a.json"]
     assert "directly in the shards directory" in stray[f"{T1}_task_e.eval"]
     assert "directly in the shards directory" in stray[f"{T1}_task_e.json"]
-    # the directories below the listed ones, buffers excepted
-    assert [
-        Path(d).relative_to(shards_dir).as_posix() for d in listing.unlisted_dirs
-    ] == [".hidden/sub", f"2/{T2}_task_c.checkpoints", "2/scans"]
-
-
-def _nested_companions(shards: Path) -> tuple[Path, Path]:
-    """Companions nested in a shard's ancillary directory and a hidden one."""
-    in_shard = shards / "2" / "x.shards"
-    in_hidden = shards / ".hidden" / "y.shards"
-    for nested in (in_shard, in_hidden):
-        _touch(nested / "1" / f"{T1}_task_h.eval")
-        _touch(nested / f"{T1}_task_i.eval")
-    return in_shard, in_hidden
-
-
-@pytest.mark.parametrize("form", ["path", "uri"])
-async def test_list_shard_set_reports_every_log_is_shard_path_places_in_it(
-    tmp_path: Path, form: str
-) -> None:
-    def location(path: Path) -> str:
-        return path.as_uri() if form == "uri" else str(path)
-
-    shards_dir = _companion(tmp_path)
-    nested = _nested_companions(shards_dir)
-    logs = {
-        Path(directory) / name
-        for directory, _, names in os.walk(tmp_path)
-        for name in names
-        if is_log_file(name, [".json"])
-    }
-
-    async def reported(companion: Path) -> set[Path]:
-        async with AsyncFilesystem() as fs:
-            listing = await list_shard_set(fs, location(companion))
-        assert all(s.dir.startswith(location(companion)) for s in listing.shards)
-        return {
-            Path(local_path(a.name)) for s in listing.shards for a in s.attempts
-        } | {Path(local_path(s.path)) for s in listing.stray}
-
-    # from the log directory, the outer companion's walk reports exactly its
-    # shard paths; the logs below it that it does not list are ordinary logs
-    shard_paths = {
-        log for log in logs if is_shard_path(location(tmp_path), location(log))
-    }
-    assert shard_paths == await reported(shards_dir)
-    # with the logs nested in the directories it does not list, the walk
-    # accounts for every log in the companion
-    async with AsyncFilesystem() as fs:
-        unlisted = (await list_shard_set(fs, location(shards_dir))).unlisted_dirs
-    nested_logs = {
-        log for log in logs if any(Path(local_path(d)) in log.parents for d in unlisted)
-    }
-    assert shard_paths | nested_logs == {
-        log for log in logs if shards_dir in log.parents
-    }
-    assert not shard_paths & nested_logs
-    assert logs - shard_paths == {
-        shards_dir / "2" / "scans" / f"{T1}_task_f.eval",
-        shards_dir / ".hidden" / "sub" / f"{T1}_task_g.eval",
-        *(log for companion in nested for log in logs if companion in log.parents),
-    }
-
-    # from the directory holding a nested companion, its walk agrees in turn
-    for companion in nested:
-        root = companion.parent
-        below = {log for log in logs if root in log.parents}
-        shard_paths = {
-            log for log in below if is_shard_path(location(root), location(log))
-        }
-        assert shard_paths == await reported(companion)
-        assert len(shard_paths) == 2
-
-
-async def test_list_shard_set_on_s3_reports_every_log_is_shard_path_places_in_it(
-    mock_s3: None,
-) -> None:
-    s3 = boto3.client("s3")
-    keys = [
-        f"consistency/run.shards/0/{T1}_task_a.eval",
-        f"consistency/run.shards/0/{T1}_task_a.json",
-        f"consistency/run.shards/{T1}_task_b.eval",
-        f"consistency/run.shards/{T1}_task_b.json",
-        f"consistency/run.shards/.hidden/{T1}_task_c.eval",
-        f"consistency/run.shards/0/scans/{T1}_task_d.eval",
-        f"consistency/run.shards/0/x.shards/1/{T1}_task_e.eval",
-        f"consistency/run.shards/.hidden/y.shards/1/{T1}_task_f.eval",
-        "consistency/run.shards/0/.buffer/seg/segment.0.zip",
-        "consistency/run.shards/.buffer/stem/segment.0.zip",
-        f"consistency/{T1}_task_g.eval",
-    ]
-    for key in keys:
-        s3.put_object(Bucket="test-bucket", Key=key, Body=b"x")
-    root = "s3://test-bucket/consistency"
-    async with AsyncFilesystem() as fs:
-        listing = await list_shard_set(fs, f"{root}/run.shards")
-    reported = {a.name for s in listing.shards for a in s.attempts} | {
-        s.path for s in listing.stray
-    }
-    shard_paths = {
-        f"s3://test-bucket/{key}"
-        for key in keys
-        if is_shard_path(root, f"s3://test-bucket/{key}")
-    }
-    assert shard_paths == reported
-    assert listing.unlisted_dirs == [
-        f"{root}/run.shards/.hidden/y.shards",
-        f"{root}/run.shards/0/scans",
-        f"{root}/run.shards/0/x.shards",
-    ]
-    assert {
-        f"s3://test-bucket/{key}" for key in keys if is_log_file(key, [".json"])
-    } - shard_paths == {
-        f"{root}/run.shards/0/scans/{T1}_task_d.eval",
-        f"{root}/run.shards/0/x.shards/1/{T1}_task_e.eval",
-        f"{root}/run.shards/.hidden/y.shards/1/{T1}_task_f.eval",
-        f"{root}/{T1}_task_g.eval",
-    }
 
 
 async def test_list_shard_set_orders_numeric_shard_names_numerically(
     tmp_path: Path,
 ) -> None:
     shards_dir = tmp_path / "run.shards"
-    names = [str(k) for k in range(12)] + ["010", "a", "b10", "b9"]
+    names = [str(k) for k in range(12)] + ["010"]
     for name in names:
         _touch(shards_dir / name / f"{T1}_task_a.eval")
     async with AsyncFilesystem() as fs:
         listing = await list_shard_set(fs, str(shards_dir))
     assert [s.name for s in listing.shards] == [
         "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "010", "10", "11",
-        "a", "b10", "b9",
     ]  # fmt: skip
 
 
 async def test_list_shard_set_keeps_the_file_uri_form(tmp_path: Path) -> None:
-    shards_dir = tmp_path / "run.shards"
-    _touch(shards_dir / "k 1" / f"{T1}_task_a.eval")
+    shards_dir = tmp_path / "run 1.shards"
+    _touch(shards_dir / "0" / f"{T1}_task_a.eval")
     async with AsyncFilesystem() as fs:
         listing = await list_shard_set(fs, shards_dir.as_uri())
 
     (shard,) = listing.shards
-    assert shard.name == "k 1"
-    assert shard.dir == f"{shards_dir.as_uri()}/k%201"
+    assert shard.name == "0"
+    assert shard.dir == f"{shards_dir.as_uri()}/0"
+    assert "run%201.shards" in shard.dir
     assert shard.current is not None
-    assert shard.current.name == f"{shards_dir.as_uri()}/k%201/{T1}_task_a.eval"
+    assert shard.current.name == f"{shards_dir.as_uri()}/0/{T1}_task_a.eval"
 
 
 async def test_list_shard_set_of_a_missing_local_dir_is_empty(tmp_path: Path) -> None:
     async with AsyncFilesystem() as fs:
         listing = await list_shard_set(fs, str(tmp_path / "absent.shards"))
-    assert listing == ShardSetListing(shards=[], stray=[], unlisted_dirs=[])
+    assert listing == ShardSetListing(shards=[], stray=[])
 
 
 async def test_list_shard_set_leaves_out_a_shard_removed_during_the_walk(
@@ -456,7 +337,7 @@ async def test_list_shard_set_on_s3(mock_s3: None) -> None:
         f"{prefix}/0/.buffer/seg/segment.0.zip",
         f"{prefix}/0/scans/scan_id=x/rows.parquet",
         f"{prefix}/0/{T1}_task_a.json",
-        f"{prefix}/.hidden/{T1}_task_b.eval",
+        f"{prefix}/extra/{T1}_task_b.eval",
         f"{prefix}/{T1}_task_c.eval",
         f"{prefix}/{T1}_task_c.json",
     ):
@@ -478,12 +359,12 @@ async def test_list_shard_set_on_s3(mock_s3: None) -> None:
     assert shard.has_buffer
     assert shard.ancillary == [f"{shards_dir}/0/scans"]
     assert [s.path for s in listing.stray] == [
-        f"{shards_dir}/.hidden/{T1}_task_b.eval",
         f"{shards_dir}/0/{T1}_task_a.json",
         f"{shards_dir}/{T1}_task_c.eval",
         f"{shards_dir}/{T1}_task_c.json",
+        f"{shards_dir}/extra",
     ]
-    assert empty == ShardSetListing(shards=[], stray=[], unlisted_dirs=[])
+    assert empty == ShardSetListing(shards=[], stray=[])
 
 
 async def test_list_shard_set_on_s3_leaves_out_a_shard_emptied_during_the_walk(
@@ -611,73 +492,6 @@ def test_attempt_sort_key_falls_back_to_mtime() -> None:
         [same_newer, plain_newer, same_older, bad_date, plain_older, no_mtime],
         key=attempt_sort_key,
     ) == [no_mtime, plain_older, bad_date, plain_newer, same_older, same_newer]
-
-
-@pytest.mark.parametrize(
-    "root,path,expected",
-    [
-        ("/logs", "/logs/run.shards/0/a.eval", True),
-        ("/logs", "/logs/sub/run.shards/0/a.eval", True),
-        ("/logs", "/logs/a.eval", False),
-        ("/logs", "/logs/sub/a.eval", False),
-        # a file named like a companion is not a directory component
-        ("/logs", "/logs/sub/x.shards", False),
-        # a user directory named "shards", or exactly ".shards"
-        ("/logs", "/logs/shards/0/a.eval", False),
-        ("/logs", "/logs/.shards/0/a.eval", False),
-        # a root that is itself a shard directory (a worker's view)
-        ("/logs/run.shards/0", "/logs/run.shards/0/a.eval", False),
-        ("/logs/run.shards", "/logs/run.shards/0/a.eval", False),
-        # a companion nested in a shard is a companion only from a root
-        # below the outer one; from above, its logs are too deep
-        ("/logs/run.shards/0", "/logs/run.shards/0/x.shards/1/a.eval", True),
-        ("/logs/run.shards/0", "/logs/run.shards/0/x.shards/a.eval", True),
-        ("/logs", "/logs/run.shards/0/x.shards/1/a.eval", False),
-        ("/logs", "/logs/run.shards/0/x.shards/a.eval", False),
-        ("/logs", "/logs/run.shards/.hidden/y.shards/1/a.eval", False),
-        (
-            "/logs/run.shards/.hidden",
-            "/logs/run.shards/.hidden/y.shards/1/a.eval",
-            True,
-        ),
-        # directly in a companion, or in a dot-prefixed directory of one
-        ("/logs", "/logs/run.shards/a.eval", True),
-        ("/logs", "/logs/run.shards/.hidden/a.eval", True),
-        # nested deeper than a shard directory
-        ("/logs", "/logs/run.shards/0/scans/a.eval", False),
-        ("/logs", "/logs/run.shards/.hidden/sub/a.eval", False),
-        ("/logs/", "/logs/run.shards/0/a.eval", True),
-        ("s3://b/logs", "s3://b/logs/run.shards/0/a.eval", True),
-        ("s3://b/logs/run.shards/0", "s3://b/logs/run.shards/0/a.eval", False),
-        ("file:///logs", "/logs/run.shards/0/a.eval", True),
-        ("/logs", "file:///logs/run.shards/0/a.eval", True),
-        ("file:///logs/a%20b.shards/0", "/logs/a b.shards/0/a.eval", False),
-    ],
-)
-def test_is_shard_path(root: str, path: str, expected: bool) -> None:
-    assert is_shard_path(root, path) is expected
-
-
-def test_is_shard_path_resolves_relative_local_roots(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    shard = (tmp_path / "logs" / "run.shards" / "0" / "a.eval").as_uri()
-    assert is_shard_path("logs", shard)
-    assert not is_shard_path("logs/run.shards/0", shard)
-
-
-@pytest.mark.parametrize(
-    "root,path",
-    [
-        ("/logs", "/other/run.shards/0/a.eval"),
-        ("s3://b/logs", "/logs/run.shards/0/a.eval"),
-        ("s3://b/logs", "s3://c/logs/run.shards/0/a.eval"),
-    ],
-)
-def test_is_shard_path_refuses_a_path_outside_the_root(root: str, path: str) -> None:
-    with pytest.raises(ValueError, match="is not below"):
-        is_shard_path(root, path)
 
 
 def _client_error(code: str) -> Exception:
@@ -1812,7 +1626,7 @@ def test_a_shard_directory_not_named_with_digits_is_refused(
     _run(shards, name, sample_id=[6])
     target = to_uri(merged) if form == "file_uri" else merged
     before = _files(str(tmp_path))
-    with pytest.raises(ShardSetError, match="must be named with digits only"):
+    with pytest.raises(ShardSetError, match="not named with digits only"):
         merge_eval_log_shards(target, _task(), sample_ids=list(range(1, 7)))
     assert _files(str(tmp_path)) == before
 
@@ -4211,9 +4025,9 @@ def test_a_literal_percent_sign_in_an_s3_attempt_name_merges(
 @pytest.mark.parametrize(
     "name,match",
     [
-        ("a", "must be named with digits only"),
+        ("a", "not named with digits only"),
         ("1#tag", "S3 would read it as"),
-        ("prefix\\0", "must be named with digits only"),
+        ("prefix\\0", "not named with digits only"),
     ],
 )
 def test_an_s3_shard_directory_not_named_with_digits_is_refused(
@@ -5047,6 +4861,28 @@ def test_merge_shards_command_reports_an_attempt_removed_while_merging(
     ledger = read_eval_log(merged, header_only=True).eval.shards
     assert ledger is not None
     assert ledger.ledger[0].log.endswith(Path(replacement.location).name)
+
+
+@pytest.mark.parametrize(
+    "shards_dir,path,expected",
+    [
+        ("/logs/run.shards", "/logs/run.shards/0/a.eval", True),
+        ("/logs/run.shards", "/logs/run.shards/0/scans/a.eval", True),
+        ("file:///logs/run.shards", "/logs/run.shards/0/a.eval", True),
+        ("/logs/run.shards", "file:///logs/run.shards/0/a.eval", True),
+        ("/logs/run.shards", "/logs/run.shards2/0/a.eval", False),
+        ("/logs/run.shards", "/logs/run.eval", False),
+        ("s3://b/logs/run.shards", "s3://b/logs/run.shards/0/a.eval", True),
+        ("s3://b/logs/run.shards", "s3://c/logs/run.shards/0/a.eval", False),
+        ("s3://b/logs/run.shards", "/logs/run.shards/0/a.eval", False),
+    ],
+)
+def test_merge_shards_command_notes_a_removed_file_under_the_companion(
+    shards_dir: str, path: str, expected: bool
+) -> None:
+    from inspect_ai._cli.log_merge_shards import _in_companion
+
+    assert _in_companion(shards_dir, path) is expected
 
 
 def test_merge_shards_command_reports_a_failing_metric_with_its_traceback(

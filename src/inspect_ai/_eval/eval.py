@@ -122,13 +122,15 @@ from .run import eval_run
 from .task import Epochs, PreviousTask, Task, TaskSource
 from .task.enqueue import (
     RunQueue,
+    attempt_scope,
     bind_run_queue,
     creator_model,
-    creator_model_scope,
+    is_fed,
     unbind_run_queue,
 )
 from .task.images import InputMediaPolicy
 from .task.resolved import ResolvedTask, resolved_model_names
+from .task.sample_source import HANDLE_DATASET_NAME
 from .task.tasks import Tasks
 
 log = logging.getLogger(__name__)
@@ -1238,8 +1240,10 @@ def _resolve_enqueued_tasks(
     consistently with the run. Tasks added inside a running task attempt
     resolve once, under that attempt's model (:func:`creator_model`), in place
     of the run's models; elsewhere they resolve once per run model. Raises
-    ``ValueError`` if the tasks can't be resolved, and ``RuntimeError`` for a
-    placeholder left by eval-set selection pruning (``is_placeholder``).
+    ``ValueError`` if the tasks can't be resolved or a task fed through its
+    handle is passed as a ``ResolvedTask`` or ``PreviousTask``, and
+    ``RuntimeError`` for a placeholder left by eval-set selection pruning
+    (``is_placeholder``).
     """
     attempt_model = creator_model()
     if attempt_model is not None:
@@ -1278,6 +1282,14 @@ def _resolve_enqueued_tasks(
     ]
     if not resolved:
         raise ValueError("No tasks to enqueue (resolution produced none).")
+    first = tasks[0] if isinstance(tasks, list) and tasks else tasks
+    if isinstance(first, (ResolvedTask, PreviousTask)) and any(
+        is_fed(resolved_task.task) for resolved_task in resolved
+    ):
+        raise ValueError(
+            "Tasks fed through a handle (samples_from_handle()) must start "
+            "fresh; pass the Task."
+        )
     for resolved_task in resolved:
         if is_placeholder(resolved_task.task):
             raise RuntimeError(
@@ -1754,6 +1766,15 @@ async def eval_retry_async(
             except Exception as ex:
                 log.warning(f"Recovery failed for {eval_log.location}: {ex}")
 
+    # a task fed through its handle ran only the samples its creator sent
+    for eval_log in retry_eval_logs:
+        if eval_log.eval.dataset.name == HANDLE_DATASET_NAME:
+            raise PrerequisiteError(
+                f"Task '{eval_log.eval.task}' took its samples through its "
+                "handle (samples_from_handle()), so it cannot be retried on "
+                "its own; retry the task that added it."
+            )
+
     # eval them in turn
     eval_logs: list[EvalLog] = []
     for i, eval_log in enumerate(retry_eval_logs):
@@ -2113,7 +2134,7 @@ def eval_resolve_tasks(
             init_active_model(m, config)
             if task_source is not None:
                 if seed is None:
-                    with creator_model_scope(None):
+                    with attempt_scope(None):
                         seed = task_source.initial_tasks()
                 batch: Tasks = seed
             else:
@@ -2133,6 +2154,14 @@ def eval_resolve_tasks(
                     warn_unconsumed_task_args=(i == 0 and task_source is None),
                     input_media_policy=input_media_policy,
                 )
+            )
+
+    for resolved_task in resolved_tasks:
+        if is_fed(resolved_task.task):
+            raise PrerequisiteError(
+                f"Task '{resolved_task.task.name}' takes its samples through its "
+                "handle (samples_from_handle()), so it cannot be run or retried "
+                "on its own; run or retry the task that adds it."
             )
 
     if isinstance(approval, str | ApprovalPolicyConfig):
