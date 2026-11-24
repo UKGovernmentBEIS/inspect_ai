@@ -106,15 +106,8 @@ def file(
           if you are accessing a public S3 bucket with no credentials.
 
     """
-    # get the default storage options for the scheme then apply passed options
-    options = default_fs_options(file)
-    options.update(fs_options)
-
-    # open the file
-    open_file = fsspec.open(file, mode=mode, encoding=encoding, **options)
-
     # yield the file and ensure it is closed when we exit the context
-    with open_file as f:
+    with open_file(file, mode, encoding, fs_options) as f:
         try:
             yield f
         finally:
@@ -131,8 +124,14 @@ def open_file(
     options = default_fs_options(file)
     options.update(fs_options)
 
+    # s3 has no directories, so fsspec's makedirs before a write only adds a
+    # HeadBucket (and a GetBucketLocation if that is denied) to every write
+    auto_mkdir = urlparse(file).scheme != "s3"
+
     # open the file and return the stream
-    return fsspec.open(file, mode=mode, encoding=encoding, **options)
+    return fsspec.open(
+        file, mode=mode, encoding=encoding, auto_mkdir=auto_mkdir, **options
+    )
 
 
 # utility to copy a file

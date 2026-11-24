@@ -21,8 +21,10 @@ from inspect_ai._util.file import (
     acquire_exclusive_lock,
     basename,
     cleanup_s3_sessions,
+    file,
     filesystem,
     local_path,
+    open_file,
     size_in_mb,
     strip_trailing_sep,
     to_uri,
@@ -68,6 +70,36 @@ def test_filesystem_file_info():
     info = memory_filesystem.info("test_file")
     assert info.name == "memory:///test_file"
     assert info.size == 0
+
+
+@pytest.mark.parametrize("opener", [file, open_file])
+def test_s3_write_does_not_check_bucket(
+    opener: Any, mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    s3_class = importlib.import_module("s3fs").S3FileSystem
+    original_call = s3_class._call_s3
+    calls: list[str] = []
+
+    async def recording_call(self: Any, method: str, *args: Any, **kwargs: Any) -> Any:
+        calls.append(method)
+        return await original_call(self, method, *args, **kwargs)
+
+    monkeypatch.setattr(s3_class, "_call_s3", recording_call)
+
+    path = f"s3://test-bucket/no-bucket-check/{opener.__name__}.txt"
+    with opener(path, "w") as f:
+        f.write("x")
+
+    assert not {"head_bucket", "get_bucket_location", "create_bucket"} & set(calls)
+    assert filesystem(path).exists(path)
+
+
+@pytest.mark.parametrize("opener", [file, open_file])
+def test_local_write_creates_parent_dirs(opener: Any, tmp_path: Path) -> None:
+    path = tmp_path / "a" / "b" / "c.txt"
+    with opener(str(path), "w") as f:
+        f.write("x")
+    assert path.read_text() == "x"
 
 
 def test_is_writeable_strips_trailing_sep():
