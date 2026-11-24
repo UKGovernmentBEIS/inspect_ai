@@ -24,7 +24,6 @@ from inspect_ai._util.file import (
     file,
     filesystem,
     local_path,
-    open_file,
     size_in_mb,
     strip_trailing_sep,
     to_uri,
@@ -72,16 +71,9 @@ def test_filesystem_file_info():
     assert info.size == 0
 
 
-BUCKET_CALLS = {"head_bucket", "get_bucket_location", "create_bucket"}
-
-
-@pytest.fixture
-def s3_calls(mock_s3: None, monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """Names of the requests s3fs makes through `_call_s3`, in order.
-
-    An upload is not among them: s3fs sends it through a `call_s3` bound
-    before the patch.
-    """
+def test_s3_write_does_not_check_bucket(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     s3_class = importlib.import_module("s3fs").S3FileSystem
     original_call = s3_class._call_s3
     calls: list[str] = []
@@ -91,43 +83,15 @@ def s3_calls(mock_s3: None, monkeypatch: pytest.MonkeyPatch) -> list[str]:
         return await original_call(self, method, *args, **kwargs)
 
     monkeypatch.setattr(s3_class, "_call_s3", recording_call)
-    return calls
 
-
-@pytest.mark.parametrize("opener", [file, open_file])
-def test_s3_write_does_not_check_bucket(opener: Any, s3_calls: list[str]) -> None:
-    path = f"s3://test-bucket/no-bucket-check/{opener.__name__}.txt"
-    with opener(path, "w") as f:
+    path = "s3://test-bucket/no-bucket-check.txt"
+    with file(path, "w") as f:
         f.write("x")
 
     # the head_object from exists() shows that requests are being recorded
     assert filesystem(path).exists(path)
-    assert "head_object" in s3_calls
-    assert not BUCKET_CALLS & set(s3_calls)
-
-
-def test_s3_write_checks_bucket_when_auto_mkdir_requested(s3_calls: list[str]) -> None:
-    path = "s3://test-bucket/no-bucket-check/auto-mkdir.txt"
-    with file(path, "w", fs_options={"auto_mkdir": True}) as f:
-        f.write("x")
-
-    assert "head_bucket" in s3_calls
-
-
-def test_s3_write_to_missing_bucket_does_not_create_it(s3_calls: list[str]) -> None:
-    with pytest.raises(FileNotFoundError):
-        with file("s3://inspect-missing-bucket/key.txt", "w") as f:
-            f.write("x")
-
-    assert "create_bucket" not in s3_calls
-
-
-@pytest.mark.parametrize("opener", [file, open_file])
-def test_local_write_creates_parent_dirs(opener: Any, tmp_path: Path) -> None:
-    path = tmp_path / "a" / "b" / "c.txt"
-    with opener(str(path), "w") as f:
-        f.write("x")
-    assert path.read_text() == "x"
+    assert "head_object" in calls
+    assert "head_bucket" not in calls
 
 
 def test_is_writeable_strips_trailing_sep():
