@@ -675,8 +675,11 @@ scope with `catch_errors=False`, and every limit error propagates from it,
 as today. A deepagent background subagent with no limits of its own
 catches nothing either: `_run_background()` enters its scope with
 `catch_errors=bool(limits)`, as `_dispatch()` calls `run(limits=None)` for
-such a subagent, so a limit entered inside it propagates and ends the
-sample, as today. The order of `limits` does not matter
+such a subagent, so a limit entered inside it propagates to the child's
+background owner (the sample by default; "What a runtime can rely on"), as
+today. A background subagent with limits of its own catches as
+`run(limits=[...])` does: a limit entered inside it, not only its own,
+becomes its `stopped` result. The order of `limits` does not matter
 for catching: a group of the scope's own token limit and a cost limit
 entered inside the scope is caught like any other covered group, and
 `run()` returns their combined error, also when the scope entered only a
@@ -2029,7 +2032,13 @@ documented. Behaviour changes:
   guarantees state this as a prerequisite rather than changing it. A limit
   of the parent's `run()` or of the sample, or one entered inside a
   background child with no limits of its own, still escapes the child and
-  ends the sample.
+  reaches its background owner, which ends the sample by default. One
+  result changes with the covered-exit rule: a background child with
+  limits of its own (a subagent's `limits`) now also catches a limit
+  entered inside it, so an inner plain `with token_limit()` that today
+  escapes the child and ends the sample is reported as the child's
+  `stopped` result, and the parent continues, as it does today when the
+  child's own limit is reached.
 - **Cache hits under an exceeded limit raise.** A cached response under an
   already-exceeded token or cost limit is still served, and now raises that
   limit after it (the check that follows every generation), where today it
@@ -2111,9 +2120,11 @@ documented. Behaviour changes:
   reached turn limit, an unpriced model) or make a limit error propagate
   further. Three let work continue that today stops. Covered exits catch
   more: a limit entered inside `run(limits=[...])` (a plain block's, an
-  `as_solver()` limit's, a time limit's) is returned by `run()`, where
-  today it escapes and can end the sample ("Compatibility and migration"),
-  so the parent's later calls run. Those
+  `as_solver()` limit's, a time limit's) is returned by `run()`, and one
+  entered inside a deepagent background child with limits of its own is
+  reported as its `stopped` result, where today both escape and can end
+  the sample ("Compatibility and migration"), so the parent's later calls
+  run. Those
   calls are bounded by the limits still in force around them (the
   sample's and any enclosing scope's), not by the closed inner limit, and
   with no enclosing limit configured nothing bounds them, as for any
@@ -2261,8 +2272,11 @@ under trio with `--runtrio`.
   subagent's swallowed limit is reported as its result; a default
   background deepagent child (no limits of its own) whose agent exceeds a
   plain `with token_limit()` inside it ends the sample with that limit, as
-  today, and a background child that exceeds its parent `run()`'s
-  token limit still ends the sample;
+  today; a background child configured with `token_limit(100)` whose agent
+  exceeds a plain `with token_limit(1)` inside it, the configured node
+  still below budget, completes with the `stopped` result naming the inner
+  limit and the parent continues; and a background child that exceeds its
+  parent `run()`'s token limit still ends the sample;
   - plain blocks: inside `with token_limit(n)`, after a call exceeds the
     block's limit and the error is caught inside the block, a further call
     made inside the block is refused with that limit; a catch inside the
