@@ -226,7 +226,9 @@ same rule ctl log-dir mode uses, so the two never disagree about what a
 shard contributes. A rebuild therefore plans the same records, status and
 results as a fresh merge of the same companion (decision: Ransom,
 2026-11-23, superseding the per-shard attribution by selection count and
-digest of 2026-09-29; see "Alternatives considered").
+digest of 2026-09-29; see "Alternatives considered"), except that
+stochastic metrics and epoch reducers run again without resetting random
+state, so their results can differ ("Results").
 
 Shard selections must be disjoint, as the launcher's contract says. Every
 rebuild reads every selection and refuses any overlap.
@@ -672,8 +674,10 @@ their own sections.
 - A rebuild's samples and header equal a fresh merge's of the same
   companion (`test_incremental_merges_equal_fresh_merges`), except for
   `eval_id`, `run_id` and `created`, which it keeps from the first merge,
-  and header edits to the merged log, which it carries. A sample edited in
-  the merged log is replaced
+  and header edits to the merged log, which it carries. Stochastic metrics
+  and epoch reducers run again without resetting random state, so their
+  results can differ between a rebuild and a fresh merge. A sample edited
+  in the merged log is replaced
   (`test_a_writing_merge_keeps_header_edits_and_replaces_sample_edits`).
 - Every rebuild refuses overlapping selections
   (`test_every_writing_merge_refuses_overlapping_selections`).
