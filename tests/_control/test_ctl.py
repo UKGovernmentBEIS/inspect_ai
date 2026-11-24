@@ -8211,6 +8211,28 @@ def test_resolve_scope_sole_queued_task_resolves_to_process_scope() -> None:
     assert beside_completed.siblings == 2
 
 
+def test_resolve_scope_queued_only_second_process_makes_default_ambiguous(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A process listing only queued tasks still counts in process selection.
+
+    Without TASK, a running task in one process and a queued task in another
+    are ambiguous; naming the running task resolves it.
+    """
+    from inspect_ai._cli.ctl._mutate import _resolve_scope
+
+    rows = [
+        _full_summary("aaa111", "t1", pid=7),
+        _full_summary("bbb222", "t2", pid=8, status="queued"),
+    ]
+    with pytest.raises(click.exceptions.Exit):
+        _resolve_scope([], rows, None)
+    assert "Multiple processes are running" in capsys.readouterr().err
+    named = _resolve_scope([], rows, "t1")
+    assert named is not None and named.task_id == "aaa111"
+    assert named.socket_path == "/tmp/7.sock"
+
+
 def test_config_process_knob_notes_queued_task_beside_completed_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
