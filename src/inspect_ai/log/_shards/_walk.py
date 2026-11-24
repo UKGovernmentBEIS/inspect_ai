@@ -22,7 +22,7 @@ from inspect_ai._util.asyncfiles import (
 )
 from inspect_ai._util.constants import EVAL_LOG_FORMAT
 from inspect_ai._util.file import FileInfo, basename, local_path
-from inspect_ai._util.log_layout import _RECOVERED_SUFFIX, _SHARDS_SUFFIX
+from inspect_ai._util.log_layout import _RECOVERED_SUFFIX
 from inspect_ai.log._file import _timestamp_prefix_re, is_log_file
 
 from ._errors import ShardSetError
@@ -35,9 +35,7 @@ _EVAL_SUFFIX = f".{EVAL_LOG_FORMAT}"
 _NO_TIMESTAMP = datetime.min.replace(tzinfo=timezone.utc)
 
 _ROOT_LOG = "log directly in the shards directory, not in a shard directory"
-_HIDDEN_LOG = (
-    "log in a directory whose name starts with '.', which is not a shard directory"
-)
+_NOT_A_SHARD = "directory not named with digits only, which is not a shard directory"
 _JSON_LOG = "json log in a shard directory; shards must be eval logs"
 
 
@@ -64,13 +62,13 @@ def check_s3_location(location: str, error: type[Exception] = ValueError) -> Non
 
 
 class StrayFile(NamedTuple):
-    """A log file in a shard set that is not a shard attempt."""
+    """A log file or directory in a shard set that is not a shard attempt."""
 
     path: str
     """Path or URL, in the form the shards directory was given in."""
 
     reason: str
-    """Why the file is not an attempt."""
+    """Why it is not an attempt."""
 
 
 class ShardDir(NamedTuple):
@@ -102,18 +100,11 @@ class ShardSetListing(NamedTuple):
     """Result of :func:`list_shard_set`."""
 
     shards: list[ShardDir]
-    """The shard directories: all-digit names in numeric order, then the
-    rest by name."""
+    """The shard directories, in numeric order."""
 
     stray: list[StrayFile]
-    """Log files that are not attempts, sorted by path."""
-
-    unlisted_dirs: list[str]
-    """Directories seen and not listed, sorted: every directory in a ``<k>/``
-    other than ``.buffer/``, and every directory in a directory whose name
-    starts with ``.`` other than a ``.buffer/``. Logs nested in them are not
-    shard paths (see :func:`is_shard_path`); a caller that reports every log
-    lists them as ordinary logs."""
+    """Log files that are not attempts and directories that are not shard
+    directories, sorted by path."""
 
 
 class AttemptSortKey(NamedTuple):
@@ -130,22 +121,19 @@ async def list_shard_set(
     shards_dir: str,
     *,
     limiter: anyio.CapacityLimiter | None = None,
-    numeric_shards: bool = False,
 ) -> ShardSetListing:
-    """List a shards directory and each directory directly under it.
+    """List a shards directory and each shard directory directly under it.
 
-    ``shards_dir`` is listed once, then each of its directories, at most 32
-    at a time (or as many as ``limiter`` allows); nothing deeper is listed.
-    In a ``<k>/`` shard directory, ``.eval`` files are attempts, a
+    A shard directory, ``<k>/``, is named with ASCII digits only (the shard
+    number a launcher assigns). ``shards_dir`` is listed once, then each
+    ``<k>/``, at most 32 at a time (or as many as ``limiter`` allows);
+    nothing deeper is listed. In a ``<k>/``, ``.eval`` files are attempts, a
     ``.buffer/`` directory sets ``has_buffer``, and every other entry is
-    ancillary. A directory whose name starts with ``.`` is not a shard.
-    Directories below these that are not listed are returned in
-    ``unlisted_dirs``.
+    ancillary.
 
-    Every log file :func:`is_shard_path` places in the shard set is reported,
-    as an attempt or as stray. Stray files are a log directly in
-    ``shards_dir``, a log in a directory whose name starts with ``.``, and a
-    ``.json`` log in a ``<k>/``.
+    Stray entries are a log directly in ``shards_dir``, a ``.json`` log in a
+    ``<k>/``, and every other directory in ``shards_dir``, which is not
+    listed.
 
     A missing local ``shards_dir`` and an empty S3 prefix both list as empty.
     A ``<k>/`` with nothing in it is left out, so an empty local directory, a
@@ -166,15 +154,11 @@ async def list_shard_set(
             or ``s3://`` URL. Returned paths keep this form.
         limiter: Bounds every listing, the first included, so a caller
             walking several companions can keep one cap across them.
-        numeric_shards: Refuse every directory in ``shards_dir`` whose name
-            is not ASCII digits (the ``<k>`` a launcher assigns), before any
-            is listed. The merge sets it.
 
     Raises:
         ShardSetError: ``shards_dir`` or a listed name is an S3 URL that S3
-            would read as another key, a listed name is not directly in the
-            directory listed, or (with ``numeric_shards``) a directory in
-            ``shards_dir`` is not named with digits.
+            would read as another key, or a listed name is not directly in
+            the directory listed.
     """
     if limiter is None:
         limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_LISTINGS)
@@ -183,23 +167,20 @@ async def list_shard_set(
         async with limiter:
             listing = await fs.list_dir(shards_dir, indirect_error=ShardSetError)
     except FileNotFoundError:
-        return ShardSetListing(shards=[], stray=[], unlisted_dirs=[])
+        return ShardSetListing(shards=[], stray=[])
     _check_listed(shards_dir, listing)
-    if numeric_shards:
-        for directory in listing.dirs:
-            if not _is_number(raw_name(directory)):
-                raise ShardSetError(
-                    f"{directory} is not a shard directory: the directories in "
-                    f"{shards_dir} must be named with digits only (the shard "
-                    "number the launcher assigns). Move or remove it."
-                )
 
     stray = [
         StrayFile(path=info.name, reason=_ROOT_LOG)
         for info in listing.files
         if _is_log(_name(info.name))
     ]
-    unlisted_dirs: list[str] = []
+    shard_dirs: list[str] = []
+    for directory in listing.dirs:
+        if _is_number(raw_name(directory)):
+            shard_dirs.append(directory)
+        else:
+            stray.append(StrayFile(path=directory, reason=_NOT_A_SHARD))
 
     async def list_child(directory: str) -> ShardDir | None:
         try:
@@ -208,15 +189,6 @@ async def list_shard_set(
         except FileNotFoundError:
             return None
         _check_listed(directory, child)
-        if _name(directory).startswith("."):
-            stray.extend(
-                StrayFile(path=info.name, reason=_HIDDEN_LOG)
-                for info in child.files
-                if _is_log(_name(info.name))
-            )
-            if _name(directory) != _BUFFER_DIR:
-                unlisted_dirs.extend(d for d in child.dirs if _name(d) != _BUFFER_DIR)
-            return None
         if not child.files and not child.dirs:
             return None
         attempts: list[FileInfo] = []
@@ -235,7 +207,6 @@ async def list_shard_set(
                 has_buffer = True
             else:
                 ancillary.append(subdir)
-                unlisted_dirs.append(subdir)
         attempts.sort(key=attempt_sort_key)
         return ShardDir(
             name=_name(directory),
@@ -245,12 +216,10 @@ async def list_shard_set(
             ancillary=sorted(ancillary),
         )
 
-    listed = await tg_collect([functools.partial(list_child, d) for d in listing.dirs])
+    listed = await tg_collect([functools.partial(list_child, d) for d in shard_dirs])
     shards = sorted((s for s in listed if s is not None), key=_shard_sort_key)
     stray.sort(key=lambda s: s.path)
-    return ShardSetListing(
-        shards=shards, stray=stray, unlisted_dirs=sorted(unlisted_dirs)
-    )
+    return ShardSetListing(shards=shards, stray=stray)
 
 
 def _check_listed(base: str, listing: DirListing) -> None:
@@ -310,38 +279,9 @@ def is_recovered_attempt(info: FileInfo) -> bool:
     return _name(info.name).removesuffix(_EVAL_SUFFIX).endswith(_RECOVERED_SUFFIX)
 
 
-def is_shard_path(root: str, path: str) -> bool:
-    """Whether ``path`` is in the shard set of a ``<name>.shards/`` below ``root``.
-
-    True when ``path``, relative to ``root``, is directly in the first
-    directory named ``<name>.shards`` below ``root``, or in a directory
-    directly under it: the files :func:`list_shard_set` lists for that
-    companion. Only components below ``root`` count, so the logs of a root
-    that is itself a shard directory are not shards of it. A log nested
-    deeper (in an ancillary directory of a shard, including a companion
-    nested there) is not a shard path, so it is listed as an ordinary log
-    rather than hidden.
-    ``root`` and ``path`` may each be a plain path, ``file://`` URI or remote
-    URL; local forms are compared as absolute paths.
-
-    Raises:
-        ValueError: If ``path`` is not below ``root``.
-    """
-    root_parts = _location_parts(root)
-    path_parts = _location_parts(path)
-    if path_parts[: len(root_parts)] != root_parts:
-        raise ValueError(f"{path} is not below {root}")
-    relative = path_parts[len(root_parts) :]
-    for depth, part in enumerate(relative[:-1]):
-        if part.endswith(_SHARDS_SUFFIX) and part != _SHARDS_SUFFIX:
-            return len(relative) - depth <= 3
-    return False
-
-
-def _shard_sort_key(shard: ShardDir) -> tuple[bool, int, str]:
-    """Order shard directories with all-digit names numerically, then by name."""
-    numeric = _is_number(shard.name)
-    return (not numeric, int(shard.name) if numeric else 0, shard.name)
+def _shard_sort_key(shard: ShardDir) -> tuple[int, str]:
+    """Order shard directories numerically, then by name (``010`` and ``10``)."""
+    return (int(shard.name), shard.name)
 
 
 def _is_log(name: str) -> bool:
@@ -362,19 +302,3 @@ def _parse_timestamp_prefix(name: str) -> datetime | None:
         return datetime.strptime(f"{digits}+0000", "%Y%m%dT%H%M%S%z")
     except ValueError:
         return None
-
-
-def _location_parts(location: str) -> list[str]:
-    """The protocol and path components of a location.
-
-    Local locations (plain paths and ``file://`` URIs) share the protocol
-    ``""`` and are made absolute, so both forms compare equal.
-    """
-    if "://" in location and not location.startswith("file://"):
-        protocol, rest = location.split("://", 1)
-        return [f"{protocol}://", *_split(rest)]
-    return ["", *_split(os.path.abspath(local_path(location)))]
-
-
-def _split(path: str) -> list[str]:
-    return [part for part in re.split(r"[/\\]", path) if part]
