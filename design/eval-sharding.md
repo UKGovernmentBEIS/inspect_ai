@@ -52,10 +52,18 @@ Ransom, 2026-09-21). It mirrors sandbox checkpointing's
 
 - **The name is the identity.** `<name>.eval` and `<name>.shards/` derive
   each other by a string rule on the basename. `src/inspect_ai/_util/log_layout.py`
-  owns the rule for both companions (`log_basename`, `eval_shards_dir`,
-  `eval_log_for_shards_dir`, `eval_checkpoints_dir`,
-  `merged_log_candidates_for_shard`); a `<name>-recovered.eval` maps to the
-  same companion as `<name>.eval`. Tests: `tests/log/test_log_filename.py`.
+  owns the rule for both companions (`merged_log_name`, `eval_shards_dir`,
+  `eval_log_for_shards_dir` and `merged_log_for_shard` for shards;
+  `log_basename` and `eval_checkpoints_dir` for checkpoints). Only
+  `<name>.eval` is the merged log of `<name>.shards/`: a
+  `<name>-recovered.eval` beside it is an ordinary log, although
+  checkpoints map it to `<name>.checkpoints/` (decision: Ransom,
+  2026-11-23). A recovered merged log is reached only through
+  `allow_incomplete`, a local rewrite and a Python-only recovery without a
+  buffer, so a second merged-log name was not worth its rules. On that
+  path the viewer lists `<name>-recovered.eval` and ctl log-dir mode reads
+  it as a newer attempt of the task, and merging it names the companion
+  `<name>-recovered.shards/`. Tests: `tests/log/test_log_filename.py`.
 - **The launcher mints `<name>`** before any worker starts, since the
   workers' log directory depends on it, in the same `{created}_{task}_{id}`
   shape as a log file name, so the merged log lists and sorts like any other
@@ -83,7 +91,7 @@ Ransom, 2026-09-21). It mirrors sandbox checkpointing's
   refuses a directory that holds shards). To see such a log, point
   `--log-dir` at the directory that holds it. The viewer's shard hiding
   uses its own, name-based rule ("Viewer listing",
-  `merged_log_candidates_for_shard`): it treats any log in a directory
+  `merged_log_for_shard`): it treats any log in a directory
   directly under a `*.shards` directory as a shard of that companion, so
   it can also hide a log in a companion nested inside a shard's ancillary
   directory, which the merge does not list.
@@ -127,8 +135,8 @@ paths whose first component holds a colon, as text before any I/O
 version objects, and each needs its own support. A `file://` URI is decoded
 once, and a local location becomes one absolute path that every read, the
 lock and publication use (decision: Ransom, 2026-11-04). A
-`<name>-recovered.eval` argument is refused, so one companion never gets
-two merged logs.
+`<name>-recovered.eval` argument is an ordinary merged-log name, whose
+companion is `<name>-recovered.shards/` ("Layout").
 
 ### One pass
 
@@ -592,10 +600,8 @@ and `/log-files`, the `listing.json` `write_log_listing` writes, and
 bundle. The rule (`filter_merged_shards` in
 `src/inspect_ai/log/_shard_listing.py`) hides a shard when its merged log
 is in the same listing, has status `success`, and is strictly newer than
-the shard by mtime. When both `<name>.eval` and `<name>-recovered.eval`
-are listed, both must be `success` and the older of the two decides, since
-either may be stale (`test_api_logs_older_of_merged_and_recovered_decides`
-in `tests/_view/test_view_server.py`). A shard written after the merge, a
+the shard by mtime. A `<name>-recovered.eval` is not a merged log
+("Layout"), so it hides nothing and is listed. A shard written after the merge, a
 tie (S3 mtimes have one-second resolution), and every shard of a
 `started`, `error` or `cancelled` merged log stay visible. The rule keys
 on the layout, the merged log's status and the mtimes only, not the ledger
