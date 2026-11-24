@@ -789,13 +789,17 @@ Limits users meet are listed in [Sharding,
   directory holding shard logs.
 - **Stored format.** `EvalSpec.shards` is optional and absent on every log
   but a merged log; shard headers are unchanged. It is in the JSON schema
-  and the viewer's generated types, which the viewer does not read. Older
-  Inspect versions drop the field on read and treat a merged log as an
-  ordinary log; an old version that rewrites a merged log makes an ordinary
-  log, which the merge then refuses to overwrite, and an old `eval_retry`
-  retries any merged log over the whole dataset. Ledger entries written by
-  earlier versions also hold `selected` and `selection_digest`; readers
-  ignore them, and the next rebuild writes the ledger without them.
+  and the viewer's generated types, which the viewer does not read.
+  Inspect versions before sharding drop the field on read and treat a
+  merged log as an ordinary log; such a version that rewrites a merged log
+  makes an ordinary log, which the merge then refuses to overwrite, and its
+  `eval_retry` retries any merged log over the whole dataset. Ledger
+  entries written by the earlier shard-aware versions (0.3.278 to 0.3.292)
+  also hold `selected` and `selection_digest`; readers ignore them, and the
+  next rebuild writes the ledger without them. Those versions require both
+  fields, so they cannot read a merged log first written or rebuilt by a
+  later version: upgrade shard-aware readers before opening such logs.
+  Existing logs need no conversion.
 - **Enumerators other than the viewer** list shards beside the merged log.
   `evals_df` gives an extra row per shard; `samples_df` dedupes by sample
   `uuid`, but a directory read also returns superseded attempts' samples.

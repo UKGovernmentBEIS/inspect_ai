@@ -146,6 +146,7 @@ On Ctrl-C, the command prints no merge report or JSON error envelope; Click prin
 
 -   A merge that runs while a worker is writing its shard can fail with a read error. Nothing is written; run the merge again, or merge after the workers have exited.
 -   A merge that writes reads every shard log, however few changed since the last merge.
+-   Inspect 0.3.278 to 0.3.292 cannot read a merged log written or rebuilt by a later version. Upgrade every Inspect that reads your merged logs before you merge with a later version. Merged logs written by 0.3.278 to 0.3.292 still read and merge without conversion.
 -   Deleting one shard directory by hand makes later merges refuse until the rest of the `.shards` directory is deleted or the files are restored. Deleting the whole `.shards` directory keeps the merged log as it is.
 -   `eval_retry()` refuses a merged log that was merged with `sample_ids` or `sample_count`. Re-run the incomplete shards and merge again instead.
 -   Do not change `INSPECT_EVAL_LOG_FILE_PATTERN` while a `.shards` directory exists.
