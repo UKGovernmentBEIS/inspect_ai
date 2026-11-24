@@ -6,9 +6,22 @@ import pytest
 from test_helpers.utils import skip_if_trio
 from textual.app import App, ComposeResult
 
-from inspect_ai._display.core.display import CancelType, TaskCancel, TaskProfile
-from inspect_ai._display.textual.widgets.tasks import CancelDialog, CancelLink
-from inspect_ai.log import EvalConfig
+from inspect_ai._display.core.display import (
+    CancelType,
+    TaskCancel,
+    TaskCancelled,
+    TaskProfile,
+    TaskWithResult,
+)
+from inspect_ai._display.textual.widgets.tasks import (
+    CancelDialog,
+    CancelLink,
+    TaskProgressView,
+)
+from inspect_ai._display.textual.widgets.vscode import VSCodeLink
+from inspect_ai._util.file import to_uri
+from inspect_ai._util.vscode import VSCodeCommand
+from inspect_ai.log import EvalConfig, EvalStats
 from inspect_ai.model import GenerateConfig, ModelName
 
 
@@ -74,3 +87,45 @@ async def test_confirm_cancels_task() -> None:
         await pilot.click("#cancel-confirm")
         await pilot.pause()
     assert task_cancel.cancel_type == "abort"
+
+
+class _RowApp(App[None]):
+    def __init__(self, profile: TaskProfile) -> None:
+        super().__init__()
+        self.row = TaskProgressView(
+            TaskWithResult(profile, None),
+            description_width=10,
+            agent_name_width=5,
+            model_name_width=10,
+            sample_count_width=5,
+            display_metrics=False,
+        )
+
+    def compose(self) -> ComposeResult:
+        yield self.row
+
+
+@skip_if_trio
+@pytest.mark.anyio
+@pytest.mark.parametrize("log_location", ["", "x"])
+async def test_row_hides_view_log_when_task_ends_with_no_log(
+    monkeypatch: pytest.MonkeyPatch, log_location: str
+) -> None:
+    """A row whose task ended with no log no longer offers View Log."""
+    monkeypatch.setattr(
+        "inspect_ai._display.textual.widgets.vscode.can_execute_vscode_command",
+        lambda command, context=None: True,
+    )
+    profile = _profile(_task_cancel(None))
+    app = _RowApp(profile)
+    async with app.run_test() as pilot:
+        link = app.row.view_log_link
+        assert isinstance(link, VSCodeLink) and link.display
+        assert link.commands == [
+            VSCodeCommand(command="inspect.openLogViewer", args=[to_uri("x")])
+        ]
+        # an abort before the task registered clears the location
+        profile.log_location = log_location
+        app.row.complete(TaskCancelled(0, EvalStats()))
+        await pilot.pause()
+        assert link.display is bool(log_location)

@@ -1816,6 +1816,40 @@ async def test_abort_before_any_log_write_reports_errored_log(
     assert "cancelled by user (abort)" in displayed["a"][0].text
 
 
+async def test_abort_of_registered_task_keeps_its_log_location(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A task aborted after it registered keeps its error log, and its row names it."""
+    from test_helpers.ctl import ctl_task_directive, ctl_tasks
+
+    from inspect_ai import eval_async
+
+    @solver
+    def cancel_self() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            task_id = (await ctl_tasks())["a"]["task_id"]
+            await ctl_task_directive(task_id, "cancel")
+            await anyio.sleep(10)
+            return state
+
+        return solve
+
+    profiles: dict[str, Any] = {}
+    _record_task_display_results(monkeypatch, profiles)
+    logs = await eval_async(
+        Task(dataset=[Sample(input="x")], solver=[cancel_self()], name="a"),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+    )
+
+    [log] = logs
+    assert log.status == "error"
+    assert log.error is not None
+    assert "Task cancelled by user (abort)" in log.error.message
+    assert Path(log.location).exists()
+    assert profiles["a"].log_location == log.location
+
+
 @pytest.mark.anyio
 async def test_unregistered_final_retry_clears_retry_pending(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

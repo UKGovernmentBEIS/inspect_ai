@@ -1443,8 +1443,18 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # set custom sandbox limits
     limit_tokens = set_sandbox_limits()
 
-    # whether this attempt registered with the control channel
-    registered = False
+    def aborted_unregistered() -> bool:
+        """Aborted before the task ever registered with the control channel.
+
+        No samples ran, so no log is written and the dispatcher discards the
+        attempt's log (see ``run_one``): the row names no log.
+        """
+        return (
+            task_cancel is not None
+            and task_cancel.cancel_type == "abort"
+            and options.record is not None
+            and options.record.reached != "registered"
+        )
 
     # errors shown on the row release their live exception when the row
     # closes, after a display that logs it there has done so
@@ -1465,6 +1475,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 and task_cancel
                 and task_cancel.cancel_type in ("abort", "retry")
             ):
+                if aborted_unregistered():
+                    profile.log_location = ""
                 _complete_cancelled_row(td, row_errors, task_cancel.cancel_type)
             # the close in the finally below is never reached from here
             if isinstance(sample_store, DiskSampleStore):
@@ -1565,7 +1577,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     else 0
                 ),
             )
-            registered = True
             if options.record is not None:
                 options.record.on_registered()
 
@@ -2444,13 +2455,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     )
                     raise
 
-                if (
-                    not registered
-                    and task_cancel
-                    and task_cancel.cancel_type == "abort"
-                ):
-                    # aborted before it registered: no samples ran, so no
-                    # log is written (the dispatcher discards its entry)
+                if aborted_unregistered():
+                    profile.log_location = ""
                     _complete_cancelled_row(td, row_errors, "abort")
                     raise
 

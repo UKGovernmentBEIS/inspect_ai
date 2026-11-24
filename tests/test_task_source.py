@@ -1059,6 +1059,26 @@ async def test_ctl_cancel_after_log_init_before_register_leaves_no_log(
             await _record("B").ended.wait()
         seen["finished_row"] = (await ctl_tasks())["B"]
 
+    # the display row's profile, whose log location the end-of-run panels show
+    import inspect_ai._eval.task.run as task_run_module
+    from inspect_ai._display import display as real_display
+
+    profiles: dict[str, Any] = {}
+
+    class _RecordingDisplay:
+        def __init__(self, inner: Any) -> None:
+            self.inner = inner
+
+        def __getattr__(self, attr: str) -> Any:
+            return getattr(self.inner, attr)
+
+        def task(self, profile: Any) -> Any:
+            profiles[profile.name] = profile
+            return self.inner.task(profile)
+
+    monkeypatch.setattr(
+        task_run_module, "display", lambda: _RecordingDisplay(real_display())
+    )
     monkeypatch.setattr(TaskLogger, "log_start", held_log_start)
     monkeypatch.setattr(TaskLogger, "record_inherited_config_updates", held_catch_up)
     source = _WaitForReports([_hook_task("A", cancel_b), _hook_task("B", _noop)], 2)
@@ -1085,6 +1105,9 @@ async def test_ctl_cancel_after_log_init_before_register_leaves_no_log(
     assert b.error is not None
     assert "Task cancelled by user (abort)" in b.error.message
     assert b.location == ""
+    assert profiles["B"].log_location == ""
+    [a] = [log for log in logs if log.eval.task == "A"]
+    assert profiles["A"].log_location == a.location != ""
 
 
 @pytest.mark.parametrize("failures", [2, 3])
