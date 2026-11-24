@@ -113,8 +113,10 @@ class TaskRecord:
         ordinary abort of the running task: the attempt's startup writes are
         never interrupted by it. It applies even when the attempt registers
         with no samples (and so reads as finished), since it was accepted
-        first.
+        first. As for any task abort, no retry follows, so the attempt's
+        ``EvalState`` stops reading as retried (``will_retry``).
         """
+        from inspect_ai._control.eval_state import latest_eval_for_task
         from inspect_ai._control.queued_tasks import unregister_queued_task
 
         self._reach("registered")
@@ -123,6 +125,9 @@ class TaskRecord:
         unregister_queued_task(self)
         if self.abort_requested:
             assert self.attempt_cancel is not None, "an attempt holds its cancel handle"
+            state = latest_eval_for_task(self.task_id)
+            if state is not None:
+                state.will_retry = False
             self.attempt_cancel.request("abort")
 
     def _reach(self, reached: TaskReached) -> None:

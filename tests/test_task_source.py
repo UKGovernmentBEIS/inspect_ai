@@ -16,7 +16,7 @@ from typing import Any, Awaitable, Callable
 
 import anyio
 import pytest
-from test_helpers.ctl import ctl_task_directive, ctl_tasks
+from test_helpers.ctl import ctl_request, ctl_task_directive, ctl_tasks
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, TaskSource, eval, eval_async, task_source
@@ -1000,6 +1000,109 @@ async def test_ctl_cancel_of_starting_attempt_aborts_it_when_it_registers(
     # the ordinary cancelled-task log, kept
     assert b.location and Path(b.location).exists()
     assert (await read_eval_log_async(b.location)).status == "error"
+
+
+@pytest.mark.parametrize("verb", ["cancel", "drain"])
+async def test_deferred_abort_of_resumed_task_reads_its_cancelled_sample_as_final(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, verb: str
+) -> None:
+    # B resumes a log holding a sample cancelled by its sibling's failure,
+    # with a retry left (so it registers with will_retry). The deferred abort
+    # suppresses the retry, so that inherited sample reads `cancelled`, not
+    # `pending`, in the sample listing and the sample detail
+    from inspect_ai._eval.task.resolved import ResolvedTask
+    from inspect_ai._eval.task.task import PreviousTask
+
+    started = anyio.Event()
+
+    @solver
+    def failing_sibling() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 1:
+                started.set()
+                await anyio.sleep_forever()
+            await started.wait()
+            raise RuntimeError("second sample failed")
+
+        return solve
+
+    b_task = Task(
+        name="B",
+        dataset=[Sample(input="x"), Sample(input="y")],
+        solver=failing_sibling(),
+    )
+    init_display_type("none")
+    [prior] = await eval_async(
+        b_task, model="mockllm/model", log_dir=str(tmp_path / "prior"), max_samples=2
+    )
+    prior = await read_eval_log_async(prior.location)
+    assert prior.samples is not None
+    [cancelled] = [
+        s for s in prior.samples if s.error and "cancel" in s.error.message.lower()
+    ]
+
+    init = TaskLogger.init
+    init_entered = anyio.Event()
+    release = anyio.Event()
+    seen: dict[str, Any] = {}
+
+    async def held_init(self: TaskLogger) -> None:
+        if self.eval.task == "B":
+            init_entered.set()
+            with anyio.CancelScope(shield=True):
+                await release.wait()
+        await init(self)
+
+    async def cancel_b() -> None:
+        with anyio.fail_after(10):
+            await init_entered.wait()
+        try:
+            task_id = (await ctl_tasks())["B"]["task_id"]
+            seen["first"] = await ctl_task_directive(task_id, verb)
+        finally:
+            release.set()
+        with anyio.fail_after(10):
+            await _record("B").ended.wait()
+        eval_id = (await ctl_tasks())["B"]["eval_id"]
+        listing = await ctl_request("GET", f"/evals/{eval_id}/samples")
+        seen["listing"] = {
+            str(row["sample_id"]): row["status"] for row in listing.json()["samples"]
+        }
+        detail = await ctl_request(
+            "GET",
+            f"/evals/{eval_id}/sample",
+            {"sample_id": str(cancelled.id), "epoch": cancelled.epoch},
+        )
+        seen["detail"] = detail.json()["status"]
+
+    monkeypatch.setattr(TaskLogger, "init", held_init)
+    previous = PreviousTask(
+        id=prior.eval.task_id,
+        task=b_task,
+        task_args={},
+        model=None,
+        model_roles=None,
+        sandbox=None,
+        log=prior,
+        log_info=None,
+    )
+    a = resolve_tasks(
+        _hook_task("A", cancel_b), {}, get_model("mockllm/model"), None, None, None
+    )
+    with anyio.fail_after(30):
+        tasks: list[PreviousTask | ResolvedTask] = [*a, previous]
+        await eval_async(
+            tasks,
+            model="mockllm/model",
+            log_dir=str(tmp_path / "resume"),
+            max_tasks=2,
+            task_retry_attempts=1,
+        )
+    status, body = seen["first"]
+    assert status == 200 and body["abort_deferred"] is True
+    assert seen["listing"][str(cancelled.id)] == "cancelled"
+    assert "pending" not in seen["listing"].values()
+    assert seen["detail"] == "cancelled"
 
 
 @pytest.mark.parametrize("verb", ["cancel", "drain"])
