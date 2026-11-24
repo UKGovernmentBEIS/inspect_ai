@@ -67,19 +67,25 @@ Ransom, 2026-09-21). It mirrors sandbox checkpointing's
   then modification time (`attempt_sort_key`). It is not mtime-first, as
   eval-set retries are ordered, because a running older attempt's mtime
   moves on every flush.
-- **What is a shard.** A `.eval` file directly in a `<k>/` is a shard
-  attempt. A log directly in the companion, a log in a dot-directory of the
-  companion, and a `.json` log in a `<k>/` are stray files, which the merge
-  refuses. A log nested deeper (in a shard's `scans/`, say, including a
-  companion nested there) is an ordinary log (decision: Ransom, 2026-10-05).
-  `is_shard_path` states the rule, and `list_shard_set` lists exactly those
-  files, so the merge and ctl log-dir mode agree on which files are shards.
-  The viewer's shard hiding uses its own, name-based rule ("Viewer
-  listing", `merged_log_candidates_for_shard`): it treats any log in a
-  directory directly under a `*.shards` directory as a shard of that
-  companion, so it can also hide a log in a
-  companion nested inside a shard's ancillary directory, which the merge
-  treats as an ordinary log.
+- **What is a shard.** A shard directory is a directory directly in the
+  companion named with digits only, for the merge and ctl log-dir mode
+  alike (decisions: Ransom, 2026-10-29 for the merge, 2026-11-23 for ctl).
+  A `.eval` file directly in a `<k>/` is a shard attempt. A log directly in
+  the companion, a `.json` log in a `<k>/`, and any other directory directly
+  in the companion (a dot-directory included) are stray entries, which the
+  merge refuses and ctl reports as unreadable. `list_shard_set` lists the
+  companion and each `<k>/` and nothing deeper, so a log nested below a
+  `<k>/` (in a shard's `scans/`, say, including a companion nested there)
+  is neither a shard nor listed by ctl from a root above the companion
+  (decision: Ransom, 2026-11-23, superseding 2026-10-05, when ctl listed
+  such logs as ordinary logs to agree with `eval_set()`; `eval_set()` now
+  refuses a directory that holds shards). To see such a log, point
+  `--log-dir` at the directory that holds it. The viewer's shard hiding
+  uses its own, name-based rule ("Viewer listing",
+  `merged_log_candidates_for_shard`): it treats any log in a directory
+  directly under a `*.shards` directory as a shard of that companion, so
+  it can also hide a log in a companion nested inside a shard's ancillary
+  directory, which the merge does not list.
 - **No override root.** Shards always live beside the merged log; there is
   no `shards_location` setting (decision: Ransom, 2026-09-21).
 
@@ -582,9 +588,8 @@ pairing, viewer or scan output, or any run, `_refuse_shard_companions` in
 set already makes and raises `PrerequisiteError` when a listed log's parent
 directory is all digits under a `*.shards` directory, or is a `*.shards`
 directory. It reads only each name's last path components, so it opens
-nothing and reads no shard header, and it is deliberately broader than
-`is_shard_path`: it also refuses an eval set run on a companion or a shard
-directory itself. `log_dir_allow_dirty` does not bypass it. The message
+nothing and reads no shard header, and it also refuses an eval set run on
+a companion or a shard directory itself. `log_dir_allow_dirty` does not bypass it. The message
 gives the workflow: merge, retry incomplete shards in their own `<k>/` with
 the same selection, run unselected samples as new shards, merge again, then
 move the companion out or delete it with the merge. Selection
@@ -652,12 +657,10 @@ so they agree on which files are shards and which attempt is current:
   first shard the `task_id` the merge gives it;
 - the shard-set walk and attempt order (`src/inspect_ai/log/_shards/_walk.py`,
   tests in `tests/log/test_shards.py` and `tests/_control/test_log_dir.py`).
-  The merge refuses every non-numbered directory and stray file in a
-  companion. ctl reports stray files, but treats any directory directly in
-  the companion whose name does not start with a dot and that holds
-  attempts as a shard, numbered or not (it calls the walk without
-  `numeric_shards`), and lists logs nested in ancillary directories as
-  ordinary logs; both refuse names that S3 would read as another key;
+  The merge refuses every stray entry in a companion (a non-numbered
+  directory included), and ctl reports each in `unreadable`; neither
+  lists anything below a `<k>/`, and both refuse names that S3 would read
+  as another key;
 - the delimited directory listing and the CRC-checked zip reader.
 
 ## Guarantees and limits

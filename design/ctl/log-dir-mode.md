@@ -191,35 +191,34 @@ buffer segments or checkpoint objects, whose counts grow with run age:
   with size, mtime and (on S3) ETag. Locally it does not follow directory
   symlinks, so a symlink loop cannot hang the walk. Listings run
   concurrently up to a fixed cap (`walk.py`).
-- **Buffer and checkpoint contents are never paged through.** Outside a
-  companion, `.buffer/` and `*.checkpoints/` are not listed: a buffer's
-  presence in a directory's listing is recorded on the logs beside it, and
-  a log's manifest path is derived as `.buffer/<stem>/manifest.json`.
-  Inside a companion, the shared walk lists each immediate child directory
-  once, the companion's own `.buffer/` and checkpoint directories included,
-  and does not descend into a buffer or checkpoint directory
-  (`test_the_walk_lists_shard_directories_once_and_no_deeper`). Every other
-  subdirectory is descended, as `list_eval_logs` recurses, so an eval-set
-  directory or a directory of runs works.
+- **Buffer and checkpoint contents are never paged through.** `.buffer/`
+  and `*.checkpoints/` are not listed: a buffer's presence in a directory's
+  listing is recorded on the logs beside it, and a log's manifest path is
+  derived as `.buffer/<stem>/manifest.json`. Every other subdirectory
+  outside a companion is descended, as `list_eval_logs` recurses, so an
+  eval-set directory or a directory of runs works.
 - **Companions.** The first `<name>.shards/` on each path below the root is
   a companion, listed by the shared `list_shard_set`
   (`src/inspect_ai/log/_shards/_walk.py`; [`eval-sharding.md`](../eval-sharding.md),
-  "Layout" and "Code shared with ctl log-dir mode"): each `<k>/`'s `.eval`
-  attempts and whether it has a `.buffer/`, and the companion's stray
-  files (a log directly in it or in a dot-directory of it, a `.json` log in
-  a `<k>/`), which are reported in `unreadable`, never as rows or
-  attempts. The merged log beside it (`<name>.eval` or
+  "Layout" and "Code shared with ctl log-dir mode"): the companion and each
+  `<k>/` in it, a directory named with digits only. For each `<k>/` it
+  returns the `.eval` attempts and whether it has a `.buffer/`. The
+  companion's stray entries (a log directly in it, a `.json` log in a
+  `<k>/`, and any other directory directly in it, a dot-directory
+  included, which is not listed) are reported in `unreadable`, never as
+  rows or attempts (`test_stray_and_nested_logs_in_a_companion`). The
+  merged log beside the companion (`<name>.eval` or
   `<name>-recovered.eval`, matched by `log_basename`) belongs to the shard
   set rather than being an ordinary log.
-- **Logs nested below a shard are ordinary logs.** The walk descends the
-  directories the shared walk returns in `unlisted_dirs` (a shard's
-  `scans/`, say) by the same rules, and a `<name>.shards/` found there is an
-  ordinary directory. So, given the same root, ctl and the merge agree on
-  which files are shard attempts, which are stray and which are ordinary
-  logs: the files `is_shard_path` places in a shard set are exactly the
-  attempts and stray files the walk reports (decision: Ransom, 2026-10-05;
-  `test_the_walk_agrees_with_eval_set_on_shard_paths`,
-  `test_stray_and_nested_logs_in_a_companion`).
+- **Nothing below a `<k>/` is listed.** A shard's `scans/`, its
+  `*.checkpoints/` and any companion nested there are not walked, so a log
+  nested below a `<k>/` is not shown from a root above the companion; to
+  see it, point `--log-dir` at the directory that holds it (decision:
+  Ransom, 2026-11-23, superseding 2026-10-05;
+  `test_the_walk_lists_shard_directories_once_and_no_deeper`). The merge
+  lists the same entries, so ctl and the merge agree on which files are
+  shard attempts and which entries are stray; the merge refuses a
+  companion with stray entries, where ctl reports them.
 - **`.eval` only.** `.json` logs are reported in `unreadable`
   (`_JSON_LOG_REASON` in `snapshot.py`): the format is deprecated, its
   reads are whole-file parses, and sharding is `.eval`-only.
@@ -247,8 +246,9 @@ attempts by `task_id`.
 **Sharded runs.** A companion whose listing has an attempt in at least one
 `<k>/` is a shard set; one with none (only `scans/` or `.buffer/` objects
 left after attempts were removed by hand) is dropped before grouping, its
-merged log becomes an ordinary log and its stray files are still reported,
-as the merge treats such a companion as gone. In a shard set:
+merged log becomes an ordinary log and its stray entries are still
+reported, as the merge treats such a companion as gone. Nothing below its
+`<k>/` directories is walked either. In a shard set:
 
 - The shards are the `<k>/` directories with at least one `.eval` attempt,
   in shard order, and each shard's member is its newest attempt. Older
@@ -572,9 +572,14 @@ of what changed (`cache.py`):
   cached.
 - **Pure performance.** Every cached value is keyed by a finished log's
   version or by the CRC-32 and size of the member it came from, and entries
-  are stored only from reads that passed their consistency checks, so the
-  cache changes what is fetched, never what is returned
+  are stored only from reads that passed their consistency checks, so
+  every cached value describes a validated version of its source, and while
+  the sources do not change the cache changes what is fetched, never what
+  is returned
   (`test_cli_cache_entries_change_what_is_fetched_never_what_is_returned`).
+  When a finished log is rewritten during an invocation (a rescore, say), a
+  warm read keeps the version the listing accepted at indexing, where an
+  uncached read can advance to the rewrite; both are real versions.
   Concurrent pollers may overwrite each other's entries in either order;
   every surviving entry describes a real version of its log.
 - **Writes** are atomic, once per log per invocation, into the existing
@@ -598,9 +603,8 @@ On S3, with reads issued concurrently on one `AsyncFilesystem`:
 
 - **The walk** costs one LIST per directory visited (per 1,000 entries):
   `N + 2` for a sharded run of `N` shards (the root, the companion, each
-  `<k>/`), whatever the buffers and checkpoints hold, plus one per other
-  immediate directory of the companion (its `.buffer/`, say) and one per
-  directory descended below a `<k>/` (two per shard for one scan's output).
+  `<k>/`), whatever the workers wrote in their `<k>/` (buffers,
+  checkpoints, scan results).
   A recursive listing would page through every segment object, about
   100,000 keys after an hour of 300 shards syncing every 10 seconds.
 - **A finished log**, read cold, costs its central directory,
@@ -639,13 +643,12 @@ polling guidance, weighing request cost against seeing each buffer sync.
   `_fetch.py`, `_task.py` and `_sample_read.py`, so rendering, resolution
   and envelopes are the live ones.
 - With the sharding merge: the layout name rules and `merged_log_task_id`
-  (`log_layout.py`), the shard-set walk, attempt order and `is_shard_path`
+  (`log_layout.py`), the shard-set walk and attempt order
   (`log/_shards/_walk.py`), the delimited listing and the CRC-checked zip
   reader ([`eval-sharding.md`](../eval-sharding.md), "Code shared with ctl
-  log-dir mode"). ctl calls the walk without `numeric_shards`: it treats any
-  directory in a companion whose name does not start with a dot and that
-  holds attempts as a shard, numbered or not, where the merge refuses
-  non-numbered ones.
+  log-dir mode"). Both take a shard to be a `<k>/` named with digits only;
+  the merge refuses a companion's stray entries, which ctl reports in
+  `unreadable`.
 - With the sample buffer and recovery: the `Manifest` model and the pure
   segment parsing and merging of `SampleBufferFilestore`
   (`segment_sample_data`, `merge_sample_data`), and recovery's
@@ -677,11 +680,14 @@ polling guidance, weighing request cost against seeing each buffer sync.
   (`test_read_consistently_retries_torn_reads_then_succeeds`,
   `test_exhausted_re_reads_fail_the_read_and_mark_list_reads_incomplete`,
   `test_s3_a_log_replaced_during_a_large_central_directory_read`).
-- **The cache affects cost only** ("Cache"), and steady-state polls read only
-  what changed ("Cost").
-- **Agreement with the merge** on which files are shard attempts, stray or
-  ordinary, and on the task id of a shard set with no merged log
-  ("Walking the directory", "Logical tasks").
+- **The cache affects cost only** while the sources are stable: a finished
+  log rewritten during an invocation can be reported at its indexed
+  version when warm and at the rewrite when cold, each a validated version
+  ("Cache"). Steady-state polls read only what changed ("Cost").
+- **Agreement with the merge** on which files are shard attempts and which
+  entries in a companion are stray, through the shared walk, and on the
+  task id of a shard set with no readable merged log while the file name
+  pattern is unchanged ("Walking the directory", "Logical tasks").
 - **Limits.** Data lags the workers by their flush and sync cadences, which
   are not bounds: a failed upload, a stopped worker or a retuned
   `log_shared` stretches them, and nothing records a heartbeat. Without
@@ -726,10 +732,11 @@ polling guidance, weighing request cost against seeing each buffer sync.
 - **A recursive listing**, cheaper early in a run (one or two pages instead
   of `N + 2` LISTs). Its cost grows with run age and sync frequency; the
   delimited walk's only with shard count.
-- **Skip the directories below a `<k>/`** (`scans/`, or everything). Saves
-  their LISTs, but the merge's `is_shard_path` treats the logs there as
-  ordinary logs and ctl must agree with it on the same root (decision:
-  Ransom, 2026-10-05).
+- **Descend below a `<k>/`** (`scans/` and other ancillary directories),
+  listing nested logs as ordinary logs, to agree with `eval_set()` on the
+  same root, at two LISTs per shard for one scan's output. Dropped
+  (decision: Ransom, 2026-11-23, superseding 2026-10-05): `eval_set()` now
+  refuses a directory that holds shards, so there is nothing to agree with.
 - **Read only the merged log.** One file, with whole-task metrics, but it
   exists only after a merge and lags the shards during the window this
   mode serves.

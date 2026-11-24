@@ -134,7 +134,6 @@ class TaskInitStubs:
         monkeypatch: pytest.MonkeyPatch,
         services: dict[str, dict[str, Any]],
         prebuilt: bool,
-        internal_images_built: bool = True,
     ) -> None:
         self.calls: list[str] = []
         project = compose_project()
@@ -159,9 +158,6 @@ class TaskInitStubs:
 
             return fake
 
-        async def fake_internal_built(image: str) -> bool:
-            return internal_images_built
-
         monkeypatch.setattr(ComposeProject, "create", classmethod(fake_create))
         monkeypatch.setattr(docker_module, "validate_prereqs", fake_validate_prereqs)
         monkeypatch.setattr(docker_module, "project_cleanup_startup", lambda: None)
@@ -178,12 +174,6 @@ class TaskInitStubs:
         )
         monkeypatch.setattr(
             docker_module, "compose_verify_prebuilt_images", record("verify")
-        )
-        monkeypatch.setattr(
-            docker_module, "build_internal_image", record("build_internal")
-        )
-        monkeypatch.setattr(
-            docker_module, "is_internal_image_built", fake_internal_built
         )
         monkeypatch.setattr(docker_module, "sandbox_prebuilt", lambda: prebuilt)
 
@@ -206,32 +196,6 @@ async def test_task_init_builds_when_not_prebuilt(monkeypatch):
     await DockerSandboxEnvironment.task_init("startup", None)
 
     assert stubs.calls == ["build", "cleanup_images"]
-
-
-async def test_task_init_prebuilt_internal_image_present(monkeypatch):
-    stubs = TaskInitStubs(
-        monkeypatch,
-        {"default": {"image": "inspect-computer-tool"}},
-        prebuilt=True,
-        internal_images_built=True,
-    )
-
-    await DockerSandboxEnvironment.task_init("startup", None)
-
-    assert stubs.calls == ["verify"]
-
-
-async def test_task_init_prebuilt_internal_image_missing(monkeypatch):
-    TaskInitStubs(
-        monkeypatch,
-        {"default": {"image": "inspect-computer-tool"}},
-        prebuilt=True,
-        internal_images_built=False,
-    )
-
-    with pytest.raises(PrerequisiteError) as excinfo:
-        await DockerSandboxEnvironment.task_init("startup", None)
-    assert "inspect-computer-tool" in str(excinfo.value)
 
 
 def stub_pull_failure(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -279,16 +243,21 @@ async def test_task_init_pull_failure_logs_when_not_prebuilt(monkeypatch):
     assert stubs.calls == ["build", "cleanup_images"]
 
 
-async def test_task_init_builds_internal_image_when_not_prebuilt(monkeypatch):
+async def test_task_init_pulls_inspect_computer_tool_image(monkeypatch):
     stubs = TaskInitStubs(
-        monkeypatch,
-        {"default": {"image": "inspect-computer-tool"}},
-        prebuilt=False,
+        monkeypatch, {"default": {"image": "inspect-computer-tool"}}, prebuilt=False
     )
+    stub_pull_failure(monkeypatch)
+
+    async def fake_pull(service: str, project: ComposeProject) -> ExecResult[str]:
+        stubs.calls.append(f"pull {service}")
+        return ExecResult(success=True, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(docker_module, "compose_pull", fake_pull)
 
     await DockerSandboxEnvironment.task_init("startup", None)
 
-    assert stubs.calls == ["build", "cleanup_images", "build_internal"]
+    assert stubs.calls == ["build", "cleanup_images", "pull default"]
 
 
 def test_sandbox_prebuilt_contextvar():

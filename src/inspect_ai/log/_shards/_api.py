@@ -412,12 +412,12 @@ async def _merge_pass(
     allow_incomplete: bool,
     deleting: bool,
 ) -> _Pass:
-    listing = await list_shard_set(fs, shards_dir, numeric_shards=True)
+    listing = await list_shard_set(fs, shards_dir)
     check_attempt_names(listing.shards)
     check_current_unambiguous(listing.shards)
     if listing.stray:
         raise ShardSetError(
-            f"{shards_dir} holds log files that are not shard attempts: "
+            f"{shards_dir} holds logs or directories that are not shard attempts: "
             + "; ".join(f"{s.path} ({s.reason})" for s in listing.stray)
         )
     shards = [s for s in listing.shards if s.current is not None]

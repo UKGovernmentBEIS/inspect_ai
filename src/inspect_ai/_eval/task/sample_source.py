@@ -33,7 +33,12 @@ from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Awaitable, Callable, NamedTuple
 
+import anyio
+
+from inspect_ai._util._async import Wake
+
 if TYPE_CHECKING:
+    from inspect_ai._eval.task.enqueue import RunQueue, TaskRecord
     from inspect_ai.dataset import Sample
     from inspect_ai.log._log import EvalSample
 
@@ -230,6 +235,8 @@ class SampleEnqueuer:
     _pending: list[EnqueuedSample] = field(default_factory=list)
     on_enqueue: Callable[[], None] | None = None
     """Fired after samples are buffered — used to wake the task's dispatcher."""
+    handle_channel: bool = False
+    """The task is fed through its handle: only the handle adds samples."""
 
     def enqueue(self, samples: list["Sample"], epoch: int | None = None) -> None:
         """Queue ``samples`` to run in the task (as ``epoch`` only, if given)."""
@@ -330,4 +337,186 @@ def enqueue_sample(
             "enqueue_sample() can only be called from within a running task "
             "whose dataset is a SampleSource."
         )
+    if enqueuer.handle_channel:
+        raise RuntimeError(
+            "enqueue_sample() cannot add samples to a task fed through its "
+            "handle; only the handle that added it sends samples."
+        )
     enqueuer.enqueue(sample_list, epoch=epoch)
+
+
+HANDLE_DATASET_NAME = "samples_from_handle"
+"""The dataset name of every task fed through its handle, reserved for them."""
+
+
+class _SampleFuture:
+    """The outcome of one sent sample, settled once."""
+
+    def __init__(self) -> None:
+        self._event = anyio.Event()
+        self._value: "EvalSample | None" = None
+        self._error: BaseException | None = None
+
+    @property
+    def done(self) -> bool:
+        return self._event.is_set()
+
+    def set_result(self, value: "EvalSample") -> None:
+        if not self.done:
+            self._value = value
+            self._event.set()
+
+    def set_exception(self, error: BaseException) -> None:
+        if not self.done:
+            self._error = error
+            self._event.set()
+
+    async def wait(self) -> "EvalSample":
+        await self._event.wait()
+        if self._error is not None:
+            raise self._error
+        assert self._value is not None
+        return self._value
+
+
+@dataclass(eq=False)
+class PortRequest:
+    """One sample sent to a task through its handle, until its outcome settles."""
+
+    sample: "Sample"
+    """The channel's copy of the caller's sample, with its id."""
+    future: _SampleFuture = field(default_factory=_SampleFuture)
+
+
+class HandleChannel(SampleSource):
+    """The sample source of a task fed through its handle.
+
+    Created by :func:`samples_from_handle`. When the task is added to a run,
+    the run's queue gives its record a fresh channel (:meth:`bind`), through
+    which :class:`~inspect_ai.TaskHandle` sends samples and receives each
+    one's logged run. The channel has no seed; it ends the task once it is
+    closed and the samples sent have run.
+    """
+
+    def __init__(self) -> None:
+        self.enqueuer: SampleEnqueuer | None = None
+        """The running attempt's buffer, while it runs."""
+        self.token = ""
+        """The first 8 characters of the record's task id."""
+        self.requests: dict[str, PortRequest] = {}
+        """Every unsettled request, by sample id, in send order."""
+        self.sent = 0
+        """Samples accepted so far; the next id's counter."""
+        self.closed = False
+        self.pushed = Wake()
+        self._queue: "RunQueue | None" = None
+        self._record: "TaskRecord | None" = None
+
+    def bind(self, queue: "RunQueue", record: "TaskRecord") -> None:
+        """Attach the channel to the run's record of its task."""
+        self._queue = queue
+        self._record = record
+        self.token = record.task_id[:8]
+
+    @property
+    def record(self) -> "TaskRecord":
+        assert self._record is not None
+        return self._record
+
+    def send(self, sample: "Sample") -> PortRequest:
+        """Accept ``sample`` as a new request and deliver it to the task.
+
+        The caller has checked that the channel accepts samples. The sample
+        runs as a copy under the id ``send-<token>-<n>``.
+        """
+        assert self._queue is not None and not self.closed
+        self.sent += 1
+        copy = sample.model_copy(update={"id": f"send-{self.token}-{self.sent:04d}"})
+        request = PortRequest(copy)
+        self.requests[str(copy.id)] = request
+        if self.enqueuer is not None:
+            self.enqueuer.enqueue([copy])
+        self.pushed.set()
+        self._queue.wake.set()
+        return request
+
+    def close(self) -> None:
+        """Accept no more samples.
+
+        A task still queued with no request ends at once with no log.
+        """
+        if self.closed:
+            return
+        self.closed = True
+        self.pushed.set()
+        record = self._record
+        if (
+            self._queue is not None
+            and record is not None
+            and record.phase == "queued"
+            and not self.requests
+        ):
+            self._queue.end(record, None)
+
+    def end(self, error: Callable[[], BaseException]) -> None:
+        """Close the channel and fail every unsettled request.
+
+        Each request gets its own exception from ``error``, so one sender's
+        traceback never carries another's frames. Also drops any samples
+        still buffered for the attempt, so an ended task holds none of its
+        senders' samples.
+        """
+        self.closed = True
+        self.pushed.set()
+        if self.enqueuer is not None:
+            self.enqueuer.drain()
+            self.enqueuer = None
+        requests, self.requests = self.requests, {}
+        for request in requests.values():
+            request.future.set_exception(error())
+
+    def attach(self, enqueuer: SampleEnqueuer) -> None:
+        """Deliver every request, and later sends, to the attempt's buffer."""
+        enqueuer.handle_channel = True
+        self.enqueuer = enqueuer
+        if self.requests:
+            enqueuer.enqueue([request.sample for request in self.requests.values()])
+
+    def detach(self) -> None:
+        """The attempt's buffer is gone: hold later sends."""
+        self.enqueuer = None
+
+    async def next_samples(self) -> list["Sample"] | None:
+        if self.closed:
+            return None
+        await self.pushed.wait()
+        return None if self.closed else []
+
+    async def sample_complete(self, sample: "EvalSample") -> list["Sample"] | None:
+        request = self.requests.pop(str(sample.id), None)
+        if request is not None:
+            request.future.set_result(sample)
+        return None
+
+    async def sample_abandoned(
+        self, sample: "Sample", epoch: int
+    ) -> list["Sample"] | None:
+        from inspect_ai._eval.task.enqueue import SampleAbandonedError
+
+        request = self.requests.pop(str(sample.id), None)
+        if request is not None:
+            request.future.set_exception(SampleAbandonedError(sample))
+        return None
+
+
+def samples_from_handle() -> SampleSource:
+    """A dataset whose samples are sent through the task's handle.
+
+    Pass it as a ``Task``'s ``dataset`` and add the task with
+    :func:`~inspect_ai.enqueue_task` from code running inside a task. Each
+    sample sent with :meth:`TaskHandle.enqueue_sample` runs once and the call
+    returns its logged ``EvalSample``. The task ends once its handle is closed
+    (or the task that added it ends) and the samples sent have run. It cannot
+    run on its own with ``eval()``, ``eval_set()`` or ``eval_retry()``.
+    """
+    return HandleChannel()
