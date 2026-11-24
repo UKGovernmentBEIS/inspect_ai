@@ -263,6 +263,10 @@ as the merge treats such a companion as gone. In a shard set:
   file name pattern, so it folds with a retry of its merged log
   (`test_a_shard_set_keeps_the_merges_task_id_with_or_without_its_log`,
   `test_an_unreadable_newest_merged_log_keys_the_set_as_the_merge_does`).
+  Without a readable merged log the id is computed with the current file
+  name pattern, so this holds only while `INSPECT_EVAL_LOG_FILE_PATTERN` is
+  the one the merge used, the merge's own condition
+  ([`eval-sharding.md`](../eval-sharding.md), "The merged log").
 - A task id has at most one shard set, the first companion by path. A
   second companion with the same task id contributes no sample state and is
   listed in the row's `unreadable` (decision: Ransom, 2026-10-13).
