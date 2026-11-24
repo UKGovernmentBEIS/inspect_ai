@@ -9,6 +9,10 @@ from pydantic import Field
 from inspect_ai.tool._tool import Tool, ToolError, tool
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import sandbox as sandbox_env
+from inspect_ai.util._sandbox.identity import (
+    check_sandbox_identity_supported,
+    sandbox_identity_active,
+)
 from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import StoreModel, store_as
 from inspect_ai.util._tool_state import tool_state_instance
@@ -53,6 +57,9 @@ def skill(
         Args:
            command: The skill name (no arguments). E.g., "pdf" or "xlsx"
         """
+        if sandbox_identity_active():
+            check_sandbox_identity_supported(sandbox_env(sandbox), "skill")
+
         # see if we need to install the skills (double-checked under the
         # cache's lock so the first of concurrent first-callers sets the list)
         resolved_instance = tool_state_instance(instance)

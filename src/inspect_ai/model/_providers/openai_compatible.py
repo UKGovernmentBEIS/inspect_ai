@@ -1,7 +1,7 @@
 import os
 from collections.abc import AsyncIterable
 from logging import getLogger
-from typing import Any, Literal, cast
+from typing import Any, Literal, NamedTuple, cast
 
 import httpx2
 from openai import (
@@ -13,7 +13,7 @@ from openai import (
     PermissionDeniedError,
     UnprocessableEntityError,
 )
-from openai._types import NOT_GIVEN
+from openai._types import NOT_GIVEN, NotGiven
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionChunk,
@@ -75,6 +75,13 @@ from .util import (
 logger = getLogger(__name__)
 
 
+class PromptCacheParams(NamedTuple):
+    """`prompt_cache_key` and `prompt_cache_retention` for a Responses request."""
+
+    key: str | NotGiven
+    retention: str | NotGiven
+
+
 class OpenAICompatibleAPI(ModelAPI):
     def __init__(
         self,
@@ -129,8 +136,15 @@ class OpenAICompatibleAPI(ModelAPI):
                 )
 
         # use service prefix to lookup base_url
+        base_url_var = f"{service_env_name}_BASE_URL"
+        # a sentinel sidecar is looked for only behind a URL someone set, as
+        # an argument or in the environment, never the service's own address
+        # (which a subclass may pass as the base_url argument too)
+        set_url = model_base_url(base_url, [base_url_var])
+        self._explicit_base_url: str | None = (
+            set_url if set_url is not None and set_url != service_base_url else None
+        )
         if not self.base_url:
-            base_url_var = f"{service_env_name}_BASE_URL"
             self.base_url = model_base_url(base_url, [base_url_var]) or service_base_url
             if not self.base_url:
                 raise environment_prerequisite_error(
@@ -214,6 +228,15 @@ class OpenAICompatibleAPI(ModelAPI):
     async def aclose(self) -> None:
         await self.client.close()
 
+    async def proxy_endpoint(self) -> tuple[AsyncOpenAI, str] | None:
+        """The SDK client and the base URL a sentinel sidecar may sit behind: the URL someone set, or None where the model is called at its provider's own address.
+
+        Awaited, so a provider that builds its client lazily may do that here as it does before a generate.
+        """
+        if self._explicit_base_url is None:
+            return None
+        return self.client, self._explicit_base_url
+
     def uses_responses_api(self, tools: list[ToolInfo], config: GenerateConfig) -> bool:
         """Whether `generate()` sends a request with these tools to the Responses API."""
         return bool(self.responses_api)
@@ -228,8 +251,7 @@ class OpenAICompatibleAPI(ModelAPI):
         tools, tool_choice, config = self.resolve_tools(tools, tool_choice, config)
 
         if self.uses_responses_api(tools, config):
-            # supports_explicit_prompt_cache intentionally left False: other
-            # OpenAI-compatible providers' support for these fields is unverified.
+            prompt_cache = self.prompt_cache_params(config)
             return await generate_responses(
                 client=self.client,
                 http_hooks=self._http_hooks,
@@ -241,8 +263,8 @@ class OpenAICompatibleAPI(ModelAPI):
                 config=config,
                 background=None,
                 service_tier=None,
-                prompt_cache_key=NOT_GIVEN,
-                prompt_cache_retention=NOT_GIVEN,
+                prompt_cache_key=prompt_cache.key,
+                prompt_cache_retention=prompt_cache.retention,
                 safety_identifier=NOT_GIVEN,
                 responses_store=self.responses_store,
                 synthesize_phase=self.responses_phase,
@@ -418,6 +440,10 @@ class OpenAICompatibleAPI(ModelAPI):
         return decision if decision is not None else RetryDecision.no()
 
     @override
+    def _client_endpoint(self) -> str | None:
+        return str(self.client.base_url)
+
+    @override
     def connection_key(self) -> str:
         """Scope adaptive concurrency per (key, model).
 
@@ -472,6 +498,16 @@ class OpenAICompatibleAPI(ModelAPI):
             params["max_completion_tokens"] = params.pop("max_tokens")
 
         return params
+
+    def prompt_cache_params(self, config: GenerateConfig) -> PromptCacheParams:
+        """`prompt_cache_key` and `prompt_cache_retention` for a Responses request.
+
+        Not sent by default: other OpenAI-compatible providers' support for
+        these fields is unverified. A provider that documents them overrides
+        this. Explicit cache breakpoints (`supports_explicit_prompt_cache`) are
+        not enabled for any OpenAI-compatible provider.
+        """
+        return PromptCacheParams(key=NOT_GIVEN, retention=NOT_GIVEN)
 
     def request_headers(self, config: GenerateConfig) -> dict[str, str]:
         """Provider-specific headers to send with this request.

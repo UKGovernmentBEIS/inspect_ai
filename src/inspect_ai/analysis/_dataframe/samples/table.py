@@ -212,16 +212,19 @@ def _read_samples_df(
             executor.shutdown(wait=False, cancel_futures=True)
 
         # recombine df
-        df = pd.concat(df_results, ignore_index=True)
-        subset = f"{detail.name}_id" if detail else SAMPLE_ID
+        df = pd.concat(
+            _reconcile_string_columns(cast(list[pd.DataFrame], df_results)),
+            ignore_index=True,
+        )
+        subset = [SAMPLE_ID, f"{detail.name}_id"] if detail else SAMPLE_ID
         try:
-            df.drop_duplicates(subset=subset, ignore_index=True, inplace=True)
+            df = df.drop_duplicates(subset=subset, ignore_index=True)
         except Exception as e:
             # Check if it's specifically the pyarrow offset overflow error
             if "offset overflow" in str(e):
                 # Convert to large_string and retry
                 df = _convert_to_large_string(df)
-                df.drop_duplicates(subset=subset, ignore_index=True, inplace=True)
+                df = df.drop_duplicates(subset=subset, ignore_index=True)
             else:
                 raise
 
@@ -308,9 +311,15 @@ def _read_samples_df_serial(
         all_errors: list[ColumnError] = []
 
         # read logs and note total samples
-        evals_table, eval_logs, total_samples = _read_evals_df(
-            logs, columns=columns_eval, strict=True, progress=p.update
-        )
+        if strict:
+            evals_table, eval_logs, total_samples = _read_evals_df(
+                logs, columns=columns_eval, strict=True, progress=p.update
+            )
+        else:
+            evals_table, eval_logs, eval_errors, total_samples = _read_evals_df(
+                logs, columns=columns_eval, strict=False, progress=p.update
+            )
+            all_errors.extend(eval_errors)
 
         # update progress now that we know the total samples
         entity = detail.name if detail else "sample"
@@ -428,15 +437,17 @@ def _read_samples_df_serial(
 
     # normalize records and produce samples table
     samples_table = records_to_pandas(sample_records)
-    samples_table.drop_duplicates(
-        "sample_id", keep="first", inplace=True, ignore_index=True
+    samples_table = samples_table.drop_duplicates(
+        "sample_id", keep="first", ignore_index=True
     )
 
     # if we have detail records then join them into the samples table
     if detail is not None:
         details_table = records_to_pandas(detail_records)
-        details_table.drop_duplicates(
-            f"{detail.name}_id", keep="first", inplace=True, ignore_index=True
+        details_table = details_table.drop_duplicates(
+            [SAMPLE_ID, f"{detail.name}_id"],
+            keep="first",
+            ignore_index=True,
         )
         if len(details_table) > 0:
             samples_table = details_table.merge(
@@ -583,6 +594,51 @@ def reorder_samples_df_columns(
 
     # reorder the DataFrame
     return df[ordered_columns]
+
+
+def _reconcile_string_columns(dfs: list["pd.DataFrame"]) -> list["pd.DataFrame"]:
+    """Convert a column to strings in every frame if any frame has strings in it.
+
+    Each parallel worker types its columns from its own log, so one worker can
+    read a column as strings (mixed types, or an int beyond int64) while another
+    reads it as numbers. A serial read of the same logs makes the whole column
+    strings, so do the same here, keeping nulls.
+    """
+    import pandas as pd
+    import pyarrow as pa
+
+    def is_string(series: pd.Series) -> bool:
+        dtype = series.dtype
+        return isinstance(dtype, pd.ArrowDtype) and (
+            pa.types.is_string(dtype.pyarrow_dtype)
+            or pa.types.is_large_string(dtype.pyarrow_dtype)
+        )
+
+    # an all-null column is typed as strings, so it doesn't decide the dtype
+    string_dtypes = {
+        col: df[col].dtype
+        for df in dfs
+        for col in df.columns
+        if is_string(df[col]) and df[col].notna().any()
+    }
+
+    reconciled: list[pd.DataFrame] = []
+    for df in dfs:
+        mismatched = [
+            col
+            for col in df.columns
+            if col in string_dtypes and df[col].dtype != string_dtypes[col]
+        ]
+        if mismatched:
+            df = df.copy()
+            for col in mismatched:
+                df[col] = (
+                    df[col]
+                    .map(lambda v: v if pd.isna(v) else str(v))
+                    .astype(string_dtypes[col])
+                )
+        reconciled.append(df)
+    return reconciled
 
 
 def _convert_to_large_string(df: "pd.DataFrame") -> "pd.DataFrame":

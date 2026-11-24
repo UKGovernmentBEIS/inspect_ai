@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from .environment import SandboxEnvironment
 
 from ._cli import SANDBOX_CLI
+from ._framework_operation import framework_sandbox_operation
 from .limits import SandboxEnvironmentLimits
 
 _JSON_RPC_RESPONSE_CHUNK_METHOD = "__inspect_json_rpc_response_chunk__"
@@ -47,20 +48,13 @@ class SandboxJSONRPCTransport(JSONRPCTransport):
     parameters are passed via transport_extra_args in the __call__ method.
     """
 
-    def __init__(
-        self,
-        sandbox: SandboxEnvironment,
-        cli: str,
-    ):
+    def __init__(self, sandbox: SandboxEnvironment) -> None:
         """Initialize a new SandboxJSONRPCTransport.
 
         Args:
             sandbox: The sandbox environment to use.
-            cli: The path to the cli available in the sandbox.
         """
         self.sandbox = sandbox
-        self.cli = cli
-        self._response_chunking = cli == SANDBOX_CLI
 
     async def __call__(
         self,
@@ -84,19 +78,13 @@ class SandboxJSONRPCTransport(JSONRPCTransport):
             RuntimeError: If the sandbox execution fails.
         """
         request = create_json_rpc_request(method, params, is_notification)
-        max_response_bytes = (
-            SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE
-            if self._response_chunking
-            else None
-        )
+        max_response_bytes = SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE
         response = await self._sandbox_exec(
             request,
             rpc_call_description(method, params),
             transport_extra_args,
             max_response_bytes,
         )
-        if max_response_bytes is None:
-            return response
         return await self._complete_chunked_response(
             response, transport_extra_args, max_response_bytes
         )
@@ -106,22 +94,19 @@ class SandboxJSONRPCTransport(JSONRPCTransport):
         request: str,
         description: str,
         transport_extra_args: dict[str, Any],
-        max_response_bytes: int | None,
+        max_response_bytes: int,
     ) -> str:
-        env = (
-            {_JSON_RPC_RESPONSE_MAX_BYTES_ENV: str(max_response_bytes)}
-            if max_response_bytes is not None
-            else None
-        )
-        exec_result = await self.sandbox.exec(
-            [self.cli, "exec"],
-            input=request,
-            env=env,
-            timeout=transport_extra_args.get("timeout", None),
-            timeout_retry=transport_extra_args.get("timeout_retry", True),
-            user=transport_extra_args.get("user", None),
-            concurrency=transport_extra_args.get("concurrency", True),
-        )
+        env = {_JSON_RPC_RESPONSE_MAX_BYTES_ENV: str(max_response_bytes)}
+        with framework_sandbox_operation():
+            exec_result = await self.sandbox.exec(
+                [SANDBOX_CLI, "exec"],
+                input=request,
+                env=env,
+                timeout=transport_extra_args.get("timeout", None),
+                timeout_retry=transport_extra_args.get("timeout_retry", True),
+                user=transport_extra_args.get("user", None),
+                concurrency=transport_extra_args.get("concurrency", True),
+            )
 
         if not exec_result.success:
             # Prefer stderr, but fall back to stdout — some failures

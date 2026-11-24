@@ -17,7 +17,7 @@ from mcp.types import (
     StopReason as MCPStopReason,
 )
 
-from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
+from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -73,7 +73,7 @@ async def sampling_fn(
 
         # sample w/ requested params
         # a server's own inference request, not an agent turn
-        with sentinel_scope(AgentScope.OFF, final=True):
+        with sentinel_scope("sampling", final=True):
             output = await get_model().generate(
                 messages,
                 config=GenerateConfig(

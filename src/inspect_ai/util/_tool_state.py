@@ -8,10 +8,10 @@ def tool_state_scope(name: str) -> Iterator[None]:
     """Give tool state at the default instance its own scope.
 
     Built-in tools that keep state in the sample store (`memory()`,
-    `bash_session()`, `web_browser()` and `skill()`) use the scope as their
+    `bash_session()` and `skill()`) use the scope as their
     instance when their `instance` is left at `None`. Agents that run
     concurrently in one sample can each run inside their own scope to get
-    their own memory, shell, browser and skills. A tool given an explicit
+    their own memory, shell and skills. A tool given an explicit
     `instance` is not affected, so agents that pass the same instance still
     share that state.
 

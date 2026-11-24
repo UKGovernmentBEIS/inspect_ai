@@ -2,12 +2,22 @@ import asyncio
 import contextlib
 import inspect
 import os
+import posixpath
 import re
 from collections.abc import Iterable
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import IO, Any, AsyncIterator, Callable, Generator, Literal, cast
+from typing import (
+    IO,
+    Any,
+    AsyncIterator,
+    Callable,
+    Generator,
+    Literal,
+    NamedTuple,
+    cast,
+)
 
 import anyio.to_thread
 import fsspec  # type: ignore
@@ -32,8 +42,11 @@ from inspect_ai._util.file import (
     default_fs_options,
     file,
     filesystem,
+    local_path,
+    url_protocol,
 )
 from inspect_ai._util.json import to_json_safe
+from inspect_ai._util.path import native_path
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._resolve import rebind_sample_timelines, resolve_sample_events_data
@@ -45,6 +58,7 @@ from ._recorders import (
     recorder_type_for_format,
     recorder_type_for_location,
 )
+from ._recorders.recorder import SampleRecordKey
 from ._shard_listing import filter_merged_shards, merged_logs_to_check
 
 logger = getLogger(__name__)
@@ -1084,22 +1098,46 @@ def read_eval_log_samples(
             + "Specify all_samples_required=False to read the samples that exist."
         )
 
+    # the header's sample_ids describe the seed dataset only, so add the
+    # samples a SampleSource / enqueue_sample added at runtime from the log.
+    # Keyed by string id like the recorders, since a retry can record "1" in
+    # the header for a reused sample stored as 1.
+    location = (
+        log_file
+        if isinstance(log_file, str)
+        else log_file.as_posix()
+        if isinstance(log_file, Path)
+        else log_file.name
+    )
+    recorder_type = (
+        recorder_type_for_location(location)
+        if format == "auto"
+        else recorder_type_for_format(format)
+    )
+    sample_keys = dict.fromkeys(
+        [
+            SampleRecordKey(str(sample_id), epoch_id)
+            for sample_id in log_header.eval.dataset.sample_ids
+            for epoch_id in range(1, (log_header.eval.config.epochs or 1) + 1)
+        ]
+        + run_coroutine(recorder_type.read_log_sample_keys(location))
+    )
+
     # loop over samples and epochs
-    for sample_id in log_header.eval.dataset.sample_ids:
-        for epoch_id in range(1, (log_header.eval.config.epochs or 1) + 1):
-            try:
-                sample = read_eval_log_sample(
-                    log_file=log_file,
-                    id=sample_id,
-                    epoch=epoch_id,
-                    resolve_attachments=resolve_attachments,
-                    format=format,
-                    exclude_fields=exclude_fields,
-                )
-                yield sample
-            except IndexError:
-                if all_samples_required:
-                    raise
+    for sample_id, epoch_id in sample_keys:
+        try:
+            sample = read_eval_log_sample(
+                log_file=log_file,
+                id=sample_id,
+                epoch=epoch_id,
+                resolve_attachments=resolve_attachments,
+                format=format,
+                exclude_fields=exclude_fields,
+            )
+            yield sample
+        except IndexError:
+            if all_samples_required:
+                raise
 
 
 def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
@@ -1154,6 +1192,95 @@ async def log_files_from_ls_async(
 ) -> list[EvalLogInfo]:
     files = _filter_log_files(ls, formats, descending, sort)
     return await tg_collect([partial(log_file_info_async, f) for f in files])
+
+
+class LogDestination(NamedTuple):
+    """A listed log directory entry and where it is written beneath a target."""
+
+    relative: str
+    """The entry's name relative to the log directory, with `/` separators."""
+
+    destination: str
+    """Where to write the entry (with `extension`, if given).
+
+    For a local target, the resolved native path that was checked; otherwise
+    `relative` joined beneath the target URL.
+    """
+
+
+def resolve_local_path(path: str) -> str:
+    """Resolve a path on the local filesystem to the native path writers use.
+
+    Applies to every form fsspec opens locally (a plain path, `file://` or
+    `local://`). The result is absolute, with `~` expanded, `file://`
+    escapes decoded and symlinks resolved, so a containment check and the
+    writer that follows it see the same file. Other URLs are returned
+    unchanged.
+    """
+    if not filesystem(path).is_local():
+        return path
+    if url_protocol(path) == "file":
+        path = local_path(path)
+    return os.path.realpath(native_path(path))
+
+
+def contained_log_destination(
+    name: str, log_dir: str, target_dir: str, extension: str | None = None
+) -> LogDestination:
+    """Place a listed log directory entry beneath a target directory.
+
+    Names listed from a remote store can contain `.` or `..` components,
+    an empty component (so the rest reads as absolute) or fsspec's `::`
+    URL-chain separator. Such a name is refused rather than normalized. The destination must stay beneath
+    `target_dir`. For a local target, both are resolved with
+    `resolve_local_path()` first and the resolved destination is returned.
+
+    Args:
+        name: Entry name as listed (e.g. `FileInfo.name`).
+        log_dir: Listed name of the log directory (e.g. `info(log_dir).name`).
+        target_dir: Local path or URL of the directory to write beneath.
+        extension: Replaces the entry's extension in the destination.
+
+    Raises:
+        ValueError: If `name` is not inside `log_dir`, or would be written
+            outside `target_dir`.
+    """
+    from inspect_ai.util._checkpoint._layout._paths import contained_relative
+
+    prefix = log_dir if log_dir.endswith("/") else f"{log_dir}/"
+    if not name.startswith(prefix):
+        raise ValueError(f"Log file '{name}' is not inside '{log_dir}'.")
+    relative = name[len(prefix) :]
+    try:
+        contained_relative(relative)
+    except ValueError as ex:
+        raise ValueError(f"Log file '{name}' has an invalid path: {ex}") from ex
+    # fsspec reads "::" as a URL chain, so a writer would open a different path
+    if "::" in relative:
+        raise ValueError(f"Log file '{name}' has an invalid path: it contains '::'.")
+
+    written = (
+        relative
+        if extension is None
+        else f"{posixpath.splitext(relative)[0]}.{extension}"
+    )
+    destination = posixpath.join(target_dir, written)
+    if filesystem(target_dir).is_local():
+        root = resolve_local_path(target_dir)
+        destination = resolve_local_path(destination)
+        try:
+            contained = (
+                destination != root and os.path.commonpath([root, destination]) == root
+            )
+        except ValueError:  # different drives on Windows
+            contained = False
+    else:
+        root = posixpath.normpath(target_dir)
+        dest = posixpath.normpath(destination)
+        contained = dest.startswith(root.rstrip("/") + "/")
+    if not contained:
+        raise ValueError(f"Log file '{name}' would be written outside '{target_dir}'.")
+    return LogDestination(relative=relative, destination=destination)
 
 
 log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
@@ -1398,8 +1525,9 @@ def _normalize_excluded_fields(exclude_fields: set[str] | None) -> set[str] | No
             # events_data is needed to resolve refs in events
             exclude_fields = exclude_fields - {"events_data"}
         else:
-            # no events means events_data is useless
-            exclude_fields = exclude_fields | {"events_data"}
+            # no events means events_data is useless, and timelines cannot be
+            # resolved (their event references point back into the events)
+            exclude_fields = exclude_fields | {"events_data", "timelines"}
     return exclude_fields
 
 

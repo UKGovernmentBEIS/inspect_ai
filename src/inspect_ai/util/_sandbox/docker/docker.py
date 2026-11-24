@@ -5,7 +5,6 @@ import io
 import json
 import posixpath
 import shlex
-import stat
 import tarfile
 import time
 from logging import getLogger
@@ -27,11 +26,14 @@ from ..environment import (
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxTimeoutError,
     SandboxUnavailableError,
+    SandboxUserUnsupportedError,
     sandbox_prebuilt,
 )
 from ..limits import OutputLimitExceededError, SandboxEnvironmentLimits
 from ..registry import sandboxenv
+from ..setup import current_task_init_env
 from .cleanup import (
     cli_cleanup,
     project_cleanup,
@@ -46,17 +48,21 @@ from .compose import (
     compose_build,
     compose_check_running,
     compose_cleanup_images,
-    compose_cp_archive,
     compose_exec,
     compose_ps,
     compose_pull,
+    compose_read_archive,
     compose_services,
     compose_up,
     compose_verify_prebuilt_images,
     docker_image_exists_locally,
 )
 from .diagnostics import sandbox_unavailable_diagnostics, service_dead
-from .failure import InjectedWrapper, classify_exec_failure
+from .failure import (
+    InjectedWrapper,
+    classify_exec_failure,
+    raise_for_unsupported_user,
+)
 from .internal import build_internal_image, is_internal_image, is_internal_image_built
 from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name
@@ -100,7 +106,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         try:
             # create project
             project = await ComposeProject.create(
-                name=task_project_name(task_name), config=config
+                name=task_project_name(task_name),
+                config=config,
+                env=current_task_init_env(),
             )
 
             # record auto compose
@@ -371,41 +379,47 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         host_timeout = timeout + 10 if timeout is not None else None
 
         start_time = time.monotonic()
-        exec_result = await compose_exec(
-            args + [self._service] + in_container_cmd,
-            project=self._project,
-            timeout=host_timeout,
-            timeout_retry=timeout_retry,
-            input=input,
-            output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
-            concurrency=concurrency,
-        )
+        try:
+            exec_result = await compose_exec(
+                args + [self._service] + in_container_cmd,
+                project=self._project,
+                timeout=host_timeout,
+                timeout_retry=timeout_retry,
+                input=input,
+                output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
+                concurrency=concurrency,
+            )
+        except TimeoutError as ex:
+            # the host-side timeout expired: the in-container timeout had its
+            # chance to end the command and return cleanly, and did not, so
+            # the daemon or the container stopped answering. whether the
+            # command is still running is unknown.
+            raise SandboxTimeoutError(str(ex), reason="no_response") from ex
 
-        # in-container timeout fired. the docker CLI returned cleanly
-        # — this is NOT a daemon hang — so fail hard with a TimeoutError
-        # rather than returning the exit code. exit codes vary by
-        # implementation:
+        # In-container timeouts return exit codes without triggering host retries.
+        # Timeout exit codes vary by implementation:
         #   124: GNU timeout, command killed by SIGTERM (the normal case)
         #   137: SIGKILL escalation via -k (command ignored SIGTERM)
         #   143: BusyBox timeout, command killed by SIGTERM (128 + 15)
         #
-        # 137 and 143 are ambiguous: OOM kills also produce 137, and
-        # any SIGTERM from any source produces 143. we use wall-clock
-        # time to disambiguate these from actual timeouts.
+        # all three are ambiguous: the command can exit 124 itself (e.g. a
+        # script ending in its own `timeout 10 pytest`), OOM kills also
+        # produce 137, and any SIGTERM from any source produces 143. the
+        # in-container timeout cannot fire before `timeout` seconds have
+        # passed since this call started, so we use wall-clock time to
+        # disambiguate these from actual timeouts.
         elapsed = time.monotonic() - start_time
         if timeout is not None and exec_result.returncode in (124, 137, 143):
-            if exec_result.returncode == 124 or elapsed >= timeout:
-                # preserve the partial output captured before the timeout so it can
-                # be surfaced to the caller via SandboxTimeoutError.truncated_output
-                timeout_error = TimeoutError(
-                    f"Command timed out after {timeout} seconds"
-                )
+            if elapsed >= timeout:
                 partial_output = (exec_result.stdout or "") + (exec_result.stderr or "")
-                if partial_output:
-                    setattr(timeout_error, "truncated_output", partial_output)
-                raise timeout_error
-            # else: signal-death exit code but too fast to be a timeout
-            # (e.g. OOM kill) — fall through and return the ExecResult
+                raise SandboxTimeoutError(
+                    f"Command timed out after {timeout} seconds",
+                    truncated_output=partial_output or None,
+                    reason="command",
+                )
+            # else: the command's own exit code or a signal death that came
+            # too fast to be a timeout (e.g. OOM kill) — fall through and
+            # return the ExecResult
 
         failure = classify_exec_failure(
             exec_result,
@@ -460,19 +474,30 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         )
 
     @override
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
+        if user == "":
+            raise SandboxUserUnsupportedError("Docker file user must not be empty.")
         # defualt timeout for write_file operations
         TIMEOUT = 600
 
         # resolve relative file paths
         file = self.container_file(file)
 
-        # These run as the container's default user (root in most images), so the
-        # utilities must not come from the image's PATH.
+        # The requested user may be root, so utilities must not come from the
+        # image's PATH. The commands run from "/", as `read_file()`'s do: the
+        # path is absolute, and the user may be unable to enter the default
+        # working directory.
         parent = Path(file).parent.as_posix()
         if parent != ".":
-            result = await self.exec(pinned_command(["mkdir", "-p", parent]))
+            result = await self.exec(
+                pinned_command(["mkdir", "-p", parent]), cwd="/", user=user
+            )
             if not result.success:
+                raise_for_unsupported_user(result.stderr or result.stdout, user)
+                if "permission denied" in result.stderr.casefold():
+                    raise PermissionError(errno.EACCES, "Permission denied.", file)
                 msg = f"Failed to create container directory {parent}: {result.stderr}"
                 raise RuntimeError(msg)
 
@@ -481,7 +506,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             result = await self.exec(
                 pinned_shell_command('set -e\ntee -- "$1" > /dev/null', file),
                 input=contents,
+                cwd="/",
                 timeout=TIMEOUT,
+                user=user,
             )
         else:
             base64_contents = base64.b64encode(contents).decode("US-ASCII")
@@ -490,11 +517,16 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     'set -e\nbase64 -d | tee -- "$1" > /dev/null', file
                 ),
                 input=base64_contents,
+                cwd="/",
                 timeout=TIMEOUT,
+                user=user,
             )
         if result.returncode != 0:
+            raise_for_unsupported_user(result.stderr or result.stdout, user)
             if "permission denied" in result.stderr.casefold():
-                ls_result = await self.exec(pinned_command(["ls", "-la", "."]))
+                ls_result = await self.exec(
+                    pinned_command(["ls", "-la", "--", parent]), cwd="/", user=user
+                )
                 error_string = f"Permission was denied. Error details: {result.stderr}; ls -la: {ls_result.stdout}"
                 raise PermissionError(error_string)
             elif (
@@ -508,13 +540,21 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 raise RuntimeError(f"failed to copy during write_file: {result}")
 
     @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+    async def read_file(
+        self, file: str, text: Literal[True] = True, *, user: str | None = None
+    ) -> str: ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+    async def read_file(
+        self, file: str, text: Literal[False], *, user: str | None = None
+    ) -> bytes: ...
 
     @override
-    async def read_file(self, file: str, text: bool = True) -> Union[str, bytes]:
+    async def read_file(
+        self, file: str, text: bool = True, *, user: str | None = None
+    ) -> Union[str, bytes]:
+        if user == "":
+            raise SandboxUserUnsupportedError("Docker file user must not be empty.")
         original_file = file
         if _is_directory_alias(file):
             raise _is_directory_error(original_file)
@@ -523,8 +563,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         file = self.container_file(file)
 
         try:
-            archive = await compose_cp_archive(
-                src=f"{self._service}:{file}",
+            archive = await compose_read_archive(
+                service=self._service,
+                file=file,
+                user=user,
                 project=self._project,
                 read_archive=functools.partial(
                     _read_archive,
@@ -533,6 +575,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     original_file=original_file,
                 ),
             )
+        except (SandboxUserUnsupportedError, SandboxUnavailableError):
+            raise
         except RuntimeError as ex:
             # extract the message and normalise case
             message = str(ex).lower()
@@ -627,7 +671,7 @@ def _is_directory_error(file: str) -> IsADirectoryError:
 async def _read_archive(
     stream: ByteReceiveStream, limit: int, original_file: str
 ) -> bytes:
-    """Read a `docker cp` archive, stopping the copy once it exceeds `limit`."""
+    """Read a file archive, stopping the copy once it exceeds `limit`."""
     archive = bytearray()
     async for chunk in stream:
         archive += chunk
@@ -640,7 +684,7 @@ async def _read_archive(
 
 
 def _read_archived_file(archive: bytes, original_file: str) -> bytes:
-    """Return the contents of the single regular file in a `docker cp` archive.
+    """Return the contents of the single regular file in a container archive.
 
     The archive is built from container state the agent may control, so it is
     parsed in memory and never extracted. Anything other than exactly one
@@ -657,9 +701,6 @@ def _read_archived_file(archive: bytes, original_file: str) -> bytes:
                 raise _not_regular_file_error(original_file)
             if member.size > SandboxEnvironmentLimits.MAX_READ_FILE_SIZE:
                 raise _read_file_size_error()
-            # Report a file its owner cannot read as unreadable.
-            if not member.mode & stat.S_IRUSR:
-                raise PermissionError(errno.EACCES, "Permission denied.", original_file)
             contents = tar.extractfile(member)
             if contents is None:
                 raise _not_regular_file_error(original_file)
@@ -671,7 +712,7 @@ def _read_archived_file(archive: bytes, original_file: str) -> bytes:
 
 
 def _archive_starts_with_directory(head: bytes) -> bool:
-    """Whether the first entry of a truncated `docker cp` archive is a directory."""
+    """Whether the first entry of a truncated file archive is a directory."""
     if _archive_is_empty(head):
         return False
     try:
@@ -685,7 +726,7 @@ def _archive_starts_with_directory(head: bytes) -> bool:
 def _archive_is_empty(archive: bytes) -> bool:
     """Whether a tar archive has no entries (its first block is all zeros).
 
-    Docker sends an empty archive for a socket. Checked before parsing because
+    Tar emits an empty archive for a socket. Checked before parsing because
     `tarfile` on Python 3.10 raises `ValueError` when asked for the next entry
     of an empty archive.
     """

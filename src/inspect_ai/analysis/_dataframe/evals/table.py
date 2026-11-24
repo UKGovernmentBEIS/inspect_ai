@@ -163,10 +163,17 @@ def _read_evals_df(
             eval_ids.add(eval_id)
             eval_logs.append(log)
             records.append(record)
+            # the header's running count (seed + everything a SampleSource
+            # injected) is the real denominator; fall back to the seed-derived
+            # estimate for logs written before the field existed (#5814)
             total_samples += (
-                len(log.eval.dataset.sample_ids)
-                if log.eval.dataset.sample_ids is not None
-                else (log.eval.dataset.samples or 100)
+                log.total_samples
+                if log.total_samples is not None
+                else (
+                    len(log.eval.dataset.sample_ids)
+                    if log.eval.dataset.sample_ids is not None
+                    else (log.eval.dataset.samples or 100)
+                )
             )
 
     # return table (+errors if strict=False)

@@ -32,7 +32,7 @@ asyncio-only. Cancellation catches use
 
 from __future__ import annotations
 
-from logging import getLogger
+from logging import DEBUG, WARNING, getLogger
 from typing import TYPE_CHECKING, Callable, Protocol
 
 import anyio
@@ -157,10 +157,14 @@ async def _request_from_driver_with_fallback(
                     except cancel_exc:
                         raise
                     except Exception as exc:
-                        # Transport failure, target-session mismatch,
-                        # or other client-side error. Try the next
-                        # client in the fallback chain.
-                        logger.debug(
+                        # Try the next client in the fallback chain. A
+                        # ConnectionError means the client left. Anything
+                        # else (an error reply, a malformed response) is
+                        # from a client that stays attached but isn't asked
+                        # again until another client attaches, so the sample
+                        # can stay parked.
+                        logger.log(
+                            DEBUG if isinstance(exc, ConnectionError) else WARNING,
                             "ACP elicitation request failed for client %r; "
                             "trying next: %s",
                             client,

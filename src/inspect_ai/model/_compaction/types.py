@@ -1,10 +1,35 @@
 import abc
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, NamedTuple, Protocol
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._model import Model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_info import ToolInfo
+
+
+class CompactionResult(NamedTuple):
+    """Result of a single `compact()` call.
+
+    `preserve_prefix` and `applied` describe the strategy that actually
+    produced `input`. For a delegating strategy such as `CompactionAuto`
+    that is not the strategy the caller configured, and the orchestrator
+    needs the delegate's values rather than the wrapper's.
+    """
+
+    input: list[ChatMessage]
+    """Input to present to the model."""
+
+    message: ChatMessageUser | None
+    """Optional message to append to the history (e.g. a summarization)."""
+
+    preserve_prefix: bool
+    """`preserve_prefix` of the strategy that produced this result."""
+
+    applied: str
+    """Class name of the strategy that produced this result."""
+
+    fallback_reason: str | None = None
+    """Why a delegating strategy did not use its preferred delegate."""
 
 
 class CompactionStrategy(abc.ABC):
@@ -69,6 +94,32 @@ class CompactionStrategy(abc.ABC):
         """
         ...
 
+    async def compact_outcome(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> CompactionResult:
+        """Compact messages and report which strategy applied.
+
+        The default implementation calls `compact()` and reports this
+        strategy's own values. Delegating strategies override this to
+        report the delegate that ran, so the orchestrator can apply that
+        delegate's prefix rule.
+
+        Args:
+            model: Target model for compaction.
+            messages: Full message history
+            tools: Available tools
+
+        Returns: The compacted input along with the prefix rule and identity
+            of the strategy that produced it.
+        """
+        input, message = await self.compact(model, messages, tools)
+        return CompactionResult(
+            input=input,
+            message=message,
+            preserve_prefix=self.preserve_prefix,
+            applied=type(self).__name__,
+        )
+
 
 class Compact(Protocol):
     """Interface for compaction strategies."""
@@ -112,5 +163,25 @@ class Compact(Protocol):
         Args:
             input: The list of messages that was passed to model.generate.
             output: The ModelOutput from the generate call.
+        """
+        ...
+
+    async def reset(self, prefix: list[ChatMessage]) -> None:
+        """Start again from the next conversation passed to `compact_input()`.
+
+        Call this after the conversation was rewritten (messages changed,
+        removed or reordered), which `compact_input()` does not detect: it
+        adds only messages whose ids it has not seen. Clears the compacted
+        input, the ids folded into it, the token baseline and the memory
+        warning flag, and replaces the prefix.
+
+        It does not remove compaction summaries from your messages. A summary
+        strategy (including `CompactionAuto`'s summary fallback) starts its
+        next compaction from the latest summary in the conversation, so
+        before resetting, remove any summaries that the changed history
+        invalidated from the conversation you pass next.
+
+        Args:
+            prefix: Chat messages to always preserve in compacted conversations.
         """
         ...

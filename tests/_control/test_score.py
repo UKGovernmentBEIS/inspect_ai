@@ -38,6 +38,7 @@ from inspect_ai._control.pause import (
 from inspect_ai._control.scoring import (
     ScorePass,
     TaskScoring,
+    _apply_scorers,
     _enumerate_targets,
     _pass_superseded,
     _sample_scoped_targets,
@@ -721,6 +722,128 @@ async def test_score_pass_held_in_flight_sample(
     assert score_pass.metrics[0]["metrics"]["accuracy"] == 1.0
 
 
+class _CopyingSidecars:
+    """Stands in for a task's sentinel sidecars, whose monitor state a pass copies before scoring."""
+
+    def __init__(self) -> None:
+        self.copied: list[tuple[str, int]] = []
+
+    async def copy_monitor_state(
+        self, sample_uuid: str, attempt_number: int, store: Any
+    ) -> None:
+        self.copied.append((sample_uuid, attempt_number))
+        store.set("Watch:count", 3)
+
+
+async def test_score_pass_copies_sidecar_monitor_state_before_scoring(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pass scores outside the sample, so it copies the monitor state of the eval's sidecars by the eval's id."""
+    from inspect_ai._sentinel._sidecar import _task as sidecar_task
+
+    _speed_up(monkeypatch)
+    monkeypatch.setattr("inspect_ai._control.pause._HELD_CREDIT_INTERVAL", 0.02)
+
+    async def summaries() -> list[EvalSampleSummary]:
+        return []
+
+    register_eval("e1", 1, task_id="t1", live=FakeLiveEvalData(summaries=summaries))
+    active = _active_sample("s1")
+    _patch_active_samples(monkeypatch, [active])
+    sidecars = _CopyingSidecars()
+    monkeypatch.setitem(sidecar_task._eval_sidecars, "e1", sidecars)
+
+    seen: dict[str, Any] = {}
+
+    @scorer(metrics=[accuracy()])
+    def reads_monitor_state():
+        async def score(state: TaskState, target: Target) -> Score:
+            seen["count"] = state.store.get("Watch:count")
+            return Score(value=1.0)
+
+        return score
+
+    handle = _scoring_handle(scorer_obj=reads_monitor_state())
+    model = get_model("mockllm/model", memoize=False)
+    stop = anyio.Event()
+
+    score_pass: ScorePass | None = None
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(_park_solver_loop, active, model, stop)
+        with anyio.fail_after(10):
+            score_pass = await _run_pass("t1", handle)
+        stop.set()
+
+    assert score_pass is not None
+    (row,) = score_pass.rows
+    assert row["outcome"] == "scored"
+    assert active.live_state is not None
+    assert sidecars.copied == [(active.live_state.uuid, 1)]
+    assert seen["count"] == 3
+
+
+class _ConflictingSidecars(_CopyingSidecars):
+    """Sidecars whose copy fails because a sentinel inside Inspect keeps the same key."""
+
+    async def copy_monitor_state(
+        self, sample_uuid: str, attempt_number: int, store: Any
+    ) -> None:
+        from inspect_ai._sentinel._sidecar._endpoint import SentinelProxyError
+
+        self.copied.append((sample_uuid, attempt_number))
+        raise SentinelProxyError(
+            "The sentinel inside Inspect and the one in the sidecar at http://proxy.test both keep 'Watch:count' for the sample."
+        )
+
+
+async def test_score_pass_conflicting_sidecar_copy_fails_only_that_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A copy that fails because two sentinels keep one key is the sample's own failure, reported on its row, and the pass goes on."""
+    from inspect_ai._sentinel._sidecar import _task as sidecar_task
+
+    _speed_up(monkeypatch)
+    monkeypatch.setattr("inspect_ai._control.pause._HELD_CREDIT_INTERVAL", 0.02)
+
+    async def summaries() -> list[EvalSampleSummary]:
+        return []
+
+    register_eval("e1", 1, task_id="t1", live=FakeLiveEvalData(summaries=summaries))
+    active = _active_sample("s1")
+    _patch_active_samples(monkeypatch, [active])
+    sidecars = _ConflictingSidecars()
+    monkeypatch.setitem(sidecar_task._eval_sidecars, "e1", sidecars)
+    ran: list[str] = []
+
+    @scorer(metrics=[accuracy()])
+    def reads_monitor_state():
+        async def score(state: TaskState, target: Target) -> Score:
+            ran.append("scored")
+            return Score(value=1.0)
+
+        return score
+
+    handle = _scoring_handle(scorer_obj=reads_monitor_state())
+    model = get_model("mockllm/model", memoize=False)
+    stop = anyio.Event()
+
+    score_pass: ScorePass | None = None
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(_park_solver_loop, active, model, stop)
+        with anyio.fail_after(10):
+            score_pass = await _run_pass("t1", handle)
+        stop.set()
+
+    assert score_pass is not None
+    (row,) = score_pass.rows
+    assert row["outcome"] == "failed"
+    assert row["reason"] is not None and "both keep 'Watch:count'" in row["reason"]
+    assert not row.get("scorer_errors")
+    assert ran == []
+    assert score_pass.failed == 1
+    assert score_pass.error is None  # one sample's failure doesn't fail the pass
+
+
 async def test_score_pass_binds_sandbox_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -957,8 +1080,8 @@ def test_pass_superseded_by_cancel_stamp(
     async def summaries() -> list[EvalSampleSummary]:
         return []
 
-    handle = TaskCancel(can_retry=False, cancel_task=lambda _t: None)
-    handle.cancel_type = cancel_type
+    handle = TaskCancel(can_retry=False, apply=lambda _t: None)
+    handle.request(cancel_type)
     register_eval(
         "e1",
         1,
@@ -1811,3 +1934,30 @@ def test_eval_interim_score_pass_e2e(
     assert len(intermediate) == 1 and len(final) == 1
     assert log.samples[0].scores is not None
     assert list(log.samples[0].scores) == [scorer_name]
+
+
+async def test_a_score_pass_s_scorer_calls_record_the_scorer_origin() -> None:
+    from inspect_ai._sentinel._scope import current_origin
+
+    origins: list[str] = []
+
+    @scorer(metrics=[accuracy()])
+    def origin_scorer():
+        async def score(state: TaskState, target: Target) -> Score:
+            origins.append(current_origin())
+            return Score(value=1.0)
+
+        return score
+
+    scores: dict[str, Any] = {}
+    errors: dict[str, str] = {}
+    await _apply_scorers(
+        _scoring_handle(scorer_obj=origin_scorer()),
+        _active_sample().live_state,
+        Target("42"),
+        should_record=lambda: False,
+        scores=scores,
+        errors=errors,
+    )
+    assert errors == {}
+    assert origins == ["scorer"]

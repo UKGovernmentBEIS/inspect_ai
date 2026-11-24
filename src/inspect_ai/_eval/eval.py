@@ -1,14 +1,16 @@
 import contextlib
 import functools
 import logging
+import math
 import os
 from contextlib import nullcontext
 from contextvars import Token, copy_context
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, Sequence, cast
 
 import anyio
+import anyio.lowlevel
 from anyio.abc import TaskGroup
 
 from inspect_ai._control.eval_state import reset_run_registries
@@ -44,9 +46,15 @@ from inspect_ai._display.core.active import active_display as active_task_displa
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._eval.task.scan import Scanners, scan_context
 from inspect_ai._sentinel._config import (
+    SentinelProxy,
     SentinelSpec,
     resolve_sentinel_spec,
     sentinel_config,
+)
+from inspect_ai._util._async import (
+    current_async_backend,
+    raise_unwrapped,
+    unwrap_exception_group,
 )
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import parse_cli_args, resolve_args
@@ -93,7 +101,7 @@ from inspect_ai.review._policy import (
     review_policies_from_config,
 )
 from inspect_ai.scorer._reducer import reducer_log_names
-from inspect_ai.solver._chain import chain
+from inspect_ai.solver._chain import chain, is_solver_sequence
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
 from inspect_ai.util._checkpoint import CheckpointConfig, normalize_checkpoint
@@ -108,17 +116,19 @@ from inspect_ai.util._limit import TokenLimit, token_limit_fields
 from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
-from .loader import resolve_task_source, resolve_tasks
-from .run import TaskInjection, eval_run
+from .eval_set_pruning import is_placeholder
+from .loader import resolve_task_file_sandbox, resolve_task_source, resolve_tasks
+from .run import eval_run
 from .task import Epochs, PreviousTask, Task, TaskSource
 from .task.enqueue import (
-    TaskEnqueuer,
-    clear_task_enqueuer,
-    create_task_enqueuer,
-    register_task_enqueuer,
+    RunQueue,
+    bind_run_queue,
+    creator_model,
+    creator_model_scope,
+    unbind_run_queue,
 )
 from .task.images import InputMediaPolicy
-from .task.resolved import ResolvedTask, resolved_model_names, resolved_task_names
+from .task.resolved import ResolvedTask, resolved_model_names
 from .task.tasks import Tasks
 
 log = logging.getLogger(__name__)
@@ -137,7 +147,7 @@ def eval(
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -187,6 +197,7 @@ def eval(
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     sentinel: SentinelSpec | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model.
@@ -286,20 +297,24 @@ def eval(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources. Work done while
-            any wait is open is not charged, so working time can undercount;
-            set `time_limit` as well to bound wall clock time.
+            time spent waiting on retries or shared resources. While a wait is
+            open, only model calls, sandbox commands and tool calls are charged,
+            so working time can undercount; set `time_limit` as well to bound
+            wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
         max_samples: Maximum number of samples to run in parallel within each task
-            (default is max_connections)
+            (overrides a task's own `max_samples`; default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
-            (defaults to number of models being evaluated)
+            (defaults to number of models being evaluated). A task cancelled
+            before it starts is started outside this limit and ends at once
+            with an error log reporting the cancellation, so it never takes a
+            slot.
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -329,6 +344,7 @@ def eval(
         sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
             A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
             Overrides the task's sentinel. Defaults to no sentinel.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, which then judges the agent's model calls. Off unless set: `off` (the default) never looks, `auto` uses a sidecar it finds, and `required` fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.
         **kwargs: Model generation options.
 
     Returns:
@@ -343,7 +359,8 @@ def eval(
     )
 
     async def run_task_app() -> list[EvalLog]:
-        try:
+        # exceptions can escape when debug_errors is True and that's okay
+        with unwrap_exception_group("first" if debug_errors else None):
             return await eval_async(
                 tasks=tasks,
                 model=model,
@@ -362,6 +379,7 @@ def eval(
                 approval=approval,
                 review=review,
                 sentinel=sentinel,
+                sentinel_proxy=sentinel_proxy,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -407,12 +425,6 @@ def eval(
                 task_retry_attempts=task_retry_attempts,
                 **kwargs,
             )
-        # exceptions can escape when debug_errors is True and that's okay
-        except ExceptionGroup as ex:
-            if debug_errors:
-                raise ex.exceptions[0] from None
-            else:
-                raise
 
     result = task_display().run_task_app(with_async_fs(run_task_app))
 
@@ -447,7 +459,7 @@ async def eval_async(
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -495,6 +507,7 @@ async def eval_async(
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     sentinel: SentinelSpec | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
@@ -572,19 +585,24 @@ async def eval_async(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources. Work done while
-            any wait is open is not charged, so working time can undercount;
-            set `time_limit` as well to bound wall clock time.
+            time spent waiting on retries or shared resources. While a wait is
+            open, only model calls, sandbox commands and tool calls are charged,
+            so working time can undercount; set `time_limit` as well to bound
+            wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
-        max_samples: Maximum number of samples to run in parallel within each task (default is max_connections)
+        max_samples: Maximum number of samples to run in parallel within each task
+            (overrides a task's own `max_samples`; default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
-            (defaults to number of models being evaluated)
+            (defaults to number of models being evaluated). A task cancelled
+            before it starts is started outside this limit and ends at once
+            with an error log reporting the cancellation, so it never takes a
+            slot.
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
         log_samples: Log detailed samples and scores (defaults to True)
@@ -607,6 +625,7 @@ async def eval_async(
         sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
             A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
             Overrides the task's sentinel. Defaults to no sentinel.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, which then judges the agent's model calls. Off unless set: `off` (the default) never looks, `auto` uses a sidecar it finds, and `required` fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.
         **kwargs: Model generation options.
 
     Returns:
@@ -654,6 +673,7 @@ async def eval_async(
                 approval=approval,
                 review=review,
                 sentinel=sentinel,
+                sentinel_proxy=sentinel_proxy,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -706,7 +726,7 @@ async def eval_async(
         async with anyio.create_task_group() as tg:
             tg.start_soon(run, tg)
     except Exception as ex:
-        raise inner_exception(ex)
+        raise_unwrapped(ex, inner_exception(ex))
     except anyio.get_cancelled_exc_class():
         # Cancelled exceptions are expected and handled by _eval_async_inner
         if result is None:
@@ -731,13 +751,14 @@ async def _eval_async_inner(
     checkpoint: CheckpointConfig | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
     sentinel: SentinelSpec | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -813,7 +834,8 @@ async def _eval_async_inner(
 
     run_id = uuid()
 
-    enqueuer_token: Token[TaskEnqueuer | None] | None = None
+    queue_token: Token[RunQueue | None] | None = None
+    trio_cancelled = False
     try:
         # intialise eval
         model = eval_init(
@@ -916,10 +938,10 @@ async def _eval_async_inner(
             )
 
         # resolve solver
-        if isinstance(solver, list):
-            solver = chain(solver)
-        elif is_agent(solver):
+        if is_agent(solver):
             solver = as_solver(solver)
+        elif is_solver_sequence(solver):
+            solver = chain(solver)
         else:
             solver = cast(Solver | SolverSpec | None, solver)
 
@@ -1006,6 +1028,35 @@ async def _eval_async_inner(
             (t.task.name for t in resolved_tasks),
             run_max_epochs,
         )
+
+        # Bind the run's task queue so additional tasks can be added to this
+        # run while it's in progress — imperatively via `enqueue_task`, or
+        # declaratively via a `TaskSource`. Both resolve against the run's
+        # models / config, and eval_run's dispatcher starts them under this
+        # run_id as soon as a slot is free. Bound before the run-start hooks so
+        # they see the run as in progress (eval_set_pruning.prune_task_call);
+        # tasks they add are held and start after the seed tasks.
+        resolve_added_tasks = functools.partial(
+            _resolve_enqueued_tasks,
+            models=model,
+            model_roles=model_roles,
+            config=GenerateConfig(**kwargs),
+            sandbox=sandbox,
+            sample_shuffle=sample_shuffle,
+            checkpoint=checkpoint,
+            cost_limit=cost_limit,
+        )
+        # every task name the run has seen, so `task:id` sample selectors
+        # resolve against it: the enclosing eval set's tasks (a retry runs a
+        # subset), then each task as it is added
+        queue = RunQueue(
+            run_id,
+            resolve_added_tasks,
+            list(eval_set_tasks or []),
+            results_by_sequence=parallel == 1,
+        )
+        queue_token = bind_run_queue(queue)
+
         await emit_run_start(eval_set_id, run_id, resolved_tasks)
 
         # scan_id is whichever the caller passed explicitly (e.g. eval_retry
@@ -1048,24 +1099,6 @@ async def _eval_async_inner(
         if ctl.keep_alive:
             request_keep_alive()
 
-        # Register a task enqueuer so additional tasks can be added to this run
-        # while it's in progress — imperatively via `enqueue_task`, or
-        # declaratively via a `TaskSource`'s `next_tasks()`. Both resolve against
-        # the run's models / config; the eval loop below runs them under this
-        # run_id after each batch.
-        resolve_added_tasks = functools.partial(
-            _resolve_enqueued_tasks,
-            models=model,
-            model_roles=model_roles,
-            config=GenerateConfig(**kwargs),
-            sandbox=sandbox,
-            sample_shuffle=sample_shuffle,
-            checkpoint=checkpoint,
-            cost_limit=cost_limit,
-        )
-        enqueuer: TaskEnqueuer = create_task_enqueuer(run_id, resolve_added_tasks)
-        enqueuer_token = register_task_enqueuer(enqueuer)
-
         # Imported here rather than at module level: the ACP server pulls in
         # `acp.schema`, whose pydantic models are the single largest cost of
         # `import inspect_ai` / `inspect` CLI startup.
@@ -1094,33 +1127,15 @@ async def _eval_async_inner(
             )
             print_ctl_pointer(control_socket)
             with scan_cm:
-                # The one place eval_run is invoked for a batch of tasks. The
-                # initial tasks run as the first loop iteration below; tasks
+                # The one place eval_run is invoked: the seed and every task
                 # added during the run (via `enqueue_task` or a `TaskSource`)
-                # feed later iterations, all under this run_id. `debug_errors`
-                # is passed only on the parallel==1 path (the multi-task path
-                # never set it — preserved asymmetry).
-                # every task name the run has seen, so `task:id` sample
-                # selectors resolve the same way in every batch: the enclosing
-                # eval set's tasks (a retry runs a subset), then each batch as
-                # it is prepared (an enqueued task sees the ones before it)
-                task_names = list(eval_set_tasks or [])
-
-                async def run_batch(
-                    tasks: list[ResolvedTask],
-                    debug: bool,
-                    inject: TaskInjection | None = None,
-                ) -> list[EvalLog]:
-                    task_names.extend(
-                        name
-                        for name in resolved_task_names(tasks)
-                        if name not in task_names
-                    )
-                    return await eval_run(
+                # run under this run_id, through one dispatcher.
+                logs = EvalLogs(
+                    await eval_run(
                         eval_set_id=eval_set_id,
-                        eval_set_tasks=task_names,
                         run_id=run_id,
-                        tasks=tasks,
+                        queue=queue,
+                        tasks=resolved_tasks,
                         parallel=parallel,
                         eval_config=eval_config,
                         eval_checkpoint=checkpoint,
@@ -1130,6 +1145,7 @@ async def _eval_async_inner(
                         approval=approval,
                         review=review,
                         sentinel=eval_sentinel,
+                        sentinel_proxy=sentinel_proxy,
                         solver=solver,
                         scanner=scanner,
                         scan_id=scan_id,
@@ -1137,91 +1153,12 @@ async def _eval_async_inner(
                         metadata=metadata,
                         run_samples=run_samples,
                         score=score,
-                        debug_errors=debug,
+                        debug_errors=debug_errors is True,
                         task_retry_attempts=task_retry_attempts,
                         task_source=task_source,
-                        inject=inject,
                         **kwargs,
                     )
-
-                # Run successive batches under this run_id until the run is
-                # exhausted: the seed first, then tasks added imperatively
-                # (enqueue_task) or declaratively (a TaskSource's next_tasks())
-                # feed later iterations, repeating until none remain. A
-                # cancelled batch ends the run. Returns the combined logs.
-                async def run_batches(initial: list[ResolvedTask]) -> EvalLogs:
-                    results: list[EvalLog] = []
-                    pending: list[ResolvedTask] | None = initial
-                    while pending is not None:
-                        batch_logs: list[EvalLog] = []
-                        if parallel == 1:
-                            # one batch in sequence-major order: the dispatcher
-                            # dispatches in queue order (preserving sequence
-                            # grouping at a limit of 1) and, unlike per-group
-                            # sub-batches, sees the whole queue — so a live
-                            # `ctl config --max-tasks` raise starts queued
-                            # tasks immediately
-                            ordered = [
-                                t
-                                for sequence in sorted({t.sequence for t in pending})
-                                for t in pending
-                                if t.sequence == sequence
-                            ]
-                            batch_logs.extend(
-                                await run_batch(ordered, debug_errors is True)
-                            )
-                        else:
-                            # multiple task definitions, run together
-                            batch_logs.extend(await run_batch(pending, False))
-                        results.extend(batch_logs)
-
-                        # a cancelled batch ends the run
-                        if any(r.status == "cancelled" for r in batch_logs):
-                            break
-
-                        # (a TaskSource observes results via sample_complete /
-                        # task_complete, fired from task_run as each sample/task
-                        # finishes — so its next_tasks() decision can use them)
-
-                        # next batch under this run_id: imperative additions
-                        # (enqueue_task) first, else the TaskSource's next_tasks()
-                        # (which may block, and ends the run by returning None).
-                        pending = enqueuer.drain() or None
-                        if pending is None and task_source is not None:
-                            next_tasks = await task_source.next_tasks()
-                            pending = (
-                                resolve_added_tasks(next_tasks) if next_tasks else None
-                            )
-                    return EvalLogs(results)
-
-                if task_source is not None and parallel > 1:
-                    # live (TaskSource-driven) run: one eval_run fed additional
-                    # tasks while in progress. Injected tasks — from the source's
-                    # next_tasks(), its sample/task_complete return values, or
-                    # enqueue_task — start on free capacity rather than waiting
-                    # for a batch boundary. This only helps when there is spare
-                    # capacity to fill (parallel > 1); with parallel == 1 we fall
-                    # through to run_batches, whose sequence-major batch order
-                    # preserves sequence grouping at the launch limit (injection
-                    # feeds tasks in resolved, model-major order, which would
-                    # interleave task fan-outs) — and still drives the source
-                    # via enqueuer.drain() / next_tasks().
-                    async def inject_next() -> list[ResolvedTask] | None:
-                        more = await task_source.next_tasks()
-                        return resolve_added_tasks(more) if more else None
-
-                    injection = TaskInjection(
-                        drain=enqueuer.drain,
-                        next=inject_next,
-                        set_wake=lambda fn: setattr(enqueuer, "on_enqueue", fn),
-                    )
-                    logs = EvalLogs(
-                        await run_batch(
-                            resolved_tasks, debug_errors is True, inject=injection
-                        )
-                    )
-                else:
-                    logs = await run_batches(resolved_tasks)
+                )
 
             # keep-alive: after the body, park while the control / ACP
             # servers are still up so `inspect ctl` can read state and
@@ -1243,24 +1180,34 @@ async def _eval_async_inner(
                 )
                 await wait_for_shutdown_async(_ctl_server)
 
-        # cleanup sample buffers if required
-        await cleanup_sample_buffers(log_dir)
+        # under trio, a Ctrl-C leaves the run's scope cancelled: finish the
+        # run shielded (on asyncio, the cancellation ends it as before)
+        trio_cancelled = (
+            current_async_backend() == "trio"
+            and anyio.current_effective_deadline() == -math.inf
+        )
+        with anyio.CancelScope(shield=True) if trio_cancelled else nullcontext():
+            # cleanup sample buffers if required
+            await cleanup_sample_buffers(log_dir)
 
-        try:
-            await emit_run_end(eval_set_id, run_id, logs)
-        except UnboundLocalError:
-            await emit_run_end(eval_set_id, run_id, EvalLogs([]))
-        _eval_async_running = False
+            try:
+                await emit_run_end(eval_set_id, run_id, logs)
+            except UnboundLocalError:
+                await emit_run_end(eval_set_id, run_id, EvalLogs([]))
 
     except BaseException as e:
-        await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
-        _eval_async_running = False
+        # a second Ctrl-C while finishing a cancelled trio run does not start
+        # the hooks again
+        if not trio_cancelled:
+            with anyio.CancelScope(shield=True):
+                await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
         raise e
 
     finally:
+        _eval_async_running = False
         # Stop accepting task additions for this run.
-        if enqueuer_token is not None:
-            clear_task_enqueuer(enqueuer_token)
+        if queue_token is not None:
+            unbind_run_queue(queue_token)
         # Clear the process-level EvalState registry and the retry-loop
         # config overrides at the run boundary (after any keep-alive park) —
         # but only for a standalone eval. When nested in an eval-set
@@ -1287,10 +1234,16 @@ def _resolve_enqueued_tasks(
     """Resolve tasks added to a running eval (via ``enqueue_task``).
 
     Bound (via ``functools.partial``) to the run's models / config / roles /
-    sandbox, then handed to the :class:`TaskEnqueuer` so additions resolve
-    consistently with the run. Raises ``ValueError`` if the tasks can't be
-    resolved.
+    sandbox, then handed to the run's :class:`RunQueue` so additions resolve
+    consistently with the run. Tasks added inside a running task attempt
+    resolve once, under that attempt's model (:func:`creator_model`), in place
+    of the run's models; elsewhere they resolve once per run model. Raises
+    ``ValueError`` if the tasks can't be resolved, and ``RuntimeError`` for a
+    placeholder left by eval-set selection pruning (``is_placeholder``).
     """
+    attempt_model = creator_model()
+    if attempt_model is not None:
+        models = [attempt_model]
 
     def resolve() -> list[ResolvedTask]:
         resolved_roles = resolve_model_roles(model_roles)
@@ -1325,6 +1278,15 @@ def _resolve_enqueued_tasks(
     ]
     if not resolved:
         raise ValueError("No tasks to enqueue (resolution produced none).")
+    for resolved_task in resolved:
+        if is_placeholder(resolved_task.task):
+            raise RuntimeError(
+                f"Task '{resolved_task.task.name}' was skipped by eval-set "
+                "selection pruning, so it has no dataset, solver or scorer. "
+                "Build tasks to add inside the running task (for example, "
+                "call enqueue_task(child()) in a solver), or set "
+                "INSPECT_EVAL_SET_NO_PRUNE=1."
+            )
     resolve_model_costs(resolved, cost_limit)
     return resolved
 
@@ -1369,6 +1331,8 @@ def eval_retry(
     checkpoint: CheckpointConfig | bool | None = None,
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1384,7 +1348,10 @@ def eval_retry(
         max_samples: Maximum number of samples to run in parallel within each task
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
-            (defaults to number of models being evaluated)
+            (defaults to number of models being evaluated). A task cancelled
+            before it starts is started outside this limit and ends at once
+            with an error log reporting the cancellation, so it never takes a
+            slot.
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -1468,15 +1435,19 @@ def eval_retry(
             `"retry"` (default) re-runs them; `"error"` resolves them as
             operator terminations — if that leaves every expected sample
             final, the recovered log finalizes as `status="success"` and is
-            returned without retrying. A finalized log lives at
+            returned without retrying (unless it has invalidated samples, which
+            re-run). A finalized log lives at
             `<name>-recovered.eval` alongside the crashed log rather than in
             `log_dir`, so read its location from `EvalLog.location`.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
             than this many samples are in progress, fall back to the default
             recover-and-retry behavior. Has no effect (a warning is logged)
             with `incomplete_action="retry"`.
+        model_cost_config: YAML or JSON file with model prices for cost tracking
+            (or dictionary of model names to ModelCost instances).
 
     Returns:
         List of EvalLog (one for each task)
@@ -1526,6 +1497,8 @@ def eval_retry(
             checkpoint=checkpoint,
             incomplete_action=incomplete_action,
             incomplete_max=incomplete_max,
+            model_cost_config=model_cost_config,
+            sentinel_proxy=sentinel_proxy,
         )
 
     result = task_display().run_task_app(with_async_fs(run_task_app))
@@ -1560,6 +1533,23 @@ def _requalify_sample_ids(
         return f"{task}:{sample_id}"
     else:
         return sample_id
+
+
+def _check_merged_log_retry(eval_log: EvalLog) -> None:
+    """Refuse a retry of a merged shard log whose selection a retry cannot express.
+
+    A merged log leaves `config.sample_id` unset, so a retry runs the whole
+    dataset. That is right only for a merge with no selection; an id or count
+    selection would run samples outside it.
+    """
+    shards = eval_log.eval.shards
+    if shards is not None and shards.selection != "none":
+        form = "ids" if shards.selection == "ids" else "count"
+        raise ValueError(
+            f"Cannot retry {eval_log.location or 'the log'}: it was merged from "
+            f"shards with a selection by sample {form}, which a retry cannot "
+            "reproduce. Re-run the incomplete shards and merge them again."
+        )
 
 
 async def eval_retry_async(
@@ -1600,6 +1590,8 @@ async def eval_retry_async(
     checkpoint: CheckpointConfig | bool | None = None,
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1612,7 +1604,10 @@ async def eval_retry_async(
         log_format: Format for writing log files (defaults to "eval", the native high-performance format).
         max_samples: Maximum number of samples to run in parallel within each task
            (default is max_connections)
-        max_tasks: Maximum number of tasks to run in parallel (default is 1)
+        max_tasks: Maximum number of tasks to run in parallel (default is 1).
+            A task cancelled before it starts is started outside this limit and
+            ends at once with an error log reporting the cancellation, so it
+            never takes a slot.
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
         sandbox_cleanup: Cleanup sandbox environments after task completes
@@ -1674,15 +1669,19 @@ async def eval_retry_async(
             `"retry"` (default) re-runs them; `"error"` resolves them as
             operator terminations — if that leaves every expected sample
             final, the recovered log finalizes as `status="success"` and is
-            returned without retrying. A finalized log lives at
+            returned without retrying (unless it has invalidated samples, which
+            re-run). A finalized log lives at
             `<name>-recovered.eval` alongside the crashed log rather than in
             `log_dir`, so read its location from `EvalLog.location`.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
             than this many samples are in progress, fall back to the default
             recover-and-retry behavior. Has no effect (a warning is logged)
             with `incomplete_action="retry"`.
+        model_cost_config: YAML or JSON file with model prices for cost tracking
+            (or dictionary of model names to ModelCost instances).
 
     Returns:
         List of EvalLog (one for each task)
@@ -1706,6 +1705,8 @@ async def eval_retry_async(
         )
         for task in tasks
     ]
+    for eval_log in retry_eval_logs:
+        _check_merged_log_retry(eval_log)
     # opportunistically recover crashed logs before retrying
     from inspect_ai.log._recover import (
         RecoveryNotAvailable,
@@ -1728,6 +1729,8 @@ async def eval_retry_async(
                         cleanup="finalized",
                         incomplete_action=incomplete_action,
                         incomplete_max=incomplete_max,
+                        # the retry imports the task file and runs it next
+                        trust_log=True,
                     )
                 except RecoveryThresholdExceeded as ex:
                     log.warning(
@@ -1735,13 +1738,14 @@ async def eval_retry_async(
                         f"incomplete_max; falling back to recover-and-retry: {ex}"
                     )
                     recovered = await recover_eval_log_async(
-                        eval_log.location, cleanup=False
+                        eval_log.location, cleanup=False, trust_log=True
                     )
                 retry_eval_logs[i] = recovered
-                if recovered.status == "success":
+                if recovered.status == "success" and not recovered.invalidated:
                     # recovery resolved every in-progress sample and finalized
                     # the log — there is nothing left to retry (and the
-                    # recovered file is the final log, so don't clean it up)
+                    # recovered file is the final log, so don't clean it up).
+                    # An invalidated sample still has to re-run.
                     finalized_indexes.add(i)
                 elif recovered.location:
                     recovered_files[i] = recovered.location
@@ -1753,6 +1757,9 @@ async def eval_retry_async(
     # eval them in turn
     eval_logs: list[EvalLog] = []
     for i, eval_log in enumerate(retry_eval_logs):
+        # don't start another retry once the caller is cancelled (under trio
+        # a Ctrl-C leaves the scope cancelled after the interrupted eval)
+        await anyio.lowlevel.checkpoint_if_cancelled()
         if i in finalized_indexes:
             eval_logs.append(eval_log)
             continue
@@ -1843,7 +1850,10 @@ async def eval_retry_async(
         turn_limit = eval_log.eval.config.turn_limit
         time_limit = eval_log.eval.config.time_limit
         working_limit = eval_log.eval.config.working_limit
-        max_samples = max_samples or eval_log.eval.config.max_samples
+        cost_limit = eval_log.eval.config.cost_limit
+        max_dataset_memory = eval_log.eval.config.max_dataset_memory
+        # per log: one run's tasks can record different values
+        retry_max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
         max_sandboxes = max_sandboxes or eval_log.eval.config.max_sandboxes
@@ -1956,6 +1966,9 @@ async def eval_retry_async(
                     task_args=task_args,
                     model=None,
                     model_roles=None,
+                    sandbox=resolve_task_file_sandbox(
+                        eval_log.eval.task_file, eval_log.eval.sandbox
+                    ),
                     log=eval_log,
                     log_info=None,
                 ),
@@ -1973,6 +1986,7 @@ async def eval_retry_async(
                 approval=approval,
                 review=review,
                 sentinel=sentinel,
+                sentinel_proxy=sentinel_proxy,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -1992,7 +2006,10 @@ async def eval_retry_async(
                 turn_limit=turn_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
-                max_samples=max_samples,
+                cost_limit=cost_limit,
+                model_cost_config=model_cost_config,
+                max_samples=retry_max_samples,
+                max_dataset_memory=max_dataset_memory,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
@@ -2096,7 +2113,8 @@ def eval_resolve_tasks(
             init_active_model(m, config)
             if task_source is not None:
                 if seed is None:
-                    seed = task_source.initial_tasks()
+                    with creator_model_scope(None):
+                        seed = task_source.initial_tasks()
                 batch: Tasks = seed
             else:
                 batch = tasks

@@ -8,7 +8,7 @@ from inspect_ai._util.content import ContentDocument
 from inspect_ai.agent._bridge.anthropic_api_impl import (
     anthropic_system_to_texts,
     base_64_data,
-    content_block_to_content,
+    content_block_to_contents,
     messages_from_anthropic_input,
     tools_from_anthropic_tools,
 )
@@ -19,8 +19,10 @@ from inspect_ai.agent._bridge.util import (
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageSystem,
+    ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.model._message_ids import content_hash
 from inspect_ai.model._providers.anthropic import AnthropicAPI, message_block_params
 from inspect_ai.tool import WebSearchProviders
 from inspect_ai.tool._tool_info import ToolInfo
@@ -91,7 +93,7 @@ async def test_inline_system_role_multi_block_content() -> None:
 
 @pytest.mark.anyio
 async def test_inline_text_document_round_trip() -> None:
-    content = content_block_to_content(
+    [content] = content_block_to_contents(
         cast(
             Any,
             {
@@ -119,7 +121,7 @@ async def test_inline_text_document_round_trip() -> None:
 
 def test_file_image_source_raises() -> None:
     with pytest.raises(RuntimeError, match="Unsupported image source type: file"):
-        content_block_to_content(
+        content_block_to_contents(
             cast(
                 Any,
                 {"type": "image", "source": {"type": "file", "file_id": "file_123"}},
@@ -129,7 +131,7 @@ def test_file_image_source_raises() -> None:
 
 def test_file_document_source_raises() -> None:
     with pytest.raises(RuntimeError, match="Unsupported document source type: file"):
-        content_block_to_content(
+        content_block_to_contents(
             cast(
                 Any,
                 {"type": "document", "source": {"type": "file", "file_id": "file_123"}},
@@ -141,7 +143,7 @@ def test_browser_state_block_raises() -> None:
     with pytest.raises(
         RuntimeError, match="Unsupported content block type: browser_state"
     ):
-        content_block_to_content(cast(Any, {"type": "browser_state"}))
+        content_block_to_contents(cast(Any, {"type": "browser_state"}))
 
 
 def test_anthropic_system_to_texts_preserves_block_boundaries() -> None:
@@ -203,6 +205,48 @@ async def test_unexpected_input_parameter_error_includes_value() -> None:
         )
     assert "thinking" in str(exc_info.value)
     assert "{c}" not in str(exc_info.value)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("text", ["Timed out.", ""])
+async def test_error_result_forms_give_one_error(text: str) -> None:
+    """An `is_error` result as a string, a list, or a list with empty text blocks is one error."""
+    block = [{"type": "text", "text": text}] if text else []
+    empty = {"type": "text", "text": ""}
+    forms: list[Any] = [
+        text,
+        block,
+        [empty, *block, empty],
+        [empty, *block, empty, empty],
+    ]
+    results = []
+    for form in forms:
+        [_, result] = await messages_from_anthropic_input(
+            [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "tool_use", "id": "c", "name": "f", "input": {}}
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "c",
+                            "is_error": True,
+                            "content": form,
+                        }
+                    ],
+                },
+            ],
+            tools=[],
+        )
+        assert isinstance(result, ChatMessageTool) and result.error is not None
+        results.append(result)
+    assert {result.error.message for result in results if result.error} == {text}
+    assert len({content_hash(result) for result in results}) == 1
 
 
 def test_base_64_data_error_includes_value() -> None:
@@ -448,4 +492,64 @@ def test_bridge_unknown_web_search_version_uses_provider_choice(
     assert [param["type"] for param in params] == [
         "web_fetch_20260209",
         "web_search_20260209",
+    ]
+
+
+@pytest.mark.parametrize("as_list", [False, True])
+async def test_assistant_multiple_internal_blocks(as_list: bool) -> None:
+    from anthropic.types import MessageParam
+
+    from inspect_ai._util.content import ContentText
+    from inspect_ai.model._internal import content_internal_tag
+
+    text = (
+        "first"
+        + content_internal_tag({"a": 1})
+        + content_internal_tag({"b": 2})
+        + "last"
+    )
+    item = cast(
+        MessageParam,
+        {
+            "role": "assistant",
+            "content": [{"type": "text", "text": text}] if as_list else text,
+        },
+    )
+    [message] = await messages_from_anthropic_input([item], tools=[])
+    assert message.content == [
+        ContentText(text="first", internal={"a": 1}),
+        ContentText(text="", internal={"b": 2}),
+        ContentText(text="last"),
+    ]
+
+
+@pytest.mark.parametrize("tool_result", [False, True])
+async def test_user_and_tool_result_multiple_internal_blocks(tool_result: bool) -> None:
+    from anthropic.types import MessageParam, TextBlockParam, ToolResultBlockParam
+
+    from inspect_ai._util.content import ContentText
+    from inspect_ai.model._internal import content_internal_tag
+
+    text = (
+        "first"
+        + content_internal_tag({"a": 1})
+        + "second"
+        + content_internal_tag({"b": 2})
+    )
+    block = TextBlockParam(type="text", text=text)
+    content: list[TextBlockParam | ToolResultBlockParam] = (
+        [
+            ToolResultBlockParam(
+                type="tool_result", tool_use_id="call_1", content=[block]
+            )
+        ]
+        if tool_result
+        else [block]
+    )
+    param: MessageParam = {"role": "user", "content": content}
+    [message] = await messages_from_anthropic_input([param], tools=[])
+    assert isinstance(message, ChatMessageTool if tool_result else ChatMessageUser)
+    assert message.content == [
+        ContentText(text="first", internal={"a": 1}),
+        ContentText(text="second", internal={"b": 2}),
     ]

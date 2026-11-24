@@ -1,4 +1,12 @@
-from inspect_ai.model._reasoning import parse_content_with_reasoning
+import base64
+
+import pytest
+
+from inspect_ai.model._reasoning import (
+    ReasoningCapsule,
+    parse_content_with_reasoning,
+    split_content_with_reasoning,
+)
 
 
 def test_reasoning_parse_basic():
@@ -432,13 +440,33 @@ def test_reasoning_round_trip_with_internal_string_with_quotes():
     assert parsed.internal == original.internal
 
 
-def test_reasoning_parse_with_invalid_internal_json():
-    content, reasoning = parse_content_with_reasoning(
-        '<think internal="not valid json">Reasoning</think>Content'
+@pytest.mark.parametrize(
+    "internal",
+    [
+        "not valid json",
+        base64.b64encode(b"not json").decode(),
+        base64.b64encode(b"\xff\xfe").decode(),
+        base64.b64encode(("[" * 250 + "]" * 250).encode()).decode(),
+        base64.b64encode(("[" * 300 + "]" * 300).encode()).decode(),
+    ],
+)
+def test_reasoning_parse_with_undecodable_internal_is_literal(internal: str) -> None:
+    """A block whose `internal` can't become a content object's `internal` is text."""
+    text = f'Quoted: <think internal="{internal}">Reasoning</think>Content'
+    assert parse_content_with_reasoning(text) == (text, None)
+
+
+def test_reasoning_split_skips_undecodable_block() -> None:
+    literal = '<think internal="not valid json">quoted</think>'
+    encoded = base64.b64encode(b'{"a": 1}').decode()
+    segments = split_content_with_reasoning(
+        f'{literal}\n<think internal="{encoded}">real</think>\nanswer'
     )
-    assert reasoning is not None
-    assert reasoning.internal is None  # Invalid JSON should result in None
-    assert reasoning.reasoning == "Reasoning"
+    assert segments == [
+        literal,
+        ReasoningCapsule(reasoning="real", internal={"a": 1}),
+        "answer",
+    ]
 
 
 def test_reasoning_parse_redacted_collapses_wrapped_payload():
@@ -453,3 +481,20 @@ def test_reasoning_parse_redacted_collapses_wrapped_payload():
     assert reasoning.reasoning == encrypted
     assert reasoning.redacted is True
     assert content == "Content"
+
+
+def test_split_content_with_reasoning_keeps_every_block_in_order():
+    segments = split_content_with_reasoning(
+        '<think>first</think>\nvisible\n<think redacted="true">second</think>\ntail'
+    )
+    assert segments == [
+        ReasoningCapsule(reasoning="first"),
+        "visible",
+        ReasoningCapsule(reasoning="second", redacted=True),
+        "tail",
+    ]
+
+
+def test_split_content_with_reasoning_without_think_tag():
+    assert split_content_with_reasoning("plain text") == ["plain text"]
+    assert split_content_with_reasoning("") == []

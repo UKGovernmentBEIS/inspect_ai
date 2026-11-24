@@ -56,7 +56,7 @@ from inspect_ai.review._policy import (
 from inspect_ai.scorer import Metric, Scorer
 from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
-from inspect_ai.solver._chain import chain
+from inspect_ai.solver._chain import chain, is_solver_sequence
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._checkpoint.config import CheckpointConfig, normalize_checkpoint
 from inspect_ai.util._limit import TokenLimit, token_limit_fields
@@ -74,7 +74,7 @@ logger = getLogger(__name__)
 
 
 class TaskDeprecatedArgs(TypedDict, total=False):
-    plan: Plan | Solver | list[Solver]
+    plan: Plan | Solver | Sequence[Solver]
     tool_environment: str | SandboxEnvironmentSpec | None
     epochs_reducer: ScoreReducers | None
     max_messages: int | None
@@ -89,8 +89,8 @@ class Task:
     def __init__(
         self,
         dataset: Dataset | Sequence[Sample] | SampleSource | None = None,
-        setup: Solver | list[Solver] | None = None,
-        solver: Solver | Agent | list[Solver] = generate(),
+        setup: Solver | Sequence[Solver] | None = None,
+        solver: Solver | Agent | Sequence[Solver] = generate(),
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
         scorer: "Scorers" | None = None,
         metrics: list[Metric | dict[str, list[Metric]]]
@@ -126,6 +126,7 @@ class Task:
         sentinel: SentinelSpec | None = None,
         *,
         description: str | None = None,
+        max_samples: int | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
         """Create a task.
@@ -187,9 +188,10 @@ class Task:
             time_limit: Limit on clock time (in seconds) for samples.
             working_limit: Limit on working time (in seconds) for sample. Working
                 time includes model generation, tool calls, etc. but does not include
-                time spent waiting on retries or shared resources. Work done while
-                any wait is open is not charged, so working time can undercount;
-                set `time_limit` as well to bound wall clock time.
+                time spent waiting on retries or shared resources. While a wait is
+                open, only model calls, sandbox commands and tool calls are charged,
+                so working time can undercount; set `time_limit` as well to bound
+                wall clock time.
             cost_limit: Limit on total cost (in dollars) for each sample.
                 Requires model cost data via set_model_cost() or --model-cost-config.
             early_stopping: Early stopping callbacks.
@@ -198,6 +200,10 @@ class Task:
             display_name: Task display name (e.g. for plotting). If not specified then defaults to the registered task name.
             description: Short statement of what the task asks of the agent
                 (recorded in the eval log).
+            max_samples: Maximum number of this task's samples to run in
+                parallel. A `max_samples` passed to `eval()`, `eval_set()` or
+                the CLI overrides it. If neither is set, the default comes
+                from the model's connection limit.
             version: Version of task (to distinguish evolutions
                 of the task spec or breaking changes to it)
             metadata:  Additional metadata to associate with the task.
@@ -274,6 +280,7 @@ class Task:
         self.working_limit = working_limit
         self.cost_limit = cost_limit
         self.early_stopping = early_stopping
+        self.max_samples = validate_max_samples(max_samples)
         self.version = version
         self._display_name = display_name
         self._name = name
@@ -322,8 +329,8 @@ def task_with(
     task: Task,
     *,
     dataset: Dataset | Sequence[Sample] | SampleSource | None | NotGiven = NOT_GIVEN,
-    setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
-    solver: Solver | Agent | list[Solver] | NotGiven = NOT_GIVEN,
+    setup: Solver | Sequence[Solver] | None | NotGiven = NOT_GIVEN,
+    solver: Solver | Agent | Sequence[Solver] | NotGiven = NOT_GIVEN,
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
     scorer: "Scorers" | None | NotGiven = NOT_GIVEN,
     metrics: list[Metric | dict[str, list[Metric]]]
@@ -355,6 +362,7 @@ def task_with(
     working_limit: int | None | NotGiven = NOT_GIVEN,
     cost_limit: float | None | NotGiven = NOT_GIVEN,
     early_stopping: EarlyStopping | None | NotGiven = NOT_GIVEN,
+    max_samples: int | None | NotGiven = NOT_GIVEN,
     name: str | None | NotGiven = NOT_GIVEN,
     description: str | None | NotGiven = NOT_GIVEN,
     version: int | str | NotGiven = NOT_GIVEN,
@@ -431,12 +439,17 @@ def task_with(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources. Work done while
-            any wait is open is not charged, so working time can undercount;
-            set `time_limit` as well to bound wall clock time.
+            time spent waiting on retries or shared resources. While a wait is
+            open, only model calls, sandbox commands and tool calls are charged,
+            so working time can undercount; set `time_limit` as well to bound
+            wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         early_stopping: Early stopping callbacks.
+        max_samples: Maximum number of this task's samples to run in
+            parallel. A `max_samples` passed to `eval()`, `eval_set()` or
+            the CLI overrides it. If neither is set, the default comes
+            from the model's connection limit.
         name: Task name. If not specified is automatically
             determined based on the name of the task directory (or "task")
             if its anonymous task (e.g. created in a notebook and passed to
@@ -516,6 +529,8 @@ def task_with(
         task.cost_limit = cost_limit
     if not isinstance(early_stopping, NotGiven):
         task.early_stopping = early_stopping
+    if not isinstance(max_samples, NotGiven):
+        task.max_samples = validate_max_samples(max_samples)
     if not isinstance(version, NotGiven):
         task.version = version
     if not isinstance(name, NotGiven):
@@ -565,6 +580,9 @@ class PreviousTask:
     task_args: dict[str, Any]
     model: Model | None
     model_roles: dict[str, Model | list[Model]] | None
+    # the sandbox to resume in: eval-set's resolved task sandbox, never the
+    # log's; eval-retry's from the log, which records a --sandbox override
+    sandbox: SandboxEnvironmentSpec | None
     log: EvalLog
     log_info: EvalLogInfo | None
 
@@ -610,6 +628,12 @@ def resolve_epochs(epochs: int | Epochs | None) -> Epochs | None:
     if epochs is not None and epochs.epochs < 1:
         raise ValueError("epochs must be a positive integer.")
     return epochs
+
+
+def validate_max_samples(max_samples: int | None) -> int | None:
+    if max_samples is not None and max_samples < 1:
+        raise ValueError(f"max_samples must be a positive integer (got {max_samples}).")
+    return max_samples
 
 
 def resolve_task_epochs(task: Task, epochs: Epochs | None = None) -> Epochs:
@@ -664,11 +688,13 @@ def resolve_dataset(dataset: Dataset | Sequence[Sample] | None) -> Dataset:
     return dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
 
 
-def resolve_solver(solver: Solver | Agent | list[Solver]) -> Solver:
-    if isinstance(solver, list):
-        return chain(solver)
-    elif is_agent(solver):
+def resolve_solver(
+    solver: Solver | Agent | Sequence[Solver],
+) -> Solver:
+    if is_agent(solver):
         return as_solver(solver)
+    elif is_solver_sequence(solver):
+        return chain(solver)
     else:
         return cast(Solver, solver)
 

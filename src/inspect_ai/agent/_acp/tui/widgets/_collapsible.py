@@ -52,14 +52,34 @@ class CollapsibleContent(Widget):
     CollapsibleContent .truncation-note:hover { color: $accent; }
     """
 
-    def __init__(self, full_text: str, *, max_lines: int) -> None:
+    def __init__(
+        self, full_text: str, *, max_lines: int, clip_characters: bool = True
+    ) -> None:
+        """Create the widget.
+
+        Args:
+            full_text: The text to show.
+            max_lines: Lines shown before the more-lines note.
+            clip_characters: Also clip the text to `truncate_lines`'s character
+                limit first. That clip has no note, so a body that must be seen
+                whole except for advertised lines, such as an approval, turns
+                it off.
+        """
         super().__init__()
         self._full_text = full_text
         self._max_lines = max_lines
+        self._clip_characters = clip_characters
         self._expanded = False
 
+    def _truncated(self) -> tuple[str, int | None]:
+        if self._clip_characters:
+            return truncate_lines(self._full_text, max_lines=self._max_lines)
+        return truncate_lines(
+            self._full_text, max_lines=self._max_lines, max_characters=None
+        )
+
     def compose(self) -> ComposeResult:
-        shown, omitted = truncate_lines(self._full_text, max_lines=self._max_lines)
+        shown, omitted = self._truncated()
         yield Static(StyledMarkdown(shown), classes="body-content", id="cc-body")
         if omitted is not None and omitted > 0:
             yield Static(
@@ -106,7 +126,7 @@ class CollapsibleContent(Widget):
         if self._expanded:
             body_static.update(StyledMarkdown(self._full_text))
             return
-        shown, omitted = truncate_lines(self._full_text, max_lines=self._max_lines)
+        shown, omitted = self._truncated()
         body_static.update(StyledMarkdown(shown))
         # Note may or may not exist yet — recreate it conditionally so
         # late-arriving truncation (text grew past the limit) gets a

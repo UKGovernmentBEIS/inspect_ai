@@ -40,16 +40,10 @@ from __future__ import annotations
 
 import uuid as _uuid_module
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from logging import getLogger
-from typing import TYPE_CHECKING, Callable, Iterator, Literal
+from typing import TYPE_CHECKING, Callable, Iterator, Literal, NamedTuple
 
-from acp.helpers import (
-    session_notification,
-    start_tool_call,
-    text_block,
-    update_tool_call,
-)
 from acp.schema import (
     AgentMessageChunk,
     AgentThoughtChunk,
@@ -65,6 +59,12 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
     ContentVideo,
+)
+from inspect_ai.agent._acp._schema_builders import (
+    session_notification,
+    start_tool_call,
+    text_block,
+    update_tool_call,
 )
 from inspect_ai.agent._acp.inspect_ext import (
     TOOL_CALL_CANCELABLE_META_KEY,
@@ -86,6 +86,7 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import (
+    ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageTool,
@@ -110,24 +111,31 @@ _SubagentAction = Literal["consume", "skip", "emit"]
 class _BridgeToolState:
     """Per-session state for synthesizing bridged tool-call cards.
 
-    Bridged agents (claude_code, codex, …) emit no ``ToolEvent``; their tool
-    calls live only on the assistant message and results return as a
-    ``ChatMessageTool`` in a later call's input. Two modes:
+    Bridged agents (claude_code, codex, …) emit no ``ToolEvent`` for the tools
+    they run themselves; those calls live only on the assistant message and
+    results return as a ``ChatMessageTool`` in a later call's input. A host tool
+    a sandbox bridge runs for the scaffold (``bridged_tools``) does get a real
+    ``ToolEvent``, with the proposing call's id when it was proposed; it updates
+    the synthesized card and removes it from ``pending``; the card then shows
+    the call as it ran (`_settled_card`). Two modes:
 
     - **Live** (``replay`` is False): ``pending`` holds calls we've emitted an
       in-progress start for, awaiting the result that settles them. Gated on
       ``in_bridge_model_generate()`` (true only inside the bridge's
       ``model.generate()``, observed synchronously by the live subscriber).
-    - **Replay** (``tool_event_ids`` / ``tool_results`` pre-scanned from the
-      snapshot): the bridge context is gone so the live flag is False. A tool
-      call whose id has no real ``ToolEvent`` is bridged, and is emitted as a
-      single completed card (or in-progress if its result isn't in the
-      snapshot) — mirroring how a react ``ToolEvent`` replays as one start.
+    - **Replay** (``tool_event_ids`` / ``tool_results`` / ``answered_calls``
+      pre-scanned from the snapshot): the bridge context is gone so the live
+      flag is False. A tool call whose id has no real ``ToolEvent`` is
+      bridged, and is emitted as a single completed card (or in-progress if
+      its result isn't in the snapshot) — mirroring how a react ``ToolEvent``
+      replays as one start.
     """
 
     pending: dict[str, ToolCall] = field(default_factory=dict)
     tool_event_ids: set[str] | None = None
     tool_results: dict[str, ChatMessageTool] | None = None
+    answered_calls: dict[str, ToolCall] = field(default_factory=dict)
+    """Replay: the call each of ``tool_results`` answers (`_answered_calls`)."""
 
     @property
     def replay(self) -> bool:
@@ -135,32 +143,67 @@ class _BridgeToolState:
         return self.tool_event_ids is not None
 
 
-def _scan_bridge_tool_facts(
-    events: Sequence[Event],
-) -> tuple[set[str], dict[str, ChatMessageTool]]:
+class _BridgeToolFacts(NamedTuple):
+    tool_event_ids: set[str]
+    tool_results: dict[str, ChatMessageTool]
+    answered_calls: dict[str, ToolCall]
+
+
+def _scan_bridge_tool_facts(events: Sequence[Event]) -> _BridgeToolFacts:
     """Pre-scan a replay snapshot for bridged tool-call facts.
 
-    Returns ``(tool_event_ids, tool_results)``: the ids that have a real
-    ``ToolEvent`` (react calls — never synthesized) and a map of
-    ``tool_call_id`` → result message (gathered from every ``ModelEvent.input``)
-    used to render the completed card. Scanning the full snapshot is a safe
-    superset — a call with a ``ToolEvent`` is never synthesized, and a top-level
-    call's result lives in a top-level input.
+    Returns the ids that have a real ``ToolEvent`` (react calls — never
+    synthesized), a map of ``tool_call_id`` → result message (gathered from
+    every ``ModelEvent.input``) used to render the completed card, and the call
+    each result answers in that input (`_answered_calls`), keyed alike. Scanning
+    the full snapshot is a safe superset — a call with a ``ToolEvent`` is never
+    synthesized, and a top-level call's result lives in a top-level input.
     """
     tool_event_ids: set[str] = set()
     tool_results: dict[str, ChatMessageTool] = {}
+    answered_calls: dict[str, ToolCall] = {}
     for event in events:
         if isinstance(event, ToolEvent):
             tool_event_ids.add(event.id)
         elif isinstance(event, ModelEvent):
-            for msg in event.input:
+            calls: list[ToolCall | None] | None = None
+            for index, msg in enumerate(event.input):
                 if (
                     isinstance(msg, ChatMessageTool)
                     and msg.tool_call_id is not None
                     and msg.tool_call_id not in tool_results
                 ):
                     tool_results[msg.tool_call_id] = msg
-    return tool_event_ids, tool_results
+                    if calls is None:
+                        calls = _answered_calls(event.input)
+                    answered = calls[index]
+                    if answered is not None:
+                        answered_calls[msg.tool_call_id] = answered
+    return _BridgeToolFacts(tool_event_ids, tool_results, answered_calls)
+
+
+def _answered_calls(messages: Sequence[ChatMessage]) -> list[ToolCall | None]:
+    """For each message, the call it answers as the request carries it, if it is a tool result.
+
+    The nearest earlier assistant message's call under the result's id (the
+    first such call in that message). A scaffold sends the call as it ran it:
+    a sentinel may have modified its arguments. One pass over the messages
+    and their calls.
+    """
+    latest: dict[str, ToolCall] = {}
+    answered: list[ToolCall | None] = []
+    for message in messages:
+        if isinstance(message, ChatMessageAssistant):
+            calls: dict[str, ToolCall] = {}
+            for call in message.tool_calls or []:
+                calls.setdefault(call.id, call)
+            latest.update(calls)
+        answered.append(
+            latest.get(message.tool_call_id)
+            if isinstance(message, ChatMessageTool) and message.tool_call_id is not None
+            else None
+        )
+    return answered
 
 
 class SubagentDepthTracker:
@@ -194,6 +237,12 @@ class SubagentDepthTracker:
     ``SpanEndEvent``s (e.g. one that opened before the tracker was
     constructed) don't underflow the counter.
 
+    An event is also inside a sub-agent when its ``span_id`` places it
+    in a sub-agent span (or a span nested in one), even if that span has
+    already closed. The sandbox agent bridge records a host tool call in
+    the span of the model event that proposed it, which can be a
+    sub-agent span a ``ModelEventSink`` opened and has since closed.
+
     Used by:
     - :class:`_AcpEventRouter` (live event publication)
     - :func:`replay_transcript` (replay-on-attach with filter param)
@@ -213,6 +262,14 @@ class SubagentDepthTracker:
         # matching SpanEndEvent is consumed without decrementing
         # depth.
         self._outer_span_id: str | None = None
+        # Parent of each span begun since construction and still open, or
+        # closed inside a sub-agent, and the nested sub-agent spans among
+        # them, so an event can be placed by its ``span_id`` after its span
+        # closed. A span that closes outside any sub-agent is forgotten: no
+        # ancestor of it is a sub-agent, so a lookup that stops there gives
+        # the same answer.
+        self._span_parents: dict[str, str | None] = {}
+        self._subagent_span_ids: set[str] = set()
 
     @property
     def depth(self) -> int:
@@ -229,6 +286,14 @@ class SubagentDepthTracker:
           caller should drop it if filtering is enabled.
         - ``"emit"`` — the event is top-level and should be emitted.
         """
+        action = self._classify(event)
+        if isinstance(event, SpanEndEvent) and not self._in_subagent_span(event.id):
+            self._span_parents.pop(event.id, None)
+        return action
+
+    def _classify(self, event: Event) -> _SubagentAction:
+        if isinstance(event, SpanBeginEvent):
+            self._span_parents[event.id] = event.parent_id
         if isinstance(event, SpanBeginEvent) and event.type == AGENT_SPAN_TYPE:
             self._boundary_span_ids.add(event.id)
             if self._outer_span_id is None:
@@ -236,6 +301,7 @@ class SubagentDepthTracker:
                 # agent. Keep depth at 0 so its contents emit.
                 self._outer_span_id = event.id
                 return "consume"
+            self._subagent_span_ids.add(event.id)
             self._depth += 1
             return "consume"
         if isinstance(event, SpanEndEvent) and event.id in self._boundary_span_ids:
@@ -246,7 +312,18 @@ class SubagentDepthTracker:
                 return "consume"
             self._depth -= 1
             return "consume"
-        return "skip" if self._depth > 0 else "emit"
+        if self._depth > 0 or self._in_subagent_span(event.span_id):
+            return "skip"
+        return "emit"
+
+    def _in_subagent_span(self, span_id: str | None) -> bool:
+        seen: set[str] = set()
+        while span_id is not None and span_id not in seen:
+            if span_id in self._subagent_span_ids:
+                return True
+            seen.add(span_id)
+            span_id = self._span_parents.get(span_id)
+        return False
 
 
 class _AcpEventRouter:
@@ -358,9 +435,11 @@ class ReplayTranscriptor:
         # is False here because the bridge context is gone. Without a snapshot
         # this degrades to no bridge synthesis (current behavior).
         if snapshot is not None:
-            tool_event_ids, tool_results = _scan_bridge_tool_facts(snapshot)
+            facts = _scan_bridge_tool_facts(snapshot)
             self._bridge = _BridgeToolState(
-                tool_event_ids=tool_event_ids, tool_results=tool_results
+                tool_event_ids=facts.tool_event_ids,
+                tool_results=facts.tool_results,
+                answered_calls=facts.answered_calls,
             )
         else:
             self._bridge = _BridgeToolState()
@@ -456,7 +535,7 @@ def _map_event(
             bridge,
         )
     elif isinstance(event, ToolEvent):
-        yield from _map_tool_event(event, session_id, seen_tool_call_ids)
+        yield from _map_tool_event(event, session_id, seen_tool_call_ids, bridge)
 
 
 def _map_input_messages(
@@ -729,11 +808,8 @@ def _map_model_event(
     # we skip rather than send a misleading size=0.
     usage_update = _build_usage_update(event)
     if usage_update is not None:
-        # SessionNotification directly: the acp.helpers.session_notification
-        # helper's type annotation predates UsageUpdate joining the
-        # SessionUpdate union (the schema discriminated union includes it,
-        # but the helper's typedef is narrower). Constructing the
-        # notification by hand sidesteps the type mismatch.
+        # SessionNotification directly: session_notification() takes no
+        # ``field_meta``.
         #
         # Piggyback the sample's running ``total_messages`` on the outer
         # ``field_meta`` so the TUI's header re-renders the ``messages``
@@ -813,17 +889,26 @@ def _map_tool_event(
     event: ToolEvent,
     session_id: str,
     seen_tool_call_ids: set[str],
+    bridge: _BridgeToolState,
 ) -> Iterator[SessionNotification]:
+    # a host tool a sandbox bridge ran for a proposed call updates the card
+    # synthesized for that call, so the scaffold's result must not settle it again
+    synthesized = bridge.pending.pop(event.id, None) is not None
     status = _tool_call_status(event)
     if event.id in seen_tool_call_ids:
-        yield session_notification(
-            session_id,
-            update_tool_call(
-                tool_call_id=event.id,
-                status=status,
-                content=_content_for_update(event),
-            ),
-        )
+        if synthesized:
+            # the synthesized start was marked non-cancelable; a real ToolEvent
+            # now backs the card, so `inspect/cancel_tool_call` can act on it
+            yield _settled_card(session_id, event.id, event, cancelable=True)
+        else:
+            yield session_notification(
+                session_id,
+                update_tool_call(
+                    tool_call_id=event.id,
+                    status=status,
+                    content=_content_for_update(event),
+                ),
+            )
     else:
         seen_tool_call_ids.add(event.id)
         # Title: descriptive per-tool summary derived from the args
@@ -900,29 +985,66 @@ def _map_bridge_tool_completions(
     """
     if not bridge_tool_calls:
         return
-    for msg in event.input:
+    answered: list[ToolCall | None] | None = None
+    for index, msg in enumerate(event.input):
         if not isinstance(msg, ChatMessageTool) or msg.tool_call_id is None:
             continue
         call = bridge_tool_calls.pop(msg.tool_call_id, None)
         if call is None:
             continue
-        synth = ToolEvent(
-            id=call.id,
-            function=call.function,
-            arguments=call.arguments,
-            view=call.view,
-            result=_bridge_tool_result(msg),
-            error=msg.error,
-            pending=False,
+        if answered is None:
+            answered = _answered_calls(event.input)
+        yield _settled_card(
+            session_id, call.id, _scaffold_run(call, msg, answered[index])
         )
-        yield session_notification(
-            session_id,
-            update_tool_call(
-                tool_call_id=synth.id,
-                status=_tool_call_status(synth),
-                content=_content_for_update(synth),
-            ),
-        )
+
+
+def _scaffold_run(
+    proposal: ToolCall, result: ChatMessageTool, answered: ToolCall | None
+) -> ToolEvent:
+    """The completed run that a scaffold's `result` settles `proposal`'s card with.
+
+    The run is of `answered`, the call the result answers as the scaffold ran
+    it (`_answered_calls`), or of the proposal when the request doesn't carry
+    it. The proposal's view is kept when the arguments are the same.
+    """
+    executed = proposal
+    if answered is not None:
+        view = answered.view
+        if view is None and answered.arguments == proposal.arguments:
+            view = proposal.view
+        executed = replace(answered, view=view)
+    return ToolEvent(
+        id=proposal.id,
+        function=executed.function,
+        arguments=executed.arguments,
+        view=executed.view,
+        result=_bridge_tool_result(result),
+        error=result.error,
+        pending=False,
+    )
+
+
+def _settled_card(
+    session_id: str, card: str, run: ToolEvent, cancelable: bool | None = None
+) -> SessionNotification:
+    """Update a synthesized card to the run that settles it.
+
+    The card's start showed the model's proposal. The run (a host tool's
+    ``ToolEvent``, or a scaffold's result: `_scaffold_run`) may have arguments
+    a sentinel modified, so the card's title and raw input become the run's.
+    On replay the card starts from the run (`_map_bridge_tool_replay`).
+    """
+    update = update_tool_call(
+        tool_call_id=card,
+        status=_tool_call_status(run),
+        content=_content_for_update(run),
+    )
+    update.title = _descriptive_title(run)
+    update.raw_input = run.arguments
+    if cancelable is not None:
+        update.field_meta = {TOOL_CALL_CANCELABLE_META_KEY: cancelable}
+    return session_notification(session_id, update)
 
 
 def _bridge_start_notification(
@@ -938,7 +1060,9 @@ def _bridge_start_notification(
     Marked non-cancelable: the bridged scaffold runs the tool, so there's no
     pending ``ToolEvent`` for ``inspect/cancel_tool_call`` to act on. The flag
     tells the Inspect TUI not to offer a per-tool cancel that would no-op (the
-    operator can still interrupt the whole turn).
+    operator can still interrupt the whole turn). If a sandbox bridge then runs
+    the call as a host tool, its real ``ToolEvent`` makes the card cancelable
+    (`_map_tool_event`).
     """
     start = start_tool_call(
         tool_call_id=synth.id,
@@ -1018,13 +1142,7 @@ def _map_bridge_tool_replay(
             # Ambiguous (react awaiting approval vs in-flight bridged) — don't guess.
             continue
         seen_tool_call_ids.add(call.id)
-        synth = ToolEvent(
-            id=call.id,
-            function=call.function,
-            arguments=call.arguments,
-            view=call.view,
-            result=_bridge_tool_result(result),
-            error=result.error,
-            pending=False,
+        yield _bridge_start_notification(
+            session_id,
+            _scaffold_run(call, result, bridge.answered_calls.get(call.id)),
         )
-        yield _bridge_start_notification(session_id, synth)

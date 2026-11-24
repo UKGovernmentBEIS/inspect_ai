@@ -474,11 +474,13 @@ def _request_json(
     path: str,
     *,
     what: str,
-    not_found: str,
+    not_found: str | None,
     not_found_missing_route: str | None = None,
     params: dict[str, Any] | None = None,
+    json_body: dict[str, Any] | None = None,
     mutate: Literal["post", "patch"] | None = None,
     retry_mutation: bool = False,
+    unknown_outcome: str | None = None,
     pid: int | None = None,
     echo_failures: bool = True,
 ) -> dict[str, Any]:
@@ -503,6 +505,19 @@ def _request_json(
     which then only ever means the endpoint answered "entity not found".
     Without it every 404 prints ``not_found``, which must therefore hedge
     both meanings; new endpoints should pass it rather than hedge.
+    ``not_found=None`` prints a handler 404's own ``{"error": ...}`` body
+    instead, for endpoints whose 404s name what was missing (it requires
+    ``not_found_missing_route``).
+
+    ``json_body`` is sent as the request's JSON body; only a single-attempt
+    mutation sends one.
+
+    ``unknown_outcome`` changes how a single-attempt mutation reports a
+    request that was sent but whose response never arrived (a read timeout,
+    a dropped connection): the mutation may have been applied, so it fails
+    with kind ``unknown_outcome`` and this text appended (where to check
+    before sending again), instead of the transport error. A request that
+    could not be sent at all keeps the transport error.
 
     ``pid`` scopes the retry-exhaustion escalation pointer to the target
     process (see :func:`_get_response_with_retry`) — pass it when the caller
@@ -516,6 +531,14 @@ def _request_json(
     failure they re-raise instead of recording must be echoed first.
     """
     verb = "update" if mutate else "read"
+    if (json_body is not None or unknown_outcome is not None) and (
+        mutate is None or retry_mutation
+    ):
+        raise ValueError(
+            "json_body and unknown_outcome apply only to a single-attempt mutation."
+        )
+    if not_found is None and not_found_missing_route is None:
+        raise ValueError("not_found=None requires not_found_missing_route.")
 
     def fail(
         kind: _ErrorKind,
@@ -545,10 +568,28 @@ def _request_json(
                 base_url="http://localhost",
                 timeout=httpx.Timeout(_MUTATION_TIMEOUT, connect=_CONNECT_TIMEOUT),
             ) as client:
-                if mutate == "post":
-                    response = client.post(path, params=params)
-                else:
-                    response = client.patch(path, params=params)
+                # `json` only when there is a body, so query-only mutations
+                # send exactly the request they always have
+                body: dict[str, Any] = {} if json_body is None else {"json": json_body}
+                try:
+                    if mutate == "post":
+                        response = client.post(path, params=params, **body)
+                    else:
+                        response = client.patch(path, params=params, **body)
+                except _RESPONSE_LOST as exc:
+                    if unknown_outcome is None:
+                        raise
+                    message = (
+                        f"{_failure_prefix(verb, what)}outcome unknown — the "
+                        f"request was sent but no response arrived "
+                        f"({_exception_name(exc)}), so it may have taken "
+                        f"effect. {unknown_outcome}"
+                    )
+                    if echo_failures:
+                        _echo(message, err=True)
+                    raise _CtlFailure(
+                        "unknown_outcome", message, exception=_exception_name(exc)
+                    ) from exc
         else:
             response = _get_response_with_retry(
                 socket_path, path, params=params, what=f"Reading {what}", pid=pid
@@ -560,6 +601,13 @@ def _request_json(
                     not_found_missing_route,
                     status=404,
                     missing_route=True,
+                )
+            if not_found is None:
+                fail(
+                    "not_found",
+                    f"{_failure_prefix(verb, what)}"
+                    f"{_error_detail_from_response(response)}",
+                    status=404,
                 )
             fail("not_found", not_found, status=404)
         if response.status_code == 400:
@@ -590,6 +638,18 @@ def _request_json(
             _echo(message, err=True)
         raise _CtlFailure.from_exception(message, exc) from exc
     return result if isinstance(result, dict) else {}
+
+
+# Transport errors after which a request may have reached the server: it was
+# sent (or partly sent) and no response arrived. A connect error or connect
+# timeout means it was never sent.
+_RESPONSE_LOST = (
+    httpx.ReadTimeout,
+    httpx.WriteTimeout,
+    httpx.ReadError,
+    httpx.WriteError,
+    httpx.RemoteProtocolError,
+)
 
 
 def _failure_prefix(verb: str, what: str) -> str:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import errno
 import functools
 import io
@@ -16,6 +17,7 @@ from types import TracebackType
 from typing import (
     Any,
     AsyncIterator,
+    Awaitable,
     BinaryIO,
     Callable,
     Coroutine,
@@ -35,6 +37,9 @@ from anyio import AsyncFile, EndOfStream, open_file
 from anyio.abc import ByteReceiveStream
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from botocore.exceptions import ClientError, ResponseStreamingError
+from fsspec.exceptions import (  # type: ignore[import-untyped]  # fsspec ships no type stubs
+    FSTimeoutError,
+)
 from tenacity import (
     AsyncRetrying,
     RetryCallState,
@@ -53,7 +58,14 @@ if TYPE_CHECKING:
 from inspect_ai._util._async import current_async_backend, tg_collect
 from inspect_ai._util.constants import HTTP
 from inspect_ai._util.error import WriteConflictError
-from inspect_ai._util.file import FileInfo, file, filesystem, local_path, to_uri
+from inspect_ai._util.file import (
+    FileInfo,
+    FileSystem,
+    file,
+    filesystem,
+    local_path,
+    to_uri,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +73,12 @@ _S3_MISSING_OBJECT_CODES = ("404", "NoSuchKey", "NotFound")
 
 # default chunk size for read_file_into
 _READ_INTO_CHUNK_SIZE = 1024 * 1024  # 1 MB
+
+# bytes per request when `read_file_bytes` streams through a pinned reader
+_REMOTE_RANGE_SIZE = 8 * 1024 * 1024  # 8 MiB
+
+# reads [start, end) of one version of a file (see `_pin_read`)
+_RangeReader = Callable[[int, int], Awaitable[bytes]]
 
 
 @contextmanager
@@ -80,6 +98,28 @@ def _map_missing_s3_object(filename: str) -> Iterator[None]:
             raise FileNotFoundError(
                 errno.ENOENT, "No such file or directory", filename
             ) from ex
+        raise
+
+
+class ObjectChangedError(Exception):
+    """An S3 object no longer has the ETag a read was pinned to (``if_match``)."""
+
+    def __init__(self, filename: str, etag: str) -> None:
+        super().__init__(f"{filename} changed: it no longer has ETag {etag}")
+        self.filename = filename
+
+
+@contextmanager
+def _map_changed_s3_object(filename: str, if_match: str | None) -> Iterator[None]:
+    """Raise ``ObjectChangedError`` for a read whose ``IfMatch`` failed."""
+    try:
+        yield
+    except ClientError as ex:
+        if if_match is not None and ex.response.get("Error", {}).get("Code") in (
+            "PreconditionFailed",
+            "412",
+        ):
+            raise ObjectChangedError(filename, if_match) from ex
         raise
 
 
@@ -119,9 +159,10 @@ class _StreamingBodyByteReceiveStream(ByteReceiveStream):
     This adapter is needed when using async S3 under asyncio
     """
 
-    def __init__(self, body: StreamingBody):
-        """Initialize with S3 response body stream."""
+    def __init__(self, body: StreamingBody, etag: str | None = None):
+        """Initialize with S3 response body stream and the response's ETag."""
         self._body = body
+        self.etag = etag
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         """Receive up to max_bytes from the S3 body stream."""
@@ -178,6 +219,46 @@ class _AnyIOFileByteReceiveStream(ByteReceiveStream):
         if self._file is not None:
             await self._file.aclose()
             self._file = None
+
+
+class _RangedRemoteByteReceiveStream(ByteReceiveStream):
+    """Stream [start, end) of one version of a remote file, one range at a time.
+
+    NOTE: This class does not support concurrent calls to receive.
+    """
+
+    def __init__(self, read: _RangeReader, start: int, end: int) -> None:
+        """Initialize with a pinned reader (see `_pin_read`) and the byte range."""
+        self._read = read
+        self._next = start
+        self._end = end
+        self._buffer = b""
+        self._position = 0
+
+    async def receive(self, max_bytes: int = 65536) -> bytes:
+        """Receive up to max_bytes, fetching the next range once the buffer is spent.
+
+        A receive cancelled while its range is in flight leaves the offset
+        where it was: the next receive requests that range again.
+        """
+        if self._position >= len(self._buffer):
+            if self._next >= self._end:
+                raise EndOfStream
+            stop = min(self._next + _REMOTE_RANGE_SIZE, self._end)
+            # drop the spent range first, so memory holds at most one
+            self._buffer = b""
+            self._buffer = await self._read(self._next, stop)
+            self._position = 0
+            self._next = stop
+
+        chunk = self._buffer[self._position : self._position + max_bytes]
+        self._position += len(chunk)
+        return chunk
+
+    async def aclose(self) -> None:
+        """Drop the buffer; no further range is fetched."""
+        self._buffer = b""
+        self._next = self._end
 
 
 @dataclass
@@ -266,6 +347,69 @@ async def _read_exactly(source: BinaryIO, size: int) -> bytearray:
     return await anyio.to_thread.run_sync(_read_exactly_sync, source, size)
 
 
+async def _s3_upload_parts_async(
+    client: Any,
+    source: BinaryIO,
+    bucket: str,
+    key: str,
+    upload_id: str,
+    parts: list[dict[str, Any]],
+    first_part_number: int,
+    config: TransferConfig,
+    first_part: bytearray | None = None,
+) -> None:
+    """Upload ``source`` from its position to EOF as parts of a multipart upload.
+
+    Parts are numbered from ``first_part_number`` and appended to ``parts``.
+    ``first_part`` is a chunk the caller has already read from ``source``.
+    Parts are read off the loop in ``multipart_chunksize`` chunks and uploaded
+    by ``max_request_concurrency`` workers, so every part but the last is a
+    full chunk. The caller creates, completes and aborts the upload.
+    """
+
+    async def read_parts(send: MemoryObjectSendStream[tuple[int, bytearray]]) -> None:
+        async with send:
+            part_number = first_part_number
+            body = (
+                first_part
+                if first_part is not None
+                else await _read_exactly(source, config.multipart_chunksize)
+            )
+            while True:
+                if body:
+                    await send.send((part_number, body))
+                    part_number += 1
+                if len(body) < config.multipart_chunksize:
+                    break
+                body = await _read_exactly(source, config.multipart_chunksize)
+
+    async def upload_parts(
+        receive: MemoryObjectReceiveStream[tuple[int, bytearray]],
+    ) -> None:
+        async with receive:
+            async for part_number, body in receive:
+                response = await client.upload_part(
+                    Bucket=bucket,
+                    Key=key,
+                    UploadId=upload_id,
+                    PartNumber=part_number,
+                    Body=body,
+                )
+                parts.append({"ETag": response["ETag"], "PartNumber": part_number})
+
+    send, receive = anyio.create_memory_object_stream[tuple[int, bytearray]](0)
+    async with receive:
+        await tg_collect(
+            [
+                functools.partial(read_parts, send),
+                *[
+                    functools.partial(upload_parts, receive.clone())
+                    for _ in range(config.max_request_concurrency)
+                ],
+            ]
+        )
+
+
 async def _s3_multipart_upload_async(
     client: Any,
     source: BinaryIO,
@@ -284,45 +428,10 @@ async def _s3_multipart_upload_async(
     upload_id = created["UploadId"]
     parts: list[dict[str, Any]] = []
 
-    async def read_parts(send: MemoryObjectSendStream[tuple[int, bytearray]]) -> None:
-        async with send:
-            part_number = 1
-            await send.send((part_number, first_part))
-
-            while True:
-                body = await _read_exactly(source, config.multipart_chunksize)
-                if body:
-                    part_number += 1
-                    await send.send((part_number, body))
-                if len(body) < config.multipart_chunksize:
-                    break
-
-    async def upload_parts(
-        receive: MemoryObjectReceiveStream[tuple[int, bytearray]],
-    ) -> None:
-        async with receive:
-            async for part_number, body in receive:
-                response = await client.upload_part(
-                    Bucket=bucket,
-                    Key=key,
-                    UploadId=upload_id,
-                    PartNumber=part_number,
-                    Body=body,
-                )
-                parts.append({"ETag": response["ETag"], "PartNumber": part_number})
-
     try:
-        send, receive = anyio.create_memory_object_stream[tuple[int, bytearray]](0)
-        async with receive:
-            await tg_collect(
-                [
-                    functools.partial(read_parts, send),
-                    *[
-                        functools.partial(upload_parts, receive.clone())
-                        for _ in range(config.max_request_concurrency)
-                    ],
-                ]
-            )
+        await _s3_upload_parts_async(
+            client, source, bucket, key, upload_id, parts, 1, config, first_part
+        )
 
         parts.sort(key=lambda part: part["PartNumber"])
         response = await (final_client or client).complete_multipart_upload(
@@ -387,6 +496,172 @@ async def _s3_upload_fileobj_async(
     return str(etag).strip('"')
 
 
+class ComposeSource(NamedTuple):
+    """An S3 object whose leading bytes become the start of a composed object."""
+
+    filename: str
+    """The object's ``s3://`` URL."""
+
+    etag: str
+    """The unquoted ETag the object must still carry."""
+
+    length: int
+    """How many leading bytes to copy: ``[0, length)``."""
+
+
+class ComposeSourceChangedError(Exception):
+    """A compose source no longer matches its ``ComposeSource``.
+
+    Its ETag changed, it is shorter than the prefix, or it no longer exists.
+    """
+
+
+# Compose only when the copied prefix is at least this long. Below it the
+# whole object is a single PutObject anyway (the multipart threshold), and it
+# clears S3's 5 MiB minimum for every part but the last.
+S3_COMPOSE_MIN_PREFIX = 8 * 1024 * 1024
+
+# One UploadPartCopy runs at about 50 MB/s on S3, so the prefix is copied as
+# parallel parts of at most this size (measured best of 16, 32 and 64 MiB).
+_S3_COPY_PART_SIZE = 16 * 1024 * 1024
+
+# S3 allows 10,000 parts per upload; the copy takes at most half of them.
+_S3_MAX_COPY_PARTS = 5_000
+
+
+def _s3_copy_ranges(length: int) -> list[tuple[int, int]]:
+    """Split ``[0, length)`` into equal ``[start, end)`` ranges.
+
+    Each range is at most ``_S3_COPY_PART_SIZE``, or larger when that would
+    take more than ``_S3_MAX_COPY_PARTS`` parts. Sizes differ by at most one
+    byte, so none falls under S3's 5 MiB part minimum when
+    ``length >= S3_COMPOSE_MIN_PREFIX``.
+    """
+    count = min(-(-length // _S3_COPY_PART_SIZE), _S3_MAX_COPY_PARTS)
+    size, extra = divmod(length, count)
+    ranges = []
+    start = 0
+    for index in range(count):
+        end = start + size + (1 if index < extra else 0)
+        ranges.append((start, end))
+        start = end
+    return ranges
+
+
+def _s3_error_code(ex: ClientError) -> str | None:
+    return ex.response.get("Error", {}).get("Code")
+
+
+def _s3_response_etag(response: dict[str, Any]) -> str | None:
+    etag = response.get("ETag")
+    return str(etag).strip('"') if etag else None
+
+
+async def _s3_compose_async(
+    client: Any,
+    bucket: str,
+    key: str,
+    prefix: ComposeSource,
+    tail: BinaryIO,
+    config: TransferConfig,
+) -> str:
+    """Replace ``bucket/key`` with ``prefix``'s leading bytes then ``tail``.
+
+    One multipart upload: ``UploadPartCopy`` of the prefix in parallel parts
+    (each conditional on its ETag, at most ``_S3_MAX_COPY_CONCURRENCY`` at a
+    time), then ``tail`` from its position to EOF as uploaded parts.
+    The ``HeadObject`` check comes first because some S3-compatible stores
+    (moto among them) ignore ``CopySourceIfMatch``; real S3 enforces it as
+    well. Any failure after the upload is created aborts it. Returns the
+    new object's ETag.
+    """
+    source_bucket, source_key = s3_bucket_and_key(prefix.filename)
+    try:
+        head = await client.head_object(Bucket=source_bucket, Key=source_key)
+    except ClientError as ex:
+        if _s3_error_code(ex) in _S3_MISSING_OBJECT_CODES:
+            raise ComposeSourceChangedError(
+                f"{prefix.filename} no longer exists"
+            ) from ex
+        raise
+    etag = _s3_response_etag(head)
+    size = int(head["ContentLength"])
+    if etag != prefix.etag or size < prefix.length:
+        raise ComposeSourceChangedError(
+            f"{prefix.filename} changed (ETag {etag}, {size} bytes; expected "
+            f"ETag {prefix.etag}, at least {prefix.length} bytes)"
+        )
+
+    created = await client.create_multipart_upload(Bucket=bucket, Key=key)
+    upload_id = created["UploadId"]
+    parts: list[dict[str, Any]] = []
+    copy_limiter = anyio.CapacityLimiter(_S3_MAX_COPY_CONCURRENCY)
+
+    async def copy_part(part_number: int, start: int, end: int) -> None:
+        async with copy_limiter:
+            response = await client.upload_part_copy(
+                Bucket=bucket,
+                Key=key,
+                UploadId=upload_id,
+                PartNumber=part_number,
+                CopySource={"Bucket": source_bucket, "Key": source_key},
+                CopySourceRange=s3_range_header(start, end),
+                CopySourceIfMatch=f'"{prefix.etag}"',
+            )
+        parts.append(
+            {"ETag": response["CopyPartResult"]["ETag"], "PartNumber": part_number}
+        )
+
+    try:
+        ranges = _s3_copy_ranges(prefix.length)
+        try:
+            await tg_collect(
+                [
+                    functools.partial(copy_part, number, start, end)
+                    for number, (start, end) in enumerate(ranges, start=1)
+                ]
+            )
+        except ClientError as ex:
+            if _s3_error_code(ex) in ("PreconditionFailed", *_S3_MISSING_OBJECT_CODES):
+                raise ComposeSourceChangedError(
+                    f"{prefix.filename} changed during the copy"
+                ) from ex
+            raise
+        await _s3_upload_parts_async(
+            client, tail, bucket, key, upload_id, parts, len(ranges) + 1, config
+        )
+
+        parts.sort(key=lambda part: part["PartNumber"])
+        response = await client.complete_multipart_upload(
+            Bucket=bucket,
+            Key=key,
+            UploadId=upload_id,
+            MultipartUpload={"Parts": parts},
+        )
+    except BaseException:
+        with anyio.move_on_after(_S3_ABORT_TIMEOUT, shield=True), suppress(Exception):
+            await client.abort_multipart_upload(
+                Bucket=bucket, Key=key, UploadId=upload_id
+            )
+        raise
+
+    composed_etag = _s3_response_etag(response)
+    if composed_etag is None:
+        raise RuntimeError("S3 upload completed without returning an ETag")
+    return composed_etag
+
+
+def _write_and_release(f: BinaryIO, chunks: list[bytes]) -> None:
+    """Write the one chunk in `chunks` to `f`, removing it from the list.
+
+    AnyIO's asyncio worker thread drops its call's arguments only after it
+    reports the result, and on a busy machine it may not run again until the
+    event loop has fetched the next range. Emptying the list frees the chunk
+    before that.
+    """
+    f.write(chunks.pop())
+
+
 async def _s3_download_file_async(
     client: Any,
     bucket: str,
@@ -428,7 +703,7 @@ async def _s3_download_file_async(
             body.close()
 
         f.seek(start)
-        await anyio.to_thread.run_sync(f.write, data)
+        await anyio.to_thread.run_sync(_write_and_release, f, [data])
 
     async def download_parts() -> None:
         with open(local, "r+b") as f:
@@ -653,7 +928,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     s3_info, self.s3_client(), bucket, key, filename
                 )
         else:
-            return filesystem(filename).info(filename)
+            fsw = filesystem(filename)
+            if _is_async_remote(fsw):
+                info = await _run_on_fsspec_loop(fsw.fs, fsw.fs._info(filename))
+                return fsw._file_info(info)
+            return fsw.info(filename)
 
     async def exists(self, filename: str) -> bool:
         """Return True if `filename` exists, False otherwise."""
@@ -678,7 +957,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 s3_exists, self.s3_client(), bucket, key
             )
         else:
-            return filesystem(filename).exists(filename)
+            fsw = filesystem(filename)
+            if _is_async_remote(fsw):
+                exists = await _run_on_fsspec_loop(fsw.fs, fsw.fs._exists(filename))
+                return exists is True
+            return fsw.exists(filename)
 
     async def read_file(self, filename: str) -> bytes:
         """Read a file's full contents.
@@ -705,6 +988,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         s3_read_file, self.s3_client(), bucket, key
                     )
         else:
+            fsw = filesystem(filename)
+            if _is_async_remote(fsw):
+                path = fsw.fs._strip_protocol(filename)
+                return await _run_on_fsspec_loop(fsw.fs, fsw.fs._cat_file(path))
             with file(filename, "rb") as f:
                 return f.read()
 
@@ -738,26 +1025,63 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             return await anyio.to_thread.run_sync(
                 _local_read_file_info, local_path(filename)
             )
-        with file(filename, "rb") as f:
-            data = f.read()
-        info = fsw.info(filename)
+        if _is_async_remote(fsw):
+            path = fsw.fs._strip_protocol(filename)
+            data = await _run_on_fsspec_loop(fsw.fs, fsw.fs._cat_file(path))
+            info = await self.info(filename)
+        else:
+            with file(filename, "rb") as f:
+                data = f.read()
+            info = fsw.info(filename)
         return FileContent(data=data, etag=info.etag, mtime=info.mtime)
 
     async def read_file_bytes(
-        self, filename: str, start: int, end: int | None
+        self,
+        filename: str,
+        start: int,
+        end: int | None,
+        *,
+        if_match: str | None = None,
     ) -> ByteReceiveStream:
-        """Stream the byte range [start, end) of a file (end=None reads to EOF)."""
+        """Stream the byte range [start, end) of a file (end=None reads to EOF).
+
+        ``if_match`` pins an S3 read to that ETag: if the object has changed,
+        the read raises :class:`ObjectChangedError`. Other backends ignore it.
+
+        An async fsspec filesystem that provides ``_pinned_range_reader`` is
+        read through it in 8 MiB ranges as the stream is consumed, all from
+        one version of the file: a reader that stops early fetches only what
+        it read, and memory is bounded by one range. Any other async fsspec
+        filesystem (``gs://``, ``az://``, ...) reads the range in one backend
+        call.
+        """
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
-            with _map_missing_s3_object(filename):
+            with (
+                _map_missing_s3_object(filename),
+                _map_changed_s3_object(filename, if_match),
+            ):
                 if current_async_backend() == "asyncio":
                     response = await (await self.s3_client_async()).get_object(
-                        Bucket=bucket, Key=key, Range=s3_range_header(start, end)
+                        Bucket=bucket,
+                        Key=key,
+                        Range=s3_range_header(start, end),
+                        **_s3_if_match(if_match),
                     )
-                    return _StreamingBodyByteReceiveStream(response["Body"])
+                    return _StreamingBodyByteReceiveStream(
+                        response["Body"], _s3_response_etag(response)
+                    )
                 return _BytesByteReceiveStream(
                     await anyio.to_thread.run_sync(
-                        s3_read_file_bytes, self.s3_client(), bucket, key, start, end
+                        functools.partial(
+                            s3_read_file_bytes,
+                            self.s3_client(),
+                            bucket,
+                            key,
+                            start,
+                            end,
+                            if_match=if_match,
+                        )
                     )
                 )
         else:
@@ -765,6 +1089,25 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             if fs.is_local():
                 # If local, use AnyIO's async/chunking file reading support
                 return _AnyIOFileByteReceiveStream(local_path(filename), start, end)
+            if _is_async_remote(fs):
+                path = fs.fs._strip_protocol(filename)
+                # as the file object's `seek` does; `_cat_file` would read a suffix
+                if start < 0:
+                    raise ValueError(f"Negative start offset: {start}")
+                # the file object looks the file up and returns b"" here; older
+                # gcsfs releases' `_cat_file` sends an unsatisfiable range instead
+                if end is not None and end <= start:
+                    await _run_on_fsspec_loop(fs.fs, fs.fs._info(path))
+                    return _BytesByteReceiveStream(b"")
+                pinned = await _pin_read(fs.fs, path, filename)
+                if pinned is None:
+                    return _BytesByteReceiveStream(
+                        await _run_on_fsspec_loop(
+                            fs.fs, fs.fs._cat_file(path, start=start, end=end)
+                        )
+                    )
+                end = pinned.size if end is None else min(end, pinned.size)
+                return _RangedRemoteByteReceiveStream(pinned.read, start, end)
             with file(filename, "rb") as f:
                 f.seek(start)
                 return _BytesByteReceiveStream(
@@ -772,19 +1115,34 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 )
 
     async def read_file_bytes_fully(
-        self, filename: str, start: int, end: int | None
+        self,
+        filename: str,
+        start: int,
+        end: int | None,
+        *,
+        if_match: str | None = None,
     ) -> bytes:
         """Read the byte range [start, end) of a file into bytes (end=None reads to EOF).
 
-        A local range is read in one worker thread rather than through
-        :meth:`read_file_bytes`, whose file stream makes a thread hop for each
-        open, seek, read and close.
+        ``if_match`` is as for :meth:`read_file_bytes`. A local range is read
+        in one worker thread rather than through :meth:`read_file_bytes`, whose
+        file stream makes a thread hop for each open, seek, read and close;
+        an async fsspec range is fetched in one request, even on a filesystem
+        whose reads that method streams in ranges.
         """
-        if not is_s3_filename(filename) and filesystem(filename).is_local():
-            return await anyio.to_thread.run_sync(
-                _read_local_range, local_path(filename), start, end
-            )
-        stream = await self.read_file_bytes(filename, start, end)
+        if not is_s3_filename(filename):
+            fsw = filesystem(filename)
+            if fsw.is_local():
+                return await anyio.to_thread.run_sync(
+                    _read_local_range, local_path(filename), start, end
+                )
+            # a negative or empty range keeps `read_file_bytes`'s checks
+            if _is_async_remote(fsw) and start >= 0 and (end is None or end > start):
+                path = fsw.fs._strip_protocol(filename)
+                return await _run_on_fsspec_loop(
+                    fsw.fs, fsw.fs._cat_file(path, start=start, end=end)
+                )
+        stream = await self.read_file_bytes(filename, start, end, if_match=if_match)
         chunks: list[bytes] = []
         try:
             # Pull in large chunks rather than the stream's default
@@ -801,7 +1159,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
     async def read_file_into(
         self, filename: str, dest: BinaryIO, chunk_size: int = _READ_INTO_CHUNK_SIZE
-    ) -> None:
+    ) -> str | None:
         """Copy a file's full contents into an open binary file object.
 
         The download counterpart of :meth:`write_file_streaming`, for a
@@ -814,16 +1172,25 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         cancellation checks between chunks; under asyncio a byte stream
         from :meth:`read_file_bytes` is written inline (a buffered
         write of one chunk lands in the page cache faster than a thread hop
-        would). Any other remote filesystem (``gs://``, ``az://``, ...) has
-        no async client and, per the fsspec rule in AGENTS.md, cannot be read
-        in a worker thread either, so it is read synchronously on the event
-        loop one chunk at a time with a checkpoint between chunks: each
-        stall is bounded by one chunk's fetch rather than the whole download.
+        would). An async fsspec filesystem (``gs://``, ``az://``, ...) is
+        read with one ranged request per chunk on fsspec's own event loop,
+        without blocking the caller's; one that provides
+        ``_pinned_range_reader`` is read through it, so every chunk comes
+        from one version of the file. Any other remote filesystem has no
+        async API and, per the fsspec rule in AGENTS.md, cannot be read in a
+        worker thread either, so it is read synchronously on the event loop
+        one chunk at a time with a checkpoint between chunks: each stall is
+        bounded by one chunk's fetch rather than the whole download.
+
+        Returns the S3 object's ETag on the asyncio backend, taken from the
+        response the bytes came from, so both describe the same object
+        version; ``None`` on every other backend.
 
         Raises ``FileNotFoundError`` for a missing file on every backend.
         Cancellation waits for an active worker to close its response before
         returning, so the caller can safely close or reuse ``dest``.
         """
+        etag: str | None = None
         if is_s3_filename(filename) and current_async_backend() != "asyncio":
             bucket, key = s3_bucket_and_key(filename)
             with _map_missing_s3_object(filename):
@@ -832,6 +1199,8 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 )
         elif is_s3_filename(filename):
             stream = await self.read_file_bytes(filename, 0, None)
+            if isinstance(stream, _StreamingBodyByteReceiveStream):
+                etag = stream.etag
             try:
                 while True:
                     try:
@@ -841,15 +1210,33 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     dest.write(chunk)
             finally:
                 await stream.aclose()
-        elif filesystem(filename).is_local():
+        elif (fsw := filesystem(filename)).is_local():
             await anyio.to_thread.run_sync(
                 _copy_local_file_into, local_path(filename), dest, chunk_size
             )
+        elif _is_async_remote(fsw):
+            path = fsw.fs._strip_protocol(filename)
+            pinned = await _pin_read(fsw.fs, path, filename)
+            if pinned is not None:
+                for start in range(0, pinned.size, chunk_size):
+                    end = min(start + chunk_size, pinned.size)
+                    dest.write(await pinned.read(start, end))
+            else:
+                info = await _run_on_fsspec_loop(fsw.fs, fsw.fs._info(path))
+                size = info["size"]
+                for start in range(0, size, chunk_size):
+                    end = min(start + chunk_size, size)
+                    dest.write(
+                        await _run_on_fsspec_loop(
+                            fsw.fs, fsw.fs._cat_file(path, start=start, end=end)
+                        )
+                    )
         else:
             with file(filename, "rb") as src:
                 while chunk := src.read(chunk_size):
                     dest.write(chunk)
                     await anyio.lowlevel.checkpoint()
+        return etag
 
     async def read_file_suffix(self, filename: str, suffix_length: int) -> SuffixResult:
         """Read the last suffix_length bytes of a file.
@@ -886,7 +1273,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         suffix_length,
                     )
         else:
-            file_size = filesystem(filename).info(filename).size
+            file_size = (await self.info(filename)).size
             start = max(0, file_size - suffix_length)
             data = await self.read_file_bytes_fully(filename, start, file_size)
             return SuffixResult(data, file_size)
@@ -967,6 +1354,58 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             ) as f:
                 shutil.copyfileobj(source, f, length=_STREAMING_COPY_BUFSIZE)
             return None
+
+    def can_compose(self, filename: str) -> bool:
+        """Whether :meth:`compose_file` can write ``filename``.
+
+        True for an ``s3://`` URL under the asyncio backend. Trio uploads
+        through boto3 in a worker thread and keeps whole-file uploads.
+        """
+        return is_s3_filename(filename) and current_async_backend() == "asyncio"
+
+    async def compose_file(
+        self, filename: str, prefix: ComposeSource, tail: BinaryIO
+    ) -> str:
+        """Replace ``filename`` with ``prefix``'s leading bytes followed by ``tail``.
+
+        The prefix is copied server-side (S3 ``UploadPartCopy``), so only
+        ``tail``, read from its current position to EOF, is uploaded. A
+        stale-signature failure is retried from the same tail position, as
+        :meth:`write_file_streaming` does. ``tail`` is never closed.
+
+        Returns:
+            The new object's ETag.
+
+        Raises:
+            ComposeSourceChangedError: The source's ETag or size no longer
+                matches ``prefix``, or the source is gone.
+            ValueError: ``can_compose`` is false for ``filename``, the source
+                is not an ``s3://`` URL, or ``prefix.length`` is under
+                ``S3_COMPOSE_MIN_PREFIX``.
+            ClientError: Any other S3 failure. A multipart upload this call
+                created is aborted on every failure it observes.
+        """
+        if not self.can_compose(filename) or not is_s3_filename(prefix.filename):
+            raise ValueError(
+                f"Cannot compose {filename} from {prefix.filename}: both must be "
+                "s3:// URLs under the asyncio backend"
+            )
+        if prefix.length < S3_COMPOSE_MIN_PREFIX:
+            raise ValueError(
+                f"Cannot compose {filename}: the prefix ({prefix.length} bytes) is "
+                f"under the {S3_COMPOSE_MIN_PREFIX} byte minimum"
+            )
+        bucket, key = s3_bucket_and_key(filename)
+        tail_start = tail.tell()
+
+        async def do_compose() -> str:
+            tail.seek(tail_start)
+            client = await self.s3_client_async()
+            return await _s3_compose_async(
+                client, bucket, key, prefix, tail, _s3_transfer_config()
+            )
+
+        return await _s3_put_with_retry(do_compose, location=filename)
 
     async def write_file_conditional(
         self,
@@ -1091,7 +1530,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         existing read-only target (restic writes repo files ``0400``) is
         replaced rather than opened for writing. boto3's ``download_file``
         does this itself; the asyncio path streams into the temp file. The
-        non-S3 branch copies in place.
+        non-S3 branch copies in place; an async fsspec filesystem (``gs://``,
+        ``az://``, ...) downloads on fsspec's own event loop without blocking
+        the caller's.
         """
         if is_s3_filename(remote):
             bucket, key = s3_bucket_and_key(remote)
@@ -1112,7 +1553,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         s3_get_file, self.s3_client(), bucket, key, local
                     )
         else:
-            filesystem(remote).get_file(remote, local)
+            fsw = filesystem(remote)
+            if _is_async_remote(fsw):
+                await _run_on_fsspec_loop(fsw.fs, fsw.fs._get_file(remote, local))
+            else:
+                fsw.get_file(remote, local)
 
     async def get_file_if_match(self, remote: str, local: str, etag: str) -> None:
         """Download the S3 object `remote` to `local` only if its ETag is `etag`.
@@ -1325,21 +1770,35 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         else:
             fsw = filesystem(base)
             fs = fsw.fs
+            on_loop = _is_async_remote(fsw)
             if recursive:
                 if detail:
-                    found = fs.find(base, detail=True)
+                    found = (
+                        await _run_on_fsspec_loop(fs, fs._find(base, detail=True))
+                        if on_loop
+                        else fs.find(base, detail=True)
+                    )
                     for path, info in found.items():
                         if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
                             yield fsw._file_info(info)
                 else:
-                    paths = fs.find(base)
+                    paths = (
+                        await _run_on_fsspec_loop(fs, fs._find(base))
+                        if on_loop
+                        else fs.find(base)
+                    )
                     if isinstance(paths, dict):
                         paths = list(paths.keys())
                     for path in paths:
                         if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
                             yield path
             else:
-                for entry in fs.ls(base, detail=True):
+                entries = (
+                    await _run_on_fsspec_loop(fs, fs._ls(base, detail=True))
+                    if on_loop
+                    else fs.ls(base, detail=True)
+                )
+                for entry in entries:
                     if entry["type"] == "file":
                         name = entry["name"]
                         if fnmatchcase(name.rsplit("/", 1)[-1], pattern):
@@ -1398,21 +1857,35 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 for r in results:
                     yield r
         else:
-            fs = filesystem(base).fs
+            fsw = filesystem(base)
+            fs = fsw.fs
+            on_loop = _is_async_remote(fsw)
             if not recursive:
-                for entry in fs.ls(base, detail=True):
+                entries = (
+                    await _run_on_fsspec_loop(fs, fs._ls(base, detail=True))
+                    if on_loop
+                    else fs.ls(base, detail=True)
+                )
+                for entry in entries:
                     if entry["type"] == "directory":
                         name = entry["name"]
                         terminal = name.rstrip("/").rsplit("/", 1)[-1]
                         if fnmatchcase(terminal, pattern):
                             yield name.rstrip("/") + "/"
+            elif on_loop:
+                async for dirpath, dirnames in _walk_dirs(fs, base):
+                    for dirname in dirnames:
+                        if fnmatchcase(dirname, pattern):
+                            yield f"{dirpath.rstrip('/')}/{dirname}/"
             else:
                 for dirpath, dirnames, _ in fs.walk(base):
                     for dirname in dirnames:
                         if fnmatchcase(dirname, pattern):
                             yield f"{dirpath.rstrip('/')}/{dirname}/"
 
-    async def list_dir(self, base: str) -> DirListing:
+    async def list_dir(
+        self, base: str, *, indirect_error: type[Exception] | None = None
+    ) -> DirListing:
         """List the files and subdirectories directly under ``base``.
 
         One delimited listing: on S3 a single ``list_objects_v2`` sweep with
@@ -1428,6 +1901,13 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
         Raises ``FileNotFoundError`` when a local ``base`` does not exist; an
         S3 prefix with no objects lists as empty.
+
+        Other fsspec backends name each child after the last component of the
+        entry ``ls`` returned, so an entry that is not a name directly under
+        ``base`` (a key with an empty path component lists as ``base``
+        itself) would read as a child. With ``indirect_error``, such an entry
+        raises that error instead. Local and S3 names are not rebuilt, so a
+        caller can check those itself.
         """
         prefix_path = base.rstrip("/")
         if is_s3_filename(base):
@@ -1466,14 +1946,62 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             )
         files = []
         dirs = []
-        for entry in fsw.fs.ls(base, detail=True):
+        listed = fsw.fs._strip_protocol(base).rstrip("/") if indirect_error else None
+        entries = (
+            await _run_on_fsspec_loop(fsw.fs, fsw.fs._ls(base, detail=True))
+            if _is_async_remote(fsw)
+            else fsw.fs.ls(base, detail=True)
+        )
+        for entry in entries:
             name = entry["name"].rstrip("/").rsplit("/", 1)[-1]
+            if indirect_error is not None:
+                # compared in the backend's path form: some backends (WebHDFS)
+                # name entries with the qualified URL they were listed with
+                entry_path = fsw.fs._strip_protocol(entry["name"]).rstrip("/")
+                parent, _, child = entry_path.rpartition("/")
+                if not child or parent != listed:
+                    raise indirect_error(
+                        f"{base} lists {entry['name']}, which is not a file or "
+                        "directory directly in it: a name with an empty path "
+                        "component ('//') lists this way. Rename it."
+                    )
             if entry["type"] == "directory":
                 dirs.append(f"{prefix_path}/{name}")
             elif entry["type"] == "file":
                 info = fsw._file_info(entry)
                 files.append(info.model_copy(update={"name": f"{prefix_path}/{name}"}))
         return DirListing(files=files, dirs=dirs)
+
+    async def list_s3_keys(self, base: str) -> list[str]:
+        """Every object under the S3 prefix ``base/``, as ``s3://`` URLs.
+
+        One recursive ``list_objects_v2`` sweep. Unlike ``iter_files``, it
+        keeps directory markers (keys ending in ``/``, including ``base/``
+        itself). Only keys under ``base`` followed by ``/`` are listed, so
+        ``base-x/`` is not.
+
+        Raises:
+            ValueError: `base` is not an ``s3://`` URL.
+        """
+        if not is_s3_filename(base):
+            raise ValueError(f"Not an S3 URL: {base}")
+        bucket, prefix = s3_bucket_and_key(base)
+        prefix = prefix.rstrip("/") + "/" if prefix else ""
+        if current_async_backend() == "asyncio":
+            client = await self.s3_client_async()
+            paginator = client.get_paginator("list_objects_v2")
+            pages = [
+                page async for page in paginator.paginate(Bucket=bucket, Prefix=prefix)
+            ]
+        else:
+            pages = await anyio.to_thread.run_sync(
+                _s3_list_all_pages, self.s3_client(), bucket, prefix
+            )
+        return [
+            f"s3://{bucket}/{obj['Key']}"
+            for page in pages
+            for obj in page.get("Contents", [])
+        ]
 
     @override
     async def __aenter__(self) -> "AsyncFilesystem":
@@ -1743,10 +2271,31 @@ def s3_range_header(start: int, end: int | None) -> str:
     return f"bytes={start}-" if end is None else f"bytes={start}-{end - 1}"
 
 
+def _s3_if_match(etag: str | None) -> dict[str, str]:
+    """``get_object``'s ``IfMatch`` argument pinning a read to ``etag``.
+
+    ETags are kept without their quotes; an HTTP entity tag needs them.
+    """
+    if etag is None:
+        return {}
+    return {"IfMatch": '"' + etag.strip('"') + '"'}
+
+
 def s3_read_file_bytes(
-    s3: Any, bucket: str, key: str, start: int, end: int | None
+    s3: Any,
+    bucket: str,
+    key: str,
+    start: int,
+    end: int | None,
+    *,
+    if_match: str | None = None,
 ) -> bytes:
-    response = s3.get_object(Bucket=bucket, Key=key, Range=s3_range_header(start, end))
+    response = s3.get_object(
+        Bucket=bucket,
+        Key=key,
+        Range=s3_range_header(start, end),
+        **_s3_if_match(if_match),
+    )
     return cast(bytes, response["Body"].read())
 
 
@@ -1945,6 +2494,11 @@ def _s3_list_pages(s3: Any, bucket: str, prefix: str) -> list[dict[str, Any]]:
     return list(paginator.paginate(Bucket=bucket, Prefix=prefix, Delimiter="/"))
 
 
+def _s3_list_all_pages(s3: Any, bucket: str, prefix: str) -> list[dict[str, Any]]:
+    paginator = s3.get_paginator("list_objects_v2")
+    return list(paginator.paginate(Bucket=bucket, Prefix=prefix))
+
+
 def _scandir_listing(directory: str, prefix_path: str, as_uri: bool) -> DirListing:
     """A local directory's children (see :meth:`AsyncFilesystem.list_dir`)."""
     files: list[FileInfo] = []
@@ -2030,6 +2584,148 @@ _current_async_fs: ContextVar[AsyncFilesystem | None] = ContextVar(
 _T = TypeVar("_T")
 
 
+def _is_async_remote(fsw: FileSystem) -> bool:
+    """Whether reads from `fsw` go through :func:`_run_on_fsspec_loop`."""
+    fs = fsw.fs
+    # a `DirFileSystem` is async by class even over a synchronous filesystem,
+    # whose coroutines it then calls
+    while "dir" in _protocols(fs):
+        fs = fs.fs
+    # These keep the file-object path. HTTP's `_cat_file` doesn't check that
+    # the server honoured the range, and its size can be unknown (the file
+    # streams). `ReferenceFileSystem._info` calls its targets' synchronous API,
+    # which can't run on fsspec's loop.
+    return bool(fs.async_impl) and not {"http", "https", "reference"} & _protocols(fs)
+
+
+def _protocols(fs: Any) -> set[str]:
+    protocol = fs.protocol
+    return set(protocol if isinstance(protocol, tuple) else (protocol,))
+
+
+class _PinnedRead(NamedTuple):
+    """One version of a file, as bound by a filesystem's ``_pinned_range_reader``."""
+
+    size: int
+    read: _RangeReader
+
+
+async def _pin_read(fs: Any, path: str, filename: str) -> _PinnedRead | None:
+    """Bind a reader to one version of `path`, if the fsspec filesystem `fs` can.
+
+    An async fsspec filesystem opts in by defining ``_pinned_range_reader``
+    (see "Custom Filesystems" in the docs); this returns None for one that
+    doesn't. The returned ``read(start, end)`` runs on fsspec's loop and
+    raises ``OSError`` unless it gets exactly ``end - start`` bytes.
+    """
+    bind = getattr(fs, "_pinned_range_reader", None)
+    if bind is None:
+        return None
+    size, backend_read = await _run_on_fsspec_loop(fs, bind(path))
+
+    async def read(start: int, end: int) -> bytes:
+        data: bytes = await _run_on_fsspec_loop(fs, backend_read(start, end))
+        if len(data) != end - start:
+            raise OSError(
+                f"{filename}: the pinned reader returned {len(data)} bytes for "
+                f"the {end - start}-byte range starting at {start}"
+            )
+        return data
+
+    return _PinnedRead(size=size, read=read)
+
+
+async def _run_on_fsspec_loop(fs: Any, coro: Coroutine[Any, Any, _T]) -> _T:
+    """Run `coro`, a coroutine of the async fsspec filesystem `fs`, on fsspec's loop.
+
+    Like ``fsspec.asyn.sync()``, but the caller's event loop keeps running. On
+    cancellation it waits for the coroutine to finish, then re-raises: backends
+    such as the Azure SDK start child tasks that cancelling the coroutine would
+    not stop, so a cancel takes as long as the request in flight, with no upper
+    bound for a slow whole-object transfer. As with ``sync()``, a
+    ``TimeoutError`` is raised as ``FSTimeoutError``.
+    """
+    # `sync()` without its blocking wait: no thread pool is nested over
+    # fsspec's loop, so the fsspec rule in AGENTS.md holds
+    backend = current_async_backend()
+    # as `run_coroutine_threadsafe` does: `start` can't report a failure
+    if not asyncio.iscoroutine(coro):
+        raise TypeError(f"A coroutine object is required, not {type(coro)!r}")
+    try:
+        # an `asynchronous=True` filesystem runs on the caller's asyncio loop;
+        # `fs.loop` raises in a forked child, as `sync()` does
+        loop = asyncio.get_running_loop() if fs.asynchronous else fs.loop
+    except BaseException:
+        coro.close()
+        raise
+    if loop is None or loop.is_closed():
+        coro.close()
+        raise RuntimeError("Loop is not running")
+
+    # a wake-up only schedules work on the caller's loop: that loop may itself
+    # be blocked in a synchronous fsspec call, so waiting on it would deadlock
+    done = anyio.Event()
+    if backend == "trio":
+        import trio
+
+        token = trio.lowlevel.current_trio_token()
+
+        def wake() -> None:
+            token.run_sync_soon(done.set)
+    else:
+        caller_loop = asyncio.get_running_loop()
+
+        def wake() -> None:
+            caller_loop.call_soon_threadsafe(done.set)
+
+    tasks: list[asyncio.Task[_T]] = []
+
+    def start() -> None:
+        task = loop.create_task(coro)
+        # fires even for a task cancelled before its first step
+        task.add_done_callback(lambda _: wake())
+        tasks.append(task)
+
+    loop.call_soon_threadsafe(start)
+    try:
+        await done.wait()
+    except BaseException:
+        while not done.is_set():
+            try:
+                with anyio.CancelScope(shield=True):
+                    await done.wait()
+            except anyio.get_cancelled_exc_class():
+                # a repeated native asyncio cancel reaches through the shield
+                continue
+        if not tasks[0].cancelled():
+            # retrieved so asyncio doesn't log it; the cancellation wins
+            tasks[0].exception()
+        raise
+    try:
+        return tasks[0].result()
+    except TimeoutError as ex:
+        raise FSTimeoutError from ex
+
+
+async def _walk_dirs(fs: Any, path: str) -> AsyncIterator[tuple[str, list[str]]]:
+    """``(dirpath, dirnames)`` per directory, lazily, as ``fs.walk(path)`` yields them."""
+    path = fs._strip_protocol(path)
+    # `_ls`, not `_walk`: adlfs defines `_walk` as an unrelated synchronous helper
+    try:
+        listing = await _run_on_fsspec_loop(fs, fs._ls(path, detail=True))
+    except (FileNotFoundError, OSError):
+        return
+    dirs: dict[str, str] = {}
+    for info in listing:
+        pathname = info["name"].rstrip("/")
+        if info["type"] == "directory" and pathname != path:
+            dirs[pathname.rsplit("/", 1)[-1]] = pathname
+    yield path, list(dirs)
+    for pathname in dirs.values():
+        async for entry in _walk_dirs(fs, pathname):
+            yield entry
+
+
 def with_async_fs(
     main: Callable[[], Coroutine[Any, Any, _T]],
 ) -> Callable[[], Coroutine[Any, Any, _T]]:
@@ -2095,6 +2791,14 @@ def _s3_transfer_config() -> TransferConfig:
         multipart_chunksize=8 * 1024 * 1024,  # 8 MB
         max_concurrency=10,
     )
+
+
+# Concurrent UploadPartCopy requests per compose. Higher than the upload bound
+# above: each copy runs at only ~40-55 MB/s on S3's side, and 10 at a time was
+# measured slower than main's whole upload on an in-region EC2 host. The S3
+# client's connection pool (max_pool_connections=50) caps the requests of
+# composes that share it.
+_S3_MAX_COPY_CONCURRENCY = 32
 
 
 # fsspec write buffer size for cloud storage backends (GCS, Azure, etc.).

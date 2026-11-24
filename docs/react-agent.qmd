@@ -58,7 +58,7 @@ task = Task(
     scorer=includes()
 )
 
-eval(task, model="openai/gpt-4o")
+eval(task, model="openai/gpt-6-luna")
 ```
 
 ## Prompt

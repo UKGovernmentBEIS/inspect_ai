@@ -1,17 +1,17 @@
 import { i as __toESM, r as __require, t as __commonJSMin } from "./rolldown-runtime.js";
 import { n as require_react, r as require_jsx_runtime, t as require_compiler_runtime } from "./compiler-runtime.js";
-import { a as clsx, i as useComponentIcons, n as AnsiDisplay_module_default, t as ToolButton } from "./ToolButton.js";
-//#region ../../node_modules/.pnpm/ansi-output@0.0.9/node_modules/ansi-output/dist/ansi-output.js
+import { n as AnsiDisplay_module_default, o as clsx, t as ToolButton } from "./ToolButton.js";
+// ../../node_modules/.pnpm/ansi-output@0.0.9/node_modules/ansi-output/dist/ansi-output.js
 var require_ansi_output = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	(function(factory) {
 		if (typeof module === "object" && typeof module.exports === "object") {
 			var v = factory(__require, exports);
 			if (v !== void 0) module.exports = v;
 		} else if (typeof define === "function" && define.amd) define(["require", "exports"], factory);
-	})(function(require, exports$1) {
+	})(function(require, exports) {
 		"use strict";
-		Object.defineProperty(exports$1, "__esModule", { value: true });
-		exports$1.ANSIOutput = exports$1.ANSIColor = exports$1.ANSIFont = exports$1.ANSIStyle = void 0;
+		Object.defineProperty(exports, "__esModule", { value: true });
+		exports.ANSIOutput = exports.ANSIColor = exports.ANSIFont = exports.ANSIStyle = void 0;
 		/**
 		* The counter used to generate identifiers.
 		*/
@@ -43,7 +43,7 @@ var require_ansi_output = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			ANSIStyle["Overlined"] = "ansiOverlined";
 			ANSIStyle["Superscript"] = "ansiSuperscript";
 			ANSIStyle["Subscript"] = "ansiSubscript";
-		})(ANSIStyle || (exports$1.ANSIStyle = ANSIStyle = {}));
+		})(ANSIStyle || (exports.ANSIStyle = ANSIStyle = {}));
 		/**
 		* ANSIFont enumeration.
 		*/
@@ -58,7 +58,7 @@ var require_ansi_output = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			ANSIFont["AlternativeFont7"] = "ansiAlternativeFont7";
 			ANSIFont["AlternativeFont8"] = "ansiAlternativeFont8";
 			ANSIFont["AlternativeFont9"] = "ansiAlternativeFont9";
-		})(ANSIFont || (exports$1.ANSIFont = ANSIFont = {}));
+		})(ANSIFont || (exports.ANSIFont = ANSIFont = {}));
 		/**
 		* SGRColor enumeration.
 		*/
@@ -80,7 +80,7 @@ var require_ansi_output = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			ANSIColor["BrightMagenta"] = "ansiBrightMagenta";
 			ANSIColor["BrightCyan"] = "ansiBrightCyan";
 			ANSIColor["BrightWhite"] = "ansiBrightWhite";
-		})(ANSIColor || (exports$1.ANSIColor = ANSIColor = {}));
+		})(ANSIColor || (exports.ANSIColor = ANSIColor = {}));
 		/**
 		* ANSIOutput class.
 		*/
@@ -578,7 +578,7 @@ var require_ansi_output = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				if (!SGRState.equivalent(sgrState, this._sgrState)) this._sgrState = sgrState;
 			}
 		}
-		exports$1.ANSIOutput = ANSIOutput;
+		exports.ANSIOutput = ANSIOutput;
 		/**
 		* SGRParam enumeration.
 		*/
@@ -1195,25 +1195,22 @@ var require_ansi_output = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 		};
 	});
 }));
-//#endregion
-//#region ../../packages/react/src/components/AnsiDisplayRich.module.css
+// ../../packages/react/src/components/AnsiDisplayRich.module.css
 var import_jsx_runtime = require_jsx_runtime();
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_compiler_runtime = require_compiler_runtime();
 var import_ansi_output = require_ansi_output();
 var AnsiDisplayRich_module_default = {
-	container: "_container_f35vk_1",
-	toggle: "_toggle_f35vk_1"
+	container: "_container_1unjd_1",
+	toggle: "_toggle_1unjd_1"
 };
-//#endregion
-//#region ../../packages/react/src/components/AnsiDisplayRich.tsx
+// ../../packages/react/src/components/AnsiDisplayRich.tsx
 var RichANSIDisplay = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(18);
+	const $ = (0, import_compiler_runtime.c)(16);
 	const { output, style, className } = t0;
-	const icons = useComponentIcons();
 	const [showRaw, setShowRaw] = (0, import_react.useState)(false);
 	let t1;
-	if ($[0] !== className || $[1] !== icons.code || $[2] !== output || $[3] !== showRaw || $[4] !== style) {
+	if ($[0] !== className || $[1] !== output || $[2] !== showRaw || $[3] !== style) {
 		const ansiOutput = new import_ansi_output.ANSIOutput();
 		ansiOutput.processOutput(output);
 		const getUniformBackgroundColor = () => {
@@ -1245,45 +1242,44 @@ var RichANSIDisplay = (t0) => {
 		const backgroundStyle = uniformBackgroundColor ? computeForegroundBackgroundColor(kBackground, uniformBackgroundColor) : {};
 		const firstOutputIndex = ansiOutput.outputLines.findIndex(_temp);
 		let t2;
-		if ($[6] !== className) {
+		if ($[5] !== className) {
 			t2 = clsx(AnsiDisplay_module_default.ansiDisplayContainer, AnsiDisplayRich_module_default.container, className);
-			$[6] = className;
-			$[7] = t2;
-		} else t2 = $[7];
+			$[5] = className;
+			$[6] = t2;
+		} else t2 = $[6];
 		let t3;
-		if ($[8] !== style) {
+		if ($[7] !== style) {
 			t3 = { ...style };
-			$[8] = style;
-			$[9] = t3;
-		} else t3 = $[9];
+			$[7] = style;
+			$[8] = t3;
+		} else t3 = $[8];
 		let t4;
-		if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
+		if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
 			t4 = clsx(AnsiDisplayRich_module_default.toggle, "text-size-smallest");
-			$[10] = t4;
-		} else t4 = $[10];
+			$[9] = t4;
+		} else t4 = $[9];
 		let t5;
-		if ($[11] !== showRaw) {
+		if ($[10] !== showRaw) {
 			t5 = () => setShowRaw(!showRaw);
-			$[11] = showRaw;
-			$[12] = t5;
-		} else t5 = $[12];
+			$[10] = showRaw;
+			$[11] = t5;
+		} else t5 = $[11];
 		const t6 = showRaw ? "Show rendered output" : "Show raw output";
 		let t7;
-		if ($[13] !== icons.code || $[14] !== showRaw || $[15] !== t5 || $[16] !== t6) {
+		if ($[12] !== showRaw || $[13] !== t5 || $[14] !== t6) {
 			t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
 				className: t4,
-				icon: icons.code,
+				icon: "code",
 				label: "",
 				latched: showRaw,
 				onClick: t5,
 				title: t6
 			});
-			$[13] = icons.code;
-			$[14] = showRaw;
-			$[15] = t5;
-			$[16] = t6;
-			$[17] = t7;
-		} else t7 = $[17];
+			$[12] = showRaw;
+			$[13] = t5;
+			$[14] = t6;
+			$[15] = t7;
+		} else t7 = $[15];
 		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t2,
 			style: t3,
@@ -1297,12 +1293,11 @@ var RichANSIDisplay = (t0) => {
 			})]
 		});
 		$[0] = className;
-		$[1] = icons.code;
-		$[2] = output;
-		$[3] = showRaw;
-		$[4] = style;
-		$[5] = t1;
-	} else t1 = $[5];
+		$[1] = output;
+		$[2] = showRaw;
+		$[3] = style;
+		$[4] = t1;
+	} else t1 = $[4];
 	return t1;
 };
 var kForeground = 0;
@@ -1428,7 +1423,6 @@ function _temp(line_0) {
 function _temp2(outputRun) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(OutputRun, { run: outputRun }, outputRun.id);
 }
-//#endregion
 export { RichANSIDisplay as default };
 
 //# sourceMappingURL=AnsiDisplayRich.js.map

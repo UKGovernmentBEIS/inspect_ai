@@ -8,7 +8,14 @@ from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.log_layout import eval_log_name
 
-from .._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
+from .._condense import condensed_sample_summary
+from .._log import (
+    EvalLog,
+    EvalSample,
+    EvalSampleReductions,
+    EvalSampleSummary,
+    EvalSpec,
+)
 from .recorder import Recorder
 
 logger = getLogger(__name__)
@@ -140,7 +147,15 @@ class FileRecorder(Recorder):
         eval_log = await cls._log_file_maybe_cached(location)
         if not eval_log.samples:
             return []
-        return [sample.summary() for sample in eval_log.samples]
+        return [condensed_sample_summary(sample) for sample in eval_log.samples]
+
+    @override
+    @classmethod
+    async def read_log_reductions(
+        cls, location: str
+    ) -> list[EvalSampleReductions] | None:
+        eval_log = await cls._log_file_maybe_cached(location)
+        return eval_log.reductions
 
     @classmethod
     async def _log_file_maybe_cached(cls, location: str) -> EvalLog:

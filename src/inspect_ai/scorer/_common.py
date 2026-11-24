@@ -128,11 +128,15 @@ def match_str(
         return answer, t in v
 
 
-# Sentence/enclosing punctuation only. Operator characters (~ < > = etc.)
-# are deliberately excluded: "<42", ">=42", "~42" express bounds or
-# approximations, not the value itself, and trimming them would grade a
-# hedge as the exact answer (false CORRECTs).
-_NUMERIC_PUNCTUATION_TRIM = "!?:;()[]{}'\"`"
+# Sentence/enclosing punctuation only, including the full-width forms of
+# those characters, the ideographic full stop ("42。", "（42）"), and the CJK
+# corner brackets used as quotes ("「42」", "『42』", "【42】"). Operator
+# characters (~ < > = etc.) are deliberately excluded: "<42", ">=42", "~42"
+# express bounds or approximations, not the value itself, and trimming them
+# would grade a hedge as the exact answer (false CORRECTs). U+FF0E
+# FULLWIDTH FULL STOP is excluded too: like ASCII ".", it is a decimal
+# separator ("．42" is 0.42).
+_NUMERIC_PUNCTUATION_TRIM = "!?:;()[]{}'\"`！？：；（）［］｛｝＇＂｀。「」『』【】"
 
 
 def _clean_numeric_word(s: str) -> str:
@@ -147,7 +151,7 @@ def _parse_number(s: str, *, trim_punctuation: bool = True) -> float | None:
     minus, vulgar fractions, superscripts, Chinese numerals, fullwidth
     digits, locale grouping). Rejects strings with trailing non-numeric
     content (so ``"5 some text"`` returns None). Sentence/enclosing
-    punctuation attached to the number ("42!", "(42)") is trimmed unless
+    punctuation attached to the number ("42!", "(42)", "42。") is trimmed unless
     ``trim_punctuation=False`` — the ``location="exact"`` path passes False
     so that exact stays actually exact. ``nan`` and ``inf`` also return None.
     """

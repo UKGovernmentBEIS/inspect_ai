@@ -39,7 +39,7 @@ def web_surfer() -> Agent:
         state.messages.append(
             ChatMessageSystem(
                 content="You are a tenacious web researcher that is "
-                + "expert at using a web browser to answer questions."
+                + "expert at using web search to answer questions."
             )
         )
 
@@ -196,6 +196,10 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
 
 To recover from a context window overflow (`stop_reason == "model_length"`), call `compact_input()` with `force=True`, which compacts regardless of the threshold, and generate again. The handler does not check that a forced compaction reduced the input. If the retry also overflows, truncate the messages or stop rather than forcing compaction again.
 
+The handler adds only messages it has not seen before. If your agent changes, removes or reorders messages already in the history, call `reset()` with the new prefix before the next `compact_input()`, so that the next input is built from the changed history.
+
+`reset()` clears the handler's state but does not remove summaries from your messages. A summary compaction (including `CompactionAuto`'s summary fallback) starts from the latest summary in the conversation, so before resetting, remove any summaries that the changed history invalidated.
+
 ::: {.callout-note}
 The returned `compact` handler maintains internal state for a single growing conversation history. Concurrent calls within the same conversation are safe, but do not share one handler across divergent message histories — the compacted result mixes them.
 :::
@@ -294,7 +298,7 @@ async def run_worker(name: str, worker: Agent, state: AgentState) -> AgentState:
         return await worker(state)
 ```
 
-Inside the scope, `memory()`, `bash_session()`, `web_browser()` and `skill()` use the scope as their default instance (`"@<name>"`), so each agent gets its own memory, shell, browser and skills. A tool given an explicit instance, such as `memory(instance="team")`, is still shared between agents. Nested scopes join their names with "/" (`"@outer/inner"`). Instances that start with "@" are reserved for scopes, so an explicit instance never shares state with a scope by accident. Tasks started inside the scope inherit it. Outside any scope, tools behave as before. Skill files are the exception: they live in the sandbox, so `skill()` tools that install into the same directory share them. A skill file that already exists with the same contents is not written again, and one that exists with different contents raises an error.
+Inside the scope, `memory()`, `bash_session()` and `skill()` use the scope as their default instance (`"@<name>"`), so each agent gets its own memory, shell and skills. A tool given an explicit instance, such as `memory(instance="team")`, is still shared between agents. Nested scopes join their names with "/" (`"@outer/inner"`). Instances that start with "@" are reserved for scopes, so an explicit instance never shares state with a scope by accident. Tasks started inside the scope inherit it. Outside any scope, tools behave as before. Skill files are the exception: they live in the sandbox, so `skill()` tools that install into the same directory share them. A skill file that already exists with the same contents is not written again, and one that exists with different contents raises an error.
 
 Custom tools and agents can follow the scope by passing `tool_state_instance(instance)` to `store_as()`. Library code that picks an instance name itself and wants it kept private to the scope can use `private_tool_instance(name)`, which returns `"<scope>#<name>"` inside a scope (for example `"@w-1#general"`) and `name` outside one.
 
@@ -350,7 +354,7 @@ supervisor = react(
     tools=[
         addition(), 
         handoff(web_surfer()), 
-        handoff(critic(model="openai/gpt-5-mini"))
+        handoff(critic(model="openai/gpt-6-luna"))
     ]
 )
 ```
@@ -423,6 +427,95 @@ There are two reasons that you might want to create spans:
 2.  The Inspect log viewer will create a visual delineation for the span, which will make it easier to see the flow of activity within the transcript.
 
 Spans are automatically created for sample initialisation, solvers, scorers, subtasks, tool calls, and agent execution.
+
+### Model Call Origins
+
+Each `ModelEvent` records where the call was made in its `origin` field. During the solve a call is `"agent"`, one of its conversation's agent turns, unless it is made by a tool, a compaction, an approver, a reviewer, MCP sampling, a sentinel or a scorer, which Inspect marks itself (`"tool"`, `"compaction"`, `"approval"`, `"review"`, `"sampling"`, `"sentinel"`, `"scorer"`). A scorer's calls are `"scorer"`, including those of an agent run inside it, and a sentinel does not check a scorer's tool calls. Any other call outside the solve, such as one made at sample init, is `"setup"`. A sentinel checks only agent turns at its generate stages, and the transcript timeline shows other calls as utility.
+
+When replaying an older log without `origin`, Inspect infers turns from the event span tree. A stored timeline passed to sentinel replay can group the resulting steps into conversations, but its branches and spans do not change which calls are inferred as turns. Recorded sentinel checks and human decisions are used only where the step id pairs with a model call's exact id. Checks without a matching call are skipped with a warning. Inference may differ from the turns observed by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside the replay contract.
+
+Replay reconstructs approval-derived human decisions only for logs from Inspect 0.3.277 onward; older or unversioned logs omit them and warn once when a selected human approver appears. A log is refused where the call an approval approved (its modified call, else the call it records) is not the call its `ToolEvent` records, unless a recorded sentinel modify changed the call again to the one the `ToolEvent` records. Inspect before 0.3.277 wrote such logs, including for a call an approver changed in place and approved without a modified call, and they are refused whatever version the header records, since a retried eval keeps its completed samples under a newer header. This includes an approved call whose tool records other arguments than it was given, such as `memory()` resolving a path. Replay such a transcript from its messages instead.
+
+Where one model response proposes several tool calls under one id (Mistral gives the id `"null"` to every call whose id the model omitted), replay pairs each execution with the proposed call that has its function. Where several calls have that function, it takes the one whose arguments match those the execution's approval records, or, where it has no approval and no sentinel modified it, those its `ToolEvent` records. Calls of one function that differ only in their arguments are interchangeable, since the steps take their arguments from the log. The exception is a call a sentinel modified that has no approval replay can rely on, whose `tool_call` step is built from the proposed call. Replay relies on an approval only in a log from Inspect 0.3.277 onward. This pairing needs a log that records each execution's id (`ToolEvent.execution_id`); in an older log, replay takes the last call proposed under the id.
+
+Replay skips a call's tool steps, with a warning naming the call, in four cases:
+
+- The model response proposed several calls under the call's id, and the rules above do not pick one.
+- A sentinel modified the call, and its `ToolEvent` records other arguments than the modify's. A tool can rewrite its arguments, as `memory()` does when it resolves a path. This applies whatever the call's id, and also where another sentinel decision outranked the modify.
+- A sentinel modified the call, another execution records the same call id (a shared `"null"`, a repeated id), and no approval records the call the sentinel was shown. That is a call with no approval replay can rely on, or one an approver modified. An approver's modify is recorded before the tool validates it (e.g. before `memory()` resolves a path).
+- The call ended in a parsing or approval error, has no recorded sentinel check, and the call its approval approved is not the one its `ToolEvent` records. It may have been refused before it ran, or its tool may have raised the error after running, so replay skips it instead of refusing the log.
+
+Where none of these applies, a call a sentinel modified that has no approval replay can rely on keeps its tool steps. Replay builds its `tool_call` step from the proposed call, or from an approver's change to it. A call an approver modified before the sentinel did also keeps its tool steps, and replay builds its `tool_call` step from the approver's call as the approval records it. Either can differ from the call the sentinel was shown, since the tool's validation can change the arguments (e.g. `memory()` resolves a path, validation fills a Pydantic default).
+
+Inspect logs have `origin` on every model call or on none. For a mixed-origin transcript, replay uses recorded classifications where present and infers calls without origins. It does not promise continuity across the mixed sequence.
+
+If two calls continue the same turn and no later call resolves the fork, replay leaves both calls to the existing prompt rules. The sample's final messages do not select a fork head.
+
+Without recorded origins, a failed call's input may leave an earlier fork unresolved, and a custom solver's own calls may be inferred as agent turns when its only agent is unwrapped.
+
+Replay joins each tool call to the model call that proposed it by the message id its `ToolEvent` records (`call_message_id`). Where a cached output gives several model calls that message id, it takes the latest of those model calls before the tool call, in the tool call's own conversation. In logs written before Inspect 0.3.290, which don't record it, it takes the latest model call that proposed the call's id instead. A tool step's id is its call id, but where an earlier execution's steps have that id (e.g. a retry), a later execution's steps are named by its `execution_id`.
+
+Sentinel event replay requires a log written by Inspect 0.3.100 or later. Earlier logs lack the `solvers` and `scorers` spans that separate the agent's work from scoring (and, before 0.3.94, native tool spans), so `steps_from_events()` raises an error rather than replaying them incorrectly. This includes samples that a retried eval carried over from such a log, whatever version its header records. Replay those logs from their messages instead. In supported logs, a spanless tool event can mark a call halted before execution and does not create tool steps.
+
+If your agent makes model calls that are part of the solve but are not the evaluated agent's turns, mark them with `model_origin()`. Use `"environment"` for the setup being evaluated against, such as an auditor model or a simulated user, and `"helper"` for a scaffold's own helper calls, such as its own summarizer:
+
+``` python
+from inspect_ai.model import get_model, model_origin
+
+with model_origin("environment"):
+    reply = await get_model(role="user").generate(messages)
+```
+
+An agent run inside the block keeps the block's kind, and a sentinel does not check the tool calls made within it. The marker is a context variable, so it reaches the calls made in the task that entered the block and in tasks that task starts while inside it, and no others. If the evaluated agent's calls are made from inside an environment block (for example, by an auditor's tool that generates the target's turn), they are marked as environment too, so make them outside the block.
+
+#### Bridged Agents
+
+For an agent run through an agent bridge (e.g. Claude Code with inspect_swe), replay shows each tool call as the model wrote it, and each result as the model next received it.
+
+The call's step comes right after the model call that wrote it, with that model call's input, tools and output message as the agent received it (`assistant_message`). The result's step comes right before the next request to the model that carries it, with the same model call's input, tools and message.
+
+These steps follow the conversation, not the checks a sentinel made live, so they can differ from what the sentinel was shown:
+
+| Case | What replay shows |
+|----|----|
+| A sentinel or approver rejected the call | The rejection, as the call's result |
+| A sentinel or approver modified the call | The call as the model wrote it |
+| A request filter rewrote the result | The rewritten result |
+| A host tool a sandbox bridge ran | The tool under the name the model used (e.g. `mcp__host__addition`) |
+| The bridge never handed the call to the agent (e.g. a token limit, or a rejected call in the same response) | The call, and whatever result the model next received |
+| The result never reached the model (e.g. a limit or a sentinel ended the sample) | The call, with no result |
+| The model gave more than one call in the agent's conversation the same id (e.g. the same call proposed again, as when a retry is answered from the model cache, or Mistral's `"null"`) | Each of those calls the agent received under that id, with no result |
+| The bridge handed the call over under a new id, as it does when the model reuses an id (e.g. Mistral's `"null"`) | The call under its new id, with its result, in the message the agent received |
+| The bridge handed the call over under a new id, and another call in the log uses that id (e.g. the model proposed the same call again under it) | The call, with no result |
+| The model proposed the call under an id the bridge had handed another call over under (e.g. the same call again), and the earlier call's result shows as new later (e.g. after compaction) | The call, possibly with the earlier call's result |
+| A call under the model's id gets no result in an agent run without its own agent span (e.g. the agent dropped the response to retry it), an agent in its own span makes a call under the same id, and a later run without its own span continues that agent's messages | The first call, possibly with the later call's result |
+
+Replay pairs each call with its result by the id the agent received the call under. Where the bridge gave a call a new id, the log records it (`agent_tool_call_ids`, see [Transcript](agent-bridge.qmd#transcript)), so calls the bridge renamed because the model reused an id (e.g. Mistral's `"null"`) show with their own results.
+
+Some calls still can't be paired. If the model gave two calls in the agent's conversation the same id, a result under that id can answer either call, so replay leaves each call the agent received under that id without one rather than risk showing another call's result. This is the same rule replay applies to logs that don't record the ids.
+
+A new id the bridge gives a call is made for that call alone. If another call in the log uses it (e.g. the model proposed the same call again under it, or another agent's model was told the id), that call's result can reach the conversation through messages taken up from another agent, so replay shows the renamed call without a result.
+
+If a request or response filter returned a copy of the model's response, the log doesn't record the ids the agent received, so replay reads that response's calls by the model's ids.
+
+In logs written before Inspect 0.3.292, which don't record the ids the agent received, replay reads every call by the model's id:
+
+| Case | What replay shows |
+|----|----|
+| The model gave more than one call in the agent's conversation the same id (e.g. Mistral's `"null"`) | Each of those calls, with no result |
+| The bridge handed the call over under a new id | The model call's message with the reused id (live's has the new call id and message id) |
+| The model reused an id from the messages the agent started with | The call, with no result |
+| An agent run without its own agent span continues messages from an agent that had one, after other bridged calls outside any agent span, and the model reuses an id from those messages | The call, possibly with that id's earlier result |
+
+In logs written before Inspect 0.3.292, replay shows the tool calls of an agent that used the Google API without a sentinel, but not their results.
+
+Replay doesn't attach the live sentinel's checks of bridged calls to these steps. A recorded check has the call id, but not the model call that proposed the call. Where a call id is reused, or an agent takes up messages from another conversation, the log alone can't reliably say which model call a check belongs to. Comparing live checks with replayed steps is left to downstream tools (e.g. inspect_sentinel).
+
+A person's decision at a live check still reaches the later steps of the conversation.
+
+A bridged call's steps are named by its model call's `uuid` and the call id (`<uuid>/<call id>`), so they never take the id of a native tool call. If one model response has two calls with the same id, replay skips both and logs a warning.
+
+This replay needs a log from Inspect 0.3.277 or later, which marks the model calls a bridge makes for its agent (`ModelEvent.requested_model`). In older logs, a bridged agent's calls have no tool steps.
 
 ## Parallelism
 

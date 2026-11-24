@@ -43,6 +43,7 @@ from ._compaction import (
     CompactionAuto,
     CompactionEdit,
     CompactionNative,
+    CompactionResult,
     CompactionStrategy,
     CompactionSummary,
     CompactionTrim,
@@ -70,6 +71,7 @@ from ._model import (
     ModelResponseFilter,
     ModelRoles,
     RetryDecision,
+    active_model_event_id,
     compute_model_cost,
     get_model,
     model_roles,
@@ -100,6 +102,7 @@ from ._openai_convert import (
     model_output_from_openai,
     model_output_from_openai_responses,
 )
+from ._origin import model_origin
 from ._prompt import user_prompt
 from ._providers.providers import *
 from ._registry import modelapi
@@ -162,6 +165,7 @@ __all__ = [
     "compaction",
     "Compact",
     "CompactionStrategy",
+    "CompactionResult",
     "CompactionAuto",
     "CompactionEdit",
     "CompactionSummary",
@@ -179,6 +183,7 @@ __all__ = [
     "ModelRoles",
     "RetryDecision",
     "record_response_headers",
+    "active_model_event_id",
     "ServedModelUsage",
     "ModelConfig",
     "ModelFallback",
@@ -207,6 +212,7 @@ __all__ = [
     "set_model_cost",
     "set_model_info",
     "model_roles",
+    "model_origin",
     "ModelInfo",
     "modelapi",
     "Citation",

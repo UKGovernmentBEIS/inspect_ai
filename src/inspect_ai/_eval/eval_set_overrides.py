@@ -461,6 +461,7 @@ NOT_OVERRIDABLE: dict[str, str] = {
     "bundle_overwrite": "eval-set bundling, which a worker skips",
     "embed_viewer": "eval-set bundling, which a worker skips",
     "log_dir_allow_dirty": "eval-set log directory bookkeeping, which a worker skips",
+    "sentinel_proxy": "experimental, and not yet part of the runner protocol",
 }
 """Every `eval_set()` parameter that is deliberately not overridable, and why.
 
@@ -582,12 +583,10 @@ def merge_eval_set_overrides(
         value = getattr(worker, name)
         if value is None:
             continue
-        if name == "generate_config" and isinstance(value, BaseModel):
+        if name == "generate_config" and isinstance(value, GenerateConfig):
             existing = getattr(run, name)
-            if isinstance(existing, BaseModel):
-                value = existing.model_copy(
-                    update=value.model_dump(exclude_unset=True, exclude_none=True)
-                )
+            if isinstance(existing, GenerateConfig):
+                value = existing.merge(value)
         setattr(merged, name, value)
     return merged
 

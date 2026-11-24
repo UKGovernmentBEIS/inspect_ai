@@ -1,7 +1,7 @@
 import json
 from logging import getLogger
 from time import time
-from typing import Any, Iterable, Sequence, Set, cast
+from typing import Any, Iterable, Sequence, cast
 
 from openai.types.responses import (
     Response,
@@ -70,11 +70,11 @@ from inspect_ai._util.content import (
     ContentText,
     ContentToolUse,
 )
-from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.json import jsonable_python, to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.model._call_tools import parse_tool_call
+from inspect_ai.model._call_tools import parse_tool_call, repeated_call_ids
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -86,7 +86,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
-    parse_content_with_internal,
+    parse_content_with_internal_blocks,
 )
 from inspect_ai.model._model import Model, ModelName, tools_for_tool_choice
 from inspect_ai.model._model_output import StopReason
@@ -417,9 +417,6 @@ async def inspect_responses_api_request_impl(
 
     debug_log("INSPECT OUTPUT", output.message)
 
-    # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
-
     # return response
     response = Response(
         id=output.message.id or uuid(),
@@ -436,6 +433,20 @@ async def inspect_responses_api_request_impl(
         usage=responses_model_usage(output.usage),
     )
     debug_log("SCAFFOLD RESPONSE", response)
+    transported = messages_from_responses_input(
+        [
+            cast(
+                ResponseInputItemParam,
+                item.model_dump(mode="json", exclude_none=True),
+            )
+            for item in response.output
+        ],
+        tools,
+        model_name,
+    )
+
+    # update state if we have more messages than the last generation
+    await bridge._track_state(messages, output, [transported])
 
     return response
 
@@ -628,20 +639,20 @@ def _harvest_tool_namespaces(
             tool_namespaces[inner_name] = ns_name
 
 
-def _seed_function_call_namespace(param: ResponseFunctionToolCallParam) -> None:
+def _seed_function_call_namespace(param: ResponseFunctionToolCallParam) -> bool:
     """Cache an inbound namespaced function call for verbatim replay to the real model.
 
     Only seeds when the call carries a `namespace` and isn't already cached
     (in-sample generations are cached by the provider with richer detail, so we
-    never clobber those).
+    never clobber those). Returns whether it seeded.
     """
     namespace = param.get("namespace")
     if not namespace:
-        return
+        return False
     call_id = param["call_id"]
     cache = assistant_internal().tool_calls
     if call_id in cache:
-        return
+        return False
     cache[call_id] = ResponseFunctionToolCallParam(
         type="function_call",
         call_id=call_id,
@@ -649,20 +660,21 @@ def _seed_function_call_namespace(param: ResponseFunctionToolCallParam) -> None:
         arguments=param["arguments"],
         namespace=namespace,
     )
+    return True
 
 
-def _seed_tool_search_call(call_id: str, arguments: dict[str, Any]) -> None:
+def _seed_tool_search_call(call_id: str, arguments: dict[str, Any]) -> bool:
     """Cache an inbound tool_search call so cross-process replay stays native.
 
     Within a sample the provider already caches the parsed call; seeding only
     matters when replaying scaffold-provided history in a fresh process (e.g.
     codex --resume), so the result replays as a native tool_search_output rather
     than a function_call_output. The `call_id in cache` guard ensures we never
-    clobber a richer in-sample entry.
+    clobber a richer in-sample entry. Returns whether it seeded.
     """
     cache = assistant_internal().tool_calls
     if call_id in cache:
-        return
+        return False
     cache[call_id] = ToolSearchCall(
         type="tool_search_call",
         id=call_id,
@@ -671,6 +683,7 @@ def _seed_tool_search_call(call_id: str, arguments: dict[str, Any]) -> None:
         execution="client",
         status="completed",
     )
+    return True
 
 
 def debug_log(caption: str, o: Any) -> None:
@@ -1048,8 +1061,11 @@ def messages_from_responses_input(
 
         if len(pending_assistant_message_params) > 0:
             content: list[Content] = []
+            content_groups: list[tuple[str | None, list[Content]]] = []
             tool_calls: list[ToolCall] = []
+            seeded: set[str] = set()
             for param in pending_assistant_message_params:
+                content_start = len(content)
                 # convert simple assistant message to standard format
                 if is_simple_assistant_message(param):
                     if isinstance(param["content"], str):
@@ -1062,36 +1078,33 @@ def messages_from_responses_input(
                         param_content = param["content"]
                     for c in param_content:
                         if c["type"] == "input_text":
-                            asst_content, content_internal = (
-                                parse_content_with_internal(
-                                    c["text"], CONTENT_INTERNAL_TAG
+                            for block in parse_content_with_internal_blocks(
+                                c["text"], CONTENT_INTERNAL_TAG
+                            ):
+                                asst_content, content_internal = block
+                                # Check for serialized <think> tags and restore as ContentReasoning
+                                remaining_text, reasoning_capsule = (
+                                    parse_content_with_reasoning(asst_content)
                                 )
-                            )
-                            # Check for serialized <think> tags and restore as ContentReasoning
-                            remaining_text, reasoning_capsule = (
-                                parse_content_with_reasoning(asst_content)
-                            )
-                            if reasoning_capsule is not None:
-                                content.append(
-                                    ContentReasoning(
-                                        reasoning=reasoning_capsule.reasoning,
-                                        signature=reasoning_capsule.signature,
-                                        redacted=reasoning_capsule.redacted,
-                                        summary=reasoning_capsule.summary,
-                                        # Preserve the stashed encrypted_content
-                                        # blob so it can be replayed next turn.
-                                        internal=reasoning_capsule.internal,
+                                if reasoning_capsule is not None:
+                                    content.append(
+                                        ContentReasoning(
+                                            reasoning=reasoning_capsule.reasoning,
+                                            signature=reasoning_capsule.signature,
+                                            redacted=reasoning_capsule.redacted,
+                                            summary=reasoning_capsule.summary,
+                                            # Preserve the stashed encrypted_content
+                                            # blob so it can be replayed next turn.
+                                            internal=reasoning_capsule.internal,
+                                        )
                                     )
-                                )
-                                asst_content = remaining_text
-                            if (
-                                asst_content
-                            ):  # Only add text if there's remaining content
-                                content.append(
-                                    ContentText(
-                                        text=asst_content, internal=content_internal
+                                    asst_content = remaining_text
+                                if asst_content or content_internal is not None:
+                                    content.append(
+                                        ContentText(
+                                            text=asst_content, internal=content_internal
+                                        )
                                     )
-                                )
                         elif c["type"] == "input_image" and c["image_url"] is not None:
                             content.append(
                                 ContentImage(image=c["image_url"], detail=c["detail"])
@@ -1109,53 +1122,53 @@ def messages_from_responses_input(
                     for output in param["content"]:
                         text = str(output.get("text", output.get("refusal", "")))
 
-                        asst_content, content_internal = parse_content_with_internal(
+                        for block in parse_content_with_internal_blocks(
                             text, CONTENT_INTERNAL_TAG
-                        )
-
-                        if is_response_output_text(output):
-                            # Check for serialized <think> tags and restore as ContentReasoning
-                            remaining_text, reasoning_capsule = (
-                                parse_content_with_reasoning(asst_content)
-                            )
-                            if reasoning_capsule is not None:
-                                content.append(
-                                    ContentReasoning(
-                                        reasoning=reasoning_capsule.reasoning,
-                                        signature=reasoning_capsule.signature,
-                                        redacted=reasoning_capsule.redacted,
-                                        summary=reasoning_capsule.summary,
-                                        # Preserve the stashed encrypted_content
-                                        # blob so it can be replayed next turn.
-                                        internal=reasoning_capsule.internal,
-                                    )
+                        ):
+                            asst_content, content_internal = block
+                            if is_response_output_text(output):
+                                # Check for serialized <think> tags and restore as ContentReasoning
+                                remaining_text, reasoning_capsule = (
+                                    parse_content_with_reasoning(asst_content)
                                 )
-                                asst_content = remaining_text
-                            if (
-                                asst_content
-                            ):  # Only add text if there's remaining content
+                                if reasoning_capsule is not None:
+                                    content.append(
+                                        ContentReasoning(
+                                            reasoning=reasoning_capsule.reasoning,
+                                            signature=reasoning_capsule.signature,
+                                            redacted=reasoning_capsule.redacted,
+                                            summary=reasoning_capsule.summary,
+                                            # Preserve the stashed encrypted_content
+                                            # blob so it can be replayed next turn.
+                                            internal=reasoning_capsule.internal,
+                                        )
+                                    )
+                                    asst_content = remaining_text
+                                if asst_content or content_internal is not None:
+                                    content.append(
+                                        ContentText(
+                                            text=asst_content,
+                                            internal=content_internal,
+                                            citations=(
+                                                [
+                                                    to_inspect_citation(annotation)
+                                                    for annotation in output[
+                                                        "annotations"
+                                                    ]
+                                                ]
+                                                if output.get("annotations", None)
+                                                else None
+                                            ),
+                                        )
+                                    )
+                            elif is_response_output_refusal(output):
                                 content.append(
                                     ContentText(
                                         text=asst_content,
+                                        refusal=True,
                                         internal=content_internal,
-                                        citations=(
-                                            [
-                                                to_inspect_citation(annotation)
-                                                for annotation in output["annotations"]
-                                            ]
-                                            if output.get("annotations", None)
-                                            else None
-                                        ),
                                     )
                                 )
-                        elif is_response_output_refusal(output):
-                            content.append(
-                                ContentText(
-                                    text=output["refusal"],
-                                    refusal=True,
-                                    internal=content_internal,
-                                )
-                            )
 
                 elif is_response_function_tool_call(param):
                     function_calls_by_id[param["call_id"]] = param["name"]
@@ -1166,7 +1179,8 @@ def messages_from_responses_input(
                     # checkpoint restore) arrives with an empty cache, so the
                     # namespace would otherwise be dropped. Seed the cache here
                     # when missing so the existing warm-path replay carries it.
-                    _seed_function_call_namespace(param)
+                    if _seed_function_call_namespace(param):
+                        seeded.add(param["call_id"])
                     tool_calls.append(
                         parse_tool_call(
                             id=param["call_id"],
@@ -1186,7 +1200,12 @@ def messages_from_responses_input(
                     tool_calls.append(tool_call)
                 elif is_response_computer_tool_call(param):
                     ensure_id(param)
-                    computer_call = ResponseComputerToolCall.model_validate(param)
+                    # The API writes a call without `pending_safety_checks`, and
+                    # a call replays without `status`. Neither is read here, and
+                    # the item is left as it came.
+                    computer_call = ResponseComputerToolCall.model_validate(
+                        {"pending_safety_checks": [], "status": "completed", **param}
+                    )
                     tool_calls.append(
                         tool_call_from_openai_computer_tool_call(computer_call)
                     )
@@ -1198,7 +1217,8 @@ def messages_from_responses_input(
                     function_calls_by_id[tool_call.id] = TOOL_SEARCH_NAME
                     # seed the provider cache so replay (incl. fresh-process
                     # resume) emits native tool_search items, not function calls
-                    _seed_tool_search_call(tool_call.id, tool_call.arguments)
+                    if _seed_tool_search_call(tool_call.id, tool_call.arguments):
+                        seeded.add(tool_call.id)
                     tool_calls.append(tool_call)
 
                 elif is_response_reasoning_item(param):
@@ -1231,8 +1251,21 @@ def messages_from_responses_input(
                         f"Unexpected assitant message type: {param['type']}"
                     )
 
+                item_id = param.get("id")
+                content_groups.append(
+                    (
+                        item_id if isinstance(item_id, str) else None,
+                        content[content_start:],
+                    )
+                )
+
             # some scaffolds (e.g. codex) can present duplicate assistant content
-            content = filter_duplicate_assistant_content(content)
+            content = filter_duplicate_assistant_content(content_groups)
+
+            # an id the message repeats keeps no seeded item, as the provider's
+            # parse keeps none, so no call replays another's
+            for call_id in repeated_call_ids(tool_calls) & seeded:
+                assistant_internal().tool_calls.pop(call_id, None)
 
             messages.append(
                 ChatMessageAssistant(
@@ -1379,10 +1412,8 @@ def messages_from_responses_input(
             pass
         else:
             # ImageGenerationCall
-            # ResponseCodeInterpreterToolCallParam
             # McpApprovalRequest
             # McpApprovalResponse
-            # ResponseCustomToolCallParam
             # LocalShellCall
             # LocalShellCallOutput
             # ResponseFileSearchToolCallParam
@@ -1420,21 +1451,39 @@ def _tool_content_from_openai_tool_output(
         return content
 
 
-# some scaffolds (e.g. codex) can present duplciate assistant messages
 def filter_duplicate_assistant_content(
-    input: list[Content],
+    input: list[tuple[str | None, list[Content]]],
 ) -> list[Content]:
-    filtered_input: list[Content] = []
-    messages_ids: Set[str] = set()
-    for c in reversed(input):
-        if c.type == "text" and c.internal:
-            internal = to_json_str_safe(c.internal)
-            if internal not in messages_ids:
-                filtered_input.append(c)
-                messages_ids.add(internal)
-        else:
-            filtered_input.append(c)
-    return list(reversed(filtered_input))
+    """Remove copied input items while preserving distinct output items.
+
+    Output item IDs distinguish repeated text runs separated by reasoning or
+    tool use. Remove copies of the complete sequence before comparing individual
+    items so that copies with only some IDs retain their original content order.
+    """
+    if all(group for _, group in input) and any(
+        c.type == "text" and c.internal for _, group in input for c in group
+    ):
+        group_keys = [
+            (item_id, tuple(json.dumps(jsonable_python(c)) for c in group))
+            for item_id, group in input
+        ]
+        for size in range(1, len(input) // 2 + 1):
+            if len(input) % size == 0 and group_keys == group_keys[:size] * (
+                len(input) // size
+            ):
+                input = input[:size]
+                break
+
+    filtered_groups: list[list[Content]] = []
+    seen_groups: set[tuple[str, ...]] = set()
+    for item_id, group in reversed(input):
+        if item_id is not None:
+            key = (item_id or "", *(json.dumps(jsonable_python(c)) for c in group))
+            if key in seen_groups:
+                continue
+            seen_groups.add(key)
+        filtered_groups.append(group)
+    return [c for group in reversed(filtered_groups) for c in group]
 
 
 output_item_adapter = TypeAdapter(list[ResponseOutputItem])
@@ -1453,7 +1502,10 @@ def responses_output_items_from_assistant_message(
         if isinstance(message.content, str)
         else message.content
     )
+    pending_text_message: ResponseOutputMessage | None = None
     for content in message_content:
+        if not isinstance(content, ContentText):
+            pending_text_message = None
         if isinstance(content, ContentText):
             # check for content.internal
             if content.internal:
@@ -1464,24 +1516,26 @@ def responses_output_items_from_assistant_message(
             # apply internal to content
             content_text = f"{content.text}{internal}"
 
-            output.append(
-                ResponseOutputMessage(
+            output_content = (
+                ResponseOutputRefusal(type="refusal", refusal=content_text)
+                if content.refusal
+                else ResponseOutputText(
+                    type="output_text",
+                    text=content_text,
+                    annotations=[],
+                    logprobs=[],
+                )
+            )
+            if pending_text_message is None:
+                pending_text_message = ResponseOutputMessage(
                     type="message",
                     id=uuid(),
                     role="assistant",
-                    content=[
-                        ResponseOutputRefusal(type="refusal", refusal=content_text)
-                        if content.refusal
-                        else ResponseOutputText(
-                            type="output_text",
-                            text=content_text,
-                            annotations=[],
-                            logprobs=[],
-                        )
-                    ],
+                    content=[],
                     status="completed",
                 )
-            )
+                output.append(pending_text_message)
+            pending_text_message.content.append(output_content)
         elif isinstance(content, ContentReasoning):
             # Serialize reasoning as <think> tag with full attributes (signature, redacted, summary)
             # so it travels through the scaffold as opaque text and can be restored on the way back
