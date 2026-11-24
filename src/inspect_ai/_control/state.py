@@ -162,7 +162,8 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         retries occurred), and the running ``refusals`` / ``http_retries``
         tallies for this eval's samples. A task that has not registered yet
         has status ``queued`` and no ``completed_at``; with no earlier
-        attempt under its id it has ``attempts`` 0 and zero sample counts.
+        registered attempt under its id it has zero sample counts and its
+        ``attempts`` counts the attempts that failed before registering.
     """
     # Lazy imports to avoid pulling the full log/event/scorer chain at
     # module-import time (control server module is imported during
@@ -378,7 +379,7 @@ def _queued_summary(queued: "QueuedTask", started_at: float) -> dict[str, Any]:
         "completed_at": None,
         **_queued_pause_fields(queued),
         "resolving": None,
-        "attempts": 0,
+        "attempts": record.prior_attempts,
         "epochs": queued.epochs,
         "samples": {
             "total": 0,

@@ -2337,7 +2337,7 @@ async def test_queued_task_is_listed_and_cancelled_through_the_control_channel(
         async def next_tasks(self) -> list[Task] | None:
             self.calls += 1
             if self.calls == 1:
-                enqueue_task(_task("B"))
+                enqueue_task(Task(dataset=[Sample(input="x")], name="B", epochs=3))
                 row = (await ctl_tasks())["B"]
                 seen["queued_row"] = row
                 task_id = row["task_id"]
@@ -2365,6 +2365,7 @@ async def test_queued_task_is_listed_and_cancelled_through_the_control_channel(
     assert queued["attempts"] == 0
     assert queued["log_location"] == ""
     assert queued["samples"]["total"] == 0
+    assert queued["epochs"] == 3
     assert seen["pause"][0] == 404
     assert seen["score"][0] == 409
     assert "has not started" in seen["score"][1]["error"]
@@ -2388,6 +2389,7 @@ async def test_queued_task_is_listed_and_cancelled_through_the_control_channel(
     assert finished["completed_at"] is not None
     assert finished["samples"]["total"] == 0
     assert finished["task_id"] == queued["task_id"]
+    assert finished["epochs"] == 3
     assert seen["finished"] == [(200, _FINISHED)] * 4
 
     by_task = {log.eval.task: log for log in logs}

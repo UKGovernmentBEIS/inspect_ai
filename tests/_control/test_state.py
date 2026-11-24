@@ -1194,6 +1194,30 @@ async def test_task_list_keeps_a_task_whose_handoff_completes_during_deferred_re
     assert listed[0]["status"] == ("completed" if handoff == "end" else "running")
 
 
+async def test_queued_retry_counts_attempts_that_failed_before_registering() -> None:
+    """A task retried after failing before it registered lists that attempt."""
+    from inspect_ai._control.eval_state import reset_run_registries
+    from inspect_ai._control.state import current_eval_summaries
+
+    try:
+        queue, record = _queued_record()
+        fresh = await current_eval_summaries(0.0)
+        # the dispatcher starts an attempt, which fails in startup and retries
+        queue.pending.remove(record)
+        record.phase = "attempt"
+        queue.requeue(record)
+        retried = await current_eval_summaries(0.0)
+    finally:
+        reset_run_registries()
+
+    def row(rows: list[dict[str, Any]]) -> tuple[str, int]:
+        [match] = [r for r in rows if r["task_id"] == record.task_id]
+        return match["status"], match["attempts"]
+
+    assert row(fresh) == ("queued", 0)
+    assert row(retried) == ("queued", 1)
+
+
 async def test_queued_task_with_earlier_round_reads_queued_and_current_pause() -> None:
     """A queued task with an earlier round's row is not shown as finished.
 

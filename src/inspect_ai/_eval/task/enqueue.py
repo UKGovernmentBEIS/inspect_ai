@@ -74,6 +74,8 @@ class TaskRecord:
     retries_remaining: int
     phase: TaskPhase = "queued"
     reached: TaskReached = "added"
+    prior_attempts: int = 0
+    """Attempts that ended and were retried."""
     abort_requested: bool = False
     """Cancelled while queued: the dispatcher starts an attempt that aborts at once."""
     attempt_cancel: "TaskCancel | None" = None
@@ -83,6 +85,14 @@ class TaskRecord:
     log: "EvalLog | None" = None
     """The last attempt's log; the final log once the record has ended."""
     ended: anyio.Event = field(default_factory=anyio.Event)
+
+    @property
+    def epochs(self) -> int:
+        """The task's planned epoch count."""
+        from inspect_ai._util.constants import DEFAULT_EPOCHS
+
+        assert self.options is not None, "the record has not ended"
+        return self.options.config.epochs or DEFAULT_EPOCHS
 
     def on_row_opened(self) -> None:
         """An attempt opened the task's display row."""
@@ -285,6 +295,7 @@ class RunQueue:
 
     def requeue(self, record: TaskRecord) -> None:
         """Put a record whose attempt failed back at the end of the queue."""
+        record.prior_attempts += 1
         record.phase = "queued"
         record.attempt_cancel = None
         record.attempt_scope = None
@@ -372,6 +383,7 @@ def _register_finished(record: TaskRecord, log: "EvalLog | None") -> None:
         model=record.model,
         log_location=log.location if log is not None else "",
         run_id=spec.run_id,
+        epochs=record.epochs,
     )
 
 

@@ -144,7 +144,7 @@ These are the same events the TUI footer tallies, but attributed per eval rather
 
 A task is finished exactly when `completed_at` is non-null; `status` (`running` / `completed`) is derived from it. Don't infer completion from sample counts — a cancelled or errored eval finishes with `completed < total`.
 
-A task that has not started yet (waiting for a `max_tasks` slot, or still opening its log) is listed with `status` `queued` and a null `completed_at`. It has `attempts` 0 and no samples, unless an earlier eval set round ran it under the same task id, in which case its row keeps that round's attempts and counts. A task that ends without starting, for example one cancelled while queued, stays listed as finished with no samples.
+A task that has not started yet (waiting for a `max_tasks` slot, or still opening its log) is listed with `status` `queued` and a null `completed_at`. It has no samples, and `attempts` counts its attempts that failed before it started (0 for a task that has not run). If an earlier eval set round ran it under the same task id, its row keeps that round's attempts and counts instead. A task that ends without starting, for example one cancelled while queued, stays listed as finished with no samples and no log.
 
 ## Selecting a Task
 

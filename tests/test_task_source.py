@@ -12,7 +12,7 @@ import subprocess
 import sys
 import weakref
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Literal
 
 import anyio
 import pytest
@@ -988,6 +988,75 @@ async def test_ctl_cancel_of_attempt_before_it_registers_aborts_it(
     assert b.error is not None
     assert "Task cancelled by user (abort)" in b.error.message
     assert [log.eval.task for log in source.reports].count("B") == 1
+
+
+@pytest.mark.parametrize(
+    "log_format,flushed", [("eval", True), ("json", True), ("eval", False)]
+)
+@pytest.mark.parametrize("verb", ["cancel", "drain"])
+async def test_ctl_cancel_after_log_init_before_register_leaves_no_log(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    verb: str,
+    log_format: Literal["eval", "json"],
+    flushed: bool,
+) -> None:
+    # B's log is initialised (and, when `flushed`, log_start() has written its
+    # header) but B has not registered: B is still listed as queued, and a
+    # cancel or drain aborts it without leaving a `started` log behind or
+    # naming a log file it does not have
+    log_start = TaskLogger.log_start
+    started = anyio.Event()
+    release = anyio.Event()
+    seen: dict[str, Any] = {}
+
+    async def held_log_start(self: TaskLogger, *args: Any, **kwargs: Any) -> None:
+        if flushed:
+            await log_start(self, *args, **kwargs)
+        if self.eval.task == "B":
+            started.set()
+            with anyio.CancelScope(shield=True):
+                await release.wait()
+            # the pending abort lands here
+            await anyio.lowlevel.checkpoint()
+        if not flushed:
+            await log_start(self, *args, **kwargs)
+
+    async def cancel_b() -> None:
+        with anyio.fail_after(10):
+            await started.wait()
+        try:
+            row = (await ctl_tasks())["B"]
+            seen["status"] = row["status"]
+            seen["files_before"] = list(tmp_path.glob("*_B_*"))
+            seen["first"] = await ctl_task_directive(row["task_id"], verb)
+        finally:
+            release.set()
+        with anyio.fail_after(10):
+            await _record("B").ended.wait()
+        seen["finished_row"] = (await ctl_tasks())["B"]
+
+    monkeypatch.setattr(TaskLogger, "log_start", held_log_start)
+    source = _WaitForReports([_hook_task("A", cancel_b), _hook_task("B", _noop)], 2)
+    init_display_type("none")
+    logs = await eval_async(
+        source,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        log_format=log_format,
+        max_tasks=2,
+        task_retry_attempts=1,
+    )
+    assert seen["status"] == "queued"
+    assert len(seen["files_before"]) == (1 if flushed else 0)
+    assert list(tmp_path.glob("*_B_*")) == []
+    status, body = seen["first"]
+    assert status == 200 and body["task_queued"] is True
+    assert seen["finished_row"]["status"] == "completed"
+    assert seen["finished_row"]["log_location"] == ""
+    [b] = [log for log in logs if log.eval.task == "B"]
+    assert b.status == "error"
+    assert b.location == ""
 
 
 async def test_ctl_cancel_while_unregistered_attempt_prepares_retry_ends_it(

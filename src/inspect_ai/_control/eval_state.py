@@ -516,6 +516,7 @@ def register_completed_eval(
     total_tokens: int = 0,
     total_messages: int = 0,
     deferred_sample_stats: DeferredStatsProvider | None = None,
+    epochs: int = 1,
 ) -> EvalState:
     """Register an eval that has already finished.
 
@@ -553,6 +554,7 @@ def register_completed_eval(
             total_tokens=total_tokens,
             total_messages=total_messages,
             deferred_sample_stats=deferred_sample_stats,
+            epochs=epochs,
         )
         _eval_states[eval_id] = state
         return state

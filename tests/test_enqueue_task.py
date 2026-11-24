@@ -50,7 +50,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import _registry
 from inspect_ai.dataset import Sample
 from inspect_ai.hooks import Hooks, RunStart, hooks
-from inspect_ai.log import EvalLog, EvalSample, read_eval_log
+from inspect_ai.log import EvalConfig, EvalLog, EvalSample, read_eval_log
 from inspect_ai.model import ChatMessageUser, GenerateConfig, get_model
 from inspect_ai.model._generate_config import active_generate_config
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
@@ -1048,7 +1048,8 @@ async def test_ending_a_record_twice_lowers_the_task_total_once(
                         eval=types.SimpleNamespace(
                             eval_id="e", task="t", task_id=task.id, run_id="run"
                         )
-                    )
+                    ),
+                    config=EvalConfig(),
                 ),
             )
             for task in resolved

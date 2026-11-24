@@ -39,11 +39,7 @@ class QueuedTask:
     @property
     def epochs(self) -> int:
         """The task's planned epoch count."""
-        from inspect_ai._util.constants import DEFAULT_EPOCHS
-
-        options = self.record.options
-        assert options is not None, "a listed task has not ended"
-        return options.config.epochs or DEFAULT_EPOCHS
+        return self.record.epochs
 
 
 _queued_tasks: dict[str, QueuedTask] = {}
