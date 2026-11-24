@@ -216,6 +216,21 @@ keeps the call id and each later one is named by its `execution_id`. The
 `human_decisions` of later steps keep the call id, as live records it. A log
 without the ids replays as before.
 
+While a sentinel is active, each tool result also names its execution
+(`ChatMessageTool.execution_id`): `execute_tools()` sets the `ToolEvent`'s on
+every result it builds, and the bridge sets, in every request, the execution
+its `tool_result` step would record on each result under a call id it handed
+out once, to one target; any other result gets `None`. A person's `human()`
+decision at a tool stage records the call it judged
+(`SentinelEvent.call_digest`), and the host publishes a `ReviewedResult`
+binding the decision to the execution's result only where the call that ran
+is the call decided on: a native execution's `ToolEvent` call, a host tool's
+run of the handout, or, for a tool the scaffold runs, the handed call when no
+instance modified it (`observed=False`, since the host never saw it run). A
+bridged record is published after the checks of the first request carrying
+one result of its execution. Replay rebuilds the records from the same
+events and messages (`_sentinel/_provenance.py`).
+
 A `_Proposal` is referenced only by its grants, so pairing state lives in the
 bounded grant store (1024 entries) and is dropped with the last of its grants,
 consumed or evicted. A later proposal that reuses a call id is a new

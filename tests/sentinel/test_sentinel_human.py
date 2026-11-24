@@ -176,19 +176,36 @@ def answered(answer: HumanAnswer) -> Decision:
 # kept for later steps as inspect_sentinel's human() decisions are
 @protocol(name="inspect_sentinel/human")
 def h_ask(
-    stage: str, choices: list[str], escalated: str | None = None
+    stage: str,
+    choices: list[str],
+    escalated: str | None = None,
+    only: dict[str, Any] | None = None,
+    times: int | None = None,
 ) -> ProtocolGroup:
-    """Ask the person at `stage`, after an escalation that explains `escalated`."""
+    """Ask the person at `stage`, after an escalation that explains `escalated`; at a tool stage only about a call with the arguments `only`, if given, and at most `times` times, if given."""
     escalated_by = escalation(escalated) if escalated is not None else ()
+    asked: list[str] = []
+
+    def asks(step: BeforeToolCall | AfterToolCall) -> bool:
+        if only is not None and step.call.arguments != only:
+            return False
+        if times is not None and len(asked) >= times:
+            return False
+        asked.append(step.call.id)
+        return True
 
     async def tool_call(
         context: Context, step: BeforeToolCall, escalations: Escalations
     ) -> Decision | None:
+        if not asks(step):
+            return None
         return answered(await context.host.ask_human(step, escalated_by, choices))
 
     async def tool_result(
         context: Context, step: AfterToolCall, escalations: Escalations
     ) -> Decision | None:
+        if not asks(step):
+            return None
         return answered(await context.host.ask_human(step, escalated_by, choices))
 
     async def model_input(

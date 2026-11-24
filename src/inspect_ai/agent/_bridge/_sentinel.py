@@ -122,6 +122,7 @@ STEP_DIGEST_EXCLUDED = {
     "history": "the conversation's record when the check runs, which grows with "
     "every step, so a replay would never be the same step",
     "human_decisions": "as `history`",
+    "reviewed_results": "as `history`",
     "agent_messages": "None in every bridge check (`bridge_request`)",
 }
 
@@ -695,6 +696,29 @@ class _Handouts:
                 self.handed[call_id] = record._replace(
                     forms=(*record.forms, *forms.added)
                 )
+
+    def tag(self, input: Sequence[ChatMessage]) -> None:
+        """Set the execution each result of a request is of (`ChatMessageTool.execution_id`), replacing any the message held.
+
+        A result under an id the bridge handed out once is of that handout's
+        run of the one target it resolved to (`target_execution_id`): the
+        execution its `tool_result` check records. Any other result is of no
+        known execution: an id handed out more than once or shared by calls
+        of one response (`_Handed.ambiguous`), one whose handout resolved to
+        several bridged tools, and one the bridge never handed out.
+        """
+        for message in input:
+            if isinstance(message, ChatMessageTool):
+                message.execution_id = self._execution(message.tool_call_id or "")
+
+    def _execution(self, call_id: str) -> str | None:
+        handed = self.handed.get(call_id)
+        if handed is None or handed.ambiguous or handed.execution_id is None:
+            return None
+        targets = {target.target for target in handed.targets}
+        if len(targets) != 1:
+            return None
+        return target_execution_id(handed.execution_id, targets.pop())
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
         claimed = _Claimed([], [])
@@ -1555,8 +1579,18 @@ async def sentinel_tool_call(
 
 
 async def sentinel_tool_results(bridge: AgentBridge, input: list[ChatMessage]) -> None:
-    if not checks_bridged_results():
+    """Check a request's results, each tagged with its execution first (`_Handouts.tag`), then publish the `human()` decisions whose results it carries (`place_bridged_reviews`)."""
+    if not checks_tool_calls():
         return
+    bridge._handouts.tag(input)
+    if checks_bridged_results():
+        await _check_results(bridge, input)
+    from inspect_ai._sentinel._dispatch import place_bridged_reviews
+
+    place_bridged_reviews(input)
+
+
+async def _check_results(bridge: AgentBridge, input: list[ChatMessage]) -> None:
     result_checks = bridge._handouts
     while True:
         claimed = result_checks.claim(input)

@@ -36,7 +36,8 @@ class ChatMessageBase(BaseModel):
     message shows: its role, text and other content, tool calls and tool result.
     A string and the same text as a content list are the same content, and
     empty text parts don't count (an empty string equals an empty list);
-    provider-internal fields, `source`, `model` and `metadata` don't count.
+    provider-internal fields, `source`, `model`, `metadata` and a tool
+    message's `execution_id` don't count.
 
     When Inspect edits a message (removing reasoning or a tool result for a
     model call, compaction, a handoff, react's submit, a response filter or
@@ -217,6 +218,14 @@ class ChatMessageTool(ChatMessageBase):
 
     error: ToolCallError | None = Field(default=None)
     """Error which occurred during tool call."""
+
+    execution_id: str | None = Field(default=None)
+    """The tool execution this message is the result of: the `execution_id` of the `ToolEvent` that ran it, or, in an agent bridge, of the handout whose result the scaffold reported (`SentinelEvent.execution_id`).
+
+    Set by Inspect while a sentinel is active, on the result messages `execute_tools()` builds and on the results an agent bridge receives for a call it handed out once. Copies of the message keep it. `None` otherwise, including where the execution is unknown, and in logs written before this field. Like `metadata`, it is not part of what the message shows (see `id`).
+
+    Experimental: not yet a stable API; may change without notice.
+    """
 
     @property
     def tool_error(self) -> str | None:

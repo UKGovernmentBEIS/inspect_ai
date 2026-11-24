@@ -8,8 +8,11 @@ import json
 from bisect import bisect_left, bisect_right
 from collections import Counter
 from collections.abc import Callable, Iterator, Mapping, Sequence
+from dataclasses import fields
+from functools import cache
 from typing import (
     TYPE_CHECKING,
+    Any,
     Literal,
     NamedTuple,
     Protocol,
@@ -33,6 +36,8 @@ from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
+
+from ._provenance import ReviewedResult, Reviews
 
 if TYPE_CHECKING:
     from inspect_sentinel import (
@@ -111,11 +116,11 @@ def view(items: list[T]) -> ListView[T]:
     return ListView(items, len(items))
 
 
-_EXCLUDED = {"id", "source", "metadata"}
+_EXCLUDED = {"id", "source", "metadata", "execution_id"}
 
 
 def content_key(message: ChatMessage) -> str:
-    """A SHA-256 digest of what the model is sent of a message: all but its id, source and metadata.
+    """A SHA-256 digest of what the model is sent of a message: all but its id, source, metadata and a tool message's `execution_id`.
 
     A match decides that a message is not new, and the agent controls its messages, so the key is collision-resistant. It is encoded as the log is (`logged_json()`), so None, NaN and the infinities are told apart. Text with lone surrogates, which UTF-8 JSON cannot encode, is hashed from JSON with them escaped. A message that cannot be serialized at all (such as a numpy array in its tool arguments) is keyed by identity, so it matches only itself: a rebuilt copy of it is new, and an edit made to it in place is not seen.
     """
@@ -234,7 +239,7 @@ class _Sent:
 
 
 class ConversationRecord:
-    """What a step reads of its conversation: what it has sent (`history`) and the `human()` decisions published so far.
+    """What a step reads of its conversation: what it has sent (`history`), the `human()` decisions published so far, and the results they cover (`reviews`).
 
     Each is a list only ever appended to, and a step holds a view of it cut at its length when the step is built.
     """
@@ -245,6 +250,7 @@ class ConversationRecord:
         # message that any one input sent to the model held
         self._sent_to: dict[str, Counter[str]] = {}
         self._decisions: list["HumanDecision"] = []
+        self.reviews = Reviews()
 
     def record(self, input: Sequence[ChatMessage], model: str) -> None:
         """Record an agent turn's input as sent, by the conversation and to `model`."""
@@ -271,6 +277,22 @@ class ConversationRecord:
     def human_decisions(self) -> ListView["HumanDecision"]:
         """The `human()` decisions published so far: a step's own, or a parallel step's still running, are not among them."""
         return view(self._decisions)
+
+    def reviewed_results(self) -> ListView[ReviewedResult]:
+        """The results the published `human()` decisions cover, published so far (`ReviewedResult`)."""
+        return view(self.reviews.published)
+
+
+@cache
+def _has_reviewed_results(step: type) -> bool:
+    return any(f.name == "reviewed_results" for f in fields(step))
+
+
+def _reviewed(step: type, record: ConversationRecord) -> dict[str, Any]:
+    """The `reviewed_results` argument of a step, where the installed inspect_sentinel's step has the field."""
+    if _has_reviewed_results(step):
+        return {"reviewed_results": record.reviewed_results()}
+    return {}
 
 
 class Producer(NamedTuple):
@@ -354,6 +376,7 @@ def before_generate(
         agent_messages=agent_messages,
         history=record.history(),
         human_decisions=record.human_decisions(),
+        **_reviewed(BeforeGenerate, record),
         tools=tools,
         tool_choice=tool_choice,
         config=config,
@@ -381,6 +404,7 @@ def after_generate(
         agent_messages=agent_messages,
         history=record.history(),
         human_decisions=record.human_decisions(),
+        **_reviewed(AfterGenerate, record),
         tools=tools,
         tool_choice=tool_choice,
         config=config,
@@ -424,6 +448,7 @@ def before_tool_call(
         agent_messages=agent_messages,
         history=record.history(),
         human_decisions=record.human_decisions(),
+        **_reviewed(BeforeToolCall, record),
         tools=producer.tools if producer is not None else None,
         tool_choice=producer.tool_choice if producer is not None else None,
     )
@@ -473,6 +498,7 @@ def after_tool_call(
         agent_messages=agent_messages,
         history=record.history(),
         human_decisions=record.human_decisions(),
+        **_reviewed(AfterToolCall, record),
         tools=producer.tools if producer is not None else None,
         tool_choice=producer.tool_choice if producer is not None else None,
         truncated=truncated,

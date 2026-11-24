@@ -274,6 +274,9 @@ async def _execute_tools_impl(
         tdefs = await tool_defs(tools)
         if watch is not None:
             _report_handoffs(watch, tool_calls, tdefs)
+        # while a sentinel checks the calls, each result names its execution
+        # (`ChatMessageTool.execution_id`)
+        tag_results = checks_tool_calls()
 
         async def call_tool_task(
             call: ToolCall,
@@ -379,6 +382,7 @@ async def _execute_tools_impl(
                 tool_call_id=call.id,
                 function=call.function,
                 error=tool_error,
+                execution_id=event.execution_id if tag_results else None,
             )
             execution_result = ExecuteToolsResult(
                 messages=[tool_message] + messages,
@@ -405,6 +409,28 @@ async def _execute_tools_impl(
                     tool_exception = _sentinel_exception(ex)
                 except Exception as ex:
                     tool_exception = ex
+                # a tool that raised a parsing or approval error reads in the
+                # log as a call refused before it ran, so it completes nothing
+                if (
+                    tool_exception is None
+                    and tag_results
+                    and result_event.execution_id is not None
+                    and (
+                        tool_error is None
+                        or tool_error.type not in ("parsing", "approval")
+                    )
+                ):
+                    from inspect_ai._sentinel._dispatch import (
+                        sentinel_tool_completed,
+                    )
+                    from inspect_ai._sentinel._provenance import tool_event_call
+
+                    sentinel_tool_completed(
+                        result_event.execution_id,
+                        tool_event_call(result_event),
+                        message.id,
+                        tool_message,
+                    )
 
             # yield message and event
             async with send_stream:
@@ -500,6 +526,7 @@ async def _execute_tools_impl(
                         f"Not executed: an earlier {call.function} action in "
                         "this turn failed.",
                     ),
+                    execution_id=event.execution_id if tag_results else None,
                 )
                 skipped_event = ToolEvent(
                     id=call.id,
@@ -662,6 +689,7 @@ async def _execute_tools_impl(
                         error=ToolCallError(
                             "timeout", "Command timed out before completing."
                         ),
+                        execution_id=event.execution_id if tag_results else None,
                     )
                     op_result_event = ToolEvent(
                         id=call.id,
@@ -782,6 +810,7 @@ async def _execute_tools_impl(
                             "Tool call cancelled because a parallel sibling "
                             "tool call raised an exception.",
                         ),
+                        execution_id=event.execution_id if tag_results else None,
                     )
                     cancellation_event = ToolEvent(
                         id=call.id,

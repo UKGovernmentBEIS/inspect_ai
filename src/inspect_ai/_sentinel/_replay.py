@@ -42,6 +42,7 @@ from inspect_ai.tool._tool_call import (
 from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 from ._conversation import SpanConversations
+from ._provenance import BridgedReviews, Reviews, tool_event_call
 from ._scope import BRIDGE_CHECK_SPAN, is_agent_turn
 from ._steps import (
     ConversationRecord,
@@ -126,6 +127,8 @@ def steps_from_events(
     - Both are named `<model call uuid>/<call id>`, by the model call whose output has the call: after a retried generate, its last attempt, where the model steps take the first attempt's `uuid`.
 
     A bridge's recorded checks (in spans named `sentinel_bridge`), approvals and host `ToolEvent`s are not paired with these steps, so a check's recorded `human()` answers are not attached to them. A `human()` decision at such a check, and a person's approval, still reach the later steps of the conversation, as live; that includes the `tool_result` step of the checked result, which comes after its check. A call a native `ToolEvent` ran (a request filter's own agent generates under the bridge's request) keeps its native steps. Calls sharing an id in one bridged response are skipped, with a warning.
+
+    Where the installed inspect_sentinel's steps have `reviewed_results`, each step gets the results the published `human()` decisions cover (`ReviewedResult`), rebuilt as live built them: a `tool_result` decision when its step settles, from the decision's `SentinelEvent` (`execution_id`, `call_digest`) and the step's result; a `tool_call` decision, or a `model_output` decision about the turn proposing the call, when the execution's `ToolEvent` completes and its call has the decided call's digest; and an agent bridge's decision after the steps of the first later bridged request whose input holds one tool message naming the execution (`ChatMessageTool.execution_id`), unless the host ran another call for it. A log without `call_digest` (before Inspect 0.3.293) has none. In a log from 0.3.293 or later with a sentinel, a native result step's message records its `ToolEvent`'s execution, and a logged copy under the event's message id that names another is not taken for it.
 
     A transcript Scout imported from another source (`eval_info` is None) replays from its events where Scout records which model calls its messages come from (`messages_from`): its turns are inferred as for a log without origins, and its tool steps come from its messages, each assistant message joined by its id to the turn whose output it is, which gives the steps that turn's input, tools and conversation; a message no one turn made is placed after the last message before it that one did, with no input. A call under an id an earlier call in the messages has is skipped, with a warning, as step ids are unique in a sample. Its tool events are not read: importers record them without the model's call ids.
 
@@ -805,6 +808,11 @@ class _Driver:
         # the sentinel spans whose invocation raised or was cancelled
         self.failed: set[str] = set()
         self.records: dict[str, ConversationRecord] = {}
+        # the bridge's human() decisions awaiting their results, and its host
+        # tools' runs (`BridgedReviews`)
+        self.bridged_reviews = BridgedReviews()
+        # whether the log's tool messages record their execution
+        self._tags_results: bool | None = None
         self.compactions: dict[str, int] = {}
         self.actions: list[_Action] = []
         self.seq = 0
@@ -1138,6 +1146,10 @@ class _Driver:
             },
         )
         self._settle_unbuilt_checks()
+        for entry in calls:
+            self._completed(entry)
+        for index, event in bridged:
+            self._place_bridged_reviews(index, event)
 
         # the second pass: in log order, each step at its cut
         for action in sorted(self.actions, key=lambda a: (a.position, a.phase, a.seq)):
@@ -2291,7 +2303,7 @@ class _Driver:
             conversation = built.conversation
         else:
             conversation = self._skipped_conversation(span, events)
-        kept: list["HumanDecision"] = []
+        kept: list[tuple["HumanDecision", SentinelEvent]] = []
         for event in events:
             if event.kind != "decision" or event.action is None:
                 continue
@@ -2304,11 +2316,97 @@ class _Driver:
                 else:
                     decision = _unbuilt_tool_decision(event, reported)
                 if decision is not None:
-                    kept.append(decision)
+                    kept.append((decision, event))
             elif event.status == "superseded":
-                kept = [k for k in kept if not supersedes(event.path, reported, k)]
+                kept = [k for k in kept if not supersedes(event.path, reported, k[0])]
         if kept:
-            self._record(conversation).publish(kept)
+            record = self._record(conversation)
+            record.publish([decision for decision, _ in kept])
+            self._keep_reviews(span, built, conversation, record.reviews, kept)
+
+    def _keep_reviews(
+        self,
+        span: str,
+        built: "Step | None",
+        conversation: str,
+        reviews: Reviews,
+        kept: list[tuple["HumanDecision", SentinelEvent]],
+    ) -> None:
+        """Keep a settled step's published `human()` decisions for the results they cover, as live does (`_dispatch._keep_reviews`), from the execution and call digest each decision's event records."""
+        from inspect_sentinel import AfterGenerate, AfterToolCall
+
+        bridge = self.begins[span][1].name == BRIDGE_CHECK_SPAN
+        for decision, event in kept:
+            if bridge:
+                self.bridged_reviews.hold(
+                    event.execution_id,
+                    decision,
+                    event.call_digest,
+                    conversation,
+                    self._modify_reported(span),
+                )
+            else:
+                reviews.keep(
+                    decision,
+                    execution_id=event.execution_id,
+                    digest=event.call_digest,
+                    result=built.result if isinstance(built, AfterToolCall) else None,
+                    turn=built.output.message
+                    if isinstance(built, AfterGenerate) and built.output.choices
+                    else None,
+                )
+
+    def _completed(self, call: _Call) -> None:
+        """A native execution's completion, after its `tool_result` step settled, as live publishes the results its earlier decisions cover (`Reviews.complete`); for a bridge's host tool, its run (`BridgedReviews.ran`).
+
+        Live completes an execution whose tool ran without raising, as a `ToolEvent` that is not pending, not failed and not refused (`parsing` or `approval`) shows, and whose own review did not fail.
+        """
+        event = call.event
+        tool_span = call.tool_span
+        end = self.ends.get(tool_span) if tool_span is not None else None
+        point = end if end is not None else call.index
+        if _bridged(event):
+            self._at(point, 3, partial(self.bridged_reviews.ran, event))
+            return
+        execution_id = event.execution_id
+        if (
+            execution_id is None
+            or event.pending
+            or event.failed
+            or (event.error is not None and event.error.type in ("parsing", "approval"))
+            or call.after_span in self.failed
+        ):
+            return
+        after_span = call.after_span
+        if after_span is not None and after_span in self.ends:
+            position, phase = self.ends[after_span], 2
+        else:
+            position, phase = point, 3
+        reviews = self._record(call.conversation).reviews
+        ran = tool_event_call(event)
+        message_id = event.call_message_id
+
+        def complete() -> None:
+            reviews.complete(execution_id, ran, message_id, self._result(event))
+
+        self._at(position, phase, complete)
+
+    def _place_bridged_reviews(self, index: int, event: ModelEvent) -> None:
+        """Publish the bridge's held decisions whose results a bridged request carries, after its results' steps and before its `model_input` step, as live does after the request's checks (`BridgedReviews.place`)."""
+        input_span = (
+            self.step_spans.get(("model_input", event.uuid))
+            if event.uuid is not None
+            else None
+        )
+        at = (self.begins[input_span][0], 0) if input_span is not None else (index, 0)
+        input = self._input(event)
+        self._at_point(
+            at,
+            self._next_seq(),
+            lambda: self.bridged_reviews.place(
+                input, lambda conversation: self._record(conversation).reviews
+            ),
+        )
 
     # ---- helpers
 
@@ -2363,8 +2461,9 @@ class _Driver:
     def _result(self, event: ToolEvent) -> ChatMessageTool:
         """The result message the call produced, as its `tool_result` step showed it live.
 
-        Code can edit a tool message in place or replace it under its id, also before it is first sent, so the log may hold no copy with the event's result. Then the message is rebuilt from the event under the event's message id, never taken from an edited copy.
+        Code can edit a tool message in place or replace it under its id, also before it is first sent, so the log may hold no copy with the event's result. Then the message is rebuilt from the event under the event's message id, never taken from an edited copy. In a log whose tool messages record their execution, a copy must record the event's, and a rebuilt message records it.
         """
+        execution_id = event.execution_id if self._log_tags_results() else None
         if event.message_id is not None:
             result = jsonable_python(event.result)
             found = next(
@@ -2374,6 +2473,7 @@ class _Driver:
                     if isinstance(message, ChatMessageTool)
                     and message.tool_call_id == event.id
                     and message.error == event.error
+                    and message.execution_id == execution_id
                     and json_equal(jsonable_python(message.content), result)
                 ),
                 None,
@@ -2386,7 +2486,16 @@ class _Driver:
             tool_call_id=event.id,
             function=event.function,
             error=event.error,
+            execution_id=execution_id,
         )
+
+    def _log_tags_results(self) -> bool:
+        """Whether the log's tool results record the execution each is of (`ChatMessageTool.execution_id`): Inspect sets it on those it builds while a sentinel is active, since 0.3.293."""
+        if self._tags_results is None:
+            self._tags_results = self.eval_info.sentinel and _records_result_executions(
+                self.eval_info.inspect_ai_version
+            )
+        return self._tags_results
 
     def _prefilled_by_id(
         self, event: ToolEvent
@@ -2649,6 +2758,23 @@ def _records_approval_decisions(version: str | None) -> bool:
     if release != [0, 3, 277]:
         return release > [0, 3, 277]
     return not parsed["pre"] and (not parsed["dev"] or bool(parsed["post"]))
+
+
+def _records_result_executions(version: str | None) -> bool:
+    """Whether this Inspect version records a tool result's execution (`ChatMessageTool.execution_id`): later than 0.3.292, its development versions included."""
+    if version is None:
+        return False
+    parsed = _VERSION.fullmatch(version.strip())
+    if parsed is None:
+        return False
+    if int(parsed["epoch"] or 0) > 0:
+        return True
+    release = [int(part) for part in parsed["release"].split(".")]
+    while len(release) > 1 and release[-1] == 0:
+        release.pop()
+    if release != [0, 3, 292]:
+        return release > [0, 3, 292]
+    return bool(parsed["post"])
 
 
 def _event_key(event: Event) -> object:

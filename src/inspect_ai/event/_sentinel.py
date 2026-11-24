@@ -71,6 +71,14 @@ class SentinelEvent(BaseEvent):
     Experimental: not yet a stable API; may change without notice.
     """
 
+    call_digest: str | None = Field(default=None)
+    """For a person's decision through `human()` at a tool stage, the call the step judged, as `sha256:<hex>` over its id, function and arguments as canonical JSON. Replay compares it with the call that ran, to tell whether a decision made before a call ran is about the call that ran.
+
+    `None` on every other event, for a call whose arguments are not JSON, and in logs written before this field.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
     conversation: str
     """The agent conversation this step belongs to."""
 
@@ -177,5 +185,13 @@ class SentinelEvent(BaseEvent):
         if self.message is not None and not (has_decision and self.action == "reject"):
             raise ValueError(
                 "message is set only on a reported or superseded reject decision."
+            )
+        if self.call_digest is not None and not (
+            self.kind == "decision"
+            and self.status == "reported"
+            and self.stage in ("tool_call", "tool_result")
+        ):
+            raise ValueError(
+                "call_digest is set only on a reported decision at a tool stage."
             )
         return self
