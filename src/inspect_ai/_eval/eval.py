@@ -818,11 +818,15 @@ async def _eval_async_inner(
     if _eval_async_running:
         raise RuntimeError("Multiple concurrent calls to eval_async are not allowed.")
 
-    _eval_async_running = True
-
-    # if we are called outside of eval() then set display type to "plain"
+    # if we are called outside of eval() then set display type to "plain".
+    # This and applying a display type restored by an earlier eval call come
+    # before the running flag, which blocks display type changes.
     if not display_type_initialized():
         init_display_type("plain")
+    else:
+        display_type()
+
+    _eval_async_running = True
 
     # resolve model and task args
     model_args = resolve_args(model_args)

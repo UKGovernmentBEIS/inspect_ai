@@ -975,6 +975,39 @@ def test_eval_display_does_not_carry_to_later_evals(
     assert log.eval.config.max_samples is None
 
 
+@pytest.mark.parametrize("first", ["trace", "process_type"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_eval_display_does_not_carry_to_later_eval_async(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    backend: str,
+    first: str,
+) -> None:
+    from inspect_ai.util._display import init_display_type
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    types: list[DisplayType] = []
+    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
+    log_dir = str(tmp_path)
+
+    if first == "trace":
+        eval(task, model="mockllm/model", trace=True, log_dir=log_dir)
+        expected: DisplayType = "plain"
+    else:
+        # as `inspect --display none` sets it
+        init_display_type("none")
+        eval(task, model="mockllm/model", display="rich", log_dir=log_dir)
+        expected = "none"
+
+    [log] = anyio.run(
+        functools.partial(eval_async, task, model="mockllm/model", log_dir=log_dir),
+        backend=backend,
+    )
+    assert types[1] == expected
+    assert log.eval.config.max_samples is None
+
+
 def test_eval_retry_display_does_not_carry_to_later_evals(
     fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
