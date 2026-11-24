@@ -430,11 +430,15 @@ data (`read_member` in `snapshot.py`, `consistency.py`):
   object: `storage_error` when it kept changing, `invalid_response` when
   consistent bytes kept failing to parse ("Structured errors in the
   mode").
-- **Per-sample reads use current key sets.** Before answering, a per-sample
-  read refreshes every current member's view as a list read does, and fails
-  with a member's error rather than answer while any member that might hold
-  the key is unread. It never returns a match, or `not_found`, from a key
-  set that is not current (`_locate` in `samples.py`).
+- **Per-sample reads use the invocation's member views.** Before
+  answering, a per-sample read reads every current member's view as a list
+  read does, and fails with a member's error rather than answer while any
+  member that might hold the key is unread (`_locate` in `samples.py`). A
+  member's view is as fresh as the rules above make it: only a member with
+  a manifest has its log's version checked against the plan the index
+  read. For any other running member, a flush after the index read can go
+  unseen within the invocation, so a key flushed then can read `pending` or
+  `not_found` until the next invocation.
 
 ### Task rows
 
@@ -505,7 +509,7 @@ from live:
 ### Per-sample reads
 
 `sample show`, `events`, `messages` and `store` resolve the task, locate the
-key with fresh views ("Reading a member consistently") and act on the
+key in the members' views ("Reading a member consistently") and act on the
 selection (`samples.py`):
 
 - **`log`**: the sample member is read with the field exclusions the live
