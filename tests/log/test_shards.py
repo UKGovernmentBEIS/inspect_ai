@@ -786,6 +786,49 @@ def failing() -> Any:
     _FAILING.clear()
 
 
+def test_a_recovered_merged_log_does_not_merge_the_shards_beside_it(
+    tmp_path: Path,
+) -> None:
+    import shutil
+
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0")
+    merge_eval_log_shards(merged, _task())
+    # a copy of the merged log under the recovered name: its shards
+    # directory is <name>-recovered.shards/, which does not exist
+    recovered = f"{tmp_path}/{NAME}-recovered.eval"
+    shutil.copyfile(merged, recovered)
+    before = _files(str(tmp_path))
+    result = merge_eval_log_shards(recovered, _task())
+    assert not result.written and result.log.status == "success"
+    assert _files(str(tmp_path)) == before
+
+    log = read_eval_log(recovered)
+    log.status = "started"
+    write_eval_log(log, recovered)
+    before = _files(str(tmp_path))
+    with pytest.raises(ShardSetIncomplete):
+        merge_eval_log_shards(recovered, _task())
+    result = merge_eval_log_shards(recovered, _task(), allow_incomplete=True)
+    assert not result.written and result.log.status == "started"
+    assert _files(str(tmp_path)) == before
+
+
+def test_a_recovered_name_merges_its_own_shards_directory(tmp_path: Path) -> None:
+    import shutil
+
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0")
+    recovered_shards = f"{tmp_path}/{NAME}-recovered.shards"
+    shutil.copytree(shards, recovered_shards)
+    before = _files(shards)
+    result = merge_eval_log_shards(recovered_shards, _task())
+    assert result.written and result.log.status == "success"
+    assert result.log.location == f"{tmp_path}/{NAME}-recovered.eval"
+    assert not os.path.exists(merged)
+    assert _files(shards) == before
+
+
 @pytest.mark.parametrize(
     "kwargs,message",
     [
