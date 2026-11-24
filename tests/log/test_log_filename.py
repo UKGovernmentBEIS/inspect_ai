@@ -12,7 +12,7 @@ from inspect_ai._util.log_layout import (
     eval_log_name,
     eval_shards_dir,
     log_basename,
-    merged_log_candidates_for_shard,
+    merged_log_for_shard,
     merged_log_task_id,
 )
 from inspect_ai.log import EvalConfig, EvalDataset, EvalSpec
@@ -103,6 +103,7 @@ def test_eval_log_name_matches_eval_location() -> None:
         ("file:///run.eval", "file:///run.shards"),
         ("s3://bucket/logs/run.eval", "s3://bucket/logs/run.shards"),
         ("s3://bucket/run.eval", "s3://bucket/run.shards"),
+        ("/logs/run-recovered.eval", "/logs/run-recovered.shards"),
     ],
 )
 def test_eval_shards_dir_round_trip(log: str, shards: str) -> None:
@@ -128,28 +129,6 @@ def test_eval_shards_dir_round_trip_backslash_paths(log: str, shards: str) -> No
 
 
 @pytest.mark.parametrize(
-    "recovered,shards,log",
-    [
-        ("/logs/run-recovered.eval", "/logs/run.shards", "/logs/run.eval"),
-        ("run-recovered.eval", "run.shards", "run.eval"),
-        (
-            "file:///tmp/logs/run-recovered.eval",
-            "file:///tmp/logs/run.shards",
-            "file:///tmp/logs/run.eval",
-        ),
-        (
-            "s3://bucket/logs/run-recovered.eval",
-            "s3://bucket/logs/run.shards",
-            "s3://bucket/logs/run.eval",
-        ),
-    ],
-)
-def test_eval_shards_dir_recovered_log(recovered: str, shards: str, log: str) -> None:
-    assert eval_shards_dir(recovered) == shards
-    assert eval_log_for_shards_dir(shards) == log
-
-
-@pytest.mark.parametrize(
     "path", ["/logs/run", "/logs/run.checkpoints", "s3://bucket/logs/.shards"]
 )
 def test_eval_log_for_shards_dir_rejects_other_dirs(path: str) -> None:
@@ -166,11 +145,8 @@ def test_eval_log_for_shards_dir_rejects_other_dirs(path: str) -> None:
         ("C:\\logs\\run.shards\\0\\a.eval", "C:\\logs\\run"),
     ],
 )
-def test_merged_log_candidates_for_shard(shard: str, merged: str) -> None:
-    assert merged_log_candidates_for_shard(shard) == [
-        f"{merged}.eval",
-        f"{merged}-recovered.eval",
-    ]
+def test_merged_log_for_shard(shard: str, merged: str) -> None:
+    assert merged_log_for_shard(shard) == f"{merged}.eval"
 
 
 @pytest.mark.parametrize(
@@ -183,8 +159,8 @@ def test_merged_log_candidates_for_shard(shard: str, merged: str) -> None:
         "/logs/shards/0/a.eval",
     ],
 )
-def test_merged_log_candidates_for_non_shard(path: str) -> None:
-    assert merged_log_candidates_for_shard(path) is None
+def test_merged_log_for_non_shard(path: str) -> None:
+    assert merged_log_for_shard(path) is None
 
 
 @pytest.mark.parametrize(

@@ -20,7 +20,7 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import EVAL_LOG_FORMAT
 from inspect_ai._util.file import FileInfo, local_path
-from inspect_ai._util.log_layout import _SHARDS_SUFFIX, log_basename
+from inspect_ai._util.log_layout import _SHARDS_SUFFIX, merged_log_name
 from inspect_ai.log._file import is_log_file
 from inspect_ai.log._shards._walk import (
     AttemptSortKey,
@@ -75,9 +75,8 @@ class ShardSetFiles(NamedTuple):
     """The current (newest) attempt of each shard directory, in shard order.
     Older attempts are superseded and not read."""
 
-    merged: list[LogFile]
-    """The merged logs beside the companion (``<name>.eval`` and
-    ``<name>-recovered.eval``), newest first. Only the newest is read."""
+    merged: LogFile | None
+    """The merged log ``<name>.eval`` beside the companion, if any."""
 
     stray: list[StrayFile]
     """Logs and directories in the companion that are not shard attempts."""
@@ -107,9 +106,9 @@ async def walk_log_dir(
     With ``shard_sets`` (the default), the first ``<name>.shards/``
     directory on each path below ``root`` is a shard set: its shards and
     stray logs come from the shared shard-set walk, and the merged log beside
-    it (``<name>.eval`` or ``<name>-recovered.eval``) belongs to it rather
-    than being an ordinary log. A companion with no shard attempt is not a shard set, and its merged
-    log is an ordinary log. Nothing in a companion below what the shard-set
+    it (``<name>.eval``) belongs to it rather than being an ordinary log. A
+    companion with no shard attempt is not a shard set, and its merged log is
+    an ordinary log. Nothing in a companion below what the shard-set
     walk lists is walked, so a log nested below a ``<k>/`` is not listed.
     Without it, every ``*.shards/`` is an ordinary directory and every log
     an ordinary log (``task list --shards``).
@@ -144,11 +143,9 @@ async def walk_log_dir(
             elif is_log_file(name, [".json"]):
                 json_logs.append(info.name)
         companions = [d for d in listing.dirs if find_sets and _is_companion(d)]
-        by_basename: dict[str, list[LogFile]] = {}
-        for f in files:
-            by_basename.setdefault(log_basename(f.name), []).append(f)
-        merged = {c: by_basename.get(_set_name(c), []) for c in companions}
-        claimed = {f.location for logs in merged.values() for f in logs}
+        by_name = {merged_log_name(f.name): f for f in files}
+        merged = {c: by_name.get(_set_name(c)) for c in companions}
+        claimed = {f.location for f in merged.values() if f is not None}
         eval_files.extend(f for f in files if f.location not in claimed)
         subdirs = [d for d in listing.dirs if d not in merged and _descend(basename(d))]
         await tg_collect(
@@ -156,7 +153,7 @@ async def walk_log_dir(
             + [functools.partial(visit_companion, c, merged[c]) for c in companions]
         )
 
-    async def visit_companion(companion: str, merged: list[LogFile]) -> None:
+    async def visit_companion(companion: str, merged: LogFile | None) -> None:
         listing = await list_shard_set(fs, companion, limiter=limiter)
         members = [_member(shard) for shard in listing.shards if shard.attempts]
         if members:
@@ -165,12 +162,13 @@ async def walk_log_dir(
                     location=companion,
                     path=_relative(root, companion),
                     members=members,
-                    merged=sorted(merged, key=attempt_order, reverse=True),
+                    merged=merged,
                     stray=listing.stray,
                 )
             )
         else:
-            eval_files.extend(merged)
+            if merged is not None:
+                eval_files.append(merged)
             stray.extend(listing.stray)
 
     await visit(root, True, shard_sets)

@@ -15,7 +15,7 @@ from inspect_ai._util.file import FileInfo, basename, to_uri
 from inspect_ai._util.log_layout import (
     eval_log_for_shards_dir,
     eval_shards_dir,
-    log_basename,
+    merged_log_name,
 )
 from inspect_ai.log._log import EvalLog, EvalSampleSummary, EvalShardEntry
 from inspect_ai.log._recorders.chunked.format import classify_sample_shape
@@ -111,8 +111,7 @@ def merge_eval_log_shards(
     Args:
         log: The merged log `<dir>/<name>.eval`, or its shards directory
             `<dir>/<name>.shards`, as a local path, `file://` URI or `s3://`
-            URL. Other storage is refused, as is a `<name>-recovered.eval`
-            path. A local path does not expand `~`.
+            URL. Other storage is refused. A local path does not expand `~`.
         task: The task the shards ran, built as it was passed to `eval()`,
             with any `epochs` override the workers were given.
         sample_ids: Intended selection as sample ids. Replaces the selection
@@ -160,8 +159,8 @@ def merge_eval_log_shards(
             `sample_count` below 1, or both `allow_incomplete` and
             `delete_shards`; or `log` is not a local path, `file://`
             URI or `s3://` URL, is not named `<name>.eval` or
-            `<name>.shards`, names a recovered log, or is an S3 location
-            that S3 would read as another key.
+            `<name>.shards`, or is an S3 location that S3 would read as
+            another key.
     """
     return run_coroutine(
         merge_eval_log_shards_async(
@@ -281,8 +280,7 @@ def merge_paths(log: str) -> MergePaths:
     decoded form fails, and every read, the lock and publication use it.
 
     Raises:
-        ValueError: `log` is not in a supported form, or is named after a
-            recovered log.
+        ValueError: `log` is not in a supported form.
     """
     target = supported_location(log)
     merged, shards_dir = _derive_paths(target)
@@ -311,7 +309,7 @@ def check_merge_arguments(
     """Check the arguments of a merge before any I/O.
 
     Raises:
-        ValueError: An unsupported or recovered-log location, an invalid
+        ValueError: An unsupported location, an invalid
             selection, an S3 location that S3 would read as another key, or
             both `allow_incomplete` and `delete_shards`.
     """
@@ -332,24 +330,9 @@ def _derive_paths(log: str) -> tuple[str, str]:
     location = log.rstrip("/\\")
     name = basename(location)
     if name.endswith(".shards") and name != ".shards":
-        merged = eval_log_for_shards_dir(location)
-        if eval_shards_dir(merged) != location:
-            raise ValueError(
-                f"{log} is named after a recovered log, which a merge does not "
-                f"write: the shards directory of {merged} is "
-                f"{eval_shards_dir(merged)}. Rename the directory to drop "
-                "'-recovered'."
-            )
-        return merged, location
-    if name.endswith(".eval"):
-        shards_dir = eval_shards_dir(location)
-        merged = eval_log_for_shards_dir(shards_dir)
-        if f"{log_basename(location)}.eval" != name:
-            raise ValueError(
-                f"{log} is a recovered log name, which a merge does not write. "
-                f"Merge into {merged} or pass {shards_dir}."
-            )
-        return location, shards_dir
+        return eval_log_for_shards_dir(location), location
+    if name.endswith(".eval") and name != ".eval":
+        return location, eval_shards_dir(location)
     raise ValueError(
         f"Expected a merged log (<name>.eval) or its shards directory "
         f"(<name>.shards): {log}"
@@ -469,7 +452,7 @@ async def _merge_pass(
         read = taken[key]
         return SampleMember(readers[read.shard], read.members[key], read.file.name)
 
-    name = log_basename(merged_path)
+    name = merged_log_name(merged_path)
     total = selected_total(selection, held_ids) * epochs
     with tempfile.TemporaryFile() as out:
         header = await write_merged_zip(
