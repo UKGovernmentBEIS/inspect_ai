@@ -254,10 +254,8 @@ as the merge treats such a companion as gone. In a shard set:
 - The merged log is the newest of `<name>.eval` and
   `<name>-recovered.eval`. The other is not read and is listed in the row's
   `unreadable` as an older merged log.
-- The set is keyed by the merge's task id: the newest merged log's
-  `task_id`, or, without a readable merged log, the id the merge would
-  stamp (`merged_log_task_id`, shared with the merge). While the merged log
-  or the first shard can be read, the set has the merge's task id under any
+- While the merged log or the first shard can be read, the set has the
+  merge's task id (`merged_log_task_id`, shared with the merge) under any
   file name pattern, so it folds with a retry of its merged log
   (`test_a_shard_set_keeps_the_merges_task_id_with_or_without_its_log`,
   `test_an_unreadable_newest_merged_log_keys_the_set_as_the_merge_does`).
@@ -283,7 +281,11 @@ an ordinary unsharded attempt.
 per-sample read that might need it fails with its error
 (`test_an_unreadable_newer_attempt_blocks_per_sample_reads`,
 `test_an_unreadable_shard_marks_the_row_and_blocks_sample_reads`,
-`test_cli_a_task_whose_only_log_is_unreadable_reports_its_failure`).
+`test_cli_a_task_whose_only_log_is_unreadable_reports_its_failure`). An
+unreadable log is tied to a task by the task id in its file name, so under
+a file name pattern without `{id}` it is reported only in the listing's
+`unreadable` and blocks no per-sample read: those reads serve the task's
+newest readable attempt.
 
 **Identity.** For a shard set, `task`, `model`, `solver` and `epochs` come
 from the first readable shard (else the merged log); `eval_id` and `run_id`
