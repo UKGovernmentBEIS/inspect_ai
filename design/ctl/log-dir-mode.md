@@ -197,7 +197,9 @@ buffer segments or checkpoint objects, whose counts grow with run age:
   derived as `.buffer/<stem>/manifest.json`. Every other subdirectory
   outside a companion is descended, as `list_eval_logs` recurses, so an
   eval-set directory or a directory of runs works.
-- **Companions.** The first `<name>.shards/` on each path below the root is
+- **Companions.** With shard aggregation (the default; `task list
+  --shards` walks every `<name>.shards/` as an ordinary directory, "CLI
+  surface"), the first `<name>.shards/` on each path below the root is
   a companion, listed by the shared `list_shard_set`
   (`src/inspect_ai/log/_shards/_walk.py`; [`eval-sharding.md`](../eval-sharding.md),
   "Layout" and "Code shared with ctl log-dir mode"): the companion and each
@@ -210,7 +212,7 @@ buffer segments or checkpoint objects, whose counts grow with run age:
   merged log beside the companion (`<name>.eval` or
   `<name>-recovered.eval`, matched by `log_basename`) belongs to the shard
   set rather than being an ordinary log.
-- **Nothing below a `<k>/` is listed.** A shard's `scans/`, its
+- **Nothing below a `<k>/` is listed** under shard aggregation. A shard's `scans/`, its
   `*.checkpoints/` and any companion nested there are not walked, so a log
   nested below a `<k>/` is not shown from a root above the companion; to
   see it, point `--log-dir` at the directory that holds it (decision:
@@ -247,7 +249,8 @@ attempts by `task_id`.
 `<k>/` is a shard set; one with none (only `scans/` or `.buffer/` objects
 left after attempts were removed by hand) is dropped before grouping, its
 merged log becomes an ordinary log and its stray entries are still
-reported, as the merge treats such a companion as gone. Nothing below its
+reported. The merge likewise treats such a companion as gone when it has
+no stray entries, and refuses it when it has some. Nothing below its
 `<k>/` directories is walked either. In a shard set:
 
 - The shards are the `<k>/` directories with at least one `.eval` attempt,
@@ -604,7 +607,9 @@ On S3, with reads issued concurrently on one `AsyncFilesystem`:
 - **The walk** costs one LIST per directory visited (per 1,000 entries):
   `N + 2` for a sharded run of `N` shards (the root, the companion, each
   `<k>/`), whatever the workers wrote in their `<k>/` (buffers,
-  checkpoints, scan results).
+  checkpoints, scan results). `task list --shards` walks the companion as
+  ordinary directories, so it also lists what lies below each `<k>/`
+  other than buffers and checkpoints.
   A recursive listing would page through every segment object, about
   100,000 keys after an hour of 300 shards syncing every 10 seconds.
 - **A finished log**, read cold, costs its central directory,
