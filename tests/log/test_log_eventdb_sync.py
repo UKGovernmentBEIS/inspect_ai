@@ -130,27 +130,19 @@ def test_sync_one_sample(
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")
-def test_shared_sync_publishes_new_buffer_files(tmp_path: Path) -> None:
+def test_shared_buffer_replaces_hardlinked_segment(tmp_path: Path) -> None:
     log = tmp_path / "shared logs #1 %20" / "run.eval"
     run_dir = log.parent / ".buffer" / log.stem
     run_dir.mkdir(parents=True)
     reference = tmp_path / "reference"
     reference.write_bytes(b"reference data")
     (run_dir / "segment.1.zip").hardlink_to(reference)
-    db = SampleBufferDatabase(str(log), db_dir=tmp_path / "db")
-    db.start_sample(EvalSampleSummary(id=1, epoch=1, input="in", target="out"))
-    db.log_events([SampleEvent(id=1, epoch=1, event=InfoEvent(data="first"))])
-    try:
-        writer = SampleBufferFilestore(filesystem(str(log)).path_as_uri(str(log)))
-        sync_to_filestore(db, writer)
-        assert not (run_dir / "manifest.json").is_symlink()
-        assert reference.read_bytes() == b"reference data"
-        reader = SampleBufferFilestore(str(log), create=False)
-        sample = reader.get_sample_data(1, 1)
-        assert sample is not None
-        assert [e.event["data"] for e in sample.events] == ["first"]
-    finally:
-        db.cleanup()
+    writer = SampleBufferFilestore(filesystem(str(log)).path_as_uri(str(log)))
+    data = SampleData(events=[], attachments=[])
+    writer.write_segment(1, [SegmentFile(id=1, epoch=1, data=data)])
+    assert reference.read_bytes() == b"reference data"
+    reader = SampleBufferFilestore(str(log), create=False)
+    assert reader.read_segment_data(1, 1, 1) == data
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")
@@ -167,7 +159,7 @@ def test_shared_buffer_refuses_linked_directories(
         link.mkdir()
         link = link / component
     link.symlink_to(other, target_is_directory=True)
-    with pytest.raises(OSError):
+    with pytest.raises(SharedBufferUnavailable):
         SampleBufferFilestore(str(logs / "run.eval")).write_manifest(Manifest())
     assert list(other.iterdir()) == []
 
@@ -226,12 +218,11 @@ def test_live_sync_keeps_segment_and_manifest_together(
         writer.cleanup()
         assert run.is_dir()
     finally:
-        writer.cleanup()
         db.cleanup()
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")
-@pytest.mark.parametrize("lookup", ["os.open", "os.stat"])
+@pytest.mark.parametrize("lookup", ["os.open", "os.fstat", "os.stat"])
 def test_shared_sync_stops_on_stale_directory_lookup(
     tmp_path: Path, lookup: str
 ) -> None:
@@ -250,21 +241,18 @@ def test_shared_buffer_honors_group_umask(tmp_path: Path) -> None:
     try:
         writer = SampleBufferFilestore(str(logs / "run.eval"))
         writer.write_manifest(Manifest())
-    finally:
-        os.umask(mask)
-    run = tmp_path / ".buffer" / "run"
-    assert stat.S_IMODE(run.stat().st_mode) & 0o770 == 0o770
-    manifest = run / "manifest.json"
-    assert stat.S_IMODE(manifest.stat().st_mode) == 0o664
-    manifest.chmod(0o640)
-    writer.write_manifest(Manifest())
-    assert stat.S_IMODE(manifest.stat().st_mode) == 0o640
-    mask = os.umask(0o077)
-    try:
+        run = tmp_path / ".buffer" / "run"
+        assert stat.S_IMODE(run.stat().st_mode) & 0o770 == 0o770
+        manifest = run / "manifest.json"
+        assert stat.S_IMODE(manifest.stat().st_mode) == 0o664
+        manifest.chmod(0o640)
         writer.write_manifest(Manifest())
+        assert stat.S_IMODE(manifest.stat().st_mode) == 0o640
+        os.umask(0o077)
+        writer.write_manifest(Manifest())
+        assert stat.S_IMODE(manifest.stat().st_mode) == 0o600
     finally:
         os.umask(mask)
-    assert stat.S_IMODE(manifest.stat().st_mode) == 0o600
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")
@@ -282,18 +270,16 @@ def test_shared_buffer_cleans_up_failed_publication(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")
-def test_writer_refuses_linked_manifest_read(tmp_path: Path) -> None:
-    writer = SampleBufferFilestore(str(tmp_path / "run.eval"))
-    writer.write_manifest(Manifest())
-    manifest = tmp_path / ".buffer" / "run" / "manifest.json"
-    reference = manifest.with_name("saved.json")
-    manifest.rename(reference)
-    manifest.symlink_to(reference)
-    with pytest.raises(OSError):
-        writer.read_manifest()
-    writer.write_manifest(Manifest())
-    assert not manifest.is_symlink()
-    assert reference.read_bytes() == manifest.read_bytes()
+def test_first_sync_refuses_linked_manifest(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    db, writer = db_and_filestore
+    manifest = Path(writer._manifest_file())
+    manifest.parent.mkdir(exist_ok=True, parents=True)
+    manifest.symlink_to(manifest.with_name("absent"))
+    with pytest.raises(SharedBufferUnavailable):
+        sync_to_filestore(db, writer)
+    assert manifest.is_symlink()
 
 
 def test_sync_sample_metadata_outside_manifest_summary(

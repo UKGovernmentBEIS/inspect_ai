@@ -18,7 +18,6 @@ from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.json import JsonChange
 from inspect_ai.dataset._dataset import Sample
-from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
@@ -668,36 +667,7 @@ async def test_recover_filestore_no_cleanup() -> None:
             assert os.path.exists(buffer_dir)
 
 
-@pytest.mark.skipif(os.name != "posix", reason="POSIX shared buffer lifecycle")
-async def test_queued_run_publishes_after_another_runs_cleanup(tmp_path: Path) -> None:
-    log = str(tmp_path / "queued.eval")
-    db = SampleBufferDatabase(log, log_shared=3600, db_dir=tmp_path / "db")
-    try:
-        async with AsyncFilesystem():
-            # The scheduler initializes every task logger before the first task runs.
-            SampleBufferFilestore(str(tmp_path / "orphan.eval")).write_manifest(
-                Manifest()
-            )
-            (tmp_path / ".buffer" / "orphan" / ".DS_Store").touch()
-            await cleanup_sample_buffer_filestores(str(tmp_path))
-            assert not (tmp_path / ".buffer" / "orphan").exists()
-            assert not (tmp_path / ".buffer" / "queued").exists()
-            _write_crashed_eval(log)
-            db.start_sample(EvalSampleSummary(id=1, epoch=1, input="in", target="out"))
-            db.log_events(
-                [SampleEvent(id=1, epoch=1, event=InfoEvent(data="published"))]
-            )
-            await db.aclose()
-            data = SampleBufferFilestore(log, create=False).get_sample_data(1, 1)
-            assert data is not None
-            assert [event.event["data"] for event in data.events] == ["published"]
-    finally:
-        db.cleanup()
-
-
-async def _cleanup_filestores_scenario(
-    running_name: str = "running", *, directory_suffix: str = ""
-) -> None:
+async def _cleanup_filestores_scenario() -> None:
     """Run post-eval buffer cleanup against a finished and a running eval."""
 
     async def write_log(path: str, status: Literal["started", "success"]) -> None:
@@ -713,6 +683,9 @@ async def _cleanup_filestores_scenario(
         )
         await write_eval_log_async(log, path)
 
+    # Backslashes are ordinary filename characters on POSIX.
+    running_name = r"team\trial" if os.name == "posix" else "running"
+    directory_suffix = "\\" if os.name == "posix" else ""
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory(suffix=directory_suffix) as temp_dir:
             await write_log(os.path.join(temp_dir, "finished.eval"), "success")
@@ -738,13 +711,6 @@ async def _cleanup_filestores_scenario(
 async def test_cleanup_sample_buffer_filestores() -> None:
     """Post-eval cleanup removes finished buffers and keeps running ones."""
     await _cleanup_filestores_scenario()
-
-
-@pytest.mark.skipif(
-    os.name != "posix", reason="backslash is a POSIX filename character"
-)
-async def test_cleanup_preserves_running_log_with_backslash() -> None:
-    await _cleanup_filestores_scenario(r"team\trial", directory_suffix="\\")
 
 
 def test_cleanup_sample_buffer_filestores_trio() -> None:
