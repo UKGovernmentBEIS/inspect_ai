@@ -87,6 +87,8 @@ This code will evaluate a total of 6 tasks (3 reasoning effort variations agains
 
 A task cancelled before it starts does not count toward `max_tasks`: it is started outside the limit and ends at once with an error log reporting the cancellation, so it never takes a slot.
 
+A task fed through its handle ([`samples_from_handle()`](task-source.qmd#tasks-fed-through-a-handle)) does not count toward `max_tasks` either. It starts when its first sample is sent, whatever the limit, and runs only the samples its creator sends.
+
 ## Samples per Task {#sec-max-samples}
 
 Inspect runs a task's samples in parallel. By default, the number of samples running at once follows the model's connection limit (see [Model Concurrency](models-concurrency.qmd)). Use `max_samples` to set it for every task in a run:
@@ -106,7 +108,17 @@ Task(
 )
 ```
 
-A `max_samples` passed to `eval()`, `eval_set()` or the CLI overrides a task's own. You can change it while a task runs with [`inspect ctl config`](control-channel.qmd#configuration).
+A `max_samples` passed to `eval()`, `eval_set()` or the CLI overrides a task's own, except for a task fed through its handle, whose own `max_samples` wins (it takes the run's value only when it sets none). You can change it while a task runs with [`inspect ctl config`](control-channel.qmd#configuration).
+
+### Waiting on a handle
+
+A sample that waits on a sample it sent through a task's handle keeps everything it holds while it waits. Leave room for the work it waits on:
+
+- `max_sandboxes`: a waiting sample keeps its sandbox. For each provider both tasks use, the limit must exceed the number of samples that hold one while they wait. `inspect ctl config --max-sandboxes N` raises it while the run goes on.
+- `max_samples`: it is per task, so a task whose samples wait on its own other samples needs room for both.
+- `max_connections`: a model connection is held for a whole `generate` call. A sample waited on from an `on_before_model_generate` hook needs a connection limit above the number of such waits.
+
+Inspect does not detect a wait that cannot finish because these limits are full; the run waits until a limit is raised.
 
 ## Sharding {#sec-sharding}
 

@@ -11,7 +11,15 @@ from test_helpers.utils import (
     skip_if_no_docker,
 )
 
-from inspect_ai import Task, eval, eval_retry, task, task_with
+from inspect_ai import (
+    Task,
+    enqueue_task,
+    eval,
+    eval_retry,
+    samples_from_handle,
+    task,
+    task_with,
+)
 from inspect_ai.dataset import Sample
 from inspect_ai.log import (
     ProvenanceData,
@@ -26,7 +34,7 @@ from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._model_info import clear_model_info_cache
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import exact
-from inspect_ai.solver import TaskState, generate, solver
+from inspect_ai.solver import Generate, TaskState, generate, solver
 from inspect_ai.util import (
     ExecResult,
     SandboxEnvironment,
@@ -68,6 +76,53 @@ def test_eval_retryable():
             assert retryable[0].task_id == task_id
             eval_retry(retryable, log_dir=log_dir)
             retryable = retryable_eval_logs(list_eval_logs(log_dir))
+
+
+@solver
+def _raise_solver():
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        raise ValueError("failed")
+
+    return solve
+
+
+@solver
+def _feeding_solver():
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        [handle] = enqueue_task(
+            Task(
+                dataset=samples_from_handle(),
+                solver=_raise_solver(),
+                fail_on_error=True,
+                name="fed",
+            )
+        )
+        await handle.enqueue_sample(Sample(input="x"))
+        await handle.result()
+        raise ValueError("creator failed")
+
+    return solve
+
+
+@task
+def creator() -> Task:
+    return Task(dataset=[Sample(input="x")], solver=_feeding_solver())
+
+
+def test_eval_retryable_leaves_out_fed_task_logs(tmp_path: Path) -> None:
+    log_dir = str(tmp_path)
+    logs = eval(creator(), model="mockllm/model", log_dir=log_dir)
+    assert sorted((log.eval.task, log.status) for log in logs) == [
+        ("creator", "error"),
+        ("fed", "error"),
+    ]
+
+    retryable = retryable_eval_logs(list_eval_logs(log_dir))
+    assert [read_eval_log(log, header_only=True).eval.task for log in retryable] == [
+        "creator"
+    ]
+    retried = eval_retry(retryable, log_dir=log_dir)
+    assert "creator" in [log.eval.task for log in retried]
 
 
 @task
