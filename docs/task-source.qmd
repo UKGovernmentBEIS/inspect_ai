@@ -156,6 +156,78 @@ Enqueued tasks run under the current run id and start when a `max_tasks` slot is
 
 Called from inside a running task (a solver, scorer or tool), `enqueue_task()` adds the tasks once, under that task's model. Called anywhere else, including from a `TaskSource` callback, it adds them once per model of the run, as for tasks the callbacks return. A task that sets its own `model` keeps it. Model roles and generate config come from the run.
 
+`enqueue_task()` returns a `TaskHandle` for each task it added. `cancel()` aborts the task, like `inspect ctl task cancel`.
+
+## Tasks fed through a handle
+
+A task whose dataset is `samples_from_handle()` takes its samples from the task that added it. The adding task sends each sample with `TaskHandle.enqueue_sample()` and gets back the sample's logged `EvalSample`. For example, a search that runs each proposal as a rollout:
+
+```python
+from inspect_ai import Task, enqueue_task, samples_from_handle, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+
+@task
+def rollout_task() -> Task:
+    return Task(
+        dataset=samples_from_handle(),
+        solver=rollout(),
+        scorer=judge(),
+        fail_on_error=False,  # an errored rollout comes back with its `error` set
+    )
+
+
+@solver
+def searcher(n_steps: int) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        [handle] = enqueue_task(rollout_task())
+        async with handle as rollouts:  # closes on exit
+            try:
+                for _ in range(n_steps):
+                    sample = await propose_next(state)
+                    run = await rollouts.enqueue_sample(sample)
+                    update(state, run)
+            except BaseException:
+                rollouts.cancel()  # the search stopped early: stop its rollouts
+                raise
+        return state
+
+    return solve
+
+
+@task
+def search() -> Task:
+    return Task(
+        dataset=[Sample(input="Find a misaligned behaviour.")],
+        solver=searcher(n_steps=50),
+    )
+```
+
+A task fed through its handle:
+
+- Is added with `enqueue_task()` from code running inside a task: a solver, scorer, tool or task hook. A `TaskSource` callback cannot add one.
+- Runs once, under the model of the task that added it, with one epoch. Each sent sample runs once; send it again to repeat it. A sent sample must have no `id`: the handle assigns one (`send-<token>-<n>`).
+- Starts when its first sample is sent and does not count toward `max_tasks`, so a search that waits on its rollouts works at any `max_tasks`. A handle closed before any sample is sent costs nothing.
+- Keeps its own sample limits, error tolerance (`fail_on_error`, `continue_on_fail`, `score_on_error`) and `max_samples`, falling back to the run's values when it sets none. The run's `epochs`, epoch reducer, `--limit` and `--sample-id` do not apply to it. The run's `approval`, `review` and `sentinel` policies still do.
+- Is never retried. With the default `fail_on_error`, the first errored sample is returned to its sender with its `error` set and then ends the task; set `fail_on_error=False` to keep accepting samples after an error.
+
+The task ends once its handle is closed and the samples sent have run. `close()`, `result()` and leaving `async with` close the handle, and so does the end of the task that added it. Closing never stops samples already sent. To stop them when the search stops early, call `cancel()` in an `except BaseException:` block that re-raises, as above. That block runs on an error, a sample limit and every cancellation (a time limit, a working limit, an operator abort). Don't use `finally:`: it also runs when the search returns normally, and `cancel()` would then abort the rollout task while it finishes its samples, leaving it an error log.
+
+`result()` closes the handle and waits for the task's final log, or `None` if it ended with none (closed before any sample was sent, or cancelled before it started). It waits only on a task fed through its handle; on any other handle it raises `RuntimeError`, and that task's log is read after the run. A send that can no longer run raises:
+
+- `TaskEndedError` once the task has ended. Its `log` is the task's final log, or `None`. A sample still waiting when the task ends gets the same error.
+- `RuntimeError` while the handle is closed but the task is still running its last samples (closed by its holder, by the end of the task that added it, or by an operator drain or cancel).
+- `SampleAbandonedError` for a sample cancelled before it was logged.
+
+`enqueue_sample()` (the free function) cannot add samples to a task fed through its handle.
+
+A task fed through its handle cannot run on its own. Passing it to `eval()` or `eval_set()`, or its log to `eval_retry()`, raises an error. When the rollout task shares a file with the task that adds it, run that task by name: `inspect eval search.py@search` or `eval_set("search.py@search", ...)`. Loading the whole file (`inspect eval search.py`) also loads `rollout_task` and is refused.
+
+Its log records the dataset name `samples_from_handle` (reserved for these tasks). `eval()` and `eval_set()` return it with the run's other logs, but it does not decide `eval_set()`'s result: the log of the task that added it does. `task_identifier()` builds its identifier from its task id, so it never matches a task the eval set requests, and the eval set's log directory check skips it, so resuming needs no `log_dir_allow_dirty=True` for these logs.
+
+A sample waiting on a sent sample keeps its sandbox and its `max_samples` slot. See [Waiting on a handle](parallelism.qmd#waiting-on-a-handle) for the headroom a run needs.
+
 ## Concurrency
 
 A task added mid-run starts as soon as there is free capacity, rather than waiting for a batch boundary.

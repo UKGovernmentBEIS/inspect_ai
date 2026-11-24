@@ -33,7 +33,14 @@ from test_helpers.utils import (
 )
 from typing_extensions import override
 
-from inspect_ai import Epochs, Task, eval, task
+from inspect_ai import (
+    Epochs,
+    Task,
+    enqueue_task,
+    eval,
+    samples_from_handle,
+    task,
+)
 from inspect_ai._eval.evalset import (
     GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
     EvalSet,
@@ -53,6 +60,7 @@ from inspect_ai._eval.evalset import (
     write_eval_set_info,
 )
 from inspect_ai._eval.loader import resolve_tasks
+from inspect_ai._eval.task.enqueue import get_run_queue
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -5063,3 +5071,177 @@ def test_eval_set_run_missing_a_requested_task_is_cancelled(
                 model="mockllm/model",
                 display="none",
             )
+
+
+# --- tasks fed through a handle (design/task-handles.md) --------------------
+
+
+@task
+def handle_rollout(level: int = 1) -> Task:
+    return Task(dataset=[Sample(input="own")], message_limit=50, name="handle_rollout")
+
+
+def _fed_rollout(level: int = 1, **kwargs: Any) -> Task:
+    return task_with(handle_rollout(level), dataset=samples_from_handle(), **kwargs)
+
+
+@solver
+def feed_rollout(fail_first: list[int] | None = None, ordinary: bool = False) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if ordinary:
+            enqueue_task(handle_rollout())
+        else:
+            [handle] = enqueue_task(_fed_rollout())
+            async with handle:
+                await handle.enqueue_sample(Sample(input="x"))
+        if fail_first is not None and not fail_first:
+            fail_first.append(1)
+            raise ValueError("creator fails once")
+        return state
+
+    return solve
+
+
+@task
+def handle_creator(ordinary: bool = False) -> Task:
+    return Task(
+        dataset=[Sample(input="search")],
+        solver=[feed_rollout(ordinary=ordinary)],
+        name="handle_creator",
+    )
+
+
+def _task_names(logs: list[EvalLog]) -> list[str]:
+    return sorted(log.eval.task for log in logs)
+
+
+def test_eval_set_resume_skips_fed_logs_in_the_log_dir(tmp_path: Path) -> None:
+    log_dir = str(tmp_path)
+    success, logs = eval_set(handle_creator(), log_dir=log_dir, model="mockllm/model")
+    assert success
+    assert _task_names(logs) == ["handle_creator", "handle_rollout"]
+
+    # resumed over the directory holding the fed log: no allow-dirty needed,
+    # and only the requested task's log is taken
+    success, logs = eval_set(handle_creator(), log_dir=log_dir, model="mockllm/model")
+    assert success
+    assert _task_names(logs) == ["handle_creator"]
+    info = read_eval_set_info(log_dir)
+    assert info is not None
+    assert [t.name for t in info.tasks] == ["handle_creator"]
+
+
+def test_eval_set_resume_with_an_ordinary_added_task_needs_allow_dirty(
+    tmp_path: Path,
+) -> None:
+    log_dir = str(tmp_path)
+    success, _ = eval_set(
+        handle_creator(ordinary=True), log_dir=log_dir, model="mockllm/model"
+    )
+    assert success
+    with pytest.raises(PrerequisiteError, match="not associated with a task"):
+        eval_set(handle_creator(ordinary=True), log_dir=log_dir, model="mockllm/model")
+    success, _ = eval_set(
+        handle_creator(ordinary=True),
+        log_dir=log_dir,
+        model="mockllm/model",
+        log_dir_allow_dirty=True,
+    )
+    assert success
+
+
+def test_eval_set_later_round_skips_fed_logs(tmp_path: Path) -> None:
+    fail_first: list[int] = []
+    creator = Task(
+        dataset=[Sample(input="search")],
+        solver=[feed_rollout(fail_first=fail_first)],
+        name="handle_creator",
+    )
+    success, logs = eval_set(
+        creator,
+        log_dir=str(tmp_path),
+        model="mockllm/model",
+        retry_immediate=False,
+        retry_attempts=2,
+        retry_wait=0.001,
+    )
+    assert success
+    assert fail_first == [1]
+    assert [log.status for log in logs if log.eval.task == "handle_creator"] == [
+        "success"
+    ]
+
+
+def test_eval_set_runs_a_requested_task_named_like_a_fed_one(tmp_path: Path) -> None:
+    log_dir = str(tmp_path)
+    # run A requests only the creator, which feeds task_with(handle_rollout())
+    logs = eval(handle_creator(), log_dir=log_dir, model="mockllm/model")
+    [fed] = [log for log in logs if log.eval.task == "handle_rollout"]
+    assert fed.eval.dataset.name == "samples_from_handle"
+
+    # run B requests the ordinary factory with the same arguments and model:
+    # it runs it rather than taking A's fed log
+    success, logs = eval_set(
+        handle_rollout(),
+        log_dir=log_dir,
+        model="mockllm/model",
+        log_dir_allow_dirty=True,
+    )
+    assert success
+    [ordinary] = logs
+    assert ordinary.eval.dataset.name != "samples_from_handle"
+    assert ordinary.eval.eval_id != fed.eval.eval_id
+    assert task_identifier(ordinary, None) != task_identifier(fed, None)
+
+
+def test_fed_task_identifier_is_built_from_its_task_id() -> None:
+    captured: list[ResolvedTask] = []
+
+    @solver
+    def capture_and_feed() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            queue = get_run_queue()
+            assert queue is not None
+            resolve = queue._resolve
+
+            def capture(tasks: Any) -> list[ResolvedTask]:
+                resolved = resolve(tasks)
+                captured.extend(resolved)
+                return resolved
+
+            queue._resolve = capture
+            [handle] = enqueue_task(_fed_rollout(message_limit=7, time_limit=30))
+            queue._resolve = resolve
+            async with handle:
+                await handle.enqueue_sample(Sample(input="x"))
+            return state
+
+        return solve
+
+    logs = eval(
+        Task(dataset=[Sample(input="x")], solver=[capture_and_feed()], name="c"),
+        model="mockllm/model",
+        message_limit=3,
+        time_limit=10,
+        display="none",
+    )
+    [fed] = [log for log in logs if log.eval.task == "handle_rollout"]
+    [resolved] = captured
+    args = EvalSetArgsInTaskIdentifier(
+        config=GenerateConfig(), message_limit=3, time_limit=10
+    )
+    identifier = task_identifier(resolved, args)
+    assert identifier == task_identifier(fed, None)
+    assert identifier.endswith(
+        f"handle_rollout#samples_from_handle/mockllm/model/{fed.eval.task_id}"
+    )
+    # attempts of one record share the task id, so the identifier
+    another_attempt = fed.model_copy(
+        update={"eval": fed.eval.model_copy(update={"eval_id": "other"})}
+    )
+    assert task_identifier(another_attempt, None) == identifier
+    # an ordinary task with the same name, arguments and model differs
+    [ordinary] = resolve_tasks(
+        handle_rollout(), {}, get_model("mockllm/model"), None, None, None
+    )
+    assert task_identifier(ordinary, args) != identifier

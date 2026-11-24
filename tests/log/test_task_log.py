@@ -221,6 +221,8 @@ class _FlushRecorder:
 
 
 class _FlushBufferDB:
+    waiting_for_log = False
+
     def __init__(self) -> None:
         self.removed: list[tuple[str | int, int]] = []
         self.removed_samples = anyio.Event()
@@ -1217,6 +1219,61 @@ def _seed_logger(recorder: Recorder) -> TaskLoggerShim:
     logger.flush_buffer = 10
     logger.flush_pending = []
     return logger
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shared buffer lifecycle")
+async def test_shared_buffer_waits_for_first_successful_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai.event._info import InfoEvent
+    from inspect_ai.log._recorders.buffer import database as db_module
+    from inspect_ai.log._recorders.buffer.filestore import (
+        Manifest,
+        SampleBufferFilestore,
+        cleanup_sample_buffer_filestores,
+    )
+
+    monkeypatch.setattr(db_module, "resolve_db_dir", lambda _: tmp_path / "db")
+    logger = _seed_logger(EvalRecorder(str(tmp_path)))
+    logger._prior_created = None
+    logger._process_updates_recorded = 0
+    logger.eval.config.log_shared = 3600
+    logger.flush_buffer = 1
+    await logger.init()
+    db = logger.buffer_db
+    assert db is not None
+    location = _initialized_location(logger)
+    run = tmp_path / ".buffer" / Path(location).stem
+    try:
+        with patch("os.replace", side_effect=PermissionError("header unavailable")):
+            await logger.log_start(EvalPlan())
+            await logger.start_sample(
+                EvalSampleSummary(id="live", epoch=1, input="q", target="a")
+            )
+            logger.log_sample_event("live", 1, InfoEvent(data="before header"), {})
+            await logger.complete_sample(_sample(), flush=True)
+        assert not logger.destination_written
+        assert db._sync_thread is None
+        assert not run.exists()
+        SampleBufferFilestore(str(tmp_path / "ended.eval")).write_manifest(Manifest())
+        (run.parent / "ended" / ".DS_Store").touch()
+        async with AsyncFilesystem():
+            await cleanup_sample_buffer_filestores(str(tmp_path))
+        assert list(run.parent.iterdir()) == []
+        assert await logger.flush_samples() == 1
+        assert logger.destination_written
+        logger.log_sample_event("live", 1, InfoEvent(data="after header"), {})
+        await db.aclose()
+        async with AsyncFilesystem():
+            await cleanup_sample_buffer_filestores(str(tmp_path))
+        data = SampleBufferFilestore(location, create=False).get_sample_data("live", 1)
+        assert data is not None
+        assert [row.event["data"] for row in data.events] == [
+            "before header",
+            "after header",
+        ]
+    finally:
+        await logger.discard()
 
 
 @pytest.mark.parametrize("cancel", [False, True])

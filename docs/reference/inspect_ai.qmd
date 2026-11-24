@@ -22,6 +22,10 @@ description: Tasks, evaluation, and scoring.
 ### SampleSource
 ### enqueue_task
 ### enqueue_sample
+### samples_from_handle
+### TaskHandle
+### TaskEndedError
+### SampleAbandonedError
 
 ## Scanning
 

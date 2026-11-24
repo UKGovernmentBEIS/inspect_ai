@@ -99,7 +99,7 @@ from .loader import (
     as_solver_spec,
     solver_from_spec,
 )
-from .task.enqueue import RunQueue, TaskRecord, creator_model_scope
+from .task.enqueue import RunQueue, TaskAttempt, TaskRecord, attempt_scope, is_fed
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask
 from .task.run import (
@@ -113,6 +113,7 @@ from .task.run import (
     task_run,
     unwritten_task_log,
 )
+from .task.sample_source import HandleChannel
 from .task.sandbox import (
     SandboxSetupBindings,
     TaskSandboxEnvironment,
@@ -222,6 +223,13 @@ async def eval_run(
                 task = copy(resolved_task.task)
                 task_eval_config = eval_config.model_copy()
 
+                # a task fed through its handle runs the samples its creator
+                # sends, each once, and takes its own settings before the
+                # run's (the run's oversight controls still apply)
+                fed = is_fed(task)
+                if fed:
+                    _apply_fed_task_settings(task, task_eval_config)
+
                 # sample_ids can be specified per task
                 task_eval_config.sample_id = resolve_task_sample_ids(
                     resolved_task.task.name, task_eval_config.sample_id, task_names
@@ -276,7 +284,7 @@ async def eval_run(
                     task.epochs = task_eval_config.epochs
 
                 # epochs reducer
-                if epochs_reducer is not None:
+                if epochs_reducer is not None and not fed:
                     # override task (eval_config already reflects epochs_reducer)
                     task.epochs_reducer = epochs_reducer
                 else:
@@ -528,6 +536,41 @@ async def ensure_controllers(
         )
 
 
+_FED_TASK_FIRST = (
+    "max_samples",
+    "message_limit",
+    "turn_limit",
+    "time_limit",
+    "working_limit",
+    "cost_limit",
+    "fail_on_error",
+    "continue_on_fail",
+    "score_on_error",
+)
+
+
+def _apply_fed_task_settings(task: Task, config: EvalConfig) -> None:
+    """Resolve a task fed through its handle's settings into its eval config.
+
+    Its sample limits, error tolerance and ``max_samples`` take the task's own
+    value when it sets one, so the run's value applies only when it does not.
+    It runs one epoch, with no run-level epoch reducer, ``limit`` or sample
+    selection: its creator chooses the samples it sends.
+    """
+    for name in _FED_TASK_FIRST:
+        own = getattr(task, name)
+        if own is not None:
+            setattr(config, name, own)
+    # limit and metering type travel as a unit
+    if task.token_limit is not None:
+        config.token_limit = task.token_limit
+        config.token_limit_type = task.token_limit_type
+    config.epochs = task.epochs or 1
+    config.epochs_reducer = None
+    config.limit = None
+    config.sample_id = None
+
+
 class TaskRunResult(NamedTuple):
     log: EvalLog | None
     """The task's log, or ``None`` if it was abandoned (see ``abandoned``).
@@ -619,10 +662,7 @@ async def _run_task(
                     error_after_write = False
                     with task_scope:
                         try:
-                            with creator_model_scope(options.model):
-                                result = await task_run(
-                                    options, task_cancel=task_cancel
-                                )
+                            result = await task_run(options, task_cancel=task_cancel)
                         except TaskRetryAbandonedError:
                             # abandoned at attempt start (a drain/cancel
                             # stamped the retry-abandoned registry between
@@ -690,6 +730,16 @@ async def _run_task(
                     task_cancel.close(
                         ended_in_error=result is not None and result.status == "error"
                     )
+                    # published before the TaskSource is notified, so a run
+                    # cancellation landing there still ends a fed record with
+                    # it (its handle's result()); an ordinary record keeps the
+                    # run's existing return on cancellation
+                    if (
+                        result is not None
+                        and options.record is not None
+                        and options.record.channel is not None
+                    ):
+                        options.record.log = result
                     if abandoned:
                         run_returned = True
                         return
@@ -741,7 +791,7 @@ async def _next_tasks(task_source: TaskSource) -> list[Task] | None:
     async def pull() -> None:
         nonlocal result, returned
         # a TaskSource callback runs outside any task attempt
-        with creator_model_scope(None):
+        with attempt_scope(None):
             result = await task_source.next_tasks()
         returned = True
 
@@ -769,18 +819,23 @@ def _clear_retry_pending(result: EvalLog, task_id: str) -> None:
         clear_eval_retry_pending(registered.eval_id)
 
 
-def _attempt_cancel(can_retry: bool) -> tuple[TaskCancel, anyio.CancelScope]:
+def _attempt_cancel(
+    can_retry: bool, channel: HandleChannel | None = None
+) -> tuple[TaskCancel, anyio.CancelScope]:
     """A fresh cancel handle and cancel scope for one task attempt.
 
     The handle's abort and retry requests cancel the scope, which encloses
     only ``task_run``. A scope cancelled before it is entered cancels its body
     at the first checkpoint, so a request made before the attempt runs still
-    takes effect.
+    takes effect. Every request closes the channel of a task fed through its
+    handle first, so its handle accepts no more samples.
     """
     task_scope = anyio.CancelScope()
     task_cancel = TaskCancel(can_retry=can_retry, apply=lambda _: None)
 
     def apply_cancel(type: CancelType) -> None:
+        if channel is not None:
+            channel.close()
         # samples parked at the pause gate observe the stamped cancel through
         # their escape predicate — wake them so a graceful resolution reaches
         # the queue-exit abandon check (cancel escalates over pause)
@@ -856,6 +911,7 @@ async def dispatch_tasks(
             record
             for record in queue.pending
             if not record.abort_requested
+            and record.channel is None
             and not task_dispatch_paused(
                 record.task_id,
                 model=dispatch_model_name(record_options(record).model),
@@ -939,7 +995,8 @@ async def dispatch_tasks(
                     attempts += 1
                     record.phase = "attempt"
                     task_cancel, task_scope = _attempt_cancel(
-                        can_retry=record.retries_remaining > 0
+                        can_retry=record.retries_remaining > 0,
+                        channel=record.channel,
                     )
                     record.attempt_cancel = task_cancel
                     record.attempt_scope = task_scope
@@ -954,6 +1011,9 @@ async def dispatch_tasks(
                     counted: bool,
                 ) -> None:
                     options = record_options(record)
+                    # code the attempt runs adds tasks under its model, and
+                    # the tasks fed through a handle it adds close with it
+                    attempt = TaskAttempt(record, options.model)
 
                     def release() -> None:
                         nonlocal in_flight, attempts
@@ -979,6 +1039,7 @@ async def dispatch_tasks(
                         if run.abandoned:
                             await options.logger.discard()
                             release()
+                            attempt.end()
                             queue.end(record, record.log)
                             return
 
@@ -1152,6 +1213,7 @@ async def dispatch_tasks(
                         # finalize atomically (no awaits below) so the dispatcher sees
                         # a consistent (in_flight, pending) snapshot
                         release()
+                        attempt.end()
                         if result is not None:
                             record.log = result
                         if retry_options is not None:
@@ -1171,14 +1233,24 @@ async def dispatch_tasks(
                     # (keeping its destination and buffer for recovery) and
                     # ends the record before it propagates
                     try:
-                        run = await _run_task(options, task_cancel, task_scope)
+                        with attempt_scope(attempt):
+                            run = await _run_task(options, task_cancel, task_scope)
                         await settle(run)
                     except BaseException:
+                        # a log a fed attempt wrote before the exception (a run
+                        # cancellation after its final write) is its handle's
+                        # result
+                        if (
+                            record.channel is not None
+                            and options.logger.finished_log is not None
+                        ):
+                            record.log = options.logger.finished_log
                         with anyio.CancelScope(shield=True):
                             if not options.logger.finished:
                                 await options.logger.discard(
                                     keep_destination=True, keep_buffer=True
                                 )
+                        attempt.end()
                         queue.end(record, record.log)
                         raise
 
@@ -1220,8 +1292,22 @@ async def dispatch_tasks(
 
                         # a task cancelled while queued starts at once,
                         # outside max_tasks and whether or not a pause holds
-                        # it, and aborts before its log starts
-                        for record in [r for r in queue.pending if r.abort_requested]:
+                        # it, and aborts before its log starts; a task fed
+                        # through its handle starts, outside max_tasks, once
+                        # it holds a sample and no pause holds it
+                        for record in [
+                            r
+                            for r in queue.pending
+                            if r.abort_requested
+                            or (
+                                r.channel is not None
+                                and r.channel.requests
+                                and not task_dispatch_paused(
+                                    r.task_id,
+                                    model=dispatch_model_name(record_options(r).model),
+                                )
+                            )
+                        ]:
                             start_attempt(record, counted=False)
 
                         # work still queued or running (incl. pending retries):
