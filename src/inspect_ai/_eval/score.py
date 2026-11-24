@@ -1154,9 +1154,14 @@ def _held_no_scores(log: EvalLog, sample_held_scores: list[bool]) -> bool:
     the recorded names would add an empty result before the new scores. Whether
     each sample held scores is recorded as it is read, so loaded and streamed
     samples are treated alike. An append that applies no scorers keeps the header,
-    as an empty list does.
+    as an empty list does. So does a header that records names: `score()` wrote
+    it, and its scorers may have run without leaving a score.
     """
-    return not (log.results and log.results.scores) and not any(sample_held_scores)
+    return (
+        not (log.results and log.results.scores)
+        and not any(sample_held_scores)
+        and not any(_score_name(s) is not None for s in log.eval.scorers or [])
+    )
 
 
 def _existing_score_names(log: EvalLog, header: list[EvalScorer]) -> set[str]:

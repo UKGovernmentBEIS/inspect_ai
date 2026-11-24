@@ -1880,6 +1880,34 @@ async def test_score_dict_names_when_sentinel_monitor_state_is_missing() -> None
     assert _sample_score_keys(scored) == keys
 
 
+async def test_score_dict_append_keeps_named_header_scorer_without_scores(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A header scorer recorded under a name stays when it left no scores and another dict is appended."""
+    unscored = await _unscored_log(tmp_path)
+    assert unscored.samples is not None
+    for sample in unscored.samples:
+        sample.store[MONITOR_STATE_COPY] = {
+            "copied": False,
+            "reason": "the sentinel sidecar holds nothing for the sample",
+            "withheld": False,
+        }
+    tagged = await score_async(unscored, {"tag": _unaggregated_scorer()})
+    assert tagged.samples is not None
+    assert tagged.results is not None and tagged.results.scores == []
+    assert not any(sample.scores for sample in tagged.samples)
+    for sample in tagged.samples:
+        del sample.store[MONITOR_STATE_COPY]
+
+    scored = await score_async(tagged, {"strict": match()})
+
+    assert scored.eval.scorers is not None
+    assert [(s.name, s.score_name) for s in scored.eval.scorers] == [
+        ("_unaggregated_scorer", "tag"),
+        ("match", "strict"),
+    ]
+
+
 async def test_score_streamed_sample_name_conflict_fails_before_its_scorers() -> None:
     """A chosen name already on a streamed sample is an error before its scorers run."""
     scored = await _score_async_with_named_scorers()
