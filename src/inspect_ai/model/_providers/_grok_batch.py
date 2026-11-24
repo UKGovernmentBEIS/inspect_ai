@@ -82,8 +82,17 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
                     await _close_client(client)
 
     @override
-    async def _create_batch(self, batch_requests: list[BatchRequest[Response]]) -> str:
-        requests: list[BaseChat] = []
+    async def _create_batch(
+        self, batch_requests: list[BatchRequest[Response]]
+    ) -> str | None:
+        """Create an empty batch and add each request to it.
+
+        Each request is checked immediately before it is added. A refused
+        request is removed from `batch_requests` and failed, and the others are
+        added. If none is added, `None` is returned (the empty batch is left
+        with the provider).
+        """
+        requests: list[tuple[BatchRequest[Response], BaseChat]] = []
         for batch_request in batch_requests:
             request_size_bytes = len(
                 json.dumps(
@@ -120,7 +129,7 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
                 )
 
             request["batch_request_id"] = batch_request.custom_id
-            requests.append(self._client.chat.create(**request))
+            requests.append((batch_request, self._client.chat.create(**request)))
 
         async with self._use_client() as client:
             batch = await client.batch.create(
@@ -129,13 +138,20 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
         # Add requests one-by-one to avoid large gRPC payloads in a single add call.
         # Observed gRPC transport caps (~4MB decode / ~20MB send on packed add)
         # are empirical, not documented API contract.
-        for request in requests:
+        for batch_request, request in requests:
             async with self._use_client() as client:
-                await client.batch.add(
-                    batch_id=batch.batch_id,
-                    batch_requests=[request],
-                )
-        return cast(str, batch.batch_id)
+                error = batch_request.refusal()
+                if error is None:
+                    await client.batch.add(
+                        batch_id=batch.batch_id,
+                        batch_requests=[request],
+                    )
+            if error is not None:
+                batch_requests[:] = [
+                    r for r in batch_requests if r is not batch_request
+                ]
+                await self._fail_refused_request(batch_request, error)
+        return cast(str, batch.batch_id) if batch_requests else None
 
     @override
     async def _check_batch(

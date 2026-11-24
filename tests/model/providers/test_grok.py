@@ -11,6 +11,13 @@ import grpc
 import pytest
 import tenacity
 from pydantic import BaseModel
+from test_helpers.sentinel_failure import (
+    FailDuringRequest,
+    QueuedRequest,
+    is_refusal,
+    queued_request,
+    while_failing,
+)
 from test_helpers.utils import skip_if_no_grok, skip_if_trio
 
 from inspect_ai import Task, eval
@@ -1101,3 +1108,90 @@ def test_grok_usage_counts_reasoning_in_output_tokens(
     if total:
         # input_tokens excludes cached prompt tokens
         assert model_usage.input_tokens + cached + model_usage.output_tokens == total
+
+
+class _GrokBatchEndpoints:
+    """Stubs of the xAI chat-request, batch-creation and batch-add endpoints.
+
+    Each request's SDK object is its `batch_request_id`. The empty batch's
+    creation waits on `during_create`, and the first add on `during_first_add`,
+    if given.
+    """
+
+    def __init__(
+        self,
+        during_create: FailDuringRequest | None = None,
+        during_first_add: FailDuringRequest | None = None,
+    ) -> None:
+        self.added: list[str] = []
+        self.client = MagicMock()
+        self.client.chat.create = MagicMock(
+            side_effect=lambda **request: request["batch_request_id"]
+        )
+        self.client.batch.create = self._create
+        self.client.batch.add = self._add
+        self._during_create = during_create
+        self._during_first_add = during_first_add
+
+    async def _create(self, **kwargs: object) -> SimpleNamespace:
+        if self._during_create is not None:
+            await self._during_create.pending()
+        return SimpleNamespace(batch_id="grok-batch")
+
+    async def _add(self, batch_id: str, batch_requests: list[str]) -> None:
+        self.added.extend(batch_requests)
+        if self._during_first_add is not None and len(self.added) == 1:
+            await self._during_first_add.pending()
+
+
+def _grok_batcher(endpoints: _GrokBatchEndpoints, size: int) -> GrokBatcher:
+    return GrokBatcher(
+        client=endpoints.client,
+        config=BatchConfig(size=size),
+        retry_config=model_retry_config(
+            "test", 1, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+    )
+
+
+def _grok_request(custom_id: str) -> QueuedRequest:
+    return queued_request(
+        {"model": "grok-3-mini", "messages": [], "tools": []}, custom_id
+    )
+
+
+async def test_grok_does_not_add_a_request_whose_sample_fails_while_the_batch_is_created() -> (
+    None
+):
+    during_create = FailDuringRequest()
+    endpoints = _GrokBatchEndpoints(during_create=during_create)
+    batcher = _grok_batcher(endpoints, size=1)
+    failed = _grok_request("failed")
+    batcher._intake_queue = [failed.request]
+
+    await while_failing(batcher._process_intake_queue, during_create, failed.attempt)
+
+    assert endpoints.added == []
+    assert batcher._inflight_batches == {}
+    assert is_refusal(failed.result.receive_nowait())
+
+
+async def test_grok_adds_the_other_requests_when_a_sample_fails_during_an_earlier_add() -> (
+    None
+):
+    during_first_add = FailDuringRequest()
+    endpoints = _GrokBatchEndpoints(during_first_add=during_first_add)
+    batcher = _grok_batcher(endpoints, size=3)
+    first, failed, last = (
+        _grok_request(custom_id) for custom_id in ["first", "failed", "last"]
+    )
+    batcher._intake_queue = [first.request, failed.request, last.request]
+
+    await while_failing(batcher._process_intake_queue, during_first_add, failed.attempt)
+
+    assert endpoints.added == ["first", "last"]
+    assert list(batcher._inflight_batches["grok-batch"].requests) == ["first", "last"]
+    assert is_refusal(failed.result.receive_nowait())
+    for healthy in (first, last):
+        with pytest.raises(anyio.WouldBlock):
+            healthy.result.receive_nowait()

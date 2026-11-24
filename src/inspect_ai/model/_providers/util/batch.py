@@ -348,24 +348,37 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
 
     async def _fail_refused_requests(
         self, batch: list[BatchRequest[ResponseT]]
-    ) -> None:
+    ) -> bool:
         """Remove the refused requests from `batch` and fail each with its refusal.
 
         Failing a request waits, during which another can be refused, so this
-        returns only after a pass that refuses none.
+        returns only after a pass that refuses none. An implementation of
+        `_create_batch()` that waits before it submits the requests (an
+        upload, say) calls this again immediately before submitting them.
+
+        Returns:
+            Whether any request was removed.
         """
+        removed = False
         while True:
             refused = [(request, request.refusal()) for request in batch]
             if all(error is None for _, error in refused):
-                return
+                return removed
+            removed = True
             batch[:] = [request for request, error in refused if error is None]
             for request, error in refused:
                 if error is not None:
-                    await self._fail_all_requests(
-                        f"Request {request.custom_id} refused before its batch was created: {error}",
-                        [request],
-                        error,
-                    )
+                    await self._fail_refused_request(request, error)
+
+    async def _fail_refused_request(
+        self, request: BatchRequest[ResponseT], error: Exception
+    ) -> None:
+        """Fail `request` with its refusal `error` instead of submitting it."""
+        await self._fail_all_requests(
+            f"Request {request.custom_id} refused before it was submitted: {error}",
+            [request],
+            error,
+        )
 
     async def _wrapped_check_batch(
         self, batch: Batch[ResponseT]
@@ -454,18 +467,24 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             del self._inflight_batches[batch.id]
 
     @abstractmethod
-    async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
+    async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str | None:
         """Create a new batch.
 
         This method should submit the batch requests to the model and return a
         unique identifier for the created batch. The base class automatically
         handles retries for transient failures using the configured retry policy.
 
+        An implementation that waits before it submits the requests checks
+        them again first (`_fail_refused_requests()`). It removes a refused
+        request from `batch`, so `batch` holds exactly the requests submitted
+        when it returns.
+
         Args:
             batch: List of batch requests to be processed together.
 
         Returns:
-            A unique string identifier for the created batch.
+            A unique string identifier for the created batch, or `None` if
+            every request was refused and no batch was created.
 
         Raises:
             Exception: If batch creation fails permanently after all retry attempts.

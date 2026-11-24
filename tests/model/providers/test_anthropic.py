@@ -1,10 +1,16 @@
 import types
+from functools import partial
 from pathlib import Path
 from typing import Any, Literal, cast
 from unittest.mock import AsyncMock, create_autospec, patch
 
 import pytest
 from test_helpers.output_cache import check_output_cache_round_trip
+from test_helpers.sentinel_failure import (
+    FailDuringRequest,
+    is_refusal,
+    outcome_while_failing,
+)
 from test_helpers.utils import (
     setenv_if_unset,
     skip_if_no_anthropic,
@@ -4732,3 +4738,63 @@ async def test_anthropic_output_records_message_id_as_response_id() -> None:
     )
 
     assert output.response_id == "msg_response"
+
+
+class _Sent(Exception):
+    """Raised by a stub endpoint to end a generate whose request was sent."""
+
+
+@pytest.mark.parametrize("monitor", [False, True], ids=["sample", "monitor"])
+@pytest.mark.anyio
+async def test_no_pause_turn_continuation_is_sent_once_the_sample_has_failed(
+    monkeypatch: pytest.MonkeyPatch, monitor: bool
+) -> None:
+    """A sample that fails while its head request is pending sends no continuation.
+
+    A sentinel's monitor still does.
+    """
+    from anthropic.types import Message
+
+    model = get_model(
+        "anthropic/claude-sonnet-4-5",
+        streaming=False,
+        api_key="test-key",
+        memoize=False,
+    )
+    during_head = FailDuringRequest()
+    requests: list[str] = []
+
+    async def create(**kwargs: object) -> Message:
+        if not requests:
+            requests.append("head")
+            await during_head.pending()
+            return Message.model_validate(
+                {
+                    "id": "msg_head",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": "claude-sonnet-4-5",
+                    "content": [{"type": "text", "text": "partial"}],
+                    "stop_reason": "pause_turn",
+                    "stop_sequence": None,
+                    "usage": {"input_tokens": 10, "output_tokens": 5},
+                }
+            )
+        requests.append("continuation")
+        raise _Sent()
+
+    assert isinstance(model.api, AnthropicAPI)
+    monkeypatch.setattr(model.api.client.messages, "create", create)
+    try:
+        outcome = await outcome_while_failing(
+            partial(model.generate, "hello"), during_head, monitor=monitor
+        )
+    finally:
+        await model.api.aclose()
+
+    if monitor:
+        assert requests == ["head", "continuation"]
+        assert isinstance(outcome, _Sent)
+    else:
+        assert requests == ["head"]
+        assert is_refusal(outcome)

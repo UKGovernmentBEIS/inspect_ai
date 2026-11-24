@@ -59,6 +59,7 @@ from pydantic import JsonValue
 from shortuuid import uuid
 from typing_extensions import override
 
+from inspect_ai._sentinel._context import raise_if_sentinel_failed
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content as InspectContent,
@@ -1159,6 +1160,9 @@ class GoogleGenAIAPI(ModelAPI):
             ]
             acknowledge_safety_decisions(count_contents)
             contents: list[ContentUnion] = list(count_contents)
+            # after the OAuth refresh and media uploads, which `Model` checked
+            # before, not after
+            raise_if_sentinel_failed()
             try:
                 response = await client.aio.models.count_tokens(
                     model=self.service_model_name(), contents=contents

@@ -7,10 +7,18 @@ the OpenAI SDK would produce.
 
 from __future__ import annotations
 
+from functools import partial
+
 import httpx2
 import pytest
 from openai import APITimeoutError, BadRequestError
+from test_helpers.sentinel_failure import (
+    FailDuringRequest,
+    is_refusal,
+    outcome_while_failing,
+)
 
+from inspect_ai.model import get_model
 from inspect_ai.model._providers.openai import OpenAIAPI
 
 
@@ -77,3 +85,51 @@ async def test_reasoning_summaries_unsupported_error_cached(
         assert calls["n"] == 1
     finally:
         await api.aclose()
+
+
+class _Sent(Exception):
+    """Raised by a stub endpoint to end a generate whose request was sent."""
+
+
+@pytest.mark.parametrize("monitor", [False, True], ids=["sample", "monitor"])
+@pytest.mark.anyio
+async def test_no_generate_request_follows_the_probe_once_the_sample_has_failed(
+    monkeypatch: pytest.MonkeyPatch, monitor: bool
+) -> None:
+    """A sample that fails during the reasoning-summary probe sends no generate request.
+
+    A sentinel's monitor still does.
+    """
+    model = get_model(
+        "openai/gpt-5",
+        responses_api=True,
+        streaming=False,
+        api_key="test-key",
+        memoize=False,
+    )
+    during_probe = FailDuringRequest()
+    requests: list[str] = []
+
+    async def create(**kwargs: object) -> object:
+        if not requests:
+            requests.append("probe")
+            await during_probe.pending()
+            return object()
+        requests.append("generate")
+        raise _Sent()
+
+    assert isinstance(model.api, OpenAIAPI)
+    monkeypatch.setattr(model.api.client.responses, "create", create)
+    try:
+        outcome = await outcome_while_failing(
+            partial(model.generate, "hello"), during_probe, monitor=monitor
+        )
+    finally:
+        await model.api.aclose()
+
+    if monitor:
+        assert requests == ["probe", "generate"]
+        assert isinstance(outcome, _Sent)
+    else:
+        assert requests == ["probe"]
+        assert is_refusal(outcome)

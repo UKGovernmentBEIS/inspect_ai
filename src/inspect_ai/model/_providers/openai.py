@@ -20,6 +20,7 @@ from openai.types.responses import Response
 from openai.types.shared_params.reasoning import Reasoning
 from typing_extensions import override
 
+from inspect_ai._sentinel._context import raise_if_sentinel_failed
 from inspect_ai._util.http_defaults_httpx2 import default_client_kwargs
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._generate_config import has_image_output, normalized_batch_config
@@ -593,6 +594,9 @@ class OpenAIAPI(ModelAPI):
         if config.reasoning_summary is None:
             if not await self.reasoning_summaries():
                 config = config.model_copy(update={"reasoning_summary": "none"})
+            # the probe is a request of its own, which the sample can fail
+            # during (`Model` checked before this generate, not after it)
+            raise_if_sentinel_failed()
 
         streaming = self._resolve_streaming(use_responses)
 

@@ -3,6 +3,7 @@ import base64
 import hashlib
 import json
 import time
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, NamedTuple
@@ -45,6 +46,11 @@ from google.genai.types import (
 )
 from google.genai.types import ToolCall as GeminiToolCall
 from openai.types.chat import ChatCompletionAssistantMessageParam
+from test_helpers.sentinel_failure import (
+    FailDuringRequest,
+    is_refusal,
+    outcome_while_failing,
+)
 from test_helpers.utils import skip_if_no_google
 
 from inspect_ai import Task, eval
@@ -72,6 +78,7 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageTool,
     ModelOutput,
+    get_model,
     messages_from_google,
 )
 from inspect_ai.model._chat_message import ChatMessageUser
@@ -3992,6 +3999,47 @@ async def test_google_oauth_concurrent_refresh_single_flight() -> None:
     await tg_collect([api._ensure_oauth_token for _ in range(5)])
     assert creds.refresh_calls == 1
     assert creds.valid
+
+
+@pytest.mark.parametrize("monitor", [False, True], ids=["sample", "monitor"])
+@pytest.mark.anyio
+async def test_google_does_not_count_tokens_if_the_sample_fails_during_an_oauth_refresh(
+    monkeypatch: pytest.MonkeyPatch, monitor: bool
+) -> None:
+    """A sample that fails while the OAuth token refreshes sends no count request.
+
+    A sentinel's monitor still does.
+    """
+    with patch("google.auth.default", return_value=(_FakeCreds(), None)):
+        model = get_model("google/gemini-2.0-flash", use_adc=True, memoize=False)
+    api = model.api
+    assert isinstance(api, GoogleGenAIAPI) and api._credentials is not None
+    during_refresh = FailDuringRequest()
+    requests: list[str] = []
+
+    async def ensure_valid() -> None:
+        requests.append("refresh")
+        await during_refresh.pending()
+
+    async def count_tokens(**kwargs: object) -> SimpleNamespace:
+        requests.append("count")
+        return SimpleNamespace(total_tokens=123)
+
+    client = MagicMock()
+    client.aio.models.count_tokens = count_tokens
+    monkeypatch.setattr(api._credentials, "ensure_valid", ensure_valid)
+    monkeypatch.setattr(api, "model_client", lambda http_options=None: client)
+
+    outcome = await outcome_while_failing(
+        partial(model.count_tokens, "count me"), during_refresh, monitor=monitor
+    )
+
+    if monitor:
+        assert requests == ["refresh", "count"]
+        assert outcome == 123
+    else:
+        assert requests == ["refresh"]
+        assert is_refusal(outcome)
 
 
 @pytest.mark.anyio

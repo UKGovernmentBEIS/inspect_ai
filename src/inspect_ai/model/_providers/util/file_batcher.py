@@ -51,10 +51,26 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
     # Batcher overrides
 
     @override
-    async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
-        """Create a batch by generating JSONL file and submitting to provider."""
+    async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str | None:
+        """Create a batch by generating JSONL file and submitting to provider.
+
+        A request refused while the file uploads is removed, and a file of the
+        remaining requests is uploaded in its place, so the batch submits only
+        requests that were not refused when it was created. If none remain, no
+        batch is created. A file already uploaded is left with the provider.
+        """
         extra_headers = pop_batch_headers(batch)
 
+        while batch:
+            file_id = await self._upload_batch_requests(batch, extra_headers)
+            if not await self._fail_refused_requests(batch):
+                return await self._submit_batch_for_file(file_id, extra_headers)
+        return None
+
+    async def _upload_batch_requests(
+        self, batch: list[BatchRequest[ResponseT]], extra_headers: dict[str, str]
+    ) -> str:
+        """Upload a JSONL file of `batch` and return its file ID."""
         with tempfile.NamedTemporaryFile(
             delete=True, suffix=".jsonl", mode="w+b"
         ) as temp_file:
@@ -68,9 +84,7 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
             temp_file.flush()
             temp_file.seek(0)
 
-            # Upload file and submit batch
-            file_id = await self._upload_batch_file(temp_file.file, extra_headers)
-            return await self._submit_batch_for_file(file_id, extra_headers)
+            return await self._upload_batch_file(temp_file.file, extra_headers)
 
     @override
     async def _handle_batch_result(

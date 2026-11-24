@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+import json
+from types import SimpleNamespace
+from typing import IO
+
 import anyio
 import pytest
 from anyio.abc import ObjectReceiveStream
 from openai import APIStatusError, AsyncOpenAI
 from pydantic import BaseModel, JsonValue
+from test_helpers.sentinel_failure import (
+    FailDuringRequest,
+    is_refusal,
+    queued_request,
+    while_failing,
+)
 
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._openai import openai_should_retry
@@ -142,3 +152,81 @@ def test_openai_batch_non_numeric_error_code() -> None:
     assert isinstance(result, RuntimeError)
     assert "batch_expired" in str(result)
     assert "expired" in str(result)
+
+
+class _OpenAIBatchEndpoints:
+    """Stubs of the OpenAI file-upload and batch-creation endpoints.
+
+    The first upload waits on `during_first_upload`, if given.
+    """
+
+    def __init__(self, during_first_upload: FailDuringRequest | None = None) -> None:
+        self.uploads: list[list[str]] = []
+        self.submitted_files: list[str] = []
+        self._during_first_upload = during_first_upload
+
+    def install(
+        self, batcher: OpenAIBatcher[_Result], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(batcher._openai_client.files, "create", self._upload)
+        monkeypatch.setattr(batcher._openai_client.batches, "create", self._create)
+
+    async def _upload(self, file: IO[bytes], **kwargs: object) -> SimpleNamespace:
+        self.uploads.append(
+            [json.loads(line)["custom_id"] for line in file.read().splitlines()]
+        )
+        if self._during_first_upload is not None and len(self.uploads) == 1:
+            await self._during_first_upload.pending()
+        return SimpleNamespace(id=f"file-{len(self.uploads)}")
+
+    async def _create(self, input_file_id: str, **kwargs: object) -> SimpleNamespace:
+        self.submitted_files.append(input_file_id)
+        return SimpleNamespace(id="batch-1")
+
+
+def _openai_batcher(size: int) -> OpenAIBatcher[_Result]:
+    return OpenAIBatcher(
+        AsyncOpenAI(api_key="test"), BatchConfig(size=size), _retry_config(), _Result
+    )
+
+
+@pytest.mark.anyio
+async def test_a_request_whose_sample_fails_during_the_upload_is_not_submitted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    during_upload = FailDuringRequest()
+    endpoints = _OpenAIBatchEndpoints(during_upload)
+    batcher = _openai_batcher(size=1)
+    endpoints.install(batcher, monkeypatch)
+    failed = queued_request({"model": "gpt-5"}, "failed")
+    batcher._intake_queue = [failed.request]
+
+    await while_failing(batcher._process_intake_queue, during_upload, failed.attempt)
+
+    assert endpoints.uploads == [["failed"]]
+    assert endpoints.submitted_files == []
+    assert batcher._inflight_batches == {}
+    assert is_refusal(failed.result.receive_nowait())
+
+
+@pytest.mark.anyio
+async def test_a_request_whose_sample_fails_during_the_upload_is_left_out_of_the_batch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    during_upload = FailDuringRequest()
+    endpoints = _OpenAIBatchEndpoints(during_upload)
+    batcher = _openai_batcher(size=2)
+    endpoints.install(batcher, monkeypatch)
+    failed = queued_request({"model": "gpt-5"}, "failed")
+    healthy = queued_request({"model": "gpt-5"}, "healthy")
+    batcher._intake_queue = [failed.request, healthy.request]
+
+    await while_failing(batcher._process_intake_queue, during_upload, failed.attempt)
+
+    # a file of the healthy request alone replaces the first, and is submitted
+    assert endpoints.uploads == [["failed", "healthy"], ["healthy"]]
+    assert endpoints.submitted_files == ["file-2"]
+    assert list(batcher._inflight_batches["batch-1"].requests) == ["healthy"]
+    assert is_refusal(failed.result.receive_nowait())
+    with pytest.raises(anyio.WouldBlock):
+        healthy.result.receive_nowait()

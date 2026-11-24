@@ -130,6 +130,7 @@ from anthropic.types.web_search_tool_result_block_param_content_param import (
 from pydantic import BaseModel, JsonValue, TypeAdapter, ValidationError
 from typing_extensions import override
 
+from inspect_ai._sentinel._context import raise_if_sentinel_failed
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
@@ -1384,6 +1385,8 @@ class AnthropicAPI(ModelAPI):
             # inside a code execution container -- reuse it for the continuation
             if head_message.container:
                 tail_request["container"] = head_message.container.id
+            # `Model` checked before the head request, not before this one
+            raise_if_sentinel_failed()
             _, tail_model_output = await self._perform_request_and_continuations(
                 tail_request,
                 streaming,
