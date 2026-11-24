@@ -89398,6 +89398,16 @@ var sameCall = (a, b) => a.function === b.function && sameJson(a.arguments, b.ar
 	const approved = approvedProposal(run);
 	return approved ? { call: approved } : void 0;
 };
+var kKnownInactiveStatuses = /* @__PURE__ */ new Set([
+	"cancelled",
+	"bypassed",
+	"superseded",
+	"error",
+	"unjudged"
+]);
+var isKnownInactiveStatus = (status) => kKnownInactiveStatuses.has(status);
+var isUnknownStatusVerdict = (verdict) => verdict.startsWith("status:");
+var inactiveVerdict = (status) => isKnownInactiveStatus(status) ? status : `status:${status}`;
 var reported = (node, kind) => node.event.status === "reported" && node.event.kind === kind;
 var pathSegments = (path) => path === "" ? [] : path.split("/");
 /**
@@ -89504,11 +89514,11 @@ var isInactive$1 = (status) => status !== "reported";
 * cancelled or bypassed.
 */ var quietVerdict = (checks) => {
 	const rootStatus = checks.find((n) => n.event.path === "")?.event.status;
-	if (rootStatus && isInactive$1(rootStatus)) return rootStatus;
+	if (rootStatus && isInactive$1(rootStatus)) return inactiveVerdict(rootStatus);
 	if (checks.some((n) => reported(n, "decision"))) return "proceed";
 	if (checks.some((n) => reported(n, "observation"))) return "observe";
 	const firstStatus = checks[0]?.event.status;
-	return firstStatus && isInactive$1(firstStatus) ? firstStatus : "proceed";
+	return firstStatus && isInactive$1(firstStatus) ? inactiveVerdict(firstStatus) : "proceed";
 };
 /**
 * Builds the check tree for one step's events, given in recording order. A
@@ -105094,7 +105104,7 @@ var CheckRowView = (t0) => {
 	return t14;
 };
 var CheckResult = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(26);
+	const $ = (0, import_compiler_runtime.c)(28);
 	const { row } = t0;
 	const event = row.node.event;
 	let t1;
@@ -105139,69 +105149,78 @@ var CheckResult = (t0) => {
 		} else t2 = $[6];
 		return t2;
 	}
-	if (event.suspicion !== void 0 && event.suspicion !== null) {
+	if (event.status !== "reported") {
 		let t2;
-		if ($[7] !== event.suspicion) {
-			t2 = topScore(event.suspicion);
-			$[7] = event.suspicion;
+		if ($[7] !== event.status) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: event.status });
+			$[7] = event.status;
 			$[8] = t2;
 		} else t2 = $[8];
+		return t2;
+	}
+	if (event.suspicion !== void 0 && event.suspicion !== null) {
+		let t2;
+		if ($[9] !== event.suspicion) {
+			t2 = topScore(event.suspicion);
+			$[9] = event.suspicion;
+			$[10] = t2;
+		} else t2 = $[10];
 		const top = t2;
 		const t3 = top.dimension ? `${top.dimension} ` : "";
 		let t4;
-		if ($[9] !== t3 || $[10] !== top.value) {
+		if ($[11] !== t3 || $[12] !== top.value) {
 			t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [t3, top.value] });
-			$[9] = t3;
-			$[10] = top.value;
-			$[11] = t4;
-		} else t4 = $[11];
+			$[11] = t3;
+			$[12] = top.value;
+			$[13] = t4;
+		} else t4 = $[13];
 		let t5;
-		if ($[12] !== top.more) {
+		if ($[14] !== top.more) {
 			t5 = top.more > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 				className: SentinelEventView_module_default.moreScores,
 				children: top.more === 1 ? "1 more score" : `${top.more} more scores`
 			}) : null;
-			$[12] = top.more;
-			$[13] = t5;
-		} else t5 = $[13];
+			$[14] = top.more;
+			$[15] = t5;
+		} else t5 = $[15];
 		let t6;
-		if ($[14] !== flag || $[15] !== t4 || $[16] !== t5) {
+		if ($[16] !== flag || $[17] !== t4 || $[18] !== t5) {
 			t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 				flag,
 				t4,
 				t5
 			] });
-			$[14] = flag;
-			$[15] = t4;
-			$[16] = t5;
-			$[17] = t6;
-		} else t6 = $[17];
+			$[16] = flag;
+			$[17] = t4;
+			$[18] = t5;
+			$[19] = t6;
+		} else t6 = $[19];
 		return t6;
 	}
 	if (!event.action) return flag;
 	let t2;
-	if ($[18] !== event.action) {
+	if ($[20] !== event.action) {
 		t2 = decisionClass(event.action);
-		$[18] = event.action;
-		$[19] = t2;
-	} else t2 = $[19];
+		$[20] = event.action;
+		$[21] = t2;
+	} else t2 = $[21];
 	let t3;
-	if ($[20] !== event.action || $[21] !== t2) {
+	if ($[22] !== event.action || $[23] !== t2) {
 		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: t2,
 			children: event.action
 		});
-		$[20] = event.action;
-		$[21] = t2;
-		$[22] = t3;
-	} else t3 = $[22];
-	let t4;
-	if ($[23] !== flag || $[24] !== t3) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [flag, t3] });
-		$[23] = flag;
+		$[22] = event.action;
+		$[23] = t2;
 		$[24] = t3;
-		$[25] = t4;
-	} else t4 = $[25];
+	} else t3 = $[24];
+	let t4;
+	if ($[25] !== flag || $[26] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [flag, t3] });
+		$[25] = flag;
+		$[26] = t3;
+		$[27] = t4;
+	} else t4 = $[27];
 	return t4;
 };
 var CheckDetail = (t0) => {
@@ -105625,7 +105644,10 @@ var verdictLooks = {
 	word: status,
 	tone: "neutral"
 });
-var lookOf = (step) => step.verdict === "escalate" && step.returned ? unhandledEscalateLook : getOwn(verdictLooks, step.verdict) ?? unknownStatusLook(step.verdict);
+var lookOf = ({ verdict, returned }) => {
+	if (isUnknownStatusVerdict(verdict)) return unknownStatusLook(verdict.slice(7));
+	return verdict === "escalate" && returned ? unhandledEscalateLook : verdictLooks[verdict];
+};
 var toneOfDecision = (decision) => {
 	switch (decision) {
 		case "reject":

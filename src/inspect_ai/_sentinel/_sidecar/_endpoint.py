@@ -164,7 +164,7 @@ class Sidecar:
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Call a method of the endpoint for evals, and return its result.
 
-        A registration's request holds the eval's token, and an error may repeat the request, as a proxy's error page does. So no error raised here holds the token, in its message or in an error it is chained to.
+        A registration's request holds the eval's token, the origin may hold the proxy's credentials, and an error may repeat the request, as a proxy's error page does. So no error raised here holds either, in its message or in an error it is chained to.
         """
         failed: str | None = None
         answer: Any = None
@@ -182,11 +182,11 @@ class Sidecar:
             )
             answer = response.json()
         except Exception as ex:
-            if not self._holds_token(ex):
+            if not self._holds_secret(ex):
                 raise SidecarCallError(method, str(ex)) from ex
-            failed = self._without_token(str(ex))
+            failed = self._without_secrets(str(ex))
         if failed is not None:
-            # Raised outside the handler, so the error that holds the token
+            # Raised outside the handler, so the error that holds a secret
             # is neither this one's cause nor its context: a traceback prints
             # both.
             raise SidecarCallError(method, failed)
@@ -197,7 +197,7 @@ class Sidecar:
             code = error.get("code")
             raise SidecarCallError(
                 method,
-                self._without_token(str(error.get("message", ""))),
+                self._without_secrets(str(error.get("message", ""))),
                 code if isinstance(code, int) else None,
             )
         result = answer.get("result")
@@ -205,15 +205,25 @@ class Sidecar:
             raise SidecarCallError(method, "the answer has no result")
         return result
 
-    def _without_token(self, text: str) -> str:
-        # the text with the eval's token taken out
-        access = self.access
-        return text.replace(access.token, REDACTED) if access is not None else text
+    def _secrets(self) -> list[tuple[str, str]]:
+        # each secret an error may repeat, with what stands in its place
+        secrets = []
+        if self.origin != self.proxy_url:
+            secrets.append((self.origin, self.proxy_url))
+        if self.access is not None:
+            secrets.append((self.access.token, REDACTED))
+        return secrets
 
-    def _holds_token(self, error: BaseException) -> bool:
-        # whether the error, or one it is chained to, holds the eval's token
-        access = self.access
-        if access is None:
+    def _without_secrets(self, text: str) -> str:
+        # the text with the proxy's credentials and the eval's token taken out
+        for secret, shown in self._secrets():
+            text = text.replace(secret, shown)
+        return text
+
+    def _holds_secret(self, error: BaseException) -> bool:
+        # whether the error, or one it is chained to, holds a secret
+        secrets = [secret for secret, _ in self._secrets()]
+        if not secrets:
             return False
         seen: set[int] = set()
         pending: list[BaseException | None] = [error]
@@ -222,7 +232,7 @@ class Sidecar:
             if found is None or id(found) in seen:
                 continue
             seen.add(id(found))
-            if access.token in str(found):
+            if any(secret in str(found) for secret in secrets):
                 return True
             pending += [found.__cause__, found.__context__]
         return False
@@ -298,7 +308,8 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
             options={"max_retries": 0, "timeout": PROBE_TIMEOUT},
         )
     except Exception as ex:
-        return NoSidecar(*_no_answer(shown, getattr(ex, "status_code", None), ex))
+        failure = str(ex).replace(origin, shown)
+        return NoSidecar(*_no_answer(shown, getattr(ex, "status_code", None), failure))
 
     try:
         info = response.json()
@@ -326,7 +337,7 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
     return Sidecar(origin, release, client.sdk, version, review)
 
 
-def _no_answer(origin: str, status: object, ex: Exception) -> tuple[str, bool]:
+def _no_answer(origin: str, status: object, failure: str) -> tuple[str, bool]:
     # An HTTP status means the endpoint answered: a 404 says there is no
     # sidecar, and any other 4xx that none can be reached there with the
     # model's credentials, as from a gateway that answers an unknown route
@@ -339,7 +350,7 @@ def _no_answer(origin: str, status: object, ex: Exception) -> tuple[str, bool]:
             f"{origin} answered the probe with {status}, so no sidecar can be reached there",
             True,
         )
-    return f"probing {origin} for a sidecar failed: {ex}", False
+    return f"probing {origin} for a sidecar failed: {failure}", False
 
 
 def _origin(base_url: Any) -> str:

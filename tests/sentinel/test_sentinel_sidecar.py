@@ -187,6 +187,36 @@ async def test_a_sidecar_is_shown_without_the_credentials_its_base_url_holds() -
     assert found.proxy_url == "http://proxy.test"
 
 
+async def test_an_error_that_repeats_the_proxys_url_holds_no_credentials() -> None:
+    # a proxy's error page may repeat the URL Inspect asked for, credentials
+    # and all
+    def echo(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(500, text=f"upstream failed for {request.url}")
+
+    model = get_model(
+        _MODELS["anthropic"],
+        base_url="http://user:secret@proxy.test",
+        api_key="test-key",
+        memoize=False,
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(echo)),
+    )
+    client = await proxy_client(model.api)
+    assert client is not None
+
+    found = await probe(client)
+    assert isinstance(found, NoSidecar)
+    assert "http://proxy.test/sentinel/info" in found.reason
+    assert "secret" not in found.reason
+
+    sidecar = Sidecar(_origin(client.sdk.base_url), "whole", client.sdk)
+    with pytest.raises(SidecarCallError) as raised:
+        await sidecar.call("end_sample", {})
+    assert "http://proxy.test/sentinel/v1" in str(raised.value)
+    assert "secret" not in str(raised.value)
+    # nor in an error a traceback would print beside it
+    assert raised.value.__cause__ is None and raised.value.__context__ is None
+
+
 async def test_a_sidecar_behind_an_openai_compatible_models_base_url_is_found() -> None:
     stand_in = StandInSidecar()
 
