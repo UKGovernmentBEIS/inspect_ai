@@ -530,7 +530,7 @@ async def test_restore_repo_replaces_restored_modes(
     The listing here is clean while the restore leaves special and
     group/other bits behind, as restic can on a case-insensitive
     filesystem where two listed paths are one file. The target is already
-    owner-only when restic runs.
+    0700 when restic runs.
     """
     target = tmp_path / "ctx"
     target.mkdir(mode=0o777)
@@ -559,7 +559,8 @@ async def test_restore_repo_replaces_restored_modes(
         await _restore(target)
         assert _mode(target / "locked") == 0o700
     finally:
-        (target / "locked").chmod(0o700)
+        if (target / "locked").exists():
+            (target / "locked").chmod(0o700)
 
     assert target_mode_at_restore == [0o700]
     assert _mode(target) == 0o700
@@ -649,7 +650,8 @@ async def test_restore_repo_replaces_modes_when_restic_fails(
             await _restore(target)
         assert _mode(target / "locked") == 0o700
     finally:
-        (target / "locked").chmod(0o700)
+        if (target / "locked").exists():
+            (target / "locked").chmod(0o700)
     assert _mode(target) == 0o700
     assert _mode(target / "partial.json") == 0o600
 
@@ -718,23 +720,58 @@ async def test_restore_repo_tolerates_filesystem_without_modes(
     assert [c[3] for c in calls] == ["ls", "restore"]
 
 
-async def test_restore_repo_fails_when_a_mode_cannot_be_set(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Any other chmod failure fails the restore rather than keeping recorded modes."""
-    target = tmp_path / "ctx"
+def _refuse_chmod(monkeypatch: pytest.MonkeyPatch, code: int) -> None:
+    """Make ``os.chmod`` fail with ``code`` for the restored ``store.json`` only."""
     real_chmod = os.chmod
 
     def chmod(path: object, mode: int) -> None:
         if str(path).endswith("store.json"):
-            raise PermissionError(errno.EPERM, os.strerror(errno.EPERM), str(path))
+            raise OSError(code, os.strerror(code), str(path))
         real_chmod(str(path), mode)
 
-    _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
     monkeypatch.setattr(os, "chmod", chmod)
 
+
+@posix_modes
+@pytest.mark.skipif(
+    not hasattr(os, "geteuid") or os.geteuid() == 0,
+    reason="root's chmod failures are not tolerated",
+)
+async def test_restore_repo_tolerates_filesystem_refusing_owner_chmod(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """``EPERM`` on an entry the unprivileged user owns means the filesystem holds no modes."""
+    calls = _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
+    _refuse_chmod(monkeypatch, errno.EPERM)
+
+    await _restore(tmp_path / "ctx")
+
+    assert [c[3] for c in calls] == ["ls", "restore"]
+
+
+@posix_modes
+async def test_restore_repo_fails_when_chmod_is_refused_on_entry_owned_by_another_user(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """``EPERM`` on someone else's entry is not a filesystem limit; the restore fails."""
+    _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
+    _refuse_chmod(monkeypatch, errno.EPERM)
+    owner = os.geteuid()
+    monkeypatch.setattr(os, "geteuid", lambda: owner + 1)
+
     with pytest.raises(PermissionError, match=r"store\.json"):
-        await _restore(target)
+        await _restore(tmp_path / "ctx")
+
+
+async def test_restore_repo_fails_when_a_mode_cannot_be_set(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Any other chmod failure fails the restore rather than keeping recorded modes."""
+    _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
+    _refuse_chmod(monkeypatch, errno.EIO)
+
+    with pytest.raises(OSError, match=r"store\.json"):
+        await _restore(tmp_path / "ctx")
 
 
 async def test_restore_repo_rejects_source_path_missing_from_listing(

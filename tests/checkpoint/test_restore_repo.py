@@ -292,6 +292,8 @@ async def test_restore_does_not_reapply_extended_attributes(tmp_path: Path) -> N
 
     A plain ``restic restore`` of the same snapshot does set it, which shows
     the snapshot carries the attribute and the exclusion is what drops it.
+    The control restores the source dir alone, so it does not depend on
+    restic being able to reapply the metadata of the dirs above it.
     """
     restic, repo = await _init_repo(tmp_path)
     source = tmp_path / "sample" / "context"
@@ -305,12 +307,20 @@ async def test_restore_does_not_reapply_extended_attributes(tmp_path: Path) -> N
 
     plain = tmp_path / "plain"
     await anyio.run_process(
-        [str(restic), "-r", repo, "restore", "--target", str(plain), "latest"],
+        [
+            str(restic),
+            "-r",
+            repo,
+            "restore",
+            "--target",
+            str(plain),
+            "--",
+            f"latest:{source}",
+        ],
         env=restic_env(PASSWORD),
         check=True,
     )
-    (plain_store,) = plain.rglob("store.json")
-    assert "user.inspect_test" in os.listxattr(plain_store)
+    assert "user.inspect_test" in os.listxattr(plain / "store.json")
 
     target = tmp_path / "restored"
     await restore_repo(

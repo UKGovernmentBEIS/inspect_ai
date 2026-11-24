@@ -15,6 +15,7 @@ import os
 import re
 import shutil
 import stat
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 from subprocess import CalledProcessError
@@ -129,14 +130,15 @@ async def restore_repo(
     bound hold for what actually lands on disk.
 
     The snapshot's recorded metadata is not kept. Extended attributes are
-    excluded from the restore, ``target`` is made owner-only before restic
-    runs and stays that way (:func:`_prepare_target`), and once restic
-    exits every restored directory is set to 0700 and every file to 0600
-    (:func:`_normalize_restored_tree`). A mode that cannot be set fails
-    the restore, except on a filesystem that reports modes as unsupported.
-    Not reset: the owner and group restic applied (any, when it runs as
-    root; otherwise at most a group the user belongs to), and on Windows
-    the recorded security descriptor.
+    excluded from the restore, ``target`` is set to mode 0700 before
+    restic runs and stays that way (:func:`_prepare_target`), and once
+    restic exits every restored directory is set to 0700 and every file to
+    0600 (:func:`_normalize_restored_tree`). A mode that cannot be set
+    fails the restore, except where the filesystem refuses mode changes
+    (:func:`_chmod`). Not reset: the owner and group restic applied (any,
+    when it runs as root; otherwise at most a group the user belongs to),
+    access an ACL already on ``target`` or inherited from its parent
+    grants, and on Windows the recorded security descriptor.
 
     ``target`` must be a directory or absent; a symlink is refused without
     being followed (:func:`_prepare_target`). It is emptied before restic
@@ -202,7 +204,7 @@ async def restore_repo(
 
 
 def _prepare_target(target: str) -> Path:
-    """``target`` as an absolute, owner-only directory, created if absent.
+    """``target`` as an absolute directory with mode 0700, created if absent.
 
     Checked with ``lstat`` before anything resolves the path: the
     ``mkdir(exist_ok=True)`` that creates the context dir on the caller's
@@ -211,10 +213,10 @@ def _prepare_target(target: str) -> Path:
     pre-restore emptying at wherever it points on the host. A symlink or a
     non-directory at ``target`` is refused.
 
-    The directory is set to mode 0700 and left there. Restic never touches
-    the target's own metadata, so other users cannot reach the tree while
-    it still carries recorded modes, including after a failed restore or
-    a killed process.
+    The mode is left at 0700. Restic never touches the target's own
+    metadata, so its mode bits keep other users out of the tree while it
+    still carries recorded modes, including after a failed restore or a
+    killed process.
     """
     path = Path(os.path.abspath(target))
     try:
@@ -233,17 +235,31 @@ def _prepare_target(target: str) -> Path:
 
 
 def _chmod(path: str | Path, mode: int) -> None:
-    """``os.chmod``, tolerating a filesystem that does not support modes.
+    """``os.chmod``, tolerating a filesystem that refuses mode changes.
 
-    Restic ignores ``ENOTSUP`` too when it applies a node's mode, so on
-    such a filesystem no recorded mode was applied either. Any other
-    failure propagates and fails the restore.
+    Tolerated: ``ENOTSUP``, and ``EPERM`` on an entry the unprivileged
+    user running the restore owns. An owner can always change a mode the
+    filesystem stores, so either error means it does not; restic ignores
+    both when it applies a node's mode, so no recorded mode was applied
+    either. ``EPERM`` on an entry someone else owns, and any other
+    failure, propagates and fails the restore.
     """
     try:
         os.chmod(path, mode)
     except OSError as ex:
-        if ex.errno != errno.ENOTSUP:
-            raise
+        if ex.errno == errno.ENOTSUP:
+            return
+        if ex.errno == errno.EPERM and _owned_by_unprivileged_user(path):
+            return
+        raise
+
+
+def _owned_by_unprivileged_user(path: str | Path) -> bool:
+    """Whether the process is not root and owns ``path`` (never on Windows)."""
+    if sys.platform == "win32":
+        return False
+    euid = os.geteuid()
+    return euid != 0 and os.lstat(path).st_uid == euid
 
 
 def _normalize_restored_tree(root: Path) -> None:
@@ -283,7 +299,7 @@ def _empty_dir(path: Path) -> None:
 
     Symlink entries are unlinked, not descended, so a link to a directory
     elsewhere on the host is never emptied. Nothing is suppressed: an entry
-    that cannot be removed (say a directory an earlier restore of a hostile
+    that cannot be removed (say a directory a killed restore of a hostile
     snapshot left unreadable) fails the restore rather than leaving stale
     state beside the restored files.
     """
