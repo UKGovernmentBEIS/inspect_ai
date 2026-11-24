@@ -1,6 +1,7 @@
 import base64
 import json
 from contextlib import nullcontext
+from functools import partial
 from pathlib import Path
 from typing import Any, cast
 
@@ -9,6 +10,11 @@ import openai
 import pytest
 from openai import DefaultAsyncHttpxClient
 from test_helpers.output_cache import check_output_cache_round_trip
+from test_helpers.sentinel_failure import (
+    FailDuringRequest,
+    is_refusal,
+    outcome_while_failing,
+)
 from test_helpers.utils import skip_if_no_openai, skip_if_no_openai_model
 
 from inspect_ai import Task, eval
@@ -684,6 +690,69 @@ async def test_openai_auto_stream_falls_back_when_server_rejects_streaming():
     assert len(calls) == 2
     assert calls[0].kwargs["stream"] is True
     assert "stream" not in calls[1].kwargs
+
+
+class _Sent(Exception):
+    """Raised by a stub endpoint to end a generate whose request was sent."""
+
+
+@pytest.mark.parametrize("monitor", [False, True], ids=["sample", "monitor"])
+async def test_no_non_streaming_retry_is_sent_once_the_sample_has_failed(
+    monkeypatch: pytest.MonkeyPatch, monitor: bool
+) -> None:
+    """A sample that fails while its rejected stream request is pending is not retried.
+
+    A sentinel's monitor still retries without streaming.
+    """
+    from openai import BadRequestError
+
+    from inspect_ai.model._providers.openai import OpenAIAPI
+
+    model = get_model("openai/gpt-4o", api_key="test-key", memoize=False)
+    during_stream = FailDuringRequest()
+    requests: list[str] = []
+    message = "Your organization must be verified to stream this model."
+
+    async def create(**kwargs: object) -> object:
+        if not requests:
+            requests.append(f"stream={kwargs.get('stream')}")
+            await during_stream.pending()
+            raise BadRequestError(
+                message,
+                response=httpx2.Response(
+                    400,
+                    request=httpx2.Request("POST", "https://test/v1/chat/completions"),
+                ),
+                body={
+                    "message": message,
+                    "type": "invalid_request_error",
+                    "param": "stream",
+                    "code": "unsupported_value",
+                },
+            )
+        requests.append(f"stream={kwargs.get('stream')}")
+        raise _Sent()
+
+    async def on_stream(event: Any) -> None:
+        pass
+
+    assert isinstance(model.api, OpenAIAPI)
+    monkeypatch.setattr(model.api.client.chat.completions, "create", create)
+    try:
+        outcome = await outcome_while_failing(
+            partial(model.generate, "hello", on_stream=on_stream),
+            during_stream,
+            monitor=monitor,
+        )
+    finally:
+        await model.api.aclose()
+
+    if monitor:
+        assert requests == ["stream=True", "stream=None"]
+        assert isinstance(outcome, _Sent)
+    else:
+        assert requests == ["stream=True"]
+        assert is_refusal(outcome)
 
 
 async def test_chat_completions_streaming_with_non_strict_tools():

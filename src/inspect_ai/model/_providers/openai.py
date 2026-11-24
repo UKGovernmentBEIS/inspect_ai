@@ -679,6 +679,8 @@ class OpenAIAPI(ModelAPI):
                 "retrying without streaming (on_stream events will not be "
                 "delivered)",
             )
+            # `Model` checked before the rejected request, not before this one
+            raise_if_sentinel_failed()
             response = await generate_once(False)
 
         return response
