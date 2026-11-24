@@ -54,12 +54,8 @@ reader imports nothing that starts a server. Its tests are in
 
 `--log-dir` is an option of each command the mode serves, written after the
 command like every other ctl option and like `--log-dir` on `inspect eval`,
-`eval-set` and `log list` (decision: Ransom, 2026-09-24):
-
-```
-inspect ctl task list --log-dir <dir> [--shards] [--json]
-inspect ctl sample events TASK SAMPLE_ID [EPOCH] --log-dir <dir> [...]
-```
+`eval-set` and `log list` (decision: Ransom, 2026-09-24). The user docs give
+the command forms.
 
 - It takes a directory in any form Inspect reads (plain path, `file://`,
   `s3://`, other fsspec URLs). The given directory is the walk's root,
@@ -68,15 +64,12 @@ inspect ctl sample events TASK SAMPLE_ID [EPOCH] --log-dir <dir> [...]
 - One shared decorator (`_log_dir_option` in `_group.py`) adds it to `task
   list` and the six sample reads, so their help and behaviour cannot
   drift. Every other command lacks it, so `--log-dir` there is click's
-  usage error (exit 2, no `--json` envelope), and a command added later
-  fails closed until it is implemented and decorated (decision: Ransom,
-  2026-09-24). The bare nouns (`task --log-dir`, `sample --log-dir`) take it
-  through the existing `list`-option mirroring, and a noun-level
-  `--log-dir` before a verb without the option is refused.
-- The option's callback stores the root for the invocation (read with
-  `_log_dir_root()`); it is not passed to the command function. It has no
-  environment-variable mirror: a left-over variable would silently switch
-  ctl from live processes to stale logs.
+  usage error (no `--json` envelope), and a command added later fails
+  closed until it is implemented and decorated (decision: Ransom,
+  2026-09-24). The bare nouns (`task`, `sample`) take it as they take their
+  `list` verb's other options.
+- It has no environment-variable mirror: a left-over variable would
+  silently switch ctl from live processes to stale logs.
 - `task list --shards` turns shard aggregation off: every `<name>.shards/`
   is walked as an ordinary directory, so each shard, the merged log and any
   stray log is an ordinary row. It lists what `--log-dir` pointed at each
@@ -86,9 +79,7 @@ inspect ctl sample events TASK SAMPLE_ID [EPOCH] --log-dir <dir> [...]
   them twice. In live mode `--shards` is accepted and does nothing
   (decision: Ransom, 2026-10-13).
 - Human output starts with one stderr line naming the directory, the mode
-  and its usual lag (`_announce_mode`, printed by `_envelope_failures`
-  before the command runs). The wording states cadences, not bounds. An
-  empty directory prints `No eval logs found in <dir>.`
+  and its usual lag, worded as cadences, not bounds (`_log_dir.py`).
 
 ### Command inventory
 
@@ -151,27 +142,35 @@ The mode depends on how a worker writes, which it does not change:
   `_journal/summaries/<n>.json` member per flush, and no `header.json`;
   readers build its header from the start record. `header.json` and
   `summaries.json` are written when it finishes. Each flush replaces the
-  whole object (on S3, a new ETag), so a completed sample normally reaches
-  the log within about 60 seconds (the stale-flush timer in
-  `src/inspect_ai/_eval/task/log.py`) plus the upload.
+  whole object (on S3, a new ETag), so a completed sample reaches the log
+  when its batch fills or the recorder's stale-flush timer fires, plus the
+  upload (`src/inspect_ai/_eval/task/log.py`).
 - **The shared sample buffer.** Only with `--log-shared`: the worker
   copies its local buffer database to `<log dir>/.buffer/<log stem>/` at
-  most once per `log_shared` seconds (10 by default). `manifest.json` is
-  rewritten on every sync and holds one row per sample still in the
-  database, with its summary and its segment list; each sync adds a
-  `segment.<n>.zip` with the rows added since. A sample enters the manifest
-  when it starts, with its start-time summary (no token or message progress
-  until it completes), and leaves it after the flush that writes it to the
-  log. The worker writes the log before dropping the row, so a sample that
-  leaves the manifest is already in the log
-  (`src/inspect_ai/log/_recorders/buffer/`).
+  most once per `log_shared` interval. `manifest.json` is rewritten on
+  every sync and holds one row per sample still in the database, with its
+  summary and its segment list; each sync adds a `segment.<n>.zip` with the
+  rows added since (`src/inspect_ai/log/_recorders/buffer/`). A sample
+  enters the manifest when it starts, with its start-time summary (no token
+  or message progress until it completes). It leaves the manifest in one of
+  two ways. **The flush handoff:** the worker writes the log before dropping
+  the flushed rows, so a sample that leaves this way is already in the log.
+  **A discarded attempt:** a sample-level retry (`retry_on_error`), or a
+  retry an interrupt turned into an abandoned attempt, removes the
+  attempt's rows without logging it (`src/inspect_ai/_eval/task/run.py`), and a
+  sync that races a removal leaves that sample out of its manifest. A
+  retried key reappears with its new attempt on a later sync; an abandoned
+  one is never logged.
 - **Cleanup.** A normal finish deletes the buffer. A hard-killed worker
   leaves its log `started` and its buffer in place, so a crashed worker
   cannot be told from a running one by status alone.
 - **The recorded selection is a seed.** A log records the sliced dataset's
   ids (`eval.dataset.sample_ids`) at start, but a `SampleSource` can admit
   further samples without updating it, and older logs record no ids. Only a
-  finished log's `results.total_samples` counts every admitted sample.
+  finished log counts every admitted sample: `EvalLog.total_samples`, and
+  `results.total_samples` as the eval writes it. Rescoring with `inspect
+  score` can replace `results` with counts over the samples present in the
+  log, leaving only `EvalLog.total_samples` as the admitted count.
 - **One key can have an older record in the log and a newer attempt in the
   buffer**, after a seeded retry re-runs a key it inherited or an
   in-process requeue re-runs a flushed key. Recovery resolves this by
@@ -184,12 +183,10 @@ The mode depends on how a worker writes, which it does not change:
 buffer segments or checkpoint objects, whose counts grow with run age:
 
 - **One delimited listing per directory visited**, through
-  `AsyncFilesystem.list_dir`: on S3 one `list_objects_v2` sweep with
-  `Delimiter="/"` returning files and subdirectories together; locally
-  `os.scandir` without following directory symlinks, so a symlink loop
-  cannot hang the walk; other fsspec backends one `ls` per directory.
-  Listings carry size, mtime and (on S3) ETag. At most 32 listings are in
-  flight, the CLI's fan-out cap.
+  `AsyncFilesystem.list_dir`, returning files and subdirectories together
+  with size, mtime and (on S3) ETag. Locally it does not follow directory
+  symlinks, so a symlink loop cannot hang the walk. Listings run
+  concurrently up to a fixed cap (`walk.py`).
 - **`.buffer/` is never listed.** Its presence in a directory's listing is
   recorded on the logs beside it, and a log's manifest path is derived as
   `.buffer/<stem>/manifest.json`. `*.checkpoints/` is skipped. Every other
@@ -345,16 +342,25 @@ status through the live row builder (`_summary_from_eval_sample_summary`):
 a running buffer row is `running`, a completed one takes its summary's
 terminal status.
 
-**Totals.** The only authoritative total is a finished unsharded current
-log's `results.total_samples`, which counts dynamically admitted samples
-(`authoritative_total`, `totals`). With one, `samples.total` is that total
-(or the known-key count when larger, which is then not final) and
-`pending_unlisted` is the pending samples it counts that no record names.
-Otherwise `samples.total` is the known-key count, a lower bound: a running
-log, a finished log without `results`, an older log with no recorded ids,
-and every shard set report a lower bound, since shards that have not
-started are not in the directory and ctl does not read the merged log's
-recorded selection ("The merged log").
+**Totals.** The only total ctl treats as authoritative is a finished
+unsharded current log's `results.total_samples` (`authoritative_total`,
+`totals`). With one, `samples.total` is that total (or the known-key count
+when larger, which is then not final) and `pending_unlisted` is the pending
+samples it counts that no record names. Otherwise `samples.total` is the
+known-key count, a lower bound: a running log, a finished log without
+`results`, an older log with no recorded ids, and every shard set report a
+lower bound, since shards that have not started are not in the directory
+and ctl does not read the merged log's recorded selection ("The merged
+log").
+
+As the eval writes it, `results.total_samples` counts every admitted
+sample, dynamically admitted ones included. After a rescore that replaced
+`results` with counts over the logged samples, it counts only those, and
+ctl, which does not read `EvalLog.total_samples`, reports that smaller
+total as final: admitted samples that never reached the log and are not in
+the recorded selection (a drained or cancelled run's queued samples, keys a
+`SampleSource` admitted) are then counted nowhere, and `unfinished` can
+read 0 for an incomplete run.
 
 ### Reading a member consistently
 
@@ -366,31 +372,34 @@ data (`read_member` in `snapshot.py`, `consistency.py`):
 - **The log is observed after the manifest.** For a running member that may
   have a shared buffer (its header has `log_shared` and the walk saw a
   `.buffer/` beside it), the manifest is read first, then the log's current
-  version is checked with one metadata request (`log_version`: `head_object`
-  on S3; locally inode, `mtime_ns` and size, since the recorder replaces a
-  local log atomically). The plan's central directory is reused only if it
-  came from that version; otherwise it is read again. Because the worker
-  writes a sample to the log before dropping it from the manifest, every key
-  the worker had admitted when the manifest was read is reported from the
-  manifest, the log, or both, never as pending or missing; a later key
-  appears on the next poll. The guarantee depends only on reads made in the
-  invocation, so concurrent pollers and stale or lost cache entries can cost
-  extra reads but cannot weaken it
+  version is checked with one metadata request (`log_version`); the plan's
+  central directory is reused only if it came from that version. Because
+  the flush handoff writes a sample to the log before dropping it from the
+  manifest, a key the manifest held that left it by being flushed is
+  reported from the manifest, the log, or both, never as pending or
+  missing; a later key appears on the next poll. The guarantee depends only
+  on reads made in the invocation, so concurrent pollers and stale or lost
+  cache entries can cost extra reads but cannot weaken it
   (`test_a_key_flushed_after_the_plan_read_is_read_from_the_log`,
   `test_a_key_admitted_to_the_manifest_of_an_unchanged_log_is_found`).
   Members with no manifest have no second object to order against.
+- **A retried key can drop out between syncs.** A key whose attempt was
+  discarded for a sample-level retry is in neither object until a sync
+  publishes its new attempt ("What the log directory holds while a run is
+  live"). Until then it reads as the log's earlier record of the key if
+  there is one, `pending` if only the recorded selection names it, and is
+  absent otherwise, although an earlier poll may have shown it running.
 - **Mixed versions.** A central-directory read and a member read are
-  separate range requests. On S3 the central directory's reads after its
-  suffix read are pinned to the suffix response's ETag, so its version names
-  all its bytes. Every member read, whole or streamed, is checked against
-  the central directory's CRC-32 (`AsyncZipReader(verify_crc=True)`); a
-  streamed read is validated only when fully consumed. A CRC mismatch, a
-  changed object under a pinned read, or a decompression or parse error
-  re-reads the central directory and the member a bounded number of times
-  (`read_consistently`, `MAX_REREADS`); bytes that pass their CRC check and
-  still do not validate are an unparsable log, not a torn read. A sample
-  read through a fresh central directory re-reads the sample's summary from
-  that version too, so the two never describe different records.
+  separate range requests. On S3 the central directory's own reads are
+  pinned to one object version. Every member read, whole or streamed, is
+  checked against the central directory's CRC-32. A CRC mismatch, a changed
+  object under a pinned read, or a decompression or parse error re-reads
+  the central directory and the member a bounded number of times
+  (`read_consistently` in `consistency.py`); bytes that pass their CRC
+  check and still do not validate are an unparsable log, not a torn read. A
+  sample read through a fresh central directory re-reads the sample's
+  summary from that version too, so the two never describe different
+  records.
 - **The manifest.** A local manifest is rewritten in place, so one that
   does not parse is re-read the same bounded number of times. A manifest
   that is gone reads as no manifest, and the log read after it then serves
@@ -493,10 +502,10 @@ selection (`samples.py`):
   start, so when the record moves to the log, or to another attempt, an old
   cursor is foreign and the read restarts at 0: duplicates, never gaps
   (`test_a_retry_attempts_cursor_restarts_on_the_next_attempt`). `sample
-  messages` and `sample store` fail `unsupported`: the buffer holds no
-  message list or store snapshot (decision: Ransom, 2026-09-23). The
-  message says whether the sample is still running or waiting for its
-  flush.
+  messages` and `sample store` fail `unsupported` (decision: Ransom,
+  2026-09-23): the buffer holds no message list, and ctl does not read the
+  final-store sidecar a completed row may have. The message says whether
+  the sample is still running or waiting for its flush.
 - **`pending`**: `not_found`, saying the sample has not started, or that it
   may be running without a shared buffer and `--log-shared` would show it.
 - **`conflict`**: `ambiguous`, naming each log holding the key so the caller
@@ -520,19 +529,16 @@ is an ordinary log, read like any other.
 A local, per-user cache makes a steady-state poll cost a listing plus reads
 of what changed (`cache.py`):
 
-- **Location.** One JSON file per log under
-  `inspect_data_dir("ctl")/log-dir-cache/`, named by the SHA-256 of its key
-  (an S3 log's URL, a local log's absolute path). The directory is created
-  0700 when an invocation first opens it, and entries 0600.
-- **What is cached.** A log's plan, with the version it was read from (S3
-  ETag; locally inode, `mtime_ns` and size, kept only when a stat after the
-  read matches the one before, so a log replaced during the read gets no
-  reusable version). A finished log's plan is reused while the listing
+- **Location.** One file per log, keyed by the log's URI, in an owner-only
+  directory under `inspect_data_dir("ctl")` ([user
+  docs](../../docs/control-channel.qmd#reading-a-log-directory)).
+- **What is cached.** A log's plan, with the version it was read from (the
+  S3 ETag, or a local stat), recorded only when the log did not change
+  during the read. A finished log's plan is reused while the listing
   reports that version, and its parsed summaries with it. A running log's
-  central directory is read on every poll: its cached header is reused
-  while `_journal/start.json` keeps its CRC-32, and each parsed journal
-  member while the fresh central directory lists it with the same name,
-  CRC-32 and size, so a poll costs the central directory plus the journal
+  central directory is read on every poll; its header and each parsed
+  journal member are reused while the fresh central directory lists the
+  member unchanged, so a poll costs the central directory plus the journal
   members added since. Manifests, sample members and segments are not
   cached.
 - **Pure performance.** Every cached value is keyed by a finished log's
@@ -543,31 +549,25 @@ of what changed (`cache.py`):
   Concurrent pollers may overwrite each other's entries in either order;
   every surviving entry describes a real version of its log.
 - **Writes** happen once per log per invocation, when the CLI command ends,
-  atomically (temp file then rename) into the existing directory, which a
-  write never recreates. An entry of another schema or Inspect version is a
-  miss. The first failure to key, load, validate, serialize or write an
-  entry turns the cache off for the rest of the invocation and is logged at
-  debug; an entry that fails to validate is removed. A log holding a value
-  the serializer refuses (a lone surrogate) therefore stays uncached, with
-  output unaffected.
+  atomically, into the existing directory, which a write never recreates.
+  An entry of another schema or Inspect version is a miss. The first
+  failure to key, load, validate, serialize or write an entry turns the
+  cache off for the rest of the invocation; an entry that fails to validate
+  is removed. A log holding a value the serializer refuses therefore stays
+  uncached, with output unaffected.
 - **Backends.** Only local and S3 logs are cached: only their version names
   their content. Other backends' metadata can stay the same across a
   rewrite, so their logs are read in full on every poll
   (`test_a_same_size_azure_rewrite_is_read_again`).
-- **Bounds.** Least-recently-used entries are pruned above a size limit
-  (`MAX_CACHE_BYTES`).
-- **Review scope.** Supported: local and S3 logs, concurrent pollers, logs
-  changing between polls, and a log replaced during a read. Out of scope:
-  several injected faults within one invocation beyond "the first failure
-  turns the cache off", other local users or processes tampering with the
-  cache directory, other backends, and running logs written by an older
-  Inspect version (a cache operation that fails on another journal layout
-  falls back to an uncached read).
+- **Bounds.** Least-recently-used entries are pruned above a fixed size
+  limit.
+- **Limits.** Other local users or processes tampering with the cache
+  directory are out of scope; a cache operation that fails on another
+  Inspect version's journal layout falls back to an uncached read.
 
 ### Cost
 
-On S3, with reads issued concurrently on one `AsyncFilesystem` and at most
-32 in flight:
+On S3, with reads issued concurrently on one `AsyncFilesystem`:
 
 - **The walk** costs one LIST per directory visited (per 1,000 entries):
   `N + 2` for a sharded run of `N` shards (the root, the companion, each
@@ -580,12 +580,10 @@ On S3, with reads issued concurrently on one `AsyncFilesystem` and at most
   the listing.
 - **A running log** costs its central directory on every poll plus the
   journal members added since; with a shared buffer, its manifest and one
-  `head_object` freshness check.
+  HEAD to check the log's version.
 - **A per-sample read** costs the same key refresh as a list read of its
-  task, plus the sample member (its central directory when not already
-  read this invocation, then the local header and body for a
-  field-excluding read, or one GET for the events read) and, for a buffer row,
-  one GET per listed segment. A logged sample's events are re-read and
+  task, plus the sample member (and its central directory when not already
+  read this invocation) and, for a buffer row, one GET per listed segment. A logged sample's events are re-read and
   parsed on every page invocation, on the caller's machine rather than on
   an eval's event loop.
 
@@ -600,8 +598,8 @@ assert these formulas with a request counter on `mock_s3`
 `test_s3_request_counts_for_buffer_reads`,
 `test_s3_request_counts_with_the_cache_for_finished_logs`,
 `test_s3_request_counts_with_the_cache_for_running_logs`). Data is no
-fresher than the workers' flush and sync cadences, so polling faster than
-every 30 seconds buys nothing; the docs give the polling guidance.
+fresher than the workers' flush and sync cadences; the user docs give the
+polling guidance, weighing request cost against seeing each buffer sync.
 
 ### Code shared with live mode and the merge
 
@@ -644,8 +642,8 @@ every 30 seconds buys nothing; the docs give the polling guidance.
 - **One source per key.** Every read reports the same record for a key, also
   while a re-run attempt runs, completes and is flushed
   (`test_every_read_follows_a_re_run_key_through_its_attempt`).
-- **No key lost to a torn read.** A key the worker had admitted when the
-  manifest was read is reported from the manifest or the log, never as
+- **No key lost to a torn read.** A key that leaves the manifest through
+  the flush handoff is reported from the manifest or the log, never as
   pending or missing; a mid-read replacement is re-read, and an exhausted
   re-read is reported, never turned into missing data
   (`test_read_consistently_retries_torn_reads_then_succeeds`,
@@ -661,9 +659,12 @@ every 30 seconds buys nothing; the docs give the polling guidance.
   `log_shared` stretches them, and nothing records a heartbeat. Without
   `--log-shared`, running samples are invisible. A running sample shows no
   token or message progress until it completes. A crashed worker's log
-  stays `started`; only `updated_at` hints at it. A sharded task's total is
-  a lower bound and its whole-task metrics are not shown until a merged log
-  replaces the shard set. Messages and store of a buffer row, and
+  stays `started`; only `updated_at` hints at it. A key retrying after an
+  error drops back to its earlier record, `pending` or absent until a sync
+  publishes its new attempt. A sharded task's total is a lower bound and
+  its whole-task metrics are not shown until a merged log replaces the
+  shard set; a rescored finished log's total can count only its logged
+  samples and still read final ("Totals"). Messages and store of a buffer row, and
   `--active-since`, are unsupported. `.json` logs are not read.
 
 ## Alternatives considered
@@ -685,9 +686,9 @@ every 30 seconds buys nothing; the docs give the polling guidance.
   switch from live to stale semantics, and with no process ctl cannot know
   which directory to read.
 - **A root option on the `ctl` group** (`inspect ctl --log-dir <dir> task
-  list`), with a structured `unsupported` for every other command. It was
-  the first implementation; every other ctl option and `--log-dir`
-  elsewhere in Inspect go after the command, and a usage error is the
+  list`), with a structured `unsupported` for every other command. Every
+  other ctl option and `--log-dir` elsewhere in Inspect go after the
+  command, and a usage error is the
   ordinary answer to an option a command does not take (decision: Ransom,
   2026-09-24).
 - **Reuse `list_eval_logs` and `read_eval_log_headers`.** Fine for a small
@@ -710,20 +711,15 @@ every 30 seconds buys nothing; the docs give the polling guidance.
   exists only on the worker host, where the live control channel is the
   better tool, and opening a live writer's database from a second process
   adds locking concerns.
-- **Take the default `task list` row of a finished shard set from the
-  merged log's summaries**, on a cold cache, when its ledger shows a
-  complete `success` snapshot of exactly the listed shards (same names and
-  ETags, every entry `success` with all its selected samples). Dropped
-  before it was built (decision: Ransom, 2026-11-23): it saves about 900
-  small GETs on the first cold `task list` of a 300-shard run, which the
-  warm cache already avoids afterwards, at the cost of a second path for
-  the same row, its own conditions and tests, and care that an
-  `edit_score` on the merged log changes nothing the row shows. ctl does
-  not read `eval.shards`.
+- **Take a finished shard set's `task list` row from the merged log's
+  summaries when the merged log's shard ledger shows it covers the listed
+  shards.** Dropped (decision: Ransom, 2026-11-23): one reader path for the
+  row is worth about 900 small GETs on the first cold `task list` of a
+  300-shard run, which the warm cache avoids afterwards.
 - **Messages for buffer rows** rebuilt from buffered model events (what
   `inspect log recover` produces). Every segment of the sample on every
-  call, and there is no store equivalent; `sample events --type model` is
-  the pointer the `unsupported` error gives (decision: Ransom, 2026-09-23).
+  call; `sample events --type model` is the pointer the `unsupported` error
+  gives (decision: Ransom, 2026-09-23).
 - **Per-shard rows by default.** A 300-row default would flood an agent's
   context; one logical row per run is the default and `--shards` lists the
   shards (decisions: Ransom, 2026-09-23 and 2026-10-13).
@@ -786,9 +782,8 @@ applies with a different transport:
   `--log-dir` to the read commands is not a security boundary (the mode has
   no write path); it keeps a mutation from ever running against a
   directory.
-- **Cache.** Owner-only (directory 0700, entries and temporary files 0600;
-  a write never recreates a deleted directory), keyed by URI and version,
-  and re-parsed through the same models on read. A same-user attacker who
+- **Cache.** Owner-only (a write never recreates a deleted directory),
+  keyed by URI and version, and re-parsed through the same models on read. A same-user attacker who
   can edit it is out of scope, as for the discovery directory.
 
 ## Not this design
@@ -801,6 +796,15 @@ applies with a different transport:
   selection as the shard set's authoritative total (an id list would also
   make shards that have not started enumerable as pending rows). Cheap,
   optional, and not built.
+- `sample store` for a completed buffer row could read the row's
+  final-store sidecar (`SampleBufferFilestore.read_sample_store`, which
+  recovery uses); today it is `unsupported`, and its message says the store
+  is not in the shared buffer.
+- Reading `EvalLog.total_samples` for a finished log would keep a rescored
+  log's total at its admitted count ("Totals").
+- A sample-level retry's key drops out of the published state until the
+  next sync; keeping the discarded attempt's row until its successor is
+  synced would close the gap for every buffer reader.
 - `AsyncZipReader` reads a 64 KiB suffix to find every central directory,
   which dominates the bytes of reading many small logs (the viewer and
   header reads pay it too); a smaller first read with a fallback would cut
