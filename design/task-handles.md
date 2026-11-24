@@ -9,8 +9,8 @@ its own, and the task that added it sends each sample with
 `TaskHandle.enqueue_sample()`, which returns that sample's logged
 `EvalSample`. `TaskHandle.result()` waits for a fed task's final log.
 
-A fed task runs under the model of the task that added it, with one epoch,
-starts when its first sample is sent, and does not take a `max_tasks`
+A fed task uses its own model if it sets one, otherwise the model of the
+task that added it. It runs one epoch, starts when its first sample is sent, and does not take a `max_tasks`
 slot, so a search that waits on the rollouts it sends works at any
 `max_tasks`. It stays open until its handle is closed (`close()`,
 `result()`, leaving `async with`) or the attempt that added it ends, and
@@ -63,13 +63,13 @@ Code:
 - `src/inspect_ai/_eval/task/sample_source.py`: `samples_from_handle()`,
   `HandleChannel` (the fed task's sample source), `HANDLE_DATASET_NAME`,
   and the free `enqueue_sample()`'s refusal.
-- `src/inspect_ai/_eval/run.py`: the dispatcher's uncounted start
-  (`start_attempt`, `run_one`), the attempt's cancel handle
+- `src/inspect_ai/_eval/run.py`: starting fed tasks outside `max_tasks`
+  (`dispatch_tasks`), closing a fed task's channel on an operator cancel
   (`_attempt_cancel`) and a fed task's settings
   (`_apply_fed_task_settings`).
-- `src/inspect_ai/_eval/task/run.py`: attaching and detaching the channel
-  around an attempt (`task_run`) and clearing the attempt context around
-  `TaskSource` callbacks (`notify_task_source` and the sample callbacks).
+- `src/inspect_ai/_eval/task/run.py`: delivering sent samples to a running
+  attempt (`task_run`) and running `TaskSource` callbacks outside any
+  attempt (`notify_task_source` and the sample callbacks).
 - `src/inspect_ai/_eval/eval.py`: resolution under the creator's model
   (`_resolve_enqueued_tasks`), the refusals in `eval_resolve_tasks` and
   `eval_retry_async`.
@@ -108,30 +108,29 @@ added, in resolution order. A task added inside a running attempt
 task added anywhere else is resolved once per run model, with one handle
 each. A task that sets its own `model` keeps it.
 
-A handle carries the task's id, name and model. Its methods:
+A handle carries the task's id, name and model. Its methods, documented on
+`TaskHandle` and in "Tasks fed through a handle" in the user docs:
 
-- `enqueue_sample(sample)` runs `sample` once in a fed task and returns its
-  logged `EvalSample`; an errored or operator-cancelled sample comes back
-  with its `error` set.
+- `enqueue_sample(sample)` runs `sample` in a fed task, as one epoch, and
+  returns its logged `EvalSample`; an errored or operator-cancelled sample
+  comes back with its `error` set.
 - `result()` closes the handle, then waits until the fed task ends, and
   returns its final log or `None` if it ended with none. It closes first
   because a creator waiting on a task it feeds would otherwise wait for an
   end its own open handle prevents.
 - `close()` accepts no more samples; the task ends once the samples sent
-  have run. It does nothing a second time or on a handle whose task is not
-  fed through it.
-- `cancel()` aborts the task, as `inspect ctl task cancel` does, and does
-  nothing once the task has ended. A `cancel()` on a handle returned to an
-  `on_run_start` hook, before the run opened, is applied when the run
-  opens.
+  have run.
+- `cancel()` aborts the task, as an operator's task cancel does, and does
+  nothing once the task has ended. It works from the moment the task is
+  added, including while the task is queued and before the control channel
+  can see it ("Closing and cancelling").
 - `async with handle` closes the handle on exit and never cancels.
 
 `enqueue_sample()` and `result()` need a task fed through the handle and
 raise `RuntimeError` on any other; `close()`, `cancel()` and the attributes
 work on every handle. Every method, like `enqueue_task()` itself, must be
-called on the run's event loop and raises `RuntimeError` naming the
-`anyio.from_thread` route otherwise (`_require_run_loop`;
-`test_handle_calls_off_the_run_loop`).
+called on the run's event loop
+(`test_handle_calls_off_the_run_loop`).
 
 The *creator* of a fed task is the attempt that added it. Its end closes
 the task's channel. User docs and errors say "the task that added it" or
@@ -149,93 +148,89 @@ finishing its samples and leaves it an error log
 
 ### What the handles add to the run queue
 
-The run queue ([task-dispatch.md](task-dispatch.md#the-run-queue)) gives
-each fed task's record its own `HandleChannel`, bound to the record when
-the record is added, and records the channel with the creator's
-`TaskAttempt`. A fed record gets no retries.
+The run queue ([task-dispatch.md](task-dispatch.md#the-run-queue)) owns
+each fed task's record and gives it its own `HandleChannel`, the task's
+sample source, which the record's handles send through. The queue gives a
+fed record no retries.
 
-The code an attempt runs sees that attempt through a context variable that
-the dispatcher sets around each attempt and that every context copied from
-it shares by reference, so a background coroutine that outlives its
-attempt sees it end. `enqueue_task()` passes it as the creator; outside an
-attempt, or after the attempt ended, there is none.
+Code that an attempt runs, including a background coroutine it starts,
+adds tasks with that attempt as their creator until the attempt ends
+(`TaskAttempt`, `creator_attempt` in `enqueue.py`). Only such code can add
+a fed task.
 
-The dispatcher has two ways to start a record. Its ordinary picks, bounded
-by `max_tasks`, skip every record that has a channel. Its uncounted start,
-which task-dispatch.md uses for a record cancelled while queued, also
-starts each queued fed record whose channel holds a request and which no
-pause holds, in queue order, outside `max_tasks`. Neither runs once the
-dispatcher has latched a run cancellation. Both take the record out of the
-pending list in one synchronous step, so no record starts twice.
+The dispatcher (`dispatch_tasks` in `src/inspect_ai/_eval/run.py`) starts
+a fed record outside `max_tasks` once its channel holds a sent sample,
+unless a pause holds it or a run cancellation has been latched; ordinary
+`max_tasks` starts never pick a fed record, and no record starts twice.
+A fed record's attempt is not counted against `max_tasks`.
 
 ### Tasks fed through a handle
 
 **Dataset.** `samples_from_handle()` returns a `HandleChannel`, a
 `SampleSource` with no seed. `resolve_dataset_or_source` gives such a task
-an empty dataset named `samples_from_handle`, so every fed log records
-`eval.dataset.name == "samples_from_handle"`, and refuses that name for any
-other dataset at `Task` construction and in `task_with`
+an empty dataset named `samples_from_handle`, so every fed log records that
+dataset name, and refuses the name for any other dataset at `Task`
+construction and in `task_with`
 (`test_fed_task_dataset_name_is_reserved`). The name lives in the eval
 spec, so every copy of the log (conversion, recovery) carries it.
 
-**Starting, with no slot.** The record waits in `queued`, listed and
-cancellable like any queued task, until its channel holds a request; the
-dispatcher then starts it whatever `max_tasks` is, and its attempt is not
-counted against the limit (`test_fed_task_takes_no_slot`,
-`test_fed_task_starts_while_another_task_builds`). A fed task runs only
-what its creator sends, and its samples are bounded by `max_samples`,
-`max_sandboxes` and its model's connection limit like any task's, while its
-creator's own slot is counted. A record whose channel closes before any
-sample was sent ends with no attempt and no log, so a handle never used
+**Starting, with no slot.** A fed task waits queued until its first sample
+is sent, then starts whatever `max_tasks` is
+(`test_fed_task_takes_no_slot`,
+`test_fed_task_starts_while_another_task_builds`). It runs only what its
+creator sends, and its samples are bounded by `max_samples`,
+`max_sandboxes` and its model's connection limit like any task's, while
+its creator's own slot is counted. A fed task whose handle closes before
+any sample is sent ends with no attempt and no log, so a handle never used
 costs nothing. Its model controller is created lazily on its first
 `generate`, as for any added task
-([task-dispatch.md](task-dispatch.md#adding-tasks)); under its creator's
-model it usually exists already.
+([task-dispatch.md](task-dispatch.md#adding-tasks)).
 
-**One model, one epoch.** Each sent sample runs once; a creator that wants
-repeats sends the sample again. A creator in a multi-model run feeds a
-rollout task under its own model
-(`test_each_creator_feeds_its_own_rollout_task_in_a_multi_model_run`).
+**Model and epochs.** A fed task uses its own `model` if it sets one,
+otherwise the model of the task that added it, so a creator in a
+multi-model run feeds a rollout task under its own model
+(`test_each_creator_feeds_its_own_rollout_task_in_a_multi_model_run`). It
+runs one epoch: each send is one epoch of one sample and settles with one
+result, and a creator that wants repeats sends the sample again. The
+run's sample retries apply to a sent sample as to any sample, so the
+result delivered is the one logged after them. An operator requeue of a
+sent sample that already returned its result runs it again under the same
+id and epoch ([Requeue](../docs/control-channel.qmd#requeue)); the log
+then holds the rerun's result, which its sender never receives
+(`HandleChannel.sample_complete`; the requeue path in
+`src/inspect_ai/_eval/task/scheduler.py`).
 
 **Ids.** The handle sends a copy of the caller's sample (the caller's
-object is unchanged) under the id `send-<token>-<n>`: the first 8
-characters of the record's task id and a per-channel counter, zero-padded
-to four digits like generated `dyn-` ids. A sample that already has an id
-is refused. Within the task the ids cannot collide (no seed, no
-caller-set ids, a counter that never repeats), and the token, from a task
-id resolution generates afresh for every addition, keeps them distinct
-across tasks too: the rollout tasks of two creators, a fresh rollout task
-added after a failure, and the one a retried creator adds again. So a sent
-id never names two samples, and nothing that reuses a sample record by
-`(id, epoch)` can match one sent sample to another
-(`test_fed_task_sample_ids_and_delivery`,
-`test_fed_tasks_of_a_retried_creator_share_no_sample_id`). The token is the
-task's rather than the attempt's because a sample can be sent before the
-attempt starts. Ids sort in send order up to 9,999 samples per task.
+object is unchanged) under an id it assigns (`HandleChannel.send`), and
+refuses a sample that already has one. The id is built from the fed task's
+id and a per-task counter, so it is unique within the task and across
+tasks: the rollout tasks of two creators, a fresh rollout task added after
+a failure, and the one a retried creator adds again never share an id, and
+nothing that reuses a sample record by `(id, epoch)` can match one sent
+sample to another (`test_fed_task_sample_ids_and_delivery`,
+`test_fed_tasks_of_a_retried_creator_share_no_sample_id`). It is built from
+the task's id rather than the attempt's because a sample can be sent before
+the attempt starts. The format, and how far ids sort in send order, are in
+`HandleChannel.send` and the `TaskHandle.enqueue_sample` docstring.
 
-**Delivery.** A request sent before the attempt starts waits on the
-channel. Once the attempt's log has started, `task_run` attaches the
-attempt's `SampleEnqueuer` to the channel, which delivers every waiting
-request in send order and each later send at once; `task_run` detaches it
-when the attempt ends. The feeder admits these samples as it admits any
-enqueued sample, so a sample starts as soon as `max_samples` allows. A
-sent sample that needs a sandbox setup gets it through the feeder as any
-`SampleSource` addition does, and a failed setup fails this task only
-(`test_sent_sample_setup_failure_ends_the_fed_task`). The channel's
-`next_samples()` waits for a send or a close and returns `None` once the
-channel is closed, which ends the task when nothing is in flight or
-buffered.
+**Delivery.** A sample sent before the fed task's attempt starts is
+delivered when the attempt starts; later ones go to the running attempt
+at once (`HandleChannel`, `task_run` in
+`src/inspect_ai/_eval/task/run.py`). Sent samples are admitted, set up and
+scheduled as any `SampleSource` addition is, so each starts as soon as
+`max_samples` allows. A sent sample's failed sandbox setup fails the fed
+task (`test_sent_sample_setup_failure_ends_the_fed_task`). Once its handle
+is closed, the task ends when nothing sent is still in flight.
 
-**Results.** The channel's `sample_complete` settles the request holding
-that sample's id with its `EvalSample`; `sample_abandoned` settles it with
-`SampleAbandonedError`. A request settles once and leaves the channel when
-it does, so the channel holds no sample or result after its call returns.
-A caller whose wait is cancelled leaves its request in place: the sample
-still runs, and its result is dropped when it settles or the task ends.
+**Results.** A sent sample's logged run settles its send; a sample
+cancelled before it was logged settles it with `SampleAbandonedError`. The
+channel keeps no sample or result once a send has settled. A caller whose
+wait is cancelled leaves its send in place: the sample still runs, and its
+result is dropped.
 
-**Settings.** `configure_task()` resolves a fed task's settings before it
-builds the task's logger, so the log's eval config records the values that
-applied (`_apply_fed_task_settings`;
+**Settings.** A fed task's settings are resolved before its log starts, so
+the log's eval config records the values that applied
+(`_apply_fed_task_settings` in `src/inspect_ai/_eval/run.py`;
 `test_fed_task_settings_resolve_before_the_runs`,
 `test_run_selection_does_not_apply_to_a_fed_task`,
 `test_run_epoch_reducer_does_not_apply_to_a_fed_task`):
@@ -245,12 +240,12 @@ applied (`_apply_fed_task_settings`;
   `cost_limit`), error tolerance (`fail_on_error`, `continue_on_fail`,
   `score_on_error`) and `max_samples` are the task's own value if it sets
   one, else the run's, else the default (for `max_samples`, the default
-  from its model's connection pool). `inspect ctl config --max-samples`
-  retunes it while it runs, as for any task.
+  from its model's connection pool). The control channel retunes
+  `max_samples` while it runs, as for any task.
 - The run's `epochs`, epoch reducer, `limit` and `sample_id` do not apply:
   one epoch, the task's own reducer if it sets one, no limit, no selection.
   The creator chooses the samples it sends, and a run-wide value would drop
-  requests silently or, for a reducer such as `at_least_2`, refuse every
+  sends silently or, for a reducer that needs several epochs, refuse every
   fed task.
 - The run's `approval`, `review` and `sentinel` win, as for every task:
   they are the operator's oversight controls.
@@ -262,52 +257,53 @@ wants shared when it builds the rollout task. Every task not fed through a
 handle, including an ordinary task added from inside a running task, keeps
 the run-wins resolution of [task-dispatch.md](task-dispatch.md).
 
-**Never retried.** A fed record has no retry budget, so its attempt's
-`TaskCancel` cannot retry, no retry is pre-marked or reported, and a retry
-the task requests itself is not honoured
+**Never retried.** A fed task is never retried: no retry is queued or
+reported, and a retry the task requests itself is not honoured
 (`test_fed_task_failing_after_a_sample_is_not_retried`,
-`test_fed_tasks_own_retry_request_is_not_honoured`). When its attempt
-fails, a sent sample's sandbox setup included, the task ends with its error
-log, its unresolved sends raise `TaskEndedError` with that log, and the
-sends already returned keep their runs. The creator holds the search state
-and every result returned, and decides whether to add a fresh task. With
-the default `fail_on_error`, the first errored rollout is returned to its
+`test_fed_tasks_own_retry_request_is_not_honoured`). When it fails, a sent
+sample's sandbox setup included, it ends with its error log, its
+unresolved sends raise `TaskEndedError` with that log, and the sends
+already returned keep their runs. The creator holds the search state and
+every result returned, and decides whether to add a fresh task. With the
+default `fail_on_error`, the first errored rollout is returned to its
 sender with its `error` set and then ends the task; a rollout task sets
 `fail_on_error=False` to keep accepting samples after a sample error.
 
 ### Closing and cancelling
 
-Closing a channel is one synchronous step that wakes a feeder parked in
-`next_samples()`. Every cause closes it the same way: `close()`,
-`result()`, leaving `async with`, `cancel()`, any operator cancel through
-the attempt's `TaskCancel` (`abort`, `drain`, `score` or `error`, each
-closing the channel before it takes effect), the end of the creator's
-attempt (in the step in which the attempt publishes a retry or ends its
-record, its exception exit included, so a fed task that is itself a creator
-closes its own channels when it ends) and the end of the fed record. A
-creator that forgets to close cannot keep a rollout task open past its own
-attempt (`test_creator_attempt_end_closes_its_channels`).
+Every cause closes a fed task's channel the same way, and the task's
+feeder sees it at once: `close()`, `result()`, leaving `async with`,
+`cancel()`, any operator cancel of the task (`abort`, `drain`, `score` or
+`error`), the end of the creator's attempt by any exit (so a fed task that
+is itself a creator closes its own channels when it ends) and the end of
+the fed task. A creator that forgets to close cannot keep a rollout task
+open past its own attempt (`test_creator_attempt_end_closes_its_channels`).
 
-`cancel()` of a fed record still `queued` (which has never started, since
-fed records are not retried) ends it at once with no log, whether or not a
-request was sent: no abort attempt runs, the run's `TaskSource` hears
+`cancel()` of a fed task still queued (which has never started, since fed
+tasks are not retried) ends it at once with no log, whether or not a
+sample was sent: no abort attempt runs, the run's `TaskSource` hears
 nothing, `eval()` returns no log for it, and the display's task total drops
-by one (`test_fed_task_cancelled_while_queued_ends_with_no_log`). In an
-attempt, `cancel()` routes the abort as for any record
+by one (`test_fed_task_cancelled_while_queued_ends_with_no_log`). Once it
+is running, `cancel()` aborts it as for any task
 ([task-dispatch.md](task-dispatch.md#phases-and-cancelling)) and closes
-the channel itself in the same call, so a send right after `cancel()`
-raises `RuntimeError` even before the abort is applied or when the attempt
-has already finished on its own and is only reporting to its `TaskSource`
-(`test_cancel_of_a_fed_attempt_before_it_registers`). Samples already
-buffered or running when a drain, `score` or `error` cancel closes the
-channel follow that directive's rules and settle through `sample_complete`
-or `sample_abandoned`; an abort cancels them with the attempt.
+its channel at once, so a send right after `cancel()` raises
+`RuntimeError` whether or not the abort has taken effect
+(`test_cancel_of_a_fed_attempt_before_it_registers`). Samples already sent
+when a drain, `score` or `error` cancel closes the channel follow that
+directive's rules; an abort cancels them with the task.
+
+The control channel sees a fed task only once its attempt registers, as
+for any task added during a run: a queued fed task is not listed by the
+control channel's task list and cannot be cancelled or drained there, only
+through its handle (`RunQueue.cancel`). Listing and cancelling queued tasks
+through the control channel belongs to
+[task-dispatch.md](task-dispatch.md#control-channel).
 
 ### Terminal outcomes
 
-Every record ends, including when dispatch ends, so no wait outlives its
-target. Ending a fed record fails each unsettled request with its own
-`TaskEndedError` and drops any samples still buffered for the attempt
+Every fed task ends, including when dispatch ends, so no wait outlives its
+target. When it ends, each unsettled send fails with its own
+`TaskEndedError` and the task holds none of its senders' samples
 (`test_each_waiting_sender_gets_its_own_task_ended_error`):
 
 | how the fed task ended | `result()` | an unresolved `enqueue_sample()` |
@@ -315,7 +311,7 @@ target. Ending a fed record fails each unsettled request with its own
 | an attempt returned a log (success, error, setup or log-init failure, abort, a run cancellation after the log was written) | that log | `TaskEndedError` whose `log` is that log |
 | no log (closed before any sample was sent, cancelled before it started, still queued when dispatch ended) | `None` | `TaskEndedError` whose `log` is `None` |
 
-A request that already has its run keeps it; one abandoned raises
+A send that already has its run keeps it; one abandoned raises
 `SampleAbandonedError`. A cancelled caller's wait raises the cancellation
 (`test_run_cancellation_keeps_a_fed_tasks_written_log`,
 `test_fed_request_at_run_cancellation_ends_with_no_log`).
@@ -342,27 +338,29 @@ A fed task is added only by `enqueue_task()` from code running inside an
 attempt that has not ended, which becomes its creator: a solver, scorer or
 tool, a task-level hook such as `on_task_start`, or a coroutine left over
 from a finished sample (`test_task_hook_adds_a_fed_task_its_samples_feed`).
-Every check runs before the queue commits anything. Elsewhere:
+Every check runs before anything is added. Elsewhere:
 
 - Outside any attempt, after the creator's attempt ended, or from an
   `on_run_start` hook: `RuntimeError` from `enqueue_task()`
   (`test_fed_task_added_after_its_creator_ended_is_refused`).
-- In any `TaskSource` callback (`next_tasks()`, `task_complete`,
-  `sample_complete`, `sample_abandoned`), added directly or returned:
-  `RuntimeError`. Each place Inspect calls a source callback clears the
-  attempt context for the call, so a coroutine the callback starts has no
-  creator either, although `task_complete` and the sample callbacks run
-  inside an attempt. An ordinary `enqueue_task()` from a callback is
-  unaffected (`test_source_callbacks_cannot_add_a_fed_task`).
+- From any `TaskSource` callback (`next_tasks()`, `task_complete`,
+  `sample_complete`, `sample_abandoned`), or a coroutine one starts, even
+  though `task_complete` and the sample callbacks run inside an attempt: a
+  direct `enqueue_task()` raises `RuntimeError` to the callback. A fed task
+  the callback returns is refused the same way where Inspect adds the
+  returned tasks: returned from `next_tasks()` or `task_complete`, the
+  error ends the run and `eval()` raises it; returned from
+  `sample_complete` or `sample_abandoned`, it fails the task whose sample
+  reported, which ends with an error log. An ordinary `enqueue_task()` from
+  a callback is unaffected (`test_source_callbacks_cannot_add_a_fed_task`).
 - With `epochs` above 1: `ValueError` ("send a sample again to repeat it").
 - As a `ResolvedTask` or `PreviousTask`: `ValueError` ("must start fresh;
   pass the Task"). A fed task is always a fresh `Task`, so its task id is
   new for every addition.
 - Passed to `eval()`, `eval_set()` or a selection worker:
   `PrerequisiteError` from `eval_resolve_tasks`. This includes a whole-file
-  spec, which loads every decorated task in the file: with the rollout task
-  beside its creator, `inspect eval search.py` is refused and the creator
-  is run by name, `search.py@search`
+  spec, which loads every decorated task in the file, so a creator whose
+  rollout task shares its file is run by name, as the user docs show
   (`test_whole_file_with_a_fed_task_is_refused`).
 - Its log passed to `eval_retry()`: `PrerequisiteError` from
   `eval_retry_async`, read from the log's dataset name after crashed logs
@@ -380,19 +378,18 @@ Every check runs before the queue commits anything. Elsewhere:
 
 A fed task named like a requested or seed task is not refused: its
 identifier keeps its log apart ("Logs, eval sets and retries"). A fed task
-and a requested task can then share a name in the display, `inspect ctl
-task list` and the viewer, and a control-channel selector by name and
-model matching both gets the CLI's existing ambiguity error, which asks for
-the task id.
+and a requested task can then share a name in the display, the control
+channel's task list and the viewer, and a control-channel selector by name
+and model that matches both gets the existing ambiguity error, which asks
+for the task id.
 
 ### Logs, eval sets and retries
 
 A fed task's log is an ordinary log whose dataset name is
 `samples_from_handle`. `eval()` and `eval_set()` return it with the run's
-other logs, it is written to the log directory, and `inspect log list`,
-`list_eval_logs()` and the viewer list it. A `.json`-logged run feeds tasks
-as an `.eval` one does. A fed task that runs is reported to the run's
-`TaskSource` like any task.
+other logs, it is written to the log directory, and log listings and the
+viewer show it. A `.json`-logged run feeds tasks as an `.eval` one does. A
+fed task that runs is reported to the run's `TaskSource` like any task.
 
 - **Results.** `all_evals_succeeded`, which is `eval_set()`'s result, its
   retry predicate and a selection worker's result, skips fed logs. A
@@ -400,19 +397,20 @@ as an `.eval` one does. A fed task that runs is reported to the run's
   does not fail the set; the creator's own log does, if the creator fails
   (`test_fed_task_failure_does_not_fail_an_eval_set`).
   `retryable_eval_logs` likewise leaves fed logs out.
-- **Identifier.** `task_identifier()` gives a fed task, from its
-  `ResolvedTask` or its log, `{task_file}@{task_name}#samples_from_handle/{model}/{task_id}`
-  (without the `{task_file}@` prefix for a task with no source file),
-  hashing neither its arguments nor its settings. The stored
+- **Identifier.** `task_identifier()` builds a fed task's identifier, from
+  its `ResolvedTask` or its log, from its file, name, model and task id,
+  marked with `samples_from_handle` where an ordinary identifier has its
+  arguments hash, and hashes neither arguments nor settings
+  (`_fed_task_identifier` in `src/inspect_ai/_eval/evalset.py`;
+  `test_fed_task_identifier_is_built_from_its_task_id`). The stored
   `EvalSpec.task_id` makes it unique to the fed task and the same from the
   `ResolvedTask`, from every attempt's log and from every later read of the
   header. Settings are left out because the task id alone is enough and
   because a fed task's task-first settings are where the resolved-task and
-  log-header computations could disagree. No ordinary identifier has
-  `samples_from_handle` after its `#`, so a fed log never matches a
-  requested task, and a selection worker given one as `resume` refuses it
-  with its existing identifier check
-  (`test_eval_set_runs_a_requested_task_named_like_a_fed_one`,
+  log-header computations could disagree. No ordinary identifier has the
+  marker, so a fed log never matches a requested task, and a selection
+  worker given one as `resume` refuses it with its existing identifier
+  check (`test_eval_set_runs_a_requested_task_named_like_a_fed_one`,
   `test_eval_set_selection_refuses_a_fed_log_as_resume`).
 - **Log-directory check.** `validate_eval_set_prerequisites`, which a
   resumed `eval_set()` and every later `retry_immediate=False` round run,
@@ -429,9 +427,9 @@ A fed task takes no `max_tasks` slot, and `result()` waits only on fed
 tasks, so no handle wait needs a slot. Three limits still apply to work a
 handle wait depends on, and none is lent to a waiter:
 
-- **`max_sandboxes`.** A waiting sample keeps its `sandboxes/<provider>`
-  permit. The limit is often a hard quota, a sandbox is a live resource,
-  and the limiter cannot hand a permit to one specific sample.
+- **`max_sandboxes`.** A waiting sample keeps its sandbox permit. The
+  limit is often a hard quota, a sandbox is a live resource, and the
+  limiter cannot hand a permit to one specific sample.
 - **`max_samples`** is per task, so a task whose samples wait on its own
   other samples needs room for both.
 - **`max_connections`.** A connection permit is held for a whole
@@ -440,9 +438,9 @@ handle wait depends on, and none is lent to a waiter:
   holds a permit that sample needs.
 
 A run without that headroom waits, with no warning, until an operator
-raises the limit (`inspect ctl config --max-sandboxes N` while the run goes
-on; `test_sandbox_headroom_for_a_send_can_be_raised_while_it_waits`). The
-user docs ("Waiting on a handle") state the headroom.
+raises the limit through the control channel while the run goes on
+(`test_sandbox_headroom_for_a_send_can_be_raised_while_it_waits`). The user
+docs ("Waiting on a handle") state the headroom and how to raise it.
 
 ## Guarantees and limits
 
@@ -469,12 +467,18 @@ user docs ("Waiting on a handle") state the headroom.
     creator's limits.
   - A sent sample whose sandbox setup fails ends the whole fed task and
     cancels its running samples.
-  - A `--max-connections` retune made before a fed task's model controller
+  - A `max_connections` retune made before a fed task's model controller
     exists misses it when no other task has created that controller (the
     rollout task sets its own `model`, or its creator has not generated
     yet); see [task-dispatch.md](task-dispatch.md#not-this-design).
   - A fed log is only for the run that wrote it: it cannot be retried, so
     a creator that is retried adds and feeds a fresh rollout task.
+  - The control channel sees a fed task only once its attempt registers;
+    while it is queued, only its handle can cancel it ("Closing and
+    cancelling").
+  - An operator requeue of a sent sample whose result was already returned
+    replaces its logged result without reaching the sender ("Model and
+    epochs").
 
 ## Decisions
 
@@ -650,8 +654,9 @@ user docs ("Waiting on a handle") state the headroom.
 - A handle for tasks a `TaskSource` returns from `next_tasks()`.
 - Recording the creator in the eval log; see
   [task-dispatch.md](task-dispatch.md#interactions-with-related-changes).
-- Showing open handle waits in `inspect ctl task list`: a per-task count of
-  waits in the control state, a `GET /tasks` field and a CLI column.
+- Showing open handle waits in the control channel's task list: a
+  per-task count of waits in the control state, a `GET /tasks` field and a
+  CLI column.
 - Counting a fed task's token or cost usage against its creator's limits.
 - Keeping an ordinary added task's failure in the result of an `eval_set()`
   whose later legacy round (`retry_immediate=False`) does not rerun it. It
@@ -667,6 +672,6 @@ user docs ("Waiting on a handle") state the headroom.
 - Detecting waits that cannot finish because sandbox, `max_samples` or
   connection permits are held by their own waiters.
 - Waiting in-run on an ordinary added task through `result()`. It needs a
-  rule for the waiting task's `max_tasks` slot (a warning naming `inspect
-  ctl config --max-tasks`, or a lent slot) and for waits inside
+  rule for the waiting task's `max_tasks` slot (a warning that names the
+  control channel's `max_tasks` retune, or a lent slot) and for waits inside
   `TaskSource.next_tasks()`.
