@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import logging
 
+from inspect_ai._sentinel._context import raise_if_sentinel_failed
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._model import get_model
 from inspect_ai.solver._task_state import TaskState
@@ -90,7 +91,9 @@ def target_perplexity(
             target_text = state.metadata.get(target_text_key)
             if target_text:
                 # Count tokens via the provider. Errors are not caught
-                # because an incorrect n produces wrong scores.
+                # because an incorrect n produces wrong scores. The request
+                # bypasses Model, so it checks for a failed sample itself.
+                raise_if_sentinel_failed()
                 token_ids = await get_model().api.tokenize(target_text)
                 n = len(token_ids)
             else:

@@ -1,10 +1,16 @@
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, NamedTuple
 
 from ._config import SentinelRoot
-from ._scope import current_origin, in_final_scope, in_sentinel_run, is_agent_turn
+from ._scope import (
+    current_origin,
+    current_sentinel_run,
+    in_final_scope,
+    in_sentinel_run,
+    is_agent_turn,
+)
 
 
 class SentinelFailure(Exception):
@@ -138,7 +144,9 @@ def raise_if_sentinel_failed() -> None:
     call. Whether a sentinel checks a step (a final scope such as
     `model_origin()`, an approver or a scorer is not checked) doesn't matter:
     once the sample has failed, no step runs. The sentinel's own monitors and
-    protocols are the exception, so a check already running finishes.
+    protocols are the exception while they run (`in_sentinel_run()`), so a
+    check already running finishes, but work they started that outlives them
+    is refused.
 
     Raises:
         SentinelFailure: The kept failure.
@@ -146,6 +154,30 @@ def raise_if_sentinel_failed() -> None:
     failures = _failures.get()
     if failures is not None and failures.failure is not None and not in_sentinel_run():
         raise failures.again()
+
+
+def sentinel_refusal() -> Callable[[], SentinelFailure | None]:
+    """This context's kept failure check, to make later from another context.
+
+    For a request this context queues and another task sends, such as a
+    provider batch: called immediately before the request is sent, it returns
+    the failure `raise_if_sentinel_failed()` would raise here then, or `None`.
+    """
+    failures = _failures.get()
+    if failures is None:
+        return _no_refusal
+    run = current_sentinel_run()
+
+    def refusal() -> SentinelFailure | None:
+        if failures.failure is None or (run is not None and run.active):
+            return None
+        return failures.again()
+
+    return refusal
+
+
+def _no_refusal() -> SentinelFailure | None:
+    return None
 
 
 class _ActiveSentinel(NamedTuple):

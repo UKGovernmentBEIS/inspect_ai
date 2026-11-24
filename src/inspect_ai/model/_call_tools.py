@@ -1329,6 +1329,8 @@ async def agent_handoff(
         # off to multiple times which is not supported, so create a copy of each limit.
         with apply_limits(deepcopy(agent_tool.limits)):
             async with span(name=agent_name, type=AGENT_SPAN_TYPE):
+                # after the input filter and the span's waits
+                raise_if_sentinel_failed()
                 agent_state = await agent_tool.agent(agent_state, **arguments)
     except LimitExceededError as ex:
         limit_error = ex

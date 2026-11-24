@@ -3,7 +3,7 @@ from __future__ import annotations
 import functools
 import json
 import time
-from typing import NamedTuple
+from typing import Callable, NamedTuple
 
 import anyio
 import pytest
@@ -11,6 +11,11 @@ from tenacity import RetryError
 from tenacity.wait import wait_none
 from typing_extensions import TypedDict
 
+from inspect_ai._sentinel._context import (
+    SentinelFailure,
+    SentinelFailures,
+    sentinel_failures,
+)
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.working import (
     init_sample_working_time,
@@ -1357,6 +1362,133 @@ async def test_batcher_send_delay_runs_from_last_batch_sent() -> None:
         await batcher.generate_for_request(_headers_request("second", **{"x-org": "a"}))
         assert len(batcher.created) == 2
         assert batcher.created[1][2] - start < send_delay / 2
+
+    await _run_in_background_group(test_logic)
+
+
+class SubmissionRecordingBatcher(FakeBatcher):
+    """A FakeBatcher that records the prompts of each batch submission attempt.
+
+    The first attempt calls `on_first_submission`, if given, and then fails
+    with an error the batcher retries.
+    """
+
+    def __init__(
+        self, on_first_submission: Callable[[], None] | None = None, **kwargs
+    ) -> None:
+        super().__init__(**kwargs)
+        self.submissions: list[list[str]] = []
+        self._on_first_submission = on_first_submission
+
+    async def _create_batch(self, batch_requests) -> str:
+        self.submissions.append(sorted(r.request["prompt"] for r in batch_requests))
+        if self._on_first_submission is not None and len(self.submissions) == 1:
+            self._on_first_submission()
+            raise ConnectionError("try again")
+        return await super()._create_batch(batch_requests)
+
+
+async def _request_in_a_sample_attempt(
+    batcher: Batcher[str, FakeCompletionInfo],
+    prompt: str,
+    attempts: dict[str, SentinelFailures],
+    results: dict[str, str | Exception],
+    failed: bool = False,
+) -> None:
+    """Queue `prompt` from its own sample attempt, which has a kept sentinel failure if `failed`."""
+    with sentinel_failures() as attempt:
+        attempts[prompt] = attempt
+        if failed:
+            attempt.keep(SentinelFailure(PermissionError("sentinel denied")))
+        try:
+            results[prompt] = await batcher.generate_for_request({"prompt": prompt})
+        except SentinelFailure as ex:
+            results[prompt] = ex
+
+
+def _refused(result: str | Exception) -> bool:
+    return isinstance(result, SentinelFailure) and str(result.error) == (
+        "sentinel denied"
+    )
+
+
+async def test_a_failed_sample_s_request_is_left_out_of_its_batch() -> None:
+    async def test_logic() -> None:
+        batcher = SubmissionRecordingBatcher(
+            config=BatchConfig(size=2, send_delay=60, tick=0.001)
+        )
+        attempts: dict[str, SentinelFailures] = {}
+        results: dict[str, str | Exception] = {}
+        await tg_collect(
+            [
+                functools.partial(
+                    _request_in_a_sample_attempt,
+                    batcher,
+                    "failed",
+                    attempts,
+                    results,
+                    failed=True,
+                ),
+                functools.partial(
+                    _request_in_a_sample_attempt,
+                    batcher,
+                    "healthy",
+                    attempts,
+                    results,
+                ),
+            ]
+        )
+        # the healthy sample's request is sent in the batch, without the other
+        assert batcher.submissions == [["healthy"]]
+        assert _refused(results["failed"])
+        assert isinstance(results["healthy"], str)
+        assert results["healthy"].startswith("result-for-")
+
+    await _run_in_background_group(test_logic)
+
+
+async def test_a_sample_that_fails_while_its_batch_is_retried_is_left_out_of_the_retry() -> (
+    None
+):
+    attempts: dict[str, SentinelFailures] = {}
+    results: dict[str, str | Exception] = {}
+
+    def fail_a_sample() -> None:
+        attempts["failed"].keep(SentinelFailure(PermissionError("sentinel denied")))
+
+    async def test_logic() -> None:
+        batcher = SubmissionRecordingBatcher(
+            on_first_submission=fail_a_sample,
+            config=BatchConfig(size=2, send_delay=60, tick=0.001),
+        )
+        await tg_collect(
+            [
+                functools.partial(
+                    _request_in_a_sample_attempt, batcher, prompt, attempts, results
+                )
+                for prompt in ["failed", "healthy"]
+            ]
+        )
+        assert batcher.submissions == [["failed", "healthy"], ["healthy"]]
+        assert _refused(results["failed"])
+        assert isinstance(results["healthy"], str)
+
+    await _run_in_background_group(test_logic)
+
+
+async def test_a_batch_whose_samples_have_all_failed_is_not_created() -> None:
+    async def test_logic() -> None:
+        batcher = SubmissionRecordingBatcher(
+            config=BatchConfig(size=1, send_delay=60, tick=0.001)
+        )
+        attempts: dict[str, SentinelFailures] = {}
+        results: dict[str, str | Exception] = {}
+        await _request_in_a_sample_attempt(
+            batcher, "failed", attempts, results, failed=True
+        )
+        assert batcher.submissions == []
+        assert batcher._inflight_batches == {}
+        assert _refused(results["failed"])
 
     await _run_in_background_group(test_logic)
 

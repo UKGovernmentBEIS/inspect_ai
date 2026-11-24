@@ -101,7 +101,7 @@ from ._person import (
     human_view,
     offered_choices,
 )
-from ._scope import BRIDGE_CHECK_SPAN, sentinel_scope
+from ._scope import BRIDGE_CHECK_SPAN, sentinel_run
 from ._steps import (
     ConversationRecord,
     Producer,
@@ -367,7 +367,7 @@ async def _run(
                 try:
                     with (
                         suspend_limits(),
-                        sentinel_scope("sentinel", final=True),
+                        sentinel_run(),
                         suspend_model_event_sink(),
                     ):
                         decision = await run_sentinel(

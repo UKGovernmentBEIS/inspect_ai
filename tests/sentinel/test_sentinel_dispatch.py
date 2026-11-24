@@ -3,9 +3,18 @@ import math
 import random
 import re
 import threading
+import uuid
 from collections import Counter
-from collections.abc import Awaitable, Callable, Iterable, Iterator, Sequence
-from contextlib import contextmanager, nullcontext
+from collections.abc import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Iterable,
+    Iterator,
+    Sequence,
+)
+from contextlib import asynccontextmanager, contextmanager, nullcontext
+from contextvars import copy_context
 from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
@@ -29,9 +38,11 @@ from inspect_ai._sentinel._config import (
 from inspect_ai._sentinel._context import (
     SentinelFailure,
     init_sentinel,
+    raise_if_sentinel_failed,
     sentinel_failed,
     sentinel_failures,
 )
+from inspect_ai._sentinel._scope import sentinel_run
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import (
     Agent,
@@ -87,8 +98,16 @@ from inspect_ai.model import (
     modelapi,
 )
 from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
 from inspect_ai.model._providers.mockllm import MockLLM
+from inspect_ai.model._providers.util.batch import (
+    Batch,
+    BatchCheckResult,
+    Batcher,
+    BatchRequest,
+)
+from inspect_ai.model._retry import model_retry_config
 from inspect_ai.review import Review, Reviewer, ReviewPolicy, reviewer
 from inspect_ai.scorer import Reference, Score, Scorer, Target, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
@@ -2601,6 +2620,560 @@ async def test_a_retry_is_not_sent_once_a_concurrent_call_has_failed_the_sample(
         with pytest.raises(SentinelFailure, match="sentinel denied"):
             await model.generate("Hello")
     assert _FailedWhileRetriedMockLLM.sends == 1
+
+
+class _HeldBatcher(Batcher[ModelOutput, bool]):
+    """A batcher whose worker waits on the gate before it takes a queued request, and records each batch submission's size."""
+
+    def __init__(self, gate: Gate, submissions: list[int]) -> None:
+        super().__init__(
+            BatchConfig(size=1, send_delay=0.001, tick=0.001),
+            model_retry_config(
+                "test",
+                3,
+                None,
+                lambda ex: False,
+                lambda ex: None,
+                lambda model, state: None,
+                wait=tenacity.wait_none(),
+            ),
+            max_batch_request_count=10,
+            max_batch_size_mb=1,
+        )
+        self._gate = gate
+        self._submissions = submissions
+
+    async def _process_intake_queue(self) -> bool:
+        if self._intake_queue and not self._gate.release.is_set():
+            self._gate.started.set()
+            await self._gate.release.wait()
+        return await super()._process_intake_queue()
+
+    async def _create_batch(self, batch: list[BatchRequest[ModelOutput]]) -> str:
+        self._submissions.append(len(batch))
+        return f"batch-{len(self._submissions)}"
+
+    async def _check_batch(self, batch: Batch[ModelOutput]) -> BatchCheckResult[bool]:
+        return BatchCheckResult(
+            completed_count=len(batch.requests),
+            failed_count=0,
+            created_at=batch.created_at,
+            completion_info=True,
+        )
+
+    async def _handle_batch_result(
+        self, batch: Batch[ModelOutput], completion_info: bool
+    ) -> dict[str, ModelOutput | Exception]:
+        return {
+            id: ModelOutput.from_content("mockllm/model", content="batched")
+            for id in batch.requests
+        }
+
+
+class _BatchedMockLLM(MockLLM):
+    """A provider that sends each generate through `batcher`."""
+
+    batcher: _HeldBatcher | None = None
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> Any:
+        assert _BatchedMockLLM.batcher is not None
+        return await _BatchedMockLLM.batcher.generate_for_request(
+            {"messages": len(input)}
+        )
+
+
+@modelapi(name="d3_batched")
+def d3_batched() -> type[ModelAPI]:
+    return _BatchedMockLLM
+
+
+@solver
+def d3_queues_a_batched_generate(
+    gates: list[Gate],
+    submissions: list[int],
+    executed: list[str],
+    caught: list[Exception],
+) -> Solver:
+    """A generate queued for a batch, whose worker is held while a concurrent tool call fails and is caught."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        gate = Gate()
+        gates.append(gate)
+        _BatchedMockLLM.batcher = _HeldBatcher(gate, submissions)
+
+        async def queued_generate() -> None:
+            try:
+                await get_model().generate(state.messages)
+            except Exception as ex:
+                caught.append(ex)
+
+        async def failing_call() -> None:
+            await gate.started.wait()
+            try:
+                await execute_tools(
+                    [counted_call("failing_call", 2, 3)], [counted_addition(executed)]
+                )
+            except Exception as ex:
+                caught.append(ex)
+            gate.release.set()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(queued_generate)
+            tg.start_soon(failing_call)
+        return state
+
+    return solve
+
+
+def test_a_generate_queued_for_a_batch_is_not_submitted_once_the_sample_has_failed() -> (
+    None
+):
+    gates: list[Gate] = []
+    submissions: list[int] = []
+    executed: list[str] = []
+    caught: list[Exception] = []
+    checks: list[str] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_queues_a_batched_generate(gates, submissions, executed, caught),
+        sentinel=[d3_fails_once(checks)],
+    )
+    try:
+        log = eval(task, model=get_model("d3_batched/model", memoize=False))[0]
+    finally:
+        _BatchedMockLLM.batcher = None
+    failed_with(log, "PermissionError('sentinel denied')")
+    # the queued request was dropped from the batch and failed with the
+    # sample's failure, and no batch was submitted
+    assert [type(ex) for ex in caught] == [SentinelFailure, SentinelFailure]
+    assert submissions == []
+    assert executed == []
+
+
+class _CountingMockLLM(MockLLM):
+    """A provider that counts tokens remotely; its first count fails retryably, after failing the sample, if `fails_first`."""
+
+    counts = 0
+    fails_first = False
+
+    def should_retry(self, ex: Exception) -> bool:
+        return isinstance(ex, ConnectionError)
+
+    def retry_wait(self) -> WaitBaseT | None:
+        return tenacity.wait_none()
+
+    async def count_tokens(
+        self, input: str | list[ChatMessage], config: GenerateConfig | None = None
+    ) -> int:
+        _CountingMockLLM.counts += 1
+        if _CountingMockLLM.fails_first and _CountingMockLLM.counts == 1:
+            sentinel_failed(SentinelFailure(PermissionError("sentinel denied")))
+            raise ConnectionError("try again")
+        return 123
+
+
+@modelapi(name="d3_counting")
+def d3_counting() -> type[ModelAPI]:
+    return _CountingMockLLM
+
+
+@pytest.fixture
+def counting_model() -> Iterator[Model]:
+    _CountingMockLLM.counts = 0
+    _CountingMockLLM.fails_first = False
+    yield get_model("d3_counting/model", memoize=False)
+    _CountingMockLLM.fails_first = False
+
+
+@pytest.mark.parametrize("counted", ["messages", "tools"])
+async def test_tokens_are_not_counted_once_the_sample_has_failed(
+    counting_model: Model, counted: str
+) -> None:
+    async def count() -> int:
+        if counted == "messages":
+            return await counting_model.count_tokens("Hello")
+        return await counting_model.count_tool_tokens(
+            [ToolInfo(name="lookup", description="Look something up.")]
+        )
+
+    with sentinel_failures() as attempt:
+        assert await count() == 123
+        attempt.keep(SentinelFailure(PermissionError("sentinel denied")))
+        with pytest.raises(SentinelFailure, match="sentinel denied"):
+            await count()
+    assert _CountingMockLLM.counts == 1
+
+
+async def test_a_token_count_is_not_retried_once_the_sample_has_failed(
+    counting_model: Model,
+) -> None:
+    _CountingMockLLM.fails_first = True
+    with sentinel_failures():
+        with pytest.raises(SentinelFailure, match="sentinel denied"):
+            await counting_model.count_tokens("Hello")
+    assert _CountingMockLLM.counts == 1
+
+
+async def test_tokens_are_not_counted_if_the_sample_fails_while_the_count_waits_for_a_connection(
+    counting_model: Model, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    @asynccontextmanager
+    async def failed_while_waiting(*args: Any, **kwargs: Any) -> AsyncIterator[None]:
+        sentinel_failed(SentinelFailure(PermissionError("sentinel denied")))
+        yield None
+
+    monkeypatch.setattr("inspect_ai.model._model.concurrency", failed_while_waiting)
+    with sentinel_failures():
+        with pytest.raises(SentinelFailure, match="sentinel denied"):
+            await counting_model.count_tokens("Hello")
+    assert _CountingMockLLM.counts == 0
+
+
+@agent(description="Receives a handoff.")
+def d3_receiver(entered: list[str]) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        entered.append("receiver")
+        return state
+
+    return execute
+
+
+@solver
+def d3_hands_off(
+    during_filter: str,
+    gates: list[Gate],
+    executed: list[str],
+    entered: list[str],
+    caught: list[Exception],
+) -> Solver:
+    """A handoff whose input filter catches a nested sentinel failure, or waits while a concurrent call fails."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        gate = Gate()
+        gates.append(gate)
+        tools = [counted_addition(executed)]
+
+        async def input_filter(messages: list[ChatMessage]) -> list[ChatMessage]:
+            if during_filter == "catches a failure":
+                try:
+                    await execute_tools([counted_call("filter_call", 2, 3)], tools)
+                except Exception:
+                    pass
+            else:
+                gate.started.set()
+                await gate.release.wait()
+            return messages
+
+        receiver = handoff(
+            d3_receiver(entered),
+            input_filter=input_filter,
+            tool_name="transfer_to_receiver",
+        )
+        call = ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(
+                    id="handoff_call", function="transfer_to_receiver", arguments={}
+                )
+            ],
+        )
+
+        async def hand_off() -> None:
+            try:
+                await execute_tools([*state.messages, call], [receiver])
+            except Exception as ex:
+                caught.append(ex)
+
+        async def failing_call() -> None:
+            await gate.started.wait()
+            try:
+                await execute_tools([counted_call("failing_call", 2, 3)], tools)
+            except Exception as ex:
+                caught.append(ex)
+            gate.release.set()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(hand_off)
+            if during_filter == "waits":
+                tg.start_soon(failing_call)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("during_filter", ["catches a failure", "waits"])
+def test_a_handoff_does_not_enter_its_agent_if_the_sample_fails_during_its_input_filter(
+    during_filter: str,
+) -> None:
+    gates: list[Gate] = []
+    executed: list[str] = []
+    entered: list[str] = []
+    caught: list[Exception] = []
+    checks: list[str] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_hands_off(during_filter, gates, executed, entered, caught),
+        sentinel=[d3_fails_once(checks)],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    failed_with(log, "PermissionError('sentinel denied')")
+    # the handoff's check passed before the failure; its agent never started
+    assert checks == ["transfer_to_receiver", "counted_addition"]
+    assert entered == []
+    assert executed == []
+    assert all(isinstance(ex, SentinelFailure) for ex in caught)
+    assert len(caught) == (1 if during_filter == "catches a failure" else 2)
+
+
+class _ToolsAfterACheck:
+    """A tool source that, once armed, lets a concurrent call fail the sample before it returns no tools."""
+
+    def __init__(self, gate: Gate) -> None:
+        self.gate = gate
+        self.armed = False
+
+    async def tools(self) -> list[Tool]:
+        if self.armed:
+            self.gate.started.set()
+            await self.gate.release.wait()
+        return []
+
+
+@solver
+def d3_hits_the_cache_after_a_concurrent_failure(
+    origin: Literal["environment", "helper"],
+    executed: list[str],
+    outputs: list[ModelOutput],
+    caught: list[Exception],
+) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        source = _ToolsAfterACheck(Gate())
+        prompt = f"Cache this: {uuid.uuid4()}"
+        model = get_model()
+
+        async def failing_call() -> None:
+            await source.gate.started.wait()
+            try:
+                await execute_tools(
+                    [counted_call("failing_call", 2, 3)], [counted_addition(executed)]
+                )
+            except Exception as ex:
+                caught.append(ex)
+            source.gate.release.set()
+
+        async with anyio.create_task_group() as tg:
+            # an agent call, started outside the model_origin() region
+            tg.start_soon(failing_call)
+            with model_origin(origin):
+                outputs.append(await model.generate(prompt, tools=source, cache=True))
+                source.armed = True
+                try:
+                    outputs.append(
+                        await model.generate(prompt, tools=source, cache=True)
+                    )
+                except Exception as ex:
+                    caught.append(ex)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("origin", ["helper", "environment"])
+def test_a_cached_generation_is_not_returned_once_the_sample_has_failed(
+    origin: Literal["environment", "helper"],
+) -> None:
+    executed: list[str] = []
+    outputs: list[ModelOutput] = []
+    caught: list[Exception] = []
+    agent_calls: list[list[ChatMessage]] = []
+    checks: list[str] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_hits_the_cache_after_a_concurrent_failure(
+            origin, executed, outputs, caught
+        ),
+        sentinel=[d3_fails_once(checks)],
+    )
+    log = eval(
+        task,
+        model=counted_model(
+            agent_calls, ModelOutput.from_content("mockllm/model", content="cached")
+        ),
+    )[0]
+    failed_with(log, "PermissionError('sentinel denied')")
+    # the first generate was sent and cached; the second, whose entry check
+    # passed before the failure, did not get the cached output
+    assert len(agent_calls) == 1
+    assert [output.completion for output in outputs] == ["cached"]
+    assert [type(ex) for ex in caught] == [SentinelFailure, SentinelFailure]
+
+
+async def test_a_cached_generation_is_not_returned_if_the_sample_fails_while_the_hit_is_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[ChatMessage]] = []
+    output = ModelOutput.from_content("mockllm/model", content="cached")
+    output.usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
+    model = counted_model(calls, output)
+    prompt = f"Cache this: {uuid.uuid4()}"
+
+    async def failed_while_reported(model_name: str, usage: ModelUsage) -> None:
+        sentinel_failed(SentinelFailure(PermissionError("sentinel denied")))
+
+    monkeypatch.setattr(
+        "inspect_ai.hooks._hooks.emit_model_cache_usage", failed_while_reported
+    )
+    with sentinel_failures():
+        assert (await model.generate(prompt, cache=True)).completion == "cached"
+        with pytest.raises(SentinelFailure, match="sentinel denied"):
+            await model.generate(prompt, cache=True)
+    assert len(calls) == 1
+
+
+@protocol
+def d3_spawns_a_worker(
+    worker: Callable[[], Awaitable[None]], checks: list[int]
+) -> Protocol:
+    # passes the first call, starting a task that outlives the check, and
+    # fails the next
+    async def check(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        checks.append(step.call.arguments["x"])
+        if len(checks) == 1:
+            background(worker)
+            return None
+        raise PermissionError("sentinel denied")
+
+    return check
+
+
+@solver
+def d3_releases_a_monitor_s_worker_after_a_failure(
+    gates: list[Gate], executed: list[str], caught: list[Exception]
+) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        gates.append(Gate())
+        tools = [counted_addition(executed)]
+        await execute_tools([counted_call("spawning_call", 1, 2)], tools)
+        try:
+            await execute_tools([counted_call("failing_call", 2, 3)], tools)
+        except Exception as ex:
+            caught.append(ex)
+        gates[0].release.set()
+        await gates[0].started.wait()
+        return state
+
+    return solve
+
+
+def test_work_a_monitor_started_is_refused_after_the_monitor_returns() -> None:
+    gates: list[Gate] = []
+    executed: list[str] = []
+    caught: list[Exception] = []
+    worker_caught: list[Exception] = []
+    checks: list[int] = []
+    agent_calls: list[list[ChatMessage]] = []
+
+    async def worker() -> None:
+        # started by the monitor and released by the solver after a later
+        # call fails; signals the solver with `started` when it has finished
+        await gates[0].release.wait()
+        try:
+            await get_model().generate("Hello")
+        except Exception as ex:
+            worker_caught.append(ex)
+        try:
+            await execute_tools(
+                [counted_call("worker_call", 9, 9)], [counted_addition(executed)]
+            )
+        except Exception as ex:
+            worker_caught.append(ex)
+        gates[0].started.set()
+
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_releases_a_monitor_s_worker_after_a_failure(gates, executed, caught),
+        sentinel=[d3_spawns_a_worker(worker, checks)],
+    )
+    log = eval(
+        task,
+        model=counted_model(
+            agent_calls, ModelOutput.from_content("mockllm/model", content="done")
+        ),
+    )[0]
+    failed_with(log, "PermissionError('sentinel denied')")
+    assert checks == [1, 2]
+    assert [type(ex) for ex in caught] == [SentinelFailure]
+    # the worker's generate and tool call were refused, although it was
+    # started in the monitor's run
+    assert [type(ex) for ex in worker_caught] == [SentinelFailure, SentinelFailure]
+    assert agent_calls == []
+    assert executed == ["1+2"]
+
+
+def test_a_context_copied_in_a_sentinel_run_is_refused_once_the_run_has_ended() -> None:
+    with sentinel_failures() as attempt:
+        with sentinel_run():
+            copied = copy_context()
+            attempt.keep(SentinelFailure(PermissionError("sentinel denied")))
+            # while the run is active, its own work goes on
+            copied.run(raise_if_sentinel_failed)
+        with pytest.raises(SentinelFailure, match="sentinel denied"):
+            copied.run(raise_if_sentinel_failed)
+
+
+@protocol
+def d3_asks_a_model_after_another_call_fails(
+    gates: list[Gate], answers: list[str]
+) -> Protocol:
+    async def check(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.arguments["x"] == 1:
+            gates[0].started.set()
+            await gates[0].release.wait()
+            output = await context.host.generate("How suspicious is this call?")
+            answers.append(output.completion)
+            return None
+        raise PermissionError("sentinel denied")
+
+    return check
+
+
+def test_a_running_monitor_s_model_call_is_made_after_a_concurrent_failure() -> None:
+    gates: list[Gate] = []
+    executed: list[str] = []
+    caught: list[Exception] = []
+    answers: list[str] = []
+    monitor_calls: list[list[ChatMessage]] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_races("tool call", gates, executed, caught),
+        sentinel=[d3_asks_a_model_after_another_call_fails(gates, answers)],
+    )
+    log = eval(
+        task,
+        model="mockllm/model",
+        model_roles={
+            "monitor": counted_model(
+                monitor_calls, ModelOutput.from_content("mockllm/monitor", content="0")
+            )
+        },
+    )[0]
+    failed_with(log, "PermissionError('sentinel denied')")
+    # the held check finished, with its model call, without a further error;
+    # its call was then refused
+    assert answers == ["0"]
+    assert len(monitor_calls) == 1
+    assert [type(ex) for ex in caught] == [SentinelFailure, SentinelFailure]
+    assert executed == []
 
 
 async def run_addition(grouped: bool) -> None:

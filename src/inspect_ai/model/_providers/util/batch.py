@@ -11,6 +11,7 @@ import anyio
 import anyio.abc
 from tenacity import RetryCallState, retry
 
+from inspect_ai._sentinel._context import sentinel_refusal
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.background import run_in_background
 from inspect_ai._util.constants import DEFAULT_BATCH_SIZE, DEFAULT_MAX_CONNECTIONS
@@ -57,6 +58,13 @@ class BatchRequest(Generic[ResponseT]):
     """
     on_submitted: Callable[[], None] | None = None
     """Called when the request's batch is submitted, or before it gets a result."""
+    refusal: Callable[[], Exception | None] = lambda: None
+    """The error to fail the request with instead of submitting it, if any.
+
+    Made in the context that queued the request (`sentinel_refusal()`), and
+    called immediately before each attempt to submit its batch, as the shared
+    worker that submits it runs in no sample's context.
+    """
 
     def __post_init__(self) -> None:
         self.headers = {
@@ -135,7 +143,10 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         # the sample waits while the request sits in the local queue
         queued = SampleWait()
         batch_request = BatchRequest[ResponseT](
-            request=request, result_stream=send_stream, on_submitted=queued.close
+            request=request,
+            result_stream=send_stream,
+            on_submitted=queued.close,
+            refusal=sentinel_refusal(),
         )
         self._intake_queue.append(batch_request)
 
@@ -279,6 +290,8 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             batch_requests = self._next_batches.pop(key).requests
 
             batch_id = await self._wrapped_create_batch(batch_requests)
+            if batch_id is None:
+                return True
             for request in batch_requests:
                 request.submitted()
 
@@ -303,14 +316,27 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     # allows the code above to not worry about try/catch'ing the abstract methods.
     # Any exception that escapes a _wrapped_* method will bring down the eval.
 
-    async def _wrapped_create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
+    async def _wrapped_create_batch(
+        self, batch: list[BatchRequest[ResponseT]]
+    ) -> str | None:
+        """Create a batch of `batch`, retrying, and return its id.
+
+        Before each attempt, a request that is refused (`BatchRequest.refusal`)
+        is removed from `batch` and failed with its refusal, and the rest are
+        sent. If none is left, no batch is created and `None` is returned.
+        """
+
         @retry(**_with_retry_logging(self._retry_config, "_create_batch"))
-        async def _create() -> str:
+        async def _create() -> str | None:
+            await self._fail_refused_requests(batch)
+            if not batch:
+                return None
             return await self._create_batch(batch)
 
         try:
             result = await _create()
-            log_batch(f"Created batch {result} with {len(batch)} requests")
+            if result is not None:
+                log_batch(f"Created batch {result} with {len(batch)} requests")
             return result
         except Exception as e:
             await self._fail_all_requests(
@@ -319,6 +345,27 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
                 e,
             )
             raise
+
+    async def _fail_refused_requests(
+        self, batch: list[BatchRequest[ResponseT]]
+    ) -> None:
+        """Remove the refused requests from `batch` and fail each with its refusal.
+
+        Failing a request waits, during which another can be refused, so this
+        returns only after a pass that refuses none.
+        """
+        while True:
+            refused = [(request, request.refusal()) for request in batch]
+            if all(error is None for _, error in refused):
+                return
+            batch[:] = [request for request, error in refused if error is None]
+            for request, error in refused:
+                if error is not None:
+                    await self._fail_all_requests(
+                        f"Request {request.custom_id} refused before its batch was created: {error}",
+                        [request],
+                        error,
+                    )
 
     async def _wrapped_check_batch(
         self, batch: Batch[ResponseT]

@@ -75,13 +75,46 @@ def in_final_scope() -> bool:
     return _scope.get().final
 
 
-def in_sentinel_run() -> bool:
-    """Whether this is a sentinel's own monitor or protocol run.
+class SentinelRun:
+    """A sentinel's monitor or protocol run, active until the run returns or raises.
 
-    Only the dispatcher enters that scope, and no scope entered inside it
-    changes it, so code the eval or a scaffold runs elsewhere can't enter it.
+    Tasks started and contexts copied inside the run share it, so it ends for
+    them too when the run does, however long they keep running.
     """
-    return _scope.get().origin == "sentinel"
+
+    def __init__(self) -> None:
+        self.active = True
+
+
+_run: ContextVar[SentinelRun | None] = ContextVar("sentinel_run", default=None)
+
+
+@contextmanager
+def sentinel_run() -> Iterator[None]:
+    """Run a sentinel's monitor or protocol: model calls in it have the sentinel origin, and it is `in_sentinel_run()` until it exits."""
+    run = SentinelRun()
+    token = _run.set(run)
+    try:
+        with sentinel_scope("sentinel", final=True):
+            yield
+    finally:
+        run.active = False
+        _run.reset(token)
+
+
+def current_sentinel_run() -> SentinelRun | None:
+    """The sentinel run this context was started in, active or ended, if any."""
+    return _run.get()
+
+
+def in_sentinel_run() -> bool:
+    """Whether this is a sentinel's own monitor or protocol run, while it runs.
+
+    Only the dispatcher enters one (`sentinel_run()`). A task the run started,
+    or a context copied in it, is in it only until the run ends.
+    """
+    run = _run.get()
+    return run is not None and run.active
 
 
 def enter_scope(origin: ModelOrigin, *, final: bool = False) -> Token[_Scope]:

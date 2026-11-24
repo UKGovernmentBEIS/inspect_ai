@@ -1395,6 +1395,8 @@ class Model:
            config: Optional generation config for provider-specific counting
                (e.g., reasoning parameters that affect token allocation).
         """
+        raise_if_sentinel_failed()
+
         if not isinstance(input, str):
             _validate_model_input_media(input)
 
@@ -1428,6 +1430,8 @@ class Model:
         async def _count_tokens_retried(
             input: str | list[ChatMessage], config: GenerateConfig | None
         ) -> int:
+            # after the waits for a connection slot and a retry
+            raise_if_sentinel_failed()
             with attempts.attempt():
                 return await self.api.count_tokens(input, config)
 
@@ -1817,6 +1821,9 @@ class Model:
                     tools=event_tools,
                     model_args_key=model_args_key,
                 )
+                # a cache hit sends nothing, so it is never refused for a
+                # limit, but it is a generation a failed sample doesn't get
+                raise_if_sentinel_failed()
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
                     existing = derive_recorded_functions(existing)
@@ -1848,6 +1855,7 @@ class Model:
                         await emit_model_cache_usage(
                             model_name=str(self), usage=existing.usage
                         )
+                    raise_if_sentinel_failed()
                     return existing, event
             else:
                 cache_entry = None

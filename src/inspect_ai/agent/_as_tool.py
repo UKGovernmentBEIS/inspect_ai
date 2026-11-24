@@ -4,6 +4,7 @@ from typing import Any
 
 from shortuuid import uuid as shortuuid
 
+from inspect_ai._sentinel._context import raise_if_sentinel_failed
 from inspect_ai._util.registry import (
     is_registry_object,
     registry_info,
@@ -77,6 +78,8 @@ def as_tool(
             async with span(
                 name=agent_display_name(agent), type=AGENT_SPAN_TYPE, id=agent_span_id
             ):
+                # after the span's waits
+                raise_if_sentinel_failed()
                 state = await agent(state, *args, **(agent_kwargs | kwargs))
 
         # Store span ID so call_tool can read it after execution
