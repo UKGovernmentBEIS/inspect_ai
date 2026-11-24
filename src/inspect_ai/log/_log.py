@@ -1087,12 +1087,6 @@ class EvalShardEntry(BaseModel):
     samples: int
     """Number of `(id, epoch)` records the current attempt held when read (all merged)."""
 
-    selected: int
-    """Number of distinct ids in the current attempt's selection (its `eval.dataset.sample_ids`)."""
-
-    selection_digest: str
-    """SHA-256 (hex) of the current attempt's selection."""
-
     started_at: UtcDatetimeStr | Literal[""] = Field(default_factory=str)
     """`stats.started_at` of the current attempt."""
 

@@ -13095,7 +13095,7 @@ a._turnButton_loteg_100 {
   background: var(--bs-body-bg);
   border-radius: 50%;
 }
-._body_x9ww7_1 {
+._body_cxb1z_1 {
   color: var(--bs-danger);
   display: grid;
   grid-template-columns: 1fr;
@@ -13103,17 +13103,20 @@ a._turnButton_loteg_100 {
   justify-items: center;
 }
 
-._body_x9ww7_1._safe_x9ww7_9 {
+._body_cxb1z_1._safe_cxb1z_9 {
   color: var(--bs-secondary);
 }
 
-._iconSmall_x9ww7_13 {
+._iconSmall_cxb1z_13 {
   font-size: var(--inspect-font-size-small);
   line-height: var(--inspect-font-size-small);
   height: var(--inspect-font-size-small);
 }
 
-._message_x9ww7_19 {
+._message_cxb1z_19 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   text-align: center;
   max-width: 100%;
   overflow: hidden;
