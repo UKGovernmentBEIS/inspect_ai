@@ -77,6 +77,21 @@ anthropic:
           snapshot: "20260724"
           aliases:
             - anthropic.claude-opus-5
+    claude-opus-5-5:
+      display_name: Claude Opus 5.5
+      release_date: 2026-09-22
+      knowledge_cutoff_date: 2026-06-01
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      # Adaptive thinking is always on (can't be disabled, unlike Opus 5).
+      # https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5
+      reasoning_effort_default: medium
+      versions:
+        claude-opus-5-5:
+          snapshot: "20260922"
+          aliases:
+            - anthropic.claude-opus-5-5
     claude-fable-5:
       display_name: Claude Fable 5
       release_date: 2026-06-09
@@ -93,6 +108,37 @@ anthropic:
           snapshot: "20260609"
           aliases:
             - anthropic.claude-fable-5
+    claude-fable-5-1:
+      display_name: Claude Fable 5.1
+      release_date: 2026-09-01
+      knowledge_cutoff_date: 2026-06-01
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      # Adaptive thinking is always on for Claude 5; effort controls depth, and
+      # the server-side default effort is `high` (like Opus 4.8).
+      # https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+      reasoning_effort_default: high
+      versions:
+        claude-fable-5-1:
+          snapshot: "20260901"
+          aliases:
+            - anthropic.claude-fable-5-1
+    claude-fable-5-2:
+      display_name: Claude Fable 5.2
+      release_date: 2026-11-09
+      knowledge_cutoff_date: 2026-06-01
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      # Adaptive thinking is always on; the API default effort is `high`.
+      # https://platform.claude.com/docs/en/models/fable-5-2/overview
+      reasoning_effort_default: high
+      versions:
+        claude-fable-5-2:
+          snapshot: "20261109"
+          aliases:
+            - anthropic.claude-fable-5-2
     claude-mythos-5:
       display_name: Claude Mythos 5
       release_date: 2026-06-09
@@ -109,6 +155,49 @@ anthropic:
           snapshot: "20260609"
           aliases:
             - anthropic.claude-mythos-5
+    claude-mythos-5-1:
+      display_name: Claude Mythos 5.1
+      release_date: 2026-09-01
+      knowledge_cutoff_date: 2026-06-01
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      # Adaptive thinking is always on for Claude 5; effort controls depth, and
+      # the server-side default effort is `high` (like Opus 4.8).
+      # https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+      reasoning_effort_default: high
+      versions:
+        claude-mythos-5-1:
+          snapshot: "20260901"
+          aliases:
+            - anthropic.claude-mythos-5-1
+    claude-mythos-5-2:
+      display_name: Claude Mythos 5.2
+      release_date: 2026-11-09
+      knowledge_cutoff_date: 2026-06-01
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      # Adaptive thinking is always on; the API default effort is `high`.
+      # https://platform.claude.com/docs/en/models/mythos-5-2/overview
+      reasoning_effort_default: high
+      versions:
+        claude-mythos-5-2:
+          snapshot: "20261109"
+          aliases:
+            - anthropic.claude-mythos-5-2
+    claude-mythos-preview:
+      display_name: Claude Mythos Preview
+      # Announced 2026-04-07 (https://red.anthropic.com/2026/mythos-preview/);
+      # the Models API 404s this model for orgs outside Project Glasswing.
+      release_date: 2026-04-07
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      # knowledge_cutoff_date and reasoning_effort_default are omitted rather
+      # than guessed: Anthropic's published tables cover Mythos 5, not the
+      # preview, and unlike the Claude 5 family this accepts an explicit
+      # thinking config, so `high` would be the wrong effort default.
     claude-sonnet-5:
       display_name: Claude Sonnet 5
       release_date: 2026-06-29
@@ -125,6 +214,38 @@ anthropic:
           snapshot: "20260629"
           aliases:
             - anthropic.claude-sonnet-5
+    claude-sonnet-5-5:
+      display_name: Claude Sonnet 5.5
+      release_date: 2026-09-28
+      knowledge_cutoff_date: 2026-06-01
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      # Adaptive thinking runs by default; `disabled` is rejected in favor of
+      # `between_tools` (the lowest thinking setting, effort `high` or below).
+      # https://platform.claude.com/docs/en/models/sonnet-5-5/whats-new-sonnet-5-5
+      reasoning_effort_default: high
+      versions:
+        claude-sonnet-5-5:
+          snapshot: "20260928"
+          aliases:
+            - anthropic.claude-sonnet-5-5
+    claude-haiku-5-5:
+      display_name: Claude Haiku 5.5
+      release_date: 2026-10-07
+      knowledge_cutoff_date: 2026-06-01
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      # Adaptive thinking runs by default; `disabled` is accepted only at
+      # effort `high` or below.
+      # https://platform.claude.com/docs/en/models/haiku-5-5/whats-new-haiku-5-5
+      reasoning_effort_default: medium
+      versions:
+        claude-haiku-5-5:
+          snapshot: "20261007"
+          aliases:
+            - anthropic.claude-haiku-5-5
     claude-haiku-4-5:
       display_name: Claude Haiku 4.5
       release_date: 2025-10-01
@@ -138,6 +259,9 @@ anthropic:
           aliases:
             - anthropic.claude-haiku-4-5-20251001-v1:0
             - claude-haiku-4-5@20251001
+    # Deprecated: retires from the Claude API on 2026-11-30 (Bedrock and
+    # Vertex set their own dates). Anthropic recommends claude-sonnet-5-5.
+    # https://platform.claude.com/docs/en/about-claude/model-deprecations
     claude-sonnet-4-5:
       display_name: Claude Sonnet 4.5
       release_date: 2025-09-29
@@ -167,6 +291,9 @@ anthropic:
           aliases:
             - anthropic.claude-sonnet-4-6
             - claude-sonnet-4-6
+    # Retired from the Claude API on 2026-08-05 (Bedrock and Vertex set their
+    # own dates). Entry retained for historical log analysis.
+    # https://platform.claude.com/docs/en/about-claude/model-deprecations
     claude-opus-4-1:
       display_name: Claude Opus 4.1
       release_date: 2025-08-05
@@ -180,6 +307,9 @@ anthropic:
           aliases:
             - anthropic.claude-opus-4-1-20250805-v1:0
             - claude-opus-4-1@20250805
+    # Retired from the Claude API on 2026-06-15 (Bedrock and Vertex set their
+    # own dates). Entry retained for historical log analysis.
+    # https://platform.claude.com/docs/en/about-claude/model-deprecations
     claude-opus-4:
       display_name: Claude Opus 4
       release_date: 2025-05-14
@@ -193,6 +323,9 @@ anthropic:
           aliases:
             - anthropic.claude-opus-4-20250514-v1:0
             - claude-opus-4@20250514
+    # Retired from the Claude API on 2026-06-15 (Bedrock and Vertex set their
+    # own dates). Entry retained for historical log analysis.
+    # https://platform.claude.com/docs/en/about-claude/model-deprecations
     claude-sonnet-4:
       display_name: Claude Sonnet 4
       release_date: 2025-05-14
@@ -206,6 +339,9 @@ anthropic:
           aliases:
             - anthropic.claude-sonnet-4-20250514-v1:0
             - claude-sonnet-4@20250514
+    # Retired from the Claude API on 2026-02-19 (Bedrock and Vertex set their
+    # own dates). Entry retained for historical log analysis.
+    # https://platform.claude.com/docs/en/about-claude/model-deprecations
     claude-3-7-sonnet:
       display_name: Claude Sonnet 3.7
       release_date: 2025-02-19
@@ -220,6 +356,9 @@ anthropic:
             - claude-3-7-sonnet@20250219
         claude-3-7-sonnet-latest:
           snapshot: "latest"
+    # Retired from the Claude API on 2025-10-28 (Bedrock and Vertex set their
+    # own dates). Entry retained for historical log analysis.
+    # https://platform.claude.com/docs/en/about-claude/model-deprecations
     claude-3-5-sonnet:
       display_name: Claude Sonnet 3.5
       release_date: 2024-10-22
@@ -241,6 +380,9 @@ anthropic:
             - claude-3-5-sonnet@20240620
         claude-3-5-sonnet-latest:
           snapshot: "latest"
+    # Retired from the Claude API on 2026-02-19 (Bedrock and Vertex set their
+    # own dates). Entry retained for historical log analysis.
+    # https://platform.claude.com/docs/en/about-claude/model-deprecations
     claude-3-5-haiku:
       display_name: Claude Haiku 3.5
       release_date: 2024-10-22
@@ -255,6 +397,9 @@ anthropic:
             - claude-3-5-haiku@20241022
         claude-3-5-haiku-latest:
           snapshot: "latest"
+    # Retired from the Claude API on 2026-01-05 (Bedrock and Vertex set their
+    # own dates). Entry retained for historical log analysis.
+    # https://platform.claude.com/docs/en/about-claude/model-deprecations
     claude-3-opus:
       display_name: Claude Opus 3
       release_date: 2024-02-29
@@ -266,6 +411,9 @@ anthropic:
           snapshot: "20240229"
         claude-3-opus-latest:
           snapshot: "latest"
+    # Retired from the Claude API on 2026-04-20 (Bedrock and Vertex set their
+    # own dates). Entry retained for historical log analysis.
+    # https://platform.claude.com/docs/en/about-claude/model-deprecations
     claude-3-haiku:
       display_name: Claude Haiku 3
       release_date: 2024-03-07
@@ -280,12 +428,18 @@ anthropic:
             - claude-3-haiku@20240307
         claude-3-haiku-latest:
           snapshot: "latest"
+    # Retired from the Claude API on 2025-07-21. Entry retained for
+    # historical log analysis.
+    # https://platform.claude.com/docs/en/about-claude/model-deprecations
     claude-2.1:
       display_name: Claude 2.1
       release_date: 2023-11-21
       knowledge_cutoff_date: 2023-01-01
       output_tokens: 4096
       context_length: 200000
+    # Retired from the Claude API on 2025-07-21. Entry retained for
+    # historical log analysis.
+    # https://platform.claude.com/docs/en/about-claude/model-deprecations
     claude-2:
       display_name: Claude 2
       release_date: 2023-07-11

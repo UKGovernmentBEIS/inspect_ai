@@ -23,11 +23,10 @@ def _logger(pending: list[tuple[str | int, int]], flush_buffer: int = 10) -> Tas
     logger.recorder = FakeRecorder()  # type: ignore[assignment]
     logger.eval = object()  # type: ignore[assignment]
     logger.flush_pending = list(pending)
-    logger.flush_quiet = []
-    logger.flush_quiet_retry = False
     logger.flush_buffer = flush_buffer
     logger._buffer_db = None
     logger._finished = False
+    logger._seeded_pending = set()
     # sets up _flush_lock, _flush_pending_lock, and the stale-flush timer state
     logger._init_stale_flush_state()
     return logger
@@ -78,7 +77,7 @@ async def test_flush_during_log_finish_is_serialized() -> None:
             self.torn_down = False
             self.flushes = 0
 
-        async def log_finish(self, *args: object) -> str:
+        async def log_finish(self, *args: object, **kwargs: object) -> str:
             finish_entered.set()
             await release_finish.wait()
             self.torn_down = True  # mirrors `del self.data[key]`

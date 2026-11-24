@@ -1,6 +1,8 @@
 from typing import Any
 
 from inspect_ai.log._log import EvalLog
+from inspect_ai.model._generate_config import generate_config_dict
+from inspect_ai.model._model_config import ModelConfig
 
 # EvalConfig fields that control logging, display, and parallelism — not the
 # scientific conditions of the eval. Omitted from exported run configs so that
@@ -14,6 +16,7 @@ _OPERATIONAL_EVAL_CONFIG_FIELDS = {
     "log_shared",
     "score_display",
     "sandbox_cleanup",
+    "sandbox_prebuilt",
     "max_samples",
     "max_dataset_memory",
     "max_tasks",
@@ -46,29 +49,36 @@ def eval_log_to_run_config_dict(log: EvalLog) -> dict[str, Any]:
         model_entry["base_url"] = spec.model_base_url
     if spec.model_args:
         model_entry["args"] = spec.model_args
-    model_gc = spec.model_generate_config.model_dump(exclude_none=True)
+    model_gc = generate_config_dict(spec.model_generate_config)
     if model_gc:
         model_entry["config"] = model_gc
     out["model"] = model_entry
 
-    # Model roles (dict[str, ModelConfig])
+    # Model roles (a role bound to a list of models exports as a list entry)
     if spec.model_roles:
-        roles: dict[str, Any] = {}
-        for name, mc in spec.model_roles.items():
-            role_entry: dict[str, Any] = {"model": mc.model}
+
+        def role_entry(mc: ModelConfig) -> dict[str, Any]:
+            entry: dict[str, Any] = {"model": mc.model}
             if mc.base_url:
-                role_entry["base_url"] = mc.base_url
-            role_gc = mc.config.model_dump(exclude_none=True)
+                entry["base_url"] = mc.base_url
+            role_gc = generate_config_dict(mc.config)
             if role_gc:
-                role_entry["config"] = role_gc
+                entry["config"] = role_gc
             if mc.args:
-                role_entry["args"] = mc.args
-            roles[name] = role_entry
+                entry["args"] = mc.args
+            return entry
+
+        roles: dict[str, Any] = {}
+        for name, mc_group in spec.model_roles.items():
+            if isinstance(mc_group, list):
+                roles[name] = [role_entry(mc) for mc in mc_group]
+            else:
+                roles[name] = role_entry(mc_group)
         out["model_roles"] = roles
 
     # Generate config (plan-level)
     if plan is not None:
-        gc = plan.config.model_dump(exclude_none=True)
+        gc = generate_config_dict(plan.config)
         if gc:
             out["generate_config"] = gc
 

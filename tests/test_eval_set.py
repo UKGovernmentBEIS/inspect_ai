@@ -1,15 +1,24 @@
+import contextlib
+import gc
+import importlib
 import json
+import logging
 import math
+import os
 import shutil
+import signal
 import tempfile
 import threading
 import time
 import zipfile
+from collections import Counter
+from collections.abc import Iterator
 from copy import deepcopy
 from pathlib import Path
-from typing import Callable, cast
+from typing import Any, BinaryIO, Callable, ClassVar, cast
 from unittest.mock import patch
 
+import anyio
 import pytest
 from test_helpers.buffer import simulate_crashed_buffer_db
 from test_helpers.utils import (
@@ -18,29 +27,47 @@ from test_helpers.utils import (
     failing_task_deterministic,
     identity_solver,
     keyboard_interrupt,
+    skip_if_no_package,
     skip_if_trio,
     sleep_for_solver,
 )
+from typing_extensions import override
 
-from inspect_ai import Task, eval, task
+from inspect_ai import Epochs, Task, eval, task
 from inspect_ai._eval.evalset import (
-    _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+    GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+    EvalSet,
     EvalSetArgsInTaskIdentifier,
+    Log,
     _embed_viewer,
+    _resumed_task,
+    as_previous_tasks,
     epochs_changed,
     eval_set,
     latest_completed_task_eval_logs,
     list_all_eval_logs,
+    log_samples_complete,
+    read_eval_set_info,
     task_identifier,
     validate_eval_set_prerequisites,
+    write_eval_set_info,
 )
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import basename, local_path, size_in_mb
+from inspect_ai._util.file import basename, filesystem, local_path, size_in_mb
 from inspect_ai._util.json import to_json_str_safe
-from inspect_ai.dataset import Sample
+from inspect_ai._view.common import read_eval_set_info_async
+from inspect_ai.dataset import (
+    Dataset,
+    MemoryDataset,
+    Sample,
+    csv_dataset,
+    hf_dataset,
+    json_dataset,
+)
 from inspect_ai.event import SampleInitEvent
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
 from inspect_ai.log._file import (
@@ -48,12 +75,20 @@ from inspect_ai.log._file import (
     list_eval_logs,
     read_eval_log,
     write_eval_log,
+    write_log_dir_manifest,
+    write_log_listing,
 )
 from inspect_ai.log._log import EvalConfig, EvalLog, EvalSampleSummary
-from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._metric import recompute_metrics
+from inspect_ai.log._recorders.buffer import database as database_module
+from inspect_ai.log._recorders.buffer.database import (
+    SampleBufferDatabase,
+    sample_buffer_dbs,
+    sample_buffer_shutdown_pending,
+)
 from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
 from inspect_ai.log._recorders.types import SampleEvent
-from inspect_ai.model import CachePolicy, Model, get_model
+from inspect_ai.model import CachePolicy, Model, ModelOutput, get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import (
     Metric,
@@ -68,7 +103,15 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.scorer._match import includes
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.util import (
+    ComposeConfig,
+    SandboxEnvironment,
+    SandboxEnvironmentConfigType,
+    SandboxEnvironmentSpec,
+    sandboxenv,
+)
 from inspect_ai.util._limit import TokenLimit
+from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 
 
 @pytest.mark.parametrize("retry_immediate", [False, True])
@@ -213,6 +256,170 @@ def test_latest_completed_task_eval_logs() -> None:
         shutil.rmtree(clean_dir, ignore_errors=True)
 
 
+def _sweep_log(path: Path, eval_id: str, mtime: float, status: str, run_id: str) -> Log:
+    """A `Log` carrying only the fields the retry-cleanup sweep consults."""
+    from types import SimpleNamespace
+
+    return Log(
+        info=EvalLogInfo(
+            name=str(path),
+            type="file",
+            size=0,
+            mtime=mtime,
+            task="t",
+            task_id="tid",
+            suffix=None,
+        ),
+        header=cast(
+            EvalLog,
+            SimpleNamespace(
+                status=status,
+                eval=SimpleNamespace(task_id="tid", eval_id=eval_id, run_id=run_id),
+            ),
+        ),
+        task_identifier="tid",
+    )
+
+
+def test_retry_cleanup_removes_this_runs_older_started_logs_and_their_buffers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Older `started` logs of this process's own runs are swept, buffers included.
+
+    Every attempt's log is seeded from the prior log, so an interrupted
+    attempt's `started` log holds nothing the task's newest log lacks. When
+    the attempt is one this process ran (its run id is owned), the sweep
+    removes the log together with the sample buffer the attempt never
+    cleaned up: the buffer db the eval-set pass loop leaves closed on disk
+    when `log_finish` fails, a `.buffer` filestore directory, or nothing at
+    all (the immediate-retry path deletes the attempt's buffer itself).
+    """
+    db_dir = tmp_path / "db"
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: db_dir)
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    with_db = log_dir / "a.eval"
+    with_filestore = log_dir / "b.eval"
+    without_buffer = log_dir / "c.eval"
+    newest = log_dir / "d.eval"
+    for log in (with_db, with_filestore, without_buffer, newest):
+        log.touch()
+
+    SampleBufferDatabase(str(with_db), create=True).close()
+    SampleBufferDatabase(str(with_filestore), create=True).close()
+    filestore_dir = log_dir / ".buffer" / "b"
+    filestore_dir.mkdir(parents=True)
+    (filestore_dir / "manifest.json").write_text("{}")
+    assert len(list(db_dir.rglob("*.db"))) == 2
+
+    latest = latest_completed_task_eval_logs(
+        logs=[
+            _sweep_log(with_db, "a1", mtime=1.0, status="started", run_id="pass-1"),
+            _sweep_log(
+                with_filestore, "a2", mtime=2.0, status="started", run_id="pass-2"
+            ),
+            _sweep_log(
+                without_buffer, "a3", mtime=3.0, status="started", run_id="pass-3"
+            ),
+            _sweep_log(newest, "a4", mtime=4.0, status="success", run_id="pass-3"),
+        ],
+        cleanup_older=True,
+        owned_run_ids={"pass-1", "pass-2", "pass-3"},
+    )
+
+    assert [log.header.eval.eval_id for log in latest] == ["a4"]
+    assert sorted(p.name for p in log_dir.glob("*.eval")) == ["d.eval"]
+    assert list(db_dir.rglob("*.db")) == []
+    assert not filestore_dir.exists()
+
+
+def test_retry_cleanup_keeps_started_logs_of_other_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A `started` log this process did not write is left alone, buffers too.
+
+    Nothing on disk shows another run has stopped writing: its buffer db may
+    sit in another data directory or pid namespace, and a recovered snapshot
+    of a live log carries the live log's run id (so sharing the newest log's
+    run id proves nothing either). Such logs stay, quietly, with their
+    buffers.
+    """
+    db_dir = tmp_path / "db"
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: db_dir)
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    live = log_dir / "live.eval"
+    elsewhere = log_dir / "elsewhere.eval"
+    snapshot = log_dir / "live-recovered.eval"
+    for log in (live, elsewhere, snapshot):
+        log.touch()
+    # the writer of `live` is another process (the test runner's parent) that
+    # outlives this test; `elsewhere` has no local buffer at all
+    simulate_crashed_buffer_db(
+        SampleBufferDatabase(str(live), create=True), pid=os.getppid()
+    )
+    filestore_dir = log_dir / ".buffer" / "live"
+    filestore_dir.mkdir(parents=True)
+
+    with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+        latest = latest_completed_task_eval_logs(
+            logs=[
+                _sweep_log(live, "a1", mtime=1.0, status="started", run_id="theirs"),
+                _sweep_log(
+                    elsewhere, "a2", mtime=2.0, status="started", run_id="other"
+                ),
+                _sweep_log(
+                    snapshot, "a1", mtime=3.0, status="success", run_id="theirs"
+                ),
+            ],
+            cleanup_older=True,
+            owned_run_ids={"mine"},
+        )
+
+    assert [log.info.name for log in latest] == [str(snapshot)]
+    assert live.exists() and elsewhere.exists()
+    assert len(list(db_dir.rglob("*.db"))) == 1
+    assert filestore_dir.exists()
+    assert not any(r.levelno >= logging.WARNING for r in caplog.records)
+
+
+def test_retry_cleanup_keeps_owned_started_log_while_its_buffer_is_in_use(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An owned `started` log stays while a sample reader defers its buffer's close.
+
+    The buffer's files are still in use, so the sweep keeps the log and its
+    buffer. Once the reader lets go and the close finishes, the next sweep
+    removes both.
+    """
+    db_dir = tmp_path / "db"
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: db_dir)
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    older = log_dir / "a.eval"
+    newest = log_dir / "b.eval"
+    for log in (older, newest):
+        log.touch()
+    buffer = SampleBufferDatabase(str(older), create=True)
+    buffer.start_sample(EvalSampleSummary(id=1, epoch=1, input="q", target="a"))
+    logs = [
+        _sweep_log(older, "a1", mtime=1.0, status="started", run_id="mine"),
+        _sweep_log(newest, "a2", mtime=2.0, status="success", run_id="mine"),
+    ]
+
+    with buffer._acquire_sample_read_lease(1, 1):
+        buffer.close()
+        latest_completed_task_eval_logs(
+            logs=logs, cleanup_older=True, owned_run_ids={"mine"}
+        )
+        assert older.exists() and buffer.db_path.exists()
+
+    latest_completed_task_eval_logs(
+        logs=logs, cleanup_older=True, owned_run_ids={"mine"}
+    )
+    assert not older.exists() and not buffer.db_path.exists()
+
+
 def test_validate_eval_set_prerequisites_ok() -> None:
     # cleanup previous tests
     TEST_EVAL_SET_PATH = Path("tests/test_eval_set")
@@ -285,6 +492,141 @@ def test_eval_set_s3(mock_s3) -> None:
     )
     assert success
     assert logs[0].status == "success"
+
+
+@pytest.mark.slow
+@skip_if_trio
+def test_eval_set_s3_prefix_scoped(prefix_scoped_s3: str) -> None:
+    location = f"{prefix_scoped_s3}/"
+    tasks = failing_task(rate=0, samples=1)
+    success, logs = eval_set(
+        tasks=tasks,
+        log_dir=location,
+        retry_attempts=1,
+        retry_wait=0.1,
+        model="mockllm/model",
+    )
+    assert success
+    assert logs[0].status == "success"
+
+    success_again, reused = eval_set(
+        tasks=tasks,
+        log_dir=location,
+        retry_attempts=1,
+        retry_wait=0.1,
+        model="mockllm/model",
+    )
+    assert success_again
+    assert reused[0].eval.task_id == logs[0].eval.task_id
+
+    assert read_eval_set_info(prefix_scoped_s3) is not None
+    assert read_eval_set_info(location) is not None
+    write_log_listing(location)
+    fs = filesystem(prefix_scoped_s3)
+    assert fs.exists(f"{prefix_scoped_s3}/logs.json")
+    assert fs.exists(f"{prefix_scoped_s3}/listing.json")
+
+
+_MemoryFileSystem: Any = importlib.import_module(
+    "fsspec.implementations.memory"
+).MemoryFileSystem
+
+
+class _AzureLikeMemoryFileSystem(_MemoryFileSystem):
+    """In-memory filesystem with adlfs's URL handling.
+
+    `_strip_protocol` keeps a trailing slash and drops the account from
+    `azmem://container@account/...`. The filesystem cannot be opened without
+    an account unless `default_account` (the role of the account-name
+    environment variable) is set. Names are listed as `azmem://` even when
+    opened as `azmemalias://`, as adlfs lists `az://` paths as `abfs://`.
+    """
+
+    protocol = ("azmem", "azmemalias")
+    store: dict[str, Any] = {}
+    pseudo_dirs = [""]
+    cachable = False
+    default_account: str | None = None
+
+    def __init__(self, account: str | None = None, **kwargs: Any) -> None:
+        if not (account or self.default_account):
+            raise ValueError("Must provide an account")
+        super().__init__(**kwargs)
+
+    @staticmethod
+    def _get_kwargs_from_urls(path: str) -> dict[str, Any]:
+        netloc = path.split("://", 1)[-1].split("/", 1)[0]
+        return {"account": netloc.partition("@")[2]} if "@" in netloc else {}
+
+    @classmethod
+    def _strip_protocol(cls, path: Any) -> Any:
+        container, _, rest = str(path).split("://", 1)[-1].lstrip("/").partition("/")
+        return f"/{container.partition('@')[0]}" + (f"/{rest}" if rest else "")
+
+
+@pytest.fixture
+def azure_like_fs(monkeypatch: pytest.MonkeyPatch) -> type[Any]:
+    fsspec = importlib.import_module("fsspec")
+    for protocol in _AzureLikeMemoryFileSystem.protocol:
+        fsspec.register_implementation(
+            protocol, _AzureLikeMemoryFileSystem, clobber=True
+        )
+    monkeypatch.setattr(_AzureLikeMemoryFileSystem, "store", {})
+    return _AzureLikeMemoryFileSystem
+
+
+@pytest.mark.parametrize(
+    "written_as", ["azmem://container@acct/logs", "azmem://container@acct/logs/"]
+)
+def test_eval_set_metadata_paths_keep_url_and_ignore_trailing_slash(
+    written_as: str, azure_like_fs: type[Any]
+) -> None:
+    log_dir = "azmem://container@acct/logs"
+
+    write_eval_set_info(
+        "eval-set-id",
+        written_as,
+        tasks=[],
+        all_logs=[],
+        eval_set_args=EvalSetArgsInTaskIdentifier(config=GenerateConfig()),
+    )
+    write_log_dir_manifest(written_as)
+    write_log_listing(written_as)
+
+    assert sorted(azure_like_fs.store) == [
+        "/container/logs/eval-set.json",
+        "/container/logs/listing.json",
+        "/container/logs/logs.json",
+    ]
+
+    async def read_async(dir: str) -> EvalSet | None:
+        async with AsyncFilesystem() as afs:
+            return await read_eval_set_info_async(dir, afs)
+
+    for read_as in (log_dir, f"{log_dir}/"):
+        info = read_eval_set_info(read_as)
+        assert info is not None and info.eval_set_id == "eval-set-id"
+        info = anyio.run(read_async, read_as)
+        assert info is not None and info.eval_set_id == "eval-set-id"
+
+
+def test_log_dir_manifest_keys_relative_to_listed_names(
+    azure_like_fs: type[Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(azure_like_fs, "default_account", "acct")
+    log = "2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    fs = filesystem("azmem://container/logs").fs
+    fs.pipe_file(
+        f"/container/logs/{log}",
+        Path(__file__).parent.joinpath("log", "test_list_logs", log).read_bytes(),
+    )
+
+    write_log_dir_manifest("azmemalias://container/logs/")
+    write_log_listing("azmemalias://container/logs/")
+
+    for manifest in ("logs.json", "listing.json"):
+        keys = json.loads(fs.cat_file(f"/container/logs/{manifest}")).keys()
+        assert list(keys) == [log]
 
 
 def test_eval_set_retry_in_same_second_does_not_clobber_failed_log() -> None:
@@ -389,6 +731,243 @@ def test_eval_zero_retries() -> None:
         assert not success
 
 
+def test_eval_set_sample_id_with_colon_and_task_selector(tmp_path: Path) -> None:
+    # a colon inside a dataset id is not a `task:` selector unless the prefix
+    # names a task in the run; the planned count and the log agree on that,
+    # so a second pass finds every task complete and runs nothing
+    gym = Task(
+        name="gym",
+        dataset=[Sample(id=f"user:cybergym/arvo_{n}", input="hi") for n in (1, 2)],
+    )
+    other = Task(name="other", dataset=[Sample(id=n, input="hi") for n in (1, 2)])
+    sample_id = ["user:cybergym/arvo_1", "other:2"]
+
+    success, logs = eval_set(
+        [gym, other],
+        log_dir=str(tmp_path),
+        sample_id=sample_id,
+        retry_attempts=0,
+        model="mockllm/model",
+    )
+    assert success
+    by_task = {log.eval.task: read_eval_log(log.location) for log in logs}
+    assert [s.id for s in by_task["gym"].samples or []] == ["user:cybergym/arvo_1"]
+    assert [s.id for s in by_task["other"].samples or []] == [2]
+
+    success, logs = eval_set(
+        [gym, other],
+        log_dir=str(tmp_path),
+        sample_id=sample_id,
+        retry_attempts=0,
+        model="mockllm/model",
+    )
+    assert success
+    assert len(logs) == 2
+    assert len(list_eval_logs(str(tmp_path))) == 2
+
+
+def test_eval_set_retry_resolves_task_selectors_against_whole_set(
+    tmp_path: Path,
+) -> None:
+    # the retry pass runs only the failed task, and must still read `gym:...`
+    # as a selector for a task outside that batch (not as one of its own ids):
+    # the retried log records the same resolved selection the first pass did
+    from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+
+    attempts: list[int | str] = []
+
+    @solver
+    def fails_first_time() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            attempts.append(state.sample_id)
+            if len(attempts) == 1:
+                raise ValueError("first attempt")
+            return state
+
+        return solve
+
+    gym = Task(
+        name="gym",
+        dataset=[Sample(id=f"user:cybergym/arvo_{n}", input="hi") for n in (1, 2)],
+    )
+    other = Task(
+        name="other",
+        dataset=[Sample(id=n, input="hi") for n in (1, 2)],
+        solver=[fails_first_time(), generate()],
+    )
+    # two eval_set calls (rather than in-set retries, which re-run the task in
+    # the same eval_run batch) so the retry pass really is a one-task batch
+    args: dict[str, Any] = dict(
+        log_dir=str(tmp_path),
+        sample_id=["gym:user:cybergym/arvo_1", "other:2"],
+        retry_attempts=0,
+        model="mockllm/model",
+    )
+    success, _ = eval_set([gym, other], **args)
+    assert not success
+    success, logs = eval_set([gym, other], **args)
+    assert success
+    assert attempts == [2, 2]
+    by_task = {log.eval.task: read_eval_log(log.location) for log in logs}
+    assert [s.id for s in by_task["other"].samples or []] == [2]
+    assert by_task["other"].eval.config.sample_id == ["2"]
+    assert by_task["gym"].eval.config.sample_id == ["user:cybergym/arvo_1"]
+
+
+def test_eval_set_unaddressed_task_is_complete_on_rerun(tmp_path: Path) -> None:
+    # a task no `task:id` selector names runs no samples (a success log with
+    # no results); a second pass must see it as complete rather than re-run it
+    foo = Task(name="foo", dataset=[Sample(id=i, input="hi") for i in (1, 2)])
+    bar = Task(name="bar", dataset=[Sample(id=i, input="hi") for i in (1, 2)])
+    args: dict[str, Any] = dict(
+        log_dir=str(tmp_path),
+        sample_id=["foo:1"],
+        retry_attempts=0,
+        model="mockllm/model",
+    )
+    success, logs = eval_set([foo, bar], **args)
+    assert success
+    first = {log.eval.task: basename(log.location) for log in logs}
+    assert read_eval_log(logs[1].location).results is None
+
+    success, logs = eval_set([foo, bar], **args)
+    assert success
+    assert {log.eval.task: basename(log.location) for log in logs} == first
+
+
+def _files_below(root: Path) -> set[Path]:
+    return {path.relative_to(root) for path in root.rglob("*")}
+
+
+@pytest.mark.parametrize("option", ["none", "embed_viewer", "scanner"])
+def test_eval_set_refuses_a_log_dir_holding_shards(tmp_path: Path, option: str) -> None:
+    options: dict[str, Any] = {}
+    if option == "embed_viewer":
+        options["embed_viewer"] = True
+    elif option == "scanner":
+        pytest.importorskip("inspect_scout")
+        from inspect_scout import Result, Transcript, scanner
+
+        @scanner(messages="all")
+        def echo() -> Any:
+            async def scan(transcript: Transcript) -> Result:
+                return Result(value=transcript.transcript_id)
+
+            return scan
+
+        options["scanner"] = [echo()]
+    log_dir = tmp_path / "my logs"
+    task = Task(name="foo", dataset=[Sample(id=i, input="hi") for i in (1, 2)])
+    companions = [
+        log_dir / "2026-10-16T10-00-00-00-00_foo_A.shards",
+        log_dir / "2026-10-16T10-00-00-00-00_foo_B.shards",
+    ]
+    # a shard in a numbered directory, and a stray log directly in a companion
+    for k, log_location in enumerate([companions[0] / "0", companions[1]]):
+        eval(
+            task,
+            model="mockllm/model",
+            sample_id=[k + 1],
+            log_dir=str(log_location),
+            display="none",
+        )
+    # an older attempt that cannot be read: nothing may read shard headers
+    (companions[0] / "0" / "2026-01-01T00-00-00-00-00_foo_old.eval").write_bytes(
+        b"not a log"
+    )
+    files = _files_below(log_dir)
+
+    with pytest.raises(PrerequisiteError, match="does not merge shards") as raised:
+        eval_set(
+            task,
+            log_dir=str(log_dir),
+            model="mockllm/model",
+            display="none",
+            **options,
+        )
+
+    for companion in companions:
+        # listed local names use forward slashes, also on Windows
+        assert companion.as_posix() in str(raised.value)
+    assert "inspect log merge-shards" in str(raised.value)
+    # no log, manifest, viewer or scan output; the eval set id comes first
+    assert _files_below(log_dir) - {Path(".eval-set-id")} == files
+
+
+def test_eval_set_accepts_log_dir_after_delete_shards(tmp_path: Path) -> None:
+    from inspect_ai.log import merge_eval_log_shards
+
+    log_dir = tmp_path / "logs"
+    task = Task(name="foo", dataset=[Sample(id=i, input="hi") for i in (1, 2)])
+    name = "2026-10-16T10-00-00-00-00_foo_A"
+    for k, ids in enumerate([[1], [2]]):
+        eval(
+            task,
+            model="mockllm/model",
+            sample_id=ids,
+            log_dir=str(log_dir / f"{name}.shards" / str(k)),
+            display="none",
+        )
+    args: dict[str, Any] = dict(
+        log_dir=str(log_dir), model="mockllm/model", display="none"
+    )
+    with pytest.raises(PrerequisiteError, match="--delete-shards"):
+        eval_set(task, **args)
+
+    merge_eval_log_shards(str(log_dir / f"{name}.eval"), task, delete_shards=True)
+    success, logs = eval_set(task, **args)
+    assert success and len(logs) == 1
+
+
+def test_eval_set_retry_pass_lists_the_log_dir_again(tmp_path: Path) -> None:
+    runs: Counter[Any] = Counter()
+
+    @solver
+    def fail_sample_2_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            runs[state.sample_id] += 1
+            if state.sample_id == 2 and runs[2] == 1:
+                raise ValueError("sample 2 fails on the first pass")
+            return state
+
+        return solve
+
+    task = Task(
+        name="foo",
+        dataset=[Sample(id=i, input="hi") for i in (1, 2)],
+        solver=fail_sample_2_once(),
+    )
+
+    success, _ = eval_set(
+        task,
+        log_dir=str(tmp_path / "my logs"),
+        model="mockllm/model",
+        retry_attempts=2,
+        retry_wait=0.001,
+        # retry through eval_set's passes rather than inside eval()
+        retry_immediate=False,
+        display="none",
+    )
+
+    # the retry pass pairs with the failed log the first pass wrote (a stale
+    # listing would not hold it) and reuses sample 1
+    assert success
+    assert runs == {1: 1, 2: 2}
+
+
+def test_eval_set_without_shards_runs_and_resumes(tmp_path: Path) -> None:
+    task = Task(name="foo", dataset=[Sample(id=i, input="hi") for i in (1, 2)])
+    args: dict[str, Any] = dict(
+        log_dir=str(tmp_path / "my logs"), model="mockllm/model", display="none"
+    )
+
+    success, [first] = eval_set(task, **args)
+    success_again, [again] = eval_set(task, **args)
+
+    assert success and success_again
+    assert basename(again.location) == basename(first.location)
+
+
 def test_eval_set_unknown_task_raises_prerequisite_error() -> None:
     # when no tasks resolve (e.g. user passes a task spec referencing a
     # package that isn't installed), eval_set should fail fast with the same
@@ -489,6 +1068,162 @@ def test_eval_set_retry_started():
         # re-run the eval set and confirm status 'succes'
         run_eval_set()
         assert eval_log_status() == "success"
+
+
+_recorded_sandbox_samples: list[str] = []
+
+
+class _RecordingSandbox(LocalSandboxEnvironment):
+    """Local sandbox that records the sandbox type of each sample it starts."""
+
+    sandbox_type: ClassVar[str]
+
+    @override
+    @classmethod
+    async def sample_init(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
+    ) -> dict[str, SandboxEnvironment]:
+        _recorded_sandbox_samples.append(cls.sandbox_type)
+        return await super().sample_init(task_name, config, metadata)
+
+
+@sandboxenv(name="log_chosen")
+class _LogChosenSandbox(_RecordingSandbox):
+    sandbox_type = "log_chosen"
+
+
+@sandboxenv(name="resolved_override")
+class _ResolvedOverrideSandbox(_RecordingSandbox):
+    sandbox_type = "resolved_override"
+
+
+_HOSTILE_LOG_SANDBOX = SandboxEnvironmentSpec(
+    "docker",
+    ComposeConfig.model_validate(
+        {"services": {"default": {"image": "untrusted", "volumes": ["/:/host"]}}}
+    ),
+)
+
+
+@pytest.mark.parametrize("converter", ["as_previous_tasks", "resumed_task"])
+def test_eval_set_previous_task_keeps_resolved_sandbox(
+    tmp_path: Path, converter: str
+) -> None:
+    previous_log = eval(
+        Task(dataset=[Sample(input="hello", target="hello")]),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+    )[0]
+    previous_log.eval.sandbox = _HOSTILE_LOG_SANDBOX
+    write_eval_log(previous_log)
+    log_info = list_eval_logs(str(tmp_path))[0]
+    header = read_eval_log(log_info, header_only=True)
+
+    trusted_sandbox = SandboxEnvironmentSpec(
+        "docker",
+        ComposeConfig.model_validate({"services": {"default": {"image": "trusted"}}}),
+    )
+    model = get_model("mockllm/model")
+    resolved = resolve_tasks(
+        Task(dataset=[Sample(input="hello", target="hello")], sandbox="local"),
+        task_args={},
+        model=model,
+        model_roles=None,
+        sandbox=trusted_sandbox,
+        sample_shuffle=None,
+    )[0]
+    if converter == "as_previous_tasks":
+        eval_set_args = EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+        previous_task = as_previous_tasks(
+            [resolved],
+            [Log(log_info, header, task_identifier(resolved, eval_set_args))],
+            eval_set_args,
+            recover_crashed=False,
+        )[0]
+    else:
+        previous_task = _resumed_task(
+            resolved, task_identifier(header, None), log_info.name
+        )
+
+    resumed = resolve_tasks(
+        previous_task,
+        task_args={},
+        model=model,
+        model_roles=None,
+        sandbox=None,
+        sample_shuffle=None,
+    )
+
+    assert resumed[0].sandbox == trusted_sandbox
+
+
+@pytest.mark.parametrize("tasks_input", ["task", "eval-sandbox", "resolved-task"])
+def test_eval_set_resume_uses_task_sandbox_not_log_sandbox(
+    tmp_path: Path, tasks_input: str
+) -> None:
+    should_fail = True
+
+    @solver
+    def fail_while_flagged() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if should_fail:
+                raise ValueError("Eval failed!")
+            return state
+
+        return solve
+
+    @task
+    def sandboxed_task(sandbox: str | None) -> Task:
+        return Task(
+            dataset=[Sample(input="hello", target="hello")],
+            solver=fail_while_flagged(),
+            sandbox=sandbox,
+        )
+
+    def run_eval_set() -> tuple[bool, list[EvalLog]]:
+        tasks: Task | ResolvedTask
+        sandbox = None
+        if tasks_input == "task":
+            tasks = sandboxed_task("local")
+        elif tasks_input == "eval-sandbox":
+            tasks = sandboxed_task(None)
+            sandbox = "resolved_override"
+        else:
+            tasks = resolve_tasks(
+                sandboxed_task("local"),
+                task_args={},
+                model=get_model("mockllm/model"),
+                model_roles=None,
+                sandbox="resolved_override",
+                sample_shuffle=None,
+            )[0]
+        return eval_set(
+            tasks,
+            log_dir=str(tmp_path),
+            retry_attempts=0,
+            model="mockllm/model",
+            sandbox=sandbox,
+        )
+
+    expected = "local" if tasks_input == "task" else "resolved_override"
+    success, logs = run_eval_set()
+    assert not success
+    previous_log = read_eval_log(logs[0].location)
+    previous_log.eval.sandbox = SandboxEnvironmentSpec("log_chosen")
+    write_eval_log(previous_log)
+
+    should_fail = False
+    _recorded_sandbox_samples.clear()
+    success, logs = run_eval_set()
+
+    assert success
+    assert logs[0].eval.sandbox == SandboxEnvironmentSpec(expected)
+    assert "log_chosen" not in _recorded_sandbox_samples
+    if expected == "resolved_override":
+        assert _recorded_sandbox_samples == ["resolved_override"]
 
 
 def test_eval_set_preserves_token_usage():
@@ -864,6 +1599,34 @@ def test_task_identifier_with_token_limit_type():
     )
 
 
+def test_task_max_samples_not_in_task_identifier(tmp_path: Path) -> None:
+    model = get_model("mockllm/model")
+
+    def identifier(max_samples: int | None) -> str:
+        task = task_with(hello_world(), max_samples=max_samples)
+        resolved = resolve_tasks([task], {}, model, None, None, None)[0]
+        return task_identifier(
+            resolved, EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+        )
+
+    assert identifier(None) == identifier(2) == identifier(3)
+
+    # a completed task is not re-run when only its max_samples changes
+    log_dir = str(tmp_path)
+    success, logs = eval_set(
+        task_with(hello_world(), max_samples=2), log_dir=log_dir, model=model
+    )
+    assert success
+    assert logs[0].eval.config.max_samples == 2
+    assert task_identifier(logs[0], None) == identifier(3)
+    success, logs = eval_set(
+        task_with(hello_world(), max_samples=3), log_dir=log_dir, model=model
+    )
+    assert success
+    assert logs[0].eval.config.max_samples == 2
+    assert len(list_all_eval_logs(log_dir)) == 1
+
+
 def test_task_identifier_with_redacted_model_args():
     model1 = get_model(
         "mockllm/model", api_key="secret", aws_key="secret2", other_arg="value1"
@@ -928,20 +1691,25 @@ def test_task_identifier_with_model_roles_model_configs():
 )
 def test_task_identifier_ignores_runtime_config(field: str, value: object):
     # runtime concurrency / caching knobs don't affect outputs and shouldn't
-    # break eval_set resume — for any of the three GenerateConfig sites that
-    # feed task_identifier: the primary model's config, the eval_set-level
-    # config (which becomes eval_plan.config), and each role model's config.
+    # break eval_set resume — for any of the GenerateConfig sites that feed
+    # task_identifier: the primary model's config, the eval_set-level config
+    # (which becomes eval_plan.config), and each role model's config (both
+    # single-model roles and every element of list-valued roles).
     tuned = GenerateConfig.model_validate({field: value})
 
     def ident(
         primary_cfg: GenerateConfig = GenerateConfig(),
         plan_cfg: GenerateConfig = GenerateConfig(),
         role_cfg: GenerateConfig = GenerateConfig(),
+        role_list_cfg: GenerateConfig = GenerateConfig(),
     ) -> str:
         p = get_model("mockllm/model", config=primary_cfg)
         r = get_model("mockllm/scorer", config=role_cfg)
+        # role_list_cfg lands on a non-first list element so the test catches
+        # an exclusion that only reaches index 0
+        r2 = get_model("mockllm/scorer2", config=role_list_cfg)
         t = hello_world()
-        task_with(t, model=p, model_roles={"scorer": r})
+        task_with(t, model=p, model_roles={"scorer": r, "graders": [r, r2]})
         (resolved,) = resolve_tasks([t], {}, p, None, None, None)
         return task_identifier(resolved, EvalSetArgsInTaskIdentifier(config=plan_cfg))
 
@@ -949,6 +1717,7 @@ def test_task_identifier_ignores_runtime_config(field: str, value: object):
     assert ident(primary_cfg=tuned) == baseline, f"primary model config: {field}"
     assert ident(plan_cfg=tuned) == baseline, f"eval_plan.config: {field}"
     assert ident(role_cfg=tuned) == baseline, f"role model config: {field}"
+    assert ident(role_list_cfg=tuned) == baseline, f"role list model config: {field}"
 
     # sanity: a field that DOES affect identity still changes the hash on
     # every path, so the test isn't trivially passing.
@@ -956,6 +1725,7 @@ def test_task_identifier_ignores_runtime_config(field: str, value: object):
     assert ident(primary_cfg=semantic) != baseline
     assert ident(plan_cfg=semantic) != baseline
     assert ident(role_cfg=semantic) != baseline
+    assert ident(role_list_cfg=semantic) != baseline
 
 
 def test_task_identifier_ignores_role_base_url():
@@ -964,7 +1734,7 @@ def test_task_identifier_ignores_role_base_url():
     # part of a role model's identifier either.
     primary = get_model("mockllm/model")
 
-    def ident(role: Model) -> str:
+    def ident(role: Model | list[Model]) -> str:
         t = hello_world()
         task_with(t, model=primary, model_roles={"scorer": role})
         (resolved,) = resolve_tasks([t], {}, primary, None, None, None)
@@ -976,11 +1746,19 @@ def test_task_identifier_ignores_role_base_url():
         get_model("mockllm/scorer", base_url="http://localhost:8000")
     )
 
+    # same for every element of a list-valued role
+    assert ident([get_model("mockllm/scorer"), get_model("mockllm/scorer2")]) == ident(
+        [
+            get_model("mockllm/scorer"),
+            get_model("mockllm/scorer2", base_url="http://localhost:8000"),
+        ]
+    )
+
 
 # GenerateConfig fields whose value can change model/tool outputs, and which
 # therefore form part of task identity (i.e. are hashed into task_identifier).
 # Every GenerateConfig field MUST appear either here or in
-# _GENERATE_CONFIG_FIELDS_TO_EXCLUDE — see test_generate_config_fields_classified.
+# GENERATE_CONFIG_FIELDS_TO_EXCLUDE — see test_generate_config_fields_classified.
 _GENERATE_CONFIG_IDENTITY_FIELDS = {
     "system_message",
     "max_tokens",
@@ -1001,6 +1779,7 @@ _GENERATE_CONFIG_IDENTITY_FIELDS = {
     "internal_tools",
     "max_tool_output",
     "fallback_models",
+    "fail_on_refusal",
     "verbosity",
     "effort",
     "reasoning_effort",
@@ -1019,13 +1798,13 @@ def test_generate_config_fields_classified():
     """Force every GenerateConfig field to be explicitly classified.
 
     eval_set resume matches live tasks to existing logs by hashing
-    GenerateConfig minus _GENERATE_CONFIG_FIELDS_TO_EXCLUDE. A new field that
+    GenerateConfig minus GENERATE_CONFIG_FIELDS_TO_EXCLUDE. A new field that
     isn't classified is hashed by default, so tuning it between runs silently
     breaks resume — which is exactly how `adaptive_connections` slipped
     through after it was added.
     """
     fields = set(GenerateConfig.model_fields)
-    excluded = _GENERATE_CONFIG_FIELDS_TO_EXCLUDE
+    excluded = GENERATE_CONFIG_FIELDS_TO_EXCLUDE
     identity = _GENERATE_CONFIG_IDENTITY_FIELDS
 
     unclassified = fields - excluded - identity
@@ -1034,7 +1813,7 @@ def test_generate_config_fields_classified():
         f"for task_identifier hashing.\n"
         f"  → If the field is a runtime/transport knob (concurrency, retries, "
         f"timeouts, caching, batching) that does NOT change model outputs: "
-        f"add it to _GENERATE_CONFIG_FIELDS_TO_EXCLUDE in "
+        f"add it to GENERATE_CONFIG_FIELDS_TO_EXCLUDE in "
         f"src/inspect_ai/_eval/evalset.py and bump TASK_IDENTIFIER_VERSION.\n"
         f"  → If the field CAN change model outputs (sampling params, "
         f"reasoning config, tool behaviour, etc.): add it to "
@@ -1045,14 +1824,14 @@ def test_generate_config_fields_classified():
     overlap = excluded & identity
     assert not overlap, (
         f"GenerateConfig field(s) {sorted(overlap)} appear in both "
-        f"_GENERATE_CONFIG_FIELDS_TO_EXCLUDE and "
+        f"GENERATE_CONFIG_FIELDS_TO_EXCLUDE and "
         f"_GENERATE_CONFIG_IDENTITY_FIELDS — pick one."
     )
 
     stale = (excluded | identity) - fields
     assert not stale, (
         f"GenerateConfig field(s) {sorted(stale)} no longer exist on "
-        f"GenerateConfig — remove from _GENERATE_CONFIG_FIELDS_TO_EXCLUDE "
+        f"GenerateConfig — remove from GENERATE_CONFIG_FIELDS_TO_EXCLUDE "
         f"(evalset.py) or _GENERATE_CONFIG_IDENTITY_FIELDS (this file)."
     )
 
@@ -1209,6 +1988,39 @@ def resolved_tasks_have_unique_identifiers(resolved_tasks: list[ResolvedTask]) -
             return False
         identifiers.add(identifier)
     return True
+
+
+def test_task_identifier_ignores_description():
+    model = get_model("mockllm/model")
+
+    def ident(description: str | None) -> str:
+        t = task_with(hello_world(), model=model, description=description)
+        (resolved,) = resolve_tasks([t], {}, model, None, None, None)
+        return task_identifier(
+            resolved, EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+        )
+
+    assert ident(None) == ident("First.") == ident("Second.")
+
+
+def test_eval_set_description_change_reuses_log():
+    with tempfile.TemporaryDirectory() as log_dir:
+
+        def run(description: str) -> EvalLog:
+            success, logs = eval_set(
+                tasks=[task_with(hello_world(), description=description)],
+                log_dir=log_dir,
+                model="mockllm/model",
+            )
+            assert success
+            return logs[0]
+
+        first = run("First.")
+        second = run("Second.")
+        # the completed log is matched to the task, not re-run
+        assert second.eval.eval_id == first.eval.eval_id
+        assert second.eval.task_description == "First."
+        assert len([f for f in os.listdir(log_dir) if f.endswith(".eval")]) == 1
 
 
 def test_task_identifier_with_task_versions():
@@ -1410,6 +2222,88 @@ def test_eval_set_epochs_changed_to_none():
         verify_logs(logs, log_dir, epochs=1)
 
 
+def test_eval_set_reuses_log_with_task_epochs_reducer():
+    """A task whose Epochs carry a non-mean reducer is reused on the next call."""
+    task1 = Task(
+        dataset=[Sample(input="Say hello.", target="hello")],
+        solver=[generate()],
+        scorer=includes(),
+        epochs=Epochs(2, "max"),
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=2)
+        assert logs[0].eval.config.epochs_reducer == ["max"]
+        location = logs[0].location
+
+        with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+            mock_iso_now.return_value = "2024-01-01T00:00:01"
+            [result, logs] = eval_set(
+                tasks=[task1],
+                log_dir=log_dir,
+                model="mockllm/model",
+            )
+            assert result
+            verify_logs(logs, log_dir, epochs=2)
+            assert basename(logs[0].location) == basename(location)
+
+        # an eval-level epoch count keeps the task's reducer (as the runner
+        # does when recording the log) and so must also be reused
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            epochs=3,
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=3)
+        assert logs[0].eval.config.epochs_reducer == ["max"]
+        location = logs[0].location
+
+        with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+            mock_iso_now.return_value = "2024-01-01T00:00:02"
+            [result, logs] = eval_set(
+                tasks=[task1],
+                log_dir=log_dir,
+                model="mockllm/model",
+                epochs=3,
+            )
+            assert result
+            verify_logs(logs, log_dir, epochs=3)
+            assert basename(logs[0].location) == basename(location)
+
+        # an eval-level reducer replaces the task's: re-run once, then reuse
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            epochs=Epochs(3, "mean"),
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=3)
+        assert logs[0].eval.config.epochs_reducer == ["mean"]
+        assert basename(logs[0].location) != basename(location)
+        location = logs[0].location
+
+        with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+            mock_iso_now.return_value = "2024-01-01T00:00:03"
+            [result, logs] = eval_set(
+                tasks=[task1],
+                log_dir=log_dir,
+                model="mockllm/model",
+                epochs=Epochs(3, "mean"),
+            )
+            assert result
+            verify_logs(logs, log_dir, epochs=3)
+            assert basename(logs[0].location) == basename(location)
+
+
 def test_eval_set_limit_changed():
     task1 = hello_world(samples=10)
 
@@ -1449,6 +2343,226 @@ def test_eval_set_limit_changed():
         assert result
         # reducing limit does not remove samples
         verify_logs(logs, log_dir, samples=10)
+
+
+@pytest.mark.parametrize("epochs", [1, 2])
+@pytest.mark.parametrize(
+    "initial_selection,selection,expected_ids,new_ids",
+    [
+        ({"sample_id": ["A"]}, {"sample_id": ["B"]}, ["B"], ["B"]),
+        ({"sample_id": ["A", "C"]}, {"sample_id": ["B"]}, ["B"], ["B"]),
+        ({"sample_id": ["A"]}, {"sample_id": ["A", "B"]}, ["A", "B"], ["B"]),
+        ({}, {"sample_id": ["B"]}, ["A", "B", "C"], []),
+        ({"limit": (0, 1)}, {"limit": (1, 2)}, ["B"], ["B"]),
+        ({"limit": 2}, {"limit": (1, 3)}, ["B", "C"], ["C"]),
+        (
+            {"sample_id": ["selection:A"]},
+            {"sample_id": ["selection:B*"]},
+            ["B"],
+            ["B"],
+        ),
+    ],
+)
+def test_eval_set_selection_coverage(
+    tmp_path: Path,
+    epochs: int,
+    initial_selection: dict[str, Any],
+    selection: dict[str, Any],
+    expected_ids: list[str],
+    new_ids: list[str],
+) -> None:
+    calls: list[str | int] = []
+
+    @solver
+    def record_selection() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls.append(state.sample_id)
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    test_task = Task(
+        name="selection",
+        dataset=[
+            Sample(id=id, input=id, target="no" if id == "B" else "ok")
+            for id in ["A", "B", "C"]
+        ],
+        solver=record_selection(),
+        scorer=exact(),
+    )
+    success, first_logs = eval_set(
+        test_task,
+        log_dir=str(tmp_path),
+        model="mockllm/model",
+        epochs=epochs,
+        **initial_selection,
+    )
+    assert success
+    calls.clear()
+    success, logs = eval_set(
+        test_task,
+        log_dir=str(tmp_path),
+        model="mockllm/model",
+        epochs=epochs,
+        **selection,
+    )
+    assert success
+    log = read_eval_log(logs[0].location)
+    assert log.samples is not None and log.results is not None
+    assert {sample.id for sample in log.samples} == set(expected_ids)
+    assert len(log.samples) == len(expected_ids) * epochs
+    assert sorted(calls) == sorted(new_ids * epochs)
+    assert log.results.scores[0].metrics["mean"].value == pytest.approx(
+        sum(id != "B" for id in expected_ids) / len(expected_ids)
+    )
+    if not new_ids:
+        assert basename(logs[0].location) == basename(first_logs[0].location)
+
+
+@pytest.mark.parametrize("log_samples", [True, False])
+def test_eval_set_selection_coverage_with_auto_ids(
+    tmp_path: Path, log_samples: bool
+) -> None:
+    for requested in [1, 2]:
+        success, logs = eval_set(
+            hello_world(samples=3),
+            log_dir=str(tmp_path),
+            model="mockllm/model",
+            sample_id=str(requested),
+            epochs=2,
+            log_samples=log_samples,
+        )
+        assert success
+        assert logs[0].eval.dataset.sample_ids == [requested]
+        assert logs[0].results is not None
+        assert logs[0].results.completed_samples == 2
+
+
+def test_eval_set_selection_coverage_partial_and_legacy_logs(tmp_path: Path) -> None:
+    test_task = hello_world(samples=3)
+    model = get_model("mockllm/model")
+    success, _ = eval_set(test_task, log_dir=str(tmp_path), model=model, epochs=2)
+    assert success
+    [log] = list_all_eval_logs(str(tmp_path))
+    [resolved] = resolve_tasks([test_task], {}, model, None, None, None)
+    all_tasks = [(log.task_identifier, resolved)]
+
+    def complete() -> bool:
+        return log_samples_complete(
+            log, all_tasks, [test_task.name], Epochs(2), None, sample_id=2
+        )
+
+    assert complete()
+    assert log.header.results is not None
+    # A tolerated sample error does not make a successful log incomplete.
+    log.header.results.completed_samples = 4
+    assert complete()
+    # A graceful resolution reports actual completions separately. Enough
+    # completions for the new count do not prove the requested id ran.
+    log.header.results.logged_samples = 2
+    assert not complete()
+    with patch("inspect_ai._eval.evalset.task_gracefully_resolved", return_value=True):
+        assert complete()
+    log.header.results.logged_samples = 6
+    assert complete()
+    # Legacy headers without the selection cannot prove identity coverage.
+    log.header.eval.dataset.sample_ids = None
+    assert not complete()
+
+
+def test_eval_set_selection_coverage_after_partial_log_recompute(
+    tmp_path: Path,
+) -> None:
+    test_task = hello_world(samples=3)
+    model = get_model("mockllm/model")
+    success, _ = eval_set(test_task, log_dir=str(tmp_path), model=model, epochs=2)
+    assert success
+    [log] = list_all_eval_logs(str(tmp_path))
+    partial = read_eval_log(log.info.name)
+    assert partial.samples is not None and partial.results is not None
+    partial.samples = [sample for sample in partial.samples if sample.id == 1]
+    partial.results.logged_samples = len(partial.samples)
+    recompute_metrics(partial)
+    assert partial.results.total_samples == 2
+    write_eval_log(partial, log.info.name)
+    [log] = list_all_eval_logs(str(tmp_path))
+    [resolved] = resolve_tasks([test_task], {}, model, None, None, None)
+    assert not log_samples_complete(
+        log,
+        [(log.task_identifier, resolved)],
+        [test_task.name],
+        Epochs(2),
+        None,
+        sample_id=2,
+    )
+
+
+@pytest.mark.parametrize(
+    "initial_ids,ids,selection",
+    [
+        (["A"], ["A", "A"], {}),
+        (["A"], ["A", "A"], {"sample_id": ["A"]}),
+        ([1], [1, "1"], {"limit": 2}),
+    ],
+)
+def test_eval_set_selection_coverage_duplicate_ids_rejected(
+    tmp_path: Path,
+    initial_ids: list[str | int],
+    ids: list[str | int],
+    selection: dict[str, Any],
+) -> None:
+    """Duplicate selected ids are not hidden by a covering successful log."""
+    dataset_ids = list(initial_ids)
+
+    @task
+    def duplicates() -> Task:
+        return Task(
+            dataset=[Sample(id=id, input=str(id), target="ok") for id in dataset_ids],
+            solver=identity_solver(),
+        )
+
+    log_dir = str(tmp_path)
+    success, _ = eval_set(
+        duplicates, log_dir=log_dir, model="mockllm/model", **selection
+    )
+    assert success
+    dataset_ids[:] = ids
+    with pytest.raises(PrerequisiteError, match="unique"):
+        eval_set(duplicates, log_dir=log_dir, model="mockllm/model", **selection)
+
+
+def test_eval_set_drained_shuffled_log_does_not_cover_grown_dataset(
+    tmp_path: Path,
+) -> None:
+    """A fully drained shuffled log does not cover samples added since."""
+    dataset_ids = ["A", "B"]
+
+    @task
+    def grown() -> Task:
+        dataset = MemoryDataset(
+            [Sample(id=id, input=id, target="ok") for id in dataset_ids]
+        )
+        dataset.shuffle()
+        return Task(dataset=dataset, solver=identity_solver())
+
+    model = get_model("mockllm/model")
+    success, _ = eval_set(grown, log_dir=str(tmp_path), model=model)
+    assert success
+    [log] = list_all_eval_logs(str(tmp_path))
+    assert log.header.results is not None
+    # a drain after both samples started resolves both
+    log.header.results.logged_samples = 2
+
+    def complete() -> bool:
+        [resolved] = resolve_tasks([grown], {}, model, None, None, None)
+        return log_samples_complete(
+            log, [(log.task_identifier, resolved)], ["grown"], None, None
+        )
+
+    assert complete()
+    dataset_ids.append("C")
+    assert not complete()
 
 
 def test_eval_set_limit_slices():
@@ -1651,6 +2765,714 @@ def test_eval_set_shuffle_reused_without_limit(tmp_path: Path):
     )
     assert result
     assert logs[0].eval.eval_id == first_eval_id
+
+
+# Separate eval()/eval_set() runs give one task a new task_id each time, so
+# eval_set must pair logs with tasks by task_identifier: one log per task, no
+# re-run of a task that already has a complete log, and no stale log whose
+# sample shuffle no longer matches (see above) returned or retried (#6361).
+
+_CROSS_RUN_FAIL: dict[str, bool] = {}
+_CROSS_RUN_RUNS: Counter[str] = Counter()
+
+
+@solver
+def cross_run_counting_solver(name: str) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        _CROSS_RUN_RUNS[name] += 1
+        if _CROSS_RUN_FAIL.get(name, False):
+            raise RuntimeError(f"planned failure for {name}")
+        return await generate(state)
+
+    return solve
+
+
+def _cross_run_task(name: str) -> Task:
+    return Task(
+        dataset=[Sample(id=i, input=f"x{i}", target="y") for i in range(5)],
+        solver=cross_run_counting_solver(name),
+        scorer=exact(),
+        name=name,
+    )
+
+
+@task
+def cross_run_a() -> Task:
+    return _cross_run_task("cross_run_a")
+
+
+@task
+def cross_run_b() -> Task:
+    return _cross_run_task("cross_run_b")
+
+
+def _cross_run_eval(t: Task, log_dir: str, fail: bool) -> EvalLog:
+    _CROSS_RUN_FAIL[t.name] = fail
+    return eval(t, model="mockllm/model", log_dir=log_dir, display="none")[0]
+
+
+def _cross_run_eval_set(
+    tasks: list[Task],
+    log_dir: str,
+    fail: bool = False,
+    retry_attempts: int = 0,
+    **kwargs: Any,
+) -> tuple[bool, list[EvalLog]]:
+    _CROSS_RUN_RUNS.clear()
+    for t in tasks:
+        _CROSS_RUN_FAIL[t.name] = fail
+    return eval_set(
+        tasks,
+        model="mockllm/model",
+        log_dir=log_dir,
+        display="none",
+        retry_attempts=retry_attempts,
+        **kwargs,
+    )
+
+
+@contextlib.contextmanager
+def _cross_run_started_later() -> Iterator[None]:
+    """Date a run's start (`eval.created`, `stats.started_at`) in 2099."""
+    later = "2099-01-01T00:00:00+00:00"
+    with (
+        patch("inspect_ai._eval.task.log.iso_now", return_value=later),
+        patch("inspect_ai._eval.task.run.iso_now", return_value=later),
+    ):
+        yield
+
+
+def _cross_run_invalidate_first_sample(log: EvalLog) -> EvalLog:
+    log = read_eval_log(log.location)
+    assert log.samples is not None and log.samples[0].uuid is not None
+    log = invalidate_samples(
+        log,
+        sample_uuids=[log.samples[0].uuid],
+        provenance=ProvenanceData(author="test_person", reason="test_reason"),
+    )
+    write_eval_log(log, location=log.location)
+    return log
+
+
+def _cross_run_per_task(logs: list[EvalLog]) -> dict[str, int]:
+    return dict(Counter(log.eval.task for log in logs))
+
+
+def test_eval_set_cross_run_error_then_success_reuses_success(tmp_path: Path):
+    log_dir = str(tmp_path)
+    assert _cross_run_eval(cross_run_a(), log_dir, fail=True).status == "error"
+    success = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    assert success.status == "success"
+
+    for _ in range(2):
+        ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+        assert ok
+        assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+        assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+        assert logs[0].eval.eval_id == success.eval.eval_id
+
+
+def test_eval_set_cross_run_success_then_error_retries_newer_run(tmp_path: Path):
+    # a newer failed log can be the failed retry of an invalidated run, which
+    # nothing on disk tells apart from a separate run, so the newest run is
+    # retried rather than replaced by the older complete one
+    log_dir = str(tmp_path)
+    _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    errored = _cross_run_eval(cross_run_a(), log_dir, fail=True)
+    assert errored.status == "error"
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 5
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.task_id == errored.eval.task_id
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.task_id == errored.eval.task_id
+
+
+def test_eval_set_cross_run_two_success_logs_return_newest_started(tmp_path: Path):
+    log_dir = str(tmp_path)
+    older = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    with _cross_run_started_later():
+        newer = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    # rewrite the older log so its file is the most recently written
+    write_eval_log(read_eval_log(older.location), older.location)
+
+    for _ in range(2):
+        ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+        assert ok
+        assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+        assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+        assert logs[0].eval.eval_id == newer.eval.eval_id
+
+
+def test_eval_set_cross_run_two_success_logs_newest_started_in_list_order(
+    tmp_path: Path,
+):
+    # as above, but the newest-started log is also the newest file, so a rule
+    # following listing order rather than start time picks the wrong one in
+    # one of the two tests
+    log_dir = str(tmp_path)
+    _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    with _cross_run_started_later():
+        newer = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.eval_id == newer.eval.eval_id
+
+
+@pytest.mark.parametrize(
+    "other,requested",
+    [
+        ({"sample_id": [0, 1]}, {"sample_id": [3, 4]}),
+        ({"limit": (0, 2)}, {"limit": (2, 4)}),
+    ],
+)
+@pytest.mark.parametrize("complete_first", [True, False])
+def test_eval_set_cross_run_complete_log_for_other_selection_not_reused(
+    tmp_path: Path,
+    other: dict[str, Any],
+    requested: dict[str, Any],
+    complete_first: bool,
+):
+    # a complete log for different samples must not replace retrying the
+    # failed log of the requested selection, whichever started first
+    log_dir = str(tmp_path)
+    runs = [(other, False), (requested, True)]
+    for selection, fail in runs if complete_first else reversed(runs):
+        _CROSS_RUN_FAIL["cross_run_a"] = fail
+        eval(
+            cross_run_a(),
+            model="mockllm/model",
+            log_dir=log_dir,
+            display="none",
+            **selection,
+        )
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir, **requested)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 2
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    samples = read_eval_log(logs[0].location).samples
+    assert samples is not None
+    expected = requested.get("sample_id") or list(range(*requested["limit"]))
+    assert sorted(int(sample.id) for sample in samples) == expected
+
+
+def test_eval_set_cross_run_rewritten_error_log_does_not_rerun(tmp_path: Path):
+    # rewriting (or copying) the old errored log must not make it win
+    log_dir = str(tmp_path)
+    errored = _cross_run_eval(cross_run_a(), log_dir, fail=True)
+    with _cross_run_started_later():
+        success = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    write_eval_log(read_eval_log(errored.location), errored.location)
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.eval_id == success.eval.eval_id
+
+
+def test_eval_set_cross_run_partial_run_does_not_shadow_complete(tmp_path: Path):
+    # a later run over fewer samples (e.g. a debug run with a limit) is
+    # incomplete for the full task and must not cause a re-run
+    log_dir = str(tmp_path)
+    full = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    eval(cross_run_a(), model="mockllm/model", log_dir=log_dir, display="none", limit=1)
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.eval_id == full.eval.eval_id
+
+
+def test_eval_set_cross_run_newer_invalidated_log_is_retried(tmp_path: Path):
+    # invalidated samples are retried (see invalidate_samples): an older
+    # complete run must not stand in for a newer run that was invalidated
+    log_dir = str(tmp_path)
+    older = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    newer = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    newer = _cross_run_invalidate_first_sample(newer)
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 1  # only the invalidated sample
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.task_id == newer.eval.task_id
+    assert logs[0].eval.task_id != older.eval.task_id
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+
+
+@pytest.mark.parametrize("retry_immediate", [False, True])
+def test_eval_set_cross_run_failed_retry_of_invalidated_log_is_retried(
+    tmp_path: Path, retry_immediate: bool
+):
+    # the retry of an invalidated log records invalidated=False; when it fails,
+    # the older complete run must still not stand in for it, neither on the
+    # next retry pass nor on a later eval_set call
+    log_dir = str(tmp_path)
+    _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    newer = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    newer = _cross_run_invalidate_first_sample(newer)
+
+    # two attempts either way: one batch pass each, or one pass that retries
+    ok, logs = _cross_run_eval_set(
+        [cross_run_a()],
+        log_dir,
+        fail=True,
+        retry_attempts=1 if retry_immediate else 2,
+        retry_wait=0.1,
+        retry_immediate=retry_immediate,
+    )
+    assert not ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 2  # the invalidated sample, twice
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.task_id == newer.eval.task_id
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 1
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.task_id == newer.eval.task_id
+    assert not logs[0].invalidated
+
+
+def test_eval_set_cross_run_older_invalidated_log_is_retried(tmp_path: Path):
+    # invalidated logs are retried by eval sets (see invalidate_samples), even
+    # when a complete run started after the invalidated one
+    log_dir = str(tmp_path)
+    older = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    older = _cross_run_invalidate_first_sample(older)
+    _cross_run_eval(cross_run_a(), log_dir, fail=False)
+
+    for runs in (1, 0):
+        ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+        assert ok
+        assert _CROSS_RUN_RUNS["cross_run_a"] == runs
+        assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+        assert logs[0].eval.task_id == older.eval.task_id
+        assert not logs[0].invalidated
+
+
+@pytest.mark.parametrize(
+    "tasks,sample_id",
+    [
+        (["cross_run_a"], "cross_run_a:0"),
+        (["cross_run_a", "cross_run_b"], ["cross_run_a:0", "cross_run_b:1"]),
+    ],
+)
+def test_eval_set_cross_run_task_qualified_sample_id_reused(
+    tmp_path: Path, tasks: list[str], sample_id: str | list[str]
+):
+    # stored sample ids are resolved per task (prefix stripped), so the
+    # request must be resolved the same way before it is compared with them
+    log_dir = str(tmp_path)
+    factories = {"cross_run_a": cross_run_a, "cross_run_b": cross_run_b}
+    ok, logs = _cross_run_eval_set(
+        [factories[name]() for name in tasks], log_dir, sample_id=sample_id
+    )
+    assert ok
+    [complete] = [log for log in logs if log.eval.task == "cross_run_a"]
+    _CROSS_RUN_FAIL["cross_run_a"] = True
+    eval(
+        cross_run_a(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        display="none",
+        sample_id=[3],
+    )
+
+    ok, logs = _cross_run_eval_set(
+        [factories[name]() for name in tasks], log_dir, sample_id=sample_id
+    )
+    assert ok
+    assert _CROSS_RUN_RUNS == Counter()
+    assert _cross_run_per_task(logs) == {name: 1 for name in tasks}
+    [a_log] = [log for log in logs if log.eval.task == "cross_run_a"]
+    assert a_log.eval.eval_id == complete.eval.eval_id
+
+
+def test_eval_set_cross_run_distinct_tasks_kept_apart(tmp_path: Path):
+    log_dir = str(tmp_path)
+    _cross_run_eval(cross_run_a(), log_dir, fail=False)
+    _cross_run_eval(cross_run_a(), log_dir, fail=False)
+
+    ok, logs = _cross_run_eval_set([cross_run_a(), cross_run_b()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS == Counter({"cross_run_b": 5})
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1, "cross_run_b": 1}
+
+
+def test_eval_set_cross_run_different_config_not_reused(tmp_path: Path):
+    # a different execution limit is a different task identity: it must run
+    log_dir = str(tmp_path)
+    _cross_run_eval(cross_run_a(), log_dir, fail=False)
+
+    ok, logs = _cross_run_eval_set(
+        [cross_run_a()], log_dir, message_limit=50, log_dir_allow_dirty=True
+    )
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 5
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.config.message_limit == 50
+
+
+def test_eval_set_cross_run_stale_unshuffled_log_not_returned(tmp_path: Path):
+    log_dir = str(tmp_path)
+    _cross_run_eval_set([cross_run_a()], log_dir, limit=3)
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir, limit=3, sample_shuffle=42)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 3  # the unshuffled log is not reused
+    shuffled_id = logs[0].eval.eval_id
+
+    ok, logs = _cross_run_eval_set(
+        [cross_run_a(), cross_run_b()], log_dir, limit=3, sample_shuffle=42
+    )
+    assert ok
+    assert _CROSS_RUN_RUNS == Counter({"cross_run_b": 3})
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1, "cross_run_b": 1}
+    [a_log] = [log for log in logs if log.eval.task == "cross_run_a"]
+    assert a_log.eval.eval_id == shuffled_id
+    assert all(log.eval.config.sample_shuffle == 42 for log in logs)
+
+
+def test_eval_set_cross_run_newer_stale_unshuffled_log_not_returned(tmp_path: Path):
+    # the shuffle-mismatched log is the newest on disk; it must still not be
+    # selected in place of the matching one
+    log_dir = str(tmp_path)
+    _cross_run_eval_set([cross_run_a()], log_dir, limit=3, sample_shuffle=42)
+    _cross_run_eval_set([cross_run_a()], log_dir, limit=3)
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir, limit=3, sample_shuffle=42)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.config.sample_shuffle == 42
+
+
+def test_eval_set_cross_run_fast_retries_do_not_date_run_later(tmp_path: Path):
+    # each retry moves eval.created a second past its prior attempt's, so a run
+    # whose retries failed within milliseconds can carry a created time after
+    # a later run's; start order must come from when attempts actually began
+    log_dir = str(tmp_path)
+    _CROSS_RUN_FAIL["cross_run_a"] = True
+    eval(
+        cross_run_a(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        display="none",
+        task_retry_attempts=3,
+    )
+    success = _cross_run_eval(cross_run_a(), log_dir, fail=False)
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.eval_id == success.eval.eval_id
+
+
+@pytest.mark.parametrize(
+    "first,second",
+    [
+        (1, "001"),
+        ([1], ["001"]),
+        ("cross_run_a:1", "cross_run_a:001"),
+    ],
+)
+def test_eval_set_cross_run_equivalent_sample_ids_keep_invalidation_priority(
+    tmp_path: Path, first: str | int | list[Any], second: str | list[str]
+):
+    # 1 and "001" select the same sample, so both logs are for the requested
+    # selection and the invalidated one is retried
+    log_dir = str(tmp_path)
+    _CROSS_RUN_FAIL["cross_run_a"] = False
+    invalidated = eval(
+        cross_run_a(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        display="none",
+        sample_id=first,
+    )[0]
+    invalidated = _cross_run_invalidate_first_sample(invalidated)
+    eval(
+        cross_run_a(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        display="none",
+        sample_id=second,
+    )
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir, sample_id=second)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 1
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1}
+    assert logs[0].eval.task_id == invalidated.eval.task_id
+    assert not logs[0].invalidated
+
+
+def test_eval_set_cross_run_selected_log_survives_cleanup(tmp_path: Path):
+    # the unrestricted shuffled run extends the limit=3 log's task_id and
+    # keeps both attempts; the limit=3 log selected next is not the newest of
+    # its task_id, and the final cleanup sweep must not remove it
+    log_dir = str(tmp_path)
+    _cross_run_eval_set([cross_run_a()], log_dir, limit=3)
+    _cross_run_eval_set(
+        [cross_run_a()], log_dir, sample_shuffle=42, retry_cleanup=False
+    )
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir, limit=3)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    selected = read_eval_log(logs[0].location)
+    assert selected.eval.config.sample_shuffle is None
+
+    ok, logs = _cross_run_eval_set([cross_run_a()], log_dir, limit=3)
+    assert ok
+    assert _CROSS_RUN_RUNS["cross_run_a"] == 0
+    assert logs[0].eval.eval_id == selected.eval.eval_id
+
+
+def test_eval_set_cross_run_stale_errored_log_not_retried(tmp_path: Path):
+    log_dir = str(tmp_path)
+    ok, _ = _cross_run_eval_set([cross_run_a()], log_dir, fail=True, limit=3)
+    assert not ok
+    _cross_run_eval_set([cross_run_a()], log_dir, limit=3, sample_shuffle=42)
+
+    ok, logs = _cross_run_eval_set(
+        [cross_run_a(), cross_run_b()], log_dir, limit=3, sample_shuffle=42
+    )
+    assert ok
+    assert _CROSS_RUN_RUNS == Counter({"cross_run_b": 3})
+    assert _cross_run_per_task(logs) == {"cross_run_a": 1, "cross_run_b": 1}
+    assert all(log.eval.config.sample_shuffle == 42 for log in logs)
+
+
+_SHUFFLE_IDS = [f"s{index}" for index in range(50)]
+
+
+def _unseeded_shuffle_dataset(source: str, tmp_path: Path) -> Dataset:
+    """A dataset whose selected samples are redrawn on each task resolution."""
+    records = [{"id": id, "input": id, "target": "ok"} for id in _SHUFFLE_IDS]
+    match source:
+        case "sample_shuffle":
+            return MemoryDataset(
+                [Sample(id=id, input=id, target="ok") for id in _SHUFFLE_IDS]
+            )
+        case "dataset_shuffle":
+            dataset = MemoryDataset(
+                [Sample(id=id, input=id, target="ok") for id in _SHUFFLE_IDS]
+            )
+            dataset.shuffle()
+            return dataset
+        case "csv":
+            path = tmp_path / "samples.csv"
+            path.write_text(
+                "id,input,target\n" + "".join(f"{id},{id},ok\n" for id in _SHUFFLE_IDS)
+            )
+            return csv_dataset(str(path), shuffle=True, limit=5)
+        case "json":
+            path = tmp_path / "samples.jsonl"
+            path.write_text("".join(json.dumps(record) + "\n" for record in records))
+            return json_dataset(str(path), shuffle=True, limit=5)
+        case "hf":
+            path = tmp_path / "samples.csv"
+            path.write_text(
+                "id,input,target\n" + "".join(f"{id},{id},ok\n" for id in _SHUFFLE_IDS)
+            )
+            return hf_dataset(
+                "csv",
+                split="train",
+                data_files=str(path),
+                shuffle=True,
+                limit=5,
+                cached=False,
+            )
+    raise AssertionError(source)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "sample_shuffle",
+        "dataset_shuffle",
+        "csv",
+        "json",
+        pytest.param("hf", marks=skip_if_no_package("datasets")),
+    ],
+)
+def test_eval_set_unseeded_shuffle_reuses_completed_subset(
+    tmp_path: Path, source: str
+) -> None:
+    """Rerunning an unchanged unseeded shuffle with a subset is a no-op."""
+    calls: list[str | int] = []
+
+    @solver
+    def record_selection() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls.append(state.sample_id)
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    @task
+    def unseeded_shuffle() -> Task:
+        return Task(
+            dataset=_unseeded_shuffle_dataset(source, tmp_path),
+            solver=record_selection(),
+            scorer=exact(),
+        )
+
+    selection: dict[str, Any] = {
+        "sample_shuffle": {"sample_shuffle": True, "limit": 5},
+        "dataset_shuffle": {"limit": 5},
+    }.get(source, {})
+    log_dir = str(tmp_path / "logs")
+    with patch(
+        "inspect_ai.dataset._sources.hf.inspect_cache_dir",
+        return_value=tmp_path / "hf_cache",
+    ):
+        success, first_logs = eval_set(
+            unseeded_shuffle, log_dir=log_dir, model="mockllm/model", **selection
+        )
+        assert success
+        first_ids = list(first_logs[0].eval.dataset.sample_ids or [])
+        assert len(first_ids) == 5 and len(calls) == 5
+        calls.clear()
+
+        # each eval_set call resolves the task again, redrawing the shuffle
+        success, logs = eval_set(
+            unseeded_shuffle, log_dir=log_dir, model="mockllm/model", **selection
+        )
+    assert success
+    assert calls == []
+    assert basename(logs[0].location) == basename(first_logs[0].location)
+    assert logs[0].eval.dataset.sample_ids == first_ids
+
+
+@pytest.mark.parametrize("source", ["dataset_shuffle", "csv"])
+def test_eval_set_shuffled_dataset_sample_id_change_runs_new_sample(
+    tmp_path: Path, source: str
+) -> None:
+    """A shuffled log selected by id does not cover a newly requested id."""
+    calls: list[str | int] = []
+    ids = ["A", "B", "C"]
+
+    @solver
+    def record_selection() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls.append(state.sample_id)
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    def dataset() -> Dataset:
+        if source == "csv":
+            path = tmp_path / "samples.csv"
+            path.write_text(
+                "id,input,target\n"
+                + "".join(f"{id},{id},{'ok' if id == 'C' else 'no'}\n" for id in ids)
+            )
+            return csv_dataset(str(path), shuffle=True)
+        shuffled = MemoryDataset(
+            [Sample(id=id, input=id, target="ok" if id == "C" else "no") for id in ids]
+        )
+        shuffled.shuffle()
+        return shuffled
+
+    @task
+    def shuffled_selection() -> Task:
+        return Task(dataset=dataset(), solver=record_selection(), scorer=exact())
+
+    log_dir = str(tmp_path / "logs")
+    success, _ = eval_set(
+        shuffled_selection, log_dir=log_dir, model="mockllm/model", sample_id=["A"]
+    )
+    assert success
+    assert calls == ["A"]
+    calls.clear()
+
+    # the same count of a different id: only identity shows the change
+    success, logs = eval_set(
+        shuffled_selection, log_dir=log_dir, model="mockllm/model", sample_id=["C"]
+    )
+    assert success
+    assert calls == ["C"]
+    log = read_eval_log(logs[0].location)
+    assert log.samples is not None and log.results is not None
+    assert {sample.id for sample in log.samples} == {"C"}
+    assert log.results.scores[0].metrics["mean"].value == 1.0
+
+
+def test_eval_set_unseeded_shuffle_kept_across_sibling_retry(tmp_path: Path) -> None:
+    """A sibling's retry pass does not redraw a completed unseeded shuffle."""
+    shuffled_calls: list[str | int] = []
+    sibling_calls: list[str | int] = []
+
+    @solver
+    def record_selection() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            shuffled_calls.append(state.sample_id)
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    @solver
+    def fail_first_attempt() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            sibling_calls.append(state.sample_id)
+            if len(sibling_calls) == 1:
+                raise RuntimeError("first attempt fails")
+            state.output = ModelOutput.from_content("mockllm/model", "ok")
+            return state
+
+        return solve
+
+    @task
+    def shuffled_selection() -> Task:
+        return Task(
+            dataset=_unseeded_shuffle_dataset("sample_shuffle", tmp_path),
+            solver=record_selection(),
+            scorer=exact(),
+        )
+
+    @task
+    def sibling() -> Task:
+        return Task(
+            dataset=[Sample(id="x", input="x", target="ok")],
+            solver=fail_first_attempt(),
+            scorer=exact(),
+        )
+
+    success, logs = eval_set(
+        [shuffled_selection, sibling],
+        log_dir=str(tmp_path / "logs"),
+        model="mockllm/model",
+        sample_shuffle=True,
+        limit=5,
+        retry_attempts=2,
+        retry_wait=0.001,
+        retry_immediate=False,
+    )
+    assert success
+    assert len(sibling_calls) == 2
+    assert len(shuffled_calls) == 5
 
 
 def test_eval_set_bundle_when_all_complete(tmp_path: Path) -> None:
@@ -2112,6 +3934,601 @@ def test_eval_set_retry_immediate(retry_immediate: bool | None) -> None:
         ]
 
 
+def test_retry_attempt_killed_after_seed_leaves_completed_samples_reusable(
+    tmp_path: Path,
+) -> None:
+    """A retry attempt hard-killed after seeding its log loses nothing.
+
+    Regression for the hard-kill shape in ``design/retry-seeded-attempt-log.md``
+    (originally meridianlabs-ai/inspect_ai#240): the killed attempt used to
+    leave a start-only log that became the newest log for the task, so the
+    next retry found nothing to reuse and re-ran every completed sample
+    (permanently losing them once ``retry_cleanup`` deleted the prior log).
+    The attempt's first destination write now carries the complete prior
+    sample set, so a kill before it leaves no file (the next retry chains to
+    the prior log) and a kill after it leaves a complete one.
+    """
+    import subprocess
+    import sys
+
+    log_dir = str(tmp_path / "logs")
+    probe_dir = str(tmp_path / "probe")
+    os.makedirs(log_dir)
+    os.makedirs(probe_dir)
+    tests_dir = Path(__file__).parent
+    harness = str(tests_dir / "test_helpers" / "retry_deferred_log_harness.py")
+
+    def run_harness(kill_at_seed: bool) -> subprocess.CompletedProcess[bytes]:
+        env = {
+            **os.environ,
+            "PYTHONPATH": os.pathsep.join(
+                p for p in (str(tests_dir), os.environ.get("PYTHONPATH", "")) if p
+            ),
+        }
+        if kill_at_seed:
+            env["INSPECT_TEST_KILL_AT_SEED"] = "1"
+        return subprocess.run(
+            [sys.executable, harness, log_dir, probe_dir], env=env, timeout=600
+        )
+
+    # attempt 1 completes s1 and errors s2; the in-process retry attempt is
+    # killed the moment its log has been seeded from attempt 1's log
+    killed = run_harness(kill_at_seed=True)
+    assert killed.returncode == -signal.SIGKILL, (
+        f"expected the child to die by SIGKILL; got returncode {killed.returncode}"
+    )
+
+    # the killed attempt wrote no destination log, so the newest log for the
+    # task is still attempt 1's — the one holding the completed s1
+    logs = list_eval_logs(log_dir)
+    assert len(logs) == 1
+    assert read_eval_log(logs[0].name, header_only=True).status == "error"
+
+    # a fresh eval_set pass reuses s1 and re-runs only s2
+    assert run_harness(kill_at_seed=False).returncode == 0
+
+    with open(os.path.join(probe_dir, "solver_calls.txt")) as f:
+        calls = f.read().split()
+    assert calls.count("s1") == 1, f"s1 was re-run instead of reused: {calls}"
+
+    final = read_eval_log(max(list_eval_logs(log_dir), key=lambda i: i.name).name)
+    assert final.status == "success"
+    assert final.samples is not None
+    assert {(s.id, s.epoch) for s in final.samples} == {("s1", 1), ("s2", 1)}
+
+
+def _seeded_retry_task(calls: list[str], *, fail_s4_times: int) -> Task:
+    """Four-sample task whose s4 errors on its first `fail_s4_times` runs."""
+    solver_id = id(calls)
+
+    @solver(name=f"seeded_retry_solver_{solver_id}")
+    def seeded_retry_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls.append(str(state.sample_id))
+            if state.sample_id == "s4" and calls.count("s4") <= fail_s4_times:
+                raise ValueError(f"s4 fails on run {calls.count('s4')}")
+            return state
+
+        return solve
+
+    return Task(
+        dataset=[Sample(id=f"s{i}", input="x", target="y") for i in (1, 2, 3, 4)],
+        solver=[seeded_retry_solver()],
+        name="seeded_retry_task",
+    )
+
+
+@pytest.mark.parametrize("retry_immediate", [True, False])
+def test_errored_retry_attempt_log_holds_every_prior_sample(
+    retry_immediate: bool, tmp_path: Path
+) -> None:
+    """An errored retry attempt's log is a superset of the prior attempt's log.
+
+    Regression for meridianlabs-ai/inspect_ai#420: attempt 1 completes s1–s3
+    and errors on s4; attempt 2 errors on s4 again. Attempt 2's log used to
+    hold only what its lazy reuse sweep had copied before the teardown, so
+    attempt 3 (seeded from that newest log) re-ran the missing completed
+    samples. Every attempt's log now holds all four samples, and s1–s3 run
+    exactly once overall.
+    """
+    calls: list[str] = []
+    seeded_task = _seeded_retry_task(calls, fail_s4_times=2)
+
+    log_dir = str(tmp_path / "logs")
+    # three attempts are needed; the legacy pass loop counts the initial pass
+    # against retry_attempts, so allow one more than the immediate path needs
+    success, logs = eval_set(
+        tasks=[seeded_task],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=3,
+        retry_wait=0.1,
+        retry_immediate=retry_immediate,
+        retry_cleanup=False,
+        retry_on_error=0,
+        max_samples=1,
+    )
+    assert success
+    assert calls == ["s1", "s2", "s3", "s4", "s4", "s4"], calls
+
+    all_logs = sorted(
+        (read_eval_log(info.name) for info in list_eval_logs(log_dir)),
+        key=lambda log: log.eval.created,
+    )
+    assert [log.status for log in all_logs] == ["error", "error", "success"]
+    for log in all_logs:
+        assert log.samples is not None
+        assert {s.id for s in log.samples} == {"s1", "s2", "s3", "s4"}, (
+            f"{log.status} log {log.location} is missing prior samples"
+        )
+        assert {s.id for s in log.samples if s.error is not None} == (
+            {"s4"} if log.status == "error" else set()
+        )
+    # the final log carries s4's error history from both failed attempts
+    final = all_logs[-1]
+    assert final.samples is not None
+    s4 = next(s for s in final.samples if s.id == "s4")
+    assert s4.error_retries is not None and len(s4.error_retries) == 2
+
+
+def test_eval_task_retry_attempt_log_holds_every_prior_sample(tmp_path: Path) -> None:
+    """The in-process `eval(task_retry_attempts=...)` path seeds the same way."""
+    calls: list[str] = []
+    seeded_task = _seeded_retry_task(calls, fail_s4_times=1)
+
+    logs = eval(
+        seeded_task,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        task_retry_attempts=1,
+        retry_on_error=0,
+        max_samples=1,
+    )
+    assert calls == ["s1", "s2", "s3", "s4", "s4"], calls
+    assert len(logs) == 1 and logs[0].status == "success"
+    assert logs[0].samples is not None
+    assert {s.id for s in logs[0].samples} == {"s1", "s2", "s3", "s4"}
+
+
+def test_retry_seed_failure_writes_no_log_and_next_attempt_reuses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry attempt whose prior-log seed fails leaves no log; its retry keeps the source.
+
+    Attempt 1 completes s1–s3 and errors on s4. Attempt 2's copy of the
+    prior log fails (a storage failure) before anything is written, so it
+    leaves no destination log and the dispatcher retries with the same
+    sample source. Attempt 3 seeds from attempt 1's log and reuses s1–s3.
+    """
+    import inspect_ai.log._recorders.eval as eval_recorder_module
+
+    original_copy = eval_recorder_module._copy_prior_log
+    copies = {"n": 0}
+
+    async def flaky_copy(prior_log: str, dest: BinaryIO) -> None:
+        copies["n"] += 1
+        if copies["n"] == 1:
+            raise OSError("simulated storage failure")
+        await original_copy(prior_log, dest)
+
+    monkeypatch.setattr(eval_recorder_module, "_copy_prior_log", flaky_copy)
+
+    calls: list[str] = []
+    seeded_task = _seeded_retry_task(calls, fail_s4_times=1)
+
+    log_dir = str(tmp_path / "logs")
+    success, _ = eval_set(
+        tasks=[seeded_task],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=2,
+        retry_wait=0.1,
+        retry_immediate=True,
+        retry_cleanup=False,
+        retry_on_error=0,
+        max_samples=1,
+    )
+    assert success
+    assert copies["n"] == 2
+    assert calls == ["s1", "s2", "s3", "s4", "s4"], calls
+
+    all_logs = sorted(
+        (read_eval_log(info.name) for info in list_eval_logs(log_dir)),
+        key=lambda log: log.eval.created,
+    )
+    # attempt 1's error log and attempt 3's success log; attempt 2 wrote none
+    assert [log.status for log in all_logs] == ["error", "success"]
+    for log in all_logs:
+        assert log.samples is not None
+        assert {s.id for s in log.samples} == {"s1", "s2", "s3", "s4"}
+
+
+@pytest.mark.parametrize("retry_cleanup", [False, True])
+@pytest.mark.parametrize("retry_immediate", [True, False])
+def test_retry_log_finish_failure_keeps_partial_log_as_next_source(
+    retry_immediate: bool,
+    retry_cleanup: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An attempt whose final log write fails leaves a `started` log the next attempt reuses.
+
+    Attempt 1 completes s1–s3 and errors on s4. Attempt 2 is seeded with
+    s1–s3, completes s4 (flushed to its destination with ``log_buffer=1``),
+    then its ``log_finish`` write fails. Its destination — a ``started`` log
+    holding all four completed samples — stays on disk and is attempt 3's
+    sample source, so attempt 3 runs nothing. Sample progress outranks the
+    header the unfinished log lacks. With ``retry_cleanup`` the final sweep
+    then removes that `started` log, and the buffer db the pass loop's
+    attempt left behind, along with attempt 1's errored log.
+    """
+    db_dir = tmp_path / "db"
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: db_dir)
+    original_flush = ZipLogFile.flush
+    # one ZipLogFile per attempt; not keyed by filename, which cleanup frees
+    # for reuse when attempts start within the same second
+    finished_logs: list[ZipLogFile] = []
+
+    async def flaky_final_flush(self: ZipLogFile, fsync: bool = False) -> None:
+        # every durable (finish) write of the second attempt's log fails: the
+        # success write and the error-status write the runner attempts after
+        # it (storage unreachable at finish). The intermediate flushes land.
+        if fsync:
+            if not any(log is self for log in finished_logs):
+                finished_logs.append(self)
+            if len(finished_logs) > 1 and finished_logs[1] is self:
+                raise OSError("simulated storage failure at finish")
+        await original_flush(self, fsync=fsync)
+
+    monkeypatch.setattr(ZipLogFile, "flush", flaky_final_flush)
+
+    calls: list[str] = []
+    seeded_task = _seeded_retry_task(calls, fail_s4_times=1)
+
+    log_dir = str(tmp_path / "logs")
+    # three attempts are needed; the legacy pass loop counts the initial pass
+    # against retry_attempts, so allow one more than the immediate path needs
+    success, _ = eval_set(
+        tasks=[seeded_task],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=3,
+        retry_wait=0.1,
+        retry_immediate=retry_immediate,
+        retry_cleanup=retry_cleanup,
+        retry_on_error=0,
+        max_samples=1,
+        log_buffer=1,
+    )
+    assert success
+    assert len(finished_logs) == 3
+    assert calls == ["s1", "s2", "s3", "s4", "s4"], calls
+
+    all_logs = sorted(
+        (read_eval_log(info.name) for info in list_eval_logs(log_dir)),
+        key=lambda log: log.eval.created,
+    )
+    if retry_cleanup:
+        assert [log.status for log in all_logs] == ["success"]
+        assert list(db_dir.rglob("*.db")) == []
+    else:
+        # attempt 2's unfinished log stays, under its `started` header
+        assert [log.status for log in all_logs] == ["error", "started", "success"]
+        # the immediate path deletes attempt 2's buffer db at reinit; the pass
+        # loop keeps it (closed) alongside the unfinished log
+        assert len(list(db_dir.rglob("*.db"))) == (0 if retry_immediate else 1)
+    for log in all_logs:
+        assert log.samples is not None
+        assert {s.id for s in log.samples} == {"s1", "s2", "s3", "s4"}
+        assert {s.id for s in log.samples if s.error is not None} == (
+            {"s4"} if log.status == "error" else set()
+        )
+
+
+def test_retry_cleanup_keeps_started_log_whose_buffer_close_timed_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry whose buffer close times out keeps its `started` log and buffer.
+
+    Attempt 2's final log write fails, so the pass loop closes its buffer,
+    which drains the pending shared upload first. The upload outlasts
+    ``SYNC_CLEANUP_TIMEOUT``, so the buffer's sync worker is still alive when
+    the eval set's final sweep runs. The sweep keeps attempt 2's `started`
+    log and its buffer db rather than delete files the worker is using;
+    attempt 1's errored log is removed as usual.
+    """
+    db_dir = tmp_path / "db"
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: db_dir)
+    monkeypatch.setattr(database_module, "SYNC_CLEANUP_TIMEOUT", 0.1)
+    original_flush = ZipLogFile.flush
+    finished_logs: list[ZipLogFile] = []
+
+    async def flaky_final_flush(self: ZipLogFile, fsync: bool = False) -> None:
+        # every finish write of the second attempt's log fails
+        if fsync:
+            if not any(log is self for log in finished_logs):
+                finished_logs.append(self)
+            if len(finished_logs) > 1 and finished_logs[1] is self:
+                raise OSError("simulated storage failure at finish")
+        await original_flush(self, fsync=fsync)
+
+    monkeypatch.setattr(ZipLogFile, "flush", flaky_final_flush)
+
+    release_upload = threading.Event()
+    # (location, worker thread) per upload; no reference to the buffer itself,
+    # which must be finalized once its worker exits
+    uploaded: list[tuple[str, threading.Thread]] = []
+
+    def delayed_upload(db: SampleBufferDatabase, filestore: object) -> None:
+        uploaded.append((db.location, threading.current_thread()))
+        release_upload.wait(timeout=30)
+
+    monkeypatch.setattr(database_module, "sync_to_filestore", delayed_upload)
+
+    calls: list[str] = []
+    log_dir = str(tmp_path / "logs")
+    try:
+        success, _ = eval_set(
+            tasks=[_seeded_retry_task(calls, fail_s4_times=1)],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=3,
+            retry_wait=0.1,
+            retry_immediate=False,
+            retry_cleanup=True,
+            retry_on_error=0,
+            max_samples=1,
+            log_buffer=1,
+            # no upload falls due during the run; only the close drains one
+            log_shared=3600,
+        )
+        assert success
+        assert calls == ["s1", "s2", "s3", "s4", "s4"], calls
+
+        infos = sorted(list_eval_logs(log_dir), key=lambda info: info.mtime or 0)
+        assert [read_eval_log(info.name).status for info in infos] == [
+            "started",
+            "success",
+        ]
+        started = infos[0].name
+        # the only upload is attempt 2's close drain, still blocked
+        assert [location for location, _ in uploaded] == [
+            filesystem(started).path_as_uri(started)
+        ]
+        assert sample_buffer_shutdown_pending(started)
+        assert list(db_dir.rglob("*.db")) == sample_buffer_dbs(started)
+    finally:
+        release_upload.set()
+        for _, worker in uploaded:
+            worker.join(timeout=5)
+    # once the worker exits the buffer is finalized, and a later sweep may go
+    gc.collect()
+    assert not sample_buffer_shutdown_pending(started)
+
+
+def test_retry_abandoned_during_seed_never_starts_the_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry abandoned while its log is being seeded never flushes the seeded log.
+
+    A task drain/cancel landing during the seed (a large prior copied from
+    remote storage) is honoured right after it: the attempt bails before the
+    checkpoint copy and `log_start`, so the whole seeded log is not uploaded
+    only for the dispatcher's discard to remove it again.
+    """
+    from inspect_ai._control.eval_state import abandon_task_retry
+    from inspect_ai._eval.task.log import TaskLogger
+    from inspect_ai.log._log import EvalPlan, EvalSample
+
+    original_seed = TaskLogger.seed_from_prior
+
+    async def abandoning_seed(
+        self: TaskLogger,
+        prior: str | list[EvalSample],
+        keep: set[tuple[str | int, int]] | None,
+    ) -> None:
+        await original_seed(self, prior, keep)
+        abandon_task_retry(self.eval.task_id)
+
+    monkeypatch.setattr(TaskLogger, "seed_from_prior", abandoning_seed)
+
+    started: list[str] = []
+    original_start = TaskLogger.log_start
+
+    async def recording_start(self: TaskLogger, plan: EvalPlan) -> None:
+        started.append(self.eval.eval_id)
+        await original_start(self, plan)
+
+    monkeypatch.setattr(TaskLogger, "log_start", recording_start)
+
+    calls: list[str] = []
+    seeded_task = _seeded_retry_task(calls, fail_s4_times=1)
+
+    log_dir = str(tmp_path / "logs")
+    success, _ = eval_set(
+        tasks=[seeded_task],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=1,
+        retry_wait=0.1,
+        retry_immediate=True,
+        retry_cleanup=False,
+        retry_on_error=0,
+        max_samples=1,
+    )
+    assert not success
+    # only attempt 1 started its log; the abandoned attempt ran no sample and
+    # left no `started` log behind attempt 1's error log
+    assert len(started) == 1
+    assert calls == ["s1", "s2", "s3", "s4"], calls
+    logs = list_eval_logs(log_dir)
+    assert len(logs) == 1
+    assert read_eval_log(logs[0].name, header_only=True).status == "error"
+
+
+def test_retry_abandoned_between_passes_is_not_a_cancel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A task whose retry was abandoned is left out of a later pass's missing-log check.
+
+    With `retry_immediate=False` each pass is its own eval(). A task abandoned
+    after the first pass (an operator's `inspect ctl task cancel` or `drain`
+    between attempts) is passed to the next pass with its task id, and the
+    dispatcher ends it with no attempt and no log. The set goes on: the other
+    task's retry runs, and no KeyboardInterrupt cancels the set.
+    """
+    from inspect_ai._control.eval_state import abandon_task_retry
+
+    runs: list[str] = []
+
+    def failing_task(name: str, failures: int) -> Task:
+        @solver(name=f"abandon_between_passes_{name}_{id(runs)}")
+        def fail_then_pass() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                runs.append(name)
+                if runs.count(name) <= failures:
+                    raise ValueError(f"{name} fails")
+                return state
+
+            return solve
+
+        return Task(dataset=[Sample(input="x")], solver=fail_then_pass(), name=name)
+
+    passes: list[list[str]] = []
+
+    def eval_then_abandon(*args: Any, **kwargs: Any) -> list[EvalLog]:
+        logs = eval(*args, **kwargs)
+        passes.append([log.eval.task for log in logs])
+        if len(passes) == 1:
+            for log in logs:
+                if log.eval.task == "abandoned":
+                    abandon_task_retry(log.eval.task_id)
+        return logs
+
+    monkeypatch.setattr("inspect_ai._eval.evalset.eval", eval_then_abandon)
+
+    log_dir = str(tmp_path / "logs")
+    _, logs = eval_set(
+        tasks=[failing_task("abandoned", failures=10), failing_task("other", 1)],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=2,
+        retry_wait=0.1,
+        retry_immediate=False,
+        retry_cleanup=False,
+        display="none",
+    )
+    # pass 2 re-ran only the other task; the abandoned task ran once
+    assert passes == [["abandoned", "other"], ["other"]]
+    assert sorted(runs) == ["abandoned", "other", "other"]
+    headers = [
+        read_eval_log(log.name, header_only=True) for log in list_eval_logs(log_dir)
+    ]
+    assert sorted((log.eval.task, log.status) for log in headers) == [
+        ("abandoned", "error"),
+        ("other", "error"),
+        ("other", "success"),
+    ]
+    assert [log.eval.task for log in logs] == ["other"]
+
+
+def test_cancelled_retry_attempt_log_seeds_the_next_pass(tmp_path: Path) -> None:
+    """A retry attempt cancelled by Ctrl-C leaves a log the next eval-set pass reuses.
+
+    Attempt 1 completes s1–s3 and errors on s4. The in-process retry attempt
+    is seeded from that log and then interrupted (SIGINT) while re-running
+    s4, so it finishes as `cancelled` holding every sample. That log is the
+    task's newest, and a fresh eval_set pass seeds from it: s1–s3 are reused
+    (run exactly once overall) and s4's error history from attempt 1
+    survives the cancelled attempt in between, which itself adds nothing (a
+    cancellation is not a retry-worthy error).
+    """
+    calls: list[str] = []
+    s4_rerun_started = threading.Event()
+    solver_id = id(calls)
+
+    @solver(name=f"cancelled_seeded_solver_{solver_id}")
+    def cancelled_seeded_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls.append(str(state.sample_id))
+            if state.sample_id == "s4":
+                run = calls.count("s4")
+                if run == 1:
+                    raise ValueError("s4 fails on its first run")
+                if run == 2:
+                    s4_rerun_started.set()
+                    await anyio.sleep(30)
+            return state
+
+        return solve
+
+    def make_task() -> Task:
+        return Task(
+            dataset=[Sample(id=f"s{i}", input="x", target="y") for i in (1, 2, 3, 4)],
+            solver=[cancelled_seeded_solver()],
+            name="cancelled_seeded_task",
+        )
+
+    log_dir = str(tmp_path / "logs")
+
+    def run_eval_set() -> tuple[bool, list[EvalLog]]:
+        return eval_set(
+            tasks=[make_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_wait=0.1,
+            retry_immediate=True,
+            retry_cleanup=False,
+            retry_on_error=0,
+            max_samples=1,
+        )
+
+    def send_sigint() -> None:
+        if s4_rerun_started.wait(timeout=60):
+            time.sleep(0.2)
+            os.kill(os.getpid(), signal.SIGINT)
+
+    sigint_thread = threading.Thread(target=send_sigint, daemon=True)
+    sigint_thread.start()
+    # how eval_set surfaces the interrupt (a KeyboardInterrupt, or a normal
+    # return without the cancelled log in its results) is not under test
+    # here: the contract is the cancelled attempt's log on disk
+    try:
+        run_eval_set()
+    except KeyboardInterrupt:
+        pass
+    sigint_thread.join(timeout=5)
+    assert calls == ["s1", "s2", "s3", "s4", "s4"], calls
+
+    def logs_by_created() -> list[EvalLog]:
+        return sorted(
+            (read_eval_log(info.name) for info in list_eval_logs(log_dir)),
+            key=lambda log: log.eval.created,
+        )
+
+    logs = logs_by_created()
+    assert [log.status for log in logs] == ["error", "cancelled"]
+    cancelled = logs[-1]
+    assert cancelled.samples is not None
+    assert {s.id for s in cancelled.samples} == {"s1", "s2", "s3", "s4"}
+
+    success, _ = run_eval_set()
+    assert success
+    assert calls == ["s1", "s2", "s3", "s4", "s4", "s4"], calls
+    logs = logs_by_created()
+    assert [log.status for log in logs] == ["error", "cancelled", "success"]
+    final = logs[-1]
+    assert final.samples is not None
+    assert {s.id for s in final.samples} == {"s1", "s2", "s3", "s4"}
+    assert all(s.error is None for s in final.samples)
+    s4 = next(s for s in final.samples if s.id == "s4")
+    assert s4.error_retries is not None
+    assert [e.message for e in s4.error_retries] == [
+        "ValueError('s4 fails on its first run')"
+    ]
+
+
 def test_carried_forward_samples_remain_condensed() -> None:
     """Regression: eval_set retry must re-condense carried-forward samples.
 
@@ -2246,3 +4663,403 @@ def test_eval_set_resume_preserves_buffered_sample_metadata() -> None:
             assert resumed.samples[0].metadata["world"] == ground_truth
         finally:
             buffer.cleanup()
+
+
+def test_eval_set_incomplete_action_error_finalizes() -> None:
+    """A crashed log recovered with incomplete_action='error' completes the set.
+
+    The crashed log covers the whole dataset (one completed sample, one in
+    progress at crash), so startup recovery resolves the in-progress sample as
+    an error, the recovered log finalizes as "success", the task classifies as
+    complete, and nothing re-runs.
+    """
+    samples = [
+        Sample(id=1, input="Say hello", target="hello"),
+        Sample(id=2, input="Say hello", target="hello"),
+    ]
+    resume_task = Task(
+        dataset=samples,
+        solver=[identity_solver()],
+        name="incomplete_action_error",
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # create a log with the exact task identity eval_set expects, then
+        # rewrite it as a hard-crash artifact (start journal, no header)
+        started_log = eval(
+            resume_task,
+            model="mockllm/model",
+            log_dir=log_dir,
+            run_samples=False,
+        )[0]
+        with zipfile.ZipFile(local_path(started_log.location), "w") as zf:
+            zf.writestr(
+                "_journal/start.json",
+                to_json_str_safe(
+                    LogStart(
+                        version=started_log.version,
+                        eval=started_log.eval,
+                        plan=started_log.plan,
+                    )
+                ),
+            )
+
+        buffer = SampleBufferDatabase(started_log.location)
+        try:
+            now = "2026-01-01T00:00:00+00:00"
+            # sample 1: completed (scored) but unflushed at crash
+            completed = EvalSampleSummary(
+                id=1,
+                epoch=1,
+                input="Say hello",
+                target="hello",
+                scores={"accuracy": Score(value="C", answer="hello")},
+                started_at=now,
+                completed_at=now,
+            )
+            buffer.start_sample(completed)
+            buffer.log_events(
+                [
+                    SampleEvent(
+                        id=1,
+                        epoch=1,
+                        event=SampleInitEvent(sample=samples[0], state={}),
+                    )
+                ]
+            )
+            buffer.complete_sample(completed, sample_metadata=None)
+
+            # sample 2: in progress at crash
+            in_progress = EvalSampleSummary(
+                id=2, epoch=1, input="Say hello", target="hello", started_at=now
+            )
+            buffer.start_sample(in_progress)
+            buffer.log_events(
+                [
+                    SampleEvent(
+                        id=2,
+                        epoch=1,
+                        event=SampleInitEvent(sample=samples[1], state={}),
+                    )
+                ]
+            )
+            simulate_crashed_buffer_db(buffer)
+
+            success, logs = eval_set(
+                tasks=resume_task,
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=1,
+                retry_immediate=True,
+                retry_cleanup=False,
+                incomplete_action="error",
+            )
+
+            assert success
+            assert len(logs) == 1
+            final = logs[0]
+            assert final.status == "success"
+            # the finalized recovered log completed the set — nothing re-ran
+            assert final.location is not None
+            assert "-recovered" in final.location
+
+            recovered = read_eval_log(final.location)
+            assert recovered.samples is not None
+            assert len(recovered.samples) == 2
+            resolved = next(s for s in recovered.samples if s.id == 2)
+            assert resolved.error is not None
+            assert "terminated by operator during recovery" in resolved.error.message
+            # the recovered file is the final log, so the buffer is swept
+            assert not buffer.db_path.exists()
+
+            # a second invocation (with the default retry_cleanup) must select
+            # the finalized recovered log over the still-present "started"
+            # log and neither re-run the task nor write a new log file
+            log_files_before = sorted(os.listdir(log_dir))
+            success, logs = eval_set(
+                tasks=resume_task,
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=1,
+                retry_immediate=True,
+                incomplete_action="error",
+            )
+            assert success
+            assert len(logs) == 1
+            assert logs[0].location is not None
+            assert local_path(logs[0].location) == local_path(final.location)
+            assert sorted(os.listdir(log_dir)) == log_files_before
+        finally:
+            buffer.cleanup()
+
+
+def test_eval_set_incomplete_max_inert_under_retry(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """incomplete_max without a resolving disposition warns once and is ignored.
+
+    eval_set never reaches recovery with these arguments under the default
+    disposition, so the mismatch is reported at entry rather than silently
+    dropped.
+    """
+    with tempfile.TemporaryDirectory() as log_dir:
+        with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+            success, logs = eval_set(
+                tasks=Task(
+                    dataset=[Sample(id=1, input="Say hello", target="hello")],
+                    solver=[identity_solver()],
+                    name="incomplete_max_inert",
+                ),
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=1,
+                retry_immediate=True,
+                incomplete_max=0.1,
+            )
+        assert success
+        assert len(logs) == 1
+        warnings = [r for r in caplog.records if "incomplete_max=0.1" in r.message]
+        assert len(warnings) == 1
+        assert "no effect" in warnings[0].message
+
+
+def test_eval_set_incomplete_action_error_recovers_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed recovery under a resolving disposition is attempted only once.
+
+    With incomplete_action='error' recovery runs before completeness
+    classification; when it fails the log is still classified as incomplete,
+    but the task must not be recovered again on the way to being re-run.
+    """
+    import inspect_ai.log._recover as recover_module
+
+    samples = [Sample(id=1, input="Say hello", target="hello")]
+    resume_task = Task(
+        dataset=samples,
+        solver=[identity_solver()],
+        name="incomplete_action_recovers_once",
+    )
+
+    attempts: list[str] = []
+
+    def failing_recover(log: str, *args: object, **kwargs: object) -> EvalLog:
+        attempts.append(log)
+        raise RuntimeError("simulated recovery failure")
+
+    monkeypatch.setattr(recover_module, "recover_eval_log", failing_recover)
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        started_log = eval(
+            resume_task,
+            model="mockllm/model",
+            log_dir=log_dir,
+            run_samples=False,
+        )[0]
+        with zipfile.ZipFile(local_path(started_log.location), "w") as zf:
+            zf.writestr(
+                "_journal/start.json",
+                to_json_str_safe(
+                    LogStart(
+                        version=started_log.version,
+                        eval=started_log.eval,
+                        plan=started_log.plan,
+                    )
+                ),
+            )
+
+        success, logs = eval_set(
+            tasks=resume_task,
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=1,
+            retry_immediate=True,
+            retry_cleanup=False,
+            incomplete_action="error",
+        )
+
+        assert [local_path(a) for a in attempts] == [local_path(started_log.location)]
+        # the task re-ran from scratch
+        assert success
+        assert len(logs) == 1
+        assert logs[0].status == "success"
+        assert "-recovered" not in (logs[0].location or "")
+
+
+def test_eval_set_tops_up_grown_dataset_reusing_prior_samples() -> None:
+    # A dataset that grows between eval_set runs (a strict superset with stable
+    # ids) is topped up in place: the prior samples are reused and only the
+    # newly added samples run. This is the corpus-growth / "top-up" path — the
+    # task identity is unchanged (dataset content is not part of it), so the
+    # second run resumes the first run's log rather than starting fresh.
+    executed: list[int | str] = []
+    ids = {"n": 3}
+
+    @solver
+    def record() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            executed.append(state.sample_id)
+            return state
+
+        return solve
+
+    @task
+    def grow_task() -> Task:
+        return Task(
+            dataset=[
+                Sample(id=i, input="hi", target="ok") for i in range(1, ids["n"] + 1)
+            ],
+            solver=[record()],
+            name="grow_task",
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=[grow_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_wait=0.1,
+        )
+        assert success
+        assert sorted(executed) == [1, 2, 3]
+        first = read_eval_log(logs[0].location)
+        assert first.eval.dataset.samples == 3
+
+        # grow the dataset and re-run against the same log dir
+        executed.clear()
+        ids["n"] = 5
+        success, logs = eval_set(
+            tasks=[grow_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_wait=0.1,
+        )
+        assert success
+        # only the two NEW samples ran; the prior three were reused
+        assert sorted(executed) == [4, 5]
+        final = read_eval_log(logs[0].location)
+        assert final.status == "success"
+        assert final.eval.dataset.samples == 5
+        assert sorted(str(s.id) for s in (final.samples or [])) == [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+        ]
+
+
+def test_eval_set_grown_dataset_without_stable_ids_still_reruns() -> None:
+    # Growth without stable sample ids cannot be topped up safely: ids would be
+    # position-assigned and could map a reused record onto a different sample,
+    # so the guard falls back to a full re-run rather than a partial top-up.
+    executed: list[int | str] = []
+    count = {"n": 2}
+
+    @solver
+    def record() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            executed.append(state.sample_id)
+            return state
+
+        return solve
+
+    @task
+    def grow_noids_task() -> Task:
+        return Task(
+            dataset=[Sample(input="hi", target="ok") for _ in range(count["n"])],
+            solver=[record()],
+            name="grow_noids_task",
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, _ = eval_set(
+            tasks=[grow_noids_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_wait=0.1,
+        )
+        assert success
+
+        executed.clear()
+        count["n"] = 4
+        success, logs = eval_set(
+            tasks=[grow_noids_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_wait=0.1,
+        )
+        assert success
+        # no stable ids -> the whole grown dataset re-ran (not a 2-sample top-up)
+        assert len(executed) == 4
+        final = read_eval_log(logs[0].location)
+        assert final.status == "success"
+        assert final.eval.dataset.samples == 4
+
+
+@sandboxenv(name="eval_set_flaky_setup")
+class _FlakySetupSandbox(LocalSandboxEnvironment):
+    """A local sandbox whose first task_init fails."""
+
+    task_init_calls: ClassVar[int] = 0
+
+    @classmethod
+    async def task_init(
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None
+    ) -> None:
+        cls.task_init_calls += 1
+        if cls.task_init_calls == 1:
+            raise RuntimeError("first task_init fails")
+
+
+def test_eval_set_retries_task_whose_sandbox_setup_failed(tmp_path: Path) -> None:
+    # setup runs in the task's attempt, so a failed task_init ends only that
+    # attempt and the immediate retry sets the configuration up again
+    _FlakySetupSandbox.task_init_calls = 0
+    success, logs = eval_set(
+        [
+            Task(
+                dataset=[Sample(input="x")],
+                sandbox="eval_set_flaky_setup",
+                name="flaky_setup",
+            ),
+            Task(dataset=[Sample(input="x")], name="no_sandbox"),
+        ],
+        log_dir=str(tmp_path),
+        model="mockllm/model",
+        retry_attempts=1,
+        retry_wait=0.1,
+        max_tasks=2,
+        display="none",
+    )
+    assert success
+    assert {log.eval.task: log.status for log in logs} == {
+        "flaky_setup": "success",
+        "no_sandbox": "success",
+    }
+    assert _FlakySetupSandbox.task_init_calls == 2
+
+
+def test_eval_set_run_missing_a_requested_task_is_cancelled(
+    tmp_path: Path,
+) -> None:
+    # a requested task with no log was still queued when its run was
+    # cancelled (dispatch ended before it started), so the eval set stops as
+    # it does for a cancelled log
+    from inspect_ai._eval import evalset as evalset_module
+
+    def run_without_logs(*args: Any, **kwargs: Any) -> list[EvalLog]:
+        return []
+
+    with patch.object(evalset_module, "eval", run_without_logs):
+        with pytest.raises(KeyboardInterrupt):
+            eval_set(
+                Task(dataset=[Sample(input="x")], name="queued_at_cancel"),
+                log_dir=str(tmp_path),
+                model="mockllm/model",
+                display="none",
+            )

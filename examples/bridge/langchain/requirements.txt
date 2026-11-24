@@ -1,5 +1,5 @@
-langchain-community>=0.3.21
+langchain>=1.0
 langchain-core>=0.3.51
 langchain-openai>=0.3.12
+langchain-tavily>=0.2.18
 langgraph>=0.3.25
-langgraph-prebuilt>=0.1.8

@@ -1,7 +1,10 @@
 import json
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import cast
 
+import anyio
 import grpc
 from google.protobuf.json_format import ParseDict
 from typing_extensions import override
@@ -44,6 +47,39 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
             max_batch_size_mb=200,
         )
         self._client = client
+        # Batch API calls running on each client, so a replaced client is
+        # closed only once nothing uses it.
+        self._client_users: dict[AsyncClient, int] = {}
+
+    async def replace_client(self, client: AsyncClient) -> None:
+        """Send later batch API calls on `client`.
+
+        A credential refresh needs a new client, since an xAI client fixes its
+        API key when it is built. Calls already running keep the old client,
+        which is closed when the last of them ends.
+        """
+        old_client = self._client
+        self._client = client
+        if old_client not in self._client_users:
+            await _close_client(old_client)
+
+    @asynccontextmanager
+    async def _use_client(self) -> AsyncIterator[AsyncClient]:
+        """The current client, for one RPC.
+
+        Hold it for a single call only, so the next call after a credential
+        refresh uses the new client.
+        """
+        client = self._client
+        self._client_users[client] = self._client_users.get(client, 0) + 1
+        try:
+            yield client
+        finally:
+            self._client_users[client] -= 1
+            if self._client_users[client] == 0:
+                del self._client_users[client]
+                if client is not self._client:
+                    await _close_client(client)
 
     @override
     async def _create_batch(self, batch_requests: list[BatchRequest[Response]]) -> str:
@@ -86,24 +122,27 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
             request["batch_request_id"] = batch_request.custom_id
             requests.append(self._client.chat.create(**request))
 
-        batch = await self._client.batch.create(
-            batch_name=f"inspect_batch_{int(time.time())}"
-        )
+        async with self._use_client() as client:
+            batch = await client.batch.create(
+                batch_name=f"inspect_batch_{int(time.time())}"
+            )
         # Add requests one-by-one to avoid large gRPC payloads in a single add call.
         # Observed gRPC transport caps (~4MB decode / ~20MB send on packed add)
         # are empirical, not documented API contract.
         for request in requests:
-            await self._client.batch.add(
-                batch_id=batch.batch_id,
-                batch_requests=[request],
-            )
+            async with self._use_client() as client:
+                await client.batch.add(
+                    batch_id=batch.batch_id,
+                    batch_requests=[request],
+                )
         return cast(str, batch.batch_id)
 
     @override
     async def _check_batch(
         self, batch: Batch[Response]
     ) -> BatchCheckResult[CompletedBatchInfo]:
-        info = await self._client.batch.get(batch.id)
+        async with self._use_client() as client:
+            info = await client.batch.get(batch.id)
         state = info.state
         created_at = (
             int(info.create_time.seconds) if info.create_time else int(time.time())
@@ -140,10 +179,11 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
         pagination_token: str | None = None
 
         while True:
-            result_page = await self._client.batch.list_batch_results(
-                batch_id=batch.id,
-                pagination_token=pagination_token,
-            )
+            async with self._use_client() as client:
+                result_page = await client.batch.list_batch_results(
+                    batch_id=batch.id,
+                    pagination_token=pagination_token,
+                )
 
             for result in result_page.results:
                 if result.batch_request_id not in batch.requests:
@@ -164,6 +204,12 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
                 )
 
         return results
+
+
+async def _close_client(client: AsyncClient) -> None:
+    # shielded so a cancelled caller cannot leave the client's channels open
+    with anyio.CancelScope(shield=True):
+        await client.close()
 
 
 def _batch_result_error(result: BatchResult) -> grpc.RpcError:

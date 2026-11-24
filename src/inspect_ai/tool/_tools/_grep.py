@@ -1,6 +1,11 @@
 from typing import Literal
 
 from inspect_ai.util import sandbox as sandbox_env
+from inspect_ai.util._sandbox.identity import (
+    sandbox_identity_cwd,
+    sandbox_identity_user,
+    sandbox_identity_vars,
+)
 
 from .._tool import Tool, ToolError, tool
 
@@ -26,6 +31,7 @@ def grep(
         path: str = ".",
         glob: str | None = None,
         fixed_strings: bool = False,
+        extended_regexp: bool = False,
         output_mode: Literal["content", "files_with_matches", "count"] = "content",
     ) -> str:
         """Search for a pattern in files.
@@ -35,13 +41,16 @@ def grep(
 
         Args:
             pattern: Regular expression pattern to search for
-                (or literal string if fixed_strings is True).
+                (or literal string if fixed_strings is True). Uses
+                grep's basic regex (BRE) by default.
             path: File or directory to search (defaults to working
                 directory).
             glob: Glob pattern to filter which files to search
                 (e.g. "*.py").
             fixed_strings: If True, treat pattern as a literal string
                 rather than a regular expression.
+            extended_regexp: If True, use extended regex (ERE).
+                Mutually exclusive with fixed_strings.
             output_mode: Output format. "content" returns matching
                 lines with file paths and line numbers. "files_with_matches"
                 returns only file paths containing matches. "count"
@@ -50,6 +59,8 @@ def grep(
         cmd = ["grep", "-rn"]
         if fixed_strings:
             cmd.append("-F")
+        if extended_regexp:
+            cmd.append("-E")
         if glob:
             cmd.extend(["--include", glob])
         if output_mode == "files_with_matches":
@@ -58,7 +69,14 @@ def grep(
             cmd.append("-c")
         cmd.extend(["--", pattern, path])
 
-        result = await sandbox_env(sandbox).exec(cmd=cmd, timeout=timeout, user=user)
+        sbox = sandbox_env(sandbox)
+        result = await sbox.exec(
+            cmd=cmd,
+            cwd=sandbox_identity_cwd(sbox, None),
+            timeout=timeout,
+            user=sandbox_identity_user(sbox, user, strict=True),
+            env=await sandbox_identity_vars(sbox, timeout),
+        )
 
         # exit code 1 means no matches (not an error)
         if result.returncode == 1:

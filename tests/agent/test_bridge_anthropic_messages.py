@@ -1,18 +1,32 @@
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from anthropic.types import ThinkingBlockParam
 
+from inspect_ai._util.content import ContentDocument
 from inspect_ai.agent._bridge.anthropic_api_impl import (
-    anthropic_system_to_text,
+    anthropic_system_to_texts,
     base_64_data,
+    content_block_to_contents,
     messages_from_anthropic_input,
+    tools_from_anthropic_tools,
+)
+from inspect_ai.agent._bridge.util import (
+    internal_web_search_providers,
+    resolve_bridge_web_search,
 )
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageSystem,
+    ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.model._message_ids import content_hash
+from inspect_ai.model._providers.anthropic import AnthropicAPI, message_block_params
+from inspect_ai.tool import WebSearchProviders
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_util import tool_to_tool_info
 
 
 @pytest.mark.anyio
@@ -52,14 +66,128 @@ async def test_inline_system_role_block_content() -> None:
     assert messages[1].text == "reminder"
 
 
-def test_anthropic_system_to_text() -> None:
-    assert anthropic_system_to_text("plain") == "plain"
-    assert (
-        anthropic_system_to_text(
-            [{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]
-        )
-        == "a\n\nb"
+@pytest.mark.anyio
+async def test_inline_system_role_multi_block_content() -> None:
+    """A role="system" turn with multiple blocks keeps one message per block."""
+    messages = await messages_from_anthropic_input(
+        [
+            {"role": "user", "content": "hello"},
+            {
+                "role": "system",
+                "content": [
+                    {"type": "text", "text": "x-anthropic-billing-header: abc"},
+                    {"type": "text", "text": "instructions"},
+                ],
+            },
+        ],
+        tools=[],
     )
+    assert [type(m) for m in messages] == [
+        ChatMessageUser,
+        ChatMessageSystem,
+        ChatMessageSystem,
+    ]
+    assert messages[1].text == "x-anthropic-billing-header: abc"
+    assert messages[2].text == "instructions"
+
+
+@pytest.mark.anyio
+async def test_inline_text_document_round_trip() -> None:
+    [content] = content_block_to_contents(
+        cast(
+            Any,
+            {
+                "type": "document",
+                "source": {
+                    "type": "text",
+                    "data": "hello inline document",
+                    "media_type": "text/plain",
+                },
+            },
+        )
+    )
+    assert isinstance(content, ContentDocument)
+    assert content.document.startswith("data:text/plain;base64,")
+
+    blocks = await message_block_params(content)
+    block = cast(dict[str, Any], blocks[0])
+    source = cast(dict[str, Any], block["source"])
+    assert source == {
+        "type": "text",
+        "data": "hello inline document",
+        "media_type": "text/plain",
+    }
+
+
+def test_file_image_source_raises() -> None:
+    with pytest.raises(RuntimeError, match="Unsupported image source type: file"):
+        content_block_to_contents(
+            cast(
+                Any,
+                {"type": "image", "source": {"type": "file", "file_id": "file_123"}},
+            )
+        )
+
+
+def test_file_document_source_raises() -> None:
+    with pytest.raises(RuntimeError, match="Unsupported document source type: file"):
+        content_block_to_contents(
+            cast(
+                Any,
+                {"type": "document", "source": {"type": "file", "file_id": "file_123"}},
+            )
+        )
+
+
+def test_browser_state_block_raises() -> None:
+    with pytest.raises(
+        RuntimeError, match="Unsupported content block type: browser_state"
+    ):
+        content_block_to_contents(cast(Any, {"type": "browser_state"}))
+
+
+def test_anthropic_system_to_texts_preserves_block_boundaries() -> None:
+    """Blocks stay separate so a header block can't be glued to instructions."""
+    assert anthropic_system_to_texts(None) == []
+    assert anthropic_system_to_texts("") == []
+    assert anthropic_system_to_texts("plain") == ["plain"]
+    assert anthropic_system_to_texts(
+        [{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]
+    ) == ["a", "b"]
+    # empty blocks contribute no system message
+    assert anthropic_system_to_texts(
+        [{"type": "text", "text": "a"}, {"type": "text", "text": ""}]
+    ) == ["a"]
+    # non-text blocks are ignored
+    assert anthropic_system_to_texts(
+        [{"type": "image"}, {"type": "text", "text": "a"}]
+    ) == ["a"]
+
+
+def test_anthropic_system_header_block_not_glued_to_instructions() -> None:
+    """Regression: a metadata header block must not absorb the real prompt.
+
+    Claude Code's auto-mode classifier sends ``system`` as
+    ``[billing-header, monitor-prompt, session-context]``. The Anthropic API
+    consumes a system block starting with ``x-anthropic-*-header:`` as request
+    metadata and DROPS that block, so concatenating the blocks made the API
+    discard the monitor prompt too -- the classifier then had no instructions
+    and no verdict grammar, and fail-closed on every action.
+    """
+    header = "x-anthropic-billing-header: cc_version=2.1.205; cc_entrypoint=sdk-cli;"
+    prompt = "You are a security monitor for autonomous AI coding agents."
+    context = "## Session Context"
+    texts = anthropic_system_to_texts(
+        [
+            {"type": "text", "text": header},
+            {"type": "text", "text": prompt},
+            {"type": "text", "text": context},
+        ]
+    )
+    assert texts == [header, prompt, context]
+    # the header must stand alone: nothing else may ride along in its block
+    assert texts[0] == header
+    assert prompt not in texts[0]
 
 
 @pytest.mark.anyio
@@ -79,9 +207,349 @@ async def test_unexpected_input_parameter_error_includes_value() -> None:
     assert "{c}" not in str(exc_info.value)
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize("text", ["Timed out.", ""])
+async def test_error_result_forms_give_one_error(text: str) -> None:
+    """An `is_error` result as a string, a list, or a list with empty text blocks is one error."""
+    block = [{"type": "text", "text": text}] if text else []
+    empty = {"type": "text", "text": ""}
+    forms: list[Any] = [
+        text,
+        block,
+        [empty, *block, empty],
+        [empty, *block, empty, empty],
+    ]
+    results = []
+    for form in forms:
+        [_, result] = await messages_from_anthropic_input(
+            [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "tool_use", "id": "c", "name": "f", "input": {}}
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "c",
+                            "is_error": True,
+                            "content": form,
+                        }
+                    ],
+                },
+            ],
+            tools=[],
+        )
+        assert isinstance(result, ChatMessageTool) and result.error is not None
+        results.append(result)
+    assert {result.error.message for result in results if result.error} == {text}
+    assert len({content_hash(result) for result in results}) == 1
+
+
 def test_base_64_data_error_includes_value() -> None:
     """A non-str, non-stream image source reports its value, not '{data}'."""
     with pytest.raises(RuntimeError) as exc_info:
         base_64_data(Path("/tmp/image.png"))
     assert "/tmp/image.png" in str(exc_info.value)
     assert "{data}" not in str(exc_info.value)
+
+
+# --- impl-level: request `system` becomes leading system messages ------------
+
+
+class _CapturedMessages(Exception):
+    """Sentinel carrying the messages the impl handed to generation."""
+
+    def __init__(self, messages: list[Any]) -> None:
+        self.messages = messages
+
+
+async def _request_impl_messages(
+    monkeypatch: pytest.MonkeyPatch, json_data: dict[str, Any]
+) -> list[Any]:
+    """Run inspect_anthropic_api_request_impl and capture its inspect messages."""
+    import inspect_ai.agent._bridge.anthropic_api_impl as impl
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.types import AgentBridge
+
+    async def capture(
+        bridge: Any, model: Any, messages: Any, *args: Any, **kwargs: Any
+    ) -> Any:
+        raise _CapturedMessages(messages)
+
+    monkeypatch.setattr(impl, "bridge_generate", capture)
+    bridge = AgentBridge(state=AgentState(messages=[]), allow_client_model_names=True)
+    with pytest.raises(_CapturedMessages) as exc_info:
+        await impl.inspect_anthropic_api_request_impl(
+            {
+                "model": "mockllm/model",
+                "max_tokens": 1024,
+                "messages": [{"role": "user", "content": "hello"}],
+                **json_data,
+            },
+            headers=None,
+            web_search=None,
+            code_execution=None,
+            bridge=bridge,
+        )
+    return exc_info.value.messages
+
+
+@pytest.mark.anyio
+async def test_request_impl_no_system(monkeypatch: pytest.MonkeyPatch) -> None:
+    messages = await _request_impl_messages(monkeypatch, {})
+    assert [type(m) for m in messages] == [ChatMessageUser]
+
+
+@pytest.mark.anyio
+async def test_request_impl_string_system(monkeypatch: pytest.MonkeyPatch) -> None:
+    messages = await _request_impl_messages(monkeypatch, {"system": "be helpful"})
+    assert [type(m) for m in messages] == [ChatMessageSystem, ChatMessageUser]
+    assert messages[0].text == "be helpful"
+
+
+@pytest.mark.anyio
+async def test_request_impl_single_block_system(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    messages = await _request_impl_messages(
+        monkeypatch, {"system": [{"type": "text", "text": "be helpful"}]}
+    )
+    assert [type(m) for m in messages] == [ChatMessageSystem, ChatMessageUser]
+    assert messages[0].text == "be helpful"
+
+
+@pytest.mark.anyio
+async def test_request_impl_multi_block_system_preserves_boundaries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One leading system message per Anthropic system block, in order."""
+    messages = await _request_impl_messages(
+        monkeypatch,
+        {
+            "system": [
+                {"type": "text", "text": "x-anthropic-billing-header: abc"},
+                {"type": "text", "text": "you are a security classifier"},
+                {"type": "text", "text": "session context"},
+            ]
+        },
+    )
+    assert [type(m) for m in messages] == [
+        ChatMessageSystem,
+        ChatMessageSystem,
+        ChatMessageSystem,
+        ChatMessageUser,
+    ]
+    assert [m.text for m in messages[:3]] == [
+        "x-anthropic-billing-header: abc",
+        "you are a security classifier",
+        "session context",
+    ]
+
+
+def test_anthropic_usage_forwards_thinking_tokens() -> None:
+    """Bridge clients read thinking tokens from usage.output_tokens_details.
+
+    Extended-thinking clients size and meter reasoning off this field, so
+    dropping it makes a thinking response indistinguishable from a plain one.
+    """
+    from inspect_ai.agent._bridge.anthropic_api_impl import anthropic_usage
+    from inspect_ai.model._model_output import ModelUsage
+
+    usage = anthropic_usage(
+        ModelUsage(
+            input_tokens=100,
+            output_tokens=500,
+            total_tokens=600,
+            reasoning_tokens=412,
+        )
+    )
+
+    assert usage.output_tokens_details is not None
+    assert usage.output_tokens_details.thinking_tokens == 412
+    # breakout of output_tokens, not added on top
+    assert usage.output_tokens == 500
+
+
+def test_anthropic_usage_omits_thinking_tokens_when_absent() -> None:
+    """No reasoning means no thinking-token detail rather than a bogus zero."""
+    from inspect_ai.agent._bridge.anthropic_api_impl import anthropic_usage
+    from inspect_ai.model._model_output import ModelUsage
+
+    usage = anthropic_usage(ModelUsage(input_tokens=10, output_tokens=20))
+
+    assert usage.output_tokens_details is None
+
+
+def test_anthropic_usage_forwards_thinking_tokens_beta() -> None:
+    """Beta bridge clients also read thinking tokens from output_tokens_details.
+
+    Mirrors test_anthropic_usage_forwards_thinking_tokens for the beta=True
+    path, which must return BetaUsage carrying a BetaOutputTokensDetails.
+    """
+    from anthropic.types.beta import BetaOutputTokensDetails, BetaUsage
+
+    from inspect_ai.agent._bridge.anthropic_api_impl import anthropic_usage
+    from inspect_ai.model._model_output import ModelUsage
+
+    usage = anthropic_usage(
+        ModelUsage(
+            input_tokens=100,
+            output_tokens=500,
+            total_tokens=600,
+            reasoning_tokens=412,
+        ),
+        beta=True,
+    )
+
+    assert isinstance(usage, BetaUsage)
+    assert usage.output_tokens_details is not None
+    assert isinstance(usage.output_tokens_details, BetaOutputTokensDetails)
+    assert usage.output_tokens_details.thinking_tokens == 412
+    # breakout of output_tokens, not added on top
+    assert usage.output_tokens == 500
+
+
+def test_anthropic_usage_omits_thinking_tokens_when_absent_beta() -> None:
+    """No reasoning means no thinking-token detail rather than a bogus zero."""
+    from inspect_ai.agent._bridge.anthropic_api_impl import anthropic_usage
+    from inspect_ai.model._model_output import ModelUsage
+
+    usage = anthropic_usage(ModelUsage(input_tokens=10, output_tokens=20), beta=True)
+
+    assert usage.output_tokens_details is None
+
+
+# the providers a bridge resolves by default, and the raw default before resolution
+DEFAULT_WEB_SEARCH = pytest.mark.parametrize(
+    "providers",
+    [
+        resolve_bridge_web_search(True, default_grant=False),
+        internal_web_search_providers(),
+    ],
+    ids=["resolved", "raw"],
+)
+
+
+def _bridged_web_search_params(
+    client_tool: dict[str, Any],
+    providers: WebSearchProviders | None,
+    model_name: str = "claude-opus-5",
+) -> list[Any] | None:
+    """The web tools the provider sends for a client's web_search declaration."""
+    tools = tools_from_anthropic_tools(
+        [cast(Any, client_tool)], None, providers, None, False
+    )
+    assert len(tools) == 1
+    tool = tools[0]
+    tool_info = tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    return api.web_search_tool_params(tool_info)
+
+
+@DEFAULT_WEB_SEARCH
+def test_bridge_preserves_claude_code_web_search_version(
+    providers: WebSearchProviders | None,
+) -> None:
+    # the tool Claude Code's WebSearch sends with a forced tool_choice
+    params = _bridged_web_search_params(
+        {"type": "web_search_20250305", "name": "web_search", "max_uses": 8},
+        providers,
+    )
+    assert params == [
+        {"name": "web_fetch", "type": "web_fetch_20250910", "max_uses": 8},
+        {"name": "web_search", "type": "web_search_20250305", "max_uses": 8},
+    ]
+
+
+@DEFAULT_WEB_SEARCH
+def test_bridge_preserves_client_latest_web_search_version(
+    providers: WebSearchProviders | None,
+) -> None:
+    # honoured even on a model whose default is the older version
+    params = _bridged_web_search_params(
+        {"type": "web_search_20260209", "name": "web_search"},
+        providers,
+        model_name="claude-sonnet-4-5",
+    )
+    assert params == [
+        {"name": "web_fetch", "type": "web_fetch_20260209"},
+        {"name": "web_search", "type": "web_search_20260209"},
+    ]
+
+
+@DEFAULT_WEB_SEARCH
+def test_bridge_unknown_web_search_version_uses_provider_choice(
+    providers: WebSearchProviders | None,
+) -> None:
+    params = _bridged_web_search_params(
+        {"type": "web_search_20990101", "name": "web_search"}, providers
+    )
+    assert params is not None
+    assert [param["type"] for param in params] == [
+        "web_fetch_20260209",
+        "web_search_20260209",
+    ]
+
+
+@pytest.mark.parametrize("as_list", [False, True])
+async def test_assistant_multiple_internal_blocks(as_list: bool) -> None:
+    from anthropic.types import MessageParam
+
+    from inspect_ai._util.content import ContentText
+    from inspect_ai.model._internal import content_internal_tag
+
+    text = (
+        "first"
+        + content_internal_tag({"a": 1})
+        + content_internal_tag({"b": 2})
+        + "last"
+    )
+    item = cast(
+        MessageParam,
+        {
+            "role": "assistant",
+            "content": [{"type": "text", "text": text}] if as_list else text,
+        },
+    )
+    [message] = await messages_from_anthropic_input([item], tools=[])
+    assert message.content == [
+        ContentText(text="first", internal={"a": 1}),
+        ContentText(text="", internal={"b": 2}),
+        ContentText(text="last"),
+    ]
+
+
+@pytest.mark.parametrize("tool_result", [False, True])
+async def test_user_and_tool_result_multiple_internal_blocks(tool_result: bool) -> None:
+    from anthropic.types import MessageParam, TextBlockParam, ToolResultBlockParam
+
+    from inspect_ai._util.content import ContentText
+    from inspect_ai.model._internal import content_internal_tag
+
+    text = (
+        "first"
+        + content_internal_tag({"a": 1})
+        + "second"
+        + content_internal_tag({"b": 2})
+    )
+    block = TextBlockParam(type="text", text=text)
+    content: list[TextBlockParam | ToolResultBlockParam] = (
+        [
+            ToolResultBlockParam(
+                type="tool_result", tool_use_id="call_1", content=[block]
+            )
+        ]
+        if tool_result
+        else [block]
+    )
+    param: MessageParam = {"role": "user", "content": content}
+    [message] = await messages_from_anthropic_input([param], tools=[])
+    assert isinstance(message, ChatMessageTool if tool_result else ChatMessageUser)
+    assert message.content == [
+        ContentText(text="first", internal={"a": 1}),
+        ContentText(text="second", internal={"b": 2}),
+    ]

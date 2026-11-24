@@ -5,6 +5,7 @@ import concurrent.futures
 import copy
 import functools
 import gc
+import hashlib
 import json
 import os
 import time
@@ -13,16 +14,19 @@ from dataclasses import dataclass
 from logging import getLogger
 from queue import Empty, Queue
 from threading import Thread
-from typing import Any, Literal, Protocol, cast
+from types import MethodType
+from typing import Any, Hashable, Literal, Protocol, cast
 
 import anyio
 import numpy as np
 import torch  # type: ignore
 import transformers  # type: ignore
+from pydantic import BaseModel
 from torch import Tensor  # type: ignore
 from transformers import (  # type: ignore
     AutoModelForCausalLM,
     AutoTokenizer,
+    GenerationConfig,
     PreTrainedTokenizerBase,
     set_seed,
 )
@@ -54,6 +58,7 @@ from .._model_output import (
     TopLogprob,
 )
 from .util import ChatAPIHandler, HFHandler
+from .util.hidden_states import hidden_states_to_jsonable
 
 logger = getLogger(__name__)
 
@@ -70,6 +75,40 @@ def hub_token(api_key: str | None) -> str | None:
     to `HF_TOKEN` or the token cached by `huggingface-cli login`.
     """
     return None if api_key == MODEL_INFO_LOOKUP_API_KEY else api_key
+
+
+class HFChatTemplateInfo(BaseModel):
+    """Chat template used to render prompts."""
+
+    source: Literal["tokenizer", "model_arg"] | None
+    """`tokenizer` (the tokenizer's template), `model_arg` (the `chat_template` model arg), or `None` when no template is applied."""
+
+    name: str | None = None
+    """Name of the tokenizer template selected by the `chat_template` model arg."""
+
+    sha256: str | None
+    """SHA-256 of the template text. When the tokenizer has named templates and none is selected, the full set is hashed as sorted JSON."""
+
+
+class HFGenerationConfigInfo(BaseModel):
+    """Generation config the model applies before Inspect's `GenerateConfig`."""
+
+    source: str
+    """Value of the `generation_config` model arg: `auto`, `default`, a path or Hub id, or `object` for a `transformers.GenerationConfig`."""
+
+    values: dict[str, Any]
+    """Fields that differ from the `transformers` defaults."""
+
+
+class HFModelConfig(BaseModel):
+    """Model repository inputs that shape prompts and sampling.
+
+    Recorded in `ModelOutput.metadata["hf_model_config"]`.
+    """
+
+    chat_template: HFChatTemplateInfo
+    generation_config: HFGenerationConfigInfo
+    trust_remote_code: bool
 
 
 class HuggingFaceAPI(ModelAPI):
@@ -120,6 +159,22 @@ class HuggingFaceAPI(ModelAPI):
             trust_remote_code = False
         if not isinstance(trust_remote_code, bool):
             raise ValueError("trust_remote_code must be a bool")
+        self.trust_remote_code = trust_remote_code
+        generation_config = collect_model_arg("generation_config")
+        if generation_config is None:
+            generation_config = "auto"
+        if isinstance(generation_config, str):
+            self.generation_config_source = generation_config
+        elif isinstance(generation_config, GenerationConfig):
+            # from_pretrained() uses it in place of the repository's config
+            model_args["generation_config"] = generation_config
+            self.generation_config_source = "object"
+        else:
+            raise ValueError(
+                "generation_config must be 'auto', 'default', a path or "
+                "Hugging Face Hub id to load a generation config from, or a "
+                "transformers.GenerationConfig"
+            )
 
         # select the transformers auto-class used to load the model. Some
         # architectures (e.g. the Mistral 3 series and other image-text-to-text
@@ -196,6 +251,13 @@ class HuggingFaceAPI(ModelAPI):
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "left"
 
+        if isinstance(generation_config, str) and generation_config != "auto":
+            self.model.generation_config = resolve_generation_config(
+                generation_config,
+                self.model.generation_config,
+                token=hub_token(self.api_key),
+            )
+
     @override
     def close(self) -> None:
         self.model = None
@@ -218,12 +280,21 @@ class HuggingFaceAPI(ModelAPI):
         chat = self.hf_chat(input, tools)
 
         assert isinstance(self.tokenizer_call_args, dict)
+        # A rendered chat template may already contain the model's special
+        # tokens (e.g. BOS for Gemma and Llama 3), so tokenizing it must not
+        # add them a second time. An explicit tokenizer_call_args value still wins.
+        tokenizer_call_args = dict(self.tokenizer_call_args)
+        if (
+            "add_special_tokens" not in tokenizer_call_args
+            and self._effective_chat_template() is not None
+        ):
+            tokenizer_call_args["add_special_tokens"] = False
         # prepare tokenizer
         tokenizer = functools.partial(  # type: ignore[misc]
             self.tokenizer,
             return_tensors="pt",
             padding=True,
-            **self.tokenizer_call_args,
+            **tokenizer_call_args,
         )
 
         # prepare generator
@@ -308,7 +379,60 @@ class HuggingFaceAPI(ModelAPI):
                 total_tokens=response.total_tokens,
             ),
             time=response.time,
-            metadata={"hidden_states": response.hidden_states},
+            metadata=self._output_metadata(response),
+        )
+
+    def _output_metadata(self, response: GenerateOutput) -> dict[str, Any]:
+        metadata: dict[str, Any] = {"hf_model_config": self.repo_config.model_dump()}
+        if response.hidden_states is not None:
+            metadata["hidden_states"] = response.hidden_states
+        return metadata
+
+    @functools.cached_property
+    def repo_config(self) -> HFModelConfig:
+        """Record the model-repository inputs that shape prompts and sampling.
+
+        A model repository's chat template and `generation_config.json` change
+        what the model is prompted with and how it samples, independent of its
+        weights. Recording their effective values lets a reader of the log see
+        what the repository contributed to a result.
+        """
+        chat_template = self._effective_chat_template()
+        tokenizer_templates = self.tokenizer.chat_template
+        template_name: str | None = None
+        template_source: Literal["tokenizer", "model_arg"] | None
+        if chat_template is None:
+            template_source = None
+        elif (
+            isinstance(self.chat_template, str)
+            and isinstance(tokenizer_templates, dict)
+            and self.chat_template in tokenizer_templates
+        ):
+            # transformers treats the model arg as a template name here
+            template_name = self.chat_template
+            chat_template = tokenizer_templates[template_name]
+            template_source = "tokenizer"
+        elif isinstance(self.chat_template, str):
+            template_source = "model_arg"
+        else:
+            template_source = "tokenizer"
+        values = {
+            name: value
+            for name, value in json.loads(
+                self.model.generation_config.to_json_string(use_diff=True)
+            ).items()
+            if name != "transformers_version" and not name.startswith("_")
+        }
+        return HFModelConfig(
+            chat_template=HFChatTemplateInfo(
+                source=template_source,
+                name=template_name,
+                sha256=chat_template_sha256(chat_template),
+            ),
+            generation_config=HFGenerationConfigInfo(
+                source=self.generation_config_source, values=values
+            ),
+            trust_remote_code=self.trust_remote_code,
         )
 
     @override
@@ -324,6 +448,17 @@ class HuggingFaceAPI(ModelAPI):
     @override
     def collapse_user_messages(self) -> bool:
         return True
+
+    def _effective_chat_template(self) -> str | None:
+        """Chat template `hf_chat` will apply, or `None` for the manual fallback."""
+        chat_template = (
+            self.chat_template
+            if isinstance(self.chat_template, str)
+            else self.tokenizer.chat_template
+        )
+        if self.use_chat_template is False:
+            return None
+        return chat_template
 
     def hf_chat(self, messages: list[ChatMessage], tools: list[ToolInfo]) -> str:
         # convert to hf format
@@ -342,13 +477,7 @@ class HuggingFaceAPI(ModelAPI):
                 hf_messages = inspect_tools_to_string(hf_messages)
 
         hf_messages = message_content_to_string(hf_messages)
-        chat_template = (
-            self.chat_template
-            if isinstance(self.chat_template, str)
-            else self.tokenizer.chat_template
-        )
-        if self.use_chat_template is False:
-            chat_template = None
+        chat_template = self._effective_chat_template()
 
         # apply chat template
         if chat_template is not None:
@@ -370,6 +499,10 @@ class HuggingFaceAPI(ModelAPI):
         tools_list: list[dict[str, Any]],
         chat_template: str | None,
     ) -> str:
+        # convert to dicts so templates that use dict methods
+        # (e.g. `message.get('reasoning')`) render correctly
+        messages = [message.model_dump(exclude_none=True) for message in hf_messages]
+
         template_args: dict[str, Any] = dict(
             add_generation_prompt=True,
             tokenize=False,
@@ -382,7 +515,7 @@ class HuggingFaceAPI(ModelAPI):
                 return cast(
                     str,
                     self.tokenizer.apply_chat_template(
-                        hf_messages,  # type: ignore[arg-type]
+                        messages,
                         chat_template=chat_template,
                         **template_args,
                     ),
@@ -395,7 +528,7 @@ class HuggingFaceAPI(ModelAPI):
                     return cast(
                         str,
                         self.tokenizer.apply_chat_template(
-                            hf_messages,  # type: ignore[arg-type]
+                            messages,
                             **template_args,
                         ),
                     )
@@ -405,10 +538,64 @@ class HuggingFaceAPI(ModelAPI):
         return cast(
             str,
             self.tokenizer.apply_chat_template(
-                hf_messages,  # type: ignore[arg-type]
+                messages,
                 **template_args,
             ),
         )
+
+
+def chat_template_sha256(chat_template: str | dict[str, str] | None) -> str | None:
+    """Hash a chat template; a set of named templates is hashed as sorted JSON."""
+    if chat_template is None:
+        return None
+    if not isinstance(chat_template, str):
+        chat_template = json.dumps(chat_template, sort_keys=True)
+    return hashlib.sha256(chat_template.encode()).hexdigest()
+
+
+GENERATION_SPECIAL_TOKENS = (
+    "bos_token_id",
+    "eos_token_id",
+    "pad_token_id",
+    "decoder_start_token_id",
+)
+
+
+def resolve_generation_config(
+    source: str, repo_config: GenerationConfig, token: str | None
+) -> GenerationConfig:
+    """Build the generation config used in place of the model repository's.
+
+    `"default"` uses the `transformers` defaults. Any other value is a local
+    path or Hub id to load the config from, using the model's generation config
+    class. In both cases the special token ids come from the repository, since
+    they refer to its tokenizer's vocabulary and generation needs the EOS token
+    to stop.
+
+    Raises:
+        ValueError: `"default"` was requested for a model whose generation
+            config is a `GenerationConfig` subclass. Such models (e.g. diffusion
+            models) need model-specific settings that have no defaults.
+    """
+    config_class = type(repo_config)
+    if source == "default":
+        if config_class is not GenerationConfig:
+            raise ValueError(
+                "generation_config='default' is not supported for models that "
+                f"use {config_class.__name__}, whose settings are model-specific. "
+                "Pass a path or Hugging Face Hub id to a generation config you "
+                "trust instead."
+            )
+        config = GenerationConfig.from_dict({})
+    else:
+        config = config_class.from_pretrained(source, token=token)
+    for name in GENERATION_SPECIAL_TOKENS:
+        setattr(config, name, getattr(repo_config, name, None))
+    # transformers 4.x regenerates a config marked as derived from the model
+    # config from the model's config.json on generate(), which would restore
+    # the repository's legacy generation parameters
+    config._from_model_config = False
+    return config
 
 
 def message_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
@@ -542,7 +729,7 @@ class GenerateOutput:
     output_tokens: int
     total_tokens: int
     logprobs: torch.Tensor | None
-    hidden_states: tuple[tuple[torch.Tensor]] | None
+    hidden_states: list[list[Any]] | None
     time: float
 
 
@@ -550,6 +737,7 @@ class GenerateOutput:
 class _QueueItem:
     input: GenerateInput
     future: Future[GenerateOutput]
+    key: Hashable
 
 
 batch_thread: Thread | None = None
@@ -566,7 +754,7 @@ async def batched_generate(input: GenerateInput) -> GenerateOutput:
 
     # enqueue the job
     future = Future[GenerateOutput]()
-    batch_queue.put(_QueueItem(input=input, future=future))
+    batch_queue.put(_QueueItem(input=input, future=future, key=_batch_key(input)))
 
     # await the future
     with trace_action(logger, "HF Batched Generate", "HF Batched Generate"):
@@ -581,88 +769,158 @@ async def batched_generate(input: GenerateInput) -> GenerateOutput:
 def process_batches() -> None:
     while True:
         # drain the queue (wait until no new messages have shown up for 2 seconds)
-        inputs: list[tuple[GenerateInput, Future[GenerateOutput]]] = []
-        while True:
-            try:
-                input = batch_queue.get(timeout=2)
-                inputs.append((input.input, input.future))
-                if len(inputs) == input.input.batch_size:
-                    # max batch size reached
-                    break
-            except Empty:
-                # we have exhausted the queue
-                break
+        for batch in _drain_batches(batch_queue, timeout=2):
+            _generate_batch(batch)
 
-        # see if we have any work to do
-        if len(inputs) == 0:
-            continue
 
+def _drain_batches(
+    queue: "Queue[_QueueItem]", timeout: float
+) -> list[list[_QueueItem]]:
+    """Drain queued requests into batches that can be generated together.
+
+    Stops when no request has arrived for `timeout` seconds or when it has
+    collected a batch size of requests across all batches, so requests that
+    keep arriving with different settings cannot hold back the ones already
+    collected. Requests are grouped by their batch key, so each batch holds
+    requests for one model with the same tokenizer, generation and decoder
+    settings, and no more than its batch size. Batches are returned in order of
+    their first request.
+    """
+    batches: dict[Hashable, list[_QueueItem]] = {}
+    collected = 0
+    while True:
         try:
-            # capture the generator and decoder functions
-            start_time = time.monotonic()
-            first_input = inputs[0][0]
-            device = first_input.device
-            tokenizer = first_input.tokenizer
-            generator = first_input.generator
-            decoder = first_input.decoder
+            item = queue.get(timeout=timeout)
+        except Empty:
+            # we have exhausted the queue
+            break
+        batches.setdefault(item.key, []).append(item)
+        collected += 1
+        if collected >= item.input.batch_size:
+            # max batch size reached
+            break
+    return list(batches.values())
 
-            # tokenize and move to device
-            tokenized_inputs = tokenizer([item[0].input for item in inputs])
-            input_ids = tokenized_inputs["input_ids"]
-            attention_mask = tokenized_inputs["attention_mask"]
-            input_ids = input_ids.to(device)
-            attention_mask = attention_mask.to(device)
 
-            # generate
-            with torch.inference_mode():
-                generation_outputs = cast(
-                    ModelGenerateOutput,
-                    generator(input_ids=input_ids, attention_mask=attention_mask),
+def _batch_key(input: GenerateInput) -> Hashable:
+    """Key that is equal for requests that can share a batch.
+
+    `generate()` builds new partials for every call, so the key is built from
+    what they carry: the model and tokenizer objects (by identity) and their
+    keyword arguments (by value). Identity is safe because a queued request
+    holds references to those objects until it is generated.
+    """
+    return (
+        input.device,
+        input.batch_size,
+        _callable_key(input.tokenizer),
+        _callable_key(input.generator),
+        _callable_key(input.decoder),
+    )
+
+
+def _callable_key(fn: object) -> Hashable:
+    if isinstance(fn, functools.partial):
+        return (
+            _callable_key(fn.func),
+            tuple(_value_key(arg) for arg in fn.args),
+            tuple(
+                sorted((name, _value_key(value)) for name, value in fn.keywords.items())
+            ),
+        )
+    if isinstance(fn, MethodType):
+        # a new bound method object is created on each attribute access
+        return ("method", id(fn.__self__), fn.__func__)
+    return ("object", id(fn))
+
+
+def _value_key(value: object) -> Hashable:
+    if value is None or isinstance(value, str | int | float):
+        return value
+    if isinstance(value, list | tuple):
+        return (type(value).__name__, tuple(_value_key(item) for item in value))
+    if isinstance(value, dict):
+        return ("dict", tuple((key, _value_key(item)) for key, item in value.items()))
+    if isinstance(value, transformers.generation.StopStringCriteria):
+        # built anew from config.stop_seqs on each call
+        return ("StopStringCriteria", value.stop_strings)
+    if callable(value):
+        return _callable_key(value)
+    return ("object", id(value))
+
+
+def _generate_batch(batch: list[_QueueItem]) -> None:
+    try:
+        # capture the generator and decoder functions
+        start_time = time.monotonic()
+        first_input = batch[0].input
+        device = first_input.device
+        tokenizer = first_input.tokenizer
+        generator = first_input.generator
+        decoder = first_input.decoder
+
+        # tokenize and move to device
+        tokenized_inputs = tokenizer([item.input.input for item in batch])
+        input_ids = tokenized_inputs["input_ids"]
+        attention_mask = tokenized_inputs["attention_mask"]
+        input_ids = input_ids.to(device)
+        attention_mask = attention_mask.to(device)
+
+        # generate
+        with torch.inference_mode():
+            generation_outputs = cast(
+                ModelGenerateOutput,
+                generator(input_ids=input_ids, attention_mask=attention_mask),
+            )
+            generate_ids = generation_outputs.sequences
+            logits = generation_outputs.logits
+            hidden_states = generation_outputs.hidden_states
+
+        # get logprobs from logits
+        logprobs = None
+        if logits is not None:
+            stacked_logits = torch.stack(logits).transpose(0, 1)
+            logprobs = torch.nn.functional.log_softmax(stacked_logits, dim=-1)
+
+        # decode
+        generated_tokens = generate_ids[:, input_ids.size(dim=1) :]
+        if logprobs is not None:
+            assert logprobs.shape[1] == generated_tokens.shape[1]
+        outputs = decoder(sequences=generated_tokens)
+
+        # call back futures
+        total_time = time.monotonic() - start_time
+        for i, output in enumerate(outputs):
+            future = batch[i].future
+            input_tokens = input_ids.size(dim=1)
+            output_tokens = generate_ids.size(dim=1) - input_ids.size(dim=1)
+
+            # asyncio futures are not thread safe, so we need to pass the event loop
+            # down to this point, so we can mark the future as done in a thread safe manner.
+            # see: https://docs.python.org/3/library/asyncio-dev.html#concurrency-and-multithreading
+            future.set_result(
+                GenerateOutput(
+                    output=output,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=input_tokens + output_tokens,
+                    logprobs=logprobs[i] if logprobs is not None else None,
+                    # slice this sample out of the batch dimension and
+                    # materialize to lists here (off the event loop) so each
+                    # sample records only its own activations, once
+                    hidden_states=hidden_states_to_jsonable(
+                        hidden_states, sample_index=i
+                    ),
+                    time=total_time,
                 )
-                generate_ids = generation_outputs.sequences
-                logits = generation_outputs.logits
-                hidden_states = generation_outputs.hidden_states
+            )
 
-            # get logprobs from logits
-            logprobs = None
-            if logits is not None:
-                stacked_logits = torch.stack(logits).transpose(0, 1)
-                logprobs = torch.nn.functional.log_softmax(stacked_logits, dim=-1)
-
-            # decode
-            generated_tokens = generate_ids[:, input_ids.size(dim=1) :]
-            if logprobs is not None:
-                assert logprobs.shape[1] == generated_tokens.shape[1]
-            outputs = decoder(sequences=generated_tokens)
-
-            # call back futures
-            total_time = time.monotonic() - start_time
-            for i, output in enumerate(outputs):
-                future = inputs[i][1]
-                input_tokens = input_ids.size(dim=1)
-                output_tokens = generate_ids.size(dim=1) - input_ids.size(dim=1)
-
-                # asyncio futures are not thread safe, so we need to pass the event loop
-                # down to this point, so we can mark the future as done in a thread safe manner.
-                # see: https://docs.python.org/3/library/asyncio-dev.html#concurrency-and-multithreading
-                future.set_result(
-                    GenerateOutput(
-                        output=output,
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                        total_tokens=input_tokens + output_tokens,
-                        logprobs=logprobs[i] if logprobs is not None else None,
-                        hidden_states=hidden_states
-                        if hidden_states is not None
-                        else None,
-                        time=total_time,
-                    )
-                )
-
-        except Exception as ex:
-            for inp in inputs:
-                future = inp[1]
-                future.set_exception(ex)
+    except Exception as ex:
+        for item in batch:
+            # an earlier sample may already have its result; setting an
+            # exception on it would raise and stop the batch thread
+            if not item.future.done():
+                item.future.set_exception(ex)
 
 
 def extract_logprobs(

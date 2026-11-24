@@ -12,7 +12,7 @@ import pytest
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
-from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory
+from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.compression_transcoding import _DeflateCompressStream
 from inspect_ai._util.zip_common import ZipCompressionMethod, ZipEntry
@@ -449,6 +449,138 @@ async def test_false_zip64_locator_in_compressed_data(tmp_path: Path) -> None:
         assert len(cd.entries) > 0
 
 
+async def test_eocd_fields_containing_eocd_signature(tmp_path: Path) -> None:
+    """A valid archive whose EOCD fields spell out the EOCD signature is read."""
+    zip_path = tmp_path / "eocd_in_eocd.zip"
+
+    # 0x4B50 entries puts b"PK" in the entry-count field; a central directory
+    # size of 0x....0605 follows it with b"\x05\x06".
+    count = 0x4B50
+    names = [f"{i:05d}" for i in range(count)]
+    pad = (0x0605 - count * 46 - sum(len(n) for n in names)) % 0x10000
+    names = [n + ("x" if i < pad else "") for i, n in enumerate(names)]
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        for name in names:
+            zf.writestr(name, b"")
+    assert zip_path.read_bytes()[-12:-8] == b"PK\x05\x06"
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        cd = await reader.entries()
+        assert [e.filename for e in cd.entries] == names
+
+
+async def test_eocd_with_trailing_data(tmp_path: Path) -> None:
+    """Bytes appended after the EOCD don't hide it, as with stdlib zipfile."""
+    zip_path = tmp_path / "trailing.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("member.txt", b"payload")
+    with open(zip_path, "ab") as f:
+        f.write(b"\0" * 100)
+
+    with zipfile.ZipFile(zip_path) as zf:
+        assert zf.read("member.txt") == b"payload"
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        assert await reader.read_member_fully("member.txt") == b"payload"
+
+
+async def test_truncated_eocd_raises(tmp_path: Path) -> None:
+    """A truncated EOCD raises rather than an earlier signature being read."""
+    zip_path = tmp_path / "truncated.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("PK\x05\x06" + "A" * 30, b"")
+    zip_path.write_bytes(zip_path.read_bytes()[:-1])
+
+    with pytest.raises(zipfile.BadZipFile):
+        zipfile.ZipFile(zip_path)
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        with pytest.raises(ValueError, match="EOCD not found"):
+            await reader.entries()
+
+
+@pytest.mark.parametrize("cut", [19, 34])
+async def test_truncation_exposing_earlier_eocd_signature_raises(
+    tmp_path: Path, cut: int
+) -> None:
+    """A central directory that doesn't match the EOCD found raises.
+
+    Cutting 19 or more bytes leaves too little of the real EOCD to be found,
+    so the signature in a member name is read as the EOCD instead.
+    """
+    zip_path = tmp_path / "truncated.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("a", b"")
+        zf.writestr("PK\x05\x06" + "A" * 30, b"")
+    zip_path.write_bytes(zip_path.read_bytes()[:-cut])
+
+    with pytest.raises(zipfile.BadZipFile):
+        zipfile.ZipFile(zip_path)
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        with pytest.raises(ValueError, match="central directory"):
+            await reader.entries()
+
+
+async def test_truncation_exposing_earlier_eocd_with_bad_header_raises(
+    tmp_path: Path,
+) -> None:
+    """A stray EOCD pointing at bytes that aren't central directory headers raises.
+
+    The member's extra field completes the signature in its name into an EOCD
+    describing a 46-byte central directory at offset 0, the local file header.
+    """
+    zip_path = tmp_path / "truncated.zip"
+    info = zipfile.ZipInfo("bPK\x05\x06")
+    info.extra = struct.pack("<HHHHIIH", 0x9999, 14, 1, 1, 46, 0, 0)
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr(info, b"")
+    zip_path.write_bytes(zip_path.read_bytes()[:-19])
+
+    with pytest.raises(zipfile.BadZipFile):
+        zipfile.ZipFile(zip_path)
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        with pytest.raises(ValueError, match="Bad signature"):
+            await reader.entries()
+
+
+async def test_read_empty_archive(tmp_path: Path) -> None:
+    zip_path = tmp_path / "empty.zip"
+    with zipfile.ZipFile(zip_path, "w"):
+        pass
+
+    async with AsyncFilesystem() as fs:
+        cd = await AsyncZipReader(fs, str(zip_path)).entries()
+        assert cd.entries == []
+
+
+async def test_65535_entries_without_zip64(tmp_path: Path) -> None:
+    """A 0xFFFF entry count with no ZIP64 locator isn't sent searching for one.
+
+    stdlib writes 65535 entries as a plain EOCD. Here a member name puts the
+    locator signature in the tail, where a search would find it.
+    """
+    zip_path = tmp_path / "65535.zip"
+    names = [str(i) for i in range(0xFFFF - 1)] + ["PK\x06\x07" + "A" * 20]
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        for name in names:
+            zf.writestr(name, b"")
+    data = zip_path.read_bytes()
+    assert b"PK\x06\x06" not in data
+    assert struct.unpack_from("<H", data, len(data) - 12)[0] == 0xFFFF
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        cd = await reader.entries()
+        assert [e.filename for e in cd.entries] == names
+
+
 async def test_deflate_compress_stream() -> None:
     """Test that _DeflateCompressStream correctly deflate-compresses data."""
     original_data = b"The quick brown fox jumps over the lazy dog. " * 100
@@ -628,3 +760,94 @@ async def test_read_multi_frame_zstd_member(
     assert data == payload, (
         f"round-trip mismatch: wrote {len(payload)} bytes, read back {len(data)} bytes"
     )
+
+
+# --- opt-in CRC-32 verification (inspect ctl ... --log-dir) -------------------
+
+
+@pytest.fixture
+def crc_zip(tmp_path: Path) -> Path:
+    zip_path = tmp_path / "crc.zip"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("member.json", json.dumps({"value": "x" * 5000}))
+        zf.writestr("stored.txt", "stored bytes", compress_type=zipfile.ZIP_STORED)
+    return zip_path
+
+
+async def _stream(reader: AsyncZipReader, member: str | ZipEntry) -> bytes:
+    chunks = []
+    async with await reader.open_member(member) as stream:
+        async for chunk in stream:
+            chunks.append(chunk)
+    return b"".join(chunks)
+
+
+async def test_central_directory_keeps_member_crc(crc_zip: Path) -> None:
+    async with AsyncFilesystem() as fs:
+        cd = await AsyncZipReader(fs, str(crc_zip)).entries()
+    with zipfile.ZipFile(crc_zip) as zf:
+        expected = {info.filename: info.CRC for info in zf.infolist()}
+    assert {e.filename: e.crc32 for e in cd.entries} == expected
+
+
+@pytest.mark.parametrize("member", ["member.json", "stored.txt"])
+async def test_verify_crc_accepts_intact_members(crc_zip: Path, member: str) -> None:
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(crc_zip), verify_crc=True)
+        full = await reader.read_member_fully(member)
+        assert await _stream(reader, member) == full
+
+
+@pytest.mark.parametrize("member", ["member.json", "stored.txt"])
+async def test_verify_crc_rejects_a_mismatch_on_full_and_streamed_reads(
+    crc_zip: Path, member: str
+) -> None:
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(crc_zip), verify_crc=True)
+        entry = await reader.get_member_entry(member)
+        assert entry.crc32 is not None
+        # as if the member came from another version of the object
+        entry.crc32 ^= 1
+        with pytest.raises(ZipCrcError, match="CRC-32 mismatch"):
+            await reader.read_member_fully(member)
+        with pytest.raises(ZipCrcError, match="CRC-32 mismatch"):
+            await _stream(reader, member)
+
+
+async def test_crc_is_not_verified_by_default_or_for_raw_or_early_closed_reads(
+    crc_zip: Path,
+) -> None:
+    async with AsyncFilesystem() as fs:
+        default = AsyncZipReader(fs, str(crc_zip))
+        entry = await default.get_member_entry("member.json")
+        assert entry.crc32 is not None
+        entry.crc32 ^= 1
+        # existing callers are unchanged
+        assert await default.read_member_fully("member.json")
+        assert await _stream(default, "member.json")
+
+        verifying = AsyncZipReader(
+            fs, str(crc_zip), verify_crc=True, central_directory=await default.entries()
+        )
+        # raw bytes are compressed, so the CRC does not apply to them
+        async with await verifying.open_member_raw("member.json") as raw:
+            assert b"".join([chunk async for chunk in raw])
+        # a stream closed before its end is never validated (and raises nothing)
+        async with await verifying.open_member("member.json") as stream:
+            async for _ in stream:
+                break
+
+
+async def test_reader_reuses_a_given_central_directory(
+    crc_zip: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async with AsyncFilesystem() as fs:
+        cd = await AsyncZipReader(fs, str(crc_zip)).entries()
+
+        async def no_suffix_read(*args: object) -> None:
+            raise AssertionError("central directory re-read")
+
+        monkeypatch.setattr(fs, "read_file_suffix", no_suffix_read)
+        reader = AsyncZipReader(fs, str(crc_zip), central_directory=cd)
+        assert await reader.entries() is cd
+        assert json.loads(await reader.read_member_fully("member.json"))["value"]

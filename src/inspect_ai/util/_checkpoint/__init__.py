@@ -15,18 +15,26 @@ from ._triggers import (
 )
 from .checkpointer import Checkpointer, checkpointer, current_checkpointer
 from .config import (
+    ArchiveSnapshots,
     CheckpointConfig,
     CheckpointSampleConfig,
+    ResticSnapshots,
+    SandboxSnapshotConfig,
+    SnapshotStrategyConfig,
     normalize_checkpoint,
 )
 from .report import ResumeReport
 
 __all__ = [
+    "ArchiveSnapshots",
     "CheckpointConfig",
     "CheckpointSampleConfig",
     "CheckpointTrigger",
     "Manual",
+    "ResticSnapshots",
     "ResumeReport",
+    "SandboxSnapshotConfig",
+    "SnapshotStrategyConfig",
     "TimeInterval",
     "TokenInterval",
     "TurnInterval",

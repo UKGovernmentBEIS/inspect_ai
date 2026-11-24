@@ -92,6 +92,12 @@ def aggregate(
         extracted: list[SampleScore] = []
         for sample_score in scores:
             value = sample_score.score.value
+
+            # Root-level NaN is the unscored sentinel (Score.unscored()): skip it
+            # regardless of on_missing, matching results.py and per-key NaN skipping.
+            if isinstance(value, float) and math.isnan(value):
+                continue
+
             if not isinstance(value, dict):
                 raise ValueError(
                     f"Sample {sample_score.sample_id} has non-dict score value "

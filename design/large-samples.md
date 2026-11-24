@@ -274,7 +274,7 @@ Two classes of content, marked throughout:
   byte source ([#9](https://github.com/epatey/inspect_ai/issues/9)), live
   skeleton/stats emission ([#19](https://github.com/epatey/inspect_ai/issues/19)).
   These decisions are low-confidence direction, and by construction of the
-  phasing (read-first, [Phasing](#phasing--compatibility-18)) they stay
+  phasing (read-first, [Phasing](#part-v--phasing--compatibility-18)) they stay
   unexercised until phase 2. **Re-validate — possibly revise — during
   live-path implementation.** They are recorded so phase-2 work starts from a
   coherent story, not so it treats them as settled.
@@ -546,7 +546,7 @@ Ratified mechanisms:
    spans key only on type+name; failed/agent/subtask filters target events,
    evaluated window-locally). Additive later via version bump + regeneration.
 5. **Lifecycle**: written at sample finalize (live: re-emitted per flush,
-   [#19](#live-skeleton--stats-availability-19-️-provisional)); monolith
+   [#19](#live-skeleton--stats-availability-19)); monolith
    samples carry no skeleton ([#17](#small-sample-monolith-threshold-17));
    producer = the Python timeline code with a **TS twin pinned by a shared
    JSON test suite**; the converter backfills. **Legacy step-only logs**: the
@@ -719,7 +719,7 @@ format become one encoding; the sealed zip remains the single final artifact.
    OR-filter/post-filter protocol are retired.
 5. **Sidecar rule.** Everything span- or chunk-proportional that a late-joining
    reader needs is a live supersede-member: `skeleton.json` and the stats
-   sidecar (see [#19](#live-skeleton--stats-availability-19-️-provisional)).
+   sidecar (see [#19](#live-skeleton--stats-availability-19)).
    Completion-semantic artifacts are seal-only: `sample.json` shell
    (`message_refs` only exist at completion; the manifest summary serves the
    live role), `metadata.json`, reductions, header.

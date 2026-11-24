@@ -11,10 +11,12 @@ covered by Phase 5's ``test_elicitation.py``.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any, Callable
 from unittest.mock import MagicMock
 
 import pytest
+from acp.exceptions import RequestError
 from acp.schema import (
     AcceptElicitationResponse,
     CancelElicitationResponse,
@@ -25,12 +27,14 @@ from acp.schema import (
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp.transport import ElicitationRequest
+from inspect_ai.log._samples import ActiveSample, PendingInteraction
 from inspect_ai.util import InputRequest
 from inspect_ai.util._input.acp import (
     _request_from_driver_with_fallback,
     _result_from_response,
     acp_handler,
 )
+from inspect_ai.util._input.request import request_input
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -287,6 +291,30 @@ async def test_fallback_chain_advances_on_per_client_exception() -> None:
 
 
 @skip_if_trio
+@pytest.mark.parametrize(
+    ("exc", "level"),
+    [
+        (ConnectionError("disconnected"), logging.DEBUG),
+        (RequestError.invalid_params({"details": "bad schema"}), logging.WARNING),
+    ],
+)
+async def test_fallback_failed_request_log_level(
+    exc: Exception, level: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An error reply is logged at WARNING; a disconnect stays at DEBUG."""
+    failing = _StubClient(exc=exc)
+    survivor = _StubClient(response=_accept({"answer": "ok"}))
+
+    with caplog.at_level(logging.DEBUG, logger="inspect_ai.util._input.acp"):
+        await _request_from_driver_with_fallback(
+            _StubSession([failing, survivor]), _elicitation_request()
+        )
+
+    (record,) = [r for r in caplog.records if "request failed" in r.getMessage()]
+    assert record.levelno == level
+
+
+@skip_if_trio
 async def test_fallback_re_parks_when_chain_empties_after_attach() -> None:
     """After a client attaches then disconnects, the shim parks again.
 
@@ -502,27 +530,18 @@ async def test_entry_parks_when_live_with_no_clients(
     assert result.content == {"answer": "after-attach"}
 
 
-class _PendingSample:
-    """Stub sample exposing the pending-interaction counter API.
+class _PendingSample(ActiveSample):
+    """Stub sample exposing the pending-interaction API.
 
     Mirrors the approval test's helper of the same name — see
     ``tests/agent/test_acp/test_approval.py`` for the full rationale.
-    Tests using this stub exercise the shim's increment/decrement
-    contract under realistic concurrent-wait conditions.
+    Tests using this stub exercise the shim's set/clear contract under
+    realistic concurrent-wait conditions.
     """
 
     def __init__(self) -> None:
-        self._pending_approvals = 0
-        self._pending_questions = 0
+        self._pending_interactions: list[PendingInteraction] = []
         self.acp_transport: Any = None
-
-    @property
-    def pending_interaction(self) -> str | None:
-        if self._pending_approvals > 0:
-            return "approval"
-        if self._pending_questions > 0:
-            return "question"
-        return None
 
 
 @skip_if_trio
@@ -541,7 +560,9 @@ async def test_entry_marks_pending_interaction_during_park(
     sample.acp_transport = session
     monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
 
-    shim_task = asyncio.create_task(acp_handler(_input_request()))
+    shim_task = asyncio.create_task(
+        request_input(message="What's the secret?", schema=_trivial_schema())
+    )
     await asyncio.sleep(0.05)
     assert not shim_task.done()
     assert sample.pending_interaction == "question"
@@ -566,7 +587,9 @@ async def test_entry_clears_pending_interaction_on_cancellation(
     sample.acp_transport = session
     monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
 
-    shim_task = asyncio.create_task(acp_handler(_input_request()))
+    shim_task = asyncio.create_task(
+        request_input(message="What's the secret?", schema=_trivial_schema())
+    )
     await asyncio.sleep(0.05)
     assert sample.pending_interaction == "question"
 

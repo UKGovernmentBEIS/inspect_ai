@@ -255,6 +255,42 @@ async def test_eval_recorder_multiple_updates_ordered(tmp_path: Path) -> None:
     assert [u.changes[0].value for u in read.config_updates] == [8, 16]
 
 
+async def test_eval_recorder_update_before_first_write_creates_no_destination(
+    tmp_path: Path,
+) -> None:
+    # The eager per-update flush keys off "the destination has been written at
+    # least once" (ZipLogFile.destination_written), so a retune before
+    # log_start's flush stays journal-only — writing it would create an empty
+    # newest log ahead of the seeded first write (design/retry-seeded-attempt-log.md).
+    log = _make_log()
+    recorder = EvalRecorder(str(tmp_path))
+    location = await recorder.log_init(log.eval)
+    await recorder.log_start(log.eval, log.plan)
+
+    update = _update(
+        ConfigValueChange(config="eval", name="max_samples", value=8, previous=4),
+        scope="task",
+    )
+    await recorder.log_config_update(log.eval, update)
+    assert not Path(location).exists()
+
+    # once the destination exists, the journaled update is there and later
+    # updates resume flushing eagerly
+    await recorder.flush(log.eval)
+    with zipfile.ZipFile(location) as zf:
+        assert "_journal/config_updates/1.json" in zf.namelist()
+
+    await recorder.log_config_update(
+        log.eval,
+        _update(
+            ConfigValueChange(config="eval", name="max_samples", value=16),
+            scope="task",
+        ),
+    )
+    with zipfile.ZipFile(location) as zf:
+        assert "_journal/config_updates/2.json" in zf.namelist()
+
+
 async def test_json_recorder_accumulates_updates(tmp_path: Path) -> None:
     log = _make_log()
     recorder = JSONRecorder(str(tmp_path))

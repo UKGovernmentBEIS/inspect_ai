@@ -1,7 +1,6 @@
 from collections import Counter
+from enum import StrEnum
 from typing import Mapping, Sequence
-
-from inspect_ai._util.strenum import StrEnum
 
 from .._metric import Metric, SampleScore, Value, metric
 

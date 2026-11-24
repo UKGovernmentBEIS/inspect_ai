@@ -7,7 +7,6 @@ handler tasks). The scope shares a mutable cell by reference instead, so
 these tests center on cross-task visibility.
 """
 
-import logging
 from collections.abc import Iterator
 
 import anyio
@@ -20,10 +19,16 @@ from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.util._span import (
     SpanRotationScope,
     current_span_id,
+    parent_span,
     span,
     span_id_provider,
 )
-from inspect_ai.util._store import Store, init_subtask_store, store
+from inspect_ai.util._store import (
+    Store,
+    init_subtask_store,
+    store,
+    suspend_store_events,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -125,22 +130,16 @@ async def test_current_span_is_parent_between_spans() -> None:
 async def test_no_cross_context_warning_on_cross_task_rotation(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # inspect_ai loggers don't propagate; attach caplog's handler directly
-    span_logger = logging.getLogger("inspect_ai.util._span")
-    span_logger.addHandler(caplog.handler)
-    try:
-        scope = SpanRotationScope(type="checkpoint")
-        await scope.open("checkpoint 1")
+    scope = SpanRotationScope(type="checkpoint")
+    await scope.open("checkpoint 1")
 
-        async def rotate() -> None:
-            await scope.end_span()
-            await scope.begin_span("checkpoint 2")
+    async def rotate() -> None:
+        await scope.end_span()
+        await scope.begin_span("checkpoint 2")
 
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(rotate)
-        await scope.close()
-    finally:
-        span_logger.removeHandler(caplog.handler)
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(rotate)
+    await scope.close()
 
     assert not [r for r in caplog.records if "another context" in r.getMessage()]
 
@@ -162,6 +161,48 @@ async def test_store_changes_emitted_inside_closing_span() -> None:
     # StoreEvent precedes the SpanEndEvent (same ordering as `span()`)
     end_index = next(i for i, e in enumerate(events) if isinstance(e, SpanEndEvent))
     assert events.index(store_events[0]) < end_index
+
+
+async def test_suspend_store_events_fixed_at_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A scope opened inside the switch neither snapshots nor logs the store.
+
+    A scope opened outside it keeps tracking, even when a task inside the
+    switch rotates it.
+    """
+    events: list[object] = []
+    transcript()._subscribe(events.append)
+    snapshots: list[None] = []
+
+    def counting_store_jsonable(s: Store) -> dict[str, object]:
+        snapshots.append(None)
+        return dict(s.items())
+
+    monkeypatch.setattr(
+        "inspect_ai.util._store.store_jsonable", counting_store_jsonable
+    )
+
+    with suspend_store_events():
+        scope = SpanRotationScope(type="checkpoint")
+        await scope.open("checkpoint 1")
+        store().set("suspended", 1)
+        await scope.end_span()
+        await scope.begin_span("checkpoint 2")
+        await scope.close()
+    assert snapshots == []
+    assert not [e for e in events if isinstance(e, StoreEvent)]
+
+    scope = SpanRotationScope(type="checkpoint")
+    await scope.open("checkpoint 3")
+    store().set("tracked", 1)
+    with suspend_store_events():
+        await scope.end_span()
+        await scope.begin_span("checkpoint 4")
+    await scope.close()
+
+    store_events = [e for e in events if isinstance(e, StoreEvent)]
+    assert [[c.path for c in e.changes] for e in store_events] == [["/tracked"]]
 
 
 async def test_span_id_provider_consulted() -> None:
@@ -202,3 +243,28 @@ async def test_close_is_idempotent() -> None:
     await scope.open("checkpoint 2")
     assert current_span_id() is not None
     await scope.close()
+
+
+async def test_parent_span_places_events_and_spans_under_the_given_parent() -> None:
+    async with span("current"):
+        current = current_span_id()
+        with parent_span("elsewhere"):
+            info = InfoEvent(data="placed")
+            async with span("child"):
+                child = current_span_id()
+        assert current_span_id() == current
+
+    assert info.span_id == "elsewhere"
+    [begin] = [
+        e
+        for e in transcript().events
+        if isinstance(e, SpanBeginEvent) and e.id == child
+    ]
+    assert begin.parent_id == "elsewhere"
+
+
+async def test_parent_span_none_leaves_the_current_span() -> None:
+    async with span("current"):
+        current = current_span_id()
+        with parent_span(None):
+            assert current_span_id() == current

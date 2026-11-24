@@ -4,7 +4,7 @@ from inspect_ai.solver import TaskState
 
 
 @task
-def my_task():
+def score_state_task():
     return Task()
 
 
@@ -18,7 +18,7 @@ def my_scorer(existing_uuid: str):
 
 def test_score_edit_event_span_integration():
     eval_logs = eval(
-        tasks=[my_task],
+        tasks=[score_state_task],
         model="mockllm/model",
     )
 

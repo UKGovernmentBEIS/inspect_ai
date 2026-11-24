@@ -87,6 +87,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     attempt_timeout: int | None
     """Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."""
 
+    stream_idle_timeout: int | None
+    """Timeout (in seconds) on silence within a streaming response — if a streaming attempt delivers no chunk for this long, the attempt is abandoned and retried according to max_retries. Setting it requests streaming (like on_stream); it has no effect on calls that do not stream."""
+
     max_connections: int | None
     """Maximum number of concurrent connections to Model API (default is model specific)."""
 
@@ -124,7 +127,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Random seed. OpenAI, Google, Mistral, Groq, HuggingFace, and vLLM only."""
 
     top_k: int | None
-    """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, and HuggingFace only."""
+    """Randomly sample the next word from the top_k most likely next words. Google and HuggingFace only."""
 
     num_choices: int | None
     """How many chat completion choices to generate for each input message. OpenAI, Grok, Google, and TogetherAI only."""
@@ -148,10 +151,13 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""
 
     cache_prompt: Literal["auto"] | bool | None
-    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only."""
+    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable: on Anthropic and Bedrock Converse (Claude and Nova) this turns off the provider's own automatic caching; on OpenAI it only turns off explicit `cache_breakpoint` marks — the model's own implicit caching still applies regardless. Use `ContentText(cache_breakpoint=True)` to mark an explicit cache boundary (e.g. a fixed rubric ahead of a varying item) instead of relying on automatic caching; Anthropic and OpenAI `gpt-5.6`+ only."""
 
     fallback_models: list[str] | None
     """Fallback models tried in order when the model's safety classifiers refuse the request. Anthropic Claude API only (not supported on Bedrock/Vertex/Azure or with batch mode)."""
+
+    fail_on_refusal: bool | None
+    """Raise a `ModelRefusalError` (failing the sample) when the model returns `stop_reason="content_filter"`. Defaults to False."""
 
     verbosity: Literal["low", "medium", "high"] | None
     """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
@@ -207,6 +213,9 @@ class GenerateConfig(BaseModel):
     attempt_timeout: int | None = Field(default=None)
     """Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."""
 
+    stream_idle_timeout: int | None = Field(default=None)
+    """Timeout (in seconds) on silence within a streaming response — if a streaming attempt delivers no chunk for this long, the attempt is abandoned and retried according to max_retries. Setting it requests streaming (like on_stream); it has no effect on calls that do not stream."""
+
     max_connections: int | None = Field(default=None)
     """Maximum number of concurrent connections to Model API (default is model specific)."""
 
@@ -244,7 +253,7 @@ class GenerateConfig(BaseModel):
     """Random seed. OpenAI, Google, Mistral, Groq, HuggingFace, and vLLM only."""
 
     top_k: int | None = Field(default=None)
-    """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, vLLM, and SGLang only."""
+    """Randomly sample the next word from the top_k most likely next words. Google, HuggingFace, vLLM, and SGLang only."""
 
     num_choices: int | None = Field(default=None)
     """How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, vLLM, and SGLang only."""
@@ -275,10 +284,13 @@ class GenerateConfig(BaseModel):
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""
 
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
-    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only."""
+    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable: on Anthropic and Bedrock Converse (Claude and Nova) this turns off the provider's own automatic caching; on OpenAI it only turns off explicit `cache_breakpoint` marks — the model's own implicit caching still applies regardless. Use `ContentText(cache_breakpoint=True)` to mark an explicit cache boundary (e.g. a fixed rubric ahead of a varying item) instead of relying on automatic caching; Anthropic and OpenAI `gpt-5.6`+ only."""
 
     fallback_models: list[str] | None = Field(default=None)
     """Fallback models tried in order when the model's safety classifiers refuse the request. Anthropic Claude API only (not supported on Bedrock/Vertex/Azure or with batch mode)."""
+
+    fail_on_refusal: bool | None = Field(default=None)
+    """Raise a `ModelRefusalError` (failing the sample) when the model returns `stop_reason="content_filter"`. Defaults to False."""
 
     verbosity: Literal["low", "medium", "high"] | None = Field(default=None)
     """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
@@ -385,6 +397,18 @@ class GenerateConfig(BaseModel):
             if value is not None:
                 setattr(config, key, deepcopy(value))
         return config
+
+
+def generate_config_dict(config: GenerateConfig) -> dict[str, Any]:
+    """Dump a generate config without its None fields, except a cache's expiry.
+
+    A cache policy with no ``expiry`` validates with the "1W" default, so a
+    cache that never expires keeps an explicit None.
+    """
+    config_dict = config.model_dump(exclude_none=True)
+    if isinstance(config.cache, CachePolicy) and config.cache.expiry is None:
+        config_dict["cache"]["expiry"] = None
+    return config_dict
 
 
 def active_generate_config() -> GenerateConfig:

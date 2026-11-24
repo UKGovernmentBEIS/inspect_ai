@@ -68,20 +68,47 @@ def test_moonshot_kimi_k3_no_warning_when_params_unset(
     assert not any("fixed sampling" in m for m in _warn_once_messages)
 
 
-def test_moonshot_kimi_k3_coerces_reasoning_effort(mock_moonshot_env):
-    """K3 thinking effort only accepts "max" — other values are coerced silently."""
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("none", "low"),
+        ("minimal", "low"),
+        ("low", "low"),
+        ("medium", "high"),
+        ("high", "high"),
+        ("xhigh", "max"),
+        ("max", "max"),
+    ],
+)
+def test_moonshot_kimi_k3_maps_reasoning_effort(
+    mock_moonshot_env, _warn_once_messages, effort, expected
+):
+    """K3 accepts low/high/max — supported values pass through, others map silently.
+
+    `none` maps to `low` because omitting the field would select K3's default, `max`.
+    """
     from inspect_ai.model._providers.moonshot import MoonshotAPI
 
     api = MoonshotAPI(model_name="kimi-k3")
     params = api.completion_params(
-        config=GenerateConfig(reasoning_effort="high"), tools=False
+        config=GenerateConfig(reasoning_effort=effort), tools=False
     )
-    assert params["reasoning_effort"] == "max"
+    assert params["reasoning_effort"] == expected
+    assert not any("reasoning_effort" in m for m in _warn_once_messages)
 
+
+def test_moonshot_kimi_k2_6_preserves_reasoning_effort(
+    mock_moonshot_env, _warn_once_messages
+):
+    """The K3 effort mapping doesn't apply to other Kimi models."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+    api = MoonshotAPI(model_name="kimi-k2.6")
     params = api.completion_params(
-        config=GenerateConfig(reasoning_effort="max"), tools=False
+        config=GenerateConfig(reasoning_effort="medium"), tools=False
     )
-    assert params["reasoning_effort"] == "max"
+    assert params["reasoning_effort"] == "medium"
+    assert not _warn_once_messages
 
 
 def test_moonshot_kimi_k3_coerces_forced_tool_choice(
@@ -109,12 +136,84 @@ def test_moonshot_kimi_k3_coerces_forced_tool_choice(
     assert not _warn_once_messages
 
 
+def test_moonshot_kimi_k2_6_drops_forced_tool_choice(
+    mock_moonshot_env, _warn_once_messages
+):
+    """Non-K3 Kimi models reject both named and 'required' tool_choice with thinking — coerce to "auto"."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+    from inspect_ai.tool import ToolFunction
+
+    api = MoonshotAPI(model_name="kimi-k2.6")
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice=ToolFunction(name="addition"), config=GenerateConfig()
+    )
+    assert tool_choice == "auto"
+    assert any(
+        "addition" in m and "kimi-k2.6" in m and '"auto"' in m
+        for m in _warn_once_messages
+    ), "expected a warning for dropped tool forcing"
+
+
+def test_moonshot_kimi_k2_6_coerces_any_tool_choice(
+    mock_moonshot_env, _warn_once_messages
+):
+    """Explicit tool_choice="any" (sent as 'required') also 400s on non-K3 Kimi — coerce to "auto"."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+    api = MoonshotAPI(model_name="kimi-k2.6")
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice="any", config=GenerateConfig()
+    )
+    assert tool_choice == "auto"
+    assert any("kimi-k2.6" in m and '"auto"' in m for m in _warn_once_messages), (
+        "expected a warning for coerced tool_choice"
+    )
+
+    # K3 accepts 'required', so "any" passes through there
+    _warn_once_messages.clear()
+    api = MoonshotAPI(model_name="kimi-k3")
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice="any", config=GenerateConfig()
+    )
+    assert tool_choice == "any"
+    assert not _warn_once_messages
+
+
+@pytest.mark.parametrize("model", ["kimi-k3.1-pro", "kimi-k3.1-pro-highspeed"])
+def test_moonshot_kimi_k3_1_pro_uses_k3_handling(
+    mock_moonshot_env, _warn_once_messages, model
+):
+    """K3.1 Pro shares K3's constraints: fixed sampling, 'required' allowed, named tool_choice not."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+    from inspect_ai.tool import ToolFunction
+
+    api = MoonshotAPI(model_name=model)
+    params = api.completion_params(
+        config=GenerateConfig(temperature=0.7, top_p=0.9), tools=False
+    )
+    assert "temperature" not in params
+    assert "top_p" not in params
+
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice=ToolFunction(name="addition"), config=GenerateConfig()
+    )
+    assert tool_choice == "any"
+    assert any("addition" in m and model in m for m in _warn_once_messages), (
+        "expected a warning for coerced tool_choice"
+    )
+
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice="any", config=GenerateConfig()
+    )
+    assert tool_choice == "any"
+
+
 def test_moonshot_thinking_disabled_preserves_forced_tool_choice(mock_moonshot_env):
     """Disabling thinking via extra_body lifts the named tool_choice restriction."""
     from inspect_ai.model._providers.moonshot import MoonshotAPI
     from inspect_ai.tool import ToolFunction
 
-    api = MoonshotAPI(model_name="kimi-k2.5")
+    api = MoonshotAPI(model_name="kimi-k2.6")
     _, tool_choice, _ = api.resolve_tools(
         tools=[],
         tool_choice=ToolFunction(name="addition"),
@@ -131,11 +230,11 @@ def test_moonshot_forwards_model_args(mock_moonshot_env):
     assert api.client.default_headers.get("X-Test") == "yes"
 
 
-def test_moonshot_kimi_k2_5_drops_fixed_sampling_params(mock_moonshot_env):
-    """All Kimi thinking models use fixed sampling by default, not just K3."""
+def test_moonshot_kimi_k2_6_drops_fixed_sampling_params(mock_moonshot_env):
+    """All Kimi thinking models use fixed sampling, not just K3."""
     from inspect_ai.model._providers.moonshot import MoonshotAPI
 
-    api = MoonshotAPI(model_name="kimi-k2.5")
+    api = MoonshotAPI(model_name="kimi-k2.6")
     params = api.completion_params(
         config=GenerateConfig(temperature=0.7, top_p=0.9),
         tools=False,
@@ -144,18 +243,18 @@ def test_moonshot_kimi_k2_5_drops_fixed_sampling_params(mock_moonshot_env):
     assert "top_p" not in params
 
 
-def test_moonshot_thinking_disabled_preserves_sampling_params(mock_moonshot_env):
-    """Disabling thinking via extra_body lifts the fixed-sampling restriction."""
+def test_moonshot_thinking_disabled_still_drops_sampling_params(mock_moonshot_env):
+    """Fixed sampling applies even with thinking disabled (only the pinned value changes)."""
     from inspect_ai.model._providers.moonshot import MoonshotAPI
 
-    api = MoonshotAPI(model_name="kimi-k2.5")
+    api = MoonshotAPI(model_name="kimi-k2.6")
     params = api.completion_params(
         config=GenerateConfig(
             temperature=0.7, extra_body={"thinking": {"type": "disabled"}}
         ),
         tools=False,
     )
-    assert params["temperature"] == 0.7
+    assert "temperature" not in params
 
 
 def test_moonshot_legacy_model_preserves_sampling_params(mock_moonshot_env):
@@ -338,3 +437,35 @@ async def test_moonshot_kimi_k3_reasoning_content() -> None:
     content = res.choices[0].message.content
     assert isinstance(content, list)
     assert any(isinstance(c, ContentReasoning) for c in content)
+
+
+@skip_if_no_moonshot
+@pytest.mark.parametrize("model", ["kimi-k3.1-pro", "kimi-k3.1-pro-highspeed"])
+async def test_moonshot_kimi_k3_1_pro_tool_loop(model: str) -> None:
+    """A forced tool call (sent as 'required') and its reasoning replay must not 400."""
+    from test_helpers.tools import addition
+
+    from inspect_ai.model import ChatMessage, execute_tools
+    from inspect_ai.tool import ToolFunction
+
+    model_api = get_model(
+        f"moonshot/{model}",
+        config=GenerateConfig(temperature=0.7, reasoning_effort="max", max_tokens=8192),
+    )
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Use the addition tool to compute 1 + 1.")
+    ]
+    res = await model_api.generate(
+        input=messages,
+        tools=[addition()],
+        tool_choice=ToolFunction(name="addition"),
+    )
+    assert res.message.tool_calls
+    content = res.message.content
+    assert isinstance(content, list)
+    assert any(isinstance(c, ContentReasoning) for c in content)
+    messages.append(res.message)
+    result = await execute_tools(messages, [addition()])
+    messages.extend(result.messages)
+    res = await model_api.generate(input=messages, tools=[addition()])
+    assert "2" in res.completion

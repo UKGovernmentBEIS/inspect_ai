@@ -10,6 +10,7 @@ from inspect_scout.aio import scan_async
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai._eval.scan_results import import_scan_results_async
+from inspect_ai._eval.score import resolve_scorers
 from inspect_ai.log import write_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
@@ -19,8 +20,10 @@ from inspect_ai.log._log import (
     EvalResults,
     EvalSample,
     EvalScore,
+    EvalScorer,
     EvalSpec,
 )
+from inspect_ai.log._metric import recompute_metrics
 from inspect_ai.scorer import Score
 
 
@@ -99,21 +102,10 @@ def _row(
 def _scan(
     frames: dict[str, pd.DataFrame],
     *,
-    metrics: dict[str, dict[str, dict[str, float]] | None] | None = None,
     complete: bool = True,
     errors: list[Any] | None = None,
 ) -> SimpleNamespace:
-    metrics = metrics or {}
-    return SimpleNamespace(
-        complete=complete,
-        errors=errors or [],
-        scanners=frames,
-        summary=SimpleNamespace(
-            scanners={
-                name: SimpleNamespace(metrics=metrics.get(name)) for name in frames
-            }
-        ),
-    )
+    return SimpleNamespace(complete=complete, errors=errors or [], scanners=frames)
 
 
 def _install_scan(monkeypatch: pytest.MonkeyPatch, scan: SimpleNamespace) -> None:
@@ -156,7 +148,6 @@ async def test_import_sparse_multiple_scanners_and_references(
             ),
             "quality": pd.DataFrame([_row("uuid-2", "0.75", "number")]),
         },
-        metrics={"risk": {"risk": {"mean": 1.0}}},
     )
     _install_scan(monkeypatch, scan)
 
@@ -202,12 +193,6 @@ async def test_import_resultset_overwrites_existing_scores(
     ]
     scan = _scan(
         {"labels": pd.DataFrame([_row("uuid-1", json.dumps(resultset), "resultset")])},
-        metrics={
-            "labels": {
-                "safe": {"mean": 1.0},
-                "details": {"mean": 2.0},
-            }
-        },
     )
     _install_scan(monkeypatch, scan)
 
@@ -223,9 +208,11 @@ async def test_import_resultset_overwrites_existing_scores(
     assert score_metadata["scanner_results"][1]["explanation"] == "nested context"
     assert imported.samples[1].scores == {}
     assert imported.results is not None
-    assert [score.name for score in imported.results.scores] == ["safe", "details"]
+    # a result set is not numeric: it gets no metrics and no results entry
+    assert imported.results.scores == []
     assert [scorer.name for scorer in imported.eval.scorers or []] == ["labels"]
-    assert imported.reductions is None
+    # rescoring the log does not try to load the scanner as a scorer
+    assert resolve_scorers(imported) == []
 
 
 @pytest.mark.anyio
@@ -345,3 +332,138 @@ async def test_import_real_scout_scan_directory(tmp_path: Path) -> None:
         assert score.value is True
         assert score.explanation == f"Imported {sample.uuid}"
         assert score.metadata == {"origin": "e2e", "scanner_references": []}
+
+
+@scanner(name="scan_import_sparse_e2e", messages="all")
+def scan_import_sparse_e2e() -> Scanner[Transcript]:
+    async def scan_transcript(transcript: Transcript) -> Result:
+        # no finding for one transcript, so the stored value column mixes types
+        return Result(value=None if transcript.transcript_id == "uuid-2" else True)
+
+    return scan_transcript
+
+
+@pytest.mark.anyio
+@skip_if_trio
+async def test_import_real_scout_scan_with_a_transcript_that_has_no_finding(
+    tmp_path: Path,
+) -> None:
+    log = _log()
+    log_file = tmp_path / "source.eval"
+    await write_eval_log_async(log, log_file)
+
+    status = await scan_async(
+        scanners=[scan_import_sparse_e2e()],
+        transcripts=transcripts_from(str(log_file)),
+        scans=str(tmp_path / "scans"),
+        max_processes=1,
+    )
+    assert status.complete
+
+    imported = await import_scan_results_async(log, status.location)
+
+    assert imported.samples is not None
+    found = {
+        sample.uuid: (sample.scores or {}).get("scan_import_sparse_e2e")
+        for sample in imported.samples
+    }
+    assert found["uuid-2"] is None
+    assert found["uuid-1"] is not None and found["uuid-1"].value is True
+    assert found["uuid-3"] is not None and found["uuid-3"].value is True
+
+
+@pytest.mark.anyio
+async def test_import_reduces_epochs_and_recomputes_to_the_same_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    log = _log()
+    log.samples = [
+        EvalSample(
+            id=sample_id,
+            epoch=epoch,
+            input="input",
+            target="target",
+            uuid=f"uuid-{sample_id}-{epoch}",
+        )
+        for sample_id in (1, 2)
+        for epoch in (1, 2)
+    ]
+    log.results = None
+    values = {"uuid-1-1": True, "uuid-1-2": False, "uuid-2-1": True, "uuid-2-2": True}
+    frame = pd.DataFrame(
+        [_row(uuid, value, "boolean") for uuid, value in values.items()]
+    )
+    _install_scan(monkeypatch, _scan({"risk": frame}))
+
+    imported = await import_scan_results_async(log, "scan-dir")
+
+    assert imported.results is not None
+    (risk,) = imported.results.scores
+    # one reduced score per sample, not one per sample and epoch
+    assert risk.scored_samples == 2
+    assert risk.metrics["mean"].value == pytest.approx(0.75)
+    assert [reduction.scorer for reduction in imported.reductions or []] == ["risk"]
+
+    before = {name: metric.value for name, metric in risk.metrics.items()}
+    recompute_metrics(imported)
+    assert imported.results is not None
+    (recomputed,) = imported.results.scores
+    assert {name: metric.value for name, metric in recomputed.metrics.items()} == before
+
+
+@pytest.mark.anyio
+async def test_import_into_an_unscored_log_recomputes_to_the_same_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    log = _log()
+    log.results = None
+    log.eval.scorers = [EvalScorer(name="match")]
+    for sample in log.samples or []:
+        sample.scores = None
+    frame = pd.DataFrame([_row("uuid-1", True, "boolean")])
+    _install_scan(monkeypatch, _scan({"risk": frame}))
+
+    imported = await import_scan_results_async(log, "scan-dir")
+
+    # as when a scorer is run on an unscored log, the header lists what was applied
+    assert [scorer.name for scorer in imported.eval.scorers or []] == ["risk"]
+    recompute_metrics(imported)
+    assert imported.results is not None
+    assert [score.name for score in imported.results.scores] == ["risk"]
+
+
+@pytest.mark.anyio
+async def test_rescoring_after_import_finds_scorers_named_only_in_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    log = _log()
+    assert log.results is not None and log.eval.scorers is None
+    log.results.scores[0].name = log.results.scores[0].scorer = "match"
+    frame = pd.DataFrame([_row("uuid-1", True, "boolean")])
+    _install_scan(monkeypatch, _scan({"risk": frame}))
+
+    imported = await import_scan_results_async(log, "scan-dir")
+
+    assert [scorer.name for scorer in imported.eval.scorers or []] == ["risk"]
+    # the scanner is not loaded as a scorer, and the log's own scorer still is
+    assert len(resolve_scorers(imported)) == 1
+
+
+@pytest.mark.anyio
+async def test_import_decodes_numbers_and_booleans_stored_as_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    frame = pd.DataFrame(
+        [
+            _row("uuid-1", "3", "number"),
+            _row("uuid-2", "inf", "number"),
+            _row("uuid-3", "True", "boolean"),
+        ]
+    )
+    _install_scan(monkeypatch, _scan({"risk": frame}))
+
+    imported = await import_scan_results_async(_log(), "scan-dir")
+
+    assert imported.samples is not None
+    values = [(sample.scores or {})["risk"].value for sample in imported.samples]
+    assert values == [3, float("inf"), True]

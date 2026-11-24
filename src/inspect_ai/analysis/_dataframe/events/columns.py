@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Callable, Mapping, Type
+from typing import Any, Callable, Mapping, Type, TypeVar, cast
 
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
@@ -7,13 +7,15 @@ from typing_extensions import override
 
 from inspect_ai.event._event import Event
 
-from ..columns import Column, ColumnType
+from ..columns import Column, ColumnType, JsonLike
 from .extract import (
     completion_as_str,
     model_event_input_as_str,
     tool_choice_as_str,
     tool_view_as_str,
 )
+
+E = TypeVar("E", bound=Event)
 
 
 class EventColumn(Column):
@@ -23,7 +25,7 @@ class EventColumn(Column):
         self,
         name: str,
         *,
-        path: str | JSONPath | Callable[[Event], JsonValue],
+        path: str | JSONPath | Callable[[E], JsonLike],
         required: bool = False,
         default: JsonValue | None = None,
         type: Type[ColumnType] | None = None,
@@ -37,7 +39,9 @@ class EventColumn(Column):
             type=type,
             value=value,
         )
-        self._extract_event = path if callable(path) else None
+        self._extract_event = (
+            cast(Callable[[Event], JsonValue], path) if callable(path) else None
+        )
 
     @override
     def path_schema(self) -> Mapping[str, Any] | None:
@@ -62,6 +66,7 @@ EventTiming: list[Column] = [
 ModelEventColumns: list[Column] = [
     EventColumn("model_event_model", path="model"),
     EventColumn("model_event_role", path="role"),
+    EventColumn("model_event_requested_model", path="requested_model"),
     EventColumn("model_event_input", path=model_event_input_as_str),
     EventColumn("model_event_tools", path="tools"),
     EventColumn("model_event_tool_choice", path=tool_choice_as_str),

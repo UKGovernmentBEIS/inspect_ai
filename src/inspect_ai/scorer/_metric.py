@@ -1,3 +1,4 @@
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from logging import getLogger
@@ -14,8 +15,20 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    ValidationInfo,
+    model_serializer,
+    model_validator,
+)
+from pydantic.annotated_handlers import GetJsonSchemaHandler
+from pydantic_core import CoreSchema
 
+from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.registry import (
@@ -45,6 +58,28 @@ PARTIAL = "P"
 NOANSWER = "N"
 """Value to assign for no answer or refusal to answer."""
 
+ScoreReason = Literal[
+    # model under test
+    "invalid_response_format",  # output unparseable / violates requested format
+    "refusal",  # detected refusal to answer
+    "no_response",  # empty completion
+    # measurement instrument
+    "grader_failed",  # grader model failed (unparseable verdict, refusal, schema mismatch)
+    "scoring_failed",  # scorer could not run (missing logprobs, invalid config, no subscores)
+    # operator decision
+    "excluded",  # excluded from scoring; the value is NaN
+    "zeroed",  # scored as an empty attempt
+]
+"""Standard machine-readable reasons for abnormal scores.
+
+The first group attributes the failure to the model under test (kept
+fine-grained — refusal rate is a first-class quantity, distinct from format
+violations); the second to the measurement instrument, split by whether a
+grader model failed or the scorer itself could not run; the third to an
+operator who edited the score after the eval. Any custom string is also
+legal; the detail behind a coarse value belongs in `explanation`.
+"""
+
 
 Value = Union[
     str | int | float | bool,
@@ -61,6 +96,44 @@ UNCHANGED: Literal["UNCHANGED"] = "UNCHANGED"
 """Sentinel value to indicate an unchanged field in score edits."""
 
 
+def _is_full_selection(value: Any) -> bool:
+    """Whether a Pydantic selection value fully selects a field.
+
+    Pydantic treats ``True`` and ``Ellipsis`` as "fully selected"; other
+    values only partially select a value.
+    """
+    return value is True or value is ...
+
+
+def _selection_includes_field(field_name: str, selection: Any) -> bool:
+    """Whether a Pydantic ``include`` selection keeps ``field_name``.
+
+    ``include`` uses membership, not truthiness: ``include={"reason": False}``
+    still emits ``reason``. ``__all__`` is a default for every field, so its
+    presence keeps all fields.
+    """
+    if selection is None:
+        return True
+    return field_name in selection or "__all__" in selection
+
+
+def _selection_excludes_field(field_name: str, selection: Any) -> bool:
+    """Whether a Pydantic ``exclude`` selection fully drops ``field_name``.
+
+    ``exclude`` uses truthiness: ``exclude={"reason": False}`` keeps the field,
+    and ``exclude={"reason": {"nested": True}}`` only partially selects a
+    mapping value, which has no effect on a scalar. A field-level entry
+    overrides ``__all__``.
+    """
+    if selection is None:
+        return False
+    if isinstance(selection, Mapping):
+        if field_name in selection:
+            return _is_full_selection(selection[field_name])
+        return _is_full_selection(selection.get("__all__"))
+    return field_name in selection or "__all__" in selection
+
+
 class ScoreEdit(BaseModel):
     """A single edit to a score."""
 
@@ -75,6 +148,9 @@ class ScoreEdit(BaseModel):
     explanation: str | None | Literal["UNCHANGED"] = "UNCHANGED"
     """New explanation for the score, or UNCHANGED to keep current explanation."""
 
+    reason: ScoreReason | str | None | Literal["UNCHANGED"] = "UNCHANGED"
+    """New reason for the score, or UNCHANGED to keep current reason."""
+
     metadata: dict[str, Any] | Literal["UNCHANGED"] = "UNCHANGED"
     """New metadata for the score, or UNCHANGED to keep current metadata.
 
@@ -86,6 +162,69 @@ class ScoreEdit(BaseModel):
 
     provenance: ProvenanceData | None = None
     """Provenance data for this edit. None indicates this is the original score."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _missing_field_is_none(cls, data: Any, info: ValidationInfo) -> Any:
+        """Read a field missing from a persisted edit as None, not UNCHANGED.
+
+        Logs are written with ``exclude_none``, which drops None fields, while
+        UNCHANGED is always written out. So when deserializing a log, a missing
+        ``answer`` or ``explanation`` can only have been None. ``reason`` is
+        left alone: edits written before it existed (#4629) have no ``reason``
+        key and mean UNCHANGED, which a dropped None can't be told apart from.
+        """
+        if (
+            isinstance(data, dict)
+            and isinstance(info.context, dict)
+            and info.context.get(DESERIALIZING, False)
+        ):
+            return {"answer": None, "explanation": None} | data
+        return data
+
+    @model_serializer(mode="wrap")
+    def _serialize_score_edit(
+        self,
+        handler: SerializerFunctionWrapHandler,
+        info: SerializationInfo,
+    ) -> dict[str, Any]:
+        """Preserve explicitly cleared fields through normal serialization.
+
+        A nullable field set to ``None`` means clear the value, while a missing
+        field in a legacy edit can mean ``UNCHANGED``. Log writers use
+        ``exclude_none=True``, so restore explicitly supplied ``None`` values
+        after the normal serializer has removed them unless the caller excluded
+        or omitted the field.
+        """
+        data = cast(dict[str, Any], handler(self))
+
+        for field_name in ("answer", "explanation", "reason"):
+            included = _selection_includes_field(field_name, info.include)
+            excluded = _selection_excludes_field(field_name, info.exclude)
+            if (
+                field_name in self.model_fields_set
+                and getattr(self, field_name) is None
+                and included
+                and not excluded
+            ):
+                data[field_name] = None
+
+        return data
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls,
+        core_schema: CoreSchema,
+        handler: GetJsonSchemaHandler,
+    ) -> dict[str, Any]:
+        """Keep the model schema from reflecting the wrapped serializer's return."""
+        schema = cast(dict[str, Any], core_schema)
+        serialization = schema.get("serialization")
+        if isinstance(serialization, dict):
+            serialization = dict(serialization)
+            serialization.pop("return_schema", None)
+            schema = {**schema, "serialization": serialization}
+        return handler(cast(CoreSchema, schema))
 
 
 class Score(BaseModel):
@@ -105,16 +244,39 @@ class Score(BaseModel):
     explanation: str | None = Field(default=None)
     """Explanation of score (optional)."""
 
+    reason: ScoreReason | str | None = Field(default=None)
+    """Machine-readable reason for an abnormal score (optional)."""
+
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional metadata related to the score"""
 
     history: list[ScoreEdit] = Field(default_factory=list)
     """Edit history - users can access intermediate states."""
 
+    @model_validator(mode="before")
+    @classmethod
+    def _lift_unscored_reason(cls, data: Any) -> Any:
+        """Lift legacy ``metadata["unscored_reason"]`` into ``reason``.
+
+        Logs written before ``reason`` existed (#4048, 0.3.245+) record the
+        grade-parse failure mode in metadata. Read it into the field so new
+        readers see one channel; the metadata key is left in place so that
+        round-tripped logs don't differ.
+        """
+        if (
+            isinstance(data, dict)
+            and data.get("reason") is None
+            and isinstance(data.get("metadata"), dict)
+            and data["metadata"].get("unscored_reason") is not None
+        ):
+            data = {**data, "reason": data["metadata"]["unscored_reason"]}
+        return data
+
     @classmethod
     def unscored(
         cls,
         *,
+        reason: ScoreReason | str | None = None,
         answer: str | None = None,
         explanation: str | None = None,
         metadata: dict[str, Any] | None = None,
@@ -122,12 +284,13 @@ class Score(BaseModel):
         """Construct a Score that is preserved but excluded from metrics and reducers.
 
         Use this when a scorer cannot produce a value for a sample but you
-        still want to record context (answer, explanation, metadata). Sets
-        `value` to NaN, which is the canonical sentinel that aggregate
+        still want to record context (reason, answer, explanation, metadata).
+        Sets `value` to NaN, which is the canonical sentinel that aggregate
         metrics and reducers skip.
         """
         return cls(
             value=float("nan"),
+            reason=reason,
             answer=answer,
             explanation=explanation,
             metadata=metadata,
@@ -173,6 +336,41 @@ class Score(BaseModel):
             return self.value
         else:
             raise ValueError("This score is not a scalar")
+
+
+def score_is_excluded(score: Score) -> bool:
+    """Whether an operator excluded the score.
+
+    True when `reason` is `"excluded"` and the value is a float NaN at the
+    root. Epoch reduction leaves such scores out.
+    """
+    return (
+        score.reason == "excluded"
+        and isinstance(score.value, float)
+        and math.isnan(score.value)
+    )
+
+
+class Reference(BaseModel):
+    """Reference from a score to content in the scored transcript.
+
+    References are stored as a list of dicts under a score's
+    `metadata["scanner_references"]` key. Inspect View identifies scanner
+    scores by the presence of that key and renders cites in the score's
+    explanation (e.g. `[M22]`) as links to the referenced content.
+    """
+
+    type: Literal["message", "event"]
+    """Reference type."""
+
+    cite: str | None = Field(default=None)
+    """Cite text used when the entity was referenced (optional).
+
+    For example, a model may have pointed to a message using something like [M22], which is the cite.
+    """
+
+    id: str
+    """Reference id (message or event id)"""
 
 
 class SampleScore(BaseModel):
@@ -228,6 +426,13 @@ def value_to_float(
     numeric values are cast to float. Arrays and dictionaries
     give a warning and return 0.
 
+    The mapping uses ``==``, so a numeric or boolean input that
+    compares equal to a sentinel is mapped even when its type
+    differs (e.g. ``True == 1.0``). Score reducers apply the
+    returned function to the elements of list and dict values,
+    so custom numeric sentinels also map matching elements
+    inside those containers.
+
     Args:
        correct (Value): Value that represents a correct answer (1)
        incorrect (Value): Value that represents an incorrect answer (0)
@@ -239,14 +444,17 @@ def value_to_float(
     """
 
     def to_float(value: Value) -> float:
-        if isinstance(value, int | float | bool):
-            return float(value)
-        elif value == correct:
+        # check the (possibly numeric) correct/incorrect/partial/noanswer values
+        # before the numeric cast below, otherwise numeric custom values are
+        # cast to float and passed through rather than mapped to 1/0.5/0
+        if value == correct:
             return 1.0
         elif value == partial:
             return 0.5
         elif value == incorrect or value == noanswer:
-            return 0
+            return 0.0
+        elif isinstance(value, int | float | bool):
+            return float(value)
         elif isinstance(value, str):
             value = value.lower()
             if value in ["yes", "true"]:

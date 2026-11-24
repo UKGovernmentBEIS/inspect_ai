@@ -7,6 +7,7 @@ description: Prompting and elicitation.
 
 ### generate
 ### use_tools
+### empty_attempt
 
 ## Prompting
 

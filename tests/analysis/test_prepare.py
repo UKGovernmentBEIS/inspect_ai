@@ -11,11 +11,19 @@ from inspect_ai.analysis import (
 )
 from inspect_ai.analysis._dataframe.samples.table import samples_df
 from inspect_ai.analysis._prepare.score_to_float import score_to_float
+from inspect_ai.model import ModelInfo, set_model_info
+from inspect_ai.model._model_info import clear_model_info_cache
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
 
 
 def test_task_info():
+    import pandas as pd
+
+    df_empty = pd.DataFrame()
+    out_empty = prepare(df_empty, task_info({}))
+    assert out_empty.empty
+
     df = evals_df(LOGS_DIR / "2025-05-12T20-27-36-04-00_browser.json")
     df = prepare(df, task_info({}))
     assert df["task_display_name"].to_list() == ["browser"]
@@ -24,6 +32,12 @@ def test_task_info():
 
 
 def test_prepare_log_viewer():
+    import pandas as pd
+
+    df_empty = pd.DataFrame()
+    out_empty = prepare(df_empty, log_viewer("eval", {}))
+    assert out_empty.empty
+
     df = evals_df(LOGS_DIR)
     check_log_viewer(df, {LOGS_DIR.as_posix(): "https://logs.example.com"})
     check_log_viewer(df, {LOGS_DIR.as_posix(): "https://logs.example.com/"})
@@ -60,6 +74,7 @@ def test_score_to_float_with_na():
     assert df["score_match"].isna().any()
 
     out = prepare(df, score_to_float("score_match"))
+    assert out["score_match"].dtype == "float64"
 
     # NA inputs map to NaN, real values convert to float
     for original, converted in zip(df["score_match"], out["score_match"]):
@@ -120,6 +135,23 @@ def test_model_info():
     out = prepare(df, model_info())
     assert "model_display_name" in out.columns
     assert out["model_display_name"].to_list() == ["GPT-4o", "unknown_model"]
+
+
+def test_model_info_user_supplied():
+    import pandas as pd
+
+    set_model_info("custom/registered", ModelInfo(model="Registered Model"))
+    try:
+        df = pd.DataFrame({"model": ["custom/registered", "custom/argument"]})
+        out = prepare(
+            df, model_info({"custom/argument": ModelInfo(model="Argument Model")})
+        )
+    finally:
+        clear_model_info_cache()
+    assert out["model_display_name"].to_list() == [
+        "Registered Model",
+        "Argument Model",
+    ]
 
 
 def check_log_viewer(

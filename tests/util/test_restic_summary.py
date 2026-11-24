@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from pydantic import ValidationError
 from test_helpers.restic import SUMMARY_SNAPSHOT_ID, restic_summary_json
 
 from inspect_ai.util._restic import ResticBackupSummary
@@ -32,3 +33,29 @@ def test_from_stdout_ignores_leading_status_lines() -> None:
 def test_from_stdout_empty_raises() -> None:
     with pytest.raises(RuntimeError, match="no output"):
         ResticBackupSummary.from_stdout("   \n  ")
+
+
+@pytest.mark.parametrize("snapshot_id", ["a" * 8, "a" * 64])
+def test_from_stdout_accepts_hex_snapshot_id(snapshot_id: str) -> None:
+    summary = ResticBackupSummary.from_stdout(
+        restic_summary_json(snapshot_id=snapshot_id)
+    )
+    assert summary.snapshot_id == snapshot_id
+
+
+@pytest.mark.parametrize(
+    "snapshot_id",
+    [
+        "--password-command=echo forged",
+        "latest",
+        "",
+        "a" * 7,
+        "a" * 65,
+        "ABCDEF01",
+        "abcdef01\n",
+        " abcdef01",
+    ],
+)
+def test_from_stdout_rejects_malformed_snapshot_id(snapshot_id: str) -> None:
+    with pytest.raises(ValidationError, match="snapshot_id"):
+        ResticBackupSummary.from_stdout(restic_summary_json(snapshot_id=snapshot_id))

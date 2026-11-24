@@ -147,10 +147,10 @@ def test_bash_default_description_unchanged() -> None:
     assert info.description == "Use this function to execute bash commands."
 
     # the model-facing name comes from the registry, not the raw function name
-    name, _, parallel, viewer, _, _ = tool_registry_info(bash())
-    assert name == "bash"
-    assert parallel is True
-    assert viewer is not None
+    reg = tool_registry_info(bash())
+    assert reg.name == "bash"
+    assert reg.parallel is True
+    assert reg.viewer is not None
 
 
 def test_bash_background_guidance() -> None:
@@ -169,10 +169,10 @@ def test_bash_background_guidance() -> None:
     )
 
     # viewer and parallel survive the ToolDef wrap
-    name, _, parallel, viewer, _, _ = tool_registry_info(bash(background=True))
-    assert name == "bash"
-    assert parallel is True
-    assert viewer is not None
+    reg = tool_registry_info(bash(background=True))
+    assert reg.name == "bash"
+    assert reg.parallel is True
+    assert reg.viewer is not None
 
 
 def test_bash_background_timeout_templated() -> None:

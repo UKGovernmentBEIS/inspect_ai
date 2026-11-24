@@ -11,11 +11,9 @@ from rich.progress import Progress as RProgress
 from rich.table import Table
 from typing_extensions import override
 
-from inspect_ai._util._async import configured_async_backend, run_coroutine
+from inspect_ai._util._async import run_coroutine, run_main
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.platform import running_in_notebook
-from inspect_ai.event._input import InputEvent
-from inspect_ai.log._transcript import transcript
 from inspect_ai.util._display import display_type
 from inspect_ai.util._throttle import throttle
 
@@ -44,6 +42,8 @@ from ..core.progress import (
 )
 from ..core.results import task_metric, tasks_results
 from ..core.rich import (
+    input_screen_capture_suspended,
+    input_screen_recording,
     is_vscode_notebook,
     record_console_input,
     rich_initialise,
@@ -63,6 +63,7 @@ class RichDisplay(Display):
         self.progress_ui: RProgress | None = None
         self.parallel = False
         self.live: Live | None = None
+        self.screen: RichTaskScreen | None = None
         self.counters: dict[str, str] = {}
         rich_initialise()
 
@@ -81,12 +82,16 @@ class RichDisplay(Display):
         if running_in_notebook():
             return run_coroutine(main())
         else:
-            return anyio.run(main, backend=configured_async_backend())
+            return run_main(main)
 
     @override
     @contextlib.contextmanager
     def suspend_task_app(self) -> Iterator[None]:
-        yield
+        if self.screen is None:
+            yield
+        else:
+            with self.screen.suspend():
+                yield
 
     @override
     @contextlib.asynccontextmanager
@@ -107,8 +112,10 @@ class RichDisplay(Display):
                 ) as live,
             ):
                 # save reference to live
-                with RichTaskScreen(live) as task_screen:
+                screen = RichTaskScreen(live)
+                with screen as task_screen:
                     self.live = live
+                    self.screen = screen
 
                     async with anyio.create_task_group() as tg:
                         # update display every second while running
@@ -119,6 +126,7 @@ class RichDisplay(Display):
                             yield task_screen
                         finally:
                             tg.cancel_scope.cancel()
+                            self.screen = None
 
                 # render task results (re-enable live if necessary)
                 if not live.is_started:
@@ -132,6 +140,7 @@ class RichDisplay(Display):
             self.progress_ui = None
             self.parallel = False
             self.live = None
+            self.screen = None
 
     @override
     def update_task_count(self, n: int) -> None:
@@ -197,9 +206,61 @@ class RichTaskScreen(TaskScreen):
             f"[{self.theme.meta} bold]{status_text}...[/{self.theme.meta} bold]",
             spinner="clock",
         )
+        self.status_started = False
+        self.suspended = False
+        self.resume_live = False
+        self.resume_status = False
 
     def __exit__(self, *excinfo: Any) -> None:
+        self._stop_status()
+
+    def _start_status(self) -> None:
+        self.status.start()
+        self.status_started = True
+
+    def _stop_status(self) -> None:
         self.status.stop()
+        self.status_started = False
+
+    @contextlib.contextmanager
+    def suspend(self) -> Iterator[None]:
+        """Clear live rendering while other output goes to the terminal.
+
+        A child process (e.g. a Docker image build during sandbox setup)
+        writes to the inherited terminal descriptors, which Rich cannot
+        redirect. The task display and the mini-status are cleared first and
+        drawn again below that output afterwards, however the block ends. An
+        input screen that closes meanwhile selects which of them come back.
+        A notebook is left as it is: other output does not draw over its
+        output widget, and stopping the Live would close that widget.
+        """
+        if self.suspended or self.live.console.is_jupyter:
+            yield
+            return
+
+        self.resume_live = self.live.is_started
+        self.resume_status = self.status_started
+        renderable = self.live.renderable
+        # Live.stop() sets this to "visible" for its last render
+        overflow = self.live.vertical_overflow
+        if self.status_started:
+            self._stop_status()
+        if self.live.is_started:
+            # a blank render first, so that the restart does not move the
+            # cursor up over the lines written meanwhile
+            self.live.update("", refresh=True)
+            self.live.stop()
+        self.suspended = True
+        try:
+            yield
+        finally:
+            self.suspended = False
+            if self.resume_live:
+                self.live.vertical_overflow = overflow
+                self.live.start()
+                self.live.update(renderable, refresh=True)
+            if self.resume_status:
+                self._start_status()
 
     @override
     @contextlib.contextmanager
@@ -216,51 +277,54 @@ class RichTaskScreen(TaskScreen):
 
         # clear live task status and transient status
         self.live.update("", refresh=True)
-        self.status.stop()
-
-        # show cursor for input
-        self.live.console.show_cursor(True)
-
-        # set width
-        old_width: int | None = None
-        if width:
-            old_width = self.live.console.width
-            self.live.console.width = min(old_width, width)
-
-        # record console activity for event
-        self.live.console.record = True
+        self._stop_status()
 
         try:
-            # print header if requested
-            if header:
-                style = f"{rich_theme().meta} bold"
-                self.live.console.rule(f"[{style}]{header}[/{style}]", style="black")
-                self.live.console.print("")
+            with input_screen_capture_suspended(self.live.console):
+                # show cursor for input
+                self.live.console.show_cursor(True)
 
-            # yield the console
-            with record_console_input():
-                yield self.live.console
+                # set width
+                old_width: int | None = None
+                if width:
+                    old_width = self.live.console.width
+                    self.live.console.width = min(old_width, width)
+
+                try:
+                    # record console activity for event
+                    with input_screen_recording(self.live.console, record_event):
+                        # print header if requested
+                        if header:
+                            style = f"{rich_theme().meta} bold"
+                            self.live.console.rule(
+                                f"[{style}]{header}[/{style}]", style="black"
+                            )
+                            self.live.console.print("")
+
+                        # yield the console
+                        with record_console_input():
+                            yield self.live.console
+
+                finally:
+                    # print one blank line
+                    self.live.console.print("")
+
+                    # reset width
+                    if old_width:
+                        self.live.console.width = old_width
 
         finally:
-            # capture recording then yield input event
-            input = self.live.console.export_text(clear=False, styles=False)
-            input_ansi = self.live.console.export_text(clear=True, styles=True)
-            self.live.console.record = False
-            if record_event:
-                transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
-
-            # print one blank line
-            self.live.console.print("")
-
-            # reset width
-            if old_width:
-                self.live.console.width = old_width
-
-            # disable cursor while not collecting input
+            # disable cursor while not collecting input (on the same output as
+            # the live display, which shows it again when it stops)
             self.live.console.show_cursor(False)
 
+            # while suspended, start nothing until the suspension ends
+            if self.suspended:
+                self.resume_live = transient
+                self.resume_status = not transient
+
             # if transient then disable live updates entirely
-            if transient is False and self.live.is_started:
+            elif transient is False and self.live.is_started:
                 self.live.stop()
 
             # otherwise make sure they are enabled
@@ -268,8 +332,8 @@ class RichTaskScreen(TaskScreen):
                 self.live.start()
 
             # if not transient then display mini-status
-            if not transient:
-                self.status.start()
+            if not transient and not self.suspended:
+                self._start_status()
 
 
 class RichTaskDisplay(TaskDisplay):

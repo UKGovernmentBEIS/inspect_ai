@@ -159,7 +159,7 @@ class AcpServer:
         prepare_discovery_dir(discovery_dir())
 
         if self._transport is True:
-            await self._bind_unix(default_socket_path(self._eval_id))
+            await self._bind_unix(default_socket_path(os.getpid()))
         elif isinstance(self._transport, int) and not isinstance(self._transport, bool):
             await self._bind_tcp(self._transport)
         elif isinstance(self._transport, str):
@@ -241,7 +241,7 @@ class AcpServer:
             # :meth:`Forwarders.stop`), which gives the semantic
             # forwarder a chance to send ``inspect/session_ended``
             # while the connection is still alive. On the
-            # end-of-eval path :meth:`LiveAcpTransport.finalize` has
+            # end-of-eval path ``LiveAcpTransport.__aexit__`` has
             # already closed pubsub by the time we get here, so the
             # forwarder is racing to send that final notification —
             # closing the connection first (pre-Phase-7-hardening
@@ -345,6 +345,7 @@ class AcpServer:
             writer=writer,
             reader=reader,
             listening=False,
+            observers=[handler.observe_stream],
         )
         # Attach the connection back-reference so handlers can push
         # `session/update` notifications via `conn.send_notification`.
@@ -443,6 +444,17 @@ async def acp_server(
     as the human channel. When ``transport`` is falsy the flag stays
     ``False`` and routing falls through to the in-proc panel /
     console — the no-``--acp-server`` baseline.
+
+    **A bind failure raises**, including for the server ``eval_set``
+    turns on for a selection-mode worker. A detached worker's human
+    channel *is* ACP — the panel and console it would fall through to
+    are a dead end with no display and a closed stdin — so a worker
+    that cannot bind cannot serve a human decision at all, and the run
+    it would silently mis-serve is worth failing at startup instead.
+    The environmental failure this used to guard against, a default
+    path over the ``sun_path`` limit, is addressed at the source by
+    keying the path on the pid (see
+    :func:`~inspect_ai.agent._acp.discovery.default_socket_path`).
     """
     if not transport:
         yield None

@@ -51,12 +51,15 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.tool._tool_call import ToolCallError
+from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 
 from .exceptions import AgentInterrupted
 from .items import Cancel, CancelReason, ChannelItem, UserMessage, coalesce
 
 if TYPE_CHECKING:
+    from inspect_ai.agent._agent import AgentState
+
+    from .gate import TurnGate
     from .ref import AgentRef
 
 
@@ -132,11 +135,11 @@ class AgentChannel:
         # pre-queued operator message is drained).
         self._on_drained: list[Callable[[list[ChannelItem]], None]] = []
         # Producer-side observers fired when :meth:`turn_scope` enters
-        # ("started"), exits normally ("ended"), or exits via
-        # :exc:`AgentInterrupted` ("cancelled"). Producers register via
-        # :meth:`subscribe_turn_state` to learn the agent's working /
-        # idle boundary without inferring it from drains or scope
-        # presence.
+        # ("started"), exits via :exc:`AgentInterrupted` ("cancelled"),
+        # or exits any other way, including an exception ("ended").
+        # Producers register via :meth:`subscribe_turn_state` to learn
+        # the agent's working / idle boundary without inferring it from
+        # drains or scope presence.
         self._on_turn_state: list[Callable[[TurnState], None]] = []
         # External-reach marker count. Producers that represent a
         # reachable external surface (e.g. an ACP socket server actually
@@ -147,6 +150,11 @@ class AgentChannel:
         # "an externally-reachable producer attached" — only the
         # latter motivates a consumer to enable interactive plumbing.
         self._live_count: int = 0
+        # Turn gate kept from the block that opened this channel (see
+        # ``gate.py``), and whether it rewrote the conversation at the last
+        # boundary (read and cleared by ``_take_rewritten``).
+        self._gate: TurnGate | None = None
+        self._rewritten: bool = False
 
     # ------------------------------------------------------------------
     # Producer-facing API (also exposed via AgentRef)
@@ -211,15 +219,23 @@ class AgentChannel:
         same channel are not. The scope must enclose tool execution as
         well as ``model.generate()`` so a blocking tool call can be
         cancelled by a producer-initiated interrupt mid-call.
+
+        Turn-state observers see ``"started"`` on entry and exactly one of
+        ``"cancelled"`` (operator interrupt) or ``"ended"`` (any other
+        exit, including an exception such as a sample limit) on exit.
         """
         self._pending_interrupt = False
-        with anyio.CancelScope() as cs:
-            self._scope = cs
-            self._fire_turn_state("started")
-            try:
-                yield
-            finally:
-                self._scope = None
+        try:
+            with anyio.CancelScope() as cs:
+                self._scope = cs
+                self._fire_turn_state("started")
+                try:
+                    yield
+                finally:
+                    self._scope = None
+        except BaseException:
+            self._fire_turn_state("ended")
+            raise
         if cs.cancelled_caught and self._pending_interrupt:
             self._pending_interrupt = False
             self._fire_turn_state("cancelled")
@@ -296,11 +312,10 @@ class AgentChannel:
         """Register a callback fired on :meth:`turn_scope` transitions.
 
         The callback receives ``"started"`` immediately after the
-        scope binds, ``"ended"`` on normal exit, and ``"cancelled"``
-        when the scope exits via :exc:`AgentInterrupted`. A
-        sample-level cancel (or any other exception) propagating out
-        of the scope fires nothing — the consumer's loop is unwinding
-        and the session-end signal is the producer's cue.
+        scope binds, then ``"cancelled"`` when the scope exits via
+        :exc:`AgentInterrupted` or ``"ended"`` for any other exit,
+        including an exception (a sample limit, an error, a
+        sample-level cancel) propagating out of the scope.
 
         Same resilience contract as :meth:`subscribe_drained`:
         callbacks run synchronously in the consumer's task and
@@ -411,18 +426,23 @@ class AgentChannel:
         ``reason`` selects the per-call error sentinel stamped on
         synthesized :class:`ToolCallError` instances. Defaults to
         ``"user_cancel"``.
+
+        Each repair's ``function`` is the name of the call it answers:
+        Bedrock refuses a tool result without one, and Google needs it
+        to match the call.
         """
-        repair_ids = _unanswered_tool_call_ids(messages)
-        if not repair_ids:
+        unanswered = _unanswered_tool_calls(messages)
+        if not unanswered:
             return []
         message_text = _REPAIR_MESSAGE_FOR_REASON[reason]
         return [
             ChatMessageTool(
-                tool_call_id=tool_call_id,
+                tool_call_id=call.id,
+                function=call.function,
                 content=message_text,
                 error=ToolCallError(type="cancelled", message=message_text),
             )
-            for tool_call_id in repair_ids
+            for call in unanswered
         ]
 
     # ------------------------------------------------------------------
@@ -430,7 +450,9 @@ class AgentChannel:
     # ------------------------------------------------------------------
 
     async def before_turn(
-        self, messages: Sequence[ChatMessage]
+        self,
+        messages: Sequence[ChatMessage],
+        state: AgentState | None = None,
     ) -> list[ChatMessageUser]:
         """Pending operator-supplied user messages for the start of a turn.
 
@@ -444,13 +466,33 @@ class AgentChannel:
         initial user message" gate — on every subsequent turn
         ``messages`` already has the prior user input so the call
         returns immediately.
+
+        Args:
+            messages: The loop's conversation.
+            state: The loop's own state, whose messages are ``messages``.
+                Optional; a runtime that runs the agent may read it at
+                the boundary.
         """
+        if self._gate is not None and await self._gate.before_turn(
+            self, messages, state
+        ):
+            self._rewritten = True
         items = self._drain()
         if not any(isinstance(it, UserMessage) for it in items) and not any(
             isinstance(m, ChatMessageUser) for m in messages
         ):
             items += await self._recv()
         return coalesce(items)
+
+    def _take_rewritten(self) -> bool:
+        """Whether the gate rewrote the conversation since the last call.
+
+        Clears the mark. A loop that keeps its own view of the conversation
+        (such as a compaction handler) rebuilds it when this is ``True``.
+        """
+        rewritten = self._rewritten
+        self._rewritten = False
+        return rewritten
 
     async def after_cancel(self, messages: Sequence[ChatMessage]) -> list[ChatMessage]:
         """Recovery messages after :exc:`AgentInterrupted` was caught.
@@ -479,11 +521,11 @@ class AgentChannel:
         return [*repair_msgs, *coalesce(items)]
 
 
-def _unanswered_tool_call_ids(messages: Sequence[ChatMessage]) -> list[str]:
-    """Return tool_call ids from the last assistant message that lack a result.
+def _unanswered_tool_calls(messages: Sequence[ChatMessage]) -> list[ToolCall]:
+    """Return tool calls from the last assistant message that lack a result.
 
     Scans ``messages`` backwards to find the last
-    :class:`ChatMessageAssistant`; collects every tool_call id from
+    :class:`ChatMessageAssistant`; collects every tool call from
     that message that does not have a matching
     :class:`ChatMessageTool` (by ``tool_call_id``) appearing later in
     the list.
@@ -503,4 +545,4 @@ def _unanswered_tool_call_ids(messages: Sequence[ChatMessage]) -> list[str]:
     for m in messages[last_assistant_idx + 1 :]:
         if isinstance(m, ChatMessageTool) and m.tool_call_id:
             answered.add(m.tool_call_id)
-    return [tc.id for tc in last_assistant.tool_calls if tc.id not in answered]
+    return [tc for tc in last_assistant.tool_calls if tc.id not in answered]

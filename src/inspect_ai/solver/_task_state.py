@@ -105,7 +105,7 @@ class Choices(Sequence[Choice]):
 
     def shuffle(self, rand: Random = Random()) -> None:
         """
-        Shuffle the choice order, setting the `original_position` so they can be mapped back to their original order.
+        Shuffle the choice order, preserving `original_position` so they can be mapped back to their original order.
 
         Some evals will shuffle the choices from the original sample to try to
         avoid the model answering correctly due to fine-tuning (or similar) on
@@ -114,13 +114,7 @@ class Choices(Sequence[Choice]):
         shuffled_positions = list(range(len(self._choices)))
         rand.shuffle(shuffled_positions)
 
-        shuffled_choices = [Choice("notachoice", None, -1)] * len(self._choices)
-
-        for i, shuffled_position in enumerate(shuffled_positions):
-            shuffled_choices[i] = self._choices[shuffled_position]
-            shuffled_choices[i].original_position = shuffled_position
-
-        self._choices = shuffled_choices
+        self._choices = [self._choices[p] for p in shuffled_positions]
 
     def prompt(self, question: str, template: str) -> str:
         """Format a prompt for these choices.
@@ -215,24 +209,32 @@ class TaskState:
         Convenience function for accessing the initial input from the `Sample` as a string.
 
         If the `input` is a `list[ChatMessage]`, this will return the text from
-        the last chat message
+        the last user message. If that message has no text but does have
+        non-text content (e.g. an image), a placeholder naming each part
+        (e.g. `[image]`) is returned instead.
         """
         if isinstance(self._input, str):
             return self._input
         else:
             input = next(
                 (
-                    message.text
+                    message
                     for message in reversed(self._input)
                     if message.role == "user"
                 ),
                 None,
             )
-            if input:
-                return input
-            else:
+            if input is None:
                 raise ValueError(
                     "input_text requested from TaskState but none available"
+                )
+            elif input.text or isinstance(input.content, str):
+                return input.text
+            else:
+                return " ".join(
+                    f"[{content.type}]"
+                    for content in input.content
+                    if content.type != "text"
                 )
 
     @property

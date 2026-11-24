@@ -1,14 +1,20 @@
 import json
 from pathlib import Path
+from typing import NamedTuple
 
 import anyio
 from test_helpers.utils import failing_solver_deterministic, identity_solver
 
 from inspect_ai import Task, eval
-from inspect_ai._eval.task.run import PreviousError, eval_log_sample_source
+from inspect_ai._eval.task.run import (
+    InvalidatedPrior,
+    PreviousError,
+    eval_log_sample_source,
+)
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.log import EvalLog, recompute_metrics
+from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
@@ -22,6 +28,7 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
+from inspect_ai.util._checkpoint.resume import resolve_resume_checkpoint
 
 
 @scorer(metrics=[mean(), stderr()])
@@ -195,6 +202,29 @@ def test_score_on_error_contributes_to_metrics():
     assert sample_2.scores["score_by_solver_completion"].value == INCORRECT
 
 
+def test_score_on_error_scorer_error_counts_sample_once():
+    # sample 2's solver raises, then its score_on_error scoring raises too:
+    # one errored sample, so fail_on_error=2 is not crossed. The logged
+    # sample keeps the scorer's error.
+    log = eval(
+        Task(
+            dataset=MemoryDataset([Sample(id=1, input="hi"), Sample(id=2, input="hi")]),
+            solver=solver_that_raises_on_sample_2(),
+            scorer=raising_scorer([2]),
+        ),
+        score_on_error=True,
+        fail_on_error=2,
+        display="none",
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples is not None
+    sample_2 = next(s for s in log.samples if s.id == 2)
+    assert sample_2.error is not None
+    assert "grader unavailable for sample 2" in sample_2.error.message
+    assert len([e for e in sample_2.events if e.event == "error"]) == 2
+
+
 def test_score_on_error_basic():
     log = eval(_make_task([True]), score_on_error=True, fail_on_error=False)[0]
     assert log.samples is not None
@@ -343,8 +373,11 @@ def test_score_on_error_sample_source_seeds_retry_for_errored():
     assert result.sample.error.message == errored_sample.error.message
 
 
-def test_eval_log_sample_source_resume_when_checkpoint_exists(tmp_path: Path) -> None:
-    # errored sample + checkpoint file on disk → factory returns ResumeCheckpoint
+def test_resume_detection_when_checkpoint_exists(tmp_path: Path) -> None:
+    # errored sample + checkpoint file on disk: the lookup carries the
+    # error history, and `resolve_resume_checkpoint` — which `run_sample`
+    # consults first, so a checkpoint resume outranks the error seed —
+    # detects the checkpoint
     log = eval(_make_task([True]), score_on_error=True, fail_on_error=False)[0]
     assert log.samples is not None
     errored_sample = log.samples[0]
@@ -357,17 +390,26 @@ def test_eval_log_sample_source_resume_when_checkpoint_exists(tmp_path: Path) ->
     dataset = MemoryDataset([Sample(id=errored_sample.id, input="hi", target="hi")])
     source = eval_log_sample_source(log, None, dataset, str(eval_ckpt_dir))
 
-    async def call() -> object:
+    class _Resolved(NamedTuple):
+        lookup: object
+        resume: object
+
+    async def call() -> _Resolved:
         async with AsyncFilesystem():
-            return await source.lookup(errored_sample.id, errored_sample.epoch)
+            return _Resolved(
+                lookup=await source.lookup(errored_sample.id, errored_sample.epoch),
+                resume=await resolve_resume_checkpoint(
+                    str(eval_ckpt_dir), errored_sample.id, errored_sample.epoch
+                ),
+            )
 
-    result = anyio.run(call)
-    assert isinstance(result, ResumeCheckpoint)
-    assert result.sample_checkpoints_dir == str(sample_dir)
-    assert result.attempt == "resume"
+    lookup_result, resume = anyio.run(call)
+    assert isinstance(lookup_result, PreviousError)
+    assert isinstance(resume, ResumeCheckpoint)
+    assert resume.attempt == "resume"
 
 
-def test_eval_log_sample_source_scoring_resume_for_agent_complete_checkpoint(
+def test_resume_detection_scoring_resume_for_agent_complete_checkpoint(
     tmp_path: Path,
 ) -> None:
     log = eval(_make_task([True]), score_on_error=True, fail_on_error=False)[0]
@@ -380,17 +422,34 @@ def test_eval_log_sample_source_scoring_resume_for_agent_complete_checkpoint(
     (sample_dir / "ckpt-00001.json").write_text(_checkpoint_json(1, "turn"))
     (sample_dir / "ckpt-00002.json").write_text(_checkpoint_json(2, "agent_complete"))
 
-    dataset = MemoryDataset([Sample(id=errored_sample.id, input="hi", target="hi")])
-    source = eval_log_sample_source(log, None, dataset, str(eval_ckpt_dir))
-
     async def call() -> object:
         async with AsyncFilesystem():
-            return await source.lookup(errored_sample.id, errored_sample.epoch)
+            return await resolve_resume_checkpoint(
+                str(eval_ckpt_dir), errored_sample.id, errored_sample.epoch
+            )
 
-    result = anyio.run(call)
-    assert isinstance(result, ResumeCheckpoint)
-    assert result.sample_checkpoints_dir == str(sample_dir)
-    assert result.attempt == "resume_for_scoring"
+    resume = anyio.run(call)
+    assert isinstance(resume, ResumeCheckpoint)
+    assert resume.attempt == "resume_for_scoring"
+
+
+def test_eval_log_sample_source_invalidated_yields_invalidated_prior() -> None:
+    # an invalidated prior sample restarts from scratch: the lookup
+    # signals it so the re-run discards the sample's copied checkpoints
+    # instead of resuming from them
+    log = eval(_make_task([False]), fail_on_error=False)[0]
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None
+    sample.invalidation = ProvenanceData(author="tester")
+
+    dataset = MemoryDataset([Sample(id=sample.id, input="hi", target="hi")])
+    source = eval_log_sample_source(log, None, dataset)
+
+    async def call() -> object:
+        return await source.lookup(sample.id, sample.epoch)
+
+    assert isinstance(anyio.run(call), InvalidatedPrior)
 
 
 def test_eval_log_sample_source_no_resume_when_sidecar_absent(tmp_path: Path) -> None:

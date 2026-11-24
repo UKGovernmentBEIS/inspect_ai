@@ -1,6 +1,7 @@
 import glob
 import os
 import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -172,3 +173,43 @@ def test_eval_with_max_dataset_memory_and_early_stopping() -> None:
     assert log.status == "success"
     assert log.samples is not None
     assert len(log.samples) == 3
+
+
+@pytest.mark.parametrize("abandon_at", ["start", "register"])
+def test_eval_abandoned_attempt_unlinks_paged_store(
+    abandon_at: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An attempt abandoned by a task drain/cancel leaves no paged temp file.
+
+    The attempt-start retry-abandon checks bail out of ``task_run`` before its
+    ordinary tail runs, so the paged-to-disk store's temp file must be
+    unlinked on that path too — whether the abandon is seen by the first
+    check (before paging) or only by the pre-register backstop (after).
+    """
+    import inspect_ai._eval.task.run as task_run_module
+
+    calls = {"n": 0}
+
+    def fake_task_retry_abandoned(task_id: str) -> bool:
+        calls["n"] += 1
+        return abandon_at == "start" or calls["n"] > 1
+
+    monkeypatch.setattr(
+        task_run_module, "task_retry_abandoned", fake_task_retry_abandoned
+    )
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+
+    task = Task(dataset=_make_samples(3), solver=[generate()])
+    logs = eval(
+        task,
+        model="mockllm/model",
+        max_dataset_memory=0,
+        log_dir=str(tmp_path / "logs"),
+    )
+
+    # the abandon was seen by the intended check (the backstop is the second
+    # consult, after paging), the attempt produced no log, and the paged
+    # dataset's temp file was unlinked
+    assert calls["n"] == (1 if abandon_at == "start" else 2)
+    assert logs == []
+    assert not list(tmp_path.glob("*.pkl"))

@@ -6,6 +6,7 @@ from typing import AsyncGenerator
 import anyio
 import click
 import rich
+from rich.markup import escape
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
@@ -13,25 +14,31 @@ from typing_extensions import Unpack
 
 from inspect_ai._cli.util import (
     int_or_bool_flag_callback,
-    parse_cli_args,
     parse_cli_config,
     parse_model_role_cli_args,
 )
 from inspect_ai._display import display
-from inspect_ai._display.core.results import task_scores
+from inspect_ai._display.core.results import sample_coverage_messages, task_scores
 from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._eval.context import init_eval_context
-from inspect_ai._eval.loader import metric_from_spec
-from inspect_ai._eval.scan_results import import_scan_results_async
+from inspect_ai._eval.loader import metric_from_spec, print_record
+from inspect_ai._eval.scan_results import (
+    ScanImportError,
+    import_scan_results_async,
+)
 from inspect_ai._eval.score import (
     ScoreAction,
+    log_model_record,
     resolve_scorers,
     score_async,
 )
+from inspect_ai._eval.task.scan import verify_scout_prerequisites
 from inspect_ai._util._async import configured_async_backend
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.config import parse_cli_args
+from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.file import filesystem, local_path
 from inspect_ai._util.platform import platform_init
-from inspect_ai.log._log import EvalLog, EvalSample
+from inspect_ai.log._log import EvalLog, EvalResults, EvalSample
 from inspect_ai.log._recorders import create_recorder_for_location
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.scorer._metric import Metric, MetricSpec
@@ -64,7 +71,7 @@ from .common import CommonOptions, common_options, process_common_options
     multiple=True,
     type=str,
     envvar="INSPECT_SCORE_MODEL_ROLE",
-    help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Merged over the model roles recorded in the log.',
+    help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-6-luna or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs. Merged over the model roles recorded in the log.',
 )
 @click.option(
     "--scorer",
@@ -138,7 +145,17 @@ def score_command(
     stream: int | bool = False,
     **common: Unpack[CommonOptions],
 ) -> None:
-    """Score a previous evaluation run."""
+    """Score a previous evaluation run.
+
+    This runs code named by the log (its task file and scorers) and uses the
+    model endpoint and other settings recorded in it. Only run it on logs you
+    trust. With --scorer, the log's metrics are rebuilt without importing its
+    task file; the log's model and model roles are still used.
+
+    With --from-scan no scorer or model runs and nothing the log names is
+    imported: the results of a completed Inspect Scout scan are added to the
+    log as scores. They are appended unless --action overwrite is given.
+    """
     process_common_options(common)
 
     async def run_score() -> None:
@@ -194,9 +211,19 @@ async def score(
         model_roles=model_role,
         stream=stream,
     )
+    scorer_args = parse_cli_config(args=s, config=None)
+    model_args = parse_cli_args(m)
+    model_roles = parse_model_role_cli_args(model_role) if model_role else None
+    override_model: Model | None = (
+        get_model(model, base_url=model_base_url, **model_args)
+        if model is not None
+        else None
+    )
 
     recorder = create_recorder_for_location(log_file, log_dir)
     eval_log = await recorder.read_log(log_file, header_only=bool(stream))
+    if stream:
+        eval_log.reductions = await recorder.read_log_reductions(log_file)
     num_samples = (
         len(eval_log.samples)
         if eval_log.samples
@@ -209,39 +236,53 @@ async def score(
             f"Cannot determine the number of samples to score for {log_file}"
         )
 
-    action = resolve_action(eval_log, action)
-    output_file = _resolve_output_file(
-        log_file, output_file=output_file, overwrite=overwrite
-    )
-    write_recorder = create_recorder_for_location(output_file, log_dir)
-
     if from_scan is not None:
-        eval_log = await import_scan_results_async(
-            eval_log, from_scan, action=action, copy=False
+        # the scan already holds the results: no scorer or model is resolved,
+        # and nothing the log names is imported. The import runs before the
+        # output file prompt so that a scan that cannot be imported fails first.
+        coverage = eval_log.results
+        try:
+            eval_log = await import_scan_results_async(
+                eval_log, from_scan, action=action or "append", copy=False
+            )
+        except ScanImportError as ex:
+            raise PrerequisiteError(escape(str(ex))) from ex
+        output_file = _resolve_output_file(
+            log_file, output_file=output_file, overwrite=overwrite
         )
+        write_recorder = create_recorder_for_location(output_file, log_dir)
         await write_recorder.write_log(output_file, eval_log)
-        print_results(output_file, eval_log)
+        print_results(output_file, eval_log, coverage=coverage)
         return
 
-    scorer_args = parse_cli_config(args=s, config=None)
-    model_args = parse_cli_args(m)
-    model_roles = parse_model_role_cli_args(model_role) if model_role else None
-    override_model: Model | None = (
-        get_model(model, base_url=model_base_url, **model_args)
-        if model is not None
-        else None
-    )
+    # Sample coverage describes the original run, not this scoring pass, and
+    # `--action overwrite` replaces `results` with counts taken over the samples
+    # present in the log. Early-stopped samples were never written, so those
+    # counts no longer share a denominator with the early-stopping summary
+    # carried forward from the header. Read the coverage before scoring.
+    pre_score_coverage = eval_log.results
 
     scorers = resolve_scorers(eval_log, scorer, scorer_args)
     if len(scorers) == 0:
         raise ValueError(
             "Unable to resolve any scorers for this log. Please specify a scorer using the '--scorer' param."
         )
+    if override_model is None and (record := log_model_record(eval_log)) is not None:
+        print_record(record)
 
     metrics = resolve_metrics(metric)
 
+    action = resolve_action(eval_log, action)
+    output_file = _resolve_output_file(
+        log_file, output_file=output_file, overwrite=overwrite
+    )
+    write_recorder = create_recorder_for_location(output_file, log_dir)
+
     read_sample = None
     if stream:
+        # an existing output (often the input, which later samples are read
+        # from) is only replaced by log_finish
+        new_output = not filesystem(output_file).exists(local_path(output_file))
         sample_map = await recorder.read_log_sample_ids(log_file)
         stream_batch = len(sample_map) if stream is True else stream
         semaphore = anyio.Semaphore(stream_batch)
@@ -258,7 +299,10 @@ async def score(
                 nonlocal samples_written
                 samples_written += 1
                 if samples_written % stream_batch == 0:
-                    await write_recorder.flush(eval_log.eval)
+                    if new_output:
+                        await write_recorder.flush(eval_log.eval)
+                    else:
+                        await write_recorder.write_buffered_samples(eval_log.eval)
                 del sample
 
         read_sample = _read_sample
@@ -274,6 +318,7 @@ async def score(
         action=action,
         copy=False,
         samples=read_sample,
+        _log_scorers=scorer is None,
     )
 
     if stream:
@@ -287,11 +332,12 @@ async def score(
             invalidated=eval_log.invalidated,
             log_updates=eval_log.log_updates,
             config_updates=eval_log.config_updates,
+            total_samples=eval_log.total_samples,
         )
     else:
         await recorder.write_log(output_file, eval_log)
 
-    print_results(output_file, eval_log)
+    print_results(output_file, eval_log, coverage=pre_score_coverage)
 
 
 def _validate_scan_import_options(
@@ -321,13 +367,18 @@ def _validate_scan_import_options(
     }
     supplied = [option for option, present in incompatible.items() if present]
     if supplied:
-        raise ValueError(
+        raise PrerequisiteError(
             "--from-scan cannot be combined with scoring option(s): "
             + ", ".join(supplied)
+            + ". Most of these can also be set by an INSPECT_SCORE_* environment "
+            "variable."
         )
+    verify_scout_prerequisites()
 
 
-def print_results(output_file: str, eval_log: EvalLog) -> None:
+def print_results(
+    output_file: str, eval_log: EvalLog, coverage: EvalResults | None = None
+) -> None:
     # the theme
     theme = rich_theme()
 
@@ -339,6 +390,19 @@ def print_results(output_file: str, eval_log: EvalLog) -> None:
     if eval_log.results:
         for row in task_scores(eval_log.results.scores, pad_edge=True):
             grid.add_row(row)
+
+        coverage = coverage or eval_log.results
+        for message in sample_coverage_messages(
+            total_samples=coverage.total_samples,
+            completed_samples=coverage.completed_samples,
+            early_stopping=coverage.early_stopping,
+            # this pass scored every sample in the log, errored ones included,
+            # so their scores are in the metrics above whatever the original
+            # run's `score_on_error` was: don't claim they went unscored
+            score_on_error=True,
+        ):
+            grid.add_row("")
+            grid.add_row(f" {message}")
 
     grid.add_row("")
     grid.add_row(f" Log: [{theme.link}]{output_file}[/{theme.link}]")

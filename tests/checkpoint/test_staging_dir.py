@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+from inspect_ai.util._checkpoint._layout._paths import sample_dir_segment
 from inspect_ai.util._checkpoint._layout.staging_dir import (
     _eval_staging_dir,
     ensure_sample_staging_dir,
@@ -65,3 +66,14 @@ async def test_ensure_creates_dir_and_returns_path(cache_dir: Path) -> None:
     sample_dir = await ensure_sample_staging_dir("/logs/foo.eval", "s1", 0)
     assert Path(sample_dir).is_dir()
     assert sample_dir == str(cache_dir / "checkpoints/foo/s1__0")
+
+
+async def test_hostile_sample_id_stays_inside_eval_staging_dir(cache_dir: Path) -> None:
+    """A dataset id with `..` cannot relocate the staging tree."""
+    sample_id = "../../escape"
+    sample_dir = Path(await ensure_sample_staging_dir("/logs/foo.eval", sample_id, 0))
+    assert sample_dir.is_dir()
+    assert sample_dir.parent == cache_dir / "checkpoints/foo"
+    assert sample_dir.name == f"{sample_dir_segment(sample_id)}__0"
+    assert not (cache_dir / "escape__0").exists()
+    assert sample_staging_dir("/logs/foo.eval", sample_id, 0) == str(sample_dir)

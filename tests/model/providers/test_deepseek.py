@@ -6,6 +6,7 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageUser,
     GenerateConfig,
+    ResponseSchema,
     get_model,
 )
 
@@ -210,7 +211,7 @@ async def test_deepseek_compatible() -> None:
     # thinking is on by default, so the token budget must cover reasoning
     # before any completion text is emitted.
     model = get_model(
-        "deepseek/deepseek-v4-flash",
+        "deepseek/deepseek-flash",
         config=GenerateConfig(max_tokens=2048),
     )
     message = ChatMessageUser(content="Hello DeepSeek!")
@@ -222,7 +223,7 @@ async def test_deepseek_compatible() -> None:
 async def test_deepseek_reasoning_content() -> None:
     """Thinking is on by default; reasoning_content must surface as ContentReasoning."""
     model = get_model(
-        "deepseek/deepseek-v4-flash",
+        "deepseek/deepseek-flash",
         config=GenerateConfig(reasoning_effort="high", max_tokens=8192),
     )
     message = ChatMessageUser(content="Solve 3*x^3-5*x=1")
@@ -237,7 +238,7 @@ async def test_deepseek_reasoning_content() -> None:
 async def test_deepseek_disable_thinking() -> None:
     """reasoning_effort='none' must disable thinking rather than 400."""
     model = get_model(
-        "deepseek/deepseek-v4-flash",
+        "deepseek/deepseek-flash",
         config=GenerateConfig(reasoning_effort="none", max_tokens=2048),
     )
     res = await model.generate(input=[ChatMessageUser(content="Say hello.")])
@@ -267,9 +268,7 @@ async def test_deepseek_tool_loop_replays_reasoning() -> None:
 
         return execute
 
-    model = get_model(
-        "deepseek/deepseek-v4-flash", config=GenerateConfig(max_tokens=8192)
-    )
+    model = get_model("deepseek/deepseek-flash", config=GenerateConfig(max_tokens=8192))
     messages: list[ChatMessage] = [
         ChatMessageUser(content="Use the addition tool to compute 1 + 1.")
     ]
@@ -280,3 +279,91 @@ async def test_deepseek_tool_loop_replays_reasoning() -> None:
     messages.extend(result.messages)
     res = await model.generate(input=messages, tools=[addition()])
     assert "2" in res.completion
+
+
+@skip_if_no_deepseek
+async def test_deepseek_structured_output() -> None:
+    """response_schema reaches the API as JSON mode and yields parseable JSON."""
+    import json
+
+    from inspect_ai.util import json_schema
+
+    model = get_model(
+        "deepseek/deepseek-flash",
+        config=GenerateConfig(
+            reasoning_effort="none",
+            max_tokens=256,
+            response_schema=ResponseSchema(name="color", json_schema=json_schema(str)),
+        ),
+    )
+    res = await model.generate(
+        input=[
+            ChatMessageUser(
+                content='Reply with a JSON object of the form {"color": "<name>"} '
+                "naming any color."
+            )
+        ]
+    )
+    assert "color" in json.loads(res.completion)
+
+
+@skip_if_no_deepseek
+async def test_deepseek_image_input() -> None:
+    """deepseek-flash (V4.1 Flash) accepts image_url content in user messages."""
+    import base64
+    from pathlib import Path
+
+    from inspect_ai._util.content import ContentImage
+
+    # generate() requires inline media (eval materializes file references)
+    png = (
+        Path(__file__).parents[2]
+        / "dataset"
+        / "test_dataset"
+        / "images"
+        / "ballons.png"
+    ).read_bytes()
+    image = f"data:image/png;base64,{base64.b64encode(png).decode()}"
+    model = get_model(
+        "deepseek/deepseek-flash",
+        config=GenerateConfig(reasoning_effort="none", max_tokens=256),
+    )
+    res = await model.generate(
+        input=[
+            ChatMessageUser(
+                content=[
+                    ContentText(text="What objects are in this image? Answer briefly."),
+                    ContentImage(image=image),
+                ]
+            )
+        ]
+    )
+    assert "balloon" in res.completion.lower()
+
+
+def test_deepseek_response_schema_uses_json_object(
+    mock_deepseek_env, _warn_once_messages
+):
+    """DeepSeek 400s on response_format type "json_schema" — send JSON mode."""
+    from inspect_ai.model._providers.deepseek import DeepSeekAPI
+    from inspect_ai.util import json_schema
+
+    api = DeepSeekAPI(model_name="deepseek-v4-flash")
+    params = api.completion_params(
+        config=GenerateConfig(
+            response_schema=ResponseSchema(name="color", json_schema=json_schema(str))
+        ),
+        tools=False,
+    )
+    assert params["response_format"] == {"type": "json_object"}
+    assert len(_warn_once_messages) == 1
+    assert "deepseek-v4-flash" in _warn_once_messages[0]
+
+
+def test_deepseek_no_response_schema_omits_response_format(mock_deepseek_env):
+    """Without a response_schema nothing is sent and no warning is emitted."""
+    from inspect_ai.model._providers.deepseek import DeepSeekAPI
+
+    api = DeepSeekAPI(model_name="deepseek-v4-flash")
+    params = api.completion_params(config=GenerateConfig(max_tokens=100), tools=False)
+    assert "response_format" not in params

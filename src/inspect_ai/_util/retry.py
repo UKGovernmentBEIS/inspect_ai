@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import functools
+import inspect
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Literal, NamedTuple
 
@@ -12,6 +14,7 @@ _http_retries_count: int = 0
 def report_http_retry(
     kind: Literal["rate_limit", "transient"] = "transient",
     retry_after: float | None = None,
+    model: str | None = None,
 ) -> None:
     """Report an HTTP retry event.
 
@@ -19,6 +22,12 @@ def report_http_retry(
     the adaptive controller to scale down. `kind="transient"` (default —
     5xx, timeouts, network errors) only marks the request as retried,
     pausing scale-up but not triggering a cut.
+
+    `model` is the qualified `provider/model` name (NOT the bare provider
+    model name — see the key discipline in `design/model-throughput.md`);
+    when set, the retry is additionally attributed to that model in the
+    per-model throughput registry. Call sites without model context (e.g.
+    non-model traffic) leave it None and count only toward the global scalar.
     """
     from inspect_ai.log._samples import report_active_sample_retry
     from inspect_ai.util._concurrency import _active_controller, _request_had_retry
@@ -26,6 +35,12 @@ def report_http_retry(
     # bump global counter
     global _http_retries_count
     _http_retries_count = _http_retries_count + 1
+
+    # attribute to the model's throughput registry when the caller knows it
+    if model is not None:
+        from inspect_ai.model._throughput import record_retry
+
+        record_retry(model, kind)
 
     # report sample retry
     report_active_sample_retry()
@@ -152,3 +167,22 @@ def retry_error_summary(retry_state: RetryCallState) -> str:
     if code is not None and not isinstance(code, int):
         parts.append(str(code))
     return f" [{' '.join(parts)}]"
+
+
+def backoff_multiplier(value: float) -> dict[str, float]:
+    """Backoff multiplier argument for tenacity's `wait_exponential_jitter`.
+
+    Use as `wait_exponential_jitter(**backoff_multiplier(3), ...)`. tenacity
+    9.2.1 added `multiplier` and deprecated `initial` (a DeprecationWarning is
+    emitted when `initial` is not 1); earlier releases accept only `initial`.
+    Both names give the same waits.
+    """
+    return {_backoff_multiplier_keyword(): value}
+
+
+@functools.cache
+def _backoff_multiplier_keyword() -> str:
+    from tenacity import wait_exponential_jitter
+
+    parameters = inspect.signature(wait_exponential_jitter).parameters
+    return "multiplier" if "multiplier" in parameters else "initial"

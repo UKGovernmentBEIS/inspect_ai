@@ -1,4 +1,5 @@
 import re
+from copy import deepcopy
 from typing import Any
 
 from shortuuid import uuid as shortuuid
@@ -24,6 +25,7 @@ def as_tool(
     agent: Agent,
     description: str | None = None,
     limits: list[Limit] = [],
+    max_output: int | None = 0,
     **agent_kwargs: Any,
 ) -> Tool:
     """Convert an agent to a tool.
@@ -37,9 +39,15 @@ def as_tool(
     Args:
        agent: Agent to convert.
        description: Tool description (defaults to agent description)
-       limits: List of limits to apply to the agent. Should a limit
+       limits: List of limits to apply to the agent. Each tool call
+          applies a fresh copy of the limits. Should a limit
           be exceeded, the tool call ends and returns an error
           explaining that a limit was exceeded.
+       max_output: Maximum size (in bytes) of the agent's response before
+          it is truncated. Defaults to `0` (no truncation) since the
+          response is the payload the caller asked for. Pass a positive
+          number of bytes to cap it, or `None` to defer to
+          `max_tool_output` in the active `GenerateConfig`.
        **agent_kwargs: Arguments to curry to Agent function (arguments
           provided here will not be presented to the model as part
           of the tool interface).
@@ -63,8 +71,9 @@ def as_tool(
         # pre-generate span ID so call_tool can read it after execution
         agent_span_id = shortuuid()
 
-        # run the agent with limits
-        with apply_limits(limits):
+        # run the agent with limits (copied, as a Limit can only be entered once
+        # and this tool may be invoked many times)
+        with apply_limits(deepcopy(limits)):
             async with span(
                 name=agent_display_name(agent), type=AGENT_SPAN_TYPE, id=agent_span_id
             ):
@@ -89,12 +98,16 @@ def as_tool(
     } | tool_info.parameters.properties
     tool_info.parameters.required.append("input")
 
-    # create tool
+    # create tool (max_output defaults to 0: the agent's report is the payload
+    # the caller asked for, and clipping it would substitute a truncation
+    # notice. It was also only ever clipped for agents whose final message
+    # content is a plain string; structured content already bypassed it.)
     tool_def = ToolDef(
         execute,
         name=tool_info.name,
         description=tool_info.description,
         parameters=tool_info.parameters,
+        max_output=max_output,
     )
     return tool_def.as_tool()
 

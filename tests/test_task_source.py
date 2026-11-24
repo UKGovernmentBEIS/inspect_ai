@@ -1,20 +1,29 @@
-"""Tests for driving a running eval from a `TaskSource` (batch-at-a-time).
+"""Tests for driving a running eval from a `TaskSource`.
 
-The source seeds the run with `initial_tasks()`, observes each batch's results
-via `sample_complete` / `task_complete`, and produces the next batch from
-`next_tasks()` until it returns `None` — all under one run_id.
+The source seeds the run with `initial_tasks()`, observes results via
+`sample_complete` / `task_complete`, and produces the next batch from
+`next_tasks()` (called when no task is queued or running) until it returns
+`None` — all under one run_id.
 """
 
+import gc
+import os
+import subprocess
+import sys
+import weakref
 from pathlib import Path
+from typing import Any, Awaitable, Callable
 
 import anyio
 import pytest
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, TaskSource, eval, eval_async, task_source
 from inspect_ai._eval.loader import resolve_tasks
-from inspect_ai._eval.task.enqueue import enqueue_task
+from inspect_ai._eval.task.enqueue import TaskRecord, enqueue_task, get_run_queue
+from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog, EvalSample
+from inspect_ai.log import EvalLog, EvalSample, list_eval_logs, read_eval_log_async
 from inspect_ai.model import get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util._display import init_display_type
@@ -127,6 +136,236 @@ def test_sample_complete_receives_owning_task() -> None:
     assert sorted(name for name, _ in seen) == ["a", "b"]
 
 
+def test_sample_complete_fires_for_per_sample_cancel() -> None:
+    """A per-sample `cancel` interrupt still notifies the TaskSource.
+
+    The task keeps running after an operator cancels one sample, so the
+    source hears about it (as cancelled) like any other completing sample.
+    """
+    from inspect_ai.log._samples import sample_active
+
+    completed: list[str] = []
+
+    @solver(name="task_source_self_cancel_solver")
+    def self_cancel_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "a":
+                active = sample_active()
+                assert active is not None
+                active.interrupt("cancel")
+                await anyio.sleep(10)
+            return state
+
+        return solve
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [
+                Task(
+                    dataset=[Sample(id="a", input="x"), Sample(id="b", input="x")],
+                    solver=self_cancel_solver(),
+                    name="per_sample_cancel",
+                )
+            ]
+
+        async def sample_complete(self, sample: EvalSample, task: Task) -> None:
+            completed.append(str(sample.id))
+
+        async def next_tasks(self) -> list[Task] | None:
+            return None
+
+    logs = eval(tasks=_Src(), model="mockllm/model", display="none")
+    assert logs[0].status == "success"
+    assert sorted(completed) == ["a", "b"]
+
+
+def test_sample_complete_skipped_for_task_cancel() -> None:
+    """A task-level cancel does not notify the TaskSource for the unwound sample.
+
+    The sample completion block is shielded while a cancellation is being
+    resolved, so delivering the sample there would run user callback code
+    uncancellable (a callback that blocks would hang ^C). The task's unwind
+    also means any follow-up tasks could never run under it; the source still
+    sees the sample in the log handed to `task_complete`.
+    """
+    from inspect_ai._control.cancel import cancel_task as ctl_cancel_task
+    from inspect_ai._control.eval_state import get_eval_states
+
+    completed: list[str] = []
+    tasks_completed: list[str] = []
+
+    @solver(name="task_source_task_cancel_solver")
+    def task_cancel_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            result = ctl_cancel_task(get_eval_states()[0].task_id, action="cancel")
+            assert result is not None and result["ok"] is True
+            await anyio.sleep(10)
+            return state
+
+        return solve
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [
+                Task(
+                    dataset=[Sample(id="a", input="x")],
+                    solver=task_cancel_solver(),
+                    name="task_cancel",
+                )
+            ]
+
+        async def sample_complete(self, sample: EvalSample, task: Task) -> None:
+            completed.append(str(sample.id))
+
+        async def task_complete(self, log: EvalLog) -> None:
+            tasks_completed.append(log.eval.task)
+
+        async def next_tasks(self) -> list[Task] | None:
+            return None
+
+    logs = eval(tasks=_Src(), model="mockllm/model", display="none")
+    log = logs[0]
+    assert log.status == "error"
+    assert log.error is not None and "cancelled by user" in log.error.message
+    assert log.samples is not None and len(log.samples) == 1
+    assert log.samples[0].error is not None
+    assert completed == []
+    assert tasks_completed == ["task_cancel"]
+
+
+def test_sample_abandoned_fires_for_queued_sample_cancel() -> None:
+    """Cancelling a sample still parked in the queue notifies the TaskSource.
+
+    With one slot, whichever seed wins it cancels the parked sibling before it
+    starts. Nothing is ever logged for the sibling, so the source hears about
+    it via `sample_abandoned` (with the sample, epoch and task) rather than
+    `sample_complete`, which fires only for the sample that ran.
+    """
+    from inspect_ai._control.cancel import cancel_sample
+    from inspect_ai._control.eval_state import get_eval_states
+
+    completed: list[str] = []
+    abandoned: list[tuple[str, int, str]] = []
+    ran: list[str] = []
+
+    async def on_complete(sample: EvalSample, task: Task) -> list[Task] | None:
+        completed.append(str(sample.id))
+        return None
+
+    async def on_abandoned(sample: Sample, epoch: int, task: Task) -> None:
+        abandoned.append((str(sample.id), epoch, task.name))
+
+    @solver(name="task_source_queued_cancel_solver")
+    def cancel_parked_sibling() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            ran.append(str(state.sample_id))
+            parked = "b" if state.sample_id == "a" else "a"
+            eval_id = get_eval_states()[0].eval_id
+            with anyio.fail_after(60):
+                while True:
+                    probe = await cancel_sample(
+                        eval_id, parked, 1, action="cancel", dry_run=True
+                    )
+                    if probe is not None and probe.get("status") == "cancelled":
+                        break
+                    await anyio.sleep(0.01)
+            result = await cancel_sample(eval_id, parked, 1, action="cancel")
+            assert result is not None
+            assert result["ok"] is True and result["changed"] is True
+            return state
+
+        return solve
+
+    source = TaskSource.from_tasks(
+        [
+            Task(
+                dataset=[Sample(id="a", input="x"), Sample(id="b", input="x")],
+                solver=cancel_parked_sibling(),
+                name="queued_cancel",
+            )
+        ],
+        sample_complete=on_complete,
+        sample_abandoned=on_abandoned,
+    )
+    logs = eval(tasks=source, model="mockllm/model", display="none", max_samples=1)
+    assert logs[0].status == "success"
+    (running,) = ran
+    parked = "b" if running == "a" else "a"
+    assert completed == [running]
+    assert abandoned == [(parked, 1, "queued_cancel")]
+    assert [str(s.id) for s in (logs[0].samples or [])] == [running]
+
+
+def test_task_cancel_reaches_suspended_sample_abandoned() -> None:
+    """A task stays cancellable while its `sample_abandoned` callback blocks.
+
+    The hook fires after the run's terminal count, so for the task's last
+    sample the counters already read complete when the callback runs. A
+    TaskSource-driven eval must therefore not stamp itself finished on the
+    counters alone (it registers as dynamic, like a SampleSource task):
+    otherwise `ctl task cancel` would no-op as "task already finished" while
+    the callback held the fanout open. The cancel is issued from inside the
+    suspended callback; it must be accepted, unwind the callback (its cleanup
+    runs) and end the eval.
+    """
+    from inspect_ai._control.cancel import CancelTaskResult, cancel_sample
+    from inspect_ai._control.cancel import cancel_task as ctl_cancel_task
+    from inspect_ai._control.eval_state import get_eval_states
+
+    attempts = 0
+    cancel_results: list[CancelTaskResult | None] = []
+    callback_cleanup: list[str] = []
+
+    @solver(name="task_source_drain_window_error_solver")
+    def erroring_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal attempts
+            attempts += 1
+            raise RuntimeError("boom")
+
+        return solve
+
+    async def cleanup(state: TaskState) -> None:
+        # per-sample cancel in the errored attempt's drain window: the retry
+        # is suppressed and the run abandoned without a log record
+        if attempts == 1:
+            eval_id = get_eval_states()[0].eval_id
+            result = await cancel_sample(eval_id, "a", 1, action="cancel")
+            assert result is not None and result["ok"] is True
+
+    async def on_abandoned(sample: Sample, epoch: int, task: Task) -> None:
+        # the task's only sample is counted terminal by now; the task-level
+        # cancel must still be accepted and reach this suspended callback
+        cancel_results.append(
+            ctl_cancel_task(get_eval_states()[0].task_id, action="cancel")
+        )
+        try:
+            await anyio.sleep(10)
+        finally:
+            callback_cleanup.append(str(sample.id))
+
+    source = TaskSource.from_tasks(
+        [
+            Task(
+                dataset=[Sample(id="a", input="x")],
+                solver=erroring_solver(),
+                cleanup=cleanup,
+                name="cancel_during_abandoned",
+            )
+        ],
+        sample_abandoned=on_abandoned,
+    )
+    logs = eval(tasks=source, model="mockllm/model", display="none", retry_on_error=2)
+    assert attempts == 1
+    (cancel,) = cancel_results
+    assert cancel is not None and cancel["ok"] is True
+    assert cancel["changed"] is True, cancel
+    assert callback_cleanup == ["a"]
+    log = logs[0]
+    assert log.status == "error"
+    assert log.error is not None and "cancelled by user" in log.error.message
+
+
 def test_task_source_factory_seed_and_callbacks() -> None:
     # task_source() builds a TaskSource from a seed + callbacks (no subclass).
     # next_tasks closes over shared state to produce two more generations.
@@ -194,6 +433,34 @@ def test_task_complete_returning_tasks_chains_generations() -> None:
     logs = eval(tasks=_Chain(3), model="mockllm/model", display="none")
     assert sorted(log.eval.task for log in logs) == ["gen0", "gen1", "gen2"]
     assert len({log.eval.run_id for log in logs}) == 1
+
+
+async def test_task_complete_returned_task_error_propagates(tmp_path: Path) -> None:
+    # an error adding a follow-up task that task_complete returned (here a
+    # sandbox type that is not registered) ends the run, as it does for
+    # enqueue_task; only an exception from the callback itself is logged
+    class _BadChild(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_task("gen0")]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            if log.eval.task == "gen0":
+                return [
+                    Task(
+                        dataset=[Sample(input="hi", target="ok")],
+                        solver=[generate()],
+                        name="gen1",
+                        sandbox="not-a-registered-sandbox",
+                    )
+                ]
+            return None
+
+    with pytest.raises(ValueError, match="not-a-registered-sandbox"):
+        await eval_async(
+            tasks=_BadChild(),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+        )
 
 
 def test_factory_task_complete_returning_tasks() -> None:
@@ -420,3 +687,544 @@ def test_task_source_name_rejected_outside_eval() -> None:
         resolve_tasks(
             "decorated_generations", {}, get_model("mockllm/model"), None, None, None
         )
+
+
+# -- one queue, one dispatcher (design/task-dispatch.md) -----------------------
+
+
+def _hook_task(name: str, hook: Callable[[], Awaitable[None]]) -> Task:
+    @solver
+    def run_hook() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await hook()
+            return state
+
+        return solve
+
+    return Task(dataset=[Sample(input="x")], solver=[run_hook()], name=name)
+
+
+async def _noop() -> None:
+    pass
+
+
+def _record(name: str) -> TaskRecord:
+    queue = get_run_queue()
+    assert queue is not None
+    return next(r for r in queue.records if r.task == name)
+
+
+async def test_task_added_while_next_tasks_blocks_starts_first(tmp_path: Path) -> None:
+    started: list[str] = []
+
+    def recording(name: str) -> Task:
+        async def record() -> None:
+            started.append(name)
+
+        return _hook_task(name, record)
+
+    class _Src(TaskSource):
+        calls = 0
+
+        def initial_tasks(self) -> list[Task]:
+            return [recording("seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            self.calls += 1
+            if self.calls > 1:
+                return None
+            # a task added while the call blocks waits for it to return
+            enqueue_task(recording("added"))
+            await anyio.sleep(0)
+            assert _record("added").phase == "queued"
+            return [recording("returned")]
+
+    init_display_type("none")
+    logs = await eval_async(
+        _Src(), model="mockllm/model", max_tasks=1, log_dir=str(tmp_path)
+    )
+    assert started == ["seed", "added", "returned"]
+    assert [log.eval.task for log in logs] == ["seed", "added", "returned"]
+
+
+async def test_next_tasks_empty_list_ends_the_source(tmp_path: Path) -> None:
+    class _Src(TaskSource):
+        calls = 0
+
+        def initial_tasks(self) -> list[Task]:
+            return [_task("seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            self.calls += 1
+            return []
+
+    source = _Src()
+    init_display_type("none")
+    logs = await eval_async(source, model="mockllm/model", log_dir=str(tmp_path))
+    assert [log.eval.task for log in logs] == ["seed"]
+    assert source.calls == 1
+
+
+class _WaitForReports(TaskSource):
+    """Seeds tasks and returns from next_tasks() only once each has been reported."""
+
+    def __init__(self, seed: list[Task], reports_needed: int) -> None:
+        self.seed = seed
+        self.reports: list[EvalLog] = []
+        self.reports_needed = reports_needed
+        self._done: anyio.Event | None = None
+
+    def initial_tasks(self) -> list[Task]:
+        return self.seed
+
+    def done(self) -> anyio.Event:
+        if self._done is None:
+            self._done = anyio.Event()
+        return self._done
+
+    async def task_complete(self, log: EvalLog) -> list[Task] | None:
+        self.reports.append(log)
+        if len(self.reports) >= self.reports_needed:
+            self.done().set()
+        return None
+
+    async def next_tasks(self) -> list[Task] | None:
+        with anyio.fail_after(20):
+            await self.done().wait()
+        return None
+
+
+@pytest.mark.parametrize("retries", [0, 2])
+async def test_every_attempt_is_reported_including_failed_log_init(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, retries: int
+) -> None:
+    init = TaskLogger.init
+
+    async def failing_init(self: TaskLogger) -> None:
+        if self.eval.task == "B":
+            raise OSError("cannot start log")
+        await init(self)
+
+    monkeypatch.setattr(TaskLogger, "init", failing_init)
+    source = _WaitForReports([_task("A"), _task("B")], reports_needed=retries + 2)
+    init_display_type("none")
+    logs = await eval_async(
+        source,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        task_retry_attempts=retries,
+    )
+    b_reports = [log for log in source.reports if log.eval.task == "B"]
+    assert len(b_reports) == retries + 1
+    assert all(
+        log.status == "error"
+        and log.error is not None
+        and "cannot start log" in log.error.message
+        for log in b_reports
+    )
+    by_task = {log.eval.task: log for log in logs}
+    assert by_task["A"].status == "success"
+    assert by_task["B"].status == "error"
+
+
+@pytest.mark.parametrize("failure", ["header", "final"])
+async def test_attempt_whose_log_storage_failed_is_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    method = "log_start" if failure == "header" else "log_finish"
+    original = getattr(TaskLogger, method)
+
+    async def failing(self: TaskLogger, *args: Any, **kwargs: Any) -> Any:
+        if self.eval.task == "B":
+            raise OSError(f"{method} failed")
+        return await original(self, *args, **kwargs)
+
+    monkeypatch.setattr(TaskLogger, method, failing)
+    source = _WaitForReports([_task("A"), _task("B")], reports_needed=2)
+    init_display_type("none")
+    logs = await eval_async(source, model="mockllm/model", log_dir=str(tmp_path))
+    [b_report] = [log for log in source.reports if log.eval.task == "B"]
+    [b_log] = [log for log in logs if log.eval.task == "B"]
+    assert b_report.status == "error"
+    assert b_report.error is not None
+    assert f"{method} failed" in b_report.error.message
+    assert b_report.error.message == (b_log.error.message if b_log.error else None)
+
+
+async def test_cancel_of_queued_task_aborts_it_before_it_starts(
+    tmp_path: Path,
+) -> None:
+    async def cancel_b() -> None:
+        queue = get_run_queue()
+        assert queue is not None
+        b = _record("B")
+        assert b.phase == "queued"
+        queue.cancel(b)
+        assert b.abort_requested
+
+    source = _WaitForReports(
+        [_hook_task("A", cancel_b), _hook_task("B", _noop)], reports_needed=2
+    )
+    init_display_type("none")
+    logs = await eval_async(
+        source,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=1,
+        task_retry_attempts=1,
+    )
+    by_task = {log.eval.task: log for log in logs}
+    assert by_task["A"].status == "success"
+    b = by_task["B"]
+    assert b.status == "error"
+    assert b.error is not None
+    assert "Task cancelled by user (abort)" in b.error.message
+    assert b.location == ""
+    # reported once, never retried, and no log file was created for it
+    assert [log.eval.task for log in source.reports].count("B") == 1
+    assert len(list(tmp_path.glob("*_B_*"))) == 0
+
+
+async def test_cancel_of_attempt_before_it_registers_aborts_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    init = TaskLogger.init
+    init_entered = anyio.Event()
+
+    async def held_init(self: TaskLogger) -> None:
+        if self.eval.task == "B":
+            init_entered.set()
+            await anyio.sleep_forever()
+        await init(self)
+
+    async def cancel_b() -> None:
+        with anyio.fail_after(10):
+            await init_entered.wait()
+        b = _record("B")
+        assert b.phase == "attempt"
+        assert b.reached == "added"
+        queue = get_run_queue()
+        assert queue is not None
+        queue.cancel(b)
+
+    monkeypatch.setattr(TaskLogger, "init", held_init)
+    source = _WaitForReports([_hook_task("A", cancel_b), _hook_task("B", _noop)], 2)
+    init_display_type("none")
+    logs = await eval_async(
+        source,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=2,
+        task_retry_attempts=1,
+    )
+    [b] = [log for log in logs if log.eval.task == "B"]
+    assert b.status == "error"
+    assert b.error is not None
+    assert "Task cancelled by user (abort)" in b.error.message
+    assert [log.eval.task for log in source.reports].count("B") == 1
+
+
+async def test_next_tasks_error_ends_the_run(tmp_path: Path) -> None:
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_task("seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            raise ValueError("source failed")
+
+    init_display_type("none")
+    with pytest.raises(ValueError, match="source failed"):
+        await eval_async(_Src(), model="mockllm/model", log_dir=str(tmp_path))
+
+
+async def test_source_returns_after_the_run_stopped_are_dropped(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    started = anyio.Event()
+
+    async def block() -> None:
+        started.set()
+        await anyio.sleep_forever()
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_hook_task("A", block)]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            # no checkpoint: the follow-up is returned however the run ended
+            return [_task("follow_up")]
+
+    init_display_type("none")
+    with anyio.CancelScope() as scope:
+
+        async def cancel_when_started() -> None:
+            with anyio.fail_after(10):
+                await started.wait()
+            scope.cancel()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(cancel_when_started)
+            await eval_async(_Src(), model="mockllm/model", log_dir=str(tmp_path))
+
+    logs = list(tmp_path.glob("*.eval"))
+    assert len(logs) == 1
+    assert "follow-up" not in logs[0].name and "follow_up" not in logs[0].name
+
+
+class _BlockingNextTasks(TaskSource):
+    """Seeds one task; next_tasks() then blocks until the run is cancelled."""
+
+    def __init__(self) -> None:
+        self._entered: anyio.Event | None = None
+
+    def entered(self) -> anyio.Event:
+        if self._entered is None:
+            self._entered = anyio.Event()
+        return self._entered
+
+    def initial_tasks(self) -> list[Task]:
+        return [_task("seed")]
+
+    async def next_tasks(self) -> list[Task] | None:
+        self.entered().set()
+        await anyio.sleep_forever()
+        return None
+
+
+@pytest.mark.parametrize("max_tasks", [1, 2])
+async def test_cancellation_while_next_tasks_blocks_keeps_completed_logs(
+    tmp_path: Path, max_tasks: int
+) -> None:
+    source = _BlockingNextTasks()
+    init_display_type("none")
+    with anyio.fail_after(30):
+        with anyio.CancelScope() as scope:
+
+            async def cancel_when_blocked() -> None:
+                await source.entered().wait()
+                scope.cancel()
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(cancel_when_blocked)
+                await eval_async(
+                    source,
+                    model="mockllm/model",
+                    max_tasks=max_tasks,
+                    log_dir=str(tmp_path),
+                )
+
+    assert scope.cancel_called
+    [info] = list_eval_logs(str(tmp_path))
+    log = await read_eval_log_async(info.name)
+    assert (log.eval.task, log.status) == ("seed", "success")
+
+
+_SIGINT_WHILE_NEXT_TASKS_BLOCKS = """
+import signal
+import sys
+import tempfile
+
+import anyio
+from inspect_ai import Task, TaskSource, eval
+from inspect_ai.dataset import Sample
+from inspect_ai.log import list_eval_logs, read_eval_log
+
+
+class Source(TaskSource):
+    def initial_tasks(self):
+        return [Task(dataset=[Sample(input="x")], name="seed")]
+
+    async def next_tasks(self):
+        signal.raise_signal(signal.SIGINT)
+        await anyio.sleep(30)
+        return None
+
+
+for max_tasks in (1, 2):
+    log_dir = tempfile.mkdtemp()
+    try:
+        logs = eval(
+            Source(),
+            model="mockllm/model",
+            max_tasks=max_tasks,
+            display="none",
+            log_dir=log_dir,
+        )
+        outcome = "returned " + ",".join(log.status for log in logs)
+    except KeyboardInterrupt:
+        outcome = "KeyboardInterrupt"
+    on_disk = ",".join(read_eval_log(info.name).status for info in list_eval_logs(log_dir))
+    print(f"max_tasks={max_tasks}: {outcome}; on disk {on_disk}")
+"""
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_sigint_while_next_tasks_blocks_keeps_completed_logs(backend: str) -> None:
+    # a Ctrl-C while next_tasks() blocks is handled like one during a task:
+    # eval() returns the logs on asyncio, and on trio run_main raises
+    # KeyboardInterrupt after the run has written them
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", _SIGINT_WHILE_NEXT_TASKS_BLOCKS],
+        env={**os.environ, "INSPECT_ASYNC_BACKEND": backend},
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    outcome = "returned success" if backend == "asyncio" else "KeyboardInterrupt"
+    lines = [line for line in result.stdout.splitlines() if line.startswith("max_")]
+    assert lines == [
+        f"max_tasks=1: {outcome}; on disk success",
+        f"max_tasks=2: {outcome}; on disk success",
+    ], result.stdout + result.stderr
+
+
+async def test_next_tasks_batch_is_freed_once_its_tasks_end(tmp_path: Path) -> None:
+    # the dispatcher keeps no reference to a batch next_tasks() returned, so
+    # a finished task and its dataset are freed while the next call blocks
+    task_ref: list[weakref.ref[Task]] = []
+    alive_during_next_pull: list[bool] = []
+
+    class _Src(TaskSource):
+        calls = 0
+
+        def initial_tasks(self) -> list[Task]:
+            return [_task("seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            self.calls += 1
+            if self.calls == 1:
+                pulled = _task("pulled")
+                task_ref.append(weakref.ref(pulled))
+                return [pulled]
+            if self.calls == 2:
+                assert _record("pulled").phase == "ended"
+                gc.collect()
+                alive_during_next_pull.append(task_ref[0]() is not None)
+            return None
+
+    init_display_type("none")
+    logs = await eval_async(_Src(), model="mockllm/model", log_dir=str(tmp_path))
+    assert [log.eval.task for log in logs] == ["seed", "pulled"]
+    assert alive_during_next_pull == [False]
+
+
+@pytest.mark.parametrize("early_end", ["log_init_failure", "queued_abort"])
+async def test_attempt_report_runs_under_its_own_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, early_end: str
+) -> None:
+    # an attempt that ends before its log starts is still reported to the
+    # source in its own task context (its model, not the last one resolved)
+    seen: list[tuple[str, str, str]] = []
+    init = TaskLogger.init
+
+    async def failing_init(self: TaskLogger) -> None:
+        if self.eval.task == "B" and self.eval.model == "mockllm/first":
+            raise OSError("cannot start log")
+        await init(self)
+
+    async def cancel_b_first() -> None:
+        queue = get_run_queue()
+        assert queue is not None
+        record = next(
+            r for r in queue.records if r.task == "B" and r.model == "mockllm/first"
+        )
+        queue.cancel(record)
+
+    if early_end == "log_init_failure":
+        monkeypatch.setattr(TaskLogger, "init", failing_init)
+        seed = [_task("B")]
+    else:
+        # A (both models) runs first at max_tasks=1 and cancels B's first-model
+        # record while it is queued
+        seed = [_hook_task("A", cancel_b_first), _task("B")]
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return seed
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            seen.append((log.eval.task, log.eval.model, str(get_model())))
+            return None
+
+    init_display_type("none")
+    await eval_async(
+        _Src(),
+        model=["mockllm/first", "mockllm/second"],
+        log_dir=str(tmp_path),
+        max_tasks=1,
+    )
+    [(_, model, active)] = [r for r in seen if r[0] == "B" and r[1] == "mockllm/first"]
+    assert active == model
+    assert all(r[1] == r[2] for r in seen), seen
+
+
+async def test_interrupted_retry_preparation_releases_the_attempts_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # the attempt owns its logger until its retry is published: a
+    # cancellation while the retry is prepared still closes the buffer of an
+    # attempt whose final write failed and releases its recorder entry
+    reinit_entered = anyio.Event()
+    loggers: list[TaskLogger] = []
+
+    async def failing_log_finish(self: TaskLogger, *args: Any, **kwargs: Any) -> Any:
+        raise OSError("final write failed")
+
+    async def held_reinit(self: TaskLogger) -> None:
+        loggers.append(self)
+        reinit_entered.set()
+        await anyio.sleep_forever()
+
+    monkeypatch.setattr(TaskLogger, "log_finish", failing_log_finish)
+    monkeypatch.setattr(TaskLogger, "reinit", held_reinit)
+    init_display_type("none")
+    with anyio.fail_after(30):
+        with anyio.CancelScope() as scope:
+
+            async def cancel_when_preparing_retry() -> None:
+                await reinit_entered.wait()
+                [logger] = loggers
+                # held by the failed attempt until reinit releases it
+                assert logger.buffer_db is not None
+                assert not logger.finished
+                scope.cancel()
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(cancel_when_preparing_retry)
+                await eval_async(
+                    _task("A"),
+                    model="mockllm/model",
+                    log_dir=str(tmp_path),
+                    task_retry_attempts=1,
+                )
+
+    [logger] = loggers
+    assert logger.buffer_db is None
+    with pytest.raises(RuntimeError, match="No log in progress"):
+        logger.recorder.destination_written(logger.eval)
+
+
+@skip_if_trio  # an asyncio task cancelled on its own, outside the run
+async def test_next_tasks_cancelled_by_its_own_producer_fails_the_run(
+    tmp_path: Path,
+) -> None:
+    # a cancellation the run did not cause must not read as the source
+    # finishing: the run fails instead of returning its partial logs
+    import asyncio
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_task("seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            producer = asyncio.create_task(asyncio.sleep(30))
+            await asyncio.sleep(0)
+            producer.cancel()
+            await producer  # raises CancelledError into next_tasks()
+            return None
+
+    init_display_type("none")
+    with anyio.fail_after(30):
+        with pytest.raises(RuntimeError, match="next_tasks"):
+            await eval_async(_Src(), model="mockllm/model", log_dir=str(tmp_path))

@@ -16,6 +16,7 @@ class SampleSource:
     def initial_samples(self) -> list[Sample]: ...                       # sync seed (immediate; may be empty)
     async def next_samples(self) -> list[Sample] | None: ...             # async; None ends the task
     async def sample_complete(self, sample: EvalSample) -> list[Sample] | None: ...  # observe + add
+    async def sample_abandoned(self, sample: Sample, epoch: int) -> list[Sample] | None: ...  # never-logged cancel
 ```
 
 The asymmetry mirrors `TaskSource`:
@@ -32,10 +33,45 @@ The asymmetry mirrors `TaskSource`:
   `emit_sample_end`, alongside the `TaskSource.sample_complete` firing site in
   `task_run_sample`) and may **return follow-up samples**, which are routed
   onto the task's `SampleEnqueuer` — the same buffer `enqueue_sample` feeds.
+  It fires *after* the (shielded) completion block, so user callback code is
+  never uncancellable; a sample cancelled individually by the operator is
+  delivered (the task runs on, and a source waiting on it would otherwise
+  stall), but a sample cancelled by the task's own unwind (abort/retry cancel,
+  ^C) is not — the scope is cancelled and no follow-up could run.
+- **`sample_abandoned()`** covers the cancels `sample_complete()` cannot: a
+  run cancelled before anything reached the log, so there is no `EvalSample`
+  to deliver. Three paths end that way (all return the scheduler's
+  `DISCARDED` sentinel from `task_run_sample`): a queued-sample cancel
+  (`ctl sample cancel --action cancel` on a parked run, discarded at its
+  queue-exit check), a graceful task cancel (`drain` / `score` / `error`)
+  abandoning a queued run at the same check, and an interrupt landing in an
+  errored attempt's pre-retry drain window (the retry is suppressed and the
+  attempt abandoned). `run_sample` fires the hook — for the `SampleSource`
+  and the `TaskSource` alike — when `task_run_sample` returns `DISCARDED`,
+  delivering a copy of the dataset `Sample` plus the epoch, and routes any
+  returned samples onto the enqueuer like `sample_complete`'s. The delivery
+  rule is `sample_complete`'s: not while the task is unwinding
+  (`abort`/`retry` stamp), where no follow-up could run; and additionally
+  not for a requeue re-run, whose withdrawn/abandoned run leaves the prior,
+  already-reported terminal outcome standing. A separate hook was chosen
+  over synthesizing an `EvalSample` with a cancellation `error`: the source
+  would otherwise be handed a record that exists nowhere in the log and
+  cannot be distinguished from a logged operator cancel. Because the hook
+  runs *after* the run's terminal count (unlike `sample_complete`, which
+  precedes it), the last sample's count can land while the source is still
+  being told — so a `TaskSource`-driven eval also registers as `dynamic`
+  (its `completed_at` is stamped by `finalize_eval`, as a `SampleSource`
+  task's already is), keeping `ctl task cancel` effective while a callback
+  is suspended rather than reading the task as finished. Timing: a
+  queued-sample cancel is *counted* at accept but the parked coroutine
+  discards only when it next acquires a slot, so the notification arrives
+  when the sample would otherwise have started — an orchestrator waiting on
+  a rollout it enqueued therefore needs spare sample capacity, exactly as it
+  would for the rollout to run at all.
 
 `SampleSource.from_samples(initial_samples, *, next_samples=None,
-sample_complete=None)` builds a source from a seed + callbacks without
-subclassing (mirrors `TaskSource.from_tasks`).
+sample_complete=None, sample_abandoned=None)` builds a source from a seed +
+callbacks without subclassing (mirrors `TaskSource.from_tasks`).
 
 There is no `@sample_source` decorator: a `SampleSource` lives *inside* a
 `Task`, and tasks are already registerable / loadable by name via `@task` — the
@@ -51,7 +87,7 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   NamedTuple: `task.dataset` is a `MemoryDataset` of the seed (empty allowed —
   the plain-dataset empty check is bypassed) and `task.sample_source` carries
   the source. Everything downstream that reads `task.dataset` (log spec,
-  sandbox startup, auto-id assignment of the seed in `prepare_options`) is
+  sandbox startup, auto-id assignment of the seed in `configure_task`) is
   unchanged.
 - **No eval-level changes** — the source travels on the `Task` itself; `eval()`
   / `eval_run` / `TaskRunOptions` needed no new parameter. (`TaskRunOptions`
@@ -77,10 +113,48 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   list indexed after the (possibly disk-paged) seed store; `get_sample(index)`
   dispatches between the two. Each injected sample runs for the task's
   configured `epochs`, like the seed.
-- **Ids** — injected samples without ids get auto-ids continuing the seed's
-  1-based numbering, skipping ids already in use; a duplicate explicit id is a
-  hard error. Ids are compared by their `str()` form, matching
-  `ensure_unique_ids` (log member names and score grouping key on it).
+- **Ids** — each admission of a sample without an id runs as a copy with a
+  generated string id, not the next integer: `dyn-<token>-<counter>`. The
+  token is the attempt's `eval.created` (the time the log file name is
+  built from, to the second) in base 36: 6 characters until 2039. Each
+  attempt's `created` is made later than its prior log's `eval.created`
+  (carried as `EvalSampleSource.prior_created`; an immediate retry uses the
+  failed attempt's), on top of the walk past existing log files. So it
+  holds for `eval_retry` into another log directory, without sample
+  logging, and when the clock went back. Every generated id in the prior
+  log or its checkpoints, including those carried from earlier attempts,
+  has a token at or below the prior's `created`, so a new attempt's ids
+  never repeat one. Two retries of the same log into different log
+  directories that start in the same second (or with the clock running
+  backward) and share a `checkpoints_location` share a checkpoints dir and
+  generated ids, so one can resume the other's checkpoints (accepted:
+  Ransom, 2026-11-05). The counter is the attempt's admission count,
+  zero-padded to 4 digits, and skips any id an explicit sample already
+  holds in any epoch (the seed set, earlier explicit admissions). An
+  explicit sample added under an id this attempt generated is a duplicate,
+  whatever its epoch. Explicit ids, seed or dynamic, are not checked
+  against the generated shape. An explicit id `dyn-<token>-<counter>` with a
+  token later than the attempt's can be taken for a later retry's generated
+  id, and that retry can reuse its prior record or checkpoint: for example a
+  seed with such an id that a resumed eval drops from its seed set. This is
+  an accepted limitation (Ransom, 2026-11-04): it needs an id built to
+  match a future second. Generated ids sort in admission order up to 9,999
+  admissions per attempt, and a retry's ids sort after the prior attempt's;
+  beyond that count, and past a change of token width, they stay unique but
+  no longer sort in order (accepted: Ransom, 2026-11-04). The source's own
+  `Sample` keeps `id=None`, so adding the same object twice runs two
+  samples, and returning it on a retry adds it anonymously again. Retry
+  reuse and checkpoint resume (both keyed on `(id, epoch)`) therefore
+  cannot hand one sample another's prior result. Seed samples keep their
+  position-based integer ids. A duplicate explicit id is a hard error. Ids
+  are compared by their `str()` form, matching `ensure_unique_ids` (log
+  member names and score grouping key on it).
+- **Explicit epochs** — `enqueue_sample(samples, epoch=N)` adds each sample
+  as the single run `(id, N)` in its own slot, so one id can run repeatedly
+  under its real id. `enqueue_sample` rejects `epoch` for a sample without
+  an id, which would get a new id per add. Uniqueness is on `(id, epoch)`: a
+  seed sample or one added without an epoch reserves `(id, 1..epochs)`.
+  `--limit` counts distinct ids.
 - **Growing totals** — `total_samples` grows as samples are added, updating the
   display denominator (`td.sample_complete`), the fractional `fail_on_error`
   threshold (`SampleErrorHandler.total_samples`), the end-of-run
@@ -102,8 +176,8 @@ The imperative primitive (mirrors `enqueue_task`): `enqueue_sample(samples)`
 adds samples to the running task from *arbitrary* code (a solver, a scorer, a
 tool). Backed by a `ContextVar`-scoped `SampleEnqueuer` registered by
 `task_run` for the task's lifetime — per-task, so concurrent tasks in one
-process can't cross-enqueue. Unlike `enqueue_task` (which works on plain runs
-as a follow-up batch), `enqueue_sample` **requires** the running task to be
+process can't cross-enqueue. Unlike `enqueue_task` (which works on every run),
+`enqueue_sample` **requires** the running task to be
 SampleSource-driven: a plain task's fixed `tg_collect` path has no loop to run
 additions, so the call raises a clear `RuntimeError` instead of silently
 dropping samples.
@@ -114,7 +188,10 @@ dropping samples.
   is sliced as usual, and the dispatcher spends the remainder
   (`sample_limit_count(limit) - seed`) as its budget for added samples —
   additions beyond it are ignored with a warning, and once the budget is
-  exhausted the loop finishes without consulting `next_samples()` again. A
+  exhausted the loop finishes without consulting `next_samples()` again,
+  however it was exhausted. Explicit epochs of admitted ids don't spend the
+  budget, so those enqueued from callbacks or solvers still run (the buffer
+  is drained before the budget check). A
   *range* limit (`start,end`) is rejected with a `PrerequisiteError`: it
   selects seed samples by position, and added samples have no position, so
   there is no coherent way to apply it (it would select nothing from a short
@@ -125,10 +202,11 @@ dropping samples.
   measure early errors against a transiently small denominator (a 1-sample
   seed erroring first would trip `1 >= 0.5*1` before the source produced the
   rest). Absolute-count and any-error thresholds still abort mid-run.
-- **`--sample-id`** filters produced samples with the same
-  normalise+`fnmatch` predicate that filters the seed (`sample_id_filter` in
-  task/util.py). Callers that hold the task pass `dynamic=True` to
-  `slice_dataset` (log spec, sandbox startup, task_run) so it neither warns
+- **`--sample-id`** filters produced samples with the same predicate that
+  filters the seed (`sample_id_filter` in task/util.py): globs match visible
+  string IDs, while exact selectors retain numeric normalization. Callers that
+  hold the task pass `dynamic=True` to `slice_dataset` (log spec, sandbox
+  startup, task_run) so it neither warns
   nor raises for requested ids missing from the seed — the source may produce
   them at runtime. Filtered-out samples still register their ids (duplicate
   ids stay a hard error) but don't run and don't grow the planned totals. As
@@ -139,12 +217,18 @@ dropping samples.
   around the same `Task`); completed samples are reused via the normal
   `EvalSampleSource` lookup, and the reuse path re-fires
   `sample_feed.sample_complete` for each reused sample so a completion-driven
-  source regenerates its follow-ups (which are then themselves reused where
-  regenerated ids match). A source that instead holds internal
+  source regenerates its follow-ups. Only follow-ups with explicit ids are
+  reused where they match; one without an id gets a new generated id and runs
+  again (see **Ids**). A source that instead holds internal
   `next_samples()` state resumes mid-state on retry — it must be resumable
   (or derive its follow-ups from `sample_complete`) for retries to
   reconstruct the run; this is the same determinism contract as `TaskSource`
-  + eval_set (see task-source.md).
+  + eval_set (see task-source.md). An unlimited feed's upfront seed keeps
+  prior epochs above the prior's own `epochs` (only an explicit epoch can
+  produce them), so a retry that fails before the source re-adds them still
+  carries them forward; explicit epochs above `epochs` up to the prior's count
+  (left out only when the count was reduced) are copied from the prior when
+  re-added.
 - **Early stopping** is rejected (`PrerequisiteError`): managers register a
   fixed sample set at `start_task` (added samples would never be registered),
   and samples a manager halts complete without notifying the source, which
@@ -161,28 +245,90 @@ dropping samples.
   retry reuse — `eval_log_sample_source` rejects a prior log when
   `eval.dataset.samples != len(dataset)`, and a retry's fresh seed is
   seed-sized — so the spec must not be rewritten to the grown size at finish.
-- **Sandboxes**: the task-level sandbox startup pass runs up front over the
-  seed, and *incrementally* for samples the source adds: each added batch goes
-  through `SandboxManager.start_for_samples` (threaded into the dispatcher as
+- **Sandboxes**: each task's attempt sets up its seed samples' sandboxes
+  after its task-start hooks, and the feeder does the same *incrementally* for
+  samples the source adds: each added batch goes through
+  `SandboxManager.start_for_samples` (threaded into the task as
   `TaskRunOptions.startup_sandboxes`) before spawning, so a sandbox config
   first seen in an added sample — including the task-level config when the
   seed is empty — still gets `task_init` (image build/pull, validation) and a
   registered `task_cleanup`. Already-started configs are a set-membership
   no-op. Per-sample sandboxes then run via `sandboxenv_context` as usual.
+- **Provider state a late `task_init` registers is owned by the run, not
+  the feeder.** `start_for_samples` runs inside the feeder task, which
+  `SampleScheduler.run` starts as a *sibling* of the sample tasks; the
+  run-level `task_cleanup` runs in `eval_run`'s own context. A `ContextVar`
+  a provider *binds* in `task_init` on this path is therefore visible to
+  nobody else — not the samples, not the cleanup (the Docker provider's
+  registries of running projects and generated compose files used to be
+  bound this way, so an empty-seed `sandbox="docker"` task failed every
+  sample with a `LookupError`, and files registered by the feeder were never
+  removed). The fix is explicit ownership rather than a default on the
+  variable: `SandboxManager.open()` binds a fresh
+  `SandboxLifecycleState` (`util/_sandbox/lifecycle.py`) in `eval_run`'s
+  context before any task of the run is spawned — even when no initial
+  sample has a sandbox — and `SandboxManager.shutdown()` runs the
+  accumulated cleanups and then releases it. Every task of the run
+  inherits a reference to the same object, so provider hooks (`task_init`,
+  `sample_init`, `sample_cleanup`, `task_cleanup`) *mutate* the state they
+  inherit and never rebind or clear it: a second config's `task_init` keeps
+  the first's registrations, a `task_init` that fails releases only a
+  startup file it alone registered — a legacy `.compose.yaml` or a reused
+  auto-compose path that an earlier initialization or a live sample already
+  registered is kept, since their `compose` commands still name it (the
+  run's live samples and its final cleanup are untouched either way) —
+  and `task_cleanup` releases the entries it
+  processes so repeat calls (one per started config) are no-ops. Because the
+  scope is per `eval_run`, independent evaluations in one process each start
+  from an empty registry; a process-wide mutable default would instead have
+  carried one run's projects into the next run's cleanup or "not yet cleaned
+  up" report. Outside any scope (the provider driven directly, without a
+  `SandboxManager`) a registry belongs to the task whose `task_init` bound it,
+  for one lifecycle: a `task_init` in another task (a child that inherited
+  the binding) or after that registry's `task_cleanup` binds its own, so
+  concurrent or successive direct lifecycles never share cleanup state,
+  while reads (`sample_init`, `task_cleanup`) use whatever registry the
+  context holds, so a direct lifecycle may still spread over a task and its
+  children.
 - **Progress bar steps** (`profile.steps`) are fixed at seed size; the
   completed/total counter grows correctly (total passed on each update), and a
   zero-step seed no longer divides by zero (`RichProgress.update` guards it).
 
 ## Tests
 
-`tests/test_sample_source.py` — generations under one task/log with auto-ids;
+`tests/test_sample_source.py` — generations under one task/log with unique
+ids for added samples;
 seed-only when `next_samples()` is `None`; `sample_complete` returning
 follow-ups chains generations; `from_samples` (callbacks and seed-only); empty
 seed; epochs applied to injected samples; explicit + auto id assignment and
-duplicate-id error; live injection discriminated from batch-at-a-time (blocker
+duplicate-id error; explicit epochs (repeated runs of one id, mixing with
+all-epoch adds, `(id, epoch)` duplicates, `--limit` counting ids, ending
+the source and still running callback-added epochs, retry reuse and
+carry-forward through a failed attempt); live
+injection discriminated from batch-at-a-time (blocker
 parks until an injected sample releases it, `fail_after` bounds a regression);
 `enqueue_sample` rejected on plain tasks and outside a task; `--limit` caps
 totals (budget spent, seed-consumed limit never consults the source, batch
 truncation, samples-not-runs with epochs); `--sample-id` filters produced
 samples and tolerates ids missing from the seed; samples enqueued during a
 terminal `next_samples()` still run.
+
+`tests/util/sandbox/test_docker_cleanup.py` — the Docker provider's cleanup
+registry under run ownership, with the daemon stubbed at the compose-command
+layer and compose files generated and removed for real: `task_init` in a
+feeder task and `sample_init` in a sibling share the scope's registry for
+every config family (bare Docker, Dockerfile, `ComposeConfig`, explicit
+compose file preserved, legacy `.compose.yaml` removed); shutdown cleans or
+reports (`sandbox_cleanup=False`) an interrupted sample and releases every
+entry; a second config's `task_init` keeps the first's startup file; a failed
+`task_init` releases only its own file and leaves live samples and the final
+cleanup alone, and a failed or cancelled re-initialization of a shared legacy
+or reused auto-compose path keeps that file; direct provider use without a
+scope, including two overlapping child-task lifecycles after a parent's; and,
+through `eval_async`
+(asyncio and trio): the first Docker sample arriving via `next_samples`,
+`enqueue_sample` or a `sample_complete` return; a late config alongside the
+seed's; a late config failing while the seed sample is live; two sequential
+`TaskSource` batches with a cancel in the second; two independent evaluations
+(the first retaining its container). One real-Docker test runs the empty-seed
+dynamic evaluation.

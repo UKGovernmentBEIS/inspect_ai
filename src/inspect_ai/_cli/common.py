@@ -7,6 +7,7 @@ import click
 import rich
 from typing_extensions import TypedDict
 
+from inspect_ai._util.config import parse_cli_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
     DEFAULT_DISPLAY,
@@ -14,8 +15,6 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.dotenv import init_cli_env
 from inspect_ai.util._display import init_display_type
-
-from .util import parse_cli_args
 
 
 class CommonOptions(TypedDict):
@@ -115,7 +114,7 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 
 def process_common_options(options: CommonOptions) -> None:
     # set environment variables
-    env_args = parse_cli_args(options["env"])
+    env_args = parse_cli_args(options["env"], preserve_quoted_commas=True)
     init_cli_env(env_args)
 
     # set traceback locals env var

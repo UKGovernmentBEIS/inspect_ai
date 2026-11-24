@@ -232,7 +232,9 @@ async def consume_anthropic_raw_response() -> AnthropicMessage:
             messages=ANTHROPIC_MESSAGES,  # type: ignore[arg-type]
         )
         assert raw.headers is not None
-        message = raw.parse()
+        # anthropic >= 1.0: with_raw_response returns AsyncAPIResponse (not
+        # LegacyAPIResponse), whose parse() is a coroutine
+        message = await raw.parse()
         assert isinstance(message, AnthropicMessage)
         return message
 
@@ -283,7 +285,7 @@ def anthropic_raw_response_beta_agent() -> Agent:
                     messages=ANTHROPIC_MESSAGES,  # type: ignore[arg-type]
                 )
                 assert raw.headers is not None
-                message = raw.parse()
+                message = await raw.parse()
                 assert isinstance(message, BetaMessage)
                 block = message.content[0]
                 assert isinstance(block, BetaTextBlock)

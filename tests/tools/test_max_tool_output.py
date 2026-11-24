@@ -77,6 +77,85 @@ def test_max_tool_output():
     check_log(log, 10, False)
 
 
+def test_per_tool_max_output():
+    """A tool's own `max_output` takes precedence over the generate config."""
+
+    @tool(max_output=0)
+    def unlimited():
+        async def execute():
+            """
+            Generate some output that must never be truncated
+
+            Returns:
+                The output
+            """
+            return "x" * 20
+
+        return execute
+
+    @tool(max_output=8)
+    def capped():
+        async def execute():
+            """
+            Generate some output truncated at the tool's own limit
+
+            Returns:
+                The output
+            """
+            return "x" * 20
+
+        return execute
+
+    @tool
+    def inherits():
+        async def execute():
+            """
+            Generate some output truncated at the config limit
+
+            Returns:
+                The output
+            """
+            return "x" * 20
+
+        return execute
+
+    tool_names = ["unlimited", "capped", "inherits"]
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model", tool_name=name, tool_arguments={}
+            )
+            for name in tool_names
+        ]
+        + [ModelOutput.from_content(model="mockllm/model", content="done")],
+    )
+
+    log = eval(
+        Task(
+            dataset=[Sample(input="Please call each of the tools in turn.")],
+            solver=[use_tools(unlimited(), capped(), inherits()), generate()],
+            config=GenerateConfig(max_tool_output=5),
+        ),
+        model,
+    )[0]
+
+    assert log.samples
+    messages = log.samples[0].messages
+    results = {}
+    for name in tool_names:
+        call = get_tool_call(messages, name)
+        assert call
+        response = get_tool_response(messages, call)
+        assert response
+        results[name] = response.content
+
+    assert results["unlimited"] == "x" * 20
+    # middle truncation preserves the head and tail around a newline
+    assert f"\n{'x' * 8}\n" in results["capped"]
+    assert f"\n{'x' * 5}\n" in results["inherits"]
+
+
 def test_truncate_str_no_truncation_needed():
     """Test that truncate_str returns None when input fits within limit."""
     result = truncate_str("hello", 10)

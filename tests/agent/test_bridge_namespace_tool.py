@@ -155,3 +155,45 @@ def test_response_function_tool_call_no_namespace_map():
     ]
     assert len(function_calls) == 1
     assert function_calls[0].namespace is None
+
+
+def test_response_custom_tool_call_preserves_namespace():
+    message = ChatMessageAssistant(
+        content=[ContentText(text="")],
+        tool_calls=[
+            ToolCall(
+                id="call-1",
+                function="apply_patch",
+                arguments={"input": "*** Begin Patch"},
+                type="custom",
+            ),
+            ToolCall(
+                id="call-2",
+                function="free_text",
+                arguments={"input": "x"},
+                type="custom",
+            ),
+        ],
+    )
+    tool_namespaces = {"apply_patch": "codex"}
+    items = responses_output_items_from_assistant_message(message, tool_namespaces)
+    custom_calls = {
+        item.name: item for item in items if item.type == "custom_tool_call"
+    }
+    assert custom_calls["apply_patch"].namespace == "codex"
+    assert custom_calls["free_text"].namespace is None
+    dumped = custom_calls["apply_patch"].model_dump(mode="json", warnings=False)
+    assert dumped["namespace"] == "codex"
+
+
+def test_response_custom_tool_call_no_namespace_map():
+    message = ChatMessageAssistant(
+        content=[ContentText(text="")],
+        tool_calls=[
+            ToolCall(id="c", function="plain", arguments={"input": "x"}, type="custom")
+        ],
+    )
+    items = responses_output_items_from_assistant_message(message)
+    custom_calls = [item for item in items if item.type == "custom_tool_call"]
+    assert len(custom_calls) == 1
+    assert custom_calls[0].namespace is None

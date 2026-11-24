@@ -3,12 +3,15 @@ from typing import Any, Callable, NamedTuple, Sequence, Type
 from pydantic import JsonValue
 from pydantic_core import to_json
 from rich.console import Group, RenderableType
+from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
 from textual.containers import ScrollableContainer
 from textual.widget import Widget
 from textual.widgets import Static
 
+from inspect_ai._cli.ctl._render import _sanitize_line
+from inspect_ai._control.events import _escape_surrogates
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.rich import tool_result_display
 from inspect_ai._util.transcript import (
@@ -21,6 +24,7 @@ from inspect_ai._util.transcript import (
 )
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.event._branch import BranchEvent
+from inspect_ai.event._communication import CommunicationEvent
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._error import ErrorEvent
 from inspect_ai.event._event import (
@@ -31,11 +35,14 @@ from inspect_ai.event._input import InputEvent
 from inspect_ai.event._interrupt import InterruptEvent
 from inspect_ai.event._logger import LoggerEvent
 from inspect_ai.event._model import CANCEL_ERRORS, ModelEvent
+from inspect_ai.event._review import ReviewEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.event._score import ScoreEvent
+from inspect_ai.event._sentinel import SentinelEvent
 from inspect_ai.event._span import SpanBeginEvent
 from inspect_ai.event._subtask import SubtaskEvent
+from inspect_ai.event._swarm import SwarmEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._samples import ActiveSample
 from inspect_ai.model._chat_message import (
@@ -281,8 +288,15 @@ def render_tool_event(event: ToolEvent) -> EventDisplay | None:
     # treatment — the adjacent InterruptEvent already says what
     # happened; the natural-completion result body (if it raced in
     # before cancel propagated) is preserved in the eval log but
-    # suppressed from the live transcript.
-    if event.error is not None and event.error.type == "cancelled":
+    # suppressed from the live transcript. The `cancelled` + `failed`
+    # pair is the operator-cancel fingerprint (see ToolEvent._set_result);
+    # a call skipped by a halt_on_error tool also carries `cancelled` but
+    # has no InterruptEvent to explain it, so it stays visible.
+    if (
+        event.error is not None
+        and event.error.type == "cancelled"
+        and event.failed is True
+    ):
         return None
 
     # Skip pending tool events: the tool *call* is already visible
@@ -370,6 +384,103 @@ def render_approval_event(event: ApprovalEvent) -> EventDisplay:
     ]
 
     return EventDisplay("approval", Group(*content))
+
+
+def render_review_event(event: ReviewEvent) -> EventDisplay:
+    content: list[RenderableType] = [
+        f"[bold]{event.reviewer}[/bold]: {event.decision} ({event.explanation})"
+    ]
+
+    return EventDisplay("review", Group(*content))
+
+
+def render_sentinel_event(event: SentinelEvent) -> EventDisplay:
+    summary: str = event.action or event.kind
+    if event.status != "reported":
+        summary = f"{summary} ({event.status})"
+    if isinstance(event.suspicion, dict):
+        scores = ", ".join(f"{k} {v:.2f}" for k, v in event.suspicion.items())
+        summary = f"{summary}, suspicion {scores}"
+    elif event.suspicion is not None:
+        summary = f"{summary}, suspicion {event.suspicion:.2f}"
+    if event.error:
+        summary = f"{summary}: {event.error}"
+    if event.explanation:
+        summary = f"{summary} ({event.explanation})"
+    if event.message:
+        summary = f"{summary}, told the agent: {event.message}"
+    content: list[RenderableType] = [
+        f"[bold]{escape(event.path or event.factory)}[/bold]: {escape(summary)}"
+    ]
+
+    return EventDisplay(f"sentinel: {event.stage}", Group(*content))
+
+
+def _display_text(value: str) -> str:
+    """Event text as one safe display line.
+
+    Communication and swarm events carry producer and model text. Lone
+    surrogates are escaped (the terminal writer cannot encode them), terminal
+    controls are removed and newlines flattened. Apply it to each field and
+    list member before joining, so an unterminated sequence in one cannot hide
+    the next, and append the result as plain `Text`, never as markup.
+    """
+    return _sanitize_line(_escape_surrogates(value))
+
+
+def _display_list(values: list[str]) -> str:
+    return ", ".join(_display_text(value) for value in values)
+
+
+def render_communication_event(event: CommunicationEvent) -> EventDisplay:
+    # identifiers and counts only: record content, refusal reasons and data
+    # are left to the viewer and `inspect ctl --content`
+    line = Text(_display_text(event.agent), style="bold")
+    if event.nested:
+        line.append(" (subagent)", style="bold")
+    if event.wait is not None:
+        line.append(f" waited {event.wait.duration:.1f}s on ")
+        line.append(_display_list(event.wait.channels))
+        line.append(": ")
+        line.append(_display_text(event.wait.outcome))
+        return EventDisplay(f"communication: {event.kind}", line)
+
+    line.append(" ← " if event.kind == "read" else " → ")
+    line.append(_display_text(event.channel or ""))
+    line.append(": ")
+    action = event.send.record.kind if event.send is not None else event.kind
+    line.append(_display_text(action))
+    if event.record_ids:
+        line.append(" ")
+        line.append(_display_list(event.record_ids))
+    if event.delivery is not None:
+        if event.delivery.seq is not None:
+            line.append(f" (#{event.delivery.seq})")
+        if event.delivery.recipients:
+            line.append(" to ")
+            line.append(_display_list(event.delivery.recipients))
+    if event.send is not None:
+        if event.send.record.to:
+            line.append(" to ")
+            line.append(_display_list(event.send.record.to))
+        if event.send.rejected is not None:
+            line.append(", refused (")
+            line.append(_display_text(event.send.rejected.control))
+            line.append(")")
+    return EventDisplay(f"communication: {event.kind}", line)
+
+
+def render_swarm_event(event: SwarmEvent) -> EventDisplay:
+    # the kind and member only: `data` is left to the viewer and
+    # `inspect ctl --content`. The body starts with a static label because an
+    # empty body hides the whole event, header included.
+    if event.member is not None:
+        line = Text("member: ")
+        line.append(_display_text(event.member), style="bold")
+    else:
+        line = Text("no member")
+    # the title is a Rich Rule title, which parses markup
+    return EventDisplay(f"swarm: {escape(_display_text(event.kind))}", line)
 
 
 def render_info_event(event: InfoEvent) -> EventDisplay:
@@ -484,7 +595,11 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (ScoreEvent, render_score_event),
     (InputEvent, render_input_event),
     (ApprovalEvent, render_approval_event),
+    (ReviewEvent, render_review_event),
+    (SentinelEvent, render_sentinel_event),
     (InfoEvent, render_info_event),
+    (CommunicationEvent, render_communication_event),
+    (SwarmEvent, render_swarm_event),
     (BranchEvent, render_branch_event),
     (CompactionEvent, render_compaction_event),
     (LoggerEvent, render_logger_event),

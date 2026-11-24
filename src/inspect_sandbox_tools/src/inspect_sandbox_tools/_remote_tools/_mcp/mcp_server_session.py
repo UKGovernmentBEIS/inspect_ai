@@ -1,5 +1,4 @@
 import asyncio
-import json
 import os
 import sys
 from asyncio.subprocess import Process
@@ -7,18 +6,26 @@ from typing import Literal, TextIO
 
 import psutil
 import pydantic
-from mcp import (
-    ErrorData,
-    JSONRPCError,
-    JSONRPCRequest,
-    JSONRPCResponse,
-    StdioServerParameters,
-)
-from mcp.types import JSONRPCMessage, JSONRPCNotification
 
 from inspect_sandbox_tools._util.process_tree import (
     process_group_members,
     terminate_process_tree,
+)
+from inspect_sandbox_tools._util.user_switch import (
+    RunAs,
+    get_home_dir,
+    make_preexec,
+    switch_target,
+)
+
+from .jsonrpc_types import (
+    ErrorData,
+    JSONRPCError,
+    JSONRPCNotification,
+    JSONRPCRequest,
+    JSONRPCResponse,
+    StdioServerParameters,
+    jsonrpc_message_adapter,
 )
 
 # Maximum line length for reading MCP server stdout via asyncio.StreamReader.
@@ -56,19 +63,29 @@ class MCPServerSession:
 
     @classmethod
     async def create(
-        cls, server_params: StdioServerParameters, errlog: TextIO = sys.stderr
+        cls,
+        server_params: StdioServerParameters,
+        errlog: TextIO = sys.stderr,
+        user: str | RunAs | None = None,
+        can_switch_user: bool = False,
     ) -> "MCPServerSession":
+        user = switch_target(user, can_switch_user)
+        env = server_params.env
+        if user is not None:
+            home = get_home_dir(user)
+            env = {**os.environ, "HOME": home} if env is None else {"HOME": home, **env}
         return cls(
             await asyncio.create_subprocess_exec(
                 server_params.command,
                 *server_params.args,
-                env=server_params.env,
+                env=env,
                 cwd=server_params.cwd,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=errlog,
                 limit=_READLINE_LIMIT,
                 start_new_session=True,
+                preexec_fn=make_preexec(user),
             ),
             server_params.encoding,
             server_params.encoding_error_handler,
@@ -198,7 +215,20 @@ class MCPServerSession:
         )
 
     def _resolve_request(self, response: JSONRPCResponse | JSONRPCError) -> None:
-        future = self._requests.pop(response.id, None)
+        request_id = response.id
+        if request_id is None:
+            # A parse-error response carries `id: null` (`JSONRPCError.id` is
+            # nullable) and can't be correlated to a pending request — drop it;
+            # the request that provoked it will time out. (error.data can be
+            # arbitrarily large, so don't log the whole model.)
+            assert isinstance(response, JSONRPCError), "only error ids are nullable"
+            print(
+                "Dropping uncorrelatable null-id JSON-RPC error response "
+                f"(error {response.error.code}: {response.error.message[:200]})",
+                file=sys.stderr,
+            )
+            return
+        future = self._requests.pop(request_id, None)
         assert future, f"No pending request for response with id {response.id}"
         assert not future.done(), "Future should not be done before resolving"
         future.set_result(response)
@@ -257,8 +287,8 @@ class MCPServerSession:
                     if not line.strip():
                         continue
                     try:
-                        message = JSONRPCMessage.model_validate_json(line)
-                    except (pydantic.ValidationError, json.JSONDecodeError):
+                        message = jsonrpc_message_adapter.validate_json(line)
+                    except pydantic.ValidationError:
                         # Skip non-JSON lines (e.g. debug output, shell traces).
                         # This matches the MCP SDK's stdio_client behavior.
                         continue
@@ -270,9 +300,9 @@ class MCPServerSession:
                     # emits e.g. `notifications/tools/list_changed` after initialize
                     # (legal for any server advertising listChanged) would otherwise
                     # kill this loop and hang every pending request until timeout.
-                    if not isinstance(message.root, JSONRPCResponse | JSONRPCError):
+                    if not isinstance(message, JSONRPCResponse | JSONRPCError):
                         continue
-                    self._resolve_request(message.root)
+                    self._resolve_request(message)
 
         except asyncio.CancelledError:
             # The reader was cancelled (e.g. by terminate()). Resolve any

@@ -26,7 +26,7 @@ def mcp_server_sse(
 
     SSE interface to MCP server.  Use this for MCP servers available via a URL endpoint.
 
-    NOTE: The SEE interface has been [deprecated](https://mcp-framework.com/docs/Transports/sse/)
+    NOTE: The SSE interface has been [deprecated](https://mcp-framework.com/docs/transports/sse/)
     in favor of `mcp_server_http()` for MCP servers at URL endpoints.
 
     Args:

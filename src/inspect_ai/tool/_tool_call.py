@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass, field
+from logging import getLogger
 from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field, JsonValue, field_validator
@@ -7,6 +8,8 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import TypedDict
 
 from inspect_ai._util.content import Content
+from inspect_ai._util.format import format_function_call, safe_code_fence
+from inspect_ai._util.logger import warn_once
 
 
 class ToolCallContent(BaseModel):
@@ -79,6 +82,7 @@ class ToolCallError:
         "limit",
         "approval",
         "cancelled",
+        "sandbox_unavailable",
         "unknown",
         # Retained for backward compatibility when loading logs created with an older
         # version of inspect.
@@ -92,6 +96,80 @@ class ToolCallError:
 
 ToolCallViewer = Callable[[ToolCall], ToolCallView]
 """Custom view renderer for tool calls."""
+
+logger = getLogger(__name__)
+
+
+class ToolCallViewError(Exception):
+    """A tool's viewer raised, so the call is rejected rather than shown."""
+
+
+def resolve_tool_call_view(
+    call: ToolCall, viewer: ToolCallViewer | None, reject_on_error: bool = False
+) -> ToolCallView:
+    """Render `call` with `viewer`, or with the default view if it has none.
+
+    If the viewer raises, the default rendering is used, unless `reject_on_error`
+    is set: decisions made before a call runs or about an ambiguous scaffold
+    result must not see a view the tool's own viewer would not have shown.
+
+    Raises:
+        ToolCallViewError: The viewer raised and `reject_on_error` is set. Its
+            message explains the rejection.
+    """
+    if viewer:
+        try:
+            view = viewer(call)
+            if not view.call:
+                view.call = default_tool_call_viewer(call).call
+            return view
+        except Exception as ex:
+            if reject_on_error:
+                warn_once(
+                    logger,
+                    f"Error in viewer for tool '{call.function}': {ex}. "
+                    "Rejecting the tool call.",
+                )
+                raise ToolCallViewError(
+                    f"The tool call was rejected because the viewer for tool "
+                    f"'{call.function}' failed, so it could not be shown for "
+                    f"approval: {ex}"
+                ) from ex
+            warn_once(
+                logger,
+                f"Error in viewer for tool '{call.function}': {ex}. "
+                "Falling back to default rendering.",
+            )
+            return viewer_failed_view(call)
+    return default_tool_call_viewer(call)
+
+
+def default_tool_call_viewer(call: ToolCall) -> ToolCallView:
+    r"""The call as a Python function call, with its arguments as literals.
+
+    The surfaces fill `{{param}}` placeholders in a view from the call's
+    arguments, so `{{` in a string literal is written `{\x7b`, which reads as
+    the same string and is not a placeholder.
+    """
+    code = format_function_call(
+        call.function, call.arguments, literal_strings=True
+    ).replace("{{", "{\\x7b")
+    fence = safe_code_fence(code)
+    return ToolCallView(
+        call=ToolCallContent(
+            format="markdown", content=f"{fence}python\n{code}\n{fence}\n"
+        )
+    )
+
+
+def viewer_failed_view(call: ToolCall) -> ToolCallView:
+    """The default view of `call`, titled to say the tool's own viewer failed."""
+    view = default_tool_call_viewer(call)
+    if view.call is not None:
+        view.call.title = (
+            f"The viewer for '{call.function}' failed; showing the call's arguments"
+        )
+    return view
 
 
 def substitute_tool_call_content(

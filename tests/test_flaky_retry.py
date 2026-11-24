@@ -1,5 +1,19 @@
+from typing import cast
+
 import pytest
 from test_helpers.utils import flaky_retry
+
+
+class _FakeItem:
+    """Stands in for a collected pytest.Item, optionally xfail-marked."""
+
+    def __init__(self, xfail: bool):
+        self._xfail = xfail
+
+    def get_closest_marker(self, name: str) -> pytest.Mark | None:
+        if self._xfail and name == "xfail":
+            return pytest.mark.xfail(reason="known failure", strict=True).mark
+        return None
 
 
 class TestFlakyRetry:
@@ -103,6 +117,49 @@ class TestFlakyRetry:
             await skip_immediately()
 
         assert call_count == 1
+
+    def test_xfail_marked_item_not_retried(self):
+        """An xfail marker on the item (e.g. added during fixture setup) suppresses retries."""
+        call_count = 0
+
+        @flaky_retry(max_retries=3, item=cast(pytest.Item, _FakeItem(xfail=True)))
+        def known_failure():
+            nonlocal call_count
+            call_count += 1
+            raise AssertionError("expected failure")
+
+        with pytest.raises(AssertionError, match="expected failure"):
+            known_failure()
+
+        assert call_count == 1
+
+    async def test_xfail_marked_item_not_retried_async(self):
+        call_count = 0
+
+        @flaky_retry(max_retries=3, item=cast(pytest.Item, _FakeItem(xfail=True)))
+        async def known_failure():
+            nonlocal call_count
+            call_count += 1
+            raise AssertionError("expected failure")
+
+        with pytest.raises(AssertionError, match="expected failure"):
+            await known_failure()
+
+        assert call_count == 1
+
+    def test_unmarked_item_still_retried(self):
+        call_count = 0
+
+        @flaky_retry(max_retries=3, item=cast(pytest.Item, _FakeItem(xfail=False)))
+        def pass_on_second_try():
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                raise ValueError("flake")
+            return "success"
+
+        assert pass_on_second_try() == "success"
+        assert call_count == 2
 
     def test_preserves_function_metadata(self):
         """Test that decorator preserves original function metadata."""

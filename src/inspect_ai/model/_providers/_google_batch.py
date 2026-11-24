@@ -4,6 +4,7 @@ from typing import Any, TypeAlias
 
 import pydantic
 from google.genai import Client
+from google.genai.models import _GenerateContentResponse_from_mldev
 from google.genai.types import (
     Content,
     CreateBatchJobConfig,
@@ -43,7 +44,37 @@ _SDK_ONLY_FIELDS = {
     "automatic_function_calling",
     "should_return_http_response",
     "labels",
+    "automatic_continuation",
 }
+
+
+def _normalize_system_instruction_for_batch(
+    system_instruction: Any,
+) -> dict[str, Any] | None:
+    """Wrap system_instruction in REST Content shape for batch JSONL.
+
+    GenerateContentConfig accepts bare strings, parts, or lists thereof, but the
+    batch REST schema requires a Content object with a ``parts`` array.
+    """
+    if system_instruction is None:
+        return None
+    if isinstance(system_instruction, dict):
+        if "parts" in system_instruction:
+            return system_instruction
+        return {"parts": [system_instruction]}
+    if isinstance(system_instruction, str):
+        return {"parts": [{"text": system_instruction}]}
+    if isinstance(system_instruction, list):
+        parts: list[dict[str, Any]] = []
+        for item in system_instruction:
+            if isinstance(item, str):
+                parts.append({"text": item})
+            elif isinstance(item, dict):
+                parts.append(item)
+            else:
+                raise TypeError(f"Unexpected system_instruction part: {item!r}")
+        return {"parts": parts}
+    raise TypeError(f"Unexpected system_instruction type: {type(system_instruction)}")
 
 
 def batch_request_dict(
@@ -53,20 +84,26 @@ def batch_request_dict(
 
     The SDK's GenerateContentConfig flattens everything, but the batch JSONL
     format expects the REST shape where generation params (temperature, thinking_config,
-    etc.) are nested under "generation_config".
+    etc.) are nested under "generation_config". Fields are dumped in JSON mode
+    so bytes (thought signatures, inline media) become base64 strings, as the
+    REST API expects.
     """
     # Route each field to its correct location in the REST schema. Unlisted fields
     # (thinking_config, temperature, etc.) go into generation_config
     # see _REQUEST_TOP_LEVEL_FIELDS.
-    params = config.model_dump(exclude_none=True)
+    params = config.model_dump(mode="json", exclude_none=True)
     top_level = {k: v for k, v in params.items() if k in _REQUEST_TOP_LEVEL_FIELDS}
+    if "system_instruction" in top_level:
+        top_level["system_instruction"] = _normalize_system_instruction_for_batch(
+            top_level["system_instruction"]
+        )
     generation_config = {
         k: v
         for k, v in params.items()
         if k not in _REQUEST_TOP_LEVEL_FIELDS and k not in _SDK_ONLY_FIELDS
     }
     return {
-        "contents": [c.model_dump(exclude_none=True) for c in contents],
+        "contents": [c.model_dump(mode="json", exclude_none=True) for c in contents],
         **top_level,
         **({"generation_config": generation_config} if generation_config else {}),
     }
@@ -130,7 +167,13 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
                 RuntimeError(f"{error_data.message} (code: {error_data.code})"),
             )
         else:
-            return key, GenerateContentResponse.model_validate(line_data["response"])
+            # Route through the SDK's REST->SDK converter (as the live path does)
+            # so unknown REST fields (e.g. usageMetadata.serviceTier) are dropped
+            # instead of failing extra=forbid validation.
+            return key, GenerateContentResponse._from_response(
+                response=_GenerateContentResponse_from_mldev(line_data["response"]),
+                kwargs={},
+            )
 
     @override
     def _uris_from_completion_info(
@@ -203,6 +246,15 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
             JobState.JOB_STATE_CANCELLED,
             JobState.JOB_STATE_EXPIRED,
         ):
+            # the job has no results to fetch, so the batcher would keep polling
+            # it unless its requests are resolved here
+            message = f"Batch job {batch.id} ended in state {batch_job.state.name}"
+            if batch_job.error:
+                message = f"{message}: {batch_job.error.message} (code: {batch_job.error.code})"
+            error = RuntimeError(message)
+            await self._resolve_inflight_batch(
+                batch, {request_id: error for request_id in batch.requests}
+            )
             return BatchCheckResult(
                 completed_count=0,
                 failed_count=len(batch.requests),

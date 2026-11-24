@@ -533,6 +533,92 @@ def test_json_change_remove_no_value() -> None:
     assert "value" not in result
 
 
+def test_store_changes_replay_when_values_move() -> None:
+    """StoreEvents for edits that move values between containers replay to the new store."""
+    from inspect_ai.util._store import store_changes
+
+    before = {"a": [{}, 1, [{}, 0]]}
+    after = {"a": [[], "text", [1]]}
+    events: list[Event] = []
+    for changes in [store_changes({}, before), store_changes(before, after)]:
+        assert changes is not None
+        events.append(StoreEvent(changes=changes))
+
+    assert dict(store_from_events(events).items()) == after
+
+
+def test_logged_move_operation_still_replays() -> None:
+    """Older logs can hold move operations; they still replay."""
+    events: list[Event] = [
+        _make_store_event([{"op": "add", "path": "/a", "value": [1, [2]]}]),
+        _make_store_event([{"op": "move", "from": "/a/0", "path": "/b"}]),
+    ]
+
+    assert dict(store_from_events(events).items()) == {"a": [[2]], "b": 1}
+
+
+def test_replay_leaves_events_unchanged() -> None:
+    """Later changes to a nested value don't modify the event that added it."""
+    events: list[Event] = [
+        _make_store_event([{"op": "add", "path": "/k", "value": {"vals": [1]}}]),
+        _make_store_event([{"op": "add", "path": "/k/vals/-", "value": 2}]),
+    ]
+
+    assert dict(store_from_events(events).items()) == {"k": {"vals": [1, 2]}}
+    first = events[0]
+    assert isinstance(first, StoreEvent)
+    assert first.changes[0].value == {"vals": [1]}
+
+
+def test_top_level_span_inside_another_is_not_replayed() -> None:
+    """A top-level span that begins while another is open is covered by it.
+
+    The control channel's interim scoring runs in a fresh context, so a span
+    its scorer opens has no parent even though `solvers` is still open.
+    """
+    from inspect_ai.util._store import store_changes
+
+    begin = {"items": ["begin"]}
+    interim = {"items": ["begin", "interim"]}
+    solved = {"items": ["begin", "interim", "solver"]}
+    solvers_begin, solvers_end = _make_span("solvers")
+    interim_begin, interim_end = _make_span("interim")
+    events: list[Event] = [
+        StoreEvent(changes=store_changes({}, begin) or []),
+        solvers_begin,
+        interim_begin,
+        StoreEvent(changes=store_changes(begin, interim) or [], span_id="interim"),
+        interim_end,
+        StoreEvent(changes=store_changes(begin, solved) or [], span_id="solvers"),
+        solvers_end,
+    ]
+
+    assert dict(store_from_events(events).items()) == solved
+
+
+def test_unended_top_level_span_stays_open() -> None:
+    """Nothing that begins inside an unended top-level span is replayed.
+
+    An in-progress sample's `solvers` span has no end (and no StoreEvent), so
+    the store is the one its earlier top-level spans left.
+    """
+    init_begin, init_end = _make_span("init")
+    solvers_begin, _ = _make_span("solvers")
+    interim_begin, interim_end = _make_span("interim")
+    events: list[Event] = [
+        init_begin,
+        _make_store_event([{"op": "add", "path": "/a", "value": 1}], "init"),
+        init_end,
+        solvers_begin,
+        interim_begin,
+        _make_store_event([{"op": "add", "path": "/b", "value": 2}], "interim"),
+        interim_end,
+        _make_store_event([{"op": "add", "path": "/c", "value": 3}]),
+    ]
+
+    assert dict(store_from_events(events).items()) == {"a": 1}
+
+
 # End-to-end tests: Run eval, write log, re-hydrate store from events
 
 

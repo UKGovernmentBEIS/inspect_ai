@@ -6,9 +6,9 @@ from typing_extensions import Unpack
 
 from inspect_ai._cli.common import CommonOptions, common_options, process_common_options
 from inspect_ai._cli.log import list_logs_options, log_list
-from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._eval.list import list_tasks
 from inspect_ai._eval.task import TaskInfo
+from inspect_ai._util.config import parse_cli_args
 from inspect_ai.log import EvalStatus
 
 
@@ -30,7 +30,8 @@ def list_command() -> None:
     type=bool,
     is_flag=True,
     default=False,
-    help="List absolute paths to task scripts (defaults to relative to the cwd).",
+    help="List absolute paths to task scripts (defaults to relative to the cwd). "
+    "Required for tasks on a different Windows drive or UNC share.",
 )
 @click.option(
     "--json",

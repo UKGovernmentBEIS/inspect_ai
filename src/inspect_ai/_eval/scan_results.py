@@ -1,26 +1,25 @@
 from __future__ import annotations
 
 import json
-import math
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Mapping, cast
 
-from inspect_ai._eval.task.results import Metrics, ScorerInfo, compute_eval_scores
+from inspect_ai._eval.task.log import resolve_scorer_metrics
+from inspect_ai._eval.task.results import ScorerInfo, eval_results
 from inspect_ai._eval.task.scan import verify_scout_prerequisites
 from inspect_ai._util.json import to_json_str_safe
-from inspect_ai.log._log import (
-    EvalLog,
-    EvalMetric,
-    EvalMetricDefinition,
-    EvalResults,
-    EvalScore,
-    EvalScorer,
-)
-from inspect_ai.scorer import mean, stderr
+from inspect_ai.log._headline import headline_metric_ref, resolve_headline_metric
+from inspect_ai.log._log import EvalLog, EvalScorer
+from inspect_ai.scorer import Metric, mean, stderr
 from inspect_ai.scorer._metric import SampleScore, Score, Value
+from inspect_ai.scorer._scorer import resolve_metrics
 
-from .score import ScoreAction
+from .score import SCAN_IMPORT_METADATA, ScoreAction, reducers_from_log_header
+
+
+class ScanImportError(ValueError):
+    """Scan results that cannot be imported into the log."""
 
 
 @dataclass
@@ -28,7 +27,6 @@ class _ImportedScanner:
     scanner_name: str
     score_name: str
     scores: dict[str, Score]
-    metrics: dict[str, dict[str, float]] | None
 
 
 async def import_scan_results_async(
@@ -50,36 +48,38 @@ async def import_scan_results_async(
         The log with scanner results represented as ordinary sample scores.
 
     Raises:
-        ValueError: If the scan is incomplete, contains errors, or includes rows
+        ScanImportError: If the scan is incomplete, contains errors, or includes rows
             that cannot be matched exactly to this log.
     """
     if log.samples is None:
-        raise ValueError("There are no samples in the log to import scan results into.")
+        raise ScanImportError(
+            "There are no samples in the log to import scan results into."
+        )
 
     verify_scout_prerequisites()
     from inspect_scout.aio import scan_results_df_async
 
     scan = await scan_results_df_async(scan_location, rows="transcripts")
     if not scan.complete:
-        raise ValueError(
+        raise ScanImportError(
             f"Cannot import incomplete scan results from '{scan_location}'. "
             "Complete or resume the scan first."
         )
     if scan.errors:
-        raise ValueError(
+        raise ScanImportError(
             f"Cannot import scan results from '{scan_location}' because it "
             f"contains {len(scan.errors)} scan error(s)."
         )
 
     missing_uuids = sum(sample.uuid is None for sample in log.samples)
     if missing_uuids:
-        raise ValueError(
+        raise ScanImportError(
             f"The evaluation log contains {missing_uuids} sample(s) without UUIDs, "
             "so scan results cannot be matched safely."
         )
     samples_by_uuid = {cast(str, sample.uuid): sample for sample in log.samples}
     if len(samples_by_uuid) != len(log.samples):
-        raise ValueError(
+        raise ScanImportError(
             "The evaluation log contains duplicate sample UUIDs, so scan results "
             "cannot be matched safely."
         )
@@ -107,7 +107,7 @@ async def import_scan_results_async(
         missing_columns = required_columns.difference(frame.columns)
         if missing_columns:
             missing = ", ".join(sorted(missing_columns))
-            raise ValueError(
+            raise ScanImportError(
                 f"Scan results for scanner '{scanner_name}' are missing required "
                 f"column(s): {missing}."
             )
@@ -123,24 +123,24 @@ async def import_scan_results_async(
             )
 
             if source_id != log.eval.eval_id:
-                raise ValueError(
+                raise ScanImportError(
                     f"Scan results for scanner '{scanner_name}' include transcript "
                     f"'{transcript_id}' from eval '{source_id}', not this log's eval "
                     f"'{log.eval.eval_id}'."
                 )
             if transcript_id not in samples_by_uuid:
-                raise ValueError(
+                raise ScanImportError(
                     f"Scan results for scanner '{scanner_name}' include transcript "
                     f"'{transcript_id}', which does not match any sample UUID in this log."
                 )
             if transcript_id in scanner_scores:
-                raise ValueError(
+                raise ScanImportError(
                     f"Scan results for scanner '{scanner_name}' contain multiple rows "
                     f"for transcript '{transcript_id}'. Only transcript-granularity "
                     "results can be imported."
                 )
             if not _is_missing(row.get("scan_error")):
-                raise ValueError(
+                raise ScanImportError(
                     f"Scan results for scanner '{scanner_name}' contain an error for "
                     f"transcript '{transcript_id}'."
                 )
@@ -151,76 +151,105 @@ async def import_scan_results_async(
             if score is not None:
                 scanner_scores[transcript_id] = score
 
-        summary = scan.summary.scanners.get(scanner_name)
-        metrics = summary.metrics if summary is not None else None
         if scanner_scores:
             prepared.append(
                 _ImportedScanner(
                     scanner_name=scanner_name,
                     score_name=score_name,
                     scores=scanner_scores,
-                    metrics=metrics,
                 )
             )
 
     if not prepared:
-        raise ValueError(f"No importable scan results were found in '{scan_location}'.")
+        raise ScanImportError(
+            f"No importable scan results were found in '{scan_location}'."
+        )
 
-    # Compute aggregate results before mutating the destination log. In particular,
-    # this keeps copy=False atomic if default metric computation rejects a value.
-    imported_eval_scores: list[EvalScore] = []
-    imported_eval_scorers: list[EvalScorer] = []
-    for scanner in prepared:
-        sample_scores = [
-            SampleScore(
-                score=score,
-                sample_id=samples_by_uuid[transcript_id].id,
-                sample_metadata=samples_by_uuid[transcript_id].metadata,
-                scorer=scanner.scanner_name,
+    # Aggregate as score_async() does, through eval_results() with the log's
+    # epoch reducers, so that recompute_metrics() later gives the same numbers.
+    # The log is not changed until this has succeeded.
+    scorers_info = [
+        ScorerInfo(
+            name=scanner.score_name,
+            metrics=_default_metrics(scanner),
+            metadata={SCAN_IMPORT_METADATA: scanner.scanner_name},
+        )
+        for scanner in prepared
+    ]
+    sample_scores: list[dict[str, SampleScore]] = []
+    for sample in log.samples:
+        uuid = cast(str, sample.uuid)
+        imported = {
+            scanner.score_name: SampleScore(
+                score=scanner.scores[uuid],
+                sample_id=sample.id,
+                sample_metadata=sample.metadata,
             )
-            for transcript_id, score in scanner.scores.items()
-        ]
-        eval_scores, eval_scorer = _scanner_results(scanner, sample_scores)
-        imported_eval_scores.extend(eval_scores)
-        imported_eval_scorers.append(eval_scorer)
+            for scanner in prepared
+            if uuid in scanner.scores
+        }
+        if imported:
+            sample_scores.append(imported)
+    prior = log.results
+    results, reductions = eval_results(
+        len(log.samples),
+        sample_scores,
+        reducers_from_log_header(log),
+        scorers_info,
+        None,
+        [scanner.score_name for scanner in prepared],
+        early_stopping=prior.early_stopping if prior else None,
+        metadata=prior.metadata if prior else None,
+        logged_samples=prior.logged_samples if prior else None,
+        completed_samples=sum(sample.error is None for sample in log.samples),
+        headline_metric=None,
+    )
+    eval_scorers = [
+        EvalScorer(
+            name=info.name,
+            metrics=resolve_scorer_metrics(resolve_metrics(info.metrics)),
+            metadata=info.metadata,
+        )
+        for info in scorers_info
+    ]
 
     imported_log = deepcopy(log) if copy else log
     assert imported_log.samples is not None
-    imported_samples = imported_log.samples
-    imported_by_uuid = {
-        sample.uuid: sample for sample in imported_samples if sample.uuid is not None
-    }
-
-    if action == "overwrite":
-        for sample in imported_samples:
+    for sample in imported_log.samples:
+        if action == "overwrite":
             sample.scores = {}
+        uuid = cast(str, sample.uuid)
+        for scanner in prepared:
+            if uuid in scanner.scores:
+                sample.scores = sample.scores or {}
+                sample.scores[scanner.score_name] = scanner.scores[uuid]
 
-    for scanner in prepared:
-        for transcript_id, score in scanner.scores.items():
-            sample = imported_by_uuid[transcript_id]
-            sample.scores = sample.scores or {}
-            sample.scores[scanner.score_name] = score
-
-    prior_results = imported_log.results
-    if prior_results is None:
-        prior_results = EvalResults(
-            total_samples=len(imported_samples),
-            completed_samples=sum(sample.error is None for sample in imported_samples),
-        )
-
+    # as in score_async(), a log with no results takes these as its results
     if action == "overwrite" or imported_log.results is None:
-        imported_log.results = prior_results.model_copy(
-            update={"scores": imported_eval_scores}
-        )
-        imported_log.eval.scorers = imported_eval_scorers
-        imported_log.reductions = None
+        imported_log.results = results
+        imported_log.reductions = reductions
+        imported_log.eval.scorers = eval_scorers
     else:
-        imported_log.results.scores.extend(imported_eval_scores)
-        imported_log.eval.scorers = (
-            imported_log.eval.scorers or []
-        ) + imported_eval_scorers
+        imported_log.results.scores.extend(results.scores)
+        if reductions:
+            imported_log.reductions = (imported_log.reductions or []) + reductions
+        imported_log.eval.scorers = (imported_log.eval.scorers or []) + eval_scorers
 
+    headline = resolve_headline_metric(
+        imported_log.results, imported_log.eval.headline_metric
+    )
+    imported_log.results.headline = headline_metric_ref(headline) if headline else None
     return imported_log
+
+
+def _default_metrics(
+    scanner: _ImportedScanner,
+) -> list[Metric | dict[str, list[Metric]]]:
+    """`mean()` and `stderr()` for numeric or boolean results, else no metrics."""
+    numeric = all(
+        isinstance(score.value, bool | int | float) for score in scanner.scores.values()
+    )
+    return [mean(), stderr()] if numeric else []
 
 
 def _score_from_row(
@@ -279,7 +308,7 @@ def _score_from_resultset(
     references: list[Any],
 ) -> Score:
     if not isinstance(value, list):
-        raise ValueError(
+        raise ScanImportError(
             f"Result set from scanner '{scanner_name}' for transcript "
             f"'{transcript_id}' is not a JSON list."
         )
@@ -287,18 +316,18 @@ def _score_from_resultset(
     result_values: dict[str, int | bool | float | str | None] = {}
     for item in value:
         if not isinstance(item, dict):
-            raise ValueError(
+            raise ScanImportError(
                 f"Result set from scanner '{scanner_name}' for transcript "
                 f"'{transcript_id}' contains a non-object item."
             )
         label = item.get("label")
         if not isinstance(label, str) or not label:
-            raise ValueError(
+            raise ScanImportError(
                 f"Result set from scanner '{scanner_name}' for transcript "
                 f"'{transcript_id}' must have a label for every item."
             )
         if label in result_values:
-            raise ValueError(
+            raise ScanImportError(
                 f"Result set from scanner '{scanner_name}' for transcript "
                 f"'{transcript_id}' contains duplicate label '{label}'."
             )
@@ -329,85 +358,6 @@ def _score_from_resultset(
     )
 
 
-def _scanner_results(
-    scanner: _ImportedScanner,
-    sample_scores: list[SampleScore],
-) -> tuple[list[EvalScore], EvalScorer]:
-    if scanner.metrics is None:
-        default_metrics: Metrics = [mean(), stderr()]
-        default_scores = compute_eval_scores(
-            sample_scores,
-            default_metrics,
-            scanner.score_name,
-            ScorerInfo(scanner.score_name, default_metrics),
-        )
-        scorer = EvalScorer(
-            name=scanner.score_name,
-            metrics=[
-                EvalMetricDefinition(name="mean"),
-                EvalMetricDefinition(name="stderr"),
-            ],
-        )
-        return default_scores, scorer
-
-    summary_scores: list[EvalScore] = []
-    metric_definitions: dict[str, list[EvalMetricDefinition]] = {}
-    for result_name, metric_values in scanner.metrics.items():
-        imported_result_name = (
-            scanner.score_name if result_name == scanner.scanner_name else result_name
-        )
-        scored_samples, unscored_samples = _score_counts(
-            sample_scores, result_name, scanner.scanner_name
-        )
-        summary_scores.append(
-            EvalScore(
-                name=imported_result_name,
-                scorer=scanner.score_name,
-                scored_samples=scored_samples,
-                unscored_samples=unscored_samples,
-                metrics={
-                    metric_name: EvalMetric(name=metric_name, value=metric_value)
-                    for metric_name, metric_value in metric_values.items()
-                },
-            )
-        )
-        metric_definitions[result_name] = [
-            EvalMetricDefinition(name=name) for name in metric_values
-        ]
-
-    scorer_metrics: (
-        list[EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]]
-        | dict[str, list[EvalMetricDefinition]]
-    )
-    if set(metric_definitions) == {scanner.scanner_name}:
-        scorer_metrics = cast(
-            list[EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]],
-            metric_definitions[scanner.scanner_name],
-        )
-    else:
-        scorer_metrics = metric_definitions
-    return summary_scores, EvalScorer(name=scanner.score_name, metrics=scorer_metrics)
-
-
-def _score_counts(
-    sample_scores: list[SampleScore], result_name: str, scanner_name: str
-) -> tuple[int, int]:
-    values: list[Any]
-    if result_name == scanner_name:
-        values = [sample_score.score.value for sample_score in sample_scores]
-    else:
-        values = [
-            sample_score.score.value[result_name]
-            for sample_score in sample_scores
-            if isinstance(sample_score.score.value, dict)
-            and result_name in sample_score.score.value
-        ]
-    scored = sum(
-        not (isinstance(value, float) and math.isnan(value)) for value in values
-    )
-    return scored, len(values) - scored
-
-
 def _decode_value(value: Any, value_type: str) -> Any:
     if _is_missing(value) or value_type == "null":
         return None
@@ -418,17 +368,21 @@ def _decode_value(value: Any, value_type: str) -> Any:
             return value
         if isinstance(value, str) and value.lower() in {"true", "false"}:
             return value.lower() == "true"
-        raise ValueError(f"Invalid boolean scan result value: {value!r}")
+        raise ScanImportError(f"Invalid boolean scan result value: {value!r}")
     if value_type == "number":
         if isinstance(value, bool):
-            raise ValueError(f"Invalid numeric scan result value: {value!r}")
+            raise ScanImportError(f"Invalid numeric scan result value: {value!r}")
         if isinstance(value, int | float):
             return value
         if isinstance(value, str):
-            parsed = json.loads(value)
-            if isinstance(parsed, int | float) and not isinstance(parsed, bool):
-                return parsed
-        raise ValueError(f"Invalid numeric scan result value: {value!r}")
+            # a column that mixes types is stored as text, and Scout writes
+            # non-finite numbers as nan, inf and -inf
+            for parse in (int, float):
+                try:
+                    return parse(value)
+                except ValueError:
+                    continue
+        raise ScanImportError(f"Invalid numeric scan result value: {value!r}")
     if value_type in {"array", "object", "resultset"}:
         return json.loads(value) if isinstance(value, str) else value
     if value_type == "string":
@@ -460,20 +414,24 @@ def _as_score_value(value: Any) -> Value:
         }
     if isinstance(value, str | int | float | bool):
         return value
-    raise ValueError(f"Unsupported scan result value: {value!r}")
+    raise ScanImportError(f"Unsupported scan result value: {value!r}")
 
 
 def _json_object(value: Any, column: str) -> dict[str, Any]:
     parsed = _json_value(value, {})
     if not isinstance(parsed, dict):
-        raise ValueError(f"Scan result column '{column}' must contain a JSON object.")
+        raise ScanImportError(
+            f"Scan result column '{column}' must contain a JSON object."
+        )
     return parsed
 
 
 def _json_list(value: Any, column: str) -> list[Any]:
     parsed = _json_value(value, [])
     if not isinstance(parsed, list):
-        raise ValueError(f"Scan result column '{column}' must contain a JSON list.")
+        raise ScanImportError(
+            f"Scan result column '{column}' must contain a JSON list."
+        )
     return parsed
 
 
@@ -481,14 +439,17 @@ def _json_value(value: Any, missing: Any) -> Any:
     if _is_missing(value):
         return missing
     if isinstance(value, str):
-        return json.loads(value)
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError as ex:
+            raise ScanImportError(f"Scan result holds invalid JSON: {ex}") from ex
     return value
 
 
 def _required_string(value: Any, column: str) -> str:
     value = _python_scalar(value)
     if _is_missing(value) or not isinstance(value, str) or not value:
-        raise ValueError(f"Scan result column '{column}' must contain a string.")
+        raise ScanImportError(f"Scan result column '{column}' must contain a string.")
     return value
 
 

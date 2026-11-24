@@ -32,7 +32,7 @@ asyncio-only. Cancellation catches use
 
 from __future__ import annotations
 
-from logging import getLogger
+from logging import DEBUG, WARNING, getLogger
 from typing import TYPE_CHECKING, Callable, Protocol
 
 import anyio
@@ -157,10 +157,14 @@ async def _request_from_driver_with_fallback(
                     except cancel_exc:
                         raise
                     except Exception as exc:
-                        # Transport failure, target-session mismatch,
-                        # or other client-side error. Try the next
-                        # client in the fallback chain.
-                        logger.debug(
+                        # Try the next client in the fallback chain. A
+                        # ConnectionError means the client left. Anything
+                        # else (an error reply, a malformed response) is
+                        # from a client that stays attached but isn't asked
+                        # again until another client attaches, so the sample
+                        # can stay parked.
+                        logger.log(
+                            DEBUG if isinstance(exc, ConnectionError) else WARNING,
                             "ACP elicitation request failed for client %r; "
                             "trying next: %s",
                             client,
@@ -236,17 +240,9 @@ async def acp_handler(request: InputRequest) -> InputResult | None:
             session_id=transport.session_id,
             requested_schema=request.schema,
         )
-        # Mark the sample as parked on a human question so the ACP
-        # picker can surface a "pending" column. Ref-counted (not a
-        # single-slot save/restore) because tool calls can run
-        # concurrently within one sample. See the parallel comment in
-        # `approval/_human/acp.py` for the full rationale.
-        sample._pending_questions += 1
-        try:
-            return await _request_from_driver_with_fallback(
-                transport, elicitation_request
-            )
-        finally:
-            sample._pending_questions -= 1
+        # The sample is already marked as waiting on a person by
+        # `request_input`, which wraps this dispatch and the panel / console
+        # fallbacks alike. See the comment there.
+        return await _request_from_driver_with_fallback(transport, elicitation_request)
     # acp_guard suppressed an exception — fall through to in-proc.
     return None

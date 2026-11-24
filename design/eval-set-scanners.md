@@ -259,12 +259,12 @@ inspect_ai has four retry mechanisms that each interact differently with scanner
 
 ### 1. Sample-level retry — `retry_on_error`
 
-Per-sample retry inside `task_run_sample`. If a sample errors with retries left, the function recurses with `retry_on_error - 1`. The retry happens before `log_sample` and `scan_eval_sample` for the failed attempt would have fired — so failed attempts that will be retried produce no eval log entry and no scan row. Only the *settled* attempt (the one that won't retry, whether it succeeded or exhausted the budget) runs the log + scan block.
+Per-sample retry inside `task_run_sample`. If a sample errors with retries left, the attempt hands a retry signal back to `task_run_sample`'s attempt loop, which advances the `SampleAttempt` and re-enters (see `design/sample-lifecycle.md`). The retry happens before `log_sample` and `scan_eval_sample` for the failed attempt would have fired — so failed attempts that will be retried produce no eval log entry and no scan row. Only the *settled* attempt (the one that won't retry, whether it succeeded or exhausted the budget) runs the log + scan block.
 
-The guard in `task_run_sample`:
+The guard in `_task_run_sample_attempt`:
 
 ```python
-if not error or (retry_on_error == 0) or (cancelled_error is not None):
+if not error or (attempt.retries_remaining == 0) or (cancelled_error is not None):
     ... log_sample + scan_eval_sample ...
 ```
 

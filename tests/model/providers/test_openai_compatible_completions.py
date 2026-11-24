@@ -75,6 +75,61 @@ def test_service_env_var_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
     assert model.api.service_model_name() == "some-model"
 
 
+async def test_request_and_response_ids_recorded() -> None:
+    import httpx2
+    from openai import DefaultAsyncHttpxClient
+
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.log._samples import track_active_model_event
+    from inspect_ai.model import ModelOutput, ModelRequestId
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
+            200,
+            headers={"x-request-id": "req_completions"},
+            json={
+                "id": "cmpl-response",
+                "object": "text_completion",
+                "created": 0,
+                "model": "some-model",
+                "choices": [{"index": 0, "text": "hi", "finish_reason": "stop"}],
+            },
+            request=request,
+        )
+
+    model = get_model(
+        "openai-api-completions/mysvc/some-model",
+        api_key="test-key",
+        base_url="http://test/v1",
+        http_client=DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler)),
+        memoize=False,
+    )
+    event = ModelEvent(
+        model="mysvc/some-model",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(model="mysvc/some-model", choices=[]),
+    )
+
+    with track_active_model_event(event):
+        result = await model.api.generate(
+            input=[ChatMessageUser(content="hello")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(max_tokens=1),
+        )
+
+    assert isinstance(result, tuple)
+    output, _ = result
+    assert isinstance(output, ModelOutput)
+    assert output.response_id == "cmpl-response"
+    assert event.request_ids == [
+        ModelRequestId(id="req_completions", header="x-request-id", status=200)
+    ]
+
+
 def test_missing_service_prefix_raises() -> None:
     """Model names must include a service prefix."""
     with pytest.raises(ValueError, match="service prefix"):

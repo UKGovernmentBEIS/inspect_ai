@@ -2,15 +2,16 @@
 
 Pass a :class:`TaskSource` instance as the ``tasks`` argument to ``eval()`` to
 drive the run from code rather than a fixed task list. The run starts with
-``initial_tasks()`` and, after each batch of tasks completes, calls
+``initial_tasks()`` and, whenever no task is queued or running, calls
 ``next_tasks()`` for the next batch — until it returns ``None``.
 
 The simplest sources spawn follow-up work straight from results: override
 ``sample_complete`` / ``task_complete`` and **return** the tasks to run next
 (e.g. an RL loop that spawns tasks from scores). A returned list is added to the
-run exactly as ``enqueue_task`` would — it runs after the current batch, before
-the next ``next_tasks()`` — so a source can be driven entirely by these
-callbacks, with ``next_tasks()`` reserved for the blocking / explicit-pull case.
+run exactly as ``enqueue_task`` would — its tasks start when a ``max_tasks``
+slot is free, before the next ``next_tasks()`` call — so a source can be driven
+entirely by these callbacks, with ``next_tasks()`` reserved for the blocking /
+explicit-pull case.
 
 ``next_tasks()`` is async and may block — awaiting external input or more
 results — and returns ``None`` to end the run, so an open-ended "keep producing
@@ -30,6 +31,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Awaitable, Callable
 
 if TYPE_CHECKING:
+    from inspect_ai.dataset import Sample
     from inspect_ai.log._log import EvalLog, EvalSample
 
     from .task import Task
@@ -55,10 +57,11 @@ class TaskSource:
     async def next_tasks(self) -> list["Task"] | None:
         """The next batch of tasks to run, or ``None`` when the run is complete.
 
-        Called after each batch finishes (after that batch's ``sample_complete``
-        / ``task_complete`` notifications). May ``await`` — for more results or
-        external input — and may block indefinitely; return ``None`` to end the
-        run.
+        Called when no task is queued or running (after the finished tasks'
+        ``sample_complete`` / ``task_complete`` notifications). May ``await``
+        — for more results or external input — and may block indefinitely;
+        return ``None`` to end the run. No task starts while it blocks: a task
+        added meanwhile starts when it returns, ahead of the batch it returns.
         """
         return None
 
@@ -69,17 +72,65 @@ class TaskSource:
 
         ``sample`` is the completed sample and ``task`` is the task it ran under
         (the sample alone doesn't identify its task). Return a list of tasks to
-        add to the run (equivalent to calling ``enqueue_task`` with them): they
-        run after the current batch, before the next ``next_tasks()``. Return
+        add to the run (like ``enqueue_task`` called outside a running task:
+        once per run model): they start when a ``max_tasks`` slot is free,
+        before the next ``next_tasks()`` call. Return ``None`` (the default) to
+        add nothing.
+
+        Fires for every sample the task logs, including one cancelled
+        individually by an operator (its ``error`` is then the cancellation,
+        with no scores), but not for samples cancelled by the task itself
+        unwinding (a task-level cancel or ^C) -- those reach the source only
+        via the log passed to ``task_complete``. A cancelled sample's
+        ``error.message`` is the cancellation exception's repr (it starts
+        with ``CancelledError(`` or ``Cancelled(``), which is how to tell it
+        from a genuine error. A sample cancelled before it produced anything
+        to log is reported via :meth:`sample_abandoned` instead.
+        """
+        return None
+
+    async def sample_abandoned(
+        self, sample: "Sample", epoch: int, task: "Task"
+    ) -> list["Task"] | None:
+        """A sample was cancelled without ever being logged.
+
+        ``sample`` is a copy of the sample as the task's dataset held it,
+        ``epoch`` the epoch that was abandoned and ``task`` the task it was
+        queued under. Nothing about the run reached the log (no
+        ``EvalSample`` exists, and the sample is absent from the log passed
+        to ``task_complete``), so unlike :meth:`sample_complete` there is no
+        result to deliver. Return a list of tasks to add to the run (like
+        ``enqueue_task`` called outside a running task: once per run model) or
         ``None`` (the default) to add nothing.
+
+        Fires when an operator cancels a sample still waiting in the queue
+        (``inspect ctl sample cancel --action cancel``), when a cancel lands
+        on an errored sample in the window before its ``retry_on_error``
+        re-run, or when a graceful task cancel (``--action drain``,
+        ``score``, ``error``) abandons a queued sample — in each case the
+        task itself keeps running, so a source waiting on the sample must
+        hear that it will never complete. Like :meth:`sample_complete` it
+        does not fire for samples cancelled by the task itself unwinding (a
+        task-level cancel or ^C), nor for a withdrawn requeue (the prior
+        terminal outcome, already reported, stands). With ``epochs > 1`` it
+        fires once per abandoned epoch, as ``sample_complete`` fires once per
+        completed one.
         """
         return None
 
     async def task_complete(self, log: "EvalLog") -> list["Task"] | None:
-        """A task finished — observe its log and optionally return follow-up tasks.
+        """A task attempt ended — observe its log and optionally return follow-up tasks.
 
-        Return a list of tasks to add to the run (like ``enqueue_task``): they run
-        after the current batch. Return ``None`` (the default) to add nothing.
+        Called once per attempt, a failed one included: a task that fails and
+        is retried is reported once for each attempt. ``log`` is the log the
+        attempt ended with; when the attempt could not start or write its
+        log, it is an error log that was not written (its ``location`` may
+        name a file that does not exist, or be empty).
+
+        Return a list of tasks to add to the run (like ``enqueue_task`` called
+        outside a running task: once per run model): they start when a
+        ``max_tasks`` slot is free, before the next ``next_tasks()`` call.
+        Return ``None`` (the default) to add nothing.
         """
         return None
 
@@ -94,6 +145,10 @@ class TaskSource:
         ]
         | None = None,
         task_complete: Callable[["EvalLog"], Awaitable[list["Task"] | None]]
+        | None = None,
+        sample_abandoned: Callable[
+            ["Sample", int, "Task"], Awaitable[list["Task"] | None]
+        ]
         | None = None,
     ) -> "TaskSource":
         """Create a :class:`TaskSource` from a seed plus optional callbacks.
@@ -117,12 +172,15 @@ class TaskSource:
                 finishes; may return follow-up tasks to add to the run.
             task_complete: Optional async callback invoked as each task finishes;
                 may return follow-up tasks to add to the run.
+            sample_abandoned: Optional async callback invoked when a sample is
+                cancelled without being logged (see :meth:`sample_abandoned`);
+                may return follow-up tasks to add to the run.
 
         Returns:
             A ``TaskSource`` that delegates to the provided seed and callbacks.
         """
         return _CallableTaskSource(
-            initial_tasks, next_tasks, sample_complete, task_complete
+            initial_tasks, next_tasks, sample_complete, task_complete, sample_abandoned
         )
 
 
@@ -138,11 +196,16 @@ class _CallableTaskSource(TaskSource):
         ]
         | None,
         task_complete: Callable[["EvalLog"], Awaitable[list["Task"] | None]] | None,
+        sample_abandoned: Callable[
+            ["Sample", int, "Task"], Awaitable[list["Task"] | None]
+        ]
+        | None,
     ) -> None:
         self._initial_tasks = list(initial_tasks)
         self._next_tasks = next_tasks
         self._sample_complete = sample_complete
         self._task_complete = task_complete
+        self._sample_abandoned = sample_abandoned
 
     def initial_tasks(self) -> list["Task"]:
         return self._initial_tasks
@@ -162,4 +225,11 @@ class _CallableTaskSource(TaskSource):
     async def task_complete(self, log: "EvalLog") -> list["Task"] | None:
         if self._task_complete is not None:
             return await self._task_complete(log)
+        return None
+
+    async def sample_abandoned(
+        self, sample: "Sample", epoch: int, task: "Task"
+    ) -> list["Task"] | None:
+        if self._sample_abandoned is not None:
+            return await self._sample_abandoned(sample, epoch, task)
         return None

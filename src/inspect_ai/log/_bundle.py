@@ -1,15 +1,24 @@
+import html
 import logging
 import math
 import os
+import re
 import shutil
 import tempfile
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.file import absolute_file_path, filesystem
+from inspect_ai._view._csp import read_content_security_policy
 
-from ._file import log_files_from_ls, write_log_listing
+from ._file import (
+    contained_log_destination,
+    log_files_from_ls,
+    without_merged_shards,
+    write_log_listing,
+)
 
 # INSPECT_VIEW_BUNDLE_OUT_DIR
 
@@ -151,7 +160,9 @@ def bundle_log_dir(
             copy_log_files(log_dir, view_logs_dir, p.update, fs_options)
             p.update(25)
 
-            write_log_listing(view_logs_dir)
+            # the copies' mtimes no longer order shards against their merged
+            # log, so covered shards were left out when copying instead
+            write_log_listing(view_logs_dir, hide_merged_shards=False)
             p.update(25)
 
             if is_hf_target(output_dir):
@@ -179,12 +190,45 @@ def copy_dir_contents(source_dir: str, dest_dir: str) -> None:
             shutil.copy2(src_file_path, dest_file_path)
 
 
+_HEAD_OPEN_TAG = re.compile(r"<head(?:\s[^>]*)?>", re.IGNORECASE)
+
+
+def _insert_content_security_policy(index_contents: str, policy: str) -> str:
+    """Insert a CSP `<meta>` as the first child of `<head>`.
+
+    It must come first so it governs the inline scripts that follow (the
+    theme bootstrap). `frame-ancestors` is not added: a `<meta>` policy
+    ignores it.
+    """
+    head = _HEAD_OPEN_TAG.search(index_contents)
+    if head is None:
+        raise RuntimeError(
+            "Unable to apply the viewer Content-Security-Policy: the viewer "
+            "index.html has no <head> element."
+        )
+    # Escape only what a double-quoted attribute needs: leaving the policy's
+    # many `'` literal keeps `<meta charset>` well inside the first 1024
+    # bytes, where browsers look for it.
+    content = html.escape(policy, quote=False).replace('"', "&quot;")
+    meta = f'<meta http-equiv="Content-Security-Policy" content="{content}" />'
+
+    return f"{index_contents[: head.end()]}\n    {meta}{index_contents[head.end() :]}"
+
+
 def inject_configuration(
-    html_file: str, log_dir: str, abs_log_dir: str | None = None
+    html_file: str,
+    log_dir: str,
+    abs_log_dir: str | None = None,
+    content_security_policy: str | None = None,
 ) -> None:
     # update the index html to embed the log_dir
     with open(html_file, "r") as file:
         index_contents = file.read()
+
+    if content_security_policy is not None:
+        index_contents = _insert_content_security_policy(
+            index_contents, content_security_policy
+        )
 
     # inject the log dir information into the viewer html
     # so it will load directly
@@ -227,6 +271,7 @@ def _prepare_viewer(
         os.path.join(working_dir, "index.html"),
         log_dir=log_dir,
         abs_log_dir=abs_log_dir,
+        content_security_policy=read_content_security_policy(Path(working_dir)),
     )
     write_robots_txt(working_dir)
 
@@ -235,8 +280,9 @@ def copy_file_to_bundle(
     file_path: str, base_log_dir: str, target_dir: str, log_fs: Any
 ) -> None:
     """Copy a single file to the bundle target directory."""
-    relative_path = os.path.relpath(file_path, base_log_dir)
-    output_path = os.path.join(target_dir, relative_path)
+    output_path = contained_log_destination(
+        file_path, base_log_dir, target_dir
+    ).destination
 
     # Make directories containing output_path if they don't exist.
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -261,12 +307,12 @@ def copy_log_files(
                 f"The log directory {log_dir} doesn't contain any log files."
             )
 
+        eval_logs = without_merged_shards(eval_logs, fs_options)
+
         # find any eval-set files and move those as well
         eval_set_files = set()
         for eval_log in eval_logs:
-            eval_set_path = os.path.join(
-                os.path.dirname(eval_log.name), "eval-set.json"
-            )
+            eval_set_path = f"{os.path.dirname(eval_log.name)}/eval-set.json"
             if log_fs.exists(eval_set_path):
                 eval_set_files.add(eval_set_path)
 

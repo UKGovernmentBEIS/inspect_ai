@@ -13,12 +13,10 @@ For target-completion perplexity (scoring only trailing target tokens),
 see :func:`~inspect_ai.scorer.target_perplexity`.
 """
 
-import math
-
 from inspect_ai.solver._task_state import TaskState
 
 from ._metric import Score
-from ._metrics.perplexity import perplexity_per_seq, perplexity_per_token
+from ._metrics.perplexity import _exp_or_inf, perplexity_per_seq, perplexity_per_token
 from ._scorer import Scorer, scorer
 from ._target import Target
 
@@ -31,45 +29,44 @@ def perplexity() -> Scorer:
     model provider returns log probabilities for each prompt token.
 
     The score value is the per-sample negative log-likelihood (NLL).
-    Per-sample perplexity is ``exp(value)``.  The companion
+    Per-sample perplexity is ``exp(value)``, recorded as infinite once the
+    NLL exceeds ``exp()``'s range.  The companion
     :func:`perplexity_per_token` metric computes corpus-level perplexity
     weighted by token count.
     """
 
-    # NaN signals "unscorable sample" — the metrics skip these
-    # gracefully instead of crashing the eval run.  This matches
-    # how classification scorers use NOANSWER for the same purpose.
     async def score(state: TaskState, target: Target) -> Score:
         if not state.output.choices:
-            return Score(
-                value=float("nan"),
+            return Score.unscored(
+                reason="scoring_failed",
                 explanation="No model output choices available.",
             )
 
         choice = state.output.choices[0]
         if not choice.prompt_logprobs or choice.prompt_logprobs.content is None:
-            return Score(
-                value=float("nan"),
+            return Score.unscored(
+                reason="scoring_failed",
                 explanation="No prompt logprobs available. Ensure prompt_logprobs is set in GenerateConfig.",
             )
 
         log_probs = [lp.logprob for lp in choice.prompt_logprobs.content]
         num_tokens = len(log_probs)
         if num_tokens == 0:
-            return Score(
-                value=float("nan"),
+            return Score.unscored(
+                reason="scoring_failed",
                 explanation="prompt_logprobs.content is empty.",
             )
         sum_log_probs = sum(log_probs)
         nll = -sum_log_probs / num_tokens
+        perplexity_value = _exp_or_inf(nll)
 
         return Score(
             value=nll,
-            explanation=f"Per-token NLL: {nll:.4f}, perplexity: {math.exp(nll):.4f}",
+            explanation=f"Per-token NLL: {nll:.4f}, perplexity: {perplexity_value:.4f}",
             metadata={
                 "num_tokens": num_tokens,
                 "sum_log_probs": sum_log_probs,
-                "perplexity": math.exp(nll),
+                "perplexity": perplexity_value,
             },
         )
 

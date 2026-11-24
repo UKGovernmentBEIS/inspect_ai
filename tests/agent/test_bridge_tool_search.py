@@ -26,6 +26,7 @@ from inspect_ai.model._openai_responses import (
     _maybe_native_tool_param,
     _openai_input_item_from_chat_message,
     _process_response_output_items,
+    assistant_internal,
     init_sample_openai_assistant_internal,
     is_tool_search_tool_param,
     maybe_tool_search_tool,
@@ -312,6 +313,26 @@ def test_resume_plain_call_not_seeded() -> None:
     assert "c2" not in assistant_internal().tool_calls
 
 
+def test_inbound_tool_search_calls_sharing_an_id_seed_no_item() -> None:
+    init_sample_openai_assistant_internal()
+    input_items = cast(
+        list[ResponseInputItemParam],
+        [
+            {
+                "type": "tool_search_call",
+                "id": f"x{n}",
+                "call_id": "ts_shared",
+                "arguments": {"query": query},
+                "execution": "client",
+                "status": "completed",
+            }
+            for n, query in enumerate(["file tools", "web tools"])
+        ],
+    )
+    messages_from_responses_input(input_items, [], "openai/gpt-5")
+    assert "ts_shared" not in assistant_internal().tool_calls
+
+
 # 4. inbound [call, output] -> assistant ToolCall + ChatMessageTool with tools json
 
 
@@ -512,6 +533,69 @@ def test_process_response_output_items_tool_search_call() -> None:
     cached = assistant_internal().tool_calls.get("ts_1")
     assert cached is not None
     assert cached["type"] == "tool_search_call"
+
+
+def test_process_response_output_items_tool_search_output_does_not_clobber_call() -> (
+    None
+):
+    from openai.types.responses import (
+        ResponseToolSearchCall,
+        ResponseToolSearchOutputItem,
+    )
+
+    from inspect_ai.model._openai_responses import assistant_internal
+
+    init_sample_openai_assistant_internal()
+
+    _process_response_output_items(
+        [
+            ResponseToolSearchCall(
+                id="x1",
+                call_id="ts_1",
+                arguments={"query": "file tools"},
+                execution="client",
+                status="completed",
+                type="tool_search_call",
+            ),
+            ResponseToolSearchOutputItem(
+                id="o1",
+                call_id="ts_1",
+                execution="client",
+                status="completed",
+                tools=[],
+                type="tool_search_output",
+            ),
+        ],
+        [],
+    )
+
+    cached = assistant_internal().tool_calls.get("ts_1")
+    assert cached is not None
+    assert cached["type"] == "tool_search_call"
+
+
+def test_process_response_output_items_tool_search_output() -> None:
+    from openai.types.responses import ResponseToolSearchOutputItem
+
+    from inspect_ai.model._openai_responses import assistant_internal
+
+    init_sample_openai_assistant_internal()
+
+    output = ResponseToolSearchOutputItem(
+        id="o1",
+        call_id="ts_1",
+        execution="client",
+        status="completed",
+        tools=[],
+        type="tool_search_output",
+    )
+    # Before the fix, this raised ValueError("Unexpected output type: ...").
+    _content, tool_calls, _logprobs, has_tool_calls = _process_response_output_items(
+        [output], []
+    )
+    assert has_tool_calls is False
+    assert tool_calls == []
+    assert "ts_1" not in assistant_internal().tool_calls
 
 
 # 7b. tool-message replay only emits native tool_search_output when the original

@@ -1,7 +1,7 @@
 import math
 import statistics
 from collections import Counter
-from typing import Callable, cast
+from typing import Any, Callable, cast
 
 from inspect_ai.scorer._metric import Score, Value, ValueToFloat, value_to_float
 
@@ -38,9 +38,59 @@ def mode_score() -> ScoreReducer:
     return reduce
 
 
+@score_reducer(name="majority")
+def majority_score() -> ScoreReducer:
+    r"""Take the strict majority of a panel of scores.
+
+    A value wins only if more than half of the scores carry it. Unscored
+    (NaN) scores count towards the total rather than being filtered out of
+    it, so a panel member that fails to produce a value withholds a vote
+    without lowering the bar for the remaining values. Where nothing reaches
+    a majority the reduced score is unscored, rather than being decided by
+    the order the panel was declared in.
+
+    For dict and list values the threshold applies per key and per index, and
+    the total is still the number of scores reduced: a value missing from one
+    key (or a score that is unscored at the root) withholds a vote for that
+    key alone, or for every key, respectively.
+
+    The reduced score's metadata records the individual votes under a
+    `panel` key (replacing any `panel` carried over from the first score),
+    since a majority is only auditable alongside what was cast.
+    """
+
+    def reduce(scores: list[Score]) -> Score:
+        panel_size = len(scores)
+
+        def strict_majority(
+            counts: Counter[str | int | float | bool],
+        ) -> str | int | float | bool:
+            value, count = counts.most_common(1)[0]
+            return value if count * 2 > panel_size else float("nan")
+
+        representative = _first_scored(scores)
+        if representative is None:
+            reduced = _nan_score(scores)
+        elif isinstance(representative.value, dict):
+            reduced = _count_dict(scores, strict_majority)
+        elif isinstance(representative.value, list):
+            reduced = _count_list(scores, strict_majority)
+        else:
+            reduced = _count_scalar(scores, strict_majority)
+        return _with_panel_metadata(reduced, scores)
+
+    return reduce
+
+
 @score_reducer(name="mean")
 def mean_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     r"""Take the mean of a list of scores.
+
+    A `None` inside a dictionary score is missing. It is left out of the
+    mean instead of being converted to `0.0`. A key that is `None` on every
+    score stays `None`, so a metric can still apply its missing-value
+    behavior. The same rule is used by the other dictionary statistics
+    (`median_score`, `pass_at`, and `pass_k`).
 
     Args:
        value_to_float: Function to convert the value to a float
@@ -394,14 +444,29 @@ def _compute_dict_stat(
 
     dict_result: dict[str, str | int | float | bool | None] = {}
     for key in dict_scores[0].value.keys():  # type: ignore
-        values = []
+        values: list[float] = []
+        saw_none = False
+        saw_value = False
         for score in dict_scores:
-            key_value = value_to_float(score.value[key])  # type: ignore
-            if _is_reducible(key_value):
-                values.append(key_value)
+            # None is missing. Converting it first yields 0.0 and counts
+            # the gap in the statistic. Scores here are dict-shaped;
+            # _partition_dict_scores rejects anything else.
+            value = score.value
+            if not isinstance(value, dict):
+                continue
+            key_value = value[key]
+            if key_value is None:
+                saw_none = True
+                continue
+            saw_value = True
+            converted = value_to_float(key_value)
+            if _is_reducible(converted):
+                values.append(converted)
 
         if len(values) == 0:
-            dict_result[key] = float("nan")
+            # All-None stays None so metrics still see a missing value.
+            # A key that was only NaN stays the unscored sentinel.
+            dict_result[key] = None if saw_none and not saw_value else float("nan")
         else:
             dict_result[key] = statistic(values)
     return _reduced_score(dict_result, scores)
@@ -562,7 +627,64 @@ def _reduced_score(value: Value, scores: list[Score]) -> Score:
         explanation=scores[0].explanation
         if len(set(score.explanation for score in scores)) == 1
         else None,
+        reason=scores[0].reason
+        if len(set(score.reason for score in scores)) == 1
+        else None,
         metadata=scores[0].metadata,
+    )
+
+
+def _unscored_reason(score: Score) -> str | None:
+    """Machine-readable reason a score is unscored, or None.
+
+    Reads the first-class `Score.reason` field where it exists, falling back to
+    the legacy `metadata["unscored_reason"]` convention. Checks `is None` rather
+    than truthiness so an explicitly-set empty reason is not overridden by a
+    stale legacy value.
+    """
+    reason = getattr(score, "reason", None)
+    if reason is not None:
+        return reason if isinstance(reason, str) else None
+    legacy = (score.metadata or {}).get("unscored_reason")
+    return legacy if isinstance(legacy, str) else None
+
+
+def _with_panel_metadata(reduced: Score, scores: list[Score]) -> Score:
+    r"""Record the votes behind a reduced panel score in its metadata.
+
+    Reduction otherwise carries over only the first score's metadata, which
+    for a panel loses what a majority has to be read against: which member
+    voted for what, and which ones didn't vote at all.
+
+    Args:
+        reduced: the reduced Score to annotate
+        scores: the list of scores that produced it
+    """
+    votes: list[Value | None] = []
+    failures: list[dict[str, Any]] = []
+    for index, score in enumerate(scores):
+        unscored = _is_unscored(score.value)
+        # copy container values: the record is an audit trail of what was cast,
+        # so it must not alias (and drift with) the score it came from
+        if unscored:
+            votes.append(None)
+        elif isinstance(score.value, dict):
+            votes.append(dict(score.value))
+        elif isinstance(score.value, list):
+            votes.append(list(score.value))
+        else:
+            votes.append(score.value)
+        if unscored:
+            failures.append(
+                dict(
+                    index=index,
+                    reason=_unscored_reason(score),
+                    explanation=score.explanation,
+                )
+            )
+    panel = dict(votes=votes, size=len(scores), failures=failures)
+    return reduced.model_copy(
+        update=dict(metadata={**(reduced.metadata or {}), "panel": panel})
     )
 
 
@@ -586,6 +708,9 @@ def _nan_score(scores: list[Score]) -> Score:
         else None,
         explanation=scores[0].explanation
         if len(set(score.explanation for score in scores)) == 1
+        else None,
+        reason=scores[0].reason
+        if len(set(score.reason for score in scores)) == 1
         else None,
         metadata=scores[0].metadata,
     )

@@ -1,13 +1,14 @@
 import asyncio
 import os
 import urllib.parse
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, Awaitable, Callable
 from functools import partial
 from importlib.metadata import PackageNotFoundError, version
 from io import BytesIO
 from logging import getLogger
 from typing import Any, Literal, NamedTuple, Tuple, cast
 
+import anyio
 import fsspec  # type: ignore
 from aiobotocore.response import StreamingBody
 from anyio import EndOfStream
@@ -22,7 +23,13 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import _READ_FULLY_CHUNK_SIZE, AsyncFilesystem
 from inspect_ai._util.azure import is_azure_auth_error
 from inspect_ai._util.constants import PKG_NAME
-from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
+from inspect_ai._util.file import (
+    default_fs_options,
+    dirname,
+    filesystem,
+    http_redirects_refused,
+    size_in_mb,
+)
 from inspect_ai._view.azure import normalize_azure_listing_name
 from inspect_ai.log._edit import LogUpdate, edit_eval_log
 from inspect_ai.log._file import (
@@ -38,7 +45,7 @@ from inspect_ai.log._log import EvalLog
 from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import PendingSampleUrls, SegmentRef
-from inspect_ai.log._recorders.eval import s3_head_etag
+from inspect_ai.log._shard_listing import filter_merged_shards, merged_logs_to_check
 
 logger = getLogger(__name__)
 
@@ -77,9 +84,13 @@ class AppConfig(BaseModel):
 
     inspect_version: str
     scout_version: str | None = None
+    trust_content: bool | None = None
+    """Viewer-wide content trust (`inspect view --no-trust-content`). `False`
+    shows the content of every log as plain text; `None` or `True` defers to
+    each log's own `ViewerConfig(trust_content=...)`."""
 
 
-def get_app_config() -> AppConfig:
+def get_app_config(trust_content: bool | None = None) -> AppConfig:
     """Return app config, including installed inspect and scout versions.
 
     `inspect_scout` is an optional dependency, so `scout_version` is None when
@@ -92,6 +103,7 @@ def get_app_config() -> AppConfig:
     return AppConfig(
         inspect_version=version(PKG_NAME),
         scout_version=scout_version,
+        trust_content=trust_content,
     )
 
 
@@ -136,8 +148,8 @@ async def read_eval_set_info_async(
     Returns None when the manifest is absent, or (matching `read_eval_set_info`)
     when the check/read fails with an Azure auth error.
     """
-    sep = filesystem(eval_set_dir).sep
-    manifest = f"{eval_set_dir.rstrip('/').rstrip(sep)}{sep}eval-set.json"
+    fs = filesystem(eval_set_dir)
+    manifest = f"{fs.dir_location(eval_set_dir)}{fs.sep}eval-set.json"
     try:
         if not await afs.exists(manifest):
             return None
@@ -148,19 +160,108 @@ async def read_eval_set_info_async(
         raise
 
 
+class ShardListing(NamedTuple):
+    """A listing with merged shards hidden, and what the client must refresh."""
+
+    logs: list[EvalLogInfo]
+    """The logs to show."""
+
+    visible_shards: bool
+    """Whether any shard log was left visible."""
+
+    hiding_mtime: float | None
+    """Newest mtime of a merged log that hides shards (None if none do)."""
+
+
+# merged log name -> ((mtime, size), finished) for the file version whose
+# status was read; one entry per merged log seen, so it stays small
+_merged_log_finished: dict[str, tuple[tuple[float | None, int], bool]] = {}
+
+# (name, mtime) of merged logs whose status could not be read, so each
+# unreadable version is warned about once
+_merged_log_warned: set[tuple[str, float | None]] = set()
+
+
+async def hide_merged_shards(
+    logs: list[EvalLogInfo],
+    can_read: Callable[[str], Awaitable[bool]] | None = None,
+) -> ShardListing:
+    """Remove shard logs that their merged log already covers from a listing.
+
+    Reads the status of each merged log that could hide a shard, once per
+    file version (mtime and size). A merged log the caller may not read, or
+    whose status cannot be read, hides nothing; read failures are not cached,
+    so a transient error is retried on the next listing.
+
+    Args:
+        logs: The listing.
+        can_read: Whether the requester may read a log (by listing name).
+            Checked on every call, before the cache.
+    """
+    semaphore = anyio.Semaphore(8)
+
+    async def finished(log: EvalLogInfo) -> bool:
+        if can_read is not None and not await can_read(log.name):
+            return False
+        version = (log.mtime, log.size)
+        cached = _merged_log_finished.get(log.name)
+        if cached is not None and cached[0] == version:
+            return cached[1]
+        async with semaphore:
+            try:
+                header = await read_eval_log_async(log.name, header_only=True)
+            except Exception as ex:
+                if (log.name, log.mtime) not in _merged_log_warned:
+                    _merged_log_warned.add((log.name, log.mtime))
+                    logger.warning(
+                        f"Showing shards of {log.name}: unable to read its status ({ex})"
+                    )
+                return False
+        is_finished = header.status == "success"
+        _merged_log_finished[log.name] = (version, is_finished)
+        return is_finished
+
+    merged = merged_logs_to_check(logs)
+    results = await tg_collect([partial(finished, log) for log in merged])
+    finished_logs = [log for log, done in zip(merged, results) if done]
+    filtered = filter_merged_shards(logs, {log.name for log in finished_logs})
+    return ShardListing(
+        logs=filtered.logs,
+        visible_shards=filtered.visible_shards,
+        hiding_mtime=max(
+            (log.mtime for log in finished_logs if log.mtime is not None),
+            default=None,
+        ),
+    )
+
+
 async def get_log_files(
     request_log_dir: str,
     recursive: bool,
     fs_options: dict[str, Any],
     mtime: float,
     file_count: int,
+    show_shards: bool = False,
+    can_read: Callable[[str], Awaitable[bool]] | None = None,
 ) -> LogFilesResponse:
     # list logs
     logs = await list_eval_logs_async(
         log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
     )
 
-    if len(logs) != file_count:
+    # hiding or un-hiding a shard can leave the file count unchanged and
+    # involve files older than the client's token (a merge landing, a merged
+    # log deleted), and only full responses remove rows from the client's
+    # listing; a finished run whose shards are all hidden stays incremental
+    refresh = False
+    if not show_shards:
+        listing = await hide_merged_shards(logs, can_read)
+        logs = listing.logs
+        refresh = listing.visible_shards or (
+            listing.hiding_mtime is not None and listing.hiding_mtime > mtime
+        )
+
+    if len(logs) != file_count or refresh:
         # Has the number of files changed? could be a delete
         # so send a complete list
         return log_files_response(
@@ -284,17 +385,10 @@ async def apply_log_edits(
             "Wait for the eval to finish (status != 'started'), then try again."
         )
     log = edit_eval_log(log, update.edits, update.provenance)
-    await write_eval_log_async(
+    write_result = await write_eval_log_async(
         log, location=file, if_match_etag=if_match_etag, header_only=True
     )
-    # Capture the post-write ETag on S3 via a HEAD — far cheaper than
-    # re-parsing the zip header, since we only need the ETag header on
-    # the response, not the body. Skipped on local filesystems where
-    # there's no ETag concept.
-    new_etag: str | None = None
-    if filesystem(file).is_s3():
-        new_etag = await s3_head_etag(file)
-    return LogPayload(contents=eval_log_json(log), etag=new_etag)
+    return LogPayload(contents=eval_log_json(log), etag=write_result.etag)
 
 
 async def get_log_size(log_file: str) -> int:
@@ -359,12 +453,17 @@ async def build_pending_sample_urls(
     after_call_pool_id: int | None,
     max_segments: int | None,
     tail: bool = False,
+    direct_urls: bool = True,
 ) -> PendingSampleUrls | None:
     """Build the `/pending-sample-data-urls` response, or None for 404.
 
     Returns None when the buffer is not filestore-backed (in-process database
     buffer for a running eval, not yet synced), the manifest is missing, or
     the requested sample is not in the manifest. Callers map None to 404.
+
+    When `direct_urls` is False, no segment is presigned and every
+    `direct_url` is None, so clients fetch segments through the server (e.g.
+    a viewer whose Content-Security-Policy can't reach S3).
     """
     buffer = sample_buffer(file)
     if not isinstance(buffer, SampleBufferFilestore):
@@ -383,12 +482,16 @@ async def build_pending_sample_urls(
     if pending is None:
         return None
 
-    direct_urls = await tg_collect(
-        [partial(get_direct_url, seg.path) for seg in pending.segments]
+    urls: list[str | None] = (
+        await tg_collect(
+            [partial(get_direct_url, seg.path) for seg in pending.segments]
+        )
+        if direct_urls
+        else [None] * len(pending.segments)
     )
     refs = [
         SegmentRef(id=seg.id, member_name=seg.member_name, direct_url=url)
-        for seg, url in zip(pending.segments, direct_urls)
+        for seg, url in zip(pending.segments, urls)
     ]
 
     return PendingSampleUrls(
@@ -451,6 +554,10 @@ async def stream_log_bytes(
     stream_threshold_bytes: int = 50 * 1024 * 1024,
 ) -> AsyncIterable[bytes] | BytesIO:
     """Download log bytes with optional streaming for large files.
+
+    The S3 return value is a live connection-backed body the caller must
+    `release()` (see `ReleasingStreamingResponse`); the local streaming
+    branch closes itself.
 
     Args:
         log_file: The log file to download.
@@ -545,7 +652,11 @@ async def stream_log_bytes(
 
 
 async def get_logs(
-    request_log_dir: str, recursive: bool, fs_options: dict[str, Any]
+    request_log_dir: str,
+    recursive: bool,
+    fs_options: dict[str, Any],
+    show_shards: bool = False,
+    can_read: Callable[[str], Awaitable[bool]] | None = None,
 ) -> LogListingResponse | None:
     # if the log_dir contains the path to a specific file
     # then just return that file
@@ -560,6 +671,8 @@ async def get_logs(
     logs = await list_eval_logs_async(
         log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
     )
+    if not show_shards:
+        logs = (await hide_merged_shards(logs, can_read)).logs
     return get_log_listing(logs, request_log_dir)
 
 
@@ -611,9 +724,13 @@ def async_connection(log_file: str) -> AsyncFileSystem:
     protocol, _ = split_protocol(log_file)
     protocol = protocol or "file"
 
-    # create connection if required
-    if protocol not in _async_connections.keys():
-        _async_connections[protocol] = fsspec.filesystem(
+    # create connection if required (refusing redirects changes the options
+    # of an HTTP connection, so it gets its own entry)
+    key = protocol
+    if protocol in ("http", "https") and http_redirects_refused():
+        key = f"{protocol}:no-redirects"
+    if key not in _async_connections.keys():
+        _async_connections[key] = fsspec.filesystem(
             protocol,
             asynchronous=True,
             loop=asyncio.get_event_loop(),
@@ -621,7 +738,7 @@ def async_connection(log_file: str) -> AsyncFileSystem:
         )
 
     # return async file-system
-    return _async_connections.get(protocol)
+    return _async_connections[key]
 
 
 def resolve_header_only(path: str, header_only: int | None) -> bool:

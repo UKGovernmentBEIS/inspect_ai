@@ -1,11 +1,28 @@
-import pytest
+import base64
+from typing import cast
+from unittest.mock import MagicMock
 
-from inspect_ai._util.content import ContentReasoning, ContentText
-from inspect_ai.model._openai import messages_from_openai, messages_to_openai
+import pytest
+from openai.types.chat import (
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionMessageParam,
+)
+
+from inspect_ai._util.content import ContentAudio, ContentReasoning, ContentText
+from inspect_ai.model._chat_message import ChatMessageAssistant
+from inspect_ai.model._internal import content_internal_tag
+from inspect_ai.model._openai import (
+    messages_from_openai,
+    messages_to_openai,
+    openai_assistant_content,
+    openai_chat_completion_part,
+)
 from inspect_ai.model._openai_responses import (
     _openai_input_items_from_chat_message_assistant,
 )
+from inspect_ai.model._providers.google import content as google_content_from_message
 from inspect_ai.model._providers.openai_compatible import ModelInfo
+from inspect_ai.tool import ToolCall
 
 
 # Minimal stubs for OpenAI message params
@@ -221,6 +238,143 @@ async def test_assistant_message_reasoning_content_round_trip():
     assert "assistant output" in content
 
 
+@pytest.mark.parametrize("as_parts", [False, True])
+@pytest.mark.parametrize("double_wrapped", [False, True])
+async def test_assistant_message_preserves_multiple_internal_text_blocks(
+    as_parts: bool,
+    double_wrapped: bool,
+) -> None:
+    serialized = "\n".join(
+        [
+            "first",
+            f"<{content_internal_tag({'a': 1})}>"
+            if double_wrapped
+            else content_internal_tag({"a": 1}),
+            "second",
+            f"<{content_internal_tag({'b': 2})}>"
+            if double_wrapped
+            else content_internal_tag({"b": 2}),
+        ]
+    )
+
+    [message] = await messages_from_openai(
+        [
+            cast(
+                ChatCompletionMessageParam,
+                DummyMessage(
+                    "assistant",
+                    content=[{"type": "text", "text": serialized}]
+                    if as_parts
+                    else serialized,
+                ),
+            )
+        ]
+    )
+
+    assert isinstance(message.content, list)
+    assert [
+        (content.text, content.internal)
+        for content in message.content
+        if isinstance(content, ContentText)
+    ] == [("first", {"a": 1}), ("second", {"b": 2})]
+
+
+@pytest.mark.parametrize(
+    "serialized",
+    [
+        "\nassistant output\n<content-internal>eyJrIjogInYifQ==</content-internal>\n",
+        "\nassistant output\n<<content-internal>eyJrIjogInYifQ==</content-internal>>\n",
+    ],
+    ids=["single-wrapped", "double-wrapped"],
+)
+async def test_assistant_message_preserves_single_internal_text_block(
+    serialized: str,
+) -> None:
+    [message] = await messages_from_openai(
+        [
+            cast(
+                ChatCompletionMessageParam,
+                DummyMessage("assistant", content=serialized),
+            )
+        ]
+    )
+
+    assert isinstance(message.content, list)
+    assert len(message.content) == 1
+    [content] = message.content
+    assert isinstance(content, ContentText)
+    assert content.text == "assistant output"
+    assert content.internal == {"k": "v"}
+
+
+async def test_assistant_message_preserves_internal_and_plain_text_blocks() -> None:
+    serialized = "\n".join(
+        [
+            "first",
+            content_internal_tag({"a": 1}),
+            "second",
+        ]
+    )
+
+    [message] = await messages_from_openai(
+        [
+            cast(
+                ChatCompletionMessageParam,
+                DummyMessage("assistant", content=serialized),
+            )
+        ]
+    )
+
+    assert isinstance(message.content, list)
+    assert [
+        (content.text, content.internal)
+        for content in message.content
+        if isinstance(content, ContentText)
+    ] == [("first", {"a": 1}), ("second", None)]
+
+
+@pytest.mark.parametrize("as_parts", [False, True])
+@pytest.mark.parametrize("second_text", ["second", ""])
+async def test_assistant_message_preserves_reasoning_and_internal_block_order(
+    as_parts: bool, second_text: str
+) -> None:
+    serialized = "\n".join(
+        [
+            '<think signature="sig">reasoning</think>',
+            "first",
+            content_internal_tag({"a": 1}),
+            second_text,
+            content_internal_tag({"b": 2}),
+        ]
+    )
+
+    [message] = await messages_from_openai(
+        [
+            cast(
+                ChatCompletionMessageParam,
+                DummyMessage(
+                    "assistant",
+                    content=[{"type": "text", "text": serialized}]
+                    if as_parts
+                    else serialized,
+                ),
+            )
+        ]
+    )
+
+    assert isinstance(message.content, list)
+    assert len(message.content) == 3
+    reasoning, first, second = message.content
+    assert isinstance(reasoning, ContentReasoning)
+    assert isinstance(first, ContentText)
+    assert isinstance(second, ContentText)
+    assert reasoning.reasoning == "reasoning"
+    assert first.text == "first"
+    assert first.internal == {"a": 1}
+    assert second.text == second_text
+    assert second.internal == {"b": 2}
+
+
 async def test_user_message_passthrough():
     # User message should be passed through unchanged
     user_content = "user says hello"
@@ -231,3 +385,157 @@ async def test_user_message_passthrough():
     assert len(chat_msgs) == 1
     msg = chat_msgs[0]
     assert msg.content == user_content
+
+
+async def test_user_input_audio_is_normalized_to_data_uri():
+    audio_data = "aGVsbG8="
+    messages = [
+        DummyMessage(
+            "user",
+            content=[
+                {
+                    "type": "input_audio",
+                    "input_audio": {"data": audio_data, "format": "mp3"},
+                }
+            ],
+        ),
+    ]
+
+    chat_msgs = await messages_from_openai(messages)
+    content = chat_msgs[0].content
+    assert isinstance(content, list)
+    audio = content[0]
+    assert isinstance(audio, ContentAudio)
+    assert audio.audio == f"data:audio/mpeg;base64,{audio_data}"
+
+    serialized = await openai_chat_completion_part(audio)
+    assert serialized["input_audio"] == {"data": audio_data, "format": "mp3"}
+
+
+def _gemini_tool_call_message() -> ChatMessageAssistant:
+    # the shape of a Gemini 3 tool-calling output from the google provider: a
+    # thought summary, text, and the redacted anchor that carries the function
+    # call's thought signature
+    return ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Plan the listing", redacted=False),
+            ContentText(text="Let me look."),
+            ContentReasoning(
+                reasoning=base64.b64encode(b"sig-1").decode(),
+                redacted=True,
+                internal={"gemini_function_call_id": "call_1"},
+            ),
+        ],
+        tool_calls=[
+            ToolCall(id="call_1", function="bash", arguments={"command": "ls"})
+        ],
+    )
+
+
+async def _bridge_round_trip(as_list: bool) -> ChatMessageAssistant:
+    message = _gemini_tool_call_message()
+    text, _ = openai_assistant_content(message)
+    oai_message: ChatCompletionAssistantMessageParam = {
+        "role": "assistant",
+        "content": [{"type": "text", "text": text}] if as_list else text,
+        "tool_calls": [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "bash", "arguments": '{"command": "ls"}'},
+            }
+        ],
+    }
+    chat_msgs = await messages_from_openai([oai_message])
+    assert len(chat_msgs) == 1
+    assert isinstance(chat_msgs[0], ChatMessageAssistant)
+    return chat_msgs[0]
+
+
+@pytest.mark.parametrize("as_list", [False, True])
+async def test_assistant_smuggled_reasoning_keeps_text_indentation(as_list: bool):
+    original = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="plan"),
+            ContentText(text="def f():"),
+            ContentReasoning(reasoning="choose result"),
+            ContentText(text="    return 1"),
+        ]
+    )
+    text, _ = openai_assistant_content(original)
+    oai_message: ChatCompletionAssistantMessageParam = {
+        "role": "assistant",
+        "content": [{"type": "text", "text": text}] if as_list else text,
+    }
+    chat_msgs = await messages_from_openai([oai_message])
+    assert chat_msgs[0].content == original.content
+
+
+@pytest.mark.parametrize("as_list", [False, True])
+async def test_assistant_multiple_smuggled_reasoning_blocks_round_trip(as_list: bool):
+    original = _gemini_tool_call_message()
+    restored = await _bridge_round_trip(as_list)
+    assert restored.content == original.content
+
+
+@pytest.mark.parametrize("as_list", [False, True])
+async def test_assistant_smuggled_gemini_anchor_replays_thought_signature(
+    as_list: bool,
+):
+    restored = await _bridge_round_trip(as_list)
+
+    google_content = await google_content_from_message(
+        MagicMock(), restored, emulate_reasoning=False
+    )
+
+    assert google_content.parts is not None
+    function_call_parts = [
+        p for p in google_content.parts if p.function_call is not None
+    ]
+    assert len(function_call_parts) == 1
+    assert function_call_parts[0].thought_signature == b"sig-1"
+    assert not any("<think" in (p.text or "") for p in google_content.parts)
+
+
+@pytest.mark.parametrize("as_parts", [False, True])
+@pytest.mark.parametrize("empty_text", [False, True])
+async def test_assistant_multiple_internal_blocks_between_reasoning_round_trip(
+    as_parts: bool, empty_text: bool
+) -> None:
+    original = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="plan", internal={"step": 1}),
+            ContentText(text="first", internal={"a": 1}),
+            ContentText(
+                text="" if empty_text else "    indented line  ", internal={"b": 2}
+            ),
+            ContentReasoning(reasoning="check", internal={"step": 2}),
+            ContentText(text="third", internal={"c": 3}),
+        ]
+    )
+    text, _ = openai_assistant_content(original)
+    [restored] = await messages_from_openai(
+        [
+            {
+                "role": "assistant",
+                "content": [{"type": "text", "text": text}] if as_parts else text,
+            }
+        ]
+    )
+    assert restored.content == original.content
+
+
+async def test_assistant_internal_indentation_round_trip() -> None:
+    original = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="plan"),
+            ContentText(text="first", internal={"a": 1}),
+            ContentText(text="    indented line  ", internal={"b": 2}),
+            ContentReasoning(reasoning="check"),
+        ]
+    )
+    serialized, _ = openai_assistant_content(original)
+    [restored] = await messages_from_openai(
+        [{"role": "assistant", "content": serialized}]
+    )
+    assert restored.content == original.content

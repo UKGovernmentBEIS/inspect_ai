@@ -14,6 +14,8 @@ Or from Python with:
 eval_retry("logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json")
 ```
 
+A retry runs code named by the log: its task file, scorers and solver, or for an `hf/` task the Hugging Face repo it names, whose `eval.yaml` chooses the dataset and the solver and scorer arguments. It also uses the model endpoint, sandbox and other settings recorded in the log. Only retry logs you trust.
+
 Note that retry only works for tasks that are created from `@task` decorated functions (as if a `Task` is created dynamically outside of an `@task` function Inspect does not know how to reconstruct it for the retry).
 
 Note also that `eval_retry()` does not overwrite the previous log file, but rather creates a new one (preserving the `task_id` from the original file).

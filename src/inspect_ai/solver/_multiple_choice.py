@@ -90,14 +90,34 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
     However, if the answer isn't in the expected format the model has
     failed in the task so we'll ultimately just mark it as incorrect
     """
+    # Remove wrappers before matching so trailing text still reaches the lenient fallback.
+    # Each run of spaces can match only one way in these patterns, so matching
+    # model output stays linear (the inner text cannot end in a space).
+    completion = re.sub(
+        r"\x24\s*([A-Za-z\d](?:[A-Za-z\d ,]*[A-Za-z\d,])?)\s*\x24",
+        r"\1",
+        state.output.completion,
+    )
+    completion = re.sub(
+        r"\*\*\s*([A-Za-z\d](?:[A-Za-z\d ,]*[A-Za-z\d,])?)\s*\*\*", r"\1", completion
+    )
+    completion = re.sub(
+        r"(?i)(^|[:,])(\s*)\(([A-Za-z\d])\)(?=\s*(?:,|\.|\n|\Z))",
+        r"\1\2\3",
+        completion,
+    )
+
     # First check whether the string strictly ends with the expected answer
     # In this case, we're looking for a single line which contains the expected
     # ANSWER: <answer> string with only whitespace or a period/full stop at the end.
     # The CoT templates instruct the model to put the answer on the LAST line,
     # so if there are multiple matching lines we take the last one.
+    # Possessive quantifiers keep matching linear on long runs of spaces. The
+    # second branch keeps the whitespace-only answer that `\s*` reached by
+    # backtracking (e.g. "ANSWER: \n").
     matches = re.findall(
-        r"(?i)^ANSWER\s*:\s*([A-Za-z\d ,]+)\s*(?:$|\n|\.)",
-        state.output.completion,
+        r"(?i)^ANSWER\s*:(?:\s*+|[^\S ]*+)([A-Za-z\d ,]++)\s*(?:$|\n|\.)",
+        completion,
         flags=re.MULTILINE,
     )
 
@@ -106,7 +126,7 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
     if not matches:
         matches = re.findall(
             r"(?i)ANSWER\s*:\s*([A-Za-z\d ,]+)(?:[^\w]|\n|$|\.)",
-            state.output.completion,
+            completion,
         )
 
     if not matches:
@@ -142,9 +162,11 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
             return answers
 
     else:
-        # Match must contain a single letter in the allowed choices
-        if matched in allowed_options:
-            answers = {matched}
+        # Match must contain a single letter in the allowed choices; tolerate a
+        # stray comma (e.g. "ANSWER: A,") the way the multiple_correct branch does
+        single_tokens = [token for token in matched.split(",") if token]
+        if len(single_tokens) == 1 and single_tokens[0] in allowed_options:
+            answers = {single_tokens[0]}
             return answers
 
     return set()
@@ -153,7 +175,12 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
 def set_choices_based_on_generated_response(
     state: TaskState, answers: set[str]
 ) -> None:
-    true_answers = [answer_index(letter) for letter in answers]
+    true_answers: list[int] = []
+    for letter in answers:
+        try:
+            true_answers.append(answer_index(letter))
+        except ValueError:
+            pass
 
     for i in range(len(state.choices)):
         if i in true_answers:

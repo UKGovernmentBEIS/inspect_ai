@@ -21,7 +21,9 @@ from inspect_ai.log import (
     EvalResults,
     EvalSampleScore,
     EvalScore,
+    HeadlineMetric,
 )
+from inspect_ai.log._headline import headline_metric_ref, resolve_headline_metric
 from inspect_ai.log._log import EvalSampleReductions
 from inspect_ai.scorer import Metric, Score, Scorer
 from inspect_ai.scorer._metric import (
@@ -31,13 +33,13 @@ from inspect_ai.scorer._metric import (
     SampleScore,
     Value,
     metric_scores,
+    score_is_excluded,
 )
 from inspect_ai.scorer._metrics.accuracy import accuracy
 from inspect_ai.scorer._metrics.std import stderr
 from inspect_ai.scorer._reducer import ScoreReducer, mean_score, reducer_log_name
 from inspect_ai.scorer._scorer import (
     SCORER_METRICS,
-    ScorerSpec,
     scorer_metrics,
     unique_scorer_name,
 )
@@ -67,11 +69,12 @@ class ScorerInfo:
 
     @staticmethod
     def from_name(name: str) -> "ScorerInfo":
-        from inspect_ai._eval.loader import scorer_from_spec
+        from inspect_ai._eval.loader import scorer_from_registry
 
-        # load the scorer to gather that scorer's metrics
+        # load the scorer to gather that scorer's metrics. score keys can come
+        # from a log, so they are registry names only (never file specs)
         try:
-            scorer = scorer_from_spec(ScorerSpec(scorer=name), task_path=None)
+            scorer = scorer_from_registry(name)
         except Exception:
             scorer = None
 
@@ -95,10 +98,13 @@ def eval_results(
     early_stopping: EarlyStoppingSummary | None = None,
     metadata: dict[str, Any] | None = None,
     completed_samples: int | None = None,
+    headline_metric: HeadlineMetric | None = None,
+    logged_samples: int | None = None,
 ) -> Tuple[EvalResults, list[EvalSampleReductions] | None]:
     # initialise results
     results = EvalResults(
         total_samples=samples,
+        logged_samples=logged_samples,
         # `scores` also carries samples that errored but were still scored (by
         # score_on_error, or by scorers that ran before another one raised), so
         # its length is not the number of samples that completed without error.
@@ -176,6 +182,10 @@ def eval_results(
             # build results
         results.scores = result_scores
         reductions = sample_reductions
+
+    resolved_headline = resolve_headline_metric(results, headline_metric)
+    if resolved_headline is not None:
+        results.headline = headline_metric_ref(resolved_headline)
 
     return results, reductions
 
@@ -420,7 +430,7 @@ def scorer_for_metrics(
         if len(sample_scores_with_values) > 0:
             metric_value = call_metric(metric, sample_scores_with_values)
         else:
-            metric_value = float("Nan")
+            metric_value = empty_metric_value(metric)
         base_metric_name = registry_log_name(metric)
 
         # If the metric value is a dictionary, turn each of the entries
@@ -438,7 +448,9 @@ def scorer_for_metrics(
 
         # If the metric value is a list, turn each element in the list
         # into a result
-        elif isinstance(metric_value, Sequence):
+        elif isinstance(metric_value, Sequence) and not isinstance(
+            metric_value, str | bytes
+        ):
             for index, value in enumerate(metric_value):
                 if value is not None:
                     count = str(index + 1)
@@ -541,29 +553,36 @@ def scorers_from_metric_dict(
             if len(key_scores) > 0:
                 value = call_metric(target_metric, key_scores)
             else:
-                value = float("Nan")
+                value = empty_metric_value(target_metric)
 
             # convert the value to a float (either by expanding the dict or array)
             # or by casting to a float
             group = registry_unqualified_name(target_metric)
-            if isinstance(value, dict):
+            if isinstance(value, Mapping):
                 for key, val in value.items():
-                    result_metrics[f"{metric_name}_{key}"] = EvalMetric(
+                    name = metrics_unique_key(
+                        f"{metric_name}_{key}", list(result_metrics.keys())
+                    )
+                    result_metrics[name] = EvalMetric(
                         name=key,
                         group=group,
                         value=cast(float, val),
                         params=metric_params,
                     )
-            elif isinstance(value, list):
+            elif isinstance(value, Sequence) and not isinstance(value, str | bytes):
                 for idx, item in enumerate(value):
-                    result_metrics[f"{metric_name}_{idx}"] = EvalMetric(
+                    name = metrics_unique_key(
+                        f"{metric_name}_{idx}", list(result_metrics.keys())
+                    )
+                    result_metrics[name] = EvalMetric(
                         name=str(idx),
                         group=group,
                         value=cast(float, item),
                         params=metric_params,
                     )
             else:
-                result_metrics[metric_name] = EvalMetric(
+                name = metrics_unique_key(metric_name, list(result_metrics.keys()))
+                result_metrics[name] = EvalMetric(
                     name=metric_name, value=cast(float, value), params=metric_params
                 )
 
@@ -599,6 +618,29 @@ def call_metric(metric: Metric, sample_scores: list[SampleScore]) -> Value:
     else:
         metric = cast(MetricProtocol, metric)
         return metric(sample_scores)
+
+
+def empty_metric_value(metric: Metric) -> Value:
+    """Value for a metric over zero scored samples (#5150).
+
+    The metric gets its own empty case first: a shaped metric (e.g. grouped)
+    reports its degenerate shape, while a metric that raises on empty input
+    or returns a non-Mapping scalar falls back to the legacy synthesized NaN.
+    An empty Mapping means "no shape to report" and falls back as well, so
+    the metric row stays visible the way it was on main.
+    """
+    try:
+        empty_value = call_metric(metric, [])
+    except Exception as e:
+        warn_once(
+            logger,
+            f"Metric {registry_log_name(metric)} raised on an empty sample set; "
+            f"reporting NaN instead. ({type(e).__name__})",
+        )
+        return float("Nan")
+    if isinstance(empty_value, Mapping) and len(empty_value) > 0:
+        return empty_value
+    return float("Nan")
 
 
 def is_metric_deprecated(metric: Metric) -> TypeGuard[MetricDeprecated]:
@@ -653,22 +695,30 @@ def resolve_glob_metric_keys(
                 # The key matched, so either create a new entry for it and add metrics
                 # or add metrics to the existing key
                 resolved_metrics.setdefault(score_key, [])
-                existing_metric_names = {
-                    registry_log_name(m) for m in resolved_metrics[score_key]
-                }
+                existing_metrics = [
+                    (registry_log_name(m), registry_params(m))
+                    for m in resolved_metrics[score_key]
+                ]
 
-                # Add metrics that aren't already in the list
+                # Add metrics that aren't already in the list (same name and params)
                 for metric in metric_list:
-                    metric_name = registry_log_name(metric)
-                    if metric_name not in existing_metric_names:
+                    metric_id = (registry_log_name(metric), registry_params(metric))
+                    if metric_id not in existing_metrics:
                         resolved_metrics[score_key].append(metric)
-                        existing_metric_names.add(metric_name)
+                        existing_metrics.append(metric_id)
     return resolved_metrics
 
 
 def reduce_scores(
     scores: list[SampleScore], reducer: ScoreReducer
 ) -> list[SampleScore]:
+    """Reduce each sample's epoch scores to one score.
+
+    Excluded epochs (`score_is_excluded()`) are left out, so the sample
+    reduces, sample metadata included, as if they had not run. When every
+    epoch is excluded the reducer is not called and the sample reduces to its
+    first excluded score, which counts as unscored.
+    """
     # Group the scores by sample_id
     grouped_scores: dict[str, list[SampleScore]] = defaultdict(list)
     for sample_score in scores:
@@ -678,11 +728,17 @@ def reduce_scores(
     # reduce the scores
     reduced_scores: list[SampleScore] = []
     for scores in grouped_scores.values():
-        reduced = reducer([score.score for score in scores])
+        kept = [score for score in scores if not score_is_excluded(score.score)]
+        if kept:
+            reduced = reducer([score.score for score in kept])
+            first = kept[0]
+        else:
+            first = scores[0]
+            reduced = first.score.model_copy(update={"history": []})
         reduced_scores.append(
             SampleScore(
-                sample_id=scores[0].sample_id,
-                sample_metadata=scores[0].sample_metadata,
+                sample_id=first.sample_id,
+                sample_metadata=first.sample_metadata,
                 score=reduced,
             )
         )

@@ -42,6 +42,8 @@ from pathlib import Path
 
 import anyio
 
+from checkpoint.docker_projects import record_docker_projects
+from checkpoint.transcript_store_cache import redirect_transcript_store_cache_dir
 from inspect_ai import Task, eval, eval_retry, task
 from inspect_ai._util.file import local_path
 from inspect_ai.agent import react
@@ -181,7 +183,8 @@ def run_eval(log_dir: str, retry_from: str | None = None) -> None:
 def main() -> None:
     log_dir = sys.argv[1]
     retry_from = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
-    run_eval(log_dir, retry_from)
+    with redirect_transcript_store_cache_dir(), record_docker_projects():
+        run_eval(log_dir, retry_from)
 
 
 if __name__ == "__main__":

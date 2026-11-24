@@ -61,8 +61,8 @@ def test_openai_responses_tool_image_result():
 
 @skip_if_no_openai
 @flaky_retry(max_retries=3)
-def test_openai_o4_mini_tool_image_result():
-    check_tool_image_result(get_model("openai/o4-mini"))
+def test_openai_gpt_5_mini_tool_image_result():
+    check_tool_image_result(get_model("openai/gpt-5-mini"))
 
 
 @skip_if_no_google
@@ -75,7 +75,7 @@ def test_google_tool_image_result():
 
 @skip_if_no_anthropic
 def test_anthropic_tool_image_result():
-    check_tool_image_result("anthropic/claude-sonnet-4-5")
+    check_tool_image_result("anthropic/claude-sonnet-5-5")
 
 
 @skip_if_no_moonshot

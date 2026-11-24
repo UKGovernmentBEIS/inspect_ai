@@ -1,0 +1,408 @@
+{
+  "description": "A bridged sub-agent finishes just before a summary compaction, so its result reaches only the summary call's input, and the next call's input holds the summary instead. The summary call is utility, and the sub-agent's result is still found: results are extracted while every model call is in its span's content, before calls are wrapped as utility.",
+  "events": [
+    {
+      "event": "span_begin",
+      "id": "solvers",
+      "name": "solvers",
+      "type": "solvers",
+      "parent_id": null,
+      "timestamp": "2026-01-01T00:00:00Z",
+      "uuid": "sb-solvers"
+    },
+    {
+      "event": "span_begin",
+      "id": "agent",
+      "name": "agent",
+      "type": "agent",
+      "parent_id": "solvers",
+      "timestamp": "2026-01-01T00:00:00Z",
+      "uuid": "sb-agent"
+    },
+    {
+      "event": "model",
+      "uuid": "m1",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:01Z",
+      "completed": "2026-01-01T00:00:02Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "function": "addition",
+                  "arguments": {
+                    "x": 1,
+                    "y": 1
+                  }
+                }
+              ]
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "tool",
+      "uuid": "t1",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:03Z",
+      "completed": "2026-01-01T00:00:04Z",
+      "id": "c1",
+      "function": "addition",
+      "arguments": {
+        "x": 1,
+        "y": 1
+      },
+      "result": "2",
+      "events": []
+    },
+    {
+      "event": "model",
+      "uuid": "m2",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:05Z",
+      "completed": "2026-01-01T00:00:06Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "function": "addition",
+              "arguments": {
+                "x": 1,
+                "y": 1
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "2",
+          "tool_call_id": "c1",
+          "function": "addition"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "k1",
+                  "function": "task",
+                  "arguments": {
+                    "prompt": "go"
+                  }
+                }
+              ]
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_begin",
+      "id": "agent-k1",
+      "name": "agent-k1",
+      "type": "agent",
+      "parent_id": "agent",
+      "timestamp": "2026-01-01T00:00:07Z",
+      "uuid": "sb-agent-k1"
+    },
+    {
+      "event": "model",
+      "uuid": "s1",
+      "span_id": "agent-k1",
+      "timestamp": "2026-01-01T00:00:08Z",
+      "completed": "2026-01-01T00:00:09Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are a sub-agent."
+        },
+        {
+          "role": "user",
+          "content": "Find it."
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "found it"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "agent-k1",
+      "timestamp": "2026-01-01T00:00:10Z",
+      "uuid": "se-agent-k1"
+    },
+    {
+      "event": "model",
+      "uuid": "sm",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:11Z",
+      "completed": "2026-01-01T00:00:12Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "function": "addition",
+              "arguments": {
+                "x": 1,
+                "y": 1
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "2",
+          "tool_call_id": "c1",
+          "function": "addition"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "k1",
+              "function": "task",
+              "arguments": {
+                "prompt": "go"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "found it",
+          "tool_call_id": "k1",
+          "function": "task"
+        },
+        {
+          "role": "user",
+          "content": "Summarize the conversation."
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "The sum is 2, and it was found."
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "compaction",
+      "uuid": "cmp",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:13Z",
+      "type": "summary",
+      "source": "inspect"
+    },
+    {
+      "event": "model",
+      "uuid": "m3",
+      "span_id": "agent",
+      "timestamp": "2026-01-01T00:00:14Z",
+      "completed": "2026-01-01T00:00:15Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        },
+        {
+          "role": "user",
+          "content": "[COMPACTED] The sum is 2, and it was found."
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "2"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "agent",
+      "timestamp": "2026-01-01T01:00:00Z",
+      "uuid": "se-agent"
+    },
+    {
+      "event": "span_end",
+      "id": "solvers",
+      "timestamp": "2026-01-01T01:00:00Z",
+      "uuid": "se-solvers"
+    }
+  ],
+  "expected": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "t1",
+        "m2",
+        "sm",
+        "cmp",
+        "m3"
+      ],
+      "children": [
+        {
+          "id": "agent-k1",
+          "name": "agent-k1",
+          "agent_result": "found it",
+          "event_uuids": [
+            "s1"
+          ]
+        }
+      ]
+    },
+    "scoring": null
+  },
+  "expected_continuity": {
+    "init": null,
+    "agent": {
+      "id": "agent",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "t1",
+        "m2",
+        "cmp",
+        "m3"
+      ],
+      "children": [
+        {
+          "id": "agent-k1",
+          "name": "agent-k1",
+          "agent_result": "found it",
+          "event_uuids": [
+            "s1"
+          ]
+        },
+        {
+          "id": "utility-sm",
+          "name": "utility",
+          "utility": true,
+          "event_uuids": [
+            "sm"
+          ]
+        }
+      ]
+    },
+    "scoring": null
+  }
+}

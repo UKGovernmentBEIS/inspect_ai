@@ -1,5 +1,10 @@
 import json
+from contextlib import nullcontext
+from dataclasses import replace
+from types import SimpleNamespace
+from typing import Any, cast
 
+import pytest
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
@@ -7,14 +12,22 @@ from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.model import GenerateConfig, ModelOutput, get_model
-from inspect_ai.model._chat_message import ChatMessageAssistant
+from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._openai_responses import (
     MESSAGE_ID,
     MESSAGE_PHASE,
     _openai_input_items_from_chat_message_assistant,
 )
 from inspect_ai.model._providers.openai_compatible import ModelInfo
+from inspect_ai.model._stream import (
+    ModelStreamObserver,
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_observer,
+)
 from inspect_ai.solver import generate, use_tools, user_message
+from inspect_ai.tool._tool_info import ToolInfo
 
 
 def get_responses_model(config: GenerateConfig = GenerateConfig()):
@@ -56,19 +69,19 @@ def test_openai_responses_assistant_messages():
 
 
 @skip_if_no_openai
-def test_openai_responses_o1_pro():
+def test_openai_responses_o3_pro():
     log = eval(
         Task(dataset=[Sample(input="Please tell me your favorite color")]),
-        model="openai/o1-pro",
+        model="openai/o3-pro",
     )[0]
     assert log.status == "success"
 
 
 @skip_if_no_openai
 def test_openai_responses_no_store():
-    log = eval(Task(), model="openai/o4-mini", model_args=dict(responses_store=False))[
-        0
-    ]
+    log = eval(
+        Task(), model="openai/gpt-5-mini", model_args=dict(responses_store=False)
+    )[0]
     assert log.status == "success"
 
 
@@ -199,6 +212,55 @@ def test_tool_call_arguments_within_limit_cached_verbatim():
     assert assistant_internal().tool_calls["call_1"]["arguments"] == raw_arguments
 
 
+def test_each_message_replays_a_call_id_with_its_own_arguments():
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _process_response_output_items,
+        _tool_call_items_from_assistant_message,
+    )
+
+    init_sample_assistant_internal()
+    _, [generated], _, _ = _process_response_output_items(
+        [
+            ResponseFunctionToolCall(
+                type="function_call",
+                id="fc_1",
+                call_id="call_1",
+                name="bash",
+                arguments='{"command": "ls old"}',
+            )
+        ],
+        [],
+    )
+    # an earlier message's call under the id, which approval changed
+    changed = replace(generated, arguments={"command": "ls safe"})
+
+    replayed = [
+        _tool_call_items_from_assistant_message(
+            ChatMessageAssistant(content="", tool_calls=[call])
+        )[0]
+        for call in (changed, generated)
+    ]
+
+    assert replayed == [
+        {
+            "type": "function_call",
+            "call_id": "call_1",
+            "name": "bash",
+            "arguments": '{"command": "ls safe"}',
+        },
+        {
+            "type": "function_call",
+            "id": "fc_1",
+            "call_id": "call_1",
+            "name": "bash",
+            "arguments": '{"command": "ls old"}',
+        },
+    ]
+
+
 def test_oversized_tool_call_arguments_truncated_on_cache_miss():
     """Valid-but-oversized arguments are truncated in the cache-miss fallback.
 
@@ -275,17 +337,49 @@ def test_mixed_reasoning_blocks_filtering():
     assert ids == {"r1", "r2", "r3", "r4", "r5"}
 
 
+def test_items_without_real_ids_omit_id_key():
+    """Test that synthesized items omit 'id' rather than sending an explicit null."""
+    # No MESSAGE_ID internal and no reasoning signature -> no real ids available
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(text="Synthesized text"),
+            ContentReasoning(reasoning="Some reasoning"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
+    assert len(message_items) == 1
+    assert len(reasoning_items) == 1
+    assert "id" not in message_items[0]
+    assert "id" not in reasoning_items[0]
+
+    # replayed items with real ids keep them
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(text="Replayed text", internal={MESSAGE_ID: "msg_1"}),
+            ContentReasoning(reasoning="Some reasoning", signature="rs_1"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
+    assert message_items[0]["id"] == "msg_1"
+    assert reasoning_items[0]["id"] == "rs_1"
+
+
 async def test_responses_api_invalid_prompt_content_filter():
     """Test that invalid_prompt error in responses API returns content_filter."""
-    from unittest.mock import AsyncMock, MagicMock
-
-    from openai._types import NOT_GIVEN
     from openai.types.responses import Response, ResponseError
 
-    from inspect_ai.model._providers.openai_responses import generate_responses
-    from inspect_ai.model._providers.util.hooks import HttpxHooks
-
-    # Create a mock Response with an invalid_prompt error
     mock_response = Response.model_construct(
         id="resp_test",
         created_at=0.0,
@@ -300,44 +394,105 @@ async def test_responses_api_invalid_prompt_content_filter():
         status="failed",
     )
 
-    # Mock the client
-    client = MagicMock()
-    client.responses = MagicMock()
-    client.responses.create = AsyncMock(return_value=mock_response)
-
-    # Mock http_hooks
-    http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
-    http_hooks.end_request = MagicMock(return_value=None)
-
-    # Mock model_info
-    model_info = MagicMock()
-    model_info.is_o_series.return_value = False
-    model_info.is_gpt.return_value = True
-    model_info.is_gpt_5.return_value = False
-
-    result = await generate_responses(
-        client=client,
-        http_hooks=http_hooks,
-        model_name="gpt-4o",
-        input=[],
-        tools=[],
-        tool_choice=None,
-        config=GenerateConfig(),
-        background=None,
-        service_tier=None,
-        prompt_cache_key=NOT_GIVEN,
-        prompt_cache_retention=NOT_GIVEN,
-        safety_identifier=NOT_GIVEN,
-        responses_store=None,
-        synthesize_phase=False,
-        model_info=model_info,
-        batcher=None,
-    )
-    output, model_call = result
+    output, _ = await _generate_responses_with_mock(mock_response)
     assert isinstance(output, ModelOutput)
     assert output.stop_reason == "content_filter"
     assert "blocked by content filter" in output.completion
+    # invalid_prompt converts via the same handler as the other block codes,
+    # so it carries the refusal StopDetails like they do
+    assert output.choices[0].stop_details is not None
+    assert output.choices[0].stop_details.type == "refusal"
+
+
+async def test_responses_api_null_model_falls_back_to_requested_model():
+    """A response that omits `model` must not fail ModelOutput validation.
+
+    Meta's Model API streams a refusal-only response whose `model` is null;
+    the SDK types it as required, so we fall back to the requested name.
+    """
+    from openai.types.responses import Response
+
+    mock_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model=None,
+        object="response",
+        output=[],
+        tools=[],
+        status="completed",
+    )
+
+    output, _ = await _generate_responses_with_mock(mock_response)
+    assert isinstance(output, ModelOutput)
+    assert output.model == "gpt-4o"
+
+
+async def test_responses_api_incomplete_content_filter_with_tool_calls():
+    """An incomplete response with content_filter preserves stop_reason and stop_details with tool calls."""
+    from openai.types.responses import Response, ResponseFunctionToolCall
+    from openai.types.responses.response import IncompleteDetails
+
+    tool_call = ResponseFunctionToolCall(
+        id="call_1",
+        call_id="call_1",
+        type="function_call",
+        name="test_tool",
+        arguments='{"arg": "value"}',
+    )
+    mock_response = Response.model_construct(
+        id="resp_content_filter_tool_calls",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[tool_call],
+        tools=[],
+        status="incomplete",
+        incomplete_details=IncompleteDetails(reason="content_filter"),
+    )
+
+    output, _ = await _generate_responses_with_mock(mock_response)
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
+    assert output.choices[0].stop_reason == "content_filter"
+    assert output.choices[0].stop_details is not None
+    assert output.choices[0].stop_details.type == "content_filter"
+    assert (
+        output.choices[0].stop_details.explanation
+        == "Response incomplete: content_filter"
+    )
+    assert output.message.tool_calls is not None
+    assert len(output.message.tool_calls) == 1
+
+
+async def test_responses_api_incomplete_max_output_tokens_with_tool_calls():
+    """An incomplete response with max_output_tokens preserves stop_reason with tool calls."""
+    from openai.types.responses import Response, ResponseFunctionToolCall
+    from openai.types.responses.response import IncompleteDetails
+
+    tool_call = ResponseFunctionToolCall(
+        id="call_1",
+        call_id="call_1",
+        type="function_call",
+        name="test_tool",
+        arguments='{"arg": "value"}',
+    )
+    mock_response = Response.model_construct(
+        id="resp_max_tokens_tool_calls",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[tool_call],
+        tools=[],
+        status="incomplete",
+        incomplete_details=IncompleteDetails(reason="max_output_tokens"),
+    )
+
+    output, _ = await _generate_responses_with_mock(mock_response)
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "max_tokens"
+    assert output.choices[0].stop_reason == "max_tokens"
+    assert output.message.tool_calls is not None
+    assert len(output.message.tool_calls) == 1
 
 
 async def _generate_responses_with_mock(
@@ -359,7 +514,7 @@ async def _generate_responses_with_mock(
     client.responses.create = AsyncMock(return_value=mock_response)
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     model_info = MagicMock()
@@ -388,6 +543,80 @@ async def _generate_responses_with_mock(
     if capture_request is not None:
         capture_request.update(client.responses.create.call_args.kwargs)
     return result
+
+
+async def test_responses_api_terminal_error_block_code_converts() -> None:
+    """A terminal `model_response.error` with a recognized block code converts.
+
+    The raise for terminal response errors is caught by the same handler as
+    mid-stream errors, so recognized block codes convert to `content_filter`
+    on every responses path (non-streaming included), while unrecognized
+    codes still raise `OpenAIResponseError` with their retry classification.
+    """
+    from openai.types.responses import Response, ResponseError
+
+    from inspect_ai.model._openai import OpenAIResponseError
+
+    blocked_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        error=ResponseError.model_construct(
+            code="content_policy_violation",
+            message="Your prompt was blocked by our content policy.",
+        ),
+        status="failed",
+    )
+    output, model_call = await _generate_responses_with_mock(blocked_response)
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
+    assert "blocked" in output.completion
+    assert model_call.error is True
+
+    server_error_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        error=ResponseError.model_construct(
+            code="server_error",
+            message="The model had an error while generating a response.",
+        ),
+        status="failed",
+    )
+    with pytest.raises(OpenAIResponseError) as excinfo:
+        await _generate_responses_with_mock(server_error_response)
+    assert excinfo.value.code == "server_error"
+
+
+async def test_responses_api_terminal_bio_policy_converts() -> None:
+    """A terminal biological-risk policy error becomes a content filter stop."""
+    from openai.types.responses import Response, ResponseError
+
+    blocked_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        error=ResponseError.model_construct(
+            code="bio_policy",
+            message="This content was flagged for possible biological risk.",
+        ),
+        status="failed",
+    )
+    output, model_call = await _generate_responses_with_mock(blocked_response)
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
+    assert "biological risk" in output.completion
+    assert output.response_id == "resp_test"
+    assert model_call.error is True
 
 
 async def test_responses_api_metadata_surfaced():
@@ -427,6 +656,55 @@ async def test_responses_api_no_metadata():
     assert output.metadata is None
 
 
+def _response_with_input_transformations(reasons: list[str]) -> Any:
+    from openai.types.responses import Response
+    from openai.types.responses.response import InputTransformation
+
+    return Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-6.2-sol",
+        object="response",
+        output=[],
+        tools=[],
+        status="completed",
+        input_transformations=[
+            InputTransformation.model_validate(
+                {"id": f"rs_{i}", "action": "removed", "reason": r, "type": "reasoning"}
+            )
+            for i, r in enumerate(reasons)
+        ],
+    )
+
+
+async def test_responses_api_warns_when_reasoning_removed() -> None:
+    """Reasoning the API removed from the input warns once per reason."""
+    from unittest.mock import patch
+
+    response = _response_with_input_transformations(
+        ["prefix_mismatch", "prefix_mismatch", "end_user_mismatch"]
+    )
+    with patch("inspect_ai.model._providers.openai_responses.warn_once") as mock_warn:
+        await _generate_responses_with_mock(response)
+    messages = [call.args[1] for call in mock_warn.call_args_list]
+    removed = [m for m in messages if "removed replayed reasoning" in m]
+    assert len(removed) == 2
+    assert all("gpt-6.2-sol" in m for m in removed)
+    assert any("(reason: prefix_mismatch)" in m for m in removed)
+    assert any("(reason: end_user_mismatch)" in m for m in removed)
+
+
+async def test_responses_api_no_warning_for_turn_boundary() -> None:
+    """turn_boundary removal is the model's normal behavior, so it doesn't warn."""
+    from unittest.mock import patch
+
+    response = _response_with_input_transformations(["turn_boundary"])
+    with patch("inspect_ai.model._providers.openai_responses.warn_once") as mock_warn:
+        await _generate_responses_with_mock(response)
+    messages = [call.args[1] for call in mock_warn.call_args_list]
+    assert not any("removed replayed reasoning" in m for m in messages)
+
+
 def _completed_mock_response():
     from openai.types.responses import Response
 
@@ -439,6 +717,47 @@ def _completed_mock_response():
         tools=[],
         status="completed",
     )
+
+
+def test_model_usage_from_response_preserves_cache_write_tokens() -> None:
+    from openai.types.responses import Response
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai.model._providers.openai_responses import model_usage_from_response
+
+    response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        usage=ResponseUsage(
+            input_tokens=150,
+            output_tokens=20,
+            total_tokens=170,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=40,
+                cache_write_tokens=30,
+            ),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=5),
+        ),
+        status="completed",
+    )
+
+    usage = model_usage_from_response(response)
+
+    assert usage is not None
+    assert usage.input_tokens == 80
+    assert usage.input_tokens_cache_read == 40
+    assert usage.input_tokens_cache_write == 30
+    assert usage.output_tokens == 20
+    assert usage.reasoning_tokens == 5
+    assert usage.total_tokens == 170
 
 
 async def test_responses_api_pro_mode_defaults_to_background() -> None:
@@ -468,6 +787,70 @@ async def test_responses_api_no_background_by_default() -> None:
         _completed_mock_response(), capture_request=request
     )
     assert "background" not in request
+
+
+async def test_background_response_retries_openai_connection_error() -> None:
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    import httpx2
+    from openai import APIConnectionError
+
+    from inspect_ai.model._providers.openai_responses import (
+        wait_for_background_response,
+    )
+
+    completed_response = _completed_mock_response()
+    pending_response = completed_response.model_copy(update={"status": "in_progress"})
+
+    client = MagicMock()
+    client.responses.retrieve = AsyncMock(
+        side_effect=[
+            APIConnectionError(request=httpx2.Request("GET", "https://example.com")),
+            completed_response,
+        ]
+    )
+
+    with patch(
+        "inspect_ai.model._providers.openai_responses.anyio.sleep",
+        new=AsyncMock(),
+    ):
+        response = await wait_for_background_response(client, pending_response)
+
+    assert response is completed_response
+    assert client.responses.retrieve.await_count == 2
+
+
+async def test_background_response_reraises_connection_error_on_exhaustion() -> None:
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    import httpx2
+    import pytest
+    from openai import APIConnectionError
+
+    from inspect_ai.model._providers.openai_responses import (
+        wait_for_background_response,
+    )
+
+    pending_response = _completed_mock_response().model_copy(
+        update={"status": "in_progress"}
+    )
+    connection_error = APIConnectionError(
+        request=httpx2.Request("GET", "https://example.com")
+    )
+    client = MagicMock()
+    client.responses.retrieve = AsyncMock(side_effect=connection_error)
+
+    with (
+        patch(
+            "inspect_ai.model._providers.openai_responses.anyio.sleep",
+            new=AsyncMock(),
+        ),
+        pytest.raises(APIConnectionError) as exc_info,
+    ):
+        await wait_for_background_response(client, pending_response)
+
+    assert exc_info.value is connection_error
+    assert client.responses.retrieve.await_count == 5
 
 
 def test_fix_function_tool_parameters_string_to_dict():
@@ -627,6 +1010,49 @@ def test_model_usage_from_compact_response():
     assert usage.input_tokens == 100
     assert usage.output_tokens == 50
     assert usage.total_tokens == 150
+
+
+def test_model_usage_from_compact_response_preserves_cache_write_tokens() -> None:
+    from openai.types.responses import CompactedResponse, ResponseCompactionItem
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai.model._openai_responses import model_usage_from_compact_response
+
+    compaction_item = ResponseCompactionItem(
+        id="comp_123",
+        encrypted_content="encrypted_data_here",
+        type="compaction",
+    )
+
+    response = CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[compaction_item],
+        usage=ResponseUsage(
+            input_tokens=125,
+            output_tokens=50,
+            total_tokens=175,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=15,
+                cache_write_tokens=10,
+            ),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    usage = model_usage_from_compact_response(response)
+
+    assert usage is not None
+    assert usage.input_tokens == 100
+    assert usage.input_tokens_cache_read == 15
+    assert usage.input_tokens_cache_write == 10
+    assert usage.output_tokens == 50
+    assert usage.total_tokens == 175
 
 
 def test_extract_compaction_from_content_data():
@@ -844,6 +1270,118 @@ def test_chat_messages_from_compact_response_developer_and_user_messages():
     assert isinstance(result[2].content, list)
     assert isinstance(result[2].content[0], ContentData)
     assert result[2].content[0].data["compaction_metadata"]["id"] == "comp_123"
+
+
+def _compact_response_with_user_items(items: list[Any]) -> Any:
+    from openai.types.responses import (
+        CompactedResponse,
+        ResponseCompactionItem,
+        ResponseOutputMessage,
+    )
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    # model_construct because the SDK types restrict role to "assistant" and
+    # content to output text/refusal, while the real compact endpoint echoes
+    # user messages with their input_* items
+    user_msg = ResponseOutputMessage.model_construct(
+        id="msg_user", type="message", role="user", status="completed", content=items
+    )
+    return CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[
+            user_msg,
+            ResponseCompactionItem(
+                id="comp_123", encrypted_content="encrypted", type="compaction"
+            ),
+        ],
+        usage=ResponseUsage(
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+
+def test_chat_messages_from_compact_response_user_content_edge_cases() -> None:
+    """Echoed user media with optional fields absent, a non-default detail, and a refusal."""
+    from openai.types.responses import ResponseOutputRefusal, ResponseOutputText
+
+    from inspect_ai._util.content import ContentDocument, ContentImage
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    # the SDK parses input_image/input_file items as ResponseOutputText with the
+    # real `type` and the other fields as extra attributes
+    image_url = "data:image/png;base64,AAAA"
+    file_data = "data:application/pdf;base64,BBBB"
+    response = _compact_response_with_user_items(
+        [
+            ResponseOutputText.model_construct(
+                type="input_image", image_url=image_url, detail="high"
+            ),
+            ResponseOutputText.model_construct(type="input_image", image_url=image_url),
+            ResponseOutputText.model_construct(type="input_file", file_data=file_data),
+            ResponseOutputRefusal(type="refusal", refusal="no"),
+        ]
+    )
+
+    result = chat_messages_from_compact_response(response)
+
+    message = result[0]
+    assert isinstance(message, ChatMessageUser)
+    assert message.content == [
+        ContentImage(image=image_url, detail="high"),
+        ContentImage(image=image_url),
+        ContentDocument(document=file_data),
+        ContentText(text="no", refusal=True),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("fields", "message"),
+    [
+        pytest.param(
+            {"type": "input_audio", "data": "AAAA"}, "input_audio", id="audio"
+        ),
+        pytest.param(
+            {"type": "input_image", "file_id": "file-1"},
+            "image_url",
+            id="image-file-id",
+        ),
+        pytest.param(
+            {"type": "input_file", "file_id": "file-1"}, "file_data", id="file-id"
+        ),
+        pytest.param(
+            {"type": "input_file", "file_url": "https://x/y.pdf"},
+            "file_data",
+            id="file-url",
+        ),
+    ],
+)
+def test_chat_messages_from_compact_response_user_unsupported_content(
+    fields: dict[str, Any], message: str
+) -> None:
+    """Echoed user content Inspect cannot represent raises a clear error."""
+    from openai.types.responses import ResponseOutputText
+
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    response = _compact_response_with_user_items(
+        [ResponseOutputText.model_construct(**fields)]
+    )
+
+    with pytest.raises(ValueError, match=message):
+        chat_messages_from_compact_response(response)
 
 
 def test_chat_messages_from_compact_response_mixed_roles():
@@ -1132,9 +1670,13 @@ def _make_mock_model_info():
     model_info = MagicMock()
     model_info.has_reasoning_options.return_value = False
     model_info.reasoning_only_fallback.return_value = False
+    model_info.replays_reasoning_text.return_value = False
+    model_info.omits_empty_tool_call_text.return_value = False
     model_info.is_gpt.return_value = True
     model_info.is_gpt_5.return_value = False
     model_info.is_gpt_5_plus.return_value = False
+    model_info.always_reasons.return_value = False
+    model_info.reasons_by_default.return_value = False
     model_info.is_gpt_5_pro.return_value = False
     model_info.is_gpt_5_chat.return_value = False
     model_info.is_o_series.return_value = False
@@ -1274,7 +1816,7 @@ def test_image_generation_round_trip_with_text():
         ),
         ImageGenerationCall(
             id="img_xyz",
-            result="fakeb64data",
+            result="ZmFrZWltYWdl",
             status="completed",
             type="image_generation_call",
         ),
@@ -1500,6 +2042,66 @@ def test_reasoning_only_fallback_not_triggered_with_tool_calls():
 
     message_items = [item for item in items if item.get("type") == "message"]
     assert len(message_items) == 0
+
+
+def _reasoning_items(model_info: ModelInfo | None, reasoning: ContentReasoning) -> Any:
+    message = ChatMessageAssistant(
+        content=[reasoning, ContentText(text="Answer.")],
+        model="test",
+        source="generate",
+    )
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+    return [item for item in items if item.get("type") == "reasoning"]
+
+
+def test_reasoning_text_replayed_as_content_when_enabled():
+    """Readable reasoning with no encrypted content is sent back as content."""
+    [item] = _reasoning_items(
+        ModelInfo(replays_reasoning_text=True),
+        ContentReasoning(reasoning="Because.", signature="r1"),
+    )
+    assert item["content"] == [{"type": "reasoning_text", "text": "Because."}]
+    assert item["encrypted_content"] is None
+
+
+def test_reasoning_text_not_replayed_by_default():
+    """OpenAI rejects reasoning content, so readable text is not sent by default."""
+    [item] = _reasoning_items(
+        ModelInfo(), ContentReasoning(reasoning="Because.", signature="r1")
+    )
+    assert item["content"] == []
+
+
+def test_reasoning_text_not_replayed_with_encrypted_content():
+    """Encrypted reasoning replays via encrypted_content only."""
+    [item] = _reasoning_items(
+        ModelInfo(replays_reasoning_text=True),
+        ContentReasoning(reasoning="opaque", summary="Summary.", redacted=True),
+    )
+    assert item["content"] == []
+    assert item["encrypted_content"] == "opaque"
+
+
+def _tool_call_message_items(model_info: ModelInfo) -> Any:
+    from inspect_ai.tool._tool_call import ToolCall
+
+    message = ChatMessageAssistant(
+        content=[ContentText(text="", internal={MESSAGE_ID: "msg_1"})],
+        tool_calls=[ToolCall(id="call_1", function="get_weather", arguments={})],
+        model="test",
+        source="generate",
+    )
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+    return [item for item in items if item.get("type") == "message"]
+
+
+def test_empty_model_text_with_tool_calls_replayed_by_default():
+    [item] = _tool_call_message_items(ModelInfo())
+    assert item["content"][0]["text"] == ""
+
+
+def test_empty_model_text_with_tool_calls_omitted_when_enabled():
+    assert _tool_call_message_items(ModelInfo(omits_empty_tool_call_text=True)) == []
 
 
 def _todo_write_tool_info():
@@ -2007,3 +2609,1121 @@ def test_visible_cot_encrypted_content_survives_bridge_round_trip():
     assert len(reasoning_items) == 1
     assert reasoning_items[0]["content"] == []
     assert reasoning_items[0]["encrypted_content"] == blob
+
+
+# -- Stream observer reporting (on_stream) -------------------------------------
+
+
+class _StreamCollector:
+    def __init__(self) -> None:
+        self.events: list[Any] = []
+
+    async def __call__(self, event: Any) -> None:
+        self.events.append(event)
+
+
+async def test_responses_stream_reports_deltas() -> None:
+    """The responses streaming path reports deltas and returns the terminal response."""
+    from openai.types.responses import (
+        Response,
+        ResponseCompletedEvent,
+        ResponseFunctionCallArgumentsDeltaEvent,
+        ResponseFunctionToolCall,
+        ResponseOutputItemAddedEvent,
+        ResponseReasoningSummaryTextDeltaEvent,
+        ResponseTextDeltaEvent,
+    )
+
+    from inspect_ai.model._providers.openai_responses import (
+        _generate_responses_stream,
+    )
+
+    final = Response.model_validate(
+        dict(
+            id="resp_1",
+            created_at=0,
+            model="gpt-5",
+            object="response",
+            output=[],
+            parallel_tool_calls=False,
+            tool_choice="auto",
+            tools=[],
+            usage=dict(
+                input_tokens=1,
+                input_tokens_details=dict(cache_write_tokens=0, cached_tokens=0),
+                output_tokens=7,
+                output_tokens_details=dict(reasoning_tokens=2),
+                total_tokens=8,
+            ),
+        )
+    )
+
+    events = [
+        ResponseReasoningSummaryTextDeltaEvent(
+            delta="hmm",
+            item_id="rs_1",
+            output_index=0,
+            sequence_number=0,
+            summary_index=0,
+            type="response.reasoning_summary_text.delta",
+        ),
+        ResponseTextDeltaEvent(
+            content_index=0,
+            delta="hel",
+            item_id="msg_1",
+            logprobs=[],
+            output_index=0,
+            sequence_number=1,
+            type="response.output_text.delta",
+        ),
+        # announces the function call so argument fragments can be attributed
+        ResponseOutputItemAddedEvent(
+            item=ResponseFunctionToolCall(
+                id="fc_1",
+                call_id="call_1",
+                name="bash",
+                arguments="",
+                type="function_call",
+            ),
+            output_index=1,
+            sequence_number=2,
+            type="response.output_item.added",
+        ),
+        ResponseFunctionCallArgumentsDeltaEvent(
+            delta="{",
+            item_id="fc_1",
+            output_index=1,
+            sequence_number=3,
+            type="response.function_call_arguments.delta",
+        ),
+        ResponseCompletedEvent(
+            response=final,
+            sequence_number=4,
+            type="response.completed",
+        ),
+    ]
+
+    class _FakeStream:
+        async def __aenter__(self) -> "_FakeStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> Any:
+            async def gen() -> Any:
+                for event in events:
+                    yield event
+
+            return gen()
+
+    class _FakeResponses:
+        async def create(self, **kwargs: Any) -> Any:
+            assert kwargs.get("stream") is True
+            return _FakeStream()
+
+    fake_client: Any = SimpleNamespace(responses=_FakeResponses())
+
+    collector = _StreamCollector()
+    observer = ModelStreamObserver("test", collector)
+    with model_stream_observer(observer):
+        result = await _generate_responses_stream(
+            fake_client, dict(model="gpt-5", stream=True)
+        )
+
+    assert result is final
+    assert [type(e) for e in collector.events] == [
+        StreamReasoningEvent,
+        StreamTextEvent,
+        StreamToolCallEvent,
+    ]
+    assert collector.events[0].reasoning == "hmm"
+    assert collector.events[1].text == "hel"
+    tool_event = collector.events[2]
+    assert tool_event.id == "call_1"
+    assert tool_event.function == "bash"
+    assert tool_event.arguments == "{"
+    # the terminal event reported cumulative output tokens
+    assert observer._tokens_current == 7
+
+
+async def test_responses_stream_gated_without_on_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an on_stream consumer only heartbeat/usage progress runs.
+
+    Explicit streaming=true callers stream without asking for stream events,
+    so delta construction (on_stream support code) must not run for them.
+    """
+    from openai.types.responses import (
+        Response,
+        ResponseCompletedEvent,
+        ResponseTextDeltaEvent,
+    )
+
+    import inspect_ai.model._providers.openai_responses as responses_module
+    from inspect_ai.model._providers.openai_responses import (
+        _generate_responses_stream,
+    )
+
+    async def fail(delta: object) -> None:
+        raise AssertionError("delta reported without an on_stream consumer")
+
+    monkeypatch.setattr(responses_module, "report_model_stream_delta", fail)
+
+    final = Response.model_validate(
+        dict(
+            id="resp_1",
+            created_at=0,
+            model="gpt-5",
+            object="response",
+            output=[],
+            parallel_tool_calls=False,
+            tool_choice="auto",
+            tools=[],
+            usage=dict(
+                input_tokens=1,
+                input_tokens_details=dict(cache_write_tokens=0, cached_tokens=0),
+                output_tokens=7,
+                output_tokens_details=dict(reasoning_tokens=2),
+                total_tokens=8,
+            ),
+        )
+    )
+    events = [
+        ResponseTextDeltaEvent(
+            content_index=0,
+            delta="hel",
+            item_id="msg_1",
+            logprobs=[],
+            output_index=0,
+            sequence_number=0,
+            type="response.output_text.delta",
+        ),
+        ResponseCompletedEvent(
+            response=final, sequence_number=1, type="response.completed"
+        ),
+    ]
+
+    class _FakeStream:
+        async def __aenter__(self) -> "_FakeStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> Any:
+            async def gen() -> Any:
+                for event in events:
+                    yield event
+
+            return gen()
+
+    class _FakeResponses:
+        async def create(self, **kwargs: Any) -> Any:
+            return _FakeStream()
+
+    fake_client: Any = SimpleNamespace(responses=_FakeResponses())
+
+    observer = ModelStreamObserver("test", None)
+    with model_stream_observer(observer):
+        result = await _generate_responses_stream(
+            fake_client, dict(model="gpt-5", stream=True)
+        )
+
+    # the terminal response and its usage progress are unaffected
+    assert result is final
+    assert observer._tokens_current == 7
+
+
+async def test_responses_streaming_logged_in_model_call() -> None:
+    """Streaming injects stream=True into the request before the ModelCall snapshot.
+
+    Goes through generate_responses() to verify the logged request matches
+    the wire request on the streaming path.
+    """
+    from unittest.mock import MagicMock
+
+    from openai._types import NOT_GIVEN
+    from openai.types.responses import Response, ResponseCompletedEvent
+
+    from inspect_ai.model._providers.openai_responses import generate_responses
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    final = Response.model_validate(
+        dict(
+            id="resp_1",
+            created_at=0,
+            model="gpt-5",
+            object="response",
+            output=[],
+            parallel_tool_calls=False,
+            tool_choice="auto",
+            tools=[],
+        )
+    )
+    events = [
+        ResponseCompletedEvent(
+            response=final, sequence_number=0, type="response.completed"
+        )
+    ]
+
+    class _FakeStream:
+        async def __aenter__(self) -> "_FakeStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> Any:
+            async def gen() -> Any:
+                for event in events:
+                    yield event
+
+            return gen()
+
+    captured: dict[str, Any] = {}
+
+    class _FakeResponses:
+        async def create(self, **kwargs: Any) -> Any:
+            captured.update(kwargs)
+            return _FakeStream()
+
+    client: Any = SimpleNamespace(responses=_FakeResponses())
+
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    model_info = MagicMock()
+    model_info.is_o_series.return_value = False
+    model_info.is_gpt.return_value = True
+    model_info.is_gpt_5.return_value = False
+
+    result = await generate_responses(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-5",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        background=None,
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        synthesize_phase=False,
+        model_info=model_info,
+        batcher=None,
+        streaming=True,
+    )
+    assert isinstance(result, tuple)
+    output, model_call = result
+    assert isinstance(output, ModelOutput)
+    assert captured["stream"] is True
+    # the logged request matches what was sent on the wire
+    assert model_call.request["stream"] is True
+
+
+async def test_responses_streaming_converts_mid_stream_safeguard_block() -> None:
+    """A safeguard block the SDK raises mid-stream as a plain APIError becomes content_filter."""
+    from unittest.mock import MagicMock
+
+    import httpx2
+    from openai import APIError
+    from openai._types import NOT_GIVEN
+    from openai.types.responses import Response, ResponseCreatedEvent
+
+    from inspect_ai.model._providers.openai_responses import generate_responses
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    created = ResponseCreatedEvent(
+        type="response.created",
+        response=Response.model_construct(
+            id="resp_stream_api_error",
+            created_at=0.0,
+            model="gpt-5",
+            object="response",
+            output=[],
+            tools=[],
+            status="in_progress",
+        ),
+        sequence_number=0,
+    )
+    error = APIError(
+        message="Your prompt was blocked by our content policy.",
+        request=httpx2.Request(method="POST", url="https://example.com"),
+        body=dict(
+            message="Your prompt was blocked by our content policy.",
+            type="invalid_request_error",
+            code="content_policy_violation",
+        ),
+    )
+
+    class _FakeStream:
+        async def __aenter__(self) -> "_FakeStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> Any:
+            async def gen() -> Any:
+                yield created
+                raise error
+
+            return gen()
+
+    class _FakeResponses:
+        async def create(self, **kwargs: Any) -> Any:
+            return _FakeStream()
+
+    client: Any = SimpleNamespace(responses=_FakeResponses())
+
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    model_info = MagicMock()
+    model_info.is_o_series.return_value = False
+    model_info.is_gpt.return_value = True
+    model_info.is_gpt_5.return_value = False
+
+    result = await generate_responses(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-5",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        background=None,
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        synthesize_phase=False,
+        model_info=model_info,
+        batcher=None,
+        streaming=True,
+    )
+    assert isinstance(result, tuple)
+    output, model_call = result
+    assert isinstance(output, ModelOutput)
+    assert output.choices[0].stop_reason == "content_filter"
+    assert "blocked" in output.completion
+    assert output.response_id == "resp_stream_api_error"
+    assert model_call.error is True
+
+
+async def test_responses_streaming_converts_error_event_safeguard_block() -> None:
+    """A safeguard block delivered as a ResponseErrorEvent becomes content_filter.
+
+    Error events with the documented responses shape are yielded by the SDK as
+    `ResponseErrorEvent` (rather than raised as `APIError`) and re-raised by
+    inspect as `OpenAIResponseError`; recognized block codes must convert the
+    same way as the non-streaming 400 path.
+    """
+    from unittest.mock import MagicMock
+
+    from openai._types import NOT_GIVEN
+    from openai.types.responses import (
+        Response,
+        ResponseCreatedEvent,
+        ResponseErrorEvent,
+    )
+
+    from inspect_ai.model._providers.openai_responses import generate_responses
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    events = [
+        ResponseCreatedEvent(
+            type="response.created",
+            response=Response.model_construct(
+                id="resp_stream_blocked",
+                created_at=0.0,
+                model="gpt-5",
+                object="response",
+                output=[],
+                tools=[],
+                status="in_progress",
+            ),
+            sequence_number=0,
+        ),
+        ResponseErrorEvent(
+            type="error",
+            code="content_policy_violation",
+            message="Your prompt was blocked by our content policy.",
+            param=None,
+            sequence_number=1,
+        ),
+    ]
+
+    class _FakeStream:
+        async def __aenter__(self) -> "_FakeStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> Any:
+            async def gen() -> Any:
+                for event in events:
+                    yield event
+
+            return gen()
+
+    class _FakeResponses:
+        async def create(self, **kwargs: Any) -> Any:
+            return _FakeStream()
+
+    client: Any = SimpleNamespace(responses=_FakeResponses())
+
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    model_info = MagicMock()
+    model_info.is_o_series.return_value = False
+    model_info.is_gpt.return_value = True
+    model_info.is_gpt_5.return_value = False
+
+    result = await generate_responses(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-5",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        background=None,
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        synthesize_phase=False,
+        model_info=model_info,
+        batcher=None,
+        streaming=True,
+    )
+    assert isinstance(result, tuple)
+    output, model_call = result
+    assert isinstance(output, ModelOutput)
+    assert output.choices[0].stop_reason == "content_filter"
+    assert "blocked" in output.completion
+    assert output.response_id == "resp_stream_blocked"
+    assert model_call.error is True
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("gpt-4o", True),
+        ("gpt-5", True),
+        ("gpt-5.6-sol", True),
+        ("gpt-6-astra", True),
+        ("gpt-6-sol", True),
+        ("gpt-6-luna", True),
+        ("gpt-6.1-sol", True),
+        ("gpt-6.1-terra", True),
+        ("gpt-6.2-astra", True),
+        ("gpt-6.2-sol", True),
+        ("my-gpt-6-deployment", True),
+        ("gpt-35-turbo", False),
+        ("gpt-4", False),
+    ],
+)
+def test_maybe_code_interpreter_tool_model_gating(model_name, expected):
+    from inspect_ai.model._openai_responses import maybe_code_interpreter_tool
+
+    tool = ToolInfo(
+        name="code_execution",
+        description="Execute code",
+        options={"providers": {"openai": True}},
+    )
+    assert (maybe_code_interpreter_tool(model_name, tool) is not None) is expected
+
+
+@pytest.mark.parametrize("shape", ["string", "input_text", "output_text"])
+def test_responses_bridge_preserves_multiple_internal_blocks(shape: str) -> None:
+    from typing import cast
+
+    from openai.types.responses import ResponseInputItemParam
+
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+    from inspect_ai.model._internal import content_internal_tag
+
+    text = (
+        '<think signature="sig">reasoning</think>first'
+        + content_internal_tag({"a": 1})
+        + content_internal_tag({"b": 2})
+        + "last"
+    )
+    item = cast(
+        ResponseInputItemParam,
+        (
+            {
+                "type": "message",
+                "id": "msg_1",
+                "role": "assistant",
+                "status": "completed",
+                "content": [{"type": "output_text", "text": text, "annotations": []}],
+            }
+            if shape == "output_text"
+            else {
+                "role": "assistant",
+                "content": [{"type": "input_text", "text": text}]
+                if shape == "input_text"
+                else text,
+            }
+        ),
+    )
+    [message] = messages_from_responses_input([item], tools=[])
+    assert isinstance(message.content, list)
+    assert message.content == [
+        ContentReasoning(reasoning="reasoning", signature="sig"),
+        ContentText(text="first", internal={"a": 1}),
+        ContentText(text="", internal={"b": 2}),
+        ContentText(text="last"),
+    ]
+
+
+@pytest.mark.parametrize("duplicate", [False, True])
+@pytest.mark.parametrize("serialized", [False, True])
+@pytest.mark.parametrize(
+    "texts", [["first", "second"], ["first", "middle", "first"], ["first", "", "last"]]
+)
+def test_responses_bridge_replays_distinct_blocks_with_shared_state(
+    duplicate: bool,
+    serialized: bool,
+    texts: list[str],
+) -> None:
+    from typing import Any, cast
+
+    from openai.types.responses import ResponseInputItemParam
+    from pydantic import JsonValue
+
+    from inspect_ai.agent._bridge.responses_impl import (
+        messages_from_responses_input,
+        responses_output_items_from_assistant_message,
+    )
+    from inspect_ai.model._internal import content_internal_tag
+    from inspect_ai.model._openai_responses import MESSAGE_ID
+
+    internal: dict[str, JsonValue] = {MESSAGE_ID: "msg_shared"}
+    text = "".join(text + content_internal_tag(internal) for text in texts)
+    item = cast(ResponseInputItemParam, {"role": "assistant", "content": text})
+    items = (
+        [
+            cast(ResponseInputItemParam, output.model_dump())
+            for output in responses_output_items_from_assistant_message(
+                ChatMessageAssistant(
+                    content=[
+                        ContentText(text=text, internal=internal) for text in texts
+                    ]
+                )
+            )
+        ]
+        if serialized
+        else [item]
+    )
+    [message] = messages_from_responses_input(
+        items * 2 if duplicate else items, tools=[]
+    )
+    assert message.content == [
+        ContentText(text=text, internal=internal) for text in texts
+    ]
+    assert isinstance(message, ChatMessageAssistant)
+    [replayed_item] = _openai_input_items_from_chat_message_assistant(message)
+    replayed = cast(dict[str, Any], replayed_item)
+    assert replayed["type"] == "message"
+    assert replayed["id"] == "msg_shared"
+    assert [part["text"] for part in replayed["content"]] == texts
+
+
+@pytest.mark.parametrize("text", ["first", ""])
+@pytest.mark.parametrize("duplicate", [False, True])
+@pytest.mark.parametrize("with_ids", [False, True])
+def test_responses_bridge_replay_preserves_text_separated_by_reasoning(
+    text: str, duplicate: bool, with_ids: bool
+) -> None:
+    from typing import cast
+
+    from openai.types.responses import ResponseInputItemParam
+
+    from inspect_ai.agent._bridge.responses_impl import (
+        messages_from_responses_input,
+        responses_output_items_from_assistant_message,
+    )
+
+    original = ChatMessageAssistant(
+        content=[
+            ContentText(text=text, internal={MESSAGE_ID: "msg_shared"}),
+            ContentReasoning(reasoning="middle"),
+            ContentText(text=text, internal={MESSAGE_ID: "msg_shared"}),
+        ]
+    )
+    items = [
+        cast(ResponseInputItemParam, output.model_dump())
+        for output in responses_output_items_from_assistant_message(original)
+    ]
+    assert len(items) == 3
+    if not with_ids:
+        items = [
+            cast(
+                ResponseInputItemParam,
+                {key: value for key, value in item.items() if key != "id"},
+            )
+            for item in items
+        ]
+    [restored] = messages_from_responses_input(
+        items * 2 if duplicate else items, tools=[]
+    )
+    assert restored.content == original.content
+
+
+@pytest.mark.parametrize("duplicate", [False, True])
+def test_responses_bridge_replay_preserves_trailing_plain_text(duplicate: bool) -> None:
+    from typing import cast
+
+    from openai.types.responses import ResponseInputItemParam
+    from pydantic import JsonValue
+
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+    from inspect_ai.model._internal import content_internal_tag
+
+    internal: dict[str, JsonValue] = {MESSAGE_ID: "msg_shared"}
+    item = cast(
+        ResponseInputItemParam,
+        {
+            "role": "assistant",
+            "content": "first" + content_internal_tag(internal) + "last",
+        },
+    )
+    [message] = messages_from_responses_input(
+        [item, item] if duplicate else [item], tools=[]
+    )
+    assert message.content == [
+        ContentText(text="first", internal=internal),
+        ContentText(text="last"),
+    ]
+
+
+def test_responses_api_provider_ids_logged_without_raw_calls(tmp_path) -> None:
+    """Request ids for every HTTP attempt and the response id survive `log_model_api=False`."""
+    import httpx2
+    from openai import DefaultAsyncHttpxClient
+
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.log import read_eval_log
+    from inspect_ai.model import ModelRequestId
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    generate_attempts = 0
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        nonlocal generate_attempts
+        if HttpxHooks.REQUEST_ID_HEADER in request.headers:
+            generate_attempts += 1
+        if generate_attempts == 1:
+            return httpx2.Response(
+                429,
+                headers={"x-request-id": "req_rate_limited", "retry-after-ms": "10"},
+                json={"error": {"message": "rate limited", "type": "rate_limit"}},
+                request=request,
+            )
+        return httpx2.Response(
+            200,
+            headers={"x-request-id": "req_ok"},
+            json={
+                "id": "resp_ok",
+                "object": "response",
+                "created_at": 0,
+                "model": "test",
+                "status": "completed",
+                "output": [
+                    {
+                        "type": "message",
+                        "id": "msg_ok",
+                        "role": "assistant",
+                        "status": "completed",
+                        "content": [
+                            {"type": "output_text", "text": "hi", "annotations": []}
+                        ],
+                    }
+                ],
+                "parallel_tool_calls": True,
+                "tool_choice": "auto",
+                "tools": [],
+            },
+            request=request,
+        )
+
+    model = get_model(
+        "openai/gpt-4o",
+        api_key="test",
+        base_url="http://test/v1",
+        http_client=DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler)),
+        responses_api=True,
+        memoize=False,
+    )
+    log = eval(
+        Task(dataset=[Sample(input="hello")], solver=[generate()]),
+        model=model,
+        log_model_api=False,
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success"
+
+    log = read_eval_log(log.location)
+    assert log.samples
+    [event] = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert event.call is None
+    assert event.output.response_id == "resp_ok"
+    assert event.request_ids == [
+        ModelRequestId(id="req_rate_limited", header="x-request-id", status=429),
+        ModelRequestId(id="req_ok", header="x-request-id", status=200),
+    ]
+
+
+def test_tool_call_id_repeated_in_a_response_caches_no_item():
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _process_response_output_items,
+        assistant_internal,
+    )
+
+    init_sample_assistant_internal()
+    outputs = [
+        ResponseFunctionToolCall(
+            type="function_call",
+            id=f"fc_{n}",
+            call_id="call_shared",
+            name="bash",
+            arguments=f'{{"command": "ls {n}"}}',
+        )
+        for n in range(2)
+    ]
+    _process_response_output_items(outputs, [])
+
+    assert "call_shared" not in assistant_internal().tool_calls
+
+
+def test_an_unchanged_computer_call_replays_its_item_without_safety_checks():
+    from inspect_ai.model._openai_responses import _replayed_item
+    from inspect_ai.tool._tool_call import ToolCall
+
+    # as a live response dumps it: no `pending_safety_checks` or `status`
+    item: Any = {
+        "type": "computer_call",
+        "id": "cu_1",
+        "call_id": "call_computer",
+        "actions": [{"type": "screenshot"}],
+    }
+    call = ToolCall(
+        id="call_computer",
+        function="computer",
+        arguments={"actions": [{"action": "screenshot"}]},
+    )
+
+    assert _replayed_item(dict(item), call) == item
+
+
+@pytest.mark.parametrize(
+    "lacks",
+    [("pending_safety_checks",), ("pending_safety_checks", "status")],
+    ids=["as the API writes it", "as it replays, without a status too"],
+)
+async def test_a_computer_call_without_safety_checks_is_read(
+    lacks: tuple[str, ...],
+) -> None:
+    from inspect_ai.model import messages_from_openai_responses
+
+    item: Any = {
+        "type": "computer_call",
+        "id": "cu_1",
+        "call_id": "call_computer",
+        "status": "completed",
+        "actions": [{"type": "screenshot"}],
+        "pending_safety_checks": [],
+    }
+    for field in lacks:
+        del item[field]
+    sent: Any = dict(item)
+
+    messages = await messages_from_openai_responses(
+        [{"role": "user", "content": "hi"}, sent], "gpt-5.4-mini"
+    )
+
+    assistant = messages[-1]
+    assert isinstance(assistant, ChatMessageAssistant)
+    [call] = assistant.tool_calls or []
+    assert (call.id, call.function) == ("call_computer", "computer")
+    assert call.arguments == {"actions": [{"action": "screenshot"}]}
+    # the item isn't given what it lacks
+    assert sent == item
+
+
+@pytest.mark.parametrize(
+    "raw", ['{"command":   "ls"}', '{"command": "ls"', "ls -la", "2024-01-01"]
+)
+def test_an_unchanged_function_call_replays_its_item(raw: str) -> None:
+    from inspect_ai.model._call_tools import parse_tool_call
+    from inspect_ai.model._openai_responses import _replayed_item
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    item: Any = {
+        "type": "function_call",
+        "id": "fc_1",
+        "call_id": "call_1",
+        "name": "bash",
+        "arguments": raw,
+    }
+
+    # as the Responses parse makes the call, with its tools
+    bash = ToolInfo(
+        name="bash",
+        description="Run a command.",
+        parameters=ToolParams(properties={"command": ToolParam(type="string")}),
+    )
+    call = parse_tool_call("call_1", "bash", raw, [bash])
+
+    assert _replayed_item(dict(item), call) == item
+
+
+def test_a_changed_call_whose_arguments_json_cant_encode_replays_no_item() -> None:
+    import datetime
+
+    from inspect_ai.model._openai_responses import _replayed_item
+    from inspect_ai.tool._tool_call import ToolCall
+
+    item: Any = {
+        "type": "function_call",
+        "id": "fc_1",
+        "call_id": "call_1",
+        "name": "bash",
+        "arguments": "2024-01-01",
+    }
+    call = ToolCall(
+        id="call_1", function="bash", arguments={"day": datetime.date(2024, 1, 2)}
+    )
+
+    # the call replays from itself
+    assert _replayed_item(item, call) is None
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        # int() rejects the coordinate
+        {"actions": [{"action": "left_click", "coordinate": ["10px", "20"]}]},
+        # no `actions` list
+        {"action": "left_click", "coordinate": [1, 2]},
+    ],
+    ids=["coordinate", "no_actions"],
+)
+async def test_a_computer_call_that_cant_replay_natively_replays_with_its_result_as_a_function(
+    arguments: dict[str, Any],
+) -> None:
+    from openai.types.responses import ResponseComputerToolCall
+
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        assistant_internal,
+        openai_responses_inputs,
+    )
+    from inspect_ai.model._providers._openai_computer_use import (
+        tool_call_from_openai_computer_tool_call,
+    )
+    from inspect_ai.tool._tool_call import ToolCall
+
+    init_sample_assistant_internal()
+    item: Any = {
+        "type": "computer_call",
+        "id": "cu_1",
+        "call_id": "call_c",
+        "actions": [{"type": "click", "button": "left", "x": 1, "y": 2}],
+        "pending_safety_checks": [],
+        "status": "completed",
+    }
+    assistant_internal().tool_calls["call_c"] = cast(Any, dict(item))
+    generated = tool_call_from_openai_computer_tool_call(
+        ResponseComputerToolCall.model_validate(item)
+    )
+    # arguments approval or a filter gave the call, then the call proposed again
+    changed = ToolCall(id="call_c", function="computer", arguments=arguments)
+    result = ChatMessageTool(content="ok", tool_call_id="call_c", function="computer")
+
+    items: list[Any] = await openai_responses_inputs(
+        [
+            ChatMessageAssistant(content="", tool_calls=[changed]),
+            result,
+            ChatMessageAssistant(content="", tool_calls=[generated]),
+            result,
+        ]
+    )
+
+    assert [item["type"] for item in items] == [
+        "function_call",
+        "function_call_output",
+        "computer_call",
+        "computer_call_output",
+    ]
+    # serializing leaves the sample's replay state as it was
+    assert assistant_internal().tool_calls["call_c"] == item
+
+
+@pytest.mark.parametrize("duplicate", [False, True])
+@pytest.mark.parametrize("reasoning_id", [None, "bridge_reasoning"])
+def test_responses_bridge_preserves_idless_text_around_reasoning(
+    duplicate: bool,
+    reasoning_id: str | None,
+) -> None:
+    from typing import cast
+
+    from openai.types.responses import ResponseInputItemParam
+    from pydantic import JsonValue
+
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+    from inspect_ai.model._internal import content_internal_tag
+
+    state: dict[str, JsonValue] = {MESSAGE_ID: "msg_shared"}
+    items = cast(
+        list[ResponseInputItemParam],
+        [
+            {"role": "assistant", "content": "first" + content_internal_tag(state)},
+            {
+                "type": "message",
+                "id": reasoning_id,
+                "role": "assistant",
+                "status": "completed",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": "<think>middle</think>",
+                        "annotations": [],
+                    }
+                ],
+            }
+            if reasoning_id is not None
+            else {"role": "assistant", "content": "<think>middle</think>"},
+            {"role": "assistant", "content": "first" + content_internal_tag(state)},
+        ],
+    )
+    [restored] = messages_from_responses_input(
+        items * 2 if duplicate else items, tools=[]
+    )
+    assert restored.content == [
+        ContentText(text="first", internal=state),
+        ContentReasoning(reasoning="middle"),
+        ContentText(text="first", internal=state),
+    ]
+
+
+def test_responses_bridge_preserves_idless_text_around_distinct_tool_calls() -> None:
+    from typing import cast
+
+    from openai.types.responses import ResponseInputItemParam
+    from pydantic import JsonValue
+
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+    from inspect_ai.model._internal import content_internal_tag
+
+    state: dict[str, JsonValue] = {MESSAGE_ID: "msg_shared"}
+    items = cast(
+        list[ResponseInputItemParam],
+        [
+            {"role": "assistant", "content": "first" + content_internal_tag(state)},
+            {
+                "type": "function_call",
+                "call_id": "call1",
+                "name": "one",
+                "arguments": "{}",
+            },
+            {"role": "assistant", "content": "first" + content_internal_tag(state)},
+            {
+                "type": "function_call",
+                "call_id": "call2",
+                "name": "two",
+                "arguments": "{}",
+            },
+        ],
+    )
+    [restored] = messages_from_responses_input(items, tools=[])
+    assert restored.content == [ContentText(text="first", internal=state)] * 2
+    assert isinstance(restored, ChatMessageAssistant)
+    assert restored.tool_calls is not None
+    assert [call.id for call in restored.tool_calls] == ["call1", "call2"]
+
+
+@pytest.mark.parametrize("refusal", [False, True])
+def test_responses_bridge_output_part_preserves_multiple_internal_blocks(
+    refusal: bool,
+) -> None:
+    from typing import cast
+
+    from openai.types.responses import ResponseInputItemParam
+
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+    from inspect_ai.model._internal import content_internal_tag
+
+    text = (
+        "first"
+        + content_internal_tag({"a": 1})
+        + "second"
+        + content_internal_tag({"b": 2})
+    )
+    item = cast(
+        ResponseInputItemParam,
+        {
+            "type": "message",
+            "id": "bridge1",
+            "role": "assistant",
+            "status": "completed",
+            "content": [
+                {"type": "refusal", "refusal": text}
+                if refusal
+                else {"type": "output_text", "text": text, "annotations": []}
+            ],
+        },
+    )
+    [restored] = messages_from_responses_input([item], tools=[])
+    assert restored.content == [
+        ContentText(text="first", internal={"a": 1}, refusal=True if refusal else None),
+        ContentText(
+            text="second", internal={"b": 2}, refusal=True if refusal else None
+        ),
+    ]
+
+
+@pytest.mark.parametrize("with_ids", [False, True])
+def test_responses_bridge_replays_surrogate_internal_state(with_ids: bool) -> None:
+    from typing import cast
+
+    from openai.types.responses import ResponseInputItemParam
+
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+    from inspect_ai.model._internal import content_internal_tag
+
+    values = ["msg \ud800", "msg \\ud800"]
+    items = [
+        cast(
+            ResponseInputItemParam,
+            {
+                "role": "assistant",
+                "content": "same" + content_internal_tag({"id": value}),
+                **({"id": f"item_{index}"} if with_ids else {}),
+            },
+        )
+        for index, value in enumerate(values)
+    ]
+    [message] = messages_from_responses_input(items * 2, tools=[])
+    assert message.content == [
+        ContentText(text="same", internal={"id": value}) for value in values
+    ]

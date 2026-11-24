@@ -7,7 +7,7 @@ llms-description: Tools extend the capabilities of models by registering Python 
 
 Many models now have the ability to interact with client-side Python functions in order to expand their capabilities. This enables you to equip models with your own set of custom tools so they can perform a wider variety of tasks.
 
-Inspect natively supports registering Python functions as tools and providing these tools to models that support them. Inspect also includes several standard tools for code execution, text editing, computer use, web search, and web browsing.
+Inspect natively supports registering Python functions as tools and providing these tools to models that support them. Inspect also includes several standard tools for code execution, text editing, computer use, and web search.
 
 ::: callout-note
 ### Tools and Agents
@@ -35,7 +35,7 @@ Tools exposed by MCP servers can be easily integrated into Inspect. Learn more i
 
 ## Learning More
 
-- [Standard Tools](tools-standard.qmd) describes Inspect's built-in tools for code execution, text editing computer use, web search, and web browsing.
+- [Standard Tools](tools-standard.qmd) describes Inspect's built-in tools for code execution, text editing, computer use, and web search.
 
 - [MCP Tools](tools-mcp.qmd) covers how to integrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
 

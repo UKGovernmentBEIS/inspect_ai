@@ -29,10 +29,11 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from inspect_ai._control.events import _to_text, _truncate
 from inspect_ai._control.terminal_cache import (
     TerminalSourceCache,
-    invalidate_terminal_sources,
+    resolve_sample_source,
 )
 
 if TYPE_CHECKING:
+    from inspect_ai.log._log import EvalSample
     from inspect_ai.model._chat_message import ChatMessage
 
 
@@ -40,7 +41,7 @@ class MessagesSource(NamedTuple):
     """One resolvable source of a sample's conversation.
 
     Produced by :func:`_running_source` (live ``TaskState``) and
-    :func:`_logged_source` (recorder / on-disk log); consumed by
+    :func:`_resolve_logged_source` (recorder / on-disk log); consumed by
     :func:`sample_messages`.
     """
 
@@ -90,18 +91,31 @@ async def sample_messages(
     # `count`s can't miss a change that lands mid-read.
     as_of = time.time()
 
-    source = _running_source(eval_id, sample_id, epoch)
-    if source is not None:
-        # a running attempt (a retry) supersedes any cached terminal source
-        # for this sample — drop it (from every projection's cache, not just
-        # this endpoint's) so the attempt's own terminal source is resolved
-        # fresh once it finishes (see terminal_cache)
-        invalidate_terminal_sources((eval_id, sample_id, epoch))
-    else:
-        source = await _logged_source(eval_id, sample_id, epoch)
+    source = await resolve_sample_source(
+        (eval_id, sample_id, epoch),
+        running=lambda: _running_source(eval_id, sample_id, epoch),
+        cache=_terminal_sources,
+        resolve_terminal=lambda: _resolve_logged_source(eval_id, sample_id, epoch),
+    )
     if source is None:
         return None
+    return page_messages(source, tail=tail, content=content, full=full, as_of=as_of)
 
+
+def page_messages(
+    source: MessagesSource,
+    *,
+    tail: int | None = None,
+    content: bool = False,
+    full: bool = False,
+    as_of: float,
+) -> dict[str, Any]:
+    """The ``{as_of, status, count, messages}`` envelope of a resolved source.
+
+    The windowing and projection half of :func:`sample_messages` (see it for
+    the arguments), shared with the ``--log-dir`` reader. ``as_of`` is the
+    caller's pre-read timestamp.
+    """
     messages, status = source
     count = len(messages)
 
@@ -146,22 +160,6 @@ def _running_source(eval_id: str, sample_id: str, epoch: int) -> MessagesSource 
     )
 
 
-async def _logged_source(
-    eval_id: str, sample_id: str, epoch: int
-) -> MessagesSource | None:
-    """The terminal source for a sample, resolved through the short-TTL cache.
-
-    A terminal attempt's conversation is immutable, so the resolved source is
-    reused across polls instead of re-paying the whole-conversation parse and
-    attachment resolution per request (see ``_terminal_sources`` and
-    ``TerminalSourceCache.get_or_resolve``).
-    """
-    return await _terminal_sources.get_or_resolve(
-        (eval_id, sample_id, epoch),
-        lambda: _resolve_logged_source(eval_id, sample_id, epoch),
-    )
-
-
 async def _resolve_logged_source(
     eval_id: str, sample_id: str, epoch: int
 ) -> MessagesSource | None:
@@ -179,11 +177,19 @@ async def _resolve_logged_source(
     from inspect_ai._control.state import _full_sample
 
     sample = await _full_sample(
-        eval_id, sample_id, epoch, exclude_fields={"events", "store", "output"}
+        eval_id, sample_id, epoch, exclude_fields=set(LOGGED_MESSAGES_EXCLUDE_FIELDS)
     )
     if sample is None:
         return None
+    return messages_source_from_sample(sample)
 
+
+# The heavy fields a logged sample's conversation read never consumes.
+LOGGED_MESSAGES_EXCLUDE_FIELDS = frozenset({"events", "store", "output"})
+
+
+def messages_source_from_sample(sample: "EvalSample") -> MessagesSource:
+    """The terminal source over a logged sample read without the excluded fields."""
     from inspect_ai.log._condense import resolve_sample_attachments
 
     sample = resolve_sample_attachments(sample, "core")

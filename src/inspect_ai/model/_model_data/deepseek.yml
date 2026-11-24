@@ -1,15 +1,34 @@
 DeepSeek:
   display_name: DeepSeek
   models:
-    deepseek-v4-pro:
-      display_name: "V4 Pro"
-      release_date: 2026-04-24
+    # V4.1 Flash is the current Flash model and the only DeepSeek model that
+    # accepts image input. https://api-docs.deepseek.com/quick_start/pricing
+    deepseek-flash:
+      display_name: "V4.1 Flash"
+      release_date: 2026-09-10
       context_length: 1048576
       output_tokens: 393216
       reasoning: True
       # Thinking is on by default; effort scale is low/high/max with a
       # default of high. https://api-docs.deepseek.com/guides/thinking_mode
       reasoning_effort_default: high
+    # The 2026-09-10 announcement that deepseek-v4-pro requests would route to
+    # V4.1 Flash from 2026-09-14 was withdrawn: the changelog says V4 Pro
+    # service continues with billing unchanged, and the API still reports
+    # model "deepseek-v4-pro" for these requests.
+    deepseek-v4-pro:
+      display_name: "V4 Pro"
+      release_date: 2026-04-24
+      context_length: 1048576
+      output_tokens: 393216
+      reasoning: True
+      reasoning_effort_default: high
+    # deepseek-v4-flash (and the experimental deepseek-v4-flash-vision-exp,
+    # released 2026-08-21) were retired on 2026-09-10. Both names are still
+    # accepted but requests are served by deepseek-flash (V4.1 Flash) at
+    # Flash pricing, so logs dated after 2026-09-10 that name these models
+    # reflect V4.1 Flash. Entries retained for historical log analysis.
+    # https://api-docs.deepseek.com/updates/
     deepseek-v4-flash:
       display_name: "V4 Flash"
       release_date: 2026-04-24

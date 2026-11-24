@@ -1,3 +1,4 @@
+import enum
 import os
 import tempfile
 from typing import cast
@@ -111,6 +112,11 @@ def test_frequency_resolves_enum_to_list() -> None:
 
     m = frequency(categories=Verdict)
     assert registry_params(m)["categories"] == ["yes", "no", "unsure"]
+
+
+def test_util_strenum_is_stdlib() -> None:
+    # user-defined enum.StrEnum subclasses must be accepted as categories
+    assert StrEnum is enum.StrEnum
 
 
 # ---------------------------------------------------------------------------

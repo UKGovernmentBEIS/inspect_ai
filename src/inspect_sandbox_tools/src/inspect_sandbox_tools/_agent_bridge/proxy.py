@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import os
 import re
+import socket
 import sys
 import time
 import traceback
@@ -22,10 +24,23 @@ from typing import (
 )
 from urllib.parse import parse_qs, unquote, urlparse
 
+from inspect_sandbox_tools._agent_bridge.peer_uid import (
+    PEER_USER_ENV,
+    PeerUser,
+    TableReader,
+    check_connection,
+    read_table,
+    resolve_peer_user,
+)
+
 # ---------- Types ----------
 RequestHandler: TypeAlias = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 RouteMap: TypeAlias = dict[str, RequestHandler]
 MethodRoutes: TypeAlias = dict[str, RouteMap]
+JsonValue: TypeAlias = (
+    None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
+)
+
 
 # ---------- Limits / Defaults ----------
 MAX_HEADER_BYTES = 64 * 1024
@@ -33,6 +48,10 @@ MAX_BODY_BYTES = 50 * 1024 * 1024
 READ_TIMEOUT_S = 300
 WRITE_TIMEOUT_S = 300
 STREAM_CHUNK = 8192
+
+# Request headers the proxy reads as one value; repeating one is rejected rather
+# than joined like a list-valued header.
+_SINGLE_VALUE_REQUEST_HEADERS = frozenset({"content-length", "content-type", "host"})
 
 HOP_BY_HOP = {
     "connection",
@@ -47,14 +66,23 @@ HOP_BY_HOP = {
 
 
 class AsyncHTTPServer:
-    """Async HTTP server supporting GET/POST/OPTIONS with streaming + proxy utilities."""
+    """Async HTTP server supporting GET/POST with streaming + proxy utilities."""
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 8000) -> None:
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 8000,
+        peer_user: PeerUser | None = None,
+        read_table: TableReader = read_table,
+    ) -> None:
         self.host = host
         self.port = port
-        self.routes: MethodRoutes = {"GET": {}, "POST": {}, "OPTIONS": {}}
+        self.peer_user = peer_user
+        """The only user whose connections are served, or None to serve any."""
+        self.read_table = read_table
+        self.routes: MethodRoutes = {"GET": {}, "POST": {}}
         self.server: asyncio.Server | None = None
-        self.enable_cors: bool = True
+        self.servers: list[asyncio.Server] = []
         self.server_name: str = "asyncio-proxy"
 
     # -------- Routing --------
@@ -121,6 +149,9 @@ class AsyncHTTPServer:
                 size = int(hex_size, 16)
             except ValueError:
                 raise ValueError("Invalid chunk size")  # noqa: B904
+            # checked before the chunk is read, so an oversized body is never buffered
+            if len(chunks) + size > MAX_BODY_BYTES:
+                raise ValueError("Body too large")
             if size == 0:
                 # consume trailing headers until empty line
                 while True:
@@ -138,8 +169,6 @@ class AsyncHTTPServer:
             crlf = await asyncio.wait_for(reader.readline(), timeout=READ_TIMEOUT_S)
             if crlf not in (b"\r\n", b"\n"):
                 raise ValueError("Malformed chunk terminator")
-            if len(chunks) > MAX_BODY_BYTES:
-                raise ValueError("Body too large")
         return bytes(chunks)
 
     async def _parse_request(
@@ -164,11 +193,18 @@ class AsyncHTTPServer:
                 continue
             if ":" in header:
                 key, value = header.split(":", 1)
-                headers[key.strip().lower()] = value.strip()
+                key, value = key.strip().lower(), value.strip()
+                if key in headers:
+                    # A repeated list-valued header is one comma-separated value
+                    # (RFC 9110 5.3); a repeated single-valued one is ambiguous.
+                    if key in _SINGLE_VALUE_REQUEST_HEADERS:
+                        raise ValueError(f"Repeated {key} header")
+                    value = f"{headers[key]}, {value}"
+                headers[key] = value
 
         # Expect: 100-continue
-        expect = headers.get("expect")
-        if expect and expect.lower() == "100-continue":
+        expectations = headers.get("expect", "").split(",")
+        if any(item.strip().lower() == "100-continue" for item in expectations):
             try:
                 writer.write(b"HTTP/1.1 100 Continue\r\n\r\n")
                 await asyncio.wait_for(writer.drain(), timeout=WRITE_TIMEOUT_S)
@@ -194,16 +230,6 @@ class AsyncHTTPServer:
         return method, full_path, http_version, headers, body
 
     # -------- Response building / streaming --------
-    def _cors_headers(self) -> dict[str, str]:
-        if not self.enable_cors:
-            return {}
-        return {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "Authorization, Content-Type, OpenAI-Organization, OpenAI-Beta",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Max-Age": "600",
-        }
-
     def _build_headers_block(
         self, status: int, headers: dict[str, str], reason: Optional[str] = None
     ) -> bytes:
@@ -214,7 +240,6 @@ class AsyncHTTPServer:
             "Server": self.server_name,
         }
         out = {**base, **headers}
-        out.update(self._cors_headers())
         lines = [status_line]
         for k, v in out.items():
             if v is None:
@@ -307,14 +332,11 @@ class AsyncHTTPServer:
         headers_lower = {k.lower(): v for k, v in headers_list}
         is_chunked = "chunked" in headers_lower.get("transfer-encoding", "").lower()
 
-        # Compose headers (preserve original case), then add CORS
-        cors = self._cors_headers()
+        # Compose headers (preserve original case)
         status_line = f"HTTP/1.1 {status} {reason or _http_reason_phrase(status)}\r\n"
         writer.write(status_line.encode("ascii"))
         for k, v in headers_list:
             writer.write(f"{k}: {v}\r\n".encode("latin-1", "strict"))
-        for ck, cv in cors.items():
-            writer.write(f"{ck}: {cv}\r\n".encode("ascii"))
         writer.write(b"\r\n")
         await asyncio.wait_for(writer.drain(), timeout=WRITE_TIMEOUT_S)
 
@@ -372,11 +394,57 @@ class AsyncHTTPServer:
                     await writer.drain()
 
     # -------- Connection handler --------
+    def _reject_non_json_post(self, ctype: str, parsed_json: Any) -> bytes | None:
+        """Response rejecting a POST that does not carry a JSON object body, or None.
+
+        Every POST route is a JSON API, so the body contract is enforced here
+        rather than in each handler. This is also the browser boundary: a
+        cross-origin request a browser sends without a preflight can only carry
+        a `text/plain`, form or multipart body, so refusing anything but
+        `application/json` before the handler runs means such a request never
+        reaches the bridge, whatever the handler would otherwise infer from the
+        URL alone. `OPTIONS` is 405, so a preflighted request is never sent.
+        """
+        if not ctype.startswith("application/json"):
+            return self._build_response(
+                415,
+                {
+                    "error": {
+                        "message": "Content-Type must be application/json",
+                        "type": "invalid_request_error",
+                        "code": 415,
+                    }
+                },
+            )
+        if not isinstance(parsed_json, dict):
+            return self._build_response(
+                400,
+                {
+                    "error": {
+                        "message": "Request body must be a JSON object",
+                        "type": "invalid_request_error",
+                        "code": 400,
+                    }
+                },
+            )
+        return None
+
     async def _handle_client(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         t0 = time.monotonic()
         try:
+            if self.peer_user is not None:
+                check = check_connection(
+                    writer.get_extra_info("socket"), self.peer_user, self.read_table
+                )
+                if check.action == "close":
+                    print(f"connection closed unread: {check.reason}")
+                    return
+                if check.action == "refuse":
+                    await self._refuse(reader, writer, check.reason or "")
+                    return
+
             method, full_path, http_version, headers, body = await self._parse_request(
                 reader, writer
             )
@@ -384,9 +452,11 @@ class AsyncHTTPServer:
             path = unquote(parsed.path)
             query = parse_qs(parsed.query)
 
-            # OPTIONS preflight
+            # No browser clients, so no preflight: OPTIONS is not a served method
             if method == "OPTIONS":
-                response_bytes = self._build_response(204, b"", "text/plain", {})
+                response_bytes = self._build_response(
+                    405, b"", "text/plain", {"Allow": ", ".join(self.routes)}
+                )
                 writer.write(response_bytes)
                 await writer.drain()
                 return
@@ -418,6 +488,13 @@ class AsyncHTTPServer:
                             )
                     elif ctype.startswith("text/"):
                         request_data["text"] = body.decode("utf-8", errors="replace")
+
+                if method == "POST":
+                    rejection = self._reject_non_json_post(ctype, request_data["json"])
+                    if rejection is not None:
+                        writer.write(rejection)
+                        await writer.drain()
+                        return
 
                 # Call handler
                 response = await handler(request_data)
@@ -495,8 +572,37 @@ class AsyncHTTPServer:
             except (BrokenPipeError, ConnectionResetError, OSError):
                 pass
 
+    async def _refuse(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, message: str
+    ) -> None:
+        """Answer a connection the proxy does not serve with HTTP 403.
+
+        The request is read within the usual limits, so the client receives the
+        response rather than a reset, and discarded unparsed.
+        """
+        try:
+            await self._parse_request(reader, writer)
+        except Exception:
+            pass
+        writer.write(
+            self._build_response(
+                403,
+                {
+                    "error": {
+                        "type": "permission_error",
+                        "code": 403,
+                        "message": message,
+                    }
+                },
+            )
+        )
+        await writer.drain()
+
     # -------- Lifecycle --------
     async def start(self) -> None:
+        if self.peer_user is not None:
+            await self._start_for_peer_user(self.peer_user)
+            return
         self.server = await asyncio.start_server(
             self._handle_client, self.host, self.port
         )
@@ -504,11 +610,89 @@ class AsyncHTTPServer:
         async with self.server:
             await self.server.serve_forever()
 
+    async def _start_for_peer_user(self, user: PeerUser) -> None:
+        """Serve `user` on both loopback addresses.
+
+        Binds `127.0.0.1`, then `[::1]` at the same port, so no other user can
+        listen at either address where `localhost` may lead. A sandbox with no
+        IPv6 loopback is served on `127.0.0.1` alone. Prints the listening line
+        the bridge waits for, flushed, once both listen and before accepting.
+
+        Raises:
+            ProxyStartError: An address cannot be bound.
+        """
+        ipv4 = _listen(socket.AF_INET, "127.0.0.1", self.port)
+        self.port = ipv4.getsockname()[1]
+        try:
+            ipv6: socket.socket | None = _listen(socket.AF_INET6, "::1", self.port)
+        except ProxyStartError as ex:
+            if ex.errno not in (errno.EADDRNOTAVAIL, errno.EAFNOSUPPORT):
+                ipv4.close()
+                raise
+            ipv6 = None
+        self.servers = [
+            await asyncio.start_server(
+                self._handle_client, sock=sock, start_serving=False
+            )
+            for sock in (ipv4, ipv6)
+            if sock is not None
+        ]
+        addresses = (
+            f"127.0.0.1:{self.port} and [::1]:{self.port}"
+            if ipv6 is not None
+            else f"127.0.0.1:{self.port}, no IPv6 loopback,"
+        )
+        print(f"{LISTENING_PREFIX}{addresses} for uid {user.uid}", flush=True)
+        await asyncio.gather(*(server.serve_forever() for server in self.servers))
+
     async def stop(self) -> None:
-        if self.server:
-            self.server.close()
-            await self.server.wait_closed()
-            self.server = None
+        for server in [*self.servers, *([self.server] if self.server else [])]:
+            server.close()
+            await server.wait_closed()
+        self.server = None
+        self.servers = []
+
+
+LISTENING_PREFIX = "model_proxy: listening on "
+"""Start of the line a proxy given a user prints once it listens (bridge.py reads it)."""
+
+
+class ProxyStartError(OSError):
+    """The proxy cannot listen at one of its addresses."""
+
+    def __str__(self) -> str:
+        return str(self.strerror)
+
+
+def _listen(family: socket.AddressFamily, host: str, port: int) -> socket.socket:
+    """A socket listening at `host`, bound as asyncio binds (`SO_REUSEADDR`).
+
+    Never `SO_REUSEPORT`, which would let another socket share the port. It
+    listens before the proxy reports listening, so the port cannot be taken
+    between the bind and the listen.
+
+    Raises:
+        ProxyStartError: The socket cannot be created, bound or listen.
+    """
+    display = f"[{host}]:{port}" if family == socket.AF_INET6 else f"{host}:{port}"
+    try:
+        sock = socket.socket(family, socket.SOCK_STREAM)
+    except OSError as ex:
+        raise ProxyStartError(
+            ex.errno, f"cannot listen on {display}: {ex.strerror}"
+        ) from None
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if family == socket.AF_INET6:
+            sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+        sock.bind((host, port))
+        sock.listen(100)
+    except OSError as ex:
+        sock.close()
+        raise ProxyStartError(
+            ex.errno, f"cannot listen on {display}: {ex.strerror}"
+        ) from None
+    return sock
 
 
 def _http_date() -> str:
@@ -556,36 +740,67 @@ def _provider_error(result: Any) -> Optional[dict[str, Any]]:
     return None
 
 
-def _openai_error_body(status: int, message: str) -> dict[str, Any]:
-    """OpenAI-dialect error body (Chat Completions and Responses)."""
-    return {
-        "error": {
-            "message": message,
-            "type": "invalid_request_error" if 400 <= status < 500 else "api_error",
-            "param": None,
-            "code": None,
-        }
+def _openai_error_body(
+    status: int, message: str, provider_body: Optional[dict[str, Any]] = None
+) -> dict[str, Any]:
+    """OpenAI-dialect error body (Chat Completions and Responses).
+
+    ``provider_body`` is the provider's own error object when the host recovered
+    one (an exhausted retry of an OpenAI-compatible endpoint, say). Its keys are
+    forwarded verbatim over the dialect's own -- clients read ``code`` values such
+    as ``insufficient_quota`` from it -- but the dialect's guaranteed keys stay
+    present: a body that lacks ``message`` (a FastAPI ``{"detail": ...}``, an empty
+    object) still yields the host's recovered message and a ``type``.
+    """
+    error: dict[str, Any] = {
+        "message": message,
+        "type": "invalid_request_error" if 400 <= status < 500 else "api_error",
+        "param": None,
+        "code": None,
     }
+    if provider_body is not None:
+        error.update(provider_body)
+    return {"error": error}
 
 
+# The inverse of `status_code_of`: every status that helper can derive from a
+# provider error body must map back to its Anthropic error type here. A status
+# missing from this table degrades to `api_error`, and on the STREAMING route
+# that error type is the only machine-readable signal the client gets -- the
+# HTTP status is already 200 by the time the error is known -- so a missing
+# entry silently reclassifies a client error as a server error.
 _ANTHROPIC_ERROR_TYPES = {
     400: "invalid_request_error",
     401: "authentication_error",
+    402: "billing_error",
     403: "permission_error",
     404: "not_found_error",
+    409: "conflict_error",
     413: "request_too_large",
     429: "rate_limit_error",
     500: "api_error",
+    504: "timeout_error",
     529: "overloaded_error",
 }
 
 
 def _anthropic_error_body(status: int, message: str) -> dict[str, Any]:
-    """Anthropic-dialect error body."""
+    """Anthropic-dialect error body.
+
+    An unlisted 4xx keeps a CLIENT classification rather than degrading to
+    `api_error`: the SDK recognizes statuses the table does not name (422 ->
+    `UnprocessableEntityError`), and Anthropic's error documentation permits
+    `invalid_request_error` for other 4xx responses. Calling a client error a
+    server error is the same defect the table above exists to prevent, one
+    status further out.
+    """
+    kind = _ANTHROPIC_ERROR_TYPES.get(status)
+    if kind is None:
+        kind = "invalid_request_error" if 400 <= status < 500 else "api_error"
     return {
         "type": "error",
         "error": {
-            "type": _ANTHROPIC_ERROR_TYPES.get(status, "api_error"),
+            "type": kind,
             "message": message,
         },
     }
@@ -615,14 +830,19 @@ def _google_error_body(status: int, message: str) -> dict[str, Any]:
 
 
 async def model_proxy_server(
-    port: int, call_bridge_model_service_async: Any = None
+    port: int,
+    call_bridge_model_service_async: Any = None,
+    peer_user: PeerUser | None = None,
+    read_table: TableReader = read_table,
 ) -> AsyncHTTPServer:
     """Create and configure the model proxy server.
 
     Args:
         port: Port to run the server on
-        instance: Instance of service
         call_bridge_model_service_async: Optional bridge service function for testing
+        peer_user: The only user whose connections are served, on both loopback
+            addresses, or None to serve any connection on `127.0.0.1`
+        read_table: Reads a socket table for the peer check (for testing)
 
     Returns:
         Configured AsyncHTTPServer instance
@@ -633,7 +853,7 @@ async def model_proxy_server(
     )
 
     # setup server
-    server = AsyncHTTPServer(port=port)
+    server = AsyncHTTPServer(port=port, peer_user=peer_user, read_table=read_table)
 
     def _sse_bytes(payload: dict[str, Any]) -> bytes:
         # data-only SSE, as used by OpenAI's Chat Completions stream
@@ -701,15 +921,20 @@ async def model_proxy_server(
             stream = json_body.get("stream", False)
 
             completion = await call_bridge_model_service_async(
-                "generate_responses", json_data=json_body
+                "generate_responses", json_data=json_body, headers=request["headers"]
             )
 
             error = _provider_error(completion)
             if error is not None:
                 status = error.get("status") or _DEFAULT_ERROR_STATUS
+                body = error.get("body")
                 return {
                     "status": status,
-                    "body": _openai_error_body(status, error.get("message") or ""),
+                    "body": _openai_error_body(
+                        status,
+                        error.get("message") or "",
+                        body if isinstance(body, dict) else None,
+                    ),
                 }
 
             if stream:
@@ -732,12 +957,23 @@ async def model_proxy_server(
 
                     seq_num = 0
 
+                    # Like the real API, created/in_progress carry no results yet:
+                    # items arrive via output_item.added (openai >= 3.31 rejects
+                    # an added index that the snapshot already holds).
+                    in_progress_resp = {
+                        **resp,
+                        "status": "in_progress",
+                        "output": [],
+                        "usage": None,
+                        "incomplete_details": None,
+                    }
+
                     # 1. response.created event
                     seq_num += 1
                     yield _sse_event(
                         "response.created",
                         {
-                            "response": resp,
+                            "response": in_progress_resp,
                             "sequence_number": seq_num,
                             "type": "response.created",
                         },
@@ -746,8 +982,6 @@ async def model_proxy_server(
 
                     # 2. response.in_progress event
                     seq_num += 1
-                    in_progress_resp = dict(resp)
-                    in_progress_resp["status"] = "in_progress"
                     yield _sse_event(
                         "response.in_progress",
                         {
@@ -1370,9 +1604,17 @@ async def model_proxy_server(
 
                         # 3d. response.output_item.done
                         seq_num += 1
-                        # Update status to completed
+                        # Update status to completed. custom_tool_call is a
+                        # special case: the installed OpenAI SDK's
+                        # ResponseCustomToolCall model omits "status" from its
+                        # dict entirely, even though clients such as opencode's
+                        # AI SDK require it on the done item to dispatch the
+                        # call, so it's added even when not already present.
                         item_dict_completed = dict(output_item)
-                        if "status" in item_dict_completed:
+                        if (
+                            "status" in item_dict_completed
+                            or item_type == "custom_tool_call"
+                        ):
                             item_dict_completed["status"] = "completed"
 
                         yield _sse_event(
@@ -1413,8 +1655,7 @@ async def model_proxy_server(
                 return {"status": 200, "body": completion}
 
         except Exception as ex:
-            _handle_model_proxy_error(ex)
-            os._exit(1)
+            return _request_failed(ex, _openai_error_body)
 
     @server.route("/v1/chat/completions", method="POST")
     async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
@@ -1434,15 +1675,20 @@ async def model_proxy_server(
             json_body["parallel_tool_calls"] = False
 
             completion = await call_bridge_model_service_async(
-                "generate_completions", json_data=json_body
+                "generate_completions", json_data=json_body, headers=request["headers"]
             )
 
             error = _provider_error(completion)
             if error is not None:
                 status = error.get("status") or _DEFAULT_ERROR_STATUS
+                body = error.get("body")
                 return {
                     "status": status,
-                    "body": _openai_error_body(status, error.get("message") or ""),
+                    "body": _openai_error_body(
+                        status,
+                        error.get("message") or "",
+                        body if isinstance(body, dict) else None,
+                    ),
                 }
 
             if stream:
@@ -1635,8 +1881,7 @@ async def model_proxy_server(
             else:
                 return {"status": 200, "body": completion}
         except Exception as ex:
-            _handle_model_proxy_error(ex)
-            os._exit(1)
+            return _request_failed(ex, _openai_error_body)
 
     @server.route("/v1/messages", method="POST")
     async def anthropic(request: dict[str, Any]) -> dict[str, Any]:
@@ -1683,7 +1928,9 @@ async def model_proxy_server(
                     PING_INTERVAL_S = 5.0
                     task = asyncio.create_task(
                         call_bridge_model_service_async(
-                            "generate_anthropic", json_data=json_body
+                            "generate_anthropic",
+                            json_data=json_body,
+                            headers=request["headers"],
                         )
                     )
                     try:
@@ -1998,7 +2245,9 @@ async def model_proxy_server(
                 }
             else:
                 completion = await call_bridge_model_service_async(
-                    "generate_anthropic", json_data=json_body
+                    "generate_anthropic",
+                    json_data=json_body,
+                    headers=request["headers"],
                 )
                 error = _provider_error(completion)
                 if error is not None:
@@ -2011,24 +2260,26 @@ async def model_proxy_server(
                     }
                 return {"status": 200, "body": completion}
         except Exception as ex:
-            _handle_model_proxy_error(ex)
-            os._exit(1)
+            return _request_failed(ex, _anthropic_error_body)
 
     # ---------- Google Gemini API routes ----------
     # Route patterns for Google's Gemini API using wildcard matching
-    # Supports: /v1beta/models/{model}:generateContent and /models/{model}:generateContent
+    # Supports: /v1beta/models/{model}:generateContent, /v1/models/{model}:generateContent
+    # and /models/{model}:generateContent
 
     def _extract_model_from_google_path(path: str) -> str | None:
         """Extract model name from Google API path.
 
         Examples:
             /v1beta/models/gemini-2.5-pro:generateContent -> gemini-2.5-pro
+            /v1/models/gemini-2.5-pro:generateContent -> gemini-2.5-pro
             /models/gemini-2.5-flash:streamGenerateContent -> gemini-2.5-flash
         """
         match = re.search(r"models/([^/:]+)", path)
         return match.group(1) if match else None
 
     @server.route("/v1beta/models/*", method="POST")
+    @server.route("/v1/models/*", method="POST")
     @server.route("/models/*", method="POST")
     async def google_generate_content(request: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -2075,8 +2326,7 @@ async def model_proxy_server(
             }
 
         except Exception as ex:
-            _handle_model_proxy_error(ex)
-            os._exit(1)
+            return _request_failed(ex, _google_error_body)
 
     # -------- MCP HTTP Server Endpoint --------
 
@@ -2178,7 +2428,7 @@ async def model_proxy_server(
                     arguments=arguments,
                 )
                 return _jsonrpc_response(
-                    req_id, {"content": [{"type": "text", "text": result}]}
+                    req_id, {"content": _mcp_tool_result_content(result)}
                 )
 
             else:
@@ -2195,17 +2445,38 @@ async def model_proxy_server(
     return server
 
 
+def _mcp_tool_result_content(result: JsonValue) -> JsonValue:
+    match result:
+        case str():
+            return [{"type": "text", "text": result}]
+        case _:
+            return _mcp_tool_content_block(result)
+
+
+def _mcp_tool_content_block(content: JsonValue) -> JsonValue:
+    return content
+
+
 async def run_model_proxy_server() -> None:
-    """Run the model proxy server."""
+    """Run the model proxy server.
+
+    An error reaching here means the proxy cannot serve: it could not start, or
+    its server stopped. The process exits, and the bridge fails the sample with
+    its stderr. An error serving one request is answered in its handler instead.
+    """
     # determine port
     port = int(os.getenv("BRIDGE_MODEL_SERVICE_PORT", "13131"))
 
-    # Create server
-    server = await model_proxy_server(port)
-
-    # Run server
     try:
+        # resolved before binding, so a proxy that cannot serve its user never listens
+        user = os.getenv(PEER_USER_ENV)
+        peer_user = resolve_peer_user(user) if user else None
+        server = await model_proxy_server(port, peer_user=peer_user)
         await server.start()
+    except (ValueError, ProxyStartError) as ex:
+        sys.stderr.write(f"model_proxy: {ex}\n")
+        sys.stderr.flush()
+        os._exit(1)
     except Exception as ex:
         sys.stderr.write(f"Unexpected error running model proxy: {ex}\n")
         sys.stderr.write(traceback.format_exc())
@@ -2213,24 +2484,46 @@ async def run_model_proxy_server() -> None:
         os._exit(1)
 
 
-def _handle_model_proxy_error(ex: Exception) -> None:
-    # Any error that occurs in here is essentially fatal to the entire
-    # agent. The exception results either from:
-    #
-    #  - The call to generate (which already benefits from Inspect's std
-    #    model retry behavior). In normal Inspect agents if generate fails
-    #    after requisite retries the sample fails, same here
-    #  - A logic error or unexpected data condition in our simulated
-    #    streaming -- if we are unable to stream a request back then
-    #    the agent can't proceed, so we fail the script hard
-    #
-    # Writing to stderr and exiting the script is seen as preferable to
-    # returning 500 to the proxied agent. This is because we are in a
-    # hard failure anyway so we need the user to see the error message
-    # and have the task fail (the 500 error would just result in retries)
-    sys.stderr.write(f"Unexpected error during model proxy call: {ex}\n")
-    sys.stderr.write(traceback.format_exc())
-    sys.stderr.flush()
+def _request_failed(
+    ex: Exception, error_body: Callable[[int, str], dict[str, Any]]
+) -> dict[str, Any]:
+    """Answer a generation request that failed in the proxy with an error response.
+
+    The failure is written to stderr with its traceback, which the bridge logs
+    as a warning, and the proxy keeps serving later requests. A reply that the
+    host is ending the sample (`_TERMINATING_REPLY`) is not written: the host
+    reports the termination itself. Provider errors do not come
+    here: the host returns them as results, and the handlers forward them with
+    the provider's status. What does is an error reply on the service's RPC
+    channel or a failure in the proxy's own request handling, which carries no
+    status, so it gets `_DEFAULT_ERROR_STATUS`, as a forwarded error without a
+    status does.
+
+    Args:
+        ex: The exception raised while serving the request.
+        error_body: Builds the error body in the route's API dialect.
+    """
+    if not (
+        isinstance(ex, _ServiceErrorReply) and str(ex).startswith(_TERMINATING_REPLY)
+    ):
+        sys.stderr.write(f"Unexpected error during model proxy call: {ex}\n")
+        sys.stderr.write(traceback.format_exc())
+        sys.stderr.flush()
+    return {
+        "status": _DEFAULT_ERROR_STATUS,
+        "body": error_body(_DEFAULT_ERROR_STATUS, f"Model proxy error: {ex}"),
+    }
+
+
+class _ServiceErrorReply(Exception):
+    """An error reply from the bridge model service to a request."""
+
+
+_TERMINATING_REPLY = "Terminating: "
+"""Start of the service's error reply to a request that ends the sample.
+
+The host's sandbox service dispatcher writes it (inspect_ai/util/_sandbox/service.py).
+"""
 
 
 async def _call_bridge_model_service_async(method: str, **params: Any) -> Any:
@@ -2245,6 +2538,13 @@ async def _call_bridge_model_service_async(method: str, **params: Any) -> Any:
 
 
 def _write_bridge_model_service_request(method: str, **params: Any) -> str:
+    """Write a request file for the bridge model service and return its id.
+
+    A request file that cannot be written in full is removed before the error
+    is raised: the service rereads an incomplete file until it is complete, and
+    the proxy now answers the failed request and keeps serving, so nothing
+    else would remove it.
+    """
     from json import dump
     from uuid import uuid4
 
@@ -2252,8 +2552,12 @@ def _write_bridge_model_service_request(method: str, **params: Any) -> str:
     request_id = str(uuid4())
     request_data = dict(id=request_id, method=method, params=params)
     request_path = requests_dir / (request_id + ".json")
-    with open(request_path, "w") as f:
-        dump(request_data, f)
+    try:
+        with open(request_path, "w") as f:
+            dump(request_data, f)
+    except BaseException:
+        request_path.unlink(missing_ok=True)
+        raise
     return request_id
 
 
@@ -2277,7 +2581,7 @@ def _read_bridge_model_service_response(
 
         # raise error if we have one
         if response.get("error", None) is not None:
-            raise Exception(response["error"])
+            raise _ServiceErrorReply(response["error"])
 
         # return response if we have one
         elif "result" in response:
