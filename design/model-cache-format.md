@@ -89,8 +89,10 @@ key. Only lookup reads the body (`_read_body`). All parsing is the stdlib
   invalid header is skipped, since it may be damaged or of another format
   version.
 - **Prune** (`cache_prune`) re-classifies each file it is given the same way
-  (`_is_pruneable`), after the inside-the-cache check, and deletes only what
-  list would return.
+  (`_is_pruneable`), after the inside-the-cache check, and deletes only files
+  it classifies as list would. The classification and the deletion are
+  separate steps on a path, so a store that replaces the entry between them
+  can be deleted (see Guarantees and limits).
 
 Tests: `test_cache_invalid_headers`, `test_cache_invalid_bodies_are_judged_by_header`,
 `test_cache_expiry`, `test_cache_round_trip`, `test_cache_round_trip_non_ascii`.
@@ -185,7 +187,16 @@ the rename is refused while the reader holds the file),
   partial, which readers treat as invalid. There is no locking.
 - **List and prune judge by the header alone**, reading a bounded header and
   never the output.
-- **No cache failure raises into `generate()`.**
+- **Cache I/O failures do not raise into `generate()`.** Errors inside
+  `cache_fetch` and `cache_store` become misses or skipped stores. Building
+  the cache key happens before them, in `Model._generate`, and its errors
+  still propagate: model arguments that cannot be fingerprinted fail a cached
+  generation (`test_cache_defers_unserializable_model_args_to_caching`).
+- **Cleanup can discard a fresh entry.** Prune, and lookup's deletion of an
+  expired entry, judge a file and then delete its path, without a lock. A
+  store that renames a new entry into place between those steps loses it,
+  and the next identical call generates again. Entries stay whole either
+  way.
 - **Limits.** Outputs the round-trip check refuses reach the provider on
   every call. The check costs one extra parse, validation and comparison per
   store, tens of microseconds per entry against model calls of seconds.
@@ -304,3 +315,7 @@ cache root, the file names in it, and symlinks.
   samples to a private temporary file it creates and reads back within one
   process; it is not a cache format and is left as is.
 - **Cache size limits or eviction** beyond expiry.
+- **Non-regular files at an entry path.** Lookup opens `<key>.jsonl`
+  without checking that it is a regular file, so a FIFO placed there
+  (directly or through an in-cache symlink) blocks the lookup; list and prune
+  skip such paths.
