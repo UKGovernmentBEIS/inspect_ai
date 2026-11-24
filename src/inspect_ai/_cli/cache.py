@@ -93,7 +93,7 @@ def path() -> None:
     "--pruneable",
     is_flag=True,
     default=False,
-    help="Only list cache entries that can be pruned due to expiry (see inspect cache prune --help).",
+    help="Only list cache entries that can be pruned: expired entries and entries written by an earlier version of Inspect (see inspect cache prune --help).",
 )
 def list_caches(pruneable: bool) -> None:
     """Lists all current model caches with their sizes."""
@@ -101,7 +101,7 @@ def list_caches(pruneable: bool) -> None:
         expired_cache_entries = cache_list_expired()
         if expired_cache_entries:
             _print_table(
-                title="The following models can be pruned due to cache expiry",
+                title="The following models have cache entries that expired or were written by an earlier version of Inspect",
                 paths=cache_size(files=expired_cache_entries),
             )
         else:
@@ -125,7 +125,8 @@ def prune(log_level: str, model: tuple[str, ...]) -> None:
 
     Over time the cache directory can grow, but many cache entries will be
     expired. This command will remove all expired cache entries for ease of
-    maintenance.
+    maintenance. It also removes entries written by an earlier version of
+    Inspect, which are not used.
     """
     init_logger(log_level)
 
