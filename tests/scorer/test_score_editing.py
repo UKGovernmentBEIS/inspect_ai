@@ -1306,6 +1306,45 @@ async def test_exclude_samples_errored_sample_without_scores():
     assert errored.error is not None
 
 
+@scorer(metrics=[accuracy()])
+def scores_all_but(sample_id: str) -> Scorer:
+    """Scores `C`, and nothing for `sample_id`."""
+
+    async def score(state: TaskState, target: Target) -> Score | None:
+        return None if state.sample_id == sample_id else Score(value="C")
+
+    return score
+
+
+@pytest.mark.anyio
+async def test_exclude_samples_sample_without_scores_uses_recorded_score_name():
+    log = (
+        await eval_async(
+            Task(
+                dataset=MemoryDataset(
+                    [Sample(id="a", input=""), Sample(id="b", input="")]
+                ),
+                scorer=scores_all_but("b"),
+            ),
+            model="mockllm/model",
+        )
+    )[0]
+    log = await score_async(
+        log, {"strict": scores_all_but("b")}, action="overwrite", display="none"
+    )
+    unscored = log.samples[1]
+    assert not unscored.scores
+
+    exclude_samples(log, ["b"], _provenance())
+
+    assert list(unscored.scores) == ["strict"]
+    assert score_is_excluded(unscored.scores["strict"])
+    assert [e.score_name for e in unscored.events if isinstance(e, ScoreEditEvent)] == [
+        "strict"
+    ]
+    assert [score.name for score in log.results.scores] == ["strict"]
+
+
 @pytest.mark.anyio
 async def test_exclude_samples_refuses_sample_without_scores_or_scorers():
     log = (
