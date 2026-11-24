@@ -83,9 +83,13 @@ will retry, so there is no window in which a cancel reads the attempt as
 
 A task that has not registered (still queued, or in an attempt that has not
 reached ``register_eval``) is found in the queued registry
-(``_control/queued_tasks.py``) first. A plain cancel or a drain aborts it
-before its log starts and reports ``task_queued``; score/error are rejected,
-since it has no samples. See ``design/task-dispatch.md``, "Control channel".
+(``_control/queued_tasks.py``) first. A plain cancel or a drain of a queued
+task aborts it before its log starts and reports ``task_queued``. For an
+attempt that is starting, the abort is deferred and reported as
+``abort_deferred``: the attempt's startup writes run undisturbed, and the
+abort is applied when it registers, as a running task's cancel is (see
+``TaskRecord.on_registered``). Score/error are rejected, since the task has
+no samples. See ``design/task-dispatch.md``, "Control channel".
 """
 
 from __future__ import annotations
@@ -171,6 +175,17 @@ class CancelTaskQueued(_CancelTaskResult):
     task_queued: Literal[True]
 
 
+class CancelTaskDeferred(_CancelTaskResult):
+    """The cancel or drain of a task whose attempt is starting.
+
+    The attempt aborts when it registers, as a running task's cancel aborts
+    it, and ends with an error log (see the module docstring).
+    """
+
+    changed: Literal[True]
+    abort_deferred: Literal[True]
+
+
 class CancelTaskRetryAbandoned(_CancelTaskResult):
     """The between-attempts resolution.
 
@@ -187,6 +202,7 @@ CancelTaskResult = (
     | CancelTaskNoop
     | CancelTaskChanged
     | CancelTaskQueued
+    | CancelTaskDeferred
     | CancelTaskRetryAbandoned
 )
 
@@ -457,10 +473,10 @@ def _queued_task_directive(
 ) -> CancelTaskResult:
     """Cancel or drain a task that has not registered with the control channel.
 
-    Both abort it through its run queue (``RunQueue.cancel``): a queued task
-    starts an attempt that aborts before its log starts, and an attempt that
-    has not registered is aborted through its own cancel handle. A score or
-    error resolution has no samples to apply to.
+    Both abort it: a queued task through its run queue (``RunQueue.cancel``),
+    which starts an attempt that aborts before its log starts, and an
+    attempt that is starting when it registers. A score or error resolution
+    has no samples to apply to.
     """
     record = queued.record
     if stamp in ("score", "error"):
@@ -483,28 +499,30 @@ def _queued_task_directive(
         result["action"] = action
     else:
         result["queued"] = 0
+    if record.abort_requested:
+        return {
+            **result,
+            "changed": False,
+            "reason": "cancel already requested (abort)",
+        }
     if record.phase == "queued":
-        if record.abort_requested:
-            return {
-                **result,
-                "changed": False,
-                "reason": "cancel already requested (abort)",
-            }
-    else:
-        attempt_cancel = record.attempt_cancel
-        assert attempt_cancel is not None, "an attempt holds its cancel handle"
-        if attempt_cancel.cancel_type == "abort":
-            return {
-                **result,
-                "changed": False,
-                "reason": "cancel already requested (abort)",
-            }
-        if not attempt_cancel.escalates("abort"):
-            # the attempt returned a log that is not an error
-            return {**result, "changed": False, "reason": "task already finished"}
+        if not dry_run:
+            queued.cancel()
+        return {**result, "changed": True, "task_queued": True}
+    attempt_cancel = record.attempt_cancel
+    assert attempt_cancel is not None, "an attempt holds its cancel handle"
+    if attempt_cancel.cancel_type == "abort":
+        return {
+            **result,
+            "changed": False,
+            "reason": "cancel already requested (abort)",
+        }
+    if not attempt_cancel.escalates("abort"):
+        # the attempt returned a log that is not an error
+        return {**result, "changed": False, "reason": "task already finished"}
     if not dry_run:
-        queued.cancel()
-    return {**result, "changed": True, "task_queued": True}
+        record.abort_requested = True
+    return {**result, "changed": True, "abort_deferred": True}
 
 
 class CancelSampleRejected(TypedDict):

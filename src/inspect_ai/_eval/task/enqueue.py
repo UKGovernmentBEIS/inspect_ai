@@ -80,7 +80,9 @@ class TaskRecord:
     attempt_registered: bool = False
     """The current or last attempt registered with the control channel."""
     abort_requested: bool = False
-    """Cancelled while queued: the dispatcher starts an attempt that aborts at once."""
+    """Cancelled before it registered. A queued record's next attempt aborts at
+    once; an attempt already starting is aborted when it registers, as a
+    running task's cancel aborts it (see :meth:`on_registered`)."""
     attempt_cancel: "TaskCancel | None" = None
     """The current attempt's cancel handle, held while the record is in an attempt."""
     attempt_scope: anyio.CancelScope | None = None
@@ -106,14 +108,19 @@ class TaskRecord:
 
         Called in the same synchronous step as ``register_eval``, so a
         directive finds the task either in the queued registry or through its
-        ``EvalState``.
+        ``EvalState``. A cancel or drain accepted while the attempt was
+        starting is applied here, as an ordinary abort of the running task:
+        the attempt's startup writes are never interrupted by it.
         """
+        from inspect_ai._control.cancel import cancel_task
         from inspect_ai._control.queued_tasks import unregister_queued_task
 
         self._reach("registered")
         self.attempt_registered = True
         self.unregistered_attempts = 0
         unregister_queued_task(self)
+        if self.abort_requested:
+            cancel_task(self.task_id)
 
     def _reach(self, reached: TaskReached) -> None:
         if _REACHED_ORDER[reached] > _REACHED_ORDER[self.reached]:

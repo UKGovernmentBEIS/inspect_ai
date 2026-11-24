@@ -1143,22 +1143,11 @@ async def dispatch_tasks(
                         # Retry source selection needs the recorder's write state.
                         # Once no retry follows, release any unfinished entry even
                         # if startup failed after seeding an entire prior log.
-                        # An attempt aborted before it registered ran no
-                        # samples, so its log is discarded with any header
-                        # log_start flushed: the task ends with no log file,
-                        # as one aborted before log_start does.
                         if retry_options is None and not options.logger.finished:
-                            aborted_unstarted = (
-                                run.cancel_type == "abort"
-                                and record.reached != "registered"
-                            )
                             with anyio.CancelScope(shield=True):
                                 await options.logger.discard(
-                                    keep_destination=not aborted_unstarted,
-                                    keep_buffer=not aborted_unstarted,
+                                    keep_destination=True, keep_buffer=True
                                 )
-                            if aborted_unstarted and result is not None:
-                                result = result.model_copy(update={"location": ""})
 
                         # finalize atomically (no awaits below) so the dispatcher sees
                         # a consistent (in_flight, pending) snapshot

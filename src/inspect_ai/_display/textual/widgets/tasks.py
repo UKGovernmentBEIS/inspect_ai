@@ -358,9 +358,6 @@ class TaskProgressView(Widget):
             pass
         self.cancel_link.complete()
         self.task_progress.complete()
-        # the task ended with no log (e.g. aborted before it started)
-        if not self.t.profile.log_location:
-            self.view_log_link.display = False
 
     def sample_complete(self, complete: int, total: int) -> None:
         self.samples_complete = complete

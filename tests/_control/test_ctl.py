@@ -6255,6 +6255,24 @@ def test_task_stop_of_queued_task_output(
     assert f"{expected} — the task has not started" in full.stdout
 
 
+@pytest.mark.parametrize("verb", ["cancel", "drain"])
+def test_task_stop_of_starting_task_says_it_aborts_when_it_starts(
+    monkeypatch: pytest.MonkeyPatch, verb: str
+) -> None:
+    """A task whose attempt is starting is aborted when it starts."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1", status="queued")])
+    spy = _RequestSpy(
+        {"ok": True, "changed": True, "abort_deferred": True, "in_flight": 0}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", verb, "t1"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout == (
+        f"{verb} t1: requested — the task is starting, so it will abort when it "
+        "starts, before running any samples\n"
+    )
+
+
 def test_task_drain_missing_route_names_version_skew(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
