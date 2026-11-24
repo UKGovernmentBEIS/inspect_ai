@@ -220,8 +220,8 @@ buffer segments or checkpoint objects, whose counts grow with run age:
   attempts and stray files the walk reports (decision: Ransom, 2026-10-05;
   `test_the_walk_agrees_with_eval_set_on_shard_paths`,
   `test_stray_and_nested_logs_in_a_companion`).
-- **`.eval` only.** `.json` logs are reported in `unreadable` ("the .json
-  log format is not read in --log-dir mode"): the format is deprecated, its
+- **`.eval` only.** `.json` logs are reported in `unreadable`
+  (`_JSON_LOG_REASON` in `snapshot.py`): the format is deprecated, its
   reads are whole-file parses, and sharding is `.eval`-only.
 
 ### Logical tasks
@@ -264,8 +264,8 @@ as the merge treats such a companion as gone. In a shard set:
   (`test_a_shard_set_keeps_the_merges_task_id_with_or_without_its_log`,
   `test_an_unreadable_newest_merged_log_keys_the_set_as_the_merge_does`).
 - A task id has at most one shard set, the first companion by path. A
-  second companion with the same task id is not read beyond its merged log,
-  and is listed in the row's `unreadable` (decision: Ransom, 2026-10-13).
+  second companion with the same task id contributes no sample state and is
+  listed in the row's `unreadable` (decision: Ransom, 2026-10-13).
 
 **A shard set and an ordinary retry of it.** An unsharded log with a shard
 set's task id is an `eval_retry` of its merged log (the only path that
@@ -274,23 +274,31 @@ Both fold into one logical task, the shard set as its oldest attempt, so
 the retry is current whatever the file names say: the retry's `{created}`
 follows the merged header's, minted at the merge, and can sort before the
 launcher-minted merged log's name. The superseded shard set counts in
-`attempts`, only its merged log is read (for the task id), and the row's
-`shards` is null as for any unsharded current attempt (decision: Ransom,
-2026-10-13).
+`attempts` and contributes no sample state, and the row's `shards` is null
+as for any unsharded current attempt (decision: Ransom, 2026-10-13).
+
+Only a logical task's current attempt contributes sample state. Finding
+which set is duplicate or superseded needs each set's task id, so it may
+read a skipped set's headers (`_add_shard_sets` and its tests hold the
+read sequence).
 
 **A merged log whose companion is gone** (shards deleted after a merge) is
 an ordinary unsharded attempt.
 
-**Unreadable logs.** An unreadable log is reported, never dropped, and a
-per-sample read that might need it fails with its error
+**Unreadable logs.** An unreadable log is reported, never dropped. An
+unreadable shard member belongs to its shard set by its directory, whatever
+its file name, and blocks its task's per-sample reads
+(`test_an_unreadable_shard_marks_the_row_and_blocks_sample_reads`).
+Attributing an unreadable ordinary log to a task is best effort: it reads
+the task name and id from fixed slots of the file name
+(`_try_parse_filename`), not from the configured file name pattern. When
+it names a readable task the log is listed on that task and can block its
+per-sample reads; it can also miss the task, or name a wrong one, which
+then appears as a task known only from unreadable logs; since selection
+prefers an id match to a name match, its inferred id can take a selector
+meant for a real task
 (`test_an_unreadable_newer_attempt_blocks_per_sample_reads`,
-`test_an_unreadable_shard_marks_the_row_and_blocks_sample_reads`,
-`test_cli_a_task_whose_only_log_is_unreadable_reports_its_failure`). A
-shard's attempt belongs to its shard set by its directory, whatever its
-file name. An unreadable ordinary log is tied to a task only by the task id
-in its file name, so under a file name pattern without `{id}` it is
-reported only in the listing's `unreadable` and blocks no per-sample read:
-those reads serve the task's newest readable attempt.
+`test_cli_a_task_whose_only_log_is_unreadable_reports_its_failure`).
 
 **Identity.** For a shard set, `task`, `model`, `solver` and `epochs` come
 from the first readable shard (else the merged log); `eval_id` and `run_id`
