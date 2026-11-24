@@ -3912,13 +3912,16 @@ def dispatch_guard(check: Callable[[], None]) -> Iterator[None]:
 
 
 def _check_limits_before_dispatch() -> None:
-    """Refuse a provider dispatch once a token or cost limit has been reached.
+    """Refuse a provider dispatch once a token or cost limit has been reached, or the sample has failed.
 
-    A further call could only exceed a reached limit. Called on every attempt
-    (a concurrent call can reach a limit while a retry waits), after the
-    cache lookup (a cache hit sends nothing, so it is never refused). Then
-    runs the `dispatch_guard()` checks, if any.
+    A further call could only exceed a reached limit, and no call is made once
+    a sentinel failure is kept (`raise_if_sentinel_failed()`). Called on every
+    attempt (a concurrent call can reach a limit, or fail the sample, while a
+    retry, a connection slot or the pause gate waits), after the cache lookup
+    (a cache hit sends nothing, so it is never refused). Then runs the
+    `dispatch_guard()` checks, if any.
     """
+    raise_if_sentinel_failed()
     check_token_limit(raise_for_equal=True)
     check_cost_limit(raise_for_equal=True)
     guard = _dispatch_guard.get()

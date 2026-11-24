@@ -126,20 +126,23 @@ _R = TypeVar("_R")
 
 
 def _latching(entry: Callable[_P, Awaitable[_R]]) -> Callable[_P, Awaitable[_R]]:
-    """Run a sentinel stage under the solve's latch (`sentinel_failure_latch()`).
+    """Run a sentinel stage under the attempt's kept failure (`sentinel_failures()`).
 
-    A failure kept earlier in the solve is raised again before the stage
-    runs, and a failure the stage raises is kept.
+    A failure kept earlier in the attempt is raised again before the stage
+    runs, and again after it returns, if one was kept while it ran (by a
+    concurrent call). A failure the stage raises is kept.
     """
 
     @wraps(entry)
     async def latched(*args: _P.args, **kwargs: _P.kwargs) -> _R:
         raise_if_sentinel_failed()
         try:
-            return await entry(*args, **kwargs)
+            result = await entry(*args, **kwargs)
         except SentinelFailure as ex:
             sentinel_failed(ex)
             raise
+        raise_if_sentinel_failed()
+        return result
 
     return latched
 

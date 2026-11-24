@@ -52,6 +52,7 @@ from inspect_ai._sentinel._config import SentinelProxy, SentinelRoot
 from inspect_ai._sentinel._context import (
     SentinelFailure,
     sentinel_failure_latch,
+    sentinel_failures,
 )
 from inspect_ai._sentinel._scope import sentinel_scope, sentinel_solving
 from inspect_ai._sentinel._sidecar._call import end_sidecar_sample
@@ -3518,8 +3519,17 @@ async def _task_run_sample_attempt(
                                 )
                                 attempt_started = True
 
-                                async with anyio.create_task_group() as tg:
-                                    tg.start_soon(run, tg)
+                                # a sentinel failure that a background task
+                                # kept while the group wound down (after the
+                                # solvers' own check) fails the attempt too,
+                                # unless an interrupt or a limit ended it
+                                with sentinel_failures() as kept:
+                                    try:
+                                        async with anyio.create_task_group() as tg:
+                                            tg.start_soon(run, tg)
+                                    except Exception as ex:
+                                        kept.raise_instead_of(inner_exception(ex))
+                                        raise
                                 if solver_cancel is not None:
                                     # the group exited normally, so no enclosing scope was
                                     # cancelled: nothing inspect issued cancelled the solver
@@ -3528,6 +3538,8 @@ async def _task_run_sample_attempt(
                                         "cancellation (not a sample limit, an operator "
                                         "interrupt, or an eval cancel)"
                                     ) from solver_cancel
+                                if handled_interrupt is None and limit is None:
+                                    kept.raise_if_failed()
                             except Exception as ex:
                                 raise_unwrapped(ex, inner_exception(ex))
                             finally:

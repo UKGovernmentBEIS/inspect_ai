@@ -75,6 +75,15 @@ def in_final_scope() -> bool:
     return _scope.get().final
 
 
+def in_sentinel_run() -> bool:
+    """Whether this is a sentinel's own monitor or protocol run.
+
+    Only the dispatcher enters that scope, and no scope entered inside it
+    changes it, so code the eval or a scaffold runs elsewhere can't enter it.
+    """
+    return _scope.get().origin == "sentinel"
+
+
 def enter_scope(origin: ModelOrigin, *, final: bool = False) -> Token[_Scope]:
     # innermost wins, except that nothing inside a final scope changes it
     current = _scope.get()

@@ -1102,6 +1102,7 @@ async def call_tool(
             async with span(tool_def.tool.name, type="handoff"):
                 async with span(name=call.function, type="tool"):
                     transcript()._event(event)
+                    raise_if_sentinel_failed()
                     if on_execute is not None:
                         on_execute(call)
                     handoff_result = await agent_handoff(
@@ -1113,6 +1114,7 @@ async def call_tool(
         else:
             async with span(name=call.function, type="tool"):
                 transcript()._event(event)
+                raise_if_sentinel_failed()
                 if on_execute is not None:
                     on_execute(call)
                 with sentinel_scope("tool"):

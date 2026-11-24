@@ -5,6 +5,7 @@ import anyio
 from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid
 
+from inspect_ai._sentinel._context import raise_if_sentinel_failed
 from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
@@ -96,7 +97,11 @@ async def execute_host_tool(
     the call's grant is minted, and its `tool_result` check when the scaffold
     sends the result back in a request (`sentinel_tool_results`), as for a
     tool the scaffold runs itself: that request carries the call's id, which
-    an MCP call does not.
+    an MCP call does not. Once a sentinel failure is kept in the sample
+    (`raise_if_sentinel_failed()`), no call runs, with or without a grant: it is
+    checked after the last wait before the tool is invoked, and the call is
+    recorded as failed and fails the sample through `bridge.request_fail`, as
+    any other unexpected error does.
 
     Every request is recorded as one `ToolEvent` in a `tool` span, as a native
     call is, with `metadata["bridge"]` describing it (see `ToolEvent`). An
@@ -387,6 +392,7 @@ async def _execute_granted(
                 try:
                     with scope:
                         event._set_cancel_fn(scope.cancel)
+                        raise_if_sentinel_failed()
                         # as in call_tool: the tool's own model calls are not
                         # agent turns
                         with sentinel_scope("tool"), known_work():

@@ -8,7 +8,6 @@ import logging
 import random
 import re
 from collections.abc import Awaitable, Callable, Iterator, Sequence
-from contextlib import nullcontext
 from dataclasses import replace
 from datetime import datetime, timezone
 from functools import partial
@@ -1488,7 +1487,10 @@ def as_before_failures_were_kept(monkeypatch: pytest.MonkeyPatch) -> None:
     A scaffold that caught the failure then carried on, so its later steps
     were checked; replay still reads logs written that way.
     """
-    monkeypatch.setattr("inspect_ai._eval.task.run.sentinel_failure_latch", nullcontext)
+    monkeypatch.setattr(
+        "inspect_ai._sentinel._context.SentinelFailures.keep",
+        lambda self, failure: None,
+    )
 
 
 @solver

@@ -34,7 +34,9 @@ from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel
 from inspect_ai._sentinel._context import (
     SentinelFailure,
     init_sentinel,
+    sentinel_failed,
     sentinel_failure_latch,
+    sentinel_failures,
 )
 from inspect_ai._sentinel._scope import sentinel_solving
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -1329,7 +1331,7 @@ async def test_a_bridged_scaffold_that_catches_a_sentinel_failure_is_stopped(
 
     with active(bridge_raising()):
         with pytest.raises(SentinelFailure, match="sentinel denied") as kept:
-            with sentinel_failure_latch():
+            with sentinel_failures(), sentinel_failure_latch():
                 try:
                     await generate(bridge, model, [ChatMessageUser(content=TASK)])
                 except SentinelFailure:
@@ -1343,6 +1345,43 @@ async def test_a_bridged_scaffold_that_catches_a_sentinel_failure_is_stopped(
     if sandbox:
         assert isinstance(bridge, SandboxAgentBridge)
         assert isinstance(bridge._failure, SentinelFailure)
+
+
+@pytest.mark.parametrize("exempt", [False, True])
+async def test_a_host_tool_does_not_run_once_the_sample_has_failed(
+    exempt: bool,
+) -> None:
+    """Neither an unused grant minted before the failure nor a proposal-exempt server runs a host tool after it."""
+    read = ToolCall(
+        id="host_1", function="mcp__host__read_file", arguments=READ.arguments
+    )
+    model = Scripted(calls_output(read), calls_output())
+    host = AsyncMock(return_value="secret")
+    bridge = sandbox_bridge(host)
+    if exempt:
+        bridge.proposal_exempt_servers.add("host")
+
+    with active([bridge_recording([])]), sentinel_failures() as kept:
+        if not exempt:
+            # the call is proposed, checked and granted before the failure
+            await generate(
+                bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
+            )
+        sentinel_failed(SentinelFailure(PermissionError("sentinel denied")))
+        with pytest.raises(SentinelFailure, match="sentinel denied"):
+            await call_host_tool(bridge)("host", "read_file", READ.arguments)
+
+    host.assert_not_called()
+    # the call is recorded as failed, and the bridge fails the sample with the
+    # kept failure's error
+    [event] = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert event.failed is True
+    assert event.result == ""
+    assert event.metadata is not None
+    assert event.metadata["bridge"]["grant"] == ("exempt" if exempt else "consumed")
+    assert isinstance(bridge._failure, SentinelFailure)
+    assert kept.failure is not None
+    assert bridge._failure.error is kept.failure.error
 
 
 @protocol

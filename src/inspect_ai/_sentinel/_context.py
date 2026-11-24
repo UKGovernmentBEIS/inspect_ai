@@ -4,7 +4,7 @@ from contextvars import ContextVar
 from typing import Any, NamedTuple
 
 from ._config import SentinelRoot
-from ._scope import current_origin, in_final_scope, is_agent_turn
+from ._scope import current_origin, in_final_scope, in_sentinel_run, is_agent_turn
 
 
 class SentinelFailure(Exception):
@@ -13,10 +13,11 @@ class SentinelFailure(Exception):
     It fails the sample, unless `error` is a limit or a termination, which keep
     their meaning. It is an ordinary `Exception`, so a scaffold or tool that
     catches `Exception` around an agent catches it too, but that doesn't let
-    the agent carry on: the first one raised in a sample's solve is kept
-    (`sentinel_failed()`), every later sentinel check, model generate and
-    checked tool call in the solve raises it again, and the solve ends with it
-    even if the solvers return. A limit or a termination is not kept.
+    the agent carry on: the first one raised in a sample attempt is kept
+    (`SentinelFailures`). Every later model generate, provider dispatch, tool
+    call and sentinel check in the attempt raises it again, except the
+    sentinel's own, and the attempt ends with it even if the solvers return
+    or its background tasks catch it. A limit or a termination is not kept.
 
     Args:
         error: What the monitor or protocol raised.
@@ -27,11 +28,16 @@ class SentinelFailure(Exception):
         self.error = error
 
 
-class _Latch:
-    """The sentinel failure kept for one solve, once there is one."""
+class SentinelFailures:
+    """The sentinel failure kept for one attempt of a sample, once there is one."""
 
     def __init__(self) -> None:
         self.failure: SentinelFailure | None = None
+
+    def keep(self, failure: SentinelFailure) -> None:
+        """Keep `failure`, if it fails the sample and none is kept yet."""
+        if self.failure is None and fails_the_sample(failure):
+            self.failure = failure
 
     def again(self) -> SentinelFailure:
         """A new `SentinelFailure` for the kept failure's error.
@@ -44,34 +50,67 @@ class _Latch:
         failure.__cause__ = self.failure.error
         return failure
 
+    def raise_if_failed(self) -> None:
+        """Raise the kept failure again, if there is one.
 
-_latch: "ContextVar[_Latch | None]" = ContextVar("sentinel_failure", default=None)
+        Raises:
+            SentinelFailure: The kept failure.
+        """
+        if self.failure is not None:
+            raise self.again()
+
+    def raise_instead_of(self, ex: BaseException) -> None:
+        """Raise the kept failure from `ex`, if there is one and `ex` isn't it.
+
+        Raises:
+            SentinelFailure: The kept failure.
+        """
+        if self.failure is not None and not (
+            isinstance(ex, SentinelFailure) and ex.error is self.failure.error
+        ):
+            raise self.again() from ex
+
+
+_failures: "ContextVar[SentinelFailures | None]" = ContextVar(
+    "sentinel_failures", default=None
+)
+
+
+@contextmanager
+def sentinel_failures() -> Iterator[SentinelFailures]:
+    """Keep the first sentinel failure of one sample attempt.
+
+    The sample runner enters it around the attempt's task group, which runs the
+    solvers and every task they start (`background()`, a deepagent's
+    background subagents, an agent bridge's service), so they share it, and
+    checks it when the group has finished. Scoring and teardown run after it
+    exits, and a retry or another epoch gets a new one.
+    """
+    failures = SentinelFailures()
+    token = _failures.set(failures)
+    try:
+        yield failures
+    finally:
+        _failures.reset(token)
 
 
 @contextmanager
 def sentinel_failure_latch() -> Iterator[None]:
-    """Keep the first sentinel failure of a sample's solve, and end the solve with it.
+    """End the solvers with the attempt's kept sentinel failure (`sentinel_failures()`).
 
-    The sample runner enters it around the solvers of each attempt, so a retry
-    or another epoch starts with none kept. Tasks the solvers start (a
-    background agent, an agent bridge's service) share it. A solve that
-    returns, or ends with another error, once a failure is kept raises the
-    kept failure instead. A cancellation passes through unchanged.
+    Solvers that return, or end with another error, once a failure is kept
+    raise the kept failure instead. A cancellation passes through unchanged.
     """
-    latch = _Latch()
-    token = _latch.set(latch)
+    failures = _failures.get()
+    if failures is None:
+        yield
+        return
     try:
         yield
     except Exception as ex:
-        if latch.failure is None or (
-            isinstance(ex, SentinelFailure) and ex.error is latch.failure.error
-        ):
-            raise
-        raise latch.again() from ex
-    finally:
-        _latch.reset(token)
-    if latch.failure is not None:
-        raise latch.again()
+        failures.raise_instead_of(ex)
+        raise
+    failures.raise_if_failed()
 
 
 def fails_the_sample(failure: SentinelFailure) -> bool:
@@ -85,25 +124,28 @@ def fails_the_sample(failure: SentinelFailure) -> bool:
 
 
 def sentinel_failed(failure: SentinelFailure) -> None:
-    """Keep `failure` for the solve, if it fails the sample and none is kept yet."""
-    latch = _latch.get()
-    if latch is not None and latch.failure is None and fails_the_sample(failure):
-        latch.failure = failure
+    """Keep `failure` for the sample attempt (`SentinelFailures.keep`)."""
+    failures = _failures.get()
+    if failures is not None:
+        failures.keep(failure)
 
 
 def raise_if_sentinel_failed() -> None:
-    """Raise the solve's kept sentinel failure again, if there is one.
+    """Raise the attempt's kept sentinel failure again, if there is one.
 
-    Nothing is raised inside a final scope (a sentinel's own run, an approver,
-    a reviewer, a scorer, a `model_origin()` region, ...), where no sentinel
-    checks the steps taken.
+    Called before every model generate, provider dispatch, tool call and
+    sentinel check, and again after each wait before the dispatch or the
+    call. Whether a sentinel checks a step (a final scope such as
+    `model_origin()`, an approver or a scorer is not checked) doesn't matter:
+    once the sample has failed, no step runs. The sentinel's own monitors and
+    protocols are the exception, so a check already running finishes.
 
     Raises:
         SentinelFailure: The kept failure.
     """
-    latch = _latch.get()
-    if latch is not None and latch.failure is not None and not in_final_scope():
-        raise latch.again()
+    failures = _failures.get()
+    if failures is not None and failures.failure is not None and not in_sentinel_run():
+        raise failures.again()
 
 
 class _ActiveSentinel(NamedTuple):
