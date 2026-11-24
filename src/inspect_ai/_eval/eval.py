@@ -817,22 +817,28 @@ async def _eval_async_inner(
 
     _eval_async_running = True
 
-    # if we are called outside of eval() then set display type to "plain"
-    if not display_type_initialized():
-        init_display_type("plain")
+    # the main try/finally below clears the flag; clear it here if startup
+    # fails before reaching it
+    try:
+        # if we are called outside of eval() then set display type to "plain"
+        if not display_type_initialized():
+            init_display_type("plain")
 
-    # resolve model and task args
-    model_args = resolve_args(model_args)
-    task_args = resolve_args(task_args)
+        # resolve model and task args
+        model_args = resolve_args(model_args)
+        task_args = resolve_args(task_args)
 
-    # apply model cost config
-    if isinstance(model_cost_config, str):
-        cost_data = resolve_args(model_cost_config)
-        for cost_model_name, cost in cost_data.items():
-            set_model_cost(cost_model_name, ModelCost(**cost))
-    elif isinstance(model_cost_config, dict):
-        for k, v in model_cost_config.items():
-            set_model_cost(k, v)
+        # apply model cost config
+        if isinstance(model_cost_config, str):
+            cost_data = resolve_args(model_cost_config)
+            for cost_model_name, cost in cost_data.items():
+                set_model_cost(cost_model_name, ModelCost(**cost))
+        elif isinstance(model_cost_config, dict):
+            for k, v in model_cost_config.items():
+                set_model_cost(k, v)
+    except BaseException:
+        _eval_async_running = False
+        raise
 
     run_id = uuid()
 

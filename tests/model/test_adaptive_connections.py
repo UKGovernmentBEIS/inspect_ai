@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from inspect_ai import Task, eval_async
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.retry import report_http_retry
 from inspect_ai.dataset import Sample
 from inspect_ai.model import (
@@ -1014,6 +1015,40 @@ async def test_explicit_max_connections_resizes_pool_outside_run(
             "hello", config=GenerateConfig(max_connections=max_connections)
         )
     assert limits == [1, 10, 2]
+    assert _pool_limit_warnings(caplog) == []
+
+
+async def test_implicit_static_call_shares_latest_explicit_limit() -> None:
+    """A call without max_connections uses the limit an explicit call last set."""
+    limits: list[int] = []
+    fn = _capture_static_limit(limits)
+    model = get_model("mockllm/model", custom_outputs=fn)
+    implicit = GenerateConfig(adaptive_connections=False)
+    await model.generate("hello", config=implicit)
+    await model.generate(
+        "hello", config=GenerateConfig(adaptive_connections=False, max_connections=1)
+    )
+    await model.generate("hello", config=implicit)
+    assert limits == [model.api.max_connections(), 1, 1]
+
+
+async def test_failed_eval_startup_leaves_calls_outside_run(
+    caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    """An eval that fails during startup does not leave later calls in a run."""
+    limits: list[int] = []
+    fn = _capture_static_limit(limits)
+    model = get_model("mockllm/model", custom_outputs=fn)
+    await model.generate("hello", config=GenerateConfig(max_connections=1))
+    with pytest.raises(PrerequisiteError, match="does not exist"):
+        await eval_async(
+            Task(dataset=[Sample(input="hi")]),
+            model=model,
+            model_args=str(tmp_path / "missing.yaml"),
+            log_dir=str(tmp_path),
+        )
+    await model.generate("hello", config=GenerateConfig(max_connections=10))
+    assert limits == [1, 10]
     assert _pool_limit_warnings(caplog) == []
 
 
