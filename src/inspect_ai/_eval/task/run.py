@@ -3182,6 +3182,18 @@ async def _task_run_sample_attempt(
                 else:
                     failure = recorded
 
+            def deciding_sentinel_failure() -> Exception | None:
+                """The sentinel failure that decides the attempt's outcome, if any.
+
+                The failure cancelled the attempt (`ActiveSample.sentinel_failed`)
+                and is raised in place of whatever the solvers then did. An
+                operator interrupt or a working limit the solver phase handled
+                keeps its precedence.
+                """
+                if handled_interrupt is None and limit is None:
+                    return active.sentinel_failure
+                return None
+
             def record_cancel(ex: BaseException) -> None:
                 nonlocal failure
                 error = eval_error(ex, type(ex), ex, ex.__traceback__)
@@ -3513,7 +3525,10 @@ async def _task_run_sample_attempt(
 
                                 async with anyio.create_task_group() as tg:
                                     tg.start_soon(run, tg)
-                                if solver_cancel is not None:
+                                if (
+                                    solver_cancel is not None
+                                    and deciding_sentinel_failure() is None
+                                ):
                                     # the group exited normally, so no enclosing scope was
                                     # cancelled: nothing inspect issued cancelled the solver
                                     raise RuntimeError(
@@ -3522,12 +3537,18 @@ async def _task_run_sample_attempt(
                                         "interrupt, or an eval cancel)"
                                     ) from solver_cancel
                             except Exception as ex:
-                                raise_unwrapped(ex, inner_exception(ex))
+                                if deciding_sentinel_failure() is None:
+                                    raise_unwrapped(ex, inner_exception(ex))
                             finally:
                                 # capture sample limits
                                 record_sample_limit_data(
                                     len((sample_state() or state).messages)
                                 )
+                            # raised outside the handler: the error it replaces
+                            # may have the failure as its cause
+                            sentinel_failure = deciding_sentinel_failure()
+                            if sentinel_failure is not None:
+                                raise sentinel_failure
 
                     except SandboxTimeoutError as ex:
                         raise RuntimeError(str(ex)) from ex

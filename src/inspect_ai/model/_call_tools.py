@@ -283,6 +283,9 @@ async def _execute_tools_impl(
                 tuple[ExecuteToolsResult, ToolEvent, Exception | None]
             ],
             on_review_cancelled: Callable[[ExecuteToolsResult, ToolEvent], None],
+            on_result_cancelled: Callable[
+                [tuple[ExecuteToolsResult, ToolEvent, Exception | None]], None
+            ],
         ) -> None:
             result: ToolResult = ""
             messages: list[ChatMessage] = []
@@ -407,14 +410,16 @@ async def _execute_tools_impl(
                     tool_exception = ex
 
             # yield message and event
+            item = (execution_result, result_event, tool_exception)
             async with send_stream:
-                await send_stream.send(
-                    (
-                        execution_result,
-                        result_event,
-                        tool_exception,
-                    )
-                )
+                try:
+                    await send_stream.send(item)
+                except anyio.get_cancelled_exc_class():
+                    # a sentinel failure cancels the sample where it is raised
+                    # (`fail_sample`), before its call's result is handed over
+                    if isinstance(tool_exception, SentinelFailure):
+                        on_result_cancelled(item)
+                    raise
 
         StreamItem = tuple[ExecuteToolsResult, ToolEvent, Exception | None]
 
@@ -574,6 +579,32 @@ async def _execute_tools_impl(
                         "cancelled before a decision; its result was preserved."
                     )
 
+                def record_result(item: StreamItem) -> None:
+                    """Finalise this call's event with its result.
+
+                    Done when the call finishes, so its `completed` and
+                    `working_time` reflect when *this* call finished, not when
+                    the whole stage exits. Fast siblings of slow tools would
+                    otherwise look as slow as the slowest call.
+                    """
+                    results[idx] = item
+                    result, result_event, call_exception = item
+                    event._set_result(
+                        result=result_event.result,
+                        truncated=result_event.truncated,
+                        error=result_event.error,
+                        working_time=sample_working_time_since(waiting_start),
+                        agent=result_event.agent,
+                        failed=True if call_exception else None,
+                        message_id=(
+                            result.messages[0].id
+                            if result and result.messages
+                            else None
+                        ),
+                        agent_span_id=result_event.agent_span_id,
+                    )
+                    transcript()._event_updated(event)
+
                 send_stream, receive_stream = anyio.create_memory_object_stream[
                     StreamItem
                 ]()
@@ -590,33 +621,13 @@ async def _execute_tools_impl(
                             messages,
                             send_stream,
                             record_review_cancellation,
+                            record_result,
                         )
                         event._set_cancel_fn(tg.cancel_scope.cancel)
                         async with receive_stream:
                             item = await receive_stream.receive()
-                            results[idx] = item
-                            result, result_event, call_exception = item
-
-                            # Finalise this call's event now so its
-                            # `completed`/`working_time` reflect when *this*
-                            # call actually finished, not when the whole
-                            # stage exits. Fast siblings of slow tools would
-                            # otherwise look as slow as the slowest call.
-                            event._set_result(
-                                result=result_event.result,
-                                truncated=result_event.truncated,
-                                error=result_event.error,
-                                working_time=sample_working_time_since(waiting_start),
-                                agent=result_event.agent,
-                                failed=True if call_exception else None,
-                                message_id=(
-                                    result.messages[0].id
-                                    if result and result.messages
-                                    else None
-                                ),
-                                agent_span_id=result_event.agent_span_id,
-                            )
-                            transcript()._event_updated(event)
+                            record_result(item)
+                            call_exception = item[2]
 
                             # An unhandled exception captured by call_tool_task
                             # needs to be re-raised here so the surrounding

@@ -239,10 +239,12 @@ class ActiveSample:
         self.retry_wait: ActiveSampleRetryWait | None = None
         self._interrupt_action: SampleCancelAction | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
+        self._sentinel_failure: Exception | None = None
         # One-shot terminal signal (see `terminal` / `wait_terminal`).
         # Created lazily on first wait — anyio.Event() needs a running async
         # context — and set by whichever terminal transition fires first
-        # (complete / interrupt / limit_exceeded, all on the eval's loop).
+        # (complete / interrupt / limit_exceeded / sentinel_failed, all on the
+        # eval's loop).
         self._terminal_event: anyio.Event | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
         self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
@@ -317,14 +319,15 @@ class ActiveSample:
     def terminal(self) -> bool:
         """Whether the sample has reached a terminal transition.
 
-        True once the sample completed, an interrupt was stamped, or a limit
-        fired — the point after which an observer (the interim-scoring pass)
-        must stop touching its live state.
+        True once the sample completed, an interrupt was stamped, a limit
+        fired, or a sentinel failure was kept — the point after which an
+        observer (the interim-scoring pass) must stop touching its live state.
         """
         return (
             self.completed is not None
             or self._interrupt_action is not None
             or self._limit_exceeded_error is not None
+            or self._sentinel_failure is not None
         )
 
     async def wait_terminal(self) -> None:
@@ -454,6 +457,23 @@ class ActiveSample:
         self._fire_on_interrupt("limit")
         self.tg.cancel_scope.cancel()
 
+    def sentinel_failed(self, failure: Exception) -> None:
+        """End this attempt with a sentinel monitor's or protocol's failure.
+
+        The first failure is kept and the attempt's task group cancelled, as
+        for a working limit; the runner records the kept failure as the
+        sample's error once the group has exited. Cancellation reaches every
+        later checkpoint in the attempt, so code that catches the failure as
+        an `Exception` can't carry on. Later failures change nothing.
+        `on_interrupt` is not fired: no `InterruptEvent` source describes it.
+        """
+        if self._sentinel_failure is not None:
+            return
+        self._sentinel_failure = failure
+        self._fire_terminal()
+        if self.tg is not None:
+            self.tg.cancel_scope.cancel()
+
     def _fire_on_interrupt(
         self, cause: Literal["user_cancel", "limit", "system"]
     ) -> None:
@@ -485,6 +505,10 @@ class ActiveSample:
     @property
     def limit_exceeded_error(self) -> LimitExceededError | None:
         return self._limit_exceeded_error
+
+    @property
+    def sentinel_failure(self) -> Exception | None:
+        return self._sentinel_failure
 
 
 def init_active_samples() -> None:

@@ -1,14 +1,41 @@
 from contextvars import ContextVar
 from typing import Any, NamedTuple
 
+from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai.util._limit import LimitExceededError
+
 from ._config import SentinelRoot
 from ._scope import current_origin, in_final_scope, is_agent_turn
 
 
 class SentinelFailure(Exception):
+    """A sentinel monitor or protocol failed, which fails the sample.
+
+    It leaves the sentinel's dispatch through `fail_sample()`, which ends the
+    sample attempt even if code that catches this exception carries on.
+    """
+
     def __init__(self, error: Exception) -> None:
         super().__init__(str(error))
         self.error = error
+
+
+def fail_sample(failure: SentinelFailure) -> None:
+    """End the running sample attempt with `failure`, by cancelling it.
+
+    A failure whose deciding error is a limit or a termination keeps that
+    meaning and is not handled here. Outside a sample this does nothing.
+    """
+    # imported here: at module level they make an import cycle
+    from inspect_ai.log._samples import sample_active
+    from inspect_ai.model._call_tools import decisive_sentinel_exception
+
+    decisive = decisive_sentinel_exception(failure.error)
+    if isinstance(decisive, (LimitExceededError, TerminateSampleError)):
+        return
+    active = sample_active()
+    if active is not None:
+        active.sentinel_failed(failure)
 
 
 class _ActiveSentinel(NamedTuple):
