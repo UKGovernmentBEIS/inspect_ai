@@ -82,6 +82,7 @@ from .filestore import (
     SegmentFile,
     SharedBufferUnavailable,
     sample_segment_cursor,
+    uses_pinned_buffer_directory,
 )
 from .types import (
     AttachmentData,
@@ -364,8 +365,10 @@ class SampleBufferDatabase(SampleBuffer):
             if log_shared
             else None
         )
-        self.waiting_for_log = bool(
-            wait_for_log and log_shared and os.name == "posix" and fs.is_local()
+        self.waiting_for_log = (
+            wait_for_log
+            and self._sync_filestore is not None
+            and uses_pinned_buffer_directory(fs)
         )
         self._sync_time = time.monotonic()
         self._sync_lock = threading.Lock()

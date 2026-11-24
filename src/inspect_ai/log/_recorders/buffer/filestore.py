@@ -214,6 +214,11 @@ def _is_s3_tagging_denied(ex: Exception) -> bool:
     return False
 
 
+def uses_pinned_buffer_directory(fs: FileSystem) -> bool:
+    """Whether shared uploads write relative to an open run directory."""
+    return os.name == "posix" and fs.is_local()
+
+
 class SampleBufferFilestore(SampleBuffer):
     def __init__(
         self,
@@ -224,7 +229,7 @@ class SampleBufferFilestore(SampleBuffer):
     ) -> None:
         self._fs = filesystem(location)
         self._dir = f"{sample_buffer_filestore_dir(location, self._fs)}{self._fs.sep}"
-        self._posix = os.name == "posix" and self._fs.is_local()
+        self._posix = uses_pinned_buffer_directory(self._fs)
         self._create = create
         self._local: _PosixBufferDirectory | None = None
         self.update_interval = update_interval
@@ -700,7 +705,7 @@ async def cleanup_sample_buffer_filestores(log_dir: str) -> None:
     # read log buffer dirs (bail if there is no buffer_dir)
     fs = filesystem(log_dir)
     buffer_dir = sample_buffer_dir(log_dir, fs)
-    local_posix = os.name == "posix" and fs.is_local()
+    local_posix = uses_pinned_buffer_directory(fs)
     try:
         log_buffers = [
             buffer for buffer in fs.ls(buffer_dir) if buffer.type == "directory"
@@ -739,7 +744,7 @@ def cleanup_sample_buffer_filestore(
     buffer_dir: str, fs: FileSystem, *, directory: "_PosixBufferDirectory | None" = None
 ) -> bool:
     try:
-        if os.name == "posix" and fs.is_local():
+        if uses_pinned_buffer_directory(fs):
             with suppress(FileNotFoundError, SharedBufferUnavailable):
                 if directory is None:
                     directory = _PosixBufferDirectory(
@@ -789,7 +794,7 @@ def segment_file_name(id: str | int, epoch: int) -> str:
 
 def sample_buffer_dir(log_dir: str, fs: FileSystem | None = None) -> str:
     fs = fs or filesystem(log_dir)
-    if os.name == "posix" and fs.is_local():
+    if uses_pinned_buffer_directory(fs):
         return str(Path(fs.fs._strip_protocol(log_dir)) / ".buffer")
     log_dir = log_dir.rstrip("/\\")
     return f"{log_dir}{fs.sep}.buffer"
@@ -797,7 +802,7 @@ def sample_buffer_dir(log_dir: str, fs: FileSystem | None = None) -> str:
 
 def sample_buffer_filestore_dir(location: str, fs: FileSystem) -> str:
     """Filestore directory for the log at ``location`` (under the log dir's `.buffer`)."""
-    if os.name == "posix" and fs.is_local():
+    if uses_pinned_buffer_directory(fs):
         log = Path(fs.fs._strip_protocol(location))
         stem = os.path.splitext(log.name)[0]
         if stem in ("", ".", ".."):

@@ -327,6 +327,28 @@ def test_sync_worker_returns_to_idle_once_it_takes_the_request(
     assert phases == [SyncPhase.IDLE]
 
 
+def test_remote_buffer_publishes_without_log_header(tmp_path: Path) -> None:
+    location = "memory://header-wait/shared.eval"
+    db = SampleBufferDatabase(
+        location=location,
+        create=True,
+        log_shared=30,
+        wait_for_log=True,
+        db_dir=tmp_path,
+    )
+    try:
+        db.start_sample(EvalSampleSummary(id="sample", epoch=1, input="q", target="a"))
+        _write_event(db, "before header")
+        db.close()
+        data = SampleBufferFilestore(location, create=False).get_sample_data(
+            "sample", 1
+        )
+        assert data is not None
+        assert [event.event["data"] for event in data.events] == ["before header"]
+    finally:
+        db.cleanup()
+
+
 @pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")
 def test_directory_loss_stops_only_shared_updates(
     shared_db: SampleBufferDatabase,
