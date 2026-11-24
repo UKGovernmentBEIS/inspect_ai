@@ -167,6 +167,9 @@ def fresh_display(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
     monkeypatch.setattr(active_mod, "_active_display", None)
     monkeypatch.setattr(display_mod, "_display_type", display_mod._display_type)
+    monkeypatch.setattr(
+        display_mod, "_applied_display_type", display_mod._applied_display_type
+    )
     try:
         yield
     finally:
@@ -1483,6 +1486,7 @@ def test_ctl_pointer_gated_off_under_textual_display(
     from inspect_ai._display.textual.display import TextualDisplay
 
     monkeypatch.setattr(display_mod, "_display_type", "full")
+    monkeypatch.setattr(display_mod, "_applied_display_type", "full")
     monkeypatch.setattr(active_mod, "_active_display", TextualDisplay())
 
     print_ctl_pointer("/tmp/ctl.sock")
@@ -1504,6 +1508,7 @@ def test_ctl_pointer_admitted_before_display_resolves(
     import inspect_ai.util._display as display_mod
 
     monkeypatch.setattr(display_mod, "_display_type", "full")
+    monkeypatch.setattr(display_mod, "_applied_display_type", "full")
     monkeypatch.setattr(active_mod, "_active_display", None)
 
     print_ctl_pointer("/tmp/ctl.sock")
@@ -1520,6 +1525,7 @@ def test_ctl_pointer_requires_bound_socket(
     import inspect_ai.util._display as display_mod
 
     monkeypatch.setattr(display_mod, "_display_type", "full")
+    monkeypatch.setattr(display_mod, "_applied_display_type", "full")
     monkeypatch.setattr(active_mod, "_active_display", None)
 
     print_ctl_pointer(None)

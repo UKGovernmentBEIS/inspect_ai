@@ -594,6 +594,7 @@ def test_display_change_after_full_scoring_detects_settings_for_redirected_stdou
     # progress without setting the console up, then redirects stdout
     monkeypatch.setattr(active, "_active_display", None)
     monkeypatch.setattr(_display, "_display_type", None)
+    monkeypatch.setattr(_display, "_applied_display_type", None)
     monkeypatch.setattr(display_rich, "_console_settings", None)
     monkeypatch.setattr(display_rich, "_reconfigure_in_place", False)
     monkeypatch.setattr(sys, "stdout", TerminalOutput())
@@ -880,6 +881,17 @@ def test_eval_display_change_keeps_console_options_set_between_evals(
     assert str(console.get_style("note")) == "bold"
 
 
+@solver
+def _record_display(types: list[DisplayType]) -> Solver:
+    from inspect_ai.util._display import display_type
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        types.append(display_type())
+        return state
+
+    return solve
+
+
 def _display_state() -> dict[str, Any]:
     import rich
 
@@ -924,6 +936,7 @@ def test_eval_display_change_matches_fresh_display(
     # start again as a new process, then change from the first display
     monkeypatch.setattr(active, "_active_display", None)
     monkeypatch.setattr(_display, "_display_type", None)
+    monkeypatch.setattr(_display, "_applied_display_type", None)
     monkeypatch.setattr(display_rich, "_console_settings", None)
     monkeypatch.setattr(display_rich, "_reconfigure_in_place", False)
     monkeypatch.setattr(rich.get_console(), "__dict__", Console().__dict__)
@@ -933,14 +946,115 @@ def test_eval_display_change_matches_fresh_display(
     assert _display_state() == fresh
 
 
+@pytest.mark.parametrize("first", ["trace", "none", "eval_async"])
+def test_eval_display_does_not_carry_to_later_evals(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    first: str,
+) -> None:
+    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
+    types: list[DisplayType] = []
+    task = Task(
+        dataset=[Sample(input="hi", target="hi")], solver=_record_display(types)
+    )
+    log_dir = str(tmp_path)
+
+    if first == "trace":
+        [log] = eval(task, model="mockllm/model", trace=True, log_dir=log_dir)
+        assert log.eval.config.max_samples == 1
+    elif first == "none":
+        eval(task, model="mockllm/model", display="none", log_dir=log_dir)
+    else:
+        anyio.run(
+            functools.partial(eval_async, task, model="mockllm/model", log_dir=log_dir)
+        )
+
+    [log] = eval(task, model="mockllm/model", log_dir=log_dir)
+    assert types[1] == "rich"
+    assert log.eval.config.max_samples is None
+
+
+def test_eval_retry_display_does_not_carry_to_later_evals(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
+    log_dir = str(tmp_path / "logs")
+    [log] = eval(
+        max_samples_retry_task(
+            failed_marker=str(tmp_path / "failed"), max_samples=None
+        ),
+        model="mockllm/model",
+        log_dir=log_dir,
+    )
+    assert log.status == "error"
+    [retried] = eval_retry(log, trace=True, log_dir=log_dir)
+    assert retried.eval.config.max_samples == 1
+
+    types: list[DisplayType] = []
+    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
+    [log] = eval(task, model="mockllm/model", log_dir=log_dir)
+    assert types == ["rich"]
+    assert log.eval.config.max_samples is None
+
+
+def test_eval_restores_process_display_type(
+    fresh_display: None, tmp_path: Path
+) -> None:
+    from inspect_ai._display.core.active import display
+    from inspect_ai._display.plain.display import PlainDisplay
+    from inspect_ai.util._display import init_display_type
+
+    # as `inspect --display plain` sets it
+    init_display_type("plain")
+    types: list[DisplayType] = []
+    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+    eval(task, model="mockllm/model", log_dir=str(tmp_path))
+
+    assert types == ["rich", "plain"]
+    # the display built for the eval's type is replaced
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+    assert isinstance(display(), PlainDisplay)
+
+
+def test_eval_set_display_applies_after_earlier_eval(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from inspect_ai._eval import evalset
+    from inspect_ai._eval.eval import eval_init
+    from inspect_ai.util._display import display_type
+
+    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
+    types: list[DisplayType] = []
+
+    # the eval set's own setup, before its inner eval()
+    def record_eval_init(*args: Any, **kwargs: Any) -> Any:
+        types.append(display_type())
+        return eval_init(*args, **kwargs)
+
+    monkeypatch.setattr(evalset, "eval_init", record_eval_init)
+    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
+    eval(task, model="mockllm/model", log_dir=str(tmp_path / "eval"))
+    success, _ = eval_set(
+        task, model="mockllm/model", display="none", log_dir=str(tmp_path / "set")
+    )
+    assert success
+    eval(task, model="mockllm/model", log_dir=str(tmp_path / "eval"))
+
+    assert types == ["rich", "none", "none", "rich"]
+
+
 def test_score_without_display_keeps_display_type(
     fresh_display: None, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     from inspect_ai import score
-    from inspect_ai.util._display import display_type
+    from inspect_ai.util._display import display_type, init_display_type
 
+    # the process display type, as `inspect --display none` sets it
+    init_display_type("none")
     task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
-    [log] = eval(task, model="mockllm/model", display="none", log_dir=str(tmp_path))
+    [log] = eval(task, model="mockllm/model", log_dir=str(tmp_path))
     capsys.readouterr()
 
     score(log, match(), action="append")
@@ -961,11 +1075,14 @@ def test_display_type_change_during_eval_keeps_running_display(
     # console state
     monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
 
+    types: list[DisplayType] = []
+
     @solver
     def change_display() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             # as eval(display="log") does when called from another thread
             init_display_type("log")
+            types.append(display_type())
             return state
 
         return solve
@@ -973,7 +1090,7 @@ def test_display_type_change_during_eval_keeps_running_display(
     task = Task(dataset=[Sample(input="hi")], solver=change_display())
     log = eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))[0]
     assert log.status == "success"
-    assert display_type() == "rich"
+    assert types == ["rich"]
     assert "Ignoring display type 'log'" in caplog.text
 
 
@@ -991,11 +1108,14 @@ def test_display_type_change_after_display_type_query_inside_status(
 
     # as get_model().generate() does outside an eval, without building a display
     display_type()
-    task = Task(dataset=[Sample(input="hi", target="hi")])
+    types: list[DisplayType] = []
+    task = Task(
+        dataset=[Sample(input="hi", target="hi")], solver=_record_display(types)
+    )
     with rich.get_console().status("working"):
         log = eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
     assert log[0].status == "success"
-    assert display_type() == "rich"
+    assert types == ["rich"]
 
 
 @pytest.mark.parametrize("second", ["plain", "none"])
@@ -1011,10 +1131,12 @@ def test_display_type_change_inside_screen_keeps_terminal_cleanup(
     import rich
 
     import inspect_ai._display.core.rich as display_rich
-    from inspect_ai.util._display import display_type
 
     monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
-    task = Task(dataset=[Sample(input="hi", target="hi")])
+    types: list[DisplayType] = []
+    task = Task(
+        dataset=[Sample(input="hi", target="hi")], solver=_record_display(types)
+    )
     eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
 
     output = io.StringIO()
@@ -1024,7 +1146,7 @@ def test_display_type_change_inside_screen_keeps_terminal_cleanup(
 
     # the screen leaves the alternate screen and shows the cursor on exit
     assert output.getvalue().endswith("\x1b[?1049l\x1b[?25h")
-    assert display_type() == "rich"
+    assert types == ["rich", "rich"]
     assert f"Ignoring display type '{second}'" in caplog.text
 
 
@@ -1110,7 +1232,9 @@ def test_display_type_change_during_log_utility_progress(
 
     log_dir = tmp_path / "logs"
     task = Task(dataset=[Sample(input="hi", target="hi")])
-    eval(task, model="mockllm/model", display=first, log_dir=str(log_dir))
+    # the process display type, as `inspect --display` sets it
+    init_display_type(first)
+    eval(task, model="mockllm/model", log_dir=str(log_dir))
 
     def change_display(module: Any, name: str) -> None:
         original = getattr(module, name)

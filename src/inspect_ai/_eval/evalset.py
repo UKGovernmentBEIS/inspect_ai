@@ -112,8 +112,9 @@ from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
 from inspect_ai.util._checkpoint import CheckpointConfig
 from inspect_ai.util._display import (
-    display_type_initialized,
+    display_type,
     display_type_plain,
+    display_type_scope,
     init_display_type,
 )
 from inspect_ai.util._limit import (
@@ -303,6 +304,7 @@ def _overridden_epochs(
     return epochs
 
 
+@display_type_scope()
 def eval_set(
     tasks: Tasks,
     log_dir: str | None = None,
@@ -848,8 +850,7 @@ def eval_set(
             )
 
     # initialise display (otherwise eval_init will set it to full)
-    if not display_type_initialized():
-        display = init_display_type(display)
+    display = init_display_type(display or display_type())
     if display == "conversation":
         raise RuntimeError("eval_set cannot be used with conversation display.")
 
