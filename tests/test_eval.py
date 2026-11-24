@@ -987,13 +987,14 @@ def test_eval_display_does_not_carry_to_later_eval_async(
     from inspect_ai.util._display import init_display_type
 
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
     types: list[DisplayType] = []
     task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
     log_dir = str(tmp_path)
 
     if first == "trace":
         eval(task, model="mockllm/model", trace=True, log_dir=log_dir)
-        expected: DisplayType = "plain"
+        expected: DisplayType = "rich"
     else:
         # as `inspect --display none` sets it
         init_display_type("none")
@@ -1067,6 +1068,41 @@ def test_eval_display_restored_after_query_inside_status(
     assert types == ["conversation", "rich"]
     assert log.eval.config.max_samples is None
     assert "Ignoring display type" not in caplog.text
+
+
+@pytest.mark.parametrize("between", ["score_async", "worker_thread_generate"])
+def test_eval_keeps_configured_display_after_implicit_display_choice(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    between: str,
+) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    from inspect_ai import score_async
+    from inspect_ai.model import get_model
+
+    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
+    types: list[DisplayType] = []
+    task = Task(
+        dataset=[Sample(input="hi", target="hi")], solver=_record_display(types)
+    )
+    [log] = eval(task, model="mockllm/model", log_dir=str(tmp_path))
+
+    # each chooses "plain" when no display type is set
+    if between == "score_async":
+        anyio.run(score_async, log, [match()])
+    else:
+        model = get_model("mockllm/model")
+
+        def generate() -> None:
+            anyio.run(model.generate, "hi")
+
+        with ThreadPoolExecutor() as executor:
+            executor.submit(generate).result()
+
+    eval(task, model="mockllm/model", log_dir=str(tmp_path))
+    assert types == ["rich", "rich"]
 
 
 def test_eval_retry_display_does_not_carry_to_later_evals(

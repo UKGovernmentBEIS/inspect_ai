@@ -1,7 +1,7 @@
 import os
 from contextlib import contextmanager
 from logging import getLogger
-from typing import Iterator, Literal
+from typing import Iterator, Literal, NamedTuple
 
 from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.constants import DEFAULT_DISPLAY
@@ -30,6 +30,24 @@ def init_display_type(display: str | None = None) -> DisplayType:
 
 
 def _init_display_type(display: str | None, warn: bool) -> DisplayType:
+    resolved = _resolve_display_type(display, warn_unknown=True)
+    return _apply_display_type(
+        resolved.display_type, resolved.name, resolved.requested, warn
+    )
+
+
+class _ResolvedDisplay(NamedTuple):
+    name: str
+    """The display type asked for, or the configured default."""
+
+    requested: str
+    """The display type asked for, after the trio throttle."""
+
+    display_type: DisplayType
+    """The display type to use."""
+
+
+def _resolve_display_type(display: str | None, warn_unknown: bool) -> _ResolvedDisplay:
     display = (
         display or os.environ.get("INSPECT_DISPLAY", DEFAULT_DISPLAY).lower().strip()
     )
@@ -54,12 +72,13 @@ def _init_display_type(display: str | None, warn: bool) -> DisplayType:
         case "full" | "conversation" | "rich" | "plain" | "log" | "none":
             new_display_type = display
         case _:
-            logger.warning(
-                f"Unknown display type '{display}' (setting display to 'full')"
-            )
+            if warn_unknown:
+                logger.warning(
+                    f"Unknown display type '{display}' (setting display to 'full')"
+                )
             new_display_type = "full"
 
-    return _apply_display_type(new_display_type, display_name, requested, warn)
+    return _ResolvedDisplay(display_name, requested, new_display_type)
 
 
 def _apply_display_type(
@@ -108,12 +127,18 @@ def display_type_scope() -> Iterator[None]:
     eval(), eval_async(), eval_retry() and eval_set() set the display type
     from `display`, `trace` or (eval_async()) "plain". When the outermost of
     these calls returns, after its display has shut down, the display type it
-    found (or none, so the configured default applies) is restored. The
-    active display and the console settings change at the next use of the
-    display type, as for any other change of display type.
+    found is restored. When none was set, the configured default
+    (`INSPECT_DISPLAY`) is set in its place, so a later call that only sets a
+    type when none is set (e.g. score_async()) can't replace it. The active
+    display and the console settings change at the next use of the display
+    type, as for any other change of display type.
     """
     global _display_type, _display_scope_depth
     previous = _display_type
+    if previous is None and _display_scope_depth == 0:
+        # resolved now, as the thread and backend of the call decide it, and
+        # left unset during the call so eval_async() can choose "plain"
+        previous = _resolve_display_type(None, warn_unknown=False).display_type
     _display_scope_depth += 1
     try:
         yield
