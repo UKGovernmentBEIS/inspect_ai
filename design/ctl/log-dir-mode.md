@@ -128,9 +128,13 @@ shared buffer), and a log removed during the read are `not_found`. An
 ambiguous selector is `ambiguous` through the same `_resolve_target_eval`
 as live mode, run over the mode's rows; so is a sample key two shards hold.
 A log that exists but does not parse, or a manifest or buffered events
-that do not, are `invalid_response` for a single-target read. List reads never fail on one
-bad log: they report it in `unreadable` with `incomplete: true` on the row
-and the envelope, warn on stderr, and count nothing from it. `_fail_from`
+that do not, are `invalid_response` for a single-target read. List reads
+never fail on one bad log: they report it in `unreadable` with
+`incomplete: true` on the row and the envelope, warn on stderr, and count
+nothing from it. Both hold for the read and validation failures the reader
+expects (`READ_FAILURES` in `snapshot.py`); an unexpected exception while
+validating a malformed log can fail the whole command (`internal`) rather
+than one log. `_fail_from`
 in `_log_dir.py` holds the mapping; `test_cli_per_sample_failures_map_to_error_kinds`
 and the `test_log_dir_*` contract tests in `test_ctl.py` check it.
 
@@ -281,11 +285,12 @@ an ordinary unsharded attempt.
 per-sample read that might need it fails with its error
 (`test_an_unreadable_newer_attempt_blocks_per_sample_reads`,
 `test_an_unreadable_shard_marks_the_row_and_blocks_sample_reads`,
-`test_cli_a_task_whose_only_log_is_unreadable_reports_its_failure`). An
-unreadable log is tied to a task by the task id in its file name, so under
-a file name pattern without `{id}` it is reported only in the listing's
-`unreadable` and blocks no per-sample read: those reads serve the task's
-newest readable attempt.
+`test_cli_a_task_whose_only_log_is_unreadable_reports_its_failure`). A
+shard's attempt belongs to its shard set by its directory, whatever its
+file name. An unreadable ordinary log is tied to a task only by the task id
+in its file name, so under a file name pattern without `{id}` it is
+reported only in the listing's `unreadable` and blocks no per-sample read:
+those reads serve the task's newest readable attempt.
 
 **Identity.** For a shard set, `task`, `model`, `solver` and `epochs` come
 from the first readable shard (else the merged log); `eval_id` and `run_id`
