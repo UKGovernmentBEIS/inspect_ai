@@ -41,6 +41,9 @@ def main() -> None:
         raw = os.environ.get("QUARTO_PROJECT_OUTPUT_FILES", "")
         output_files = [Path(f) for f in raw.splitlines() if f.strip()]
 
+    # step 0: point repo-action links for symlinked pages at the real file
+    fix_symlinked_source_links(output_dir)
+
     # step 1: generate .html.md for rendered pages
     generate_html_md_files(output_dir, output_files)
 
@@ -52,6 +55,55 @@ def main() -> None:
         navbar: YamlDict = (config.get("website") or {}).get("navbar") or {}
         generate_llms_txt(output_dir, opts, navbar)
         generate_llms_full_and_guide(output_dir, opts, navbar)
+
+
+def fix_symlinked_source_links(output_dir: Path) -> None:
+    """Rewrite repo-action links for pages whose source is a symlink.
+
+    Pre-render symlinks some sources into the project (e.g. CHANGELOG.md
+    and README.md from the repo root). Quarto builds "View source" / "Edit
+    this page" links from the symlink's path, which doesn't exist in the
+    repo, so retarget those links at the file the symlink points to.
+    """
+    try:
+        repo_root = Path(
+            subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+        ).resolve()
+    except (OSError, subprocess.CalledProcessError):
+        return
+
+    project_dir = Path.cwd()
+    for dirpath, dirnames, filenames in os.walk(project_dir):
+        # skip hidden/underscore dirs (.venv, _site, .quarto, _extensions)
+        dirnames[:] = [d for d in dirnames if not d.startswith((".", "_"))]
+        for filename in filenames:
+            source = Path(dirpath) / filename
+            if not source.is_symlink() or source.suffix not in (".qmd", ".md"):
+                continue
+            html = output_dir / source.relative_to(project_dir).with_suffix(".html")
+            target = source.resolve()
+            link = source.absolute()
+            if (
+                not html.exists()
+                or not target.is_relative_to(repo_root)
+                or not link.is_relative_to(repo_root)
+            ):
+                continue
+            link_path = link.relative_to(repo_root).as_posix()
+            target_path = target.relative_to(repo_root).as_posix()
+            content = html.read_text(encoding="utf-8")
+            fixed = re.sub(
+                rf'(href="[^"]*/(?:blob|edit)/[^"]+/){re.escape(link_path)}"',
+                rf'\g<1>{target_path}"',
+                content,
+            )
+            if fixed != content:
+                html.write_text(fixed, encoding="utf-8")
 
 
 def generate_html_md_files(output_dir: Path, output_files: list[Path] | None) -> None:
