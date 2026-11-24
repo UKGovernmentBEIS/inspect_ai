@@ -991,7 +991,15 @@ async def test_ctl_cancel_of_attempt_before_it_registers_aborts_it(
 
 
 @pytest.mark.parametrize(
-    "log_format,flushed", [("eval", True), ("json", True), ("eval", False)]
+    "log_format,hold",
+    [
+        ("eval", "before_log_start"),
+        ("eval", "after_log_start"),
+        ("json", "after_log_start"),
+        ("eval", "catch_up"),
+        ("json", "catch_up"),
+        ("eval", "catch_up_shielded"),
+    ],
 )
 @pytest.mark.parametrize("verb", ["cancel", "drain"])
 async def test_ctl_cancel_after_log_init_before_register_leaves_no_log(
@@ -999,28 +1007,43 @@ async def test_ctl_cancel_after_log_init_before_register_leaves_no_log(
     monkeypatch: pytest.MonkeyPatch,
     verb: str,
     log_format: Literal["eval", "json"],
-    flushed: bool,
+    hold: str,
 ) -> None:
-    # B's log is initialised (and, when `flushed`, log_start() has written its
-    # header) but B has not registered: B is still listed as queued, and a
-    # cancel or drain aborts it without leaving a `started` log behind or
-    # naming a log file it does not have
+    # B's log is initialised but B has not registered: B is still listed as
+    # queued, and a cancel or drain aborts it without leaving a log behind or
+    # naming a log file it does not have. B is held before or after
+    # log_start() writes its header, or in the config catch-up just before
+    # registration, where the abort lands in the catch-up or (shielded) only
+    # after it returns
     log_start = TaskLogger.log_start
+    catch_up = TaskLogger.record_inherited_config_updates
     started = anyio.Event()
     release = anyio.Event()
+    header_written = False
     seen: dict[str, Any] = {}
 
-    async def held_log_start(self: TaskLogger, *args: Any, **kwargs: Any) -> None:
-        if flushed:
-            await log_start(self, *args, **kwargs)
-        if self.eval.task == "B":
-            started.set()
-            with anyio.CancelScope(shield=True):
-                await release.wait()
+    async def hold_b(interruptible: bool) -> None:
+        started.set()
+        with anyio.CancelScope(shield=True):
+            await release.wait()
+        if interruptible:
             # the pending abort lands here
             await anyio.lowlevel.checkpoint()
-        if not flushed:
-            await log_start(self, *args, **kwargs)
+
+    async def held_log_start(self: TaskLogger, *args: Any, **kwargs: Any) -> None:
+        nonlocal header_written
+        if self.eval.task == "B" and hold == "before_log_start":
+            await hold_b(True)
+        await log_start(self, *args, **kwargs)
+        if self.eval.task == "B":
+            header_written = True
+            if hold == "after_log_start":
+                await hold_b(True)
+
+    async def held_catch_up(self: TaskLogger) -> None:
+        if self.eval.task == "B" and header_written and hold.startswith("catch_up"):
+            await hold_b(hold == "catch_up")
+        await catch_up(self)
 
     async def cancel_b() -> None:
         with anyio.fail_after(10):
@@ -1037,6 +1060,7 @@ async def test_ctl_cancel_after_log_init_before_register_leaves_no_log(
         seen["finished_row"] = (await ctl_tasks())["B"]
 
     monkeypatch.setattr(TaskLogger, "log_start", held_log_start)
+    monkeypatch.setattr(TaskLogger, "record_inherited_config_updates", held_catch_up)
     source = _WaitForReports([_hook_task("A", cancel_b), _hook_task("B", _noop)], 2)
     init_display_type("none")
     logs = await eval_async(
@@ -1048,15 +1072,69 @@ async def test_ctl_cancel_after_log_init_before_register_leaves_no_log(
         task_retry_attempts=1,
     )
     assert seen["status"] == "queued"
-    assert len(seen["files_before"]) == (1 if flushed else 0)
+    assert len(seen["files_before"]) == (0 if hold == "before_log_start" else 1)
     assert list(tmp_path.glob("*_B_*")) == []
     status, body = seen["first"]
     assert status == 200 and body["task_queued"] is True
-    assert seen["finished_row"]["status"] == "completed"
-    assert seen["finished_row"]["log_location"] == ""
+    finished = seen["finished_row"]
+    assert finished["status"] == "completed"
+    assert finished["log_location"] == ""
+    assert finished["samples"]["total"] == 0
     [b] = [log for log in logs if log.eval.task == "B"]
     assert b.status == "error"
+    assert b.error is not None
+    assert "Task cancelled by user (abort)" in b.error.message
     assert b.location == ""
+
+
+@pytest.mark.parametrize("failures", [2, 3])
+async def test_attempts_count_startup_failures_before_registering(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failures: int
+) -> None:
+    # B's log init fails `failures` times with two retries allowed: B either
+    # registers on its third attempt or ends unregistered after its third
+    # failure, and its row counts all three attempts either way
+    init = TaskLogger.init
+    inits = 0
+    seen: dict[str, Any] = {}
+
+    async def failing_init(self: TaskLogger) -> None:
+        nonlocal inits
+        if self.eval.task == "B":
+            inits += 1
+            if inits <= failures:
+                raise OSError("cannot start log")
+        await init(self)
+
+    async def b_running() -> None:
+        seen["running"] = (await ctl_tasks())["B"]["attempts"]
+
+    async def b_finished() -> None:
+        with anyio.fail_after(10):
+            await _record("B").ended.wait()
+        seen["finished"] = (await ctl_tasks())["B"]["attempts"]
+
+    monkeypatch.setattr(TaskLogger, "init", failing_init)
+    source = _WaitForReports(
+        [_hook_task("A", b_finished), _hook_task("B", b_running)], 2
+    )
+    init_display_type("none")
+    logs = await eval_async(
+        source,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=2,
+        task_retry_attempts=2,
+    )
+    assert inits == 3
+    [b] = [log for log in logs if log.eval.task == "B"]
+    if failures == 2:
+        assert b.status == "success"
+        assert seen["running"] == 3
+    else:
+        assert b.status == "error"
+        assert "running" not in seen
+    assert seen["finished"] == 3
 
 
 async def test_ctl_cancel_while_unregistered_attempt_prepares_retry_ends_it(

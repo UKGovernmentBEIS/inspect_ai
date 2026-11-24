@@ -46,7 +46,12 @@ from inspect_ai._display import (
     TaskSuccess,
     display,
 )
-from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
+from inspect_ai._display.core.display import (
+    CancelType,
+    TaskCancel,
+    TaskDisplay,
+    TaskDisplayMetric,
+)
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._sentinel._config import SentinelProxy, SentinelRoot
 from inspect_ai._sentinel._context import SentinelFailure
@@ -1438,6 +1443,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # set custom sandbox limits
     limit_tokens = set_sandbox_limits()
 
+    # whether this attempt registered with the control channel
+    registered = False
+
     # errors shown on the row release their live exception when the row
     # closes, after a display that logs it there has done so
     with _RowErrors() as row_errors, display().task(profile) as td:
@@ -1457,14 +1465,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 and task_cancel
                 and task_cancel.cancel_type in ("abort", "retry")
             ):
-                cancel_ex = TerminateTaskError(
-                    f"Task cancelled by user ({task_cancel.cancel_type})"
-                )
-                td.complete(
-                    row_errors.add(
-                        TaskError.from_exception(0, TerminateTaskError, cancel_ex, None)
-                    )
-                )
+                _complete_cancelled_row(td, row_errors, task_cancel.cancel_type)
             # the close in the finally below is never reached from here
             if isinstance(sample_store, DiskSampleStore):
                 sample_store.close()
@@ -1506,6 +1507,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # catches up on ctl retunes applied between this attempt's logger
             # init and starting here
             await logger.record_inherited_config_updates()
+
+            # an abort requested during the catch-up (whose writes can be
+            # shielded) ends the attempt here, before it registers, as the
+            # queued-task cancel that accepted it promised
+            if task_cancel is not None and task_cancel.cancel_type == "abort":
+                await anyio.lowlevel.checkpoint()
 
             # A task drain/cancel abandoned this queued retry while the
             # attempt was starting (after the dispatcher's pick, before this
@@ -1552,7 +1559,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # the run's terminal count -- a task that read finished
                 # there could not be cancelled while the callback blocks
                 dynamic=sample_feed is not None or options.task_source is not None,
+                unregistered_attempts=(
+                    options.record.unregistered_attempts
+                    if options.record is not None
+                    else 0
+                ),
             )
+            registered = True
             if options.record is not None:
                 options.record.on_registered()
 
@@ -2429,6 +2442,16 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             results=results or EvalResults(),
                         )
                     )
+                    raise
+
+                if (
+                    not registered
+                    and task_cancel
+                    and task_cancel.cancel_type == "abort"
+                ):
+                    # aborted before it registered: no samples ran, so no
+                    # log is written (the dispatcher discards its entry)
+                    _complete_cancelled_row(td, row_errors, "abort")
                     raise
 
                 # collect eval data
@@ -4633,6 +4656,16 @@ class _RowErrors(contextlib.AbstractContextManager["_RowErrors"]):
         for error in self._errors:
             error.release_exception()
         self._errors.clear()
+
+
+def _complete_cancelled_row(
+    td: TaskDisplay, row_errors: _RowErrors, cancel_type: CancelType
+) -> None:
+    """Complete the row of an attempt cancelled before it wrote its log."""
+    cancel_ex = TerminateTaskError(f"Task cancelled by user ({cancel_type})")
+    td.complete(
+        row_errors.add(TaskError.from_exception(0, TerminateTaskError, cancel_ex, None))
+    )
 
 
 def unwritten_task_log(logger: TaskLogger, ex: BaseException) -> EvalLog:

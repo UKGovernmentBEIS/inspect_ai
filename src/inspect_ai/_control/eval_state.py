@@ -291,6 +291,10 @@ class EvalState:
     """Epoch count, paired with :attr:`sample_ids` to enumerate the
     planned ``(sample_id, epoch)`` pairs."""
 
+    unregistered_attempts: int = 0
+    """Earlier attempts of the task that ended before registering, since its
+    previous registered attempt. Counted in the task's ``attempts``."""
+
     sample_epochs: list[tuple[str | int, int]] = field(default_factory=list)
     """Planned ``(sample_id, epoch)`` pairs added with an explicit epoch."""
 
@@ -459,6 +463,7 @@ def register_eval(
     will_retry: bool = False,
     task_cancel: "TaskCancel | None" = None,
     dynamic: bool = False,
+    unregistered_attempts: int = 0,
 ) -> EvalState:
     """Initialize tracking for a new eval.
 
@@ -488,6 +493,7 @@ def register_eval(
             will_retry=will_retry,
             task_cancel=task_cancel,
             dynamic=dynamic,
+            unregistered_attempts=unregistered_attempts,
         )
         _eval_states[eval_id] = state
         # A zero-sample eval (``total == 0``, eg. a limit past the dataset) is
@@ -517,6 +523,7 @@ def register_completed_eval(
     total_messages: int = 0,
     deferred_sample_stats: DeferredStatsProvider | None = None,
     epochs: int = 1,
+    unregistered_attempts: int = 0,
 ) -> EvalState:
     """Register an eval that has already finished.
 
@@ -555,6 +562,7 @@ def register_completed_eval(
             total_messages=total_messages,
             deferred_sample_stats=deferred_sample_stats,
             epochs=epochs,
+            unregistered_attempts=unregistered_attempts,
         )
         _eval_states[eval_id] = state
         return state

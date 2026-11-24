@@ -74,8 +74,11 @@ class TaskRecord:
     retries_remaining: int
     phase: TaskPhase = "queued"
     reached: TaskReached = "added"
-    prior_attempts: int = 0
-    """Attempts that ended and were retried."""
+    unregistered_attempts: int = 0
+    """Retried attempts that ended before registering, since the last
+    registration. The next ``EvalState`` the task registers carries the count."""
+    attempt_registered: bool = False
+    """The current or last attempt registered with the control channel."""
     abort_requested: bool = False
     """Cancelled while queued: the dispatcher starts an attempt that aborts at once."""
     attempt_cancel: "TaskCancel | None" = None
@@ -108,6 +111,8 @@ class TaskRecord:
         from inspect_ai._control.queued_tasks import unregister_queued_task
 
         self._reach("registered")
+        self.attempt_registered = True
+        self.unregistered_attempts = 0
         unregister_queued_task(self)
 
     def _reach(self, reached: TaskReached) -> None:
@@ -295,7 +300,9 @@ class RunQueue:
 
     def requeue(self, record: TaskRecord) -> None:
         """Put a record whose attempt failed back at the end of the queue."""
-        record.prior_attempts += 1
+        if not record.attempt_registered:
+            record.unregistered_attempts += 1
+        record.attempt_registered = False
         record.phase = "queued"
         record.attempt_cancel = None
         record.attempt_scope = None
@@ -384,6 +391,7 @@ def _register_finished(record: TaskRecord, log: "EvalLog | None") -> None:
         log_location=log.location if log is not None else "",
         run_id=spec.run_id,
         epochs=record.epochs,
+        unregistered_attempts=record.unregistered_attempts,
     )
 
 

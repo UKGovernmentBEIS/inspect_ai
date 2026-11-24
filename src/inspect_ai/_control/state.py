@@ -159,7 +159,8 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         attempt's results are written), a nested ``samples`` block:
         ``{total, completed, errored, in_flight, queued}``, an
         ``attempts`` count (1 for tasks without retries, >1 when
-        retries occurred), and the running ``refusals`` / ``http_retries``
+        retries occurred, counting attempts that failed before
+        registering), and the running ``refusals`` / ``http_retries``
         tallies for this eval's samples. A task that has not registered yet
         has status ``queued`` and no ``completed_at``; with no earlier
         registered attempt under its id it has zero sample counts and its
@@ -235,7 +236,9 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         # prefer a finished earlier attempt over a still-running retry
         # (whose `completed_at` is None).
         latest = group_states[-1]
-        attempts = len(group_states)
+        attempts = len(group_states) + sum(
+            state.unregistered_attempts for state in group_states
+        )
 
         # Live samples: pull from every attempt in the group (only the
         # latest will normally have any, but be defensive).
@@ -329,7 +332,10 @@ def _add_queued_tasks(summaries: list[dict[str, Any]], started_at: float) -> Non
         existing = by_task_id.get(queued.record.task_id)
         if existing is not None:
             existing.update(
-                status="queued", completed_at=None, **_queued_pause_fields(queued)
+                status="queued",
+                completed_at=None,
+                attempts=existing["attempts"] + queued.record.unregistered_attempts,
+                **_queued_pause_fields(queued),
             )
         else:
             summaries.append(_queued_summary(queued, started_at))
@@ -379,7 +385,7 @@ def _queued_summary(queued: "QueuedTask", started_at: float) -> dict[str, Any]:
         "completed_at": None,
         **_queued_pause_fields(queued),
         "resolving": None,
-        "attempts": record.prior_attempts,
+        "attempts": record.unregistered_attempts,
         "epochs": queued.epochs,
         "samples": {
             "total": 0,
