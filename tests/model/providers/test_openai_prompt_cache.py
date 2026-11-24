@@ -770,7 +770,8 @@ async def _generate_and_capture_cache_flag(
         input=[ChatMessageUser(content="hi")],
         tools=[],
         tool_choice="auto",
-        config=GenerateConfig(),
+        # The real capability probe would bypass the mocked generators.
+        config=GenerateConfig(reasoning_summary="none"),
     )
     return captured["value"]
 
@@ -839,6 +840,75 @@ async def test_openai_base_url_env_var_declines_explicit_cache(
     monkeypatch.setenv("OPENAI_BASE_URL", "https://gateway.example.com/v1")
     api = _openai_api("gpt-5.6", responses_api=use_responses)
     assert await _generate_and_capture_cache_flag(api, monkeypatch) is False
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "use_responses", [False, True], ids=["completions", "responses"]
+)
+async def test_custom_base_url_opt_in_keeps_explicit_cache(
+    monkeypatch: pytest.MonkeyPatch, use_responses: bool
+) -> None:
+    # `explicit_prompt_cache=True` opts back in for a gateway that is known to
+    # forward prompt_cache_options and per-part cache breakpoints
+    api = _openai_api(
+        "gpt-5.6",
+        base_url="https://gateway.example.com/v1",
+        responses_api=use_responses,
+        explicit_prompt_cache=True,
+    )
+    assert await _generate_and_capture_cache_flag(api, monkeypatch) is True
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "use_responses", [False, True], ids=["completions", "responses"]
+)
+async def test_openai_base_url_env_var_opt_in_keeps_explicit_cache(
+    monkeypatch: pytest.MonkeyPatch, use_responses: bool
+) -> None:
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://gateway.example.com/v1")
+    api = _openai_api(
+        "gpt-5.6", responses_api=use_responses, explicit_prompt_cache=True
+    )
+    assert await _generate_and_capture_cache_flag(api, monkeypatch) is True
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "use_responses", [False, True], ids=["completions", "responses"]
+)
+async def test_azure_opt_in_still_declines_explicit_cache(
+    monkeypatch: pytest.MonkeyPatch, use_responses: bool
+) -> None:
+    # Azure stays excluded even when the caller opts in
+    api = _azure_api(
+        "azure/gpt-5.6", responses_api=use_responses, explicit_prompt_cache=True
+    )
+    assert await _generate_and_capture_cache_flag(api, monkeypatch) is False
+
+
+@pytest.mark.anyio
+async def test_bedrock_opt_in_still_declines_explicit_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Bedrock stays excluded even when the caller opts in
+    api = _openai_api("bedrock/gpt-5.6", responses_api=True, explicit_prompt_cache=True)
+    assert await _generate_and_capture_cache_flag(api, monkeypatch) is False
+
+
+@pytest.mark.anyio
+async def test_opt_in_without_base_url_still_supports_explicit_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the opt-in must not disturb the direct-endpoint default
+    api = _openai_api("gpt-5.6", explicit_prompt_cache=True)
+    assert await _generate_and_capture_cache_flag(api, monkeypatch) is True
+
+
+def test_explicit_prompt_cache_must_be_bool() -> None:
+    with pytest.raises(ValueError, match="explicit_prompt_cache must be a bool"):
+        _openai_api("gpt-5.6", explicit_prompt_cache="yes")
 
 
 # ---------------------------------------------------------------------------

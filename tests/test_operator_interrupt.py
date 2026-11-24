@@ -3,10 +3,11 @@
 import anyio
 
 from inspect_ai import Task, eval
+from inspect_ai._control.cancel import cancel_sample
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.log._samples import sample_active
-from inspect_ai.scorer import Score, Scorer, Target, accuracy, scorer
-from inspect_ai.solver import Generate, TaskState, solver
+from inspect_ai.log._samples import SampleCancelAction, sample_active
+from inspect_ai.scorer import Score, Scorer, Target, accuracy, includes, scorer
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import background
 
 
@@ -125,3 +126,82 @@ def test_operator_cancel_stays_cancelled_when_an_error_follows():
     assert "background cleanup failed" in sample.error.message
     assert sample.error_retries == []
     assert sample.scores is None or sample.scores == {}
+
+
+@solver
+def interrupt_twice(first: SampleCancelAction, second: SampleCancelAction) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        active = sample_active()
+        assert active is not None, "expected an active sample"
+        active.interrupt(first)
+        active.interrupt(second)
+        await anyio.sleep_forever()
+        return state
+
+    return solve
+
+
+def test_second_interrupt_does_not_replace_the_first() -> None:
+    """A cancel followed by a score before the runner handles it stays a cancel."""
+    log = eval(
+        Task(
+            dataset=MemoryDataset([Sample(id=1, input="hi", target="hi")]),
+            solver=interrupt_twice("cancel", "score"),
+            scorer=includes(),
+        ),
+        model="mockllm/model",
+    )[0]
+
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert not sample.scores
+    assert sample.limit is None
+    assert sample.error is not None and "Cancelled" in sample.error.message
+
+
+_ctl_results: list[object] = []
+
+
+@scorer(metrics=[accuracy()])
+def ctl_cancel_while_scoring() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        active = sample_active()
+        assert active is not None, "expected an active sample"
+        _ctl_results.append(
+            await cancel_sample(
+                active.eval_id, str(active.sample.id), active.epoch, action="cancel"
+            )
+        )
+        return Score(value=1)
+
+    return score
+
+
+def test_ctl_cancel_after_operator_score_reports_no_change() -> None:
+    """A ctl cancel landing while an operator 'score' is being scored is a no-op."""
+    _ctl_results.clear()
+    log = eval(
+        Task(
+            dataset=MemoryDataset([Sample(id=1, input="hi", target="hi")]),
+            solver=operator_interrupting_solver(),
+            scorer=ctl_cancel_while_scoring(),
+        ),
+        model="mockllm/model",
+    )[0]
+
+    assert _ctl_results == [
+        {
+            "ok": True,
+            "sample_id": 1,
+            "epoch": 1,
+            "action": "cancel",
+            "dry_run": False,
+            "changed": False,
+            "reason": "cancel already requested (score)",
+            "interrupt": "score",
+        }
+    ]
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.scores is not None and "ctl_cancel_while_scoring" in sample.scores
+    assert sample.limit is not None and sample.limit.type == "operator"

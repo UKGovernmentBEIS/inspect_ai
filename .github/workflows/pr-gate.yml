@@ -12,7 +12,9 @@ name: PR Gate
 
 on:
   pull_request_target:
-    types: [opened, reopened, ready_for_review]
+    # synchronize and edited re-check a PR whose files or closing references
+    # changed after it passed.
+    types: [opened, reopened, ready_for_review, synchronize, edited]
 
 permissions:
   contents: read
@@ -25,7 +27,8 @@ concurrency:
 
 jobs:
   gate:
-    if: github.event.pull_request.draft == false
+    # `edited` also fires on closed and merged PRs.
+    if: github.event.pull_request.draft == false && github.event.pull_request.state == 'open'
     runs-on: ubuntu-latest
     steps:
       # base branch: pr_gate.py + qualified.yml
@@ -39,5 +42,6 @@ jobs:
           PR_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
           PR_AUTHOR_ASSOC: ${{ github.event.pull_request.author_association }}
           PR_CREATED_AT: ${{ github.event.pull_request.created_at }}
+          PR_EVENT_ACTION: ${{ github.event.action }}
           DRY_RUN: "false"
         run: python3 .github/scripts/pr_gate.py

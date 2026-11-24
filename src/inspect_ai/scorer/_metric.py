@@ -15,7 +15,18 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    ValidationInfo,
+    model_serializer,
+    model_validator,
+)
+from pydantic.annotated_handlers import GetJsonSchemaHandler
+from pydantic_core import CoreSchema
 
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.error import PrerequisiteError
@@ -85,6 +96,44 @@ UNCHANGED: Literal["UNCHANGED"] = "UNCHANGED"
 """Sentinel value to indicate an unchanged field in score edits."""
 
 
+def _is_full_selection(value: Any) -> bool:
+    """Whether a Pydantic selection value fully selects a field.
+
+    Pydantic treats ``True`` and ``Ellipsis`` as "fully selected"; other
+    values only partially select a value.
+    """
+    return value is True or value is ...
+
+
+def _selection_includes_field(field_name: str, selection: Any) -> bool:
+    """Whether a Pydantic ``include`` selection keeps ``field_name``.
+
+    ``include`` uses membership, not truthiness: ``include={"reason": False}``
+    still emits ``reason``. ``__all__`` is a default for every field, so its
+    presence keeps all fields.
+    """
+    if selection is None:
+        return True
+    return field_name in selection or "__all__" in selection
+
+
+def _selection_excludes_field(field_name: str, selection: Any) -> bool:
+    """Whether a Pydantic ``exclude`` selection fully drops ``field_name``.
+
+    ``exclude`` uses truthiness: ``exclude={"reason": False}`` keeps the field,
+    and ``exclude={"reason": {"nested": True}}`` only partially selects a
+    mapping value, which has no effect on a scalar. A field-level entry
+    overrides ``__all__``.
+    """
+    if selection is None:
+        return False
+    if isinstance(selection, Mapping):
+        if field_name in selection:
+            return _is_full_selection(selection[field_name])
+        return _is_full_selection(selection.get("__all__"))
+    return field_name in selection or "__all__" in selection
+
+
 class ScoreEdit(BaseModel):
     """A single edit to a score."""
 
@@ -132,6 +181,50 @@ class ScoreEdit(BaseModel):
         ):
             return {"answer": None, "explanation": None} | data
         return data
+
+    @model_serializer(mode="wrap")
+    def _serialize_score_edit(
+        self,
+        handler: SerializerFunctionWrapHandler,
+        info: SerializationInfo,
+    ) -> dict[str, Any]:
+        """Preserve explicitly cleared fields through normal serialization.
+
+        A nullable field set to ``None`` means clear the value, while a missing
+        field in a legacy edit can mean ``UNCHANGED``. Log writers use
+        ``exclude_none=True``, so restore explicitly supplied ``None`` values
+        after the normal serializer has removed them unless the caller excluded
+        or omitted the field.
+        """
+        data = cast(dict[str, Any], handler(self))
+
+        for field_name in ("answer", "explanation", "reason"):
+            included = _selection_includes_field(field_name, info.include)
+            excluded = _selection_excludes_field(field_name, info.exclude)
+            if (
+                field_name in self.model_fields_set
+                and getattr(self, field_name) is None
+                and included
+                and not excluded
+            ):
+                data[field_name] = None
+
+        return data
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls,
+        core_schema: CoreSchema,
+        handler: GetJsonSchemaHandler,
+    ) -> dict[str, Any]:
+        """Keep the model schema from reflecting the wrapped serializer's return."""
+        schema = cast(dict[str, Any], core_schema)
+        serialization = schema.get("serialization")
+        if isinstance(serialization, dict):
+            serialization = dict(serialization)
+            serialization.pop("return_schema", None)
+            schema = {**schema, "serialization": serialization}
+        return handler(cast(CoreSchema, schema))
 
 
 class Score(BaseModel):
