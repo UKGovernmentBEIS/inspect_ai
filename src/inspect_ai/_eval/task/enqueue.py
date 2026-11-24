@@ -525,16 +525,8 @@ class TaskHandle:
     Every handle can cancel its task. A task whose dataset is
     :func:`~inspect_ai.samples_from_handle` takes its samples through
     its handle: :meth:`enqueue_sample` sends each one and returns its logged
-    run, and :meth:`result` waits for the task's final log.
-
-    Such a task ends once its handle is closed (:meth:`close`, :meth:`result`
-    or leaving ``async with``) or the task that added it ends, and the samples
-    sent have run. Closing never stops samples already sent. To stop them when
-    the adding code stops early, call :meth:`cancel` in an
-    ``except BaseException:`` block that re-raises: it runs on an error, a
-    sample limit and every cancellation (a time limit and a working limit
-    included), but not on a normal exit, where a ``finally:`` would abort a
-    task that is still running its samples.
+    run, and :meth:`result` waits for the task's final log. Closing the
+    handle never stops samples already sent; :meth:`cancel` does.
 
     Every method must be called on the running eval's event loop.
     """
@@ -680,18 +672,9 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> list[TaskHandl
 
     The tasks run in this process under the current run's ``run_id`` (a fresh
     ``eval_id``/``task_id`` each, their own log files). An added task starts as
-    soon as a ``max_tasks`` slot is free. Returns a :class:`TaskHandle` for
-    each task added, in resolution order, through which it can be cancelled.
-
-    A task whose dataset is :func:`~inspect_ai.samples_from_handle`
-    takes its samples through its handle instead. Add it from code running
-    inside a task (a solver, scorer, tool or task hook), not from a
-    ``TaskSource`` callback. It is added once, under that task's model, with
-    one epoch, starts when its first sample is sent and does not count toward
-    ``max_tasks``. Its sample limits, error tolerance and ``max_samples`` are
-    its own if it sets them, else the run's; the run's ``epochs``, epoch
-    reducer, ``limit`` and ``sample_id`` do not apply to it. It is never
-    retried.
+    soon as a ``max_tasks`` slot is free. A task whose dataset is
+    :func:`~inspect_ai.samples_from_handle` takes its samples through its
+    handle instead.
 
     Called from inside a running task (a solver, scorer, tool or other code
     the task runs), the tasks are added once, under that task's model.

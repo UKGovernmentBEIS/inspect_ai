@@ -308,8 +308,7 @@ def eval(
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
         max_samples: Maximum number of samples to run in parallel within each task
-            (overrides a task's own `max_samples`, except for a task fed through
-            its handle; default is max_connections)
+            (overrides a task's own `max_samples`; default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
@@ -317,14 +316,11 @@ def eval(
             (defaults to number of models being evaluated). A task cancelled
             before it starts is started outside this limit and ends at once
             with an error log reporting the cancellation, so it never takes a
-            slot. A task fed through its handle (`samples_from_handle()`) does
-            not count toward this limit.
+            slot.
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
-            to run in parallel. A sample waiting on a sample it sent through a
-            task's handle keeps its sandbox, so leave room for both; `inspect
-            ctl config --max-sandboxes` raises the limit while the run goes on.
+            to run in parallel.
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
@@ -600,8 +596,7 @@ async def eval_async(
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
         max_samples: Maximum number of samples to run in parallel within each task
-            (overrides a task's own `max_samples`, except for a task fed through
-            its handle; default is max_connections)
+            (overrides a task's own `max_samples`; default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
@@ -609,12 +604,9 @@ async def eval_async(
             (defaults to number of models being evaluated). A task cancelled
             before it starts is started outside this limit and ends at once
             with an error log reporting the cancellation, so it never takes a
-            slot. A task fed through its handle (`samples_from_handle()`) does
-            not count toward this limit.
+            slot.
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)
-        max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel. A sample waiting on a sample it sent through a
-            task's handle keeps its sandbox, so leave room for both; `inspect
-            ctl config --max-sandboxes` raises the limit while the run goes on.
+        max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images, even if specified as a filename or URL (defaults to False)
@@ -1371,14 +1363,11 @@ def eval_retry(
             (defaults to number of models being evaluated). A task cancelled
             before it starts is started outside this limit and ends at once
             with an error log reporting the cancellation, so it never takes a
-            slot. A task fed through its handle (`samples_from_handle()`) does
-            not count toward this limit.
+            slot.
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
-            to run in parallel. A sample waiting on a sample it sent through a
-            task's handle keeps its sandbox, so leave room for both; `inspect
-            ctl config --max-sandboxes` raises the limit while the run goes on.
+            to run in parallel.
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
         sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds
@@ -1438,10 +1427,7 @@ def eval_retry(
         stream_idle_timeout:
             Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries).
         max_connections:
-            Maximum number of concurrent connections to Model API (default is per Model API).
-            A model connection is held for a whole `generate` call. A sample
-            waited on from an `on_before_model_generate` hook needs a connection
-            limit above the number of such waits.
+            Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections:
             Adaptive concurrency for Model API connections. Defaults to enabled
             (resolves to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100).
@@ -1633,12 +1619,9 @@ async def eval_retry_async(
         max_tasks: Maximum number of tasks to run in parallel (default is 1).
             A task cancelled before it starts is started outside this limit and
             ends at once with an error log reporting the cancellation, so it
-            never takes a slot. A task fed through its handle
-            (`samples_from_handle()`) does not count toward this limit.
+            never takes a slot.
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)
-        max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel. A sample waiting on a sample it sent through a
-            task's handle keeps its sandbox, so leave room for both; `inspect
-            ctl config --max-sandboxes` raises the limit while the run goes on.
+        max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
         sandbox_cleanup: Cleanup sandbox environments after task completes
            (defaults to True)
         sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds
@@ -1690,8 +1673,7 @@ async def eval_retry_async(
         timeout: Request timeout (in seconds)
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         stream_idle_timeout: Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries).
-        max_connections: Maximum number of concurrent connections to Model API (default is per Model API).
-            A model connection is held for a whole `generate` call. A sample waited on from an `on_before_model_generate` hook needs a connection limit above the number of such waits.
+        max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
         checkpoint: Checkpoint configuration for this retry, or `True` to enable checkpointing with the default trigger (every 500k tokens). Must match the config used on the original eval for resume detection to find the checkpoint files (the original `--checkpoint` is not recorded in the log file).
         incomplete_action: Disposition applied when recovering a crashed log

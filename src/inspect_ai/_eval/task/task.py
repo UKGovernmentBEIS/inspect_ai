@@ -201,10 +201,8 @@ class Task:
                 (recorded in the eval log).
             max_samples: Maximum number of this task's samples to run in
                 parallel. A `max_samples` passed to `eval()`, `eval_set()` or
-                the CLI overrides it, except for a task fed through its
-                handle (`samples_from_handle()`), whose own value wins. If
-                neither is set, the default comes from the model's
-                connection limit.
+                the CLI overrides it. If neither is set, the default comes
+                from the model's connection limit.
             version: Version of task (to distinguish evolutions
                 of the task spec or breaking changes to it)
             metadata:  Additional metadata to associate with the task.
@@ -449,9 +447,8 @@ def task_with(
         early_stopping: Early stopping callbacks.
         max_samples: Maximum number of this task's samples to run in
             parallel. A `max_samples` passed to `eval()`, `eval_set()` or
-            the CLI overrides it, except for a task fed through its handle
-            (`samples_from_handle()`), whose own value wins. If neither is
-            set, the default comes from the model's connection limit.
+            the CLI overrides it. If neither is set, the default comes
+            from the model's connection limit.
         name: Task name. If not specified is automatically
             determined based on the name of the task directory (or "task")
             if its anonymous task (e.g. created in a notebook and passed to

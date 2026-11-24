@@ -512,18 +512,11 @@ class HandleChannel(SampleSource):
 def samples_from_handle() -> SampleSource:
     """A dataset whose samples are sent through the task's handle.
 
-    Pass it as a ``Task``'s ``dataset``. Such a task is added with
-    :func:`~inspect_ai.enqueue_task` from code running inside a task (a
-    solver, scorer or tool), which returns its
-    :class:`~inspect_ai.TaskHandle`. The task runs once, under the adding
-    task's model, starts when its first sample is sent, and does not count
-    toward ``max_tasks``. Each sample sent with
-    :meth:`TaskHandle.enqueue_sample` runs once, and the call returns its
-    logged ``EvalSample``. The task ends once its handle is closed (or the
-    task that added it ends) and the samples sent have run.
-
-    The task cannot run on its own: passing it to ``eval()`` or
-    ``eval_set()``, or its log to ``eval_retry()``, raises an error. Its log
-    records the dataset name ``samples_from_handle``.
+    Pass it as a ``Task``'s ``dataset`` and add the task with
+    :func:`~inspect_ai.enqueue_task` from code running inside a task. Each
+    sample sent with :meth:`TaskHandle.enqueue_sample` runs once and the call
+    returns its logged ``EvalSample``. The task ends once its handle is closed
+    (or the task that added it ends) and the samples sent have run. It cannot
+    run on its own with ``eval()``, ``eval_set()`` or ``eval_retry()``.
     """
     return HandleChannel()

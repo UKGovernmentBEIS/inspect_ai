@@ -91,7 +91,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Timeout (in seconds) on silence within a streaming response — if a streaming attempt delivers no chunk for this long, the attempt is abandoned and retried according to max_retries. Setting it requests streaming (like on_stream); it has no effect on calls that do not stream."""
 
     max_connections: int | None
-    """Maximum number of concurrent connections to Model API (default is model specific). A model connection is held for a whole `generate` call. A sample waited on from an `on_before_model_generate` hook needs a connection limit above the number of such waits."""
+    """Maximum number of concurrent connections to Model API (default is model specific)."""
 
     adaptive_connections: bool | int | AdaptiveConcurrency | None
     """Adaptive concurrency for model API connections. Defaults to enabled (`None` and `True` both resolve to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100). Pass `False` to opt out (uses static concurrency). Pass an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`. Pass an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency."""
@@ -217,7 +217,7 @@ class GenerateConfig(BaseModel):
     """Timeout (in seconds) on silence within a streaming response — if a streaming attempt delivers no chunk for this long, the attempt is abandoned and retried according to max_retries. Setting it requests streaming (like on_stream); it has no effect on calls that do not stream."""
 
     max_connections: int | None = Field(default=None)
-    """Maximum number of concurrent connections to Model API (default is model specific). A model connection is held for a whole `generate` call. A sample waited on from an `on_before_model_generate` hook needs a connection limit above the number of such waits."""
+    """Maximum number of concurrent connections to Model API (default is model specific)."""
 
     adaptive_connections: bool | int | AdaptiveConcurrency | None = Field(default=None)
     """Adaptive concurrency for model API connections. Defaults to enabled (`None` and `True` both resolve to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100). Pass `False` to opt out (uses static concurrency). Pass an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`. Pass an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency."""
