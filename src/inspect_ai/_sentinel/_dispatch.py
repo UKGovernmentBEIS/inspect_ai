@@ -130,15 +130,16 @@ def _fails_the_sample(
 ) -> Callable[[Callable[_P, Awaitable[_T]]], Callable[_P, Awaitable[_T]]]:
     """Make a `SentinelFailure` leaving a stage's dispatch fail the sample (`fail_sample`).
 
-    Once the sample has failed, the stage first lets its cancellation through,
-    so a step whose task hasn't suspended since the failure isn't checked.
+    Once the sample has failed, a stage is refused (`_refuse_once_failed`),
+    before its monitors run and again after they return, so a check that was
+    running when another step failed the sample doesn't authorise its step.
 
     A failure raised straight to the agent's code (from a generate stage
     through `Model.generate()`, or from a tool stage through a bridge,
-    `bridge=True`) is raised only after the cancellation is delivered, so code
-    that catches it can't start another step first. Any other tool stage's
-    failure is raised as it is: `execute_tools()` records it, and its own awaits
-    deliver the cancellation.
+    `bridge=True`) is raised only after a cancellation checkpoint, so
+    unshielded code that catches it can't start another step first. Any other
+    tool stage's failure is raised as it is: `execute_tools()` records it, and
+    its own awaits deliver the cancellation.
 
     Args:
         tool_stage: The stage is a tool stage, which takes `bridge`.
@@ -147,20 +148,35 @@ def _fails_the_sample(
     def decorate(stage: Callable[_P, Awaitable[_T]]) -> Callable[_P, Awaitable[_T]]:
         @wraps(stage)
         async def dispatch(*args: _P.args, **kwargs: _P.kwargs) -> _T:
-            active = sample_active()
-            if active is not None and active.sentinel_failure is not None:
-                await checkpoint()
+            await _refuse_once_failed()
             try:
-                return await stage(*args, **kwargs)
+                result = await stage(*args, **kwargs)
             except SentinelFailure as ex:
                 fail_sample(ex)
                 if not tool_stage or kwargs.get("bridge", False):
                     await checkpoint()
                 raise
+            await _refuse_once_failed()
+            return result
 
         return dispatch
 
     return decorate
+
+
+async def _refuse_once_failed() -> None:
+    """Refuse a stage once the sample has failed (`fail_sample`).
+
+    The sample's cancellation is let through first. Where it can't be, in a
+    shielded scope, the stage is refused with the sample's failure, without
+    running monitors or recording another failure. Nothing is awaited until a
+    failure is kept.
+    """
+    active = sample_active()
+    failure = active.sentinel_failure if active is not None else None
+    if isinstance(failure, SentinelFailure):
+        await checkpoint()
+        raise SentinelFailure(failure.error) from failure.error
 
 
 @_fails_the_sample(tool_stage=True)
