@@ -1882,7 +1882,9 @@ def _resumed_task(task: ResolvedTask, identifier: str, resume: str) -> PreviousT
 def all_evals_succeeded(logs: list[EvalLog]) -> bool:
     """Whether every log succeeded, leaving out tasks fed through a handle.
 
-    A fed task's log does not decide the result: the task that added it does.
+    Every fed log is skipped, however deeply nested, so only logs that are
+    not fed decide the result. A fed task's failure counts only if it makes
+    a task that is not fed fail.
     """
     return all(
         log.status == "success" and not log.invalidated
