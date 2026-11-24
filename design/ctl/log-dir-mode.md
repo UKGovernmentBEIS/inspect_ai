@@ -300,7 +300,7 @@ an `eval_retry` of a merged log merged with no selection is an ordinary
 unsharded log that reuses the merged log's `task_id` and can be written
 beside the companion. The merged log carries a
 provenance field and ledger (per shard: file name, samples merged, status,
-ETag or mtime, its selection's size and digest; no per-sample keys),
+ETag or mtime; no per-sample keys),
 whose exact shape is in the sharding design
 ([`eval-sharding.md`](../eval-sharding.md), "The merged log").
 
