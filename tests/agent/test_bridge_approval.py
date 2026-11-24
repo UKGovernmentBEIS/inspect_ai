@@ -12,6 +12,7 @@ import logging
 import re
 from collections import deque
 from contextlib import contextmanager, nullcontext
+from copy import deepcopy
 from dataclasses import replace
 from functools import partial
 from pathlib import Path, PurePosixPath
@@ -8188,7 +8189,9 @@ async def test_a_replay_with_unchanged_added_targets_is_not_checked_again(
         checked = len(seen)
         _continue(second)
         await second.request(bridge)
-    assert sorted(function for function, _, _ in seen[1:]) == ["read_file", "status"]
+    # the second conversation's result is checked as the target the first's
+    # check lacked; its `status` step is the one already checked
+    assert [function for function, _, _ in seen[1:]] == ["read_file"]
     assert len(seen) == checked
 
 
@@ -8757,7 +8760,9 @@ async def test_a_result_checked_with_a_proposals_context_is_checked_again_withou
     The same call is handed to a trusted conversation and then to another,
     under the same id (ambiguous: no context) or another (the other
     conversation's own context). With `host`, each execution runs, and the
-    scaffold reports the first's result for the second.
+    scaffold reports the first's result for the second. Under the same id, an
+    unchanged result in the same assistant message (the same message id) is
+    the step already checked, so it is not checked again.
     """
     first_call = ToolCall(
         id="same" if same_id else "first",
@@ -8807,9 +8812,15 @@ async def test_a_result_checked_with_a_proposals_context_is_checked_again_withou
             await call_host_tool(bridge)("host", "read_file", {"path": "p"})
         before = len(seen)
         second.results(second_calls, ["secret changed" if changed else "secret"])
-        with pytest.raises(TerminateSampleError, match="secret without trusted input"):
+        if same_id and not changed:
             await second.request(bridge)
-        assert any("secret" in step.result.text for step in seen[before:])
+            assert seen[before:] == []
+        else:
+            with pytest.raises(
+                TerminateSampleError, match="secret without trusted input"
+            ):
+                await second.request(bridge)
+            assert any("secret" in step.result.text for step in seen[before:])
 
 
 @pytest.mark.usefixtures("fake_sentinel")
@@ -8942,15 +8953,12 @@ async def test_a_result_checked_for_one_target_is_checked_again_after_its_propos
 @pytest.mark.usefixtures("fake_sentinel")
 @pytest.mark.parametrize("fallback", ["evict", "restore"])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
-async def test_a_replay_after_its_proposal_is_gone_is_checked_at_most_once_more(
+async def test_a_replay_after_its_proposal_is_gone_is_not_checked_again(
     dialect: HostDialect, fallback: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Once a result's proposal is gone, its replay is checked as the handout's target without context.
+    """Once a result's proposal is gone, after an eviction or a resume, its replay is the step already checked and is not checked again.
 
-    After an eviction the check that passed with context covers it, so it is
-    not checked again. After a resume it is another step: checked once, then
-    not again. A later handout of the call resolving to another target is
-    still checked.
+    A later handout of the call resolving to another target is still checked.
     """
     call = ToolCall(id="same", function="summarize", arguments={"path": "p"})
     done = ModelOutput.from_content("mockllm/model", "Done.")
@@ -8990,10 +8998,7 @@ async def test_a_replay_after_its_proposal_is_gone_is_checked_at_most_once_more(
         for _ in range(2):
             _continue(first)
             await first.request(bridge)
-        # the handout's target, without context
-        assert [(f, context) for f, _, context in seen[checked:]] == (
-            [("status", False)] if fallback == "restore" else []
-        )
+        assert seen[checked:] == []
         second = _HostConversation(dialect, "Second", declare("summarize")[0])
         second_calls = await second.request(bridge)
         second.results(second_calls, ["secret"])
@@ -9165,7 +9170,8 @@ async def test_a_failed_check_for_one_target_does_not_fail_or_exempt_another(
         assert not bridge._handouts.running
         second = _HostConversation(dialect, "Second", declare("summarize")[0])
         second_calls = await second.request(bridge)
-        second.results(second_calls, ["secret"])
+        # another result: the same one is the failed `status` step again
+        second.results(second_calls, ["secret again"])
         with pytest.raises(TerminateSampleError, match="secret read_file result"):
             await second.request(bridge)
     assert any(function == "read_file" for function, _, _ in seen)
@@ -9227,6 +9233,97 @@ async def test_a_running_report_check_for_one_target_does_not_answer_for_another
                 release.set()
     assert "read_file" in seen
     assert not bridge._handouts.running
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("outcome", ["pass", "fail", "cancel"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_result_whose_check_runs_while_its_proposal_is_evicted_is_waited_for(
+    dialect: HostDialect, outcome: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A request carrying a result whose check, with its proposal's context, runs while the proposal is evicted waits for that check instead of starting one without context.
+
+    When the running check passes, the waiting request checks nothing; when it
+    fails, the waiting request fails too; when it is cancelled, the waiting
+    request runs the check itself, without context.
+    """
+    call = ToolCall(id="first", function="read_file", arguments={"path": "p"})
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model(
+        "mockllm/model", custom_outputs=[tool_calls_output(call), done, done]
+    )
+    bridge = _counted_host_bridge(model)
+    started, release = anyio.Event(), anyio.Event()
+    seen: list[AfterToolCall] = []
+
+    @protocol
+    def hold_the_first_check() -> Protocol:
+        async def after(
+            context: Context, step: AfterToolCall, escalations: Escalations
+        ) -> Decision | None:
+            seen.append(step)
+            if len(seen) == 1:
+                started.set()
+                await release.wait()
+                if outcome == "fail":
+                    return Decision.terminate("held check failed")
+            return None
+
+        return after
+
+    outcomes: dict[str, str] = {}
+
+    async def send(name: str, conversation: _HostConversation) -> None:
+        try:
+            await conversation.request(bridge)
+        except TerminateSampleError:
+            outcomes[name] = "terminated"
+        else:
+            outcomes[name] = "done"
+
+    with active_test_sentinel(hold_the_first_check()):
+        first = _HostConversation(dialect, "Read p.", declare("read_file")[0])
+        first_calls = await first.request(bridge)
+        first.results(first_calls, ["contents"])
+        # the same conversation, sent again by another request
+        again = _HostConversation(dialect, "Read p.", declare("read_file")[0])
+        again.history = deepcopy(first.history)
+        scope = anyio.CancelScope()
+
+        async def send_first() -> None:
+            with scope:
+                await send("first", first)
+
+        with anyio.fail_after(10):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(send_first)
+                await started.wait()
+                filler = ToolCall(id="filler", function="other", arguments={})
+                with monkeypatch.context() as patch:
+                    patch.setattr(sentinel_module, "_MAX_PROPOSALS", 1)
+                    bridge._handouts.hand_over(
+                        [filler], [filler], [SentinelCheck(filler, None, "", "")]
+                    )
+                assert not any(id == "first" for id, _ in bridge._handouts.proposals)
+                tg.start_soon(send, "again", again)
+                await anyio.wait_all_tasks_blocked()
+                assert len(seen) == 1
+                if outcome == "cancel":
+                    scope.cancel()
+                else:
+                    release.set()
+    assert not bridge._handouts.running
+    assert seen[0].input is not None
+    match outcome:
+        case "pass":
+            assert outcomes == {"first": "done", "again": "done"}
+            assert len(seen) == 1
+        case "fail":
+            assert outcomes == {"first": "terminated", "again": "terminated"}
+            assert len(seen) == 1
+        case "cancel":
+            assert outcomes == {"again": "done"}
+            assert [step.input for step in seen[1:]] == [None]
 
 
 @pytest.mark.usefixtures("fake_sentinel")

@@ -100,21 +100,18 @@ _NO_MESSAGE_ID = ""
 
 # The fields of the step a result check sends the protocol (`AfterToolCall`)
 # that its digest (`_Steps`) covers, and those it leaves out, with why.
-STEP_DIGEST_FIELDS = frozenset(
-    {
-        "conversation",
-        "message",
-        "message_id",
-        "call",
-        "view",
-        "result",
-        "input",
-        "tools",
-        "tool_choice",
-        "assistant_message",
-    }
+STEP_DIGEST_FIELDS = frozenset({"conversation", "call", "view", "result"})
+_CONTEXT = (
+    "the proposal's context, which a check has only while its proposal is kept: "
+    "a result checked with it is the same step once it is gone (`_check_part`)"
 )
 STEP_DIGEST_EXCLUDED = {
+    "message": _CONTEXT,
+    "message_id": _CONTEXT,
+    "input": _CONTEXT,
+    "tools": _CONTEXT,
+    "tool_choice": _CONTEXT,
+    "assistant_message": _CONTEXT,
     "output": "the result's own content (`_output`), which the result covers: "
     "the tool's return value never reaches the bridge",
     "truncated": "None in every bridge check: only the scaffold or the host "
@@ -146,20 +143,6 @@ class Produced:
 
     def scope(self) -> AbstractContextManager[None]:
         return in_agent_span(self.agent_span_id)
-
-    @cached_property
-    def digest(self) -> str:
-        """The digest of what a step reads of the generation (`input`, `tools`, `tool_choice`, `assistant_message`).
-
-        Computed once, so the steps of every result of its calls cost nothing
-        in the length of its input.
-        """
-        return _parts_digest(
-            _serialized(self.event.input),
-            _serialized(self.event.tools),
-            _serialized(self.event.tool_choice),
-            _serialized(self.message),
-        )
 
 
 class SentinelCheck(NamedTuple):
@@ -304,10 +287,6 @@ class _Result(NamedTuple):
     """Each check's call's view, as its digest was taken of it; None where its
     viewer failed and the check rejects that."""
 
-    covers: tuple[str | None, ...]
-    """For each check with its proposal's context, the digest of the same step
-    without it, which its passing covers (`_Handouts.covered`); otherwise None."""
-
     execution_id: str | None = None
     """The handout whose result this is (`_Handed.execution_id`), or None
     where the bridge can't tell: an id handed out more than once or shared
@@ -415,21 +394,18 @@ class _Handouts:
     request shows.
 
     A result is exempt from checking only if an identical check already
-    passed: one whose step, as the protocol receives it, is the same
-    (`_Steps`). A result's step is resolved first (its targets, any context
-    removed, the fallback once its proposal is gone), so a result needing a
-    check no step covered (another target, other arguments, another
-    conversation, no context, other content) gets one, while an unchanged
-    replay is the same step and is not checked again. Each target's step is
-    its own: a result checked as more targets than before runs only the new
-    ones. A step whose check is running (another request's) is waited for,
-    and one whose check failed fails again. A step with a proposal's context
-    that passed also covers the same step without it (`covered`), for an id
-    that is not ambiguous: a result checked before its proposal's eviction
-    is not checked again after it. The digests of passed steps are kept in
-    the checkpoint (`checked`); proposals and covered steps are not, so after
-    a resume a result gets its targets' steps without context and is checked
-    again.
+    passed: one whose step is the same without its proposal's context
+    (`_Steps`). A result's step is resolved first (its targets, the fallback
+    once its proposal is gone), so a result needing a check no step covered
+    (another target, other arguments, another conversation, another place in
+    the request, other content) gets one, while an unchanged replay is the
+    same step and is not checked again, whether or not its proposal is still
+    kept. Each target's step is its own: a result checked as more targets
+    than before runs only the new ones. A step whose check is running
+    (another request's) is waited for, and one whose check failed fails
+    again. The digests of passed steps are kept in the checkpoint
+    (`checked`), so a result checked before a resume is not checked again
+    after it.
 
     The results in the state the bridge starts with were in the agent's
     conversation before the bridge ran, and are not checked again, as a native
@@ -460,8 +436,6 @@ class _Handouts:
         self.proposals: OrderedDict[tuple[str, str], SentinelCheck] = OrderedDict()
         # step digests (`_Steps`)
         self.checked: set[str] = set(saved.checked)
-        # digests of passed steps without their proposals' context (`_Result.covers`)
-        self.covered: set[str] = set()
         self.inherited: frozenset[str] = frozenset(saved.inherited)
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
@@ -713,16 +687,10 @@ class _Handouts:
             result = self._result(input, answer, steps)
             if result is None:
                 continue
-            handed = self.handed.get(answer.message.tool_call_id or "")
-            covered = (
-                self.covered
-                if handed is not None and not handed.ambiguous
-                else frozenset[str]()
-            )
             owned: list[int] = []
             for index, digest in enumerate(result.digests):
                 # a step another of the request's results has is checked by it
-                if digest in taken or digest in self.checked or digest in covered:
+                if digest in taken or digest in self.checked:
                     continue
                 if digest in self.failed:
                     raise self.failed[digest]
@@ -783,10 +751,6 @@ class _Handouts:
             checks.checks,
             tuple(_parts_digest(part, result) for part in checks.parts),
             checks.views,
-            tuple(
-                _parts_digest(part, result) if part is not None else None
-                for part in checks.covers
-            ),
             handed.execution_id
             if handed is not None and not handed.ambiguous
             else None,
@@ -879,9 +843,6 @@ class _Handouts:
                 self.failed.setdefault(digest, ex)
                 raise
             self.checked.add(digest)
-            cover = result.covers[index]
-            if cover is not None:
-                self.covered.add(cover)
 
     def release(self, claim: _Claim) -> None:
         # a check that did not finish is claimed again by the next request
@@ -901,15 +862,6 @@ def _without_context(check: SentinelCheck) -> SentinelCheck:
     come from the handed call and the bridged tools, not from the generation.
     """
     return check._replace(message="", message_id=_NO_MESSAGE_ID, producer=None)
-
-
-def _has_context(check: SentinelCheck) -> bool:
-    """Whether `check` has a proposal's context (`_without_context` removes it)."""
-    return (
-        bool(check.message)
-        or check.message_id != _NO_MESSAGE_ID
-        or check.producer is not None
-    )
 
 
 def _check_targets(check: SentinelCheck) -> list[HandedTarget]:
@@ -1034,10 +986,6 @@ class _Checks(NamedTuple):
     views: tuple[ToolCallView | None, ...]
     """Each check's call's view (`_Result.views`)."""
 
-    covers: tuple[str | None, ...]
-    """Each check's step without its proposal's context, all but the result
-    (`_Result.covers`)."""
-
 
 class _Steps:
     """The steps a claim's results are checked with, as digests (`_Handouts`).
@@ -1045,16 +993,14 @@ class _Steps:
     A step is the `AfterToolCall` a check sends the protocol. Its digest is a
     SHA-256 over each of `STEP_DIGEST_FIELDS` encoded in full, with no two
     values the protocol can tell apart encoded alike (`_serialized`), as the
-    check builds them: the conversation, the assistant message's text and
-    id, the call, its view (as its viewer renders it, rejecting a viewer
-    error where the check does; the check is given that view), the
-    generation's input, tools, tool choice and message (`Produced.digest`),
-    and the result. The result is all of its fields but its `id`, which the bridge
-    gives each parsed message afresh. The fields left out are those of
-    `STEP_DIGEST_EXCLUDED`. A value that can't be encoded gives a digest no
-    other step has. For a check with no proposal's context the digest covers
-    one thing the step lacks: where the call sits in the request
-    (`_check_part`).
+    check builds them without its proposal's context (`_check_part`): the
+    request's conversation, the call, its view (as its viewer renders it,
+    rejecting a viewer error where the check does; the check is given that
+    view), and the result. The result is all of its fields but its `id`,
+    which the bridge gives each parsed message afresh. The fields left out
+    are those of `STEP_DIGEST_EXCLUDED`. A value that can't be encoded gives
+    a digest no other step has. The digest also covers one thing the step
+    lacks: where the call sits in the request (`_check_part`).
 
     A check's part of the digest is computed once per set of results it
     answers in the request (`checks`), and each result's once, so repeated
@@ -1086,13 +1032,7 @@ class _Steps:
             parts = tuple(
                 _check_part(check, view, place) for check, view in zip(checks, views)
             )
-            covers = tuple(
-                _check_part(_without_context(check), view, place)
-                if _has_context(check)
-                else None
-                for check, view in zip(checks, views)
-            )
-            entry = (keep, _Checks(checks, parts, views, covers))
+            entry = (keep, _Checks(checks, parts, views))
             self._checks[key] = entry
         return entry[1]
 
@@ -1122,26 +1062,24 @@ def _view(check: SentinelCheck, reject_on_viewer_error: bool) -> ToolCallView | 
 def _check_part(
     check: SentinelCheck, view: ToolCallView | None, place: str | None
 ) -> str:
-    """The digest of a check's step, all but its result (`_Steps`).
+    """The digest of a check's step without its proposal's context, all but its result (`_Steps`).
 
-    A check with no proposal's context has no message to tell one occurrence
-    of its call from another: the same call proposed again under its id, and
-    run again with the same result, is the same step. So its digest also
-    covers `place`, the id of the request's message carrying the call, and
+    A result checked while its proposal is kept is then the same step once
+    the proposal is evicted or lost to a resume, or its id is handed out
+    again, and is not checked again. The conversation is the request's,
+    which a check without context has. With no proposing message to tell
+    one occurrence of a call from another (the same call proposed again
+    under its id, and run again with the same result), the digest also
+    covers `place`, the id of the request's message carrying the call, so
     each occurrence's result is checked. The step itself doesn't show it. A
     result with no call in its request has no place, so results identical in
     every field, checked as one call, are one step.
     """
-    with check.producer.scope() if check.producer is not None else nullcontext():
-        conversation = current_conversation()
     return _parts_digest(
-        conversation,
-        check.message,
-        check.message_id,
+        current_conversation(),
         _serialized(check.call),
         _serialized(view) if view is not None else _unmatched(),
-        check.producer.digest if check.producer is not None else None,
-        place if check.message_id == _NO_MESSAGE_ID else None,
+        place,
     )
 
 

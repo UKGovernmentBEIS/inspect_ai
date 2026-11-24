@@ -1939,34 +1939,6 @@ def test_a_result_steps_digest_covers_or_names_every_field_of_the_step() -> None
     )
 
 
-def test_a_result_steps_digest_tells_apart_generations_that_returned_different_messages() -> (
-    None
-):
-    """Two generations with the same input, tools and tool choice give different steps when they returned different messages (`assistant_message`)."""
-    from inspect_ai.agent._bridge._sentinel import Produced
-
-    input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
-
-    def produced(call: ToolCall) -> Produced:
-        output = calls_output(call)
-        output.message.id = "reply"
-        event = ModelEvent(
-            model="mockllm/model",
-            input=input,
-            tools=[],
-            tool_choice="auto",
-            config=GenerateConfig(),
-            output=output,
-        )
-        return Produced(event, agent_span_id=None)
-
-    assert produced(READ).digest == produced(READ).digest
-    assert (
-        produced(READ).digest
-        != produced(replace(READ, arguments={"path": "other.txt"})).digest
-    )
-
-
 def test_a_step_that_cannot_be_serialized_is_never_exempt() -> None:
     """A step with a value its digest can't serialize gets a digest no other step has: its result is checked every time it is reported."""
     from inspect_ai.agent._bridge._sentinel import (
@@ -2631,17 +2603,16 @@ def test_each_handout_of_a_repeated_host_call_names_its_run_and_steps(
     assert executions[0].execution_id == target_execution_id(handouts[0], targets[0])
 
     # a result names its handout while that is the id's only one; once the call
-    # is handed out again, which handout a result answers can't be told
+    # is handed out again, which handout a result answers can't be told, and
+    # a result already checked is not checked again
     results = [
         (e.explanation, e.execution_id)
         for e in events
         if isinstance(e, SentinelEvent) and e.stage == "tool_result"
     ]
-    unknown = [("saw contents 1", None)] * len(targets) + [
-        ("saw contents 2", None)
-    ] * len(targets)
+    second = [("saw contents 2", None)] * len(targets)
     if cached:
-        assert results == unknown
+        assert results == [("saw contents 1", None)] * len(targets) + second
     else:
         assert (
             results
@@ -2649,7 +2620,7 @@ def test_each_handout_of_a_repeated_host_call_names_its_run_and_steps(
                 ("saw contents 1", target_execution_id(handouts[0], target))
                 for target in targets
             ]
-            + unknown
+            + second
         )
 
 
@@ -4228,10 +4199,10 @@ async def test_a_bridge_does_not_resume_from_incomplete_result_checks(
 
 @pytest.mark.parametrize("sandbox", [False, True])
 @pytest.mark.parametrize("dialect", DIALECTS)
-async def test_a_result_checked_before_a_checkpoint_is_checked_once_more_after_resume(
+async def test_a_result_checked_before_a_checkpoint_is_not_checked_again_after_resume(
     dialect: str, sandbox: bool, tmp_path: Path
 ) -> None:
-    """A resumed bridge has no proposals, so a result's step has no context: another step, checked once, then not again."""
+    """A resumed bridge has no proposals, but its checkpoint keeps the passed steps, which have no context: a result checked before the checkpoint is not checked again; a changed result is."""
     seen: Steps = []
     model = Scripted(calls_output(replace(READ, id=LATE)), calls_output())
     start = AgentState(messages=[ChatMessageUser(content=TASK)])
@@ -4263,7 +4234,6 @@ async def test_a_result_checked_before_a_checkpoint_is_checked_once_more_after_r
     afters = [step for step in seen if isinstance(step, AfterToolCall)]
     assert [(step.result.text, step.input is None) for step in afters] == [
         (as_handed(dialect, "safe"), False),
-        (as_handed(dialect, "safe"), True),
         (as_handed(dialect, "changed"), True),
     ]
 
@@ -5657,13 +5627,11 @@ async def test_identical_results_of_other_handed_arguments_are_each_checked() ->
 
     afters = [s for s in seen if isinstance(s, AfterToolCall)]
     # the id handed over again in a later request is ambiguous from then on:
-    # the first result's replay is another step (no context), checked once,
-    # concurrently with the second result
-    first, *last = [(s.call.arguments["path"], s.input) for s in afters]
-    assert first == ("safe.txt", model.inputs[0])
-    assert sorted(last, key=str) == [
+    # the second result is checked with no context, and the first result's
+    # replay is the step already checked
+    assert [(s.call.arguments["path"], s.input) for s in afters] == [
+        ("safe.txt", model.inputs[0]),
         (READ.arguments["path"], None),
-        ("safe.txt", None),
     ]
 
 
@@ -13470,16 +13438,16 @@ async def test_calls_keep_the_models_ids_and_their_own_state(
         assert types == [generated_type, generated_type]
     if checked and case != "reject":
         # each result is checked as its own call under the id it was handed
-        # under: once, or, with the calls proposed again in a later request
-        # (ambiguous from then on), also each replay without the proposal's
-        # context and each of the later turn's
+        # under: once, and with the calls proposed again in a later request
+        # (ambiguous from then on), each of the later turn's too; a replay of
+        # a checked result is not checked again
         afters = [
             (step.call.id, _path(step.call.arguments))
             for step in seen
             if isinstance(step, AfterToolCall) and step.call.id in model_ids
         ]
         assert sorted(afters) == sorted(
-            list(zip(model_ids, paths)) * (3 if case == "proposed_again" else 1)
+            list(zip(model_ids, paths)) * (2 if case == "proposed_again" else 1)
         )
 
 
