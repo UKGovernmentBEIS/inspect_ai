@@ -123,6 +123,14 @@ By default the model generation cache is stored in the system default location f
 $ export INSPECT_CACHE_DIR=/tmp/inspect-cache
 ```
 
+### Cache Entries
+
+Each cache entry is a JSON Lines file named `<key>.jsonl` in a directory for its model. The first line is a header with the format version, the cache key and the expiry time. The second line is the model output as JSON. Reading the cache only parses JSON, so it never runs code.
+
+An output that would not read back unchanged from JSON is not cached, and Inspect logs a warning. This includes tool call arguments holding values that JSON stores in another form (such as dates or objects), and outputs that cannot be serialized to JSON. Such outputs call the model every time.
+
+Cache entries written by earlier versions of Inspect are not used. After you upgrade, each cached call runs once more and is stored in the new format. The old entries stay on disk until `inspect cache prune` or `inspect cache clear` removes them. `inspect cache list --pruneable` lists them.
+
 ## Provider Caching {#sec-provider-caching}
 
 Model providers may also provide prompt caching features to optimise cost and performance for multi-turn conversations. The only provider that currently enables you to turn off prompt caching is Anthropic, and you can do this using `cache-prompt` generation config option. For example:

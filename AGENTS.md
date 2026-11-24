@@ -30,7 +30,8 @@ deterministic gate enforces the checks below.
    existing PR and wait for a maintainer's direction; if invited to proceed,
    link the two PRs in your description.
 4. **Trivial-fix exception.** Documentation-only fixes (typo, broken link;
-   docs files only, under 25 changed lines) may be opened directly by anyone.
+   pages under `docs/` or the top-level README only, under 25 changed lines)
+   and additions to the extensions listing may be opened directly by anyone.
 5. **New functionality defaults to an extension, not core.** Do not open
    unrequested PRs adding functionality — providers, tools, scorers, metrics,
    solvers, storage backends, example evals. Some of these do belong in core,
