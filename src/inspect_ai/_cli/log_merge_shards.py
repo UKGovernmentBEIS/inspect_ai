@@ -423,7 +423,6 @@ def _merge_phase(shards_dir: str) -> Iterator[None]:
     from botocore.exceptions import BotoCoreError, ClientError
 
     from inspect_ai._util.error import WriteConflictError
-    from inspect_ai._util.file import dirname
     from inspect_ai.log import ShardSelectionError, ShardSetError, ShardSetIncomplete
 
     try:
@@ -448,9 +447,7 @@ def _merge_phase(shards_dir: str) -> Iterator[None]:
         raise _MergeFailure("conflict", ex, _message(ex)) from ex
     except FileNotFoundError as ex:
         message = _message(ex)
-        if ex.filename is not None and _in_shard_set(
-            dirname(shards_dir), str(ex.filename)
-        ):
+        if ex.filename is not None and _in_companion(shards_dir, str(ex.filename)):
             message += (
                 ". A shard attempt the merge listed was removed before it was "
                 "read, as a worker's retry cleanup removes an older attempt. Run "
@@ -463,13 +460,25 @@ def _merge_phase(shards_dir: str) -> Iterator[None]:
         raise _MergeFailure("storage_error", ex, message) from ex
 
 
-def _in_shard_set(root: str, path: str) -> bool:
-    from inspect_ai.log._shards._walk import is_shard_path
+def _in_companion(shards_dir: str, path: str) -> bool:
+    """Whether `path` is below the `shards_dir` companion.
 
-    try:
-        return is_shard_path(root, path)
-    except ValueError:
+    Local forms (plain paths and `file://` URIs) compare as absolute paths.
+    """
+    from pathlib import Path
+
+    from inspect_ai._util.file import local_path
+
+    def is_local(location: str) -> bool:
+        return "://" not in location or location.startswith("file://")
+
+    if is_local(shards_dir) != is_local(path):
         return False
+    if is_local(path):
+        return Path(os.path.abspath(local_path(path))).is_relative_to(
+            os.path.abspath(local_path(shards_dir))
+        )
+    return path.startswith(f"{shards_dir.rstrip('/')}/")
 
 
 def _message(ex: BaseException) -> str:

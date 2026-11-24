@@ -416,8 +416,8 @@ The design keeps these, and each section below says how:
 2. **Every task × model is one record, and every record ends exactly once**
    (`RunQueue.end`), with the log its last attempt returned, or `None` when
    dispatch ended first or, for a fed task, when its channel closed before
-   any sample was sent or it was cancelled while queued (task-handles.md,
-   "Closing" and "Cancelling").
+   any sample was sent or it was cancelled while queued
+   ([task-handles.md](task-handles.md#closing-and-cancelling)).
 3. **A record is visible to the control channel from the moment it is
    added, and after it ends**: in the queued registry until one of its
    attempts first calls `register_eval`, then through its `EvalState`, as
@@ -1104,7 +1104,8 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   `TaskCancel` and cancel scope and stores them on the record, with the
   `TaskCancel`'s `can_retry` set from the record's remaining retry budget,
   as `run_one` passes it to `_run_task` today (always false for a fed task,
-  task-handles.md "Retries"), so `task_run`'s retry pre-mark and
+  [task-handles.md](task-handles.md#tasks-fed-through-a-handle), "Never
+  retried"), so `task_run`'s retry pre-mark and
   `register_eval(will_retry=...)` read the intended value, requesting
   `abort` on the `TaskCancel` when `abort_requested` is set; and schedules
   `run_one(entry, cancel, scope, counted)` in the attempt group. A counted
@@ -1511,8 +1512,8 @@ here depends on it.
   runs the factory. A task built before the selection is resolved (at
   module level, say) can be a placeholder; `_resolve_enqueued_tasks`
   refuses one with `RuntimeError` rather than running it. Adding tasks, and
-  task handles, in selection workers depend on it (task-handles.md,
-  "Implementation plan").
+  task handles, in selection workers depend on it
+  ([task-handles.md](task-handles.md)).
 - The dispatcher rule that an attempt with no log or a `cancelled` log means a
   run-level cancellation applies only to attempts `run_one` ran; a record
   ended before its first attempt never reaches it.

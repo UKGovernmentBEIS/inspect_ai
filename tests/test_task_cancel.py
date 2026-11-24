@@ -2143,7 +2143,13 @@ async def test_cancel_handle_does_not_keep_task_log_alive(
     log_ref = weakref.ref(logs[0])
     sample_ref = weakref.ref(logs[0].samples[0])
     del logs
-    gc.collect()
+    # a trio worker thread holds its last caller's task, whose context reaches
+    # the run's logs, until the thread runs again. A thread round trip frees it.
+    with anyio.fail_after(10):
+        gc.collect()
+        while log_ref() is not None:
+            await anyio.to_thread.run_sync(lambda: None)
+            gc.collect()
 
     assert handles
     assert log_ref() is None

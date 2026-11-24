@@ -56,6 +56,10 @@ from typing import Any, NamedTuple
 
 TEAM_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 TRIVIAL_MAX_LINES = 25
+# The gate reads only the first page of changed files. Each file of a trivial
+# PR has a changed line, so a full page of at least TRIVIAL_MAX_LINES files
+# can't be trivial and the rest of the list can't change the verdict.
+FILES_PAGE_SIZE = 100
 # Besides pages under docs/: the README and the extensions listing, which
 # AGENTS.md invites one-line PRs to.
 DOCS_FILES = {"README.md", "docs/extensions/extensions.yml"}
@@ -127,7 +131,7 @@ def is_trivial(files: list[dict]) -> bool:
 
     A rename must also come from a docs path. A change with no changed lines
     (binary file, pure rename, mode change) is not trivial: its size can't be
-    measured in lines.
+    measured in lines. fetch_ctx's one-page file listing relies on this.
     """
     if not files:
         return False
@@ -270,7 +274,7 @@ def fetch_ctx(
 ) -> dict:
     owner, name = repo.split("/")
 
-    files = gh_json(f"repos/{repo}/pulls/{pr_number}/files", "--paginate")
+    files = gh_json(f"repos/{repo}/pulls/{pr_number}/files?per_page={FILES_PAGE_SIZE}")
 
     pr_labels = [
         label["name"].lower()

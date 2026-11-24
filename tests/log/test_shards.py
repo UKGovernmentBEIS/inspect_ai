@@ -37,20 +37,17 @@ from inspect_ai.log import (
     read_eval_log_async,
     write_eval_log,
 )
-from inspect_ai.log._file import is_log_file
 from inspect_ai.log._log import EvalShardEntry
 from inspect_ai.log._recorders.recorder import SampleRecordKey
 from inspect_ai.log._shards._plan import (
     Selection,
     parse_sample_member,
     plan_status,
-    selection_digest,
 )
 from inspect_ai.log._shards._walk import (
     ShardDir,
     ShardSetListing,
     attempt_sort_key,
-    is_shard_path,
     list_shard_set,
 )
 from inspect_ai.model import get_model
@@ -122,8 +119,8 @@ def _companion(root: Path) -> Path:
     _touch(shards / "3" / ".buffer" / "seg" / "segment.0.zip")
     # an empty shard directory is left out
     (shards / "4").mkdir()
-    # a dot-prefixed directory is not a shard; its logs are stray
-    _touch(shards / ".hidden" / f"{T1}_task_d.eval")
+    # directories not named with digits are stray and not listed
+    _touch(shards / "extra" / f"{T1}_task_d.eval")
     _touch(shards / ".hidden" / "notes.txt")
     # stray: eval and json logs in the companion root, a json log in a shard
     _touch(shards / f"{T1}_task_e.eval")
@@ -131,9 +128,8 @@ def _companion(root: Path) -> Path:
     _touch(shards / "0" / f"{T1}_task_a.json")
     # a file that is not a log is ignored in the root
     _touch(shards / "run.merge.lock")
-    # logs nested deeper are not listed, and are not shard paths
+    # logs nested deeper are not listed
     _touch(shards / "2" / "scans" / f"{T1}_task_f.eval")
-    _touch(shards / ".hidden" / "sub" / f"{T1}_task_g.eval")
     return shards
 
 
@@ -164,167 +160,51 @@ async def test_list_shard_set_applies_the_shard_set_rules(tmp_path: Path) -> Non
         Path(s.path).relative_to(shards_dir).as_posix(): s.reason for s in listing.stray
     }
     assert list(stray) == [
-        f".hidden/{T1}_task_d.eval",
+        ".hidden",
         f"0/{T1}_task_a.json",
         f"{T1}_task_e.eval",
         f"{T1}_task_e.json",
+        "extra",
     ]
-    assert "starts with '.'" in stray[f".hidden/{T1}_task_d.eval"]
+    assert "not named with digits only" in stray[".hidden"]
+    assert "not named with digits only" in stray["extra"]
     assert "json log in a shard directory" in stray[f"0/{T1}_task_a.json"]
     assert "directly in the shards directory" in stray[f"{T1}_task_e.eval"]
     assert "directly in the shards directory" in stray[f"{T1}_task_e.json"]
-    # the directories below the listed ones, buffers excepted
-    assert [
-        Path(d).relative_to(shards_dir).as_posix() for d in listing.unlisted_dirs
-    ] == [".hidden/sub", f"2/{T2}_task_c.checkpoints", "2/scans"]
-
-
-def _nested_companions(shards: Path) -> tuple[Path, Path]:
-    """Companions nested in a shard's ancillary directory and a hidden one."""
-    in_shard = shards / "2" / "x.shards"
-    in_hidden = shards / ".hidden" / "y.shards"
-    for nested in (in_shard, in_hidden):
-        _touch(nested / "1" / f"{T1}_task_h.eval")
-        _touch(nested / f"{T1}_task_i.eval")
-    return in_shard, in_hidden
-
-
-@pytest.mark.parametrize("form", ["path", "uri"])
-async def test_list_shard_set_reports_every_log_is_shard_path_places_in_it(
-    tmp_path: Path, form: str
-) -> None:
-    def location(path: Path) -> str:
-        return path.as_uri() if form == "uri" else str(path)
-
-    shards_dir = _companion(tmp_path)
-    nested = _nested_companions(shards_dir)
-    logs = {
-        Path(directory) / name
-        for directory, _, names in os.walk(tmp_path)
-        for name in names
-        if is_log_file(name, [".json"])
-    }
-
-    async def reported(companion: Path) -> set[Path]:
-        async with AsyncFilesystem() as fs:
-            listing = await list_shard_set(fs, location(companion))
-        assert all(s.dir.startswith(location(companion)) for s in listing.shards)
-        return {
-            Path(local_path(a.name)) for s in listing.shards for a in s.attempts
-        } | {Path(local_path(s.path)) for s in listing.stray}
-
-    # from the log directory, the outer companion's walk reports exactly its
-    # shard paths; the logs below it that it does not list are ordinary logs
-    shard_paths = {
-        log for log in logs if is_shard_path(location(tmp_path), location(log))
-    }
-    assert shard_paths == await reported(shards_dir)
-    # with the logs nested in the directories it does not list, the walk
-    # accounts for every log in the companion
-    async with AsyncFilesystem() as fs:
-        unlisted = (await list_shard_set(fs, location(shards_dir))).unlisted_dirs
-    nested_logs = {
-        log for log in logs if any(Path(local_path(d)) in log.parents for d in unlisted)
-    }
-    assert shard_paths | nested_logs == {
-        log for log in logs if shards_dir in log.parents
-    }
-    assert not shard_paths & nested_logs
-    assert logs - shard_paths == {
-        shards_dir / "2" / "scans" / f"{T1}_task_f.eval",
-        shards_dir / ".hidden" / "sub" / f"{T1}_task_g.eval",
-        *(log for companion in nested for log in logs if companion in log.parents),
-    }
-
-    # from the directory holding a nested companion, its walk agrees in turn
-    for companion in nested:
-        root = companion.parent
-        below = {log for log in logs if root in log.parents}
-        shard_paths = {
-            log for log in below if is_shard_path(location(root), location(log))
-        }
-        assert shard_paths == await reported(companion)
-        assert len(shard_paths) == 2
-
-
-async def test_list_shard_set_on_s3_reports_every_log_is_shard_path_places_in_it(
-    mock_s3: None,
-) -> None:
-    s3 = boto3.client("s3")
-    keys = [
-        f"consistency/run.shards/0/{T1}_task_a.eval",
-        f"consistency/run.shards/0/{T1}_task_a.json",
-        f"consistency/run.shards/{T1}_task_b.eval",
-        f"consistency/run.shards/{T1}_task_b.json",
-        f"consistency/run.shards/.hidden/{T1}_task_c.eval",
-        f"consistency/run.shards/0/scans/{T1}_task_d.eval",
-        f"consistency/run.shards/0/x.shards/1/{T1}_task_e.eval",
-        f"consistency/run.shards/.hidden/y.shards/1/{T1}_task_f.eval",
-        "consistency/run.shards/0/.buffer/seg/segment.0.zip",
-        "consistency/run.shards/.buffer/stem/segment.0.zip",
-        f"consistency/{T1}_task_g.eval",
-    ]
-    for key in keys:
-        s3.put_object(Bucket="test-bucket", Key=key, Body=b"x")
-    root = "s3://test-bucket/consistency"
-    async with AsyncFilesystem() as fs:
-        listing = await list_shard_set(fs, f"{root}/run.shards")
-    reported = {a.name for s in listing.shards for a in s.attempts} | {
-        s.path for s in listing.stray
-    }
-    shard_paths = {
-        f"s3://test-bucket/{key}"
-        for key in keys
-        if is_shard_path(root, f"s3://test-bucket/{key}")
-    }
-    assert shard_paths == reported
-    assert listing.unlisted_dirs == [
-        f"{root}/run.shards/.hidden/y.shards",
-        f"{root}/run.shards/0/scans",
-        f"{root}/run.shards/0/x.shards",
-    ]
-    assert {
-        f"s3://test-bucket/{key}" for key in keys if is_log_file(key, [".json"])
-    } - shard_paths == {
-        f"{root}/run.shards/0/scans/{T1}_task_d.eval",
-        f"{root}/run.shards/0/x.shards/1/{T1}_task_e.eval",
-        f"{root}/run.shards/.hidden/y.shards/1/{T1}_task_f.eval",
-        f"{root}/{T1}_task_g.eval",
-    }
 
 
 async def test_list_shard_set_orders_numeric_shard_names_numerically(
     tmp_path: Path,
 ) -> None:
     shards_dir = tmp_path / "run.shards"
-    names = [str(k) for k in range(12)] + ["010", "a", "b10", "b9"]
+    names = [str(k) for k in range(12)] + ["010"]
     for name in names:
         _touch(shards_dir / name / f"{T1}_task_a.eval")
     async with AsyncFilesystem() as fs:
         listing = await list_shard_set(fs, str(shards_dir))
     assert [s.name for s in listing.shards] == [
         "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "010", "10", "11",
-        "a", "b10", "b9",
     ]  # fmt: skip
 
 
 async def test_list_shard_set_keeps_the_file_uri_form(tmp_path: Path) -> None:
-    shards_dir = tmp_path / "run.shards"
-    _touch(shards_dir / "k 1" / f"{T1}_task_a.eval")
+    shards_dir = tmp_path / "run 1.shards"
+    _touch(shards_dir / "0" / f"{T1}_task_a.eval")
     async with AsyncFilesystem() as fs:
         listing = await list_shard_set(fs, shards_dir.as_uri())
 
     (shard,) = listing.shards
-    assert shard.name == "k 1"
-    assert shard.dir == f"{shards_dir.as_uri()}/k%201"
+    assert shard.name == "0"
+    assert shard.dir == f"{shards_dir.as_uri()}/0"
+    assert "run%201.shards" in shard.dir
     assert shard.current is not None
-    assert shard.current.name == f"{shards_dir.as_uri()}/k%201/{T1}_task_a.eval"
+    assert shard.current.name == f"{shards_dir.as_uri()}/0/{T1}_task_a.eval"
 
 
 async def test_list_shard_set_of_a_missing_local_dir_is_empty(tmp_path: Path) -> None:
     async with AsyncFilesystem() as fs:
         listing = await list_shard_set(fs, str(tmp_path / "absent.shards"))
-    assert listing == ShardSetListing(shards=[], stray=[], unlisted_dirs=[])
+    assert listing == ShardSetListing(shards=[], stray=[])
 
 
 async def test_list_shard_set_leaves_out_a_shard_removed_during_the_walk(
@@ -456,7 +336,7 @@ async def test_list_shard_set_on_s3(mock_s3: None) -> None:
         f"{prefix}/0/.buffer/seg/segment.0.zip",
         f"{prefix}/0/scans/scan_id=x/rows.parquet",
         f"{prefix}/0/{T1}_task_a.json",
-        f"{prefix}/.hidden/{T1}_task_b.eval",
+        f"{prefix}/extra/{T1}_task_b.eval",
         f"{prefix}/{T1}_task_c.eval",
         f"{prefix}/{T1}_task_c.json",
     ):
@@ -478,12 +358,12 @@ async def test_list_shard_set_on_s3(mock_s3: None) -> None:
     assert shard.has_buffer
     assert shard.ancillary == [f"{shards_dir}/0/scans"]
     assert [s.path for s in listing.stray] == [
-        f"{shards_dir}/.hidden/{T1}_task_b.eval",
         f"{shards_dir}/0/{T1}_task_a.json",
         f"{shards_dir}/{T1}_task_c.eval",
         f"{shards_dir}/{T1}_task_c.json",
+        f"{shards_dir}/extra",
     ]
-    assert empty == ShardSetListing(shards=[], stray=[], unlisted_dirs=[])
+    assert empty == ShardSetListing(shards=[], stray=[])
 
 
 async def test_list_shard_set_on_s3_leaves_out_a_shard_emptied_during_the_walk(
@@ -611,73 +491,6 @@ def test_attempt_sort_key_falls_back_to_mtime() -> None:
         [same_newer, plain_newer, same_older, bad_date, plain_older, no_mtime],
         key=attempt_sort_key,
     ) == [no_mtime, plain_older, bad_date, plain_newer, same_older, same_newer]
-
-
-@pytest.mark.parametrize(
-    "root,path,expected",
-    [
-        ("/logs", "/logs/run.shards/0/a.eval", True),
-        ("/logs", "/logs/sub/run.shards/0/a.eval", True),
-        ("/logs", "/logs/a.eval", False),
-        ("/logs", "/logs/sub/a.eval", False),
-        # a file named like a companion is not a directory component
-        ("/logs", "/logs/sub/x.shards", False),
-        # a user directory named "shards", or exactly ".shards"
-        ("/logs", "/logs/shards/0/a.eval", False),
-        ("/logs", "/logs/.shards/0/a.eval", False),
-        # a root that is itself a shard directory (a worker's view)
-        ("/logs/run.shards/0", "/logs/run.shards/0/a.eval", False),
-        ("/logs/run.shards", "/logs/run.shards/0/a.eval", False),
-        # a companion nested in a shard is a companion only from a root
-        # below the outer one; from above, its logs are too deep
-        ("/logs/run.shards/0", "/logs/run.shards/0/x.shards/1/a.eval", True),
-        ("/logs/run.shards/0", "/logs/run.shards/0/x.shards/a.eval", True),
-        ("/logs", "/logs/run.shards/0/x.shards/1/a.eval", False),
-        ("/logs", "/logs/run.shards/0/x.shards/a.eval", False),
-        ("/logs", "/logs/run.shards/.hidden/y.shards/1/a.eval", False),
-        (
-            "/logs/run.shards/.hidden",
-            "/logs/run.shards/.hidden/y.shards/1/a.eval",
-            True,
-        ),
-        # directly in a companion, or in a dot-prefixed directory of one
-        ("/logs", "/logs/run.shards/a.eval", True),
-        ("/logs", "/logs/run.shards/.hidden/a.eval", True),
-        # nested deeper than a shard directory
-        ("/logs", "/logs/run.shards/0/scans/a.eval", False),
-        ("/logs", "/logs/run.shards/.hidden/sub/a.eval", False),
-        ("/logs/", "/logs/run.shards/0/a.eval", True),
-        ("s3://b/logs", "s3://b/logs/run.shards/0/a.eval", True),
-        ("s3://b/logs/run.shards/0", "s3://b/logs/run.shards/0/a.eval", False),
-        ("file:///logs", "/logs/run.shards/0/a.eval", True),
-        ("/logs", "file:///logs/run.shards/0/a.eval", True),
-        ("file:///logs/a%20b.shards/0", "/logs/a b.shards/0/a.eval", False),
-    ],
-)
-def test_is_shard_path(root: str, path: str, expected: bool) -> None:
-    assert is_shard_path(root, path) is expected
-
-
-def test_is_shard_path_resolves_relative_local_roots(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    shard = (tmp_path / "logs" / "run.shards" / "0" / "a.eval").as_uri()
-    assert is_shard_path("logs", shard)
-    assert not is_shard_path("logs/run.shards/0", shard)
-
-
-@pytest.mark.parametrize(
-    "root,path",
-    [
-        ("/logs", "/other/run.shards/0/a.eval"),
-        ("s3://b/logs", "/logs/run.shards/0/a.eval"),
-        ("s3://b/logs", "s3://c/logs/run.shards/0/a.eval"),
-    ],
-)
-def test_is_shard_path_refuses_a_path_outside_the_root(root: str, path: str) -> None:
-    with pytest.raises(ValueError, match="is not below"):
-        is_shard_path(root, path)
 
 
 def _client_error(code: str) -> Exception:
@@ -1774,7 +1587,7 @@ def test_merge_keeps_exactly_the_records_a_running_shard_holds(tmp_path: Path) -
     assert header.eval.shards.ledger[0].samples == 1
     assert _keys(merged) == {("1", 1), ("2", 1), ("2", 2)}
 
-    # another shard changes; the running one is carried as it was
+    # another shard changes; the running one is read again as it is
     _rewrite(other, lambda log: None)
     header = merge_eval_log_shards(merged, task, allow_incomplete=True).log
     assert header.status == "started"
@@ -1812,7 +1625,7 @@ def test_a_shard_directory_not_named_with_digits_is_refused(
     _run(shards, name, sample_id=[6])
     target = to_uri(merged) if form == "file_uri" else merged
     before = _files(str(tmp_path))
-    with pytest.raises(ShardSetError, match="must be named with digits only"):
+    with pytest.raises(ShardSetError, match="not named with digits only"):
         merge_eval_log_shards(target, _task(), sample_ids=list(range(1, 7)))
     assert _files(str(tmp_path)) == before
 
@@ -1955,12 +1768,6 @@ def test_merge_records_and_reads_back_each_selection_form(tmp_path: Path) -> Non
         merge_eval_log_shards(merged, _task(), sample_count=3)
 
 
-def test_selection_digest_ignores_order_and_id_type() -> None:
-    assert selection_digest([1, 2, "3"]) == selection_digest(["3", "2", 1, 1])
-    assert selection_digest([1, 2]) != selection_digest([1, 2, 3])
-    assert len(selection_digest([])) == 64
-
-
 class _ScannedKeys(list[SampleRecordKey]):
     """Planned records that count the elements read and refuse a list scan."""
 
@@ -1991,8 +1798,6 @@ def test_status_planning_reads_the_records_a_bounded_number_of_times(
         log="worker.eval",
         status="success",
         samples=len(keys),
-        selected=ids,
-        selection_digest=selection_digest(list(range(1, ids + 1))),
         size=1,
     )
     selection = Selection("ids", ids=list(range(1, ids + 1)))
@@ -2242,81 +2047,95 @@ def test_merge_refuses_a_shard_holding_samples_outside_its_selection(
         merge_eval_log_shards(merged, _task(), allow_incomplete=True)
 
 
-def test_merge_refuses_a_new_attempt_with_a_different_selection(
+def test_a_merged_log_recording_the_removed_ledger_fields_merges(
     tmp_path: Path,
 ) -> None:
     merged, shards = _paths(tmp_path)
-    first = _run(shards, "0", sample_id=[1, 2])
-    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    second = _run(shards, "0", sample_id=[1, 2, 3])
-    with pytest.raises(ShardSetError) as raised:
-        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    message = str(raised.value)
-    assert Path(first.location).name in message
-    assert Path(second.location).name in message
-    assert "own shard directory" in message
+    _run(shards, "0", sample_id=[1, 2, 3])
+    other = _run(shards, "1", sample_id=[4, 5, 6])
+    merge_eval_log_shards(merged, _task())
 
-    os.remove(merged)
+    # what the merge wrote before it stopped recording each selection
+    def old_fields(header: dict[str, Any]) -> None:
+        for entry in header["eval"]["shards"]["ledger"]:
+            entry["selected"] = 3
+            entry["selection_digest"] = "0" * 64
+
+    _edit_header(merged, old_fields)
+    assert read_eval_log(merged).eval.shards is not None
+    assert not merge_eval_log_shards(merged, _task()).written
+    _rewrite(other, lambda log: None)
+    assert merge_eval_log_shards(merged, _task()).written
+    with zipfile.ZipFile(merged) as zf:
+        ledger = json.loads(zf.read("header.json"))["eval"]["shards"]["ledger"]
+    assert all("selected" not in e and "selection_digest" not in e for e in ledger)
+
+
+def test_a_new_attempt_with_another_selection_replaces_its_shard(
+    tmp_path: Path,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2])
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
+    second = _run(shards, "0", sample_id=[2, 3])
     result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    assert _keys(merged) == {("1", 1), ("2", 1), ("3", 1)}
+    assert result.written
+    assert _keys(merged) == {("2", 1), ("3", 1)}
     assert result.log.eval.shards is not None
     assert result.log.eval.shards.ledger[0].log == Path(second.location).name
 
 
-def test_merge_refuses_a_new_shard_whose_selection_meets_a_carried_record(
-    tmp_path: Path,
-) -> None:
+def test_every_writing_merge_refuses_overlapping_selections(tmp_path: Path) -> None:
     merged, shards = _paths(tmp_path)
-    _run(shards, "0", sample_id=[1, 2])
-    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    _run(shards, "1", sample_id=[2, 3])
-    with pytest.raises(ShardSetError, match="already merged"):
-        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-
-
-def test_merge_refuses_a_merged_log_changed_outside_the_merge(
-    tmp_path: Path,
-) -> None:
-    merged, shards = _paths(tmp_path)
-    _run(shards, "0", sample_id=[1, 2])
-    other = _run(shards, "1", sample_id=[3, 4])
-    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    _remove_member(merged, "samples/1_epoch_1.json")
-    # a pass over unchanged shards
-    with pytest.raises(ShardSetError, match="changed outside the merge"):
-        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    # and one where another shard changed
-    _rewrite(other, lambda log: None)
-    with pytest.raises(ShardSetError, match="changed outside the merge"):
-        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-
-
-def test_overlap_without_shared_records_is_refused_once_a_shard_is_read_again(
-    tmp_path: Path,
-) -> None:
-    merged, shards = _paths(tmp_path)
-    task = _task(epochs=1)
-    first = _run(shards, "0", task, sample_id=[1, 2, 3])
+    first = _run(shards, "0", sample_id=[1, 2, 3])
     _as_running(first, keep={(1, 1)})
-    merge_eval_log_shards(merged, task, allow_incomplete=True)
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
+    before = Path(merged).read_bytes()
     # a new shard selecting 3, which shard 0 selects but does not hold yet
-    _run(shards, "1", task, sample_id=[3, 4])
-    merge_eval_log_shards(merged, task, allow_incomplete=True)
-    # a fresh merge of the same shards refuses at once
-    fresh = tmp_path / "fresh"
-    fresh.mkdir()
-    import shutil
-
-    shutil.copytree(shards, _paths(fresh)[1], copy_function=shutil.copy2)
-    with pytest.raises(ShardSetError, match="both select"):
-        merge_eval_log_shards(_paths(fresh)[0], task, allow_incomplete=True)
-    # and the incremental one does when shard 0 is read again
-    _rewrite(first, lambda log: None)
-    with pytest.raises(ShardSetError, match="selected by shard 0|both select"):
-        merge_eval_log_shards(merged, task, allow_incomplete=True)
+    _run(shards, "1", sample_id=[3, 4])
+    with pytest.raises(ShardSetError, match="Shards 0 and 1 both select sample '3'"):
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
+    assert Path(merged).read_bytes() == before
 
 
-def test_incremental_merge_reads_only_changed_shards(
+def _opened_readers(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """The files of the `AsyncZipReader`s created from now on."""
+    opened: list[str] = []
+    init = AsyncZipReader.__init__
+
+    def spy_init(
+        self: AsyncZipReader, fs: Any, filename: str, *a: Any, **k: Any
+    ) -> None:
+        opened.append(filename)
+        init(self, fs, filename, *a, **k)
+
+    monkeypatch.setattr(AsyncZipReader, "__init__", spy_init)
+    return opened
+
+
+def test_an_unchanged_set_is_kept_without_reading_a_shard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    _run(shards, "1", sample_id=[4, 5])
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
+    before = Path(merged).read_bytes()
+    opened = _opened_readers(monkeypatch)
+
+    result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
+    assert not result.written and result.log.status == "started"
+    assert opened == [merged]
+    assert Path(merged).read_bytes() == before
+
+    # another selection is a change: every shard is read again
+    opened.clear()
+    result = merge_eval_log_shards(merged, _task(), sample_ids=[1, 2, 3, 4, 5])
+    assert result.written and result.log.status == "success"
+    assert len(opened) == 3 and opened[0] == merged
+
+
+def test_a_changed_shard_rebuilds_the_merged_log_from_every_shard(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     merged, shards = _paths(tmp_path)
@@ -2327,70 +2146,25 @@ def test_incremental_merge_reads_only_changed_shards(
     first = merge_eval_log_shards(merged, _task(), allow_incomplete=True).log
     assert _keys(merged) == {(str(i), 1) for i in (1, 2, 4, 5, 6)}
 
-    opened: list[str] = []
-    member_reads: list[tuple[str, str]] = []
-    init = AsyncZipReader.__init__
-    read_member = AsyncZipReader.read_member_fully
-
-    def spy_init(
-        self: AsyncZipReader, fs: Any, filename: str, *a: Any, **k: Any
-    ) -> None:
-        opened.append(filename)
-        init(self, fs, filename, *a, **k)
-
-    open_member = AsyncZipReader.open_member_raw
-
-    async def spy_read(self: AsyncZipReader, member: Any) -> bytes:
-        name = member if isinstance(member, str) else member.filename
-        member_reads.append((self._filename, name))
-        return await read_member(self, member)
-
-    async def spy_open(self: AsyncZipReader, member: Any) -> Any:
-        name = member if isinstance(member, str) else member.filename
-        member_reads.append((self._filename, name))
-        return await open_member(self, member)
-
-    monkeypatch.setattr(AsyncZipReader, "__init__", spy_init)
-    monkeypatch.setattr(AsyncZipReader, "read_member_fully", spy_read)
-    monkeypatch.setattr(AsyncZipReader, "open_member_raw", spy_open)
-
-    # nothing changed: nothing written, no shard opened
-    result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    assert not result.written
-    assert opened == [merged]
-
-    # the growing shard gains a sample and edits one it already held
-    def grow(log: EvalLog) -> None:
-        assert log.samples is not None
-        log.status = "started"
-        log.samples = [s for s in log.samples if s.id in (1, 2, 3)]
-        scores = log.samples[0].scores
-        assert scores is not None
-        scores["match"].explanation = "edited in the shard"
-
-    grow(full)
+    # the growing shard finishes, with a sample it already held edited
+    assert full.samples is not None and full.samples[0].scores is not None
+    full.samples[0].scores["match"].explanation = "edited in the shard"
     write_eval_log(full, growing.location)
-    opened.clear()
-    result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    assert result.written
-    assert growing.location in opened and steady.location not in opened
-    sample_reads = [name for file, name in member_reads if file == growing.location]
-    # sample 2 is unchanged in the shard (the same CRC-32 and size), so it is
-    # copied from the merged log instead
-    assert {n for n in sample_reads if n.startswith("samples/")} == {
-        f"samples/{i}_epoch_1.json" for i in (1, 3)
-    }
-    assert (merged, "samples/2_epoch_1.json") in member_reads
+    opened = _opened_readers(monkeypatch)
+    result = merge_eval_log_shards(merged, _task())
+    assert result.written and result.log.status == "success"
+    assert sorted(opened) == sorted([merged, growing.location, steady.location])
     assert _keys(merged) == {(str(i), 1) for i in range(1, 7)}
     samples = read_eval_log(merged).samples
     assert samples is not None and samples[0].scores is not None
     assert samples[0].scores["match"].explanation == "edited in the shard"
     header = result.log
-    assert (header.eval.eval_id, header.eval.run_id, header.eval.task_id) == (
-        first.eval.eval_id,
-        first.eval.run_id,
-        first.eval.task_id,
-    )
+    assert (
+        header.eval.eval_id,
+        header.eval.run_id,
+        header.eval.created,
+        header.eval.task_id,
+    ) == (first.eval.eval_id, first.eval.run_id, first.eval.created, first.eval.task_id)
 
 
 def test_a_new_attempt_replaces_its_shards_records(tmp_path: Path) -> None:
@@ -2453,14 +2227,17 @@ def test_an_added_shard_returns_a_success_log_to_started(tmp_path: Path) -> None
     assert raised.value.outside is None
 
 
-def test_merge_refuses_a_hand_deleted_current_attempt(tmp_path: Path) -> None:
+def test_a_hand_deleted_current_attempt_merges_the_attempt_now_current(
+    tmp_path: Path,
+) -> None:
     merged, shards = _paths(tmp_path)
-    _run(shards, "0", sample_id=[1, 2])
+    older = _run(shards, "0", sample_id=[1, 2])
     current = _run(shards, "0", sample_id=[1, 2])
     merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     os.remove(current.location)
-    with pytest.raises(ShardSetError, match="older than the attempt last merged"):
-        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
+    result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
+    assert result.written and result.log.eval.shards is not None
+    assert result.log.eval.shards.ledger[0].log == Path(older.location).name
 
 
 def _fresh_merge(tmp_path: Path, shards: str, **kwargs: Any) -> tuple[EvalLog, str]:
@@ -2589,8 +2366,16 @@ def test_merged_task_id_follows_the_file_name_pattern(
     )
 
 
-def test_merged_log_edits_are_kept(tmp_path: Path) -> None:
-    from inspect_ai.log import ProvenanceData, TagsEdit, edit_eval_log
+def _sample_members(log: str) -> dict[str, bytes]:
+    with zipfile.ZipFile(local_path(log)) as zf:
+        return {n: zf.read(n) for n in zf.namelist() if n.startswith("samples/")}
+
+
+def test_a_writing_merge_keeps_header_edits_and_replaces_sample_edits(
+    tmp_path: Path,
+) -> None:
+    from inspect_ai.log import ProvenanceData, TagsEdit, edit_eval_log, edit_score
+    from inspect_ai.scorer import ScoreEdit
 
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2])
@@ -2600,10 +2385,16 @@ def test_merged_log_edits_are_kept(tmp_path: Path) -> None:
     edited = edit_eval_log(
         log, [TagsEdit(tags_add=["kept"])], ProvenanceData(author="test")
     )
+    # sample 1 matched; the edit marks it incorrect
+    edit_score(edited, 1, "match", ScoreEdit(value="I"))
     write_eval_log(edited, merged)
     _rewrite(other, lambda log: None)
+
     header = merge_eval_log_shards(merged, _task(), allow_incomplete=True).log
     assert header.tags == ["kept"]
+    fresh, fresh_merged = _fresh_merge(tmp_path, shards, allow_incomplete=True)
+    assert header.results == fresh.results
+    assert _sample_members(merged) == _sample_members(fresh_merged)
 
 
 def test_eval_retry_refuses_an_id_or_count_selected_merged_log(tmp_path: Path) -> None:
@@ -3376,7 +3167,7 @@ def test_merge_on_s3(s3_shards: tuple[str, str], s3_root: str) -> None:
             sample.metadata["changed"] = True
         write_eval_log(log, f"s3://test-bucket/{key}")
 
-    # a changed shard is merged again, carrying the other
+    # a changed shard rebuilds the merged log from both shards
     change("1")
     second = merge_eval_log_shards(merged, _task())
     assert second.written and second.log.eval.eval_id == first.log.eval.eval_id
@@ -3385,48 +3176,6 @@ def test_merge_on_s3(s3_shards: tuple[str, str], s3_root: str) -> None:
 
     # nothing changed since: nothing is written
     assert not merge_eval_log_shards(merged, _task()).written
-
-
-def test_merge_on_s3_copies_unchanged_members_of_changed_shards_from_the_merged_log(
-    s3_shards: tuple[str, str], s3_root: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    merged, shards = s3_shards
-    assert merge_eval_log_shards(merged, _task()).written
-
-    # rewrite both shards, each with one sample edited: no record is carried,
-    # but the other samples' members match the merged log's
-    for k, edited in (("0", 1), ("1", 4)):
-        [key] = [
-            key
-            for key in _s3_keys(f"{s3_root}/{NAME}.shards/{k}/")
-            if key.endswith(".eval")
-        ]
-        log = read_eval_log(f"s3://test-bucket/{key}")
-        assert log.samples is not None
-        for sample in log.samples:
-            if sample.id == edited:
-                sample.metadata["changed"] = True
-        write_eval_log(log, f"s3://test-bucket/{key}")
-
-    sample_reads: list[tuple[str, str]] = []
-    open_member = AsyncZipReader.open_member_raw
-
-    async def spy_open(self: AsyncZipReader, member: Any) -> Any:
-        if member.filename.startswith("samples/"):
-            sample_reads.append((self._filename, member.filename))
-        return await open_member(self, member)
-
-    monkeypatch.setattr(AsyncZipReader, "open_member_raw", spy_open)
-    assert merge_eval_log_shards(merged, _task()).written
-
-    from_shards = {name for file, name in sample_reads if file.startswith(shards)}
-    assert from_shards == {"samples/1_epoch_1.json", "samples/4_epoch_1.json"}
-    # the rest come from the merged log's local copy
-    from_copy = {name for file, name in sample_reads if not file.startswith("s3://")}
-    assert from_copy == {f"samples/{i}_epoch_1.json" for i in (2, 3, 5, 6)}
-    log = read_eval_log(merged)
-    assert log.samples is not None
-    assert {s.id for s in log.samples if s.metadata.get("changed")} == {1, 4}
 
 
 async def test_concurrent_first_merges_on_s3_publish_once(
@@ -4211,9 +3960,9 @@ def test_a_literal_percent_sign_in_an_s3_attempt_name_merges(
 @pytest.mark.parametrize(
     "name,match",
     [
-        ("a", "must be named with digits only"),
+        ("a", "not named with digits only"),
         ("1#tag", "S3 would read it as"),
-        ("prefix\\0", "must be named with digits only"),
+        ("prefix\\0", "not named with digits only"),
     ],
 )
 def test_an_s3_shard_directory_not_named_with_digits_is_refused(
@@ -5047,6 +4796,28 @@ def test_merge_shards_command_reports_an_attempt_removed_while_merging(
     ledger = read_eval_log(merged, header_only=True).eval.shards
     assert ledger is not None
     assert ledger.ledger[0].log.endswith(Path(replacement.location).name)
+
+
+@pytest.mark.parametrize(
+    "shards_dir,path,expected",
+    [
+        ("/logs/run.shards", "/logs/run.shards/0/a.eval", True),
+        ("/logs/run.shards", "/logs/run.shards/0/scans/a.eval", True),
+        ("file:///logs/run.shards", "/logs/run.shards/0/a.eval", True),
+        ("/logs/run.shards", "file:///logs/run.shards/0/a.eval", True),
+        ("/logs/run.shards", "/logs/run.shards2/0/a.eval", False),
+        ("/logs/run.shards", "/logs/run.eval", False),
+        ("s3://b/logs/run.shards", "s3://b/logs/run.shards/0/a.eval", True),
+        ("s3://b/logs/run.shards", "s3://c/logs/run.shards/0/a.eval", False),
+        ("s3://b/logs/run.shards", "/logs/run.shards/0/a.eval", False),
+    ],
+)
+def test_merge_shards_command_notes_a_removed_file_under_the_companion(
+    shards_dir: str, path: str, expected: bool
+) -> None:
+    from inspect_ai._cli.log_merge_shards import _in_companion
+
+    assert _in_companion(shards_dir, path) is expected
 
 
 def test_merge_shards_command_reports_a_failing_metric_with_its_traceback(

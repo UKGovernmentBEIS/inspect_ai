@@ -106806,17 +106806,25 @@ function stripSuffix(e, suffix, trajId) {
 * Return the earliest start time among nodes.
 * Requires at least one node (all nodes have non-null startTime).
 */ function minStartTime(nodes) {
-	const first = nodes[0];
-	if (!first) throw new Error("minStartTime requires at least one node");
-	return nodes.reduce((min, n) => n.startTime() < min ? n.startTime() : min, first.startTime());
+	let min;
+	for (const node of nodes) {
+		const start = node.startTime();
+		if (!min || start < min) min = start;
+	}
+	if (!min) throw new Error("minStartTime requires at least one node");
+	return min;
 }
 /**
 * Return the latest end time among nodes.
 * Requires at least one node (all nodes have non-null endTime).
 */ function maxEndTime(nodes) {
-	const first = nodes[0];
-	if (!first) throw new Error("maxEndTime requires at least one node");
-	return nodes.reduce((max, n) => n.endTime() > max ? n.endTime() : max, first.endTime());
+	let max;
+	for (const node of nodes) {
+		const end = node.endTime();
+		if (!max || end > max) max = end;
+	}
+	if (!max) throw new Error("maxEndTime requires at least one node");
+	return max;
 }
 /**
 * Sum total tokens across all nodes.
@@ -112971,7 +112979,7 @@ function useTimelineConfig(t0) {
 * Walks the orphaned events, groups them by their direct parent span, and
 * recursively builds only the ancestor spans that contain at least one orphan.
 * Spans that are already represented in a server timeline are not recreated —
-* their orphaned children are promoted to the level above.
+* their orphaned children are promoted to root.
 */ function buildOrphanContent(orphanEvents, spanLookup, referencedSpanIds) {
 	const bySpan = /* @__PURE__ */ new Map();
 	for (const event of orphanEvents) {
@@ -112986,15 +112994,27 @@ function useTimelineConfig(t0) {
 	}
 	const neededSpanIds = /* @__PURE__ */ new Set();
 	for (const spanId of bySpan.keys()) if (spanId !== null) neededSpanIds.add(spanId);
-	const allNeededSpanIds = new Set(neededSpanIds);
+	const spanDepths = /* @__PURE__ */ new Map();
+	const cycleRoots = /* @__PURE__ */ new Set();
 	for (const spanId of neededSpanIds) {
+		const path = [];
+		const visiting = /* @__PURE__ */ new Set();
 		let current = spanLookup.get(spanId);
-		while (current?.parentId) {
-			if (referencedSpanIds.has(current.parentId)) break;
-			if (!spanLookup.has(current.parentId)) break;
-			allNeededSpanIds.add(current.parentId);
-			current = spanLookup.get(current.parentId);
+		while (current && !referencedSpanIds.has(current.id) && !spanDepths.has(current.id)) {
+			visiting.add(current.id);
+			path.push(current.id);
+			const parent = current.parentId ? spanLookup.get(current.parentId) : void 0;
+			if (parent && visiting.has(parent.id)) {
+				const ring = path.slice(path.indexOf(parent.id));
+				for (const id of ring) cycleRoots.add(id);
+				console.warn(`Invalid transcript: cyclic span parent chain of ${ring.length} spans at "${parent.id}"; promoting them to root.`);
+				current = void 0;
+				break;
+			}
+			current = parent;
 		}
+		const base = current ? spanDepths.get(current.id) ?? -1 : -1;
+		path.forEach((id, i) => spanDepths.set(id, base + path.length - i));
 	}
 	const spanChildren = /* @__PURE__ */ new Map();
 	for (const [spanId, events] of bySpan) {
@@ -113006,16 +113026,7 @@ function useTimelineConfig(t0) {
 		}
 		group.push(...items);
 	}
-	const spanDepth = (id) => {
-		let depth = 0;
-		let current = spanLookup.get(id);
-		while (current?.parentId && allNeededSpanIds.has(current.parentId)) {
-			depth++;
-			current = spanLookup.get(current.parentId);
-		}
-		return depth;
-	};
-	const sortedSpanIds = [...allNeededSpanIds].sort((a, b) => spanDepth(b) - spanDepth(a));
+	const sortedSpanIds = [.../* @__PURE__ */ new Set([...neededSpanIds, ...spanDepths.keys()])].sort((a, b) => spanDepths.get(b) - spanDepths.get(a));
 	for (const spanId of sortedSpanIds) {
 		const info = spanLookup.get(spanId);
 		const children = spanChildren.get(spanId) ?? [];
@@ -113028,16 +113039,7 @@ function useTimelineConfig(t0) {
 			content: children,
 			utility: false
 		});
-		let parentId = null;
-		let current = info;
-		while (current.parentId) {
-			if (allNeededSpanIds.has(current.parentId)) {
-				parentId = current.parentId;
-				break;
-			}
-			current = spanLookup.get(current.parentId) ?? current;
-			if (current === info) break;
-		}
+		const parentId = !cycleRoots.has(spanId) && info.parentId && spanDepths.has(info.parentId) ? info.parentId : null;
 		let parentGroup = spanChildren.get(parentId);
 		if (!parentGroup) {
 			parentGroup = [];
@@ -118385,7 +118387,7 @@ var retryEachFrame = (retry) => {
 	});
 };
 var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function TranscriptViewNodes(t0, ref) {
-	const $ = (0, import_compiler_runtime.c)(215);
+	const $ = (0, import_compiler_runtime.c)(212);
 	const { id, eventNodes, defaultCollapsedIds, running, backfilling, scrollToTopOnFinish, scrollRef, initialEventId, initialMessageId, followRequested, offsetTop: t1, className, renderAgentCard, getEventUrl, linkingEnabled, getEventFocusUrl, onOpenEventFocus, collapsedTranscript, onCollapseTranscript, onExpandNodes, eventNodeContext, onProgrammaticScroll, onHeadroomSetHidden, onPrevAgent, onNextAgent, onNavigatedToEvent, keyboardNavDisabled, selection } = t0;
 	const offsetTop = t1 === void 0 ? 10 : t1;
 	const listHandle = (0, import_react.useRef)(null);
@@ -118495,45 +118497,32 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 		$[38] = flattenedNodes;
 		$[39] = t13;
 	} else t13 = $[39];
-	const { turnMap: computed, anchorIds, anchorIdByTurn: byTurn } = t13;
-	let t14;
-	if ($[40] !== anchorIds || $[41] !== byTurn || $[42] !== computed) {
-		t14 = {
-			computedTurnMap: computed,
-			turnAnchorIds: anchorIds,
-			anchorIdByTurn: byTurn
-		};
-		$[40] = anchorIds;
-		$[41] = byTurn;
-		$[42] = computed;
-		$[43] = t14;
-	} else t14 = $[43];
-	const { computedTurnMap, turnAnchorIds, anchorIdByTurn } = t14;
+	const { turnMap: computedTurnMap, anchorIds: turnAnchorIds, anchorIdByTurn } = t13;
 	const flattenedNodesRef = useLatestRef(flattenedNodes);
-	let t15;
-	if ($[44] !== computedTurnMap || $[45] !== turnAnchorIds) {
-		t15 = {
+	let t14;
+	if ($[40] !== computedTurnMap || $[41] !== turnAnchorIds) {
+		t14 = {
 			turnAnchorIds,
 			computedTurnMap
 		};
-		$[44] = computedTurnMap;
+		$[40] = computedTurnMap;
+		$[41] = turnAnchorIds;
+		$[42] = t14;
+	} else t14 = $[42];
+	const turnLookupRef = useLatestRef(t14);
+	let t15;
+	if ($[43] !== computedTurnMap || $[44] !== scrollEventId || $[45] !== turnAnchorIds) {
+		t15 = () => anchorIndexForEvent(turnAnchorIds, computedTurnMap, scrollEventId);
+		$[43] = computedTurnMap;
+		$[44] = scrollEventId;
 		$[45] = turnAnchorIds;
 		$[46] = t15;
 	} else t15 = $[46];
-	const turnLookupRef = useLatestRef(t15);
-	let t16;
-	if ($[47] !== computedTurnMap || $[48] !== scrollEventId || $[49] !== turnAnchorIds) {
-		t16 = () => anchorIndexForEvent(turnAnchorIds, computedTurnMap, scrollEventId);
-		$[47] = computedTurnMap;
-		$[48] = scrollEventId;
-		$[49] = turnAnchorIds;
-		$[50] = t16;
-	} else t16 = $[50];
-	const [seedTurnIndex] = (0, import_react.useState)(t16);
+	const [seedTurnIndex] = (0, import_react.useState)(t15);
 	const currentTurnIndexRef = (0, import_react.useRef)(seedTurnIndex);
-	let t17;
-	if ($[51] !== flattenedNodesRef || $[52] !== onProgrammaticScroll || $[53] !== turnLookupRef) {
-		t17 = (index, onDone, onAbandon) => {
+	let t16;
+	if ($[47] !== flattenedNodesRef || $[48] !== onProgrammaticScroll || $[49] !== turnLookupRef) {
+		t16 = (index, onDone, onAbandon) => {
 			onProgrammaticScroll?.(true);
 			const rowId = flattenedNodesRef.current[index]?.id;
 			if (rowId !== void 0) {
@@ -118553,15 +118542,15 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 				onAbandon
 			});
 		};
-		$[51] = flattenedNodesRef;
-		$[52] = onProgrammaticScroll;
-		$[53] = turnLookupRef;
-		$[54] = t17;
-	} else t17 = $[54];
-	const scrollRowToTop = t17;
-	let t18;
-	if ($[55] !== collapsedTranscript || $[56] !== defaultCollapsedIds || $[57] !== eventNodes || $[58] !== flattenedNodes || $[59] !== flattenedNodesRef || $[60] !== onExpandNodes || $[61] !== onHeadroomSetHidden || $[62] !== onProgrammaticScroll || $[63] !== redirectEventId || $[64] !== scrollRef || $[65] !== scrollRowToTop) {
-		t18 = (targetId, callbacks) => {
+		$[47] = flattenedNodesRef;
+		$[48] = onProgrammaticScroll;
+		$[49] = turnLookupRef;
+		$[50] = t16;
+	} else t16 = $[50];
+	const scrollRowToTop = t16;
+	let t17;
+	if ($[51] !== collapsedTranscript || $[52] !== defaultCollapsedIds || $[53] !== eventNodes || $[54] !== flattenedNodes || $[55] !== flattenedNodesRef || $[56] !== onExpandNodes || $[57] !== onHeadroomSetHidden || $[58] !== onProgrammaticScroll || $[59] !== redirectEventId || $[60] !== scrollRef || $[61] !== scrollRowToTop) {
+		t17 = (targetId, callbacks) => {
 			const eventId_0 = redirectEventId(targetId);
 			onHeadroomSetHidden?.(true);
 			const tryScroll = (idx) => {
@@ -118610,50 +118599,50 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			callbacks?.onDone?.();
 			return _temp6$7;
 		};
-		$[55] = collapsedTranscript;
-		$[56] = defaultCollapsedIds;
-		$[57] = eventNodes;
-		$[58] = flattenedNodes;
-		$[59] = flattenedNodesRef;
-		$[60] = onExpandNodes;
-		$[61] = onHeadroomSetHidden;
-		$[62] = onProgrammaticScroll;
-		$[63] = redirectEventId;
-		$[64] = scrollRef;
-		$[65] = scrollRowToTop;
-		$[66] = t18;
-	} else t18 = $[66];
-	const scrollToEvent = t18;
+		$[51] = collapsedTranscript;
+		$[52] = defaultCollapsedIds;
+		$[53] = eventNodes;
+		$[54] = flattenedNodes;
+		$[55] = flattenedNodesRef;
+		$[56] = onExpandNodes;
+		$[57] = onHeadroomSetHidden;
+		$[58] = onProgrammaticScroll;
+		$[59] = redirectEventId;
+		$[60] = scrollRef;
+		$[61] = scrollRowToTop;
+		$[62] = t17;
+	} else t17 = $[62];
+	const scrollToEvent = t17;
 	const rootRef = (0, import_react.useRef)(null);
+	let t18;
 	let t19;
-	let t20;
-	if ($[67] !== flattenedNodesRef || $[68] !== redirectEventId || $[69] !== scrollToEvent) {
-		t19 = () => ({
+	if ($[63] !== flattenedNodesRef || $[64] !== redirectEventId || $[65] !== scrollToEvent) {
+		t18 = () => ({
 			scrollToEvent,
 			getFlattenedNodes: () => flattenedNodesRef.current,
 			getElement: () => rootRef.current,
 			rowEventId: redirectEventId
 		});
-		t20 = [
+		t19 = [
 			scrollToEvent,
 			flattenedNodesRef,
 			redirectEventId
 		];
-		$[67] = flattenedNodesRef;
-		$[68] = redirectEventId;
-		$[69] = scrollToEvent;
-		$[70] = t19;
-		$[71] = t20;
+		$[63] = flattenedNodesRef;
+		$[64] = redirectEventId;
+		$[65] = scrollToEvent;
+		$[66] = t18;
+		$[67] = t19;
 	} else {
-		t19 = $[70];
-		t20 = $[71];
+		t18 = $[66];
+		t19 = $[67];
 	}
-	(0, import_react.useImperativeHandle)(ref, t19, t20);
+	(0, import_react.useImperativeHandle)(ref, t18, t19);
 	const expandedForTargetRef = (0, import_react.useRef)(null);
+	let t20;
 	let t21;
-	let t22;
-	if ($[72] !== collapsedTranscript || $[73] !== defaultCollapsedIds || $[74] !== eventNodes || $[75] !== flattenedNodes || $[76] !== onExpandNodes || $[77] !== scrollEventId) {
-		t21 = () => {
+	if ($[68] !== collapsedTranscript || $[69] !== defaultCollapsedIds || $[70] !== eventNodes || $[71] !== flattenedNodes || $[72] !== onExpandNodes || $[73] !== scrollEventId) {
+		t20 = () => {
 			if (!scrollEventId || !onExpandNodes) return;
 			if (expandedForTargetRef.current === scrollEventId) return;
 			if (flattenedNodes.some((n_2) => n_2.id === scrollEventId)) return;
@@ -118662,7 +118651,7 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			expandedForTargetRef.current = scrollEventId;
 			onExpandNodes(collapsedAncestors_0);
 		};
-		t22 = [
+		t21 = [
 			scrollEventId,
 			onExpandNodes,
 			flattenedNodes,
@@ -118670,24 +118659,24 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			collapsedTranscript,
 			defaultCollapsedIds
 		];
-		$[72] = collapsedTranscript;
-		$[73] = defaultCollapsedIds;
-		$[74] = eventNodes;
-		$[75] = flattenedNodes;
-		$[76] = onExpandNodes;
-		$[77] = scrollEventId;
-		$[78] = t21;
-		$[79] = t22;
+		$[68] = collapsedTranscript;
+		$[69] = defaultCollapsedIds;
+		$[70] = eventNodes;
+		$[71] = flattenedNodes;
+		$[72] = onExpandNodes;
+		$[73] = scrollEventId;
+		$[74] = t20;
+		$[75] = t21;
 	} else {
-		t21 = $[78];
-		t22 = $[79];
+		t20 = $[74];
+		t21 = $[75];
 	}
-	(0, import_react.useEffect)(t21, t22);
+	(0, import_react.useEffect)(t20, t21);
 	const lastScrolledKeyRef = (0, import_react.useRef)(null);
+	let t22;
 	let t23;
-	let t24;
-	if ($[80] !== flattenedNodes || $[81] !== initialMessageId || $[82] !== offsetTop || $[83] !== onHeadroomSetHidden || $[84] !== scrollEventId || $[85] !== scrollRef || $[86] !== scrollRowToTop) {
-		t23 = () => {
+	if ($[76] !== flattenedNodes || $[77] !== initialMessageId || $[78] !== offsetTop || $[79] !== onHeadroomSetHidden || $[80] !== scrollEventId || $[81] !== scrollRef || $[82] !== scrollRowToTop) {
+		t22 = () => {
 			if (!scrollEventId) {
 				lastScrolledKeyRef.current = null;
 				return;
@@ -118744,7 +118733,7 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 				container.removeEventListener("keydown", abort);
 			};
 		};
-		t24 = [
+		t23 = [
 			scrollEventId,
 			initialMessageId,
 			flattenedNodes,
@@ -118753,23 +118742,23 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			offsetTop,
 			onHeadroomSetHidden
 		];
-		$[80] = flattenedNodes;
-		$[81] = initialMessageId;
-		$[82] = offsetTop;
-		$[83] = onHeadroomSetHidden;
-		$[84] = scrollEventId;
-		$[85] = scrollRef;
-		$[86] = scrollRowToTop;
-		$[87] = t23;
-		$[88] = t24;
+		$[76] = flattenedNodes;
+		$[77] = initialMessageId;
+		$[78] = offsetTop;
+		$[79] = onHeadroomSetHidden;
+		$[80] = scrollEventId;
+		$[81] = scrollRef;
+		$[82] = scrollRowToTop;
+		$[83] = t22;
+		$[84] = t23;
 	} else {
-		t23 = $[87];
-		t24 = $[88];
+		t22 = $[83];
+		t23 = $[84];
 	}
-	(0, import_react.useEffect)(t23, t24);
-	let t25;
-	if ($[89] !== flattenedNodesRef || $[90] !== onHeadroomSetHidden || $[91] !== onNavigatedToEvent || $[92] !== scrollRowToTop || $[93] !== turnAnchorIds) {
-		t25 = (index_0, onDone_0) => {
+	(0, import_react.useEffect)(t22, t23);
+	let t24;
+	if ($[85] !== flattenedNodesRef || $[86] !== onHeadroomSetHidden || $[87] !== onNavigatedToEvent || $[88] !== scrollRowToTop || $[89] !== turnAnchorIds) {
+		t24 = (index_0, onDone_0) => {
 			if (turnAnchorIds.length === 0) {
 				onDone_0?.();
 				return;
@@ -118788,17 +118777,17 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 				onNavigatedToEvent(anchorId);
 			}
 		};
-		$[89] = flattenedNodesRef;
-		$[90] = onHeadroomSetHidden;
-		$[91] = onNavigatedToEvent;
-		$[92] = scrollRowToTop;
-		$[93] = turnAnchorIds;
-		$[94] = t25;
-	} else t25 = $[94];
-	const goToTurn = t25;
-	let t26;
-	if ($[95] !== onHeadroomSetHidden || $[96] !== onProgrammaticScroll) {
-		t26 = () => {
+		$[85] = flattenedNodesRef;
+		$[86] = onHeadroomSetHidden;
+		$[87] = onNavigatedToEvent;
+		$[88] = scrollRowToTop;
+		$[89] = turnAnchorIds;
+		$[90] = t24;
+	} else t24 = $[90];
+	const goToTurn = t24;
+	let t25;
+	if ($[91] !== onHeadroomSetHidden || $[92] !== onProgrammaticScroll) {
+		t25 = () => {
 			onProgrammaticScroll?.(true);
 			listHandle.current?.scrollTo({
 				top: 0,
@@ -118807,14 +118796,14 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			onHeadroomSetHidden?.(false);
 			currentTurnIndexRef.current = -1;
 		};
-		$[95] = onHeadroomSetHidden;
-		$[96] = onProgrammaticScroll;
-		$[97] = t26;
-	} else t26 = $[97];
-	const goToVeryTop = t26;
-	let t27;
-	if ($[98] !== goToTurn || $[99] !== running || $[100] !== setTranscriptFollow || $[101] !== transcriptFollow || $[102] !== turnAnchorIds.length) {
-		t27 = () => {
+		$[91] = onHeadroomSetHidden;
+		$[92] = onProgrammaticScroll;
+		$[93] = t25;
+	} else t25 = $[93];
+	const goToVeryTop = t25;
+	let t26;
+	if ($[94] !== goToTurn || $[95] !== running || $[96] !== setTranscriptFollow || $[97] !== transcriptFollow || $[98] !== turnAnchorIds.length) {
+		t26 = () => {
 			const nextIndex = currentTurnIndexRef.current + 1;
 			if (running && turnAnchorIds.length > 0 && nextIndex >= turnAnchorIds.length) {
 				if (transcriptFollow !== true) setTranscriptFollow(true);
@@ -118822,130 +118811,122 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			}
 			goToTurn(nextIndex);
 		};
-		$[98] = goToTurn;
-		$[99] = running;
-		$[100] = setTranscriptFollow;
-		$[101] = transcriptFollow;
-		$[102] = turnAnchorIds.length;
-		$[103] = t27;
-	} else t27 = $[103];
-	const onNext = t27;
-	let t28;
-	if ($[104] !== goToTurn || $[105] !== goToVeryTop) {
-		t28 = (idx_2) => {
+		$[94] = goToTurn;
+		$[95] = running;
+		$[96] = setTranscriptFollow;
+		$[97] = transcriptFollow;
+		$[98] = turnAnchorIds.length;
+		$[99] = t26;
+	} else t26 = $[99];
+	const onNext = t26;
+	let t27;
+	if ($[100] !== goToTurn || $[101] !== goToVeryTop) {
+		t27 = (idx_2) => {
 			if (idx_2 <= 0) {
 				goToVeryTop();
 				return;
 			}
 			goToTurn(idx_2 - 1);
 		};
-		$[104] = goToTurn;
-		$[105] = goToVeryTop;
-		$[106] = t28;
-	} else t28 = $[106];
-	const goToPrevFrom = t28;
-	let t29;
-	if ($[107] !== goToPrevFrom || $[108] !== running || $[109] !== setTranscriptFollow || $[110] !== transcriptFollow) {
-		t29 = () => {
+		$[100] = goToTurn;
+		$[101] = goToVeryTop;
+		$[102] = t27;
+	} else t27 = $[102];
+	const goToPrevFrom = t27;
+	let t28;
+	if ($[103] !== goToPrevFrom || $[104] !== running || $[105] !== setTranscriptFollow || $[106] !== transcriptFollow) {
+		t28 = () => {
 			if (running && transcriptFollow === true) setTranscriptFollow(false);
 			goToPrevFrom(currentTurnIndexRef.current);
 		};
-		$[107] = goToPrevFrom;
-		$[108] = running;
-		$[109] = setTranscriptFollow;
-		$[110] = transcriptFollow;
-		$[111] = t29;
-	} else t29 = $[111];
-	const onPrev = t29;
+		$[103] = goToPrevFrom;
+		$[104] = running;
+		$[105] = setTranscriptFollow;
+		$[106] = transcriptFollow;
+		$[107] = t28;
+	} else t28 = $[107];
+	const onPrev = t28;
 	const goToTurnBarRef = (0, import_react.useRef)(null);
 	const [jumpTargetId, setJumpTargetId] = (0, import_react.useState)(null);
-	let t30;
-	if ($[112] !== computedTurnMap || $[113] !== goToPrevFrom || $[114] !== turnAnchorIds) {
-		t30 = (turnNumber) => {
+	let t29;
+	if ($[108] !== computedTurnMap || $[109] !== goToPrevFrom || $[110] !== turnAnchorIds) {
+		t29 = (turnNumber) => {
 			goToPrevFrom(anchorIndexForTurn(turnAnchorIds, computedTurnMap, turnNumber));
 		};
+		$[108] = computedTurnMap;
+		$[109] = goToPrevFrom;
+		$[110] = turnAnchorIds;
+		$[111] = t29;
+	} else t29 = $[111];
+	const onPrevTurn = t29;
+	let t30;
+	if ($[112] !== computedTurnMap || $[113] !== goToTurn || $[114] !== turnAnchorIds) {
+		t30 = (turnNumber_0) => {
+			goToTurn(anchorIndexForTurn(turnAnchorIds, computedTurnMap, turnNumber_0) + 1);
+		};
 		$[112] = computedTurnMap;
-		$[113] = goToPrevFrom;
+		$[113] = goToTurn;
 		$[114] = turnAnchorIds;
 		$[115] = t30;
 	} else t30 = $[115];
-	const onPrevTurn = t30;
+	const onNextTurn = t30;
 	let t31;
-	if ($[116] !== computedTurnMap || $[117] !== goToTurn || $[118] !== turnAnchorIds) {
-		t31 = (turnNumber_0) => {
-			goToTurn(anchorIndexForTurn(turnAnchorIds, computedTurnMap, turnNumber_0) + 1);
-		};
-		$[116] = computedTurnMap;
-		$[117] = goToTurn;
-		$[118] = turnAnchorIds;
-		$[119] = t31;
-	} else t31 = $[119];
-	const onNextTurn = t31;
-	let t32;
-	if ($[120] === Symbol.for("react.memo_cache_sentinel")) {
-		t32 = (turnNumber_1) => {
+	if ($[116] === Symbol.for("react.memo_cache_sentinel")) {
+		t31 = (turnNumber_1) => {
 			goToTurnBarRef.current?.open(turnNumber_1);
 		};
-		$[120] = t32;
-	} else t32 = $[120];
-	const onTurnLabelClick = t32;
-	let t33;
-	if ($[121] !== flattenedNodesRef || $[122] !== scrollRowToTop) {
-		t33 = (eventNodeId) => {
+		$[116] = t31;
+	} else t31 = $[116];
+	const onTurnLabelClick = t31;
+	let t32;
+	if ($[117] !== flattenedNodesRef || $[118] !== scrollRowToTop) {
+		t32 = (eventNodeId) => {
 			const idx_3 = flattenedNodesRef.current.findIndex((n_5) => n_5.id === eventNodeId);
 			if (idx_3 !== -1) scrollRowToTop(idx_3);
 		};
-		$[121] = flattenedNodesRef;
-		$[122] = scrollRowToTop;
-		$[123] = t33;
-	} else t33 = $[123];
-	const onTabSelected = t33;
+		$[117] = flattenedNodesRef;
+		$[118] = scrollRowToTop;
+		$[119] = t32;
+	} else t32 = $[119];
+	const onTabSelected = t32;
+	let t33;
+	if ($[120] === Symbol.for("react.memo_cache_sentinel")) {
+		t33 = /* @__PURE__ */ new Map();
+		$[120] = t33;
+	} else t33 = $[120];
+	const anchorTabsRef = (0, import_react.useRef)(t33);
 	let t34;
-	if ($[124] === Symbol.for("react.memo_cache_sentinel")) {
-		t34 = /* @__PURE__ */ new Map();
-		$[124] = t34;
-	} else t34 = $[124];
-	const anchorTabsRef = (0, import_react.useRef)(t34);
-	let t35;
-	if ($[125] === Symbol.for("react.memo_cache_sentinel")) {
-		t35 = (eventNodeId_0, tabName) => {
+	if ($[121] === Symbol.for("react.memo_cache_sentinel")) {
+		t34 = (eventNodeId_0, tabName) => {
 			if (tabName === void 0) anchorTabsRef.current.delete(eventNodeId_0);
 			else anchorTabsRef.current.set(eventNodeId_0, tabName);
 		};
+		$[121] = t34;
+	} else t34 = $[121];
+	const onFocusTabChange = t34;
+	const followArmed = transcriptFollow === true;
+	let t35;
+	if ($[122] !== followArmed || $[123] !== getEventFocusUrl || $[124] !== running) {
+		t35 = getEventFocusUrl ? (eventId_1, selectedTab) => {
+			const href = getEventFocusUrl(eventId_1, selectedTab);
+			if (!href || !running || !followArmed) return href;
+			return `${href}${href.includes("?") ? "&" : "?"}follow=1`;
+		} : void 0;
+		$[122] = followArmed;
+		$[123] = getEventFocusUrl;
+		$[124] = running;
 		$[125] = t35;
 	} else t35 = $[125];
-	const onFocusTabChange = t35;
+	const getEventFocusUrlArmed = t35;
 	let t36;
-	bb0: {
-		if (!getEventFocusUrl) {
-			t36 = getEventFocusUrl;
-			break bb0;
-		}
-		const following = transcriptFollow === true;
-		let t37;
-		if ($[126] !== following || $[127] !== getEventFocusUrl || $[128] !== running) {
-			t37 = (eventId_1, selectedTab) => {
-				const href = getEventFocusUrl(eventId_1, selectedTab);
-				if (!href || !running || !following) return href;
-				return `${href}${href.includes("?") ? "&" : "?"}follow=1`;
-			};
-			$[126] = following;
-			$[127] = getEventFocusUrl;
-			$[128] = running;
-			$[129] = t37;
-		} else t37 = $[129];
-		t36 = t37;
-	}
-	const getEventFocusUrlArmed = t36;
+	if ($[126] !== jumpTargetId) {
+		t36 = jumpTargetId ? (eventNodeId_1) => eventNodeId_1 === jumpTargetId : void 0;
+		$[126] = jumpTargetId;
+		$[127] = t36;
+	} else t36 = $[127];
 	let t37;
-	if ($[130] !== jumpTargetId) {
-		t37 = jumpTargetId ? (eventNodeId_1) => eventNodeId_1 === jumpTargetId : void 0;
-		$[130] = jumpTargetId;
-		$[131] = t37;
-	} else t37 = $[131];
-	let t38;
-	if ($[132] !== getCollapsed || $[133] !== getEventFocusUrlArmed || $[134] !== getEventUrl || $[135] !== linkingEnabled || $[136] !== onCollapseTranscript || $[137] !== onNextTurn || $[138] !== onOpenEventFocus || $[139] !== onPrevTurn || $[140] !== onTabSelected || $[141] !== t37) {
-		t38 = {
+	if ($[128] !== getCollapsed || $[129] !== getEventFocusUrlArmed || $[130] !== getEventUrl || $[131] !== linkingEnabled || $[132] !== onCollapseTranscript || $[133] !== onNextTurn || $[134] !== onOpenEventFocus || $[135] !== onPrevTurn || $[136] !== onTabSelected || $[137] !== t36) {
+		t37 = {
 			onCollapse: onCollapseTranscript,
 			getCollapsed,
 			getEventUrl,
@@ -118957,24 +118938,24 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			onTurnLabelClick,
 			onTabSelected,
 			onOpenEventFocus,
-			isJumpTarget: t37
+			isJumpTarget: t36
 		};
-		$[132] = getCollapsed;
-		$[133] = getEventFocusUrlArmed;
-		$[134] = getEventUrl;
-		$[135] = linkingEnabled;
-		$[136] = onCollapseTranscript;
-		$[137] = onNextTurn;
-		$[138] = onOpenEventFocus;
-		$[139] = onPrevTurn;
-		$[140] = onTabSelected;
-		$[141] = t37;
-		$[142] = t38;
-	} else t38 = $[142];
-	const eventCallbacks = t38;
-	let t39;
-	if ($[143] !== anchorIdByTurn || $[144] !== computedTurnMap || $[145] !== goToTurn || $[146] !== onNavigatedToEvent || $[147] !== scrollToEvent || $[148] !== turnAnchorIds) {
-		t39 = (n_6) => {
+		$[128] = getCollapsed;
+		$[129] = getEventFocusUrlArmed;
+		$[130] = getEventUrl;
+		$[131] = linkingEnabled;
+		$[132] = onCollapseTranscript;
+		$[133] = onNextTurn;
+		$[134] = onOpenEventFocus;
+		$[135] = onPrevTurn;
+		$[136] = onTabSelected;
+		$[137] = t36;
+		$[138] = t37;
+	} else t37 = $[138];
+	const eventCallbacks = t37;
+	let t38;
+	if ($[139] !== anchorIdByTurn || $[140] !== computedTurnMap || $[141] !== goToTurn || $[142] !== onNavigatedToEvent || $[143] !== scrollToEvent || $[144] !== turnAnchorIds) {
+		t38 = (n_6) => {
 			const anchorId_0 = anchorIdByTurn.get(n_6);
 			if (anchorId_0 !== void 0) {
 				lastScrolledKeyRef.current = `${anchorId_0}:`;
@@ -118987,91 +118968,84 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			goToTurn(idx_4);
 			setJumpTargetId(turnAnchorIds[idx_4] ?? null);
 		};
-		$[143] = anchorIdByTurn;
-		$[144] = computedTurnMap;
-		$[145] = goToTurn;
-		$[146] = onNavigatedToEvent;
-		$[147] = scrollToEvent;
-		$[148] = turnAnchorIds;
-		$[149] = t39;
-	} else t39 = $[149];
-	const onGoToTurnJump = t39;
+		$[139] = anchorIdByTurn;
+		$[140] = computedTurnMap;
+		$[141] = goToTurn;
+		$[142] = onNavigatedToEvent;
+		$[143] = scrollToEvent;
+		$[144] = turnAnchorIds;
+		$[145] = t38;
+	} else t38 = $[145];
+	const onGoToTurnJump = t38;
+	let t39;
+	if ($[146] !== goToTurn) {
+		t39 = () => goToTurn(0);
+		$[146] = goToTurn;
+		$[147] = t39;
+	} else t39 = $[147];
+	const onFirst = t39;
 	let t40;
-	if ($[150] !== goToTurn) {
-		t40 = () => goToTurn(0);
-		$[150] = goToTurn;
-		$[151] = t40;
-	} else t40 = $[151];
-	const onFirst = t40;
+	if ($[148] !== goToTurn || $[149] !== turnAnchorIds.length) {
+		t40 = () => goToTurn(turnAnchorIds.length - 1);
+		$[148] = goToTurn;
+		$[149] = turnAnchorIds.length;
+		$[150] = t40;
+	} else t40 = $[150];
+	const onLast = t40;
 	let t41;
-	if ($[152] !== goToTurn || $[153] !== turnAnchorIds.length) {
-		t41 = () => goToTurn(turnAnchorIds.length - 1);
-		$[152] = goToTurn;
-		$[153] = turnAnchorIds.length;
-		$[154] = t41;
-	} else t41 = $[154];
-	const onLast = t41;
+	if ($[151] !== getEventFocusUrl || $[152] !== getEventFocusUrlArmed || $[153] !== onOpenEventFocus || $[154] !== running || $[155] !== transcriptFollow || $[156] !== turnAnchorIds) {
+		t41 = getEventFocusUrl && onOpenEventFocus ? () => {
+			const anchorId_1 = running && transcriptFollow === true ? turnAnchorIds[turnAnchorIds.length - 1] : turnAnchorIds[Math.max(0, currentTurnIndexRef.current)];
+			if (!anchorId_1) return;
+			const href_0 = getEventFocusUrlArmed?.(anchorId_1, anchorTabsRef.current.get(anchorId_1));
+			if (!href_0) return;
+			onOpenEventFocus(href_0);
+		} : void 0;
+		$[151] = getEventFocusUrl;
+		$[152] = getEventFocusUrlArmed;
+		$[153] = onOpenEventFocus;
+		$[154] = running;
+		$[155] = transcriptFollow;
+		$[156] = turnAnchorIds;
+		$[157] = t41;
+	} else t41 = $[157];
+	const onFocusCurrentTurn = t41;
 	let t42;
-	bb1: {
-		if (!getEventFocusUrl || !onOpenEventFocus) {
-			t42 = void 0;
-			break bb1;
-		}
-		let t43;
-		if ($[155] !== getEventFocusUrlArmed || $[156] !== onOpenEventFocus || $[157] !== running || $[158] !== transcriptFollow || $[159] !== turnAnchorIds) {
-			t43 = () => {
-				const anchorId_1 = running && transcriptFollow === true ? turnAnchorIds[turnAnchorIds.length - 1] : turnAnchorIds[Math.max(0, currentTurnIndexRef.current)];
-				if (!anchorId_1) return;
-				const href_0 = getEventFocusUrlArmed?.(anchorId_1, anchorTabsRef.current.get(anchorId_1));
-				if (!href_0) return;
-				onOpenEventFocus(href_0);
-			};
-			$[155] = getEventFocusUrlArmed;
-			$[156] = onOpenEventFocus;
-			$[157] = running;
-			$[158] = transcriptFollow;
-			$[159] = turnAnchorIds;
-			$[160] = t43;
-		} else t43 = $[160];
-		t42 = t43;
-	}
-	const onFocusCurrentTurn = t42;
-	let t43;
-	if ($[161] !== flattenedNodes) {
-		t43 = flattenedNodes.map(_temp7$7);
-		$[161] = flattenedNodes;
-		$[162] = t43;
-	} else t43 = $[162];
-	const trackedEventIds = t43;
+	if ($[158] !== flattenedNodes) {
+		t42 = flattenedNodes.map(_temp7$7);
+		$[158] = flattenedNodes;
+		$[159] = t42;
+	} else t42 = $[159];
+	const trackedEventIds = t42;
 	const userScrolledRef = (0, import_react.useRef)(false);
-	let t44;
-	if ($[163] !== computedTurnMap || $[164] !== scrollRef || $[165] !== turnAnchorIds) {
-		t44 = (eventId_2) => {
+	let t43;
+	if ($[160] !== computedTurnMap || $[161] !== scrollRef || $[162] !== turnAnchorIds) {
+		t43 = (eventId_2) => {
 			if ((scrollRef?.current?.scrollTop ?? 0) > 0) userScrolledRef.current = true;
 			if (!userScrolledRef.current) return;
 			currentTurnIndexRef.current = anchorIndexForEvent(turnAnchorIds, computedTurnMap, eventId_2);
 		};
-		$[163] = computedTurnMap;
-		$[164] = scrollRef;
-		$[165] = turnAnchorIds;
-		$[166] = t44;
-	} else t44 = $[166];
-	const onTopEvent = t44;
-	let t45;
-	if ($[167] !== offsetTop) {
-		t45 = {
+		$[160] = computedTurnMap;
+		$[161] = scrollRef;
+		$[162] = turnAnchorIds;
+		$[163] = t43;
+	} else t43 = $[163];
+	const onTopEvent = t43;
+	let t44;
+	if ($[164] !== offsetTop) {
+		t44 = {
 			topOffset: offsetTop,
 			advanceDetectionPointAtEnd: false
 		};
-		$[167] = offsetTop;
-		$[168] = t45;
-	} else t45 = $[168];
-	useScrollTrack(trackedEventIds, onTopEvent, scrollRef, t45);
-	const t46 = turnAnchorIds.length > 0 ? onFirst : void 0;
-	const t47 = turnAnchorIds.length > 0 ? onLast : void 0;
-	let t48;
-	if ($[169] !== flattenedNodes.length || $[170] !== keyboardNavDisabled || $[171] !== onFocusCurrentTurn || $[172] !== onNext || $[173] !== onNextAgent || $[174] !== onPrev || $[175] !== onPrevAgent || $[176] !== scrollRef || $[177] !== t46 || $[178] !== t47) {
-		t48 = {
+		$[164] = offsetTop;
+		$[165] = t44;
+	} else t44 = $[165];
+	useScrollTrack(trackedEventIds, onTopEvent, scrollRef, t44);
+	const t45 = turnAnchorIds.length > 0 ? onFirst : void 0;
+	const t46 = turnAnchorIds.length > 0 ? onLast : void 0;
+	let t47;
+	if ($[166] !== flattenedNodes.length || $[167] !== keyboardNavDisabled || $[168] !== onFocusCurrentTurn || $[169] !== onNext || $[170] !== onNextAgent || $[171] !== onPrev || $[172] !== onPrevAgent || $[173] !== scrollRef || $[174] !== t45 || $[175] !== t46) {
+		t47 = {
 			listHandle,
 			scrollRef,
 			itemCount: flattenedNodes.length,
@@ -119080,63 +119054,63 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			onPrevAgent,
 			onNextAgent,
 			onFocusCurrentTurn,
-			onFirst: t46,
-			onLast: t47,
+			onFirst: t45,
+			onLast: t46,
 			disabled: keyboardNavDisabled
 		};
-		$[169] = flattenedNodes.length;
-		$[170] = keyboardNavDisabled;
-		$[171] = onFocusCurrentTurn;
-		$[172] = onNext;
-		$[173] = onNextAgent;
-		$[174] = onPrev;
-		$[175] = onPrevAgent;
-		$[176] = scrollRef;
-		$[177] = t46;
-		$[178] = t47;
-		$[179] = t48;
-	} else t48 = $[179];
-	useTranscriptKeyboardNavigation(t48);
+		$[166] = flattenedNodes.length;
+		$[167] = keyboardNavDisabled;
+		$[168] = onFocusCurrentTurn;
+		$[169] = onNext;
+		$[170] = onNextAgent;
+		$[171] = onPrev;
+		$[172] = onPrevAgent;
+		$[173] = scrollRef;
+		$[174] = t45;
+		$[175] = t46;
+		$[176] = t47;
+	} else t47 = $[176];
+	useTranscriptKeyboardNavigation(t47);
 	const firstAnchorId = turnAnchorIds[0];
+	let t48;
+	if ($[177] !== computedTurnMap || $[178] !== firstAnchorId || $[179] !== turnAnchorIds.length) {
+		t48 = (firstAnchorId ? computedTurnMap.get(firstAnchorId)?.totalTurns : 0) ?? turnAnchorIds.length;
+		$[177] = computedTurnMap;
+		$[178] = firstAnchorId;
+		$[179] = turnAnchorIds.length;
+		$[180] = t48;
+	} else t48 = $[180];
+	const totalTurns = t48;
 	let t49;
-	if ($[180] !== computedTurnMap || $[181] !== firstAnchorId || $[182] !== turnAnchorIds.length) {
-		t49 = (firstAnchorId ? computedTurnMap.get(firstAnchorId)?.totalTurns : 0) ?? turnAnchorIds.length;
-		$[180] = computedTurnMap;
-		$[181] = firstAnchorId;
-		$[182] = turnAnchorIds.length;
-		$[183] = t49;
-	} else t49 = $[183];
-	const totalTurns = t49;
-	let t50;
-	if ($[184] !== offsetTop || $[185] !== scrollRef) {
-		t50 = {
+	if ($[181] !== offsetTop || $[182] !== scrollRef) {
+		t49 = {
 			stickyTop: offsetTop,
 			scrollRef
 		};
-		$[184] = offsetTop;
-		$[185] = scrollRef;
-		$[186] = t50;
-	} else t50 = $[186];
-	const stickyScroll = t50;
-	let t51;
-	if ($[187] !== keyboardNavDisabled || $[188] !== offsetTop || $[189] !== onGoToTurnJump || $[190] !== totalTurns || $[191] !== turnAnchorIds.length) {
-		t51 = turnAnchorIds.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GoToTurnBar, {
+		$[181] = offsetTop;
+		$[182] = scrollRef;
+		$[183] = t49;
+	} else t49 = $[183];
+	const stickyScroll = t49;
+	let t50;
+	if ($[184] !== keyboardNavDisabled || $[185] !== offsetTop || $[186] !== onGoToTurnJump || $[187] !== totalTurns || $[188] !== turnAnchorIds.length) {
+		t50 = turnAnchorIds.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GoToTurnBar, {
 			ref: goToTurnBarRef,
 			totalTurns,
 			offsetTop,
 			disabled: keyboardNavDisabled,
 			onJump: onGoToTurnJump
 		});
-		$[187] = keyboardNavDisabled;
-		$[188] = offsetTop;
-		$[189] = onGoToTurnJump;
-		$[190] = totalTurns;
-		$[191] = turnAnchorIds.length;
-		$[192] = t51;
-	} else t51 = $[192];
-	let t52;
-	if ($[193] !== backfilling || $[194] !== className || $[195] !== computedTurnMap || $[196] !== eventCallbacks || $[197] !== flattenedNodes || $[198] !== followRequested || $[199] !== id || $[200] !== mergedEventNodeContext || $[201] !== navOwned || $[202] !== renderAgentCard || $[203] !== rowSelection || $[204] !== running || $[205] !== scrollEventId || $[206] !== scrollRef || $[207] !== scrollToTopOnFinish) {
-		t52 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptVirtualList, {
+		$[184] = keyboardNavDisabled;
+		$[185] = offsetTop;
+		$[186] = onGoToTurnJump;
+		$[187] = totalTurns;
+		$[188] = turnAnchorIds.length;
+		$[189] = t50;
+	} else t50 = $[189];
+	let t51;
+	if ($[190] !== backfilling || $[191] !== className || $[192] !== computedTurnMap || $[193] !== eventCallbacks || $[194] !== flattenedNodes || $[195] !== followRequested || $[196] !== id || $[197] !== mergedEventNodeContext || $[198] !== navOwned || $[199] !== renderAgentCard || $[200] !== rowSelection || $[201] !== running || $[202] !== scrollEventId || $[203] !== scrollRef || $[204] !== scrollToTopOnFinish) {
+		t51 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptVirtualList, {
 			id,
 			listHandle,
 			eventNodes: flattenedNodes,
@@ -119154,44 +119128,44 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			eventNodeContext: mergedEventNodeContext,
 			selection: rowSelection
 		});
-		$[193] = backfilling;
-		$[194] = className;
-		$[195] = computedTurnMap;
-		$[196] = eventCallbacks;
-		$[197] = flattenedNodes;
-		$[198] = followRequested;
-		$[199] = id;
-		$[200] = mergedEventNodeContext;
-		$[201] = navOwned;
-		$[202] = renderAgentCard;
-		$[203] = rowSelection;
-		$[204] = running;
-		$[205] = scrollEventId;
-		$[206] = scrollRef;
-		$[207] = scrollToTopOnFinish;
+		$[190] = backfilling;
+		$[191] = className;
+		$[192] = computedTurnMap;
+		$[193] = eventCallbacks;
+		$[194] = flattenedNodes;
+		$[195] = followRequested;
+		$[196] = id;
+		$[197] = mergedEventNodeContext;
+		$[198] = navOwned;
+		$[199] = renderAgentCard;
+		$[200] = rowSelection;
+		$[201] = running;
+		$[202] = scrollEventId;
+		$[203] = scrollRef;
+		$[204] = scrollToTopOnFinish;
+		$[205] = t51;
+	} else t51 = $[205];
+	let t52;
+	if ($[206] !== t50 || $[207] !== t51) {
+		t52 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			ref: rootRef,
+			children: [t50, t51]
+		});
+		$[206] = t50;
+		$[207] = t51;
 		$[208] = t52;
 	} else t52 = $[208];
 	let t53;
-	if ($[209] !== t51 || $[210] !== t52) {
-		t53 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			ref: rootRef,
-			children: [t51, t52]
+	if ($[209] !== stickyScroll || $[210] !== t52) {
+		t53 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StickyScrollProvider, {
+			value: stickyScroll,
+			children: t52
 		});
-		$[209] = t51;
+		$[209] = stickyScroll;
 		$[210] = t52;
 		$[211] = t53;
 	} else t53 = $[211];
-	let t54;
-	if ($[212] !== stickyScroll || $[213] !== t53) {
-		t54 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StickyScrollProvider, {
-			value: stickyScroll,
-			children: t53
-		});
-		$[212] = stickyScroll;
-		$[213] = t53;
-		$[214] = t54;
-	} else t54 = $[214];
-	return t54;
+	return t53;
 });
 function _temp$47(n_0) {
 	return isSelectableEvent(n_0.event);

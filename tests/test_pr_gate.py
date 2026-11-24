@@ -6,6 +6,7 @@ enforcement layers run against a fake `gh` that records the calls.
 
 import importlib.util
 import pathlib
+from typing import Any
 
 import pytest
 import yaml
@@ -496,7 +497,7 @@ def test_fetch_ctx_records_linked_issue_repository(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
 
     def fake_gh_json(*args):
-        if args[0].endswith("/files"):
+        if "/files" in args[0]:
             return [{"filename": "src/inspect_ai/x.py", "additions": 1, "deletions": 0}]
         if args[0].endswith("/labels"):
             return [{"name": "Bug"}]
@@ -527,6 +528,31 @@ def test_fetch_ctx_records_linked_issue_repository(monkeypatch, tmp_path):
         {"author": None, "repo": FOREIGN_REPO, "labels": ["deferred"]},
     ]
     assert pr_gate.decide(ctx).tier == "issue-approved"
+
+
+def test_fetch_ctx_lists_one_page_of_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    (tmp_path / ".github").mkdir()
+    (tmp_path / ".github" / "qualified.yml").write_text("users:\n  - 111222\n")
+    monkeypatch.chdir(tmp_path)
+    calls: list[tuple[str, ...]] = []
+
+    def fake_gh_json(*args: str) -> Any:
+        calls.append(args)
+        if "/files" in args[0]:
+            return [{"filename": "docs/index.qmd", "additions": 1, "deletions": 0}]
+        if args[0].endswith("/labels"):
+            return []
+        return graphql_response([])
+
+    monkeypatch.setattr(pr_gate, "gh_json", fake_gh_json)
+    pr_gate.fetch_ctx(LOCAL_REPO, 42, "somebody", 999999, "NONE")
+
+    assert [c for c in calls if "/files" in c[0]] == [
+        (f"repos/{LOCAL_REPO}/pulls/42/files?per_page={pr_gate.FILES_PAGE_SIZE}",)
+    ]
+    assert pr_gate.FILES_PAGE_SIZE >= pr_gate.TRIVIAL_MAX_LINES
 
 
 # --- enforcement: a close verdict closes the PR unless it changed during the

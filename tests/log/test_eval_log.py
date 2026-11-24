@@ -692,8 +692,6 @@ def _eval_shards(selection: Literal["ids", "count", "none"]) -> EvalShards:
                 eval_set_id="set-1",
                 status="success",
                 samples=4,
-                selected=2,
-                selection_digest=hashlib.sha256(b'["2","a"]').hexdigest(),
                 started_at="2026-09-24T11:00:00+00:00",
                 completed_at="2026-09-24T11:30:00+00:00",
                 model_usage={
@@ -718,8 +716,6 @@ def _eval_shards(selection: Literal["ids", "count", "none"]) -> EvalShards:
                     message="boom", traceback="Traceback", traceback_ansi="Traceback"
                 ),
                 samples=1,
-                selected=1,
-                selection_digest=hashlib.sha256(b'["b"]').hexdigest(),
                 started_at="2026-09-24T11:05:00+00:00",
                 size=99,
             ),
@@ -755,8 +751,6 @@ def test_eval_log_header_round_trips_shards(
         "eval_set_id",
         "status",
         "samples",
-        "selected",
-        "selection_digest",
         "started_at",
         "completed_at",
         "model_usage",
@@ -766,8 +760,6 @@ def test_eval_log_header_round_trips_shards(
         "mtime",
     }
     assert stored["ledger"][0]["samples"] == 4
-    assert stored["ledger"][0]["selected"] == 2
-    assert len(stored["ledger"][0]["selection_digest"]) == 64
     assert stored["ledger"][0]["etag"] == '"0123abcd"'
     assert "error" not in stored["ledger"][0]
     assert stored["ledger"][1]["error"]["message"] == "boom"

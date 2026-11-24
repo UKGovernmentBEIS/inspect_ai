@@ -249,9 +249,9 @@ def test_sample_interrupt_before_start_defers_until_started() -> None:
 
     The initializing window (registered, not yet started — see
     design/ctl/initializing-sample-cancel.md): the intent is stamped and the
-    sample reads terminal, but the hook and the scope cancel wait for the
-    firing call the task runner makes right after `start(tg)`, so a binder
-    sees the same sequence it sees for a running sample.
+    sample reads terminal, but the hook and the scope cancel wait for
+    `start(tg)`, so a binder sees the same sequence it sees for a running
+    sample.
     """
     sample = _make_active_sample()
     causes: list[str] = []
@@ -262,9 +262,26 @@ def test_sample_interrupt_before_start_defers_until_started() -> None:
     assert sample.terminal
     assert causes == []
 
-    # the runner's start-time self-check: fire the pending intent
+    tg = MagicMock()
+    sample.start(tg)
+    assert causes == ["user_cancel"]
+    tg.cancel_scope.cancel.assert_called_once_with()
+
+
+def test_sample_interrupt_first_resolution_wins() -> None:
+    """A second `interrupt()` neither replaces the action nor re-fires.
+
+    The runner reads `interrupt_action` when it handles the cancel, so an
+    overwrite would change the outcome of a cancel already delivered.
+    """
+    sample = _make_active_sample()
     sample.tg = MagicMock()
-    sample.interrupt(sample.interrupt_action)
+    causes: list[str] = []
+    sample.on_interrupt = lambda cause: causes.append(cause)
+
+    sample.interrupt("cancel")
+    sample.interrupt("score")
+    assert sample.interrupt_action == "cancel"
     assert causes == ["user_cancel"]
     sample.tg.cancel_scope.cancel.assert_called_once_with()
 

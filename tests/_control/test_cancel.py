@@ -497,29 +497,6 @@ def test_cancel_task_score_resolution_repeat_is_noop(
     assert handle.fired == ["score"] and running.interrupts == ["score"]
 
 
-def test_cancel_task_resolution_sweep_skips_already_interrupted(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The in-flight sweep never overwrites a sample's existing interrupt.
-
-    A sample that was per-sample cancelled is still "in flight" until its
-    (post-scoring/logging) context exit stamps `completed`; re-interrupting
-    it would flip a not-yet-handled 'cancel' to the score/error disposition
-    and re-fire on_interrupt hooks on a sample already being resolved.
-    """
-    handle = _FakeTaskCancel()
-    register_eval("e1", 5, task_id="t1", task_cancel=handle)
-    already_cancelled = _FakeActiveSample(sample_id="s1")
-    already_cancelled.interrupt("cancel")
-    running = _FakeActiveSample(sample_id="s2")
-    _patch_active_samples(monkeypatch, [already_cancelled, running])
-
-    result = cancel_task("t1", action="score")
-    assert result is not None and result["ok"] is True and result["changed"] is True
-    assert already_cancelled.interrupts == ["cancel"]  # not re-interrupted
-    assert running.interrupts == ["score"]
-
-
 def test_cancel_task_resolution_sweep_skips_fired_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -976,23 +953,24 @@ async def test_cancel_sample_initializing_repeat_is_noop(
     assert sample.interrupts == ["cancel"]
 
 
-async def test_cancel_sample_running_repeat_reinterrupts(
+async def test_cancel_sample_running_repeat_is_noop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The repeat no-op is scoped to initializing: a running row re-interrupts.
+    """A running sample already interrupted keeps its first resolution.
 
-    Re-firing a running sample's cancel scope is a real action (the runner
-    reads the live action when it handles the interrupt), so the running row
-    keeps today's ``changed: true`` answer.
+    Same answer as the initializing row: a later 'score' neither replaces a
+    pending 'cancel' nor reports a change.
     """
     sample = _FakeActiveSample()
     sample.interrupt_action = "cancel"
     _patch_active_samples(monkeypatch, [sample])
 
-    result = await cancel_sample("e1", "s1", 1, action="cancel")
+    result = await cancel_sample("e1", "s1", 1, action="score")
     assert result is not None
-    assert result["ok"] is True and result["changed"] is True
-    assert sample.interrupts == ["cancel"]
+    assert result["ok"] is True and result["changed"] is False
+    assert result["reason"] == "cancel already requested (cancel)"
+    assert cast(CancelSampleAlreadyRequested, result)["interrupt"] == "cancel"
+    assert sample.interrupts == []
 
 
 async def test_cancel_sample_initializing_error_gated_by_fails_on_error(

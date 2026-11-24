@@ -71,7 +71,7 @@ The initializing row of the `sample/cancel` decision table changes; every other 
 | **initializing** (`ActiveSample`, `started is None`, no intent stamped) | **applied — deferred interrupt**: the intent is stamped now and fires as the sample starts; `changed: true`, with a `reason` saying the sample will resolve when it finishes initializing | **applied the same way** — `score`/`error` resolve at start exactly as the task-level self-check resolves them in this window; `error` is gated by `fails_on_error` as on a running sample (the `ActiveSample` is registered, so the gate sees it — no start-time downgrade is needed, unlike the task-level blind spot) |
 | initializing, **intent already stamped** | `changed: false` no-op — "cancel already requested (`<action>`)" | same no-op (first resolution wins) |
 | **departed, not yet registered** (stage 2) | 409 — unchanged, retryable; reworded to say the sample has left the queue but is not yet registered | 409 — same |
-| running / queued / terminal / unknown | unchanged | unchanged |
+| running / queued / terminal / unknown | unchanged (a running sample with an interrupt already set has since gained the same no-op as the row above) | unchanged (same) |
 
 Notes:
 
@@ -92,12 +92,13 @@ Notes:
   will, and the task-level machinery already resolves this very window with `score` and
   `error`. Rejecting them here would be an arbitrary asymmetry. (A cancel-only variant is
   a one-line gate if maintainers prefer the smaller surface — Alternatives.)
-- **Repeat is a no-op, unlike the running row.** Re-interrupting a *running* sample
-  re-fires its cancel scope (a real action — the runner reads the live action when it
-  handles the interrupt); re-stamping an intent does nothing, so the honest answer is
-  `changed: false` naming the pending action. The intent is not overwritable — first
-  resolution wins, the same rule the task-cancel sweep applies to samples with
-  `interrupt_action` set. `dry_run` reports every row without stamping.
+- **Repeat is a no-op, as on the running row.** Re-stamping an intent does nothing, so
+  the honest answer is `changed: false` naming the pending action. The intent is not
+  overwritable — first resolution wins, the same rule the task-cancel sweep applies to
+  samples with `interrupt_action` set. `dry_run` reports every row without stamping.
+  (This design originally left the running row re-interrupting with `changed: true`;
+  `ActiveSample.interrupt` now enforces first-resolution-wins for every caller, so a
+  running repeat gets the same no-op.)
 - **Idempotence across the start boundary.** Once the deferred interrupt fires, the
   sample is in its (shielded) logging window with `interrupt_action` set and `completed`
   unset — the same state a running sample's cancel leaves it in — so a repeat lands on the
@@ -120,19 +121,16 @@ carrying one as *cancelled, absent from the log*. So the design adds no second s
    sample. Contract: "interrupt now if the sample has started, otherwise as it starts".
    The `RuntimeError` was a programming-error guard that only the unguarded ACP handler
    reaches today (see Failure modes); the deferral makes the state meaningful instead.
-2. **The start-time self-check consults the per-sample intent first — and exclusively.**
-   Immediately after `active.start(tg)`: if `active.interrupt_action` is set, call
-   `active.interrupt(active.interrupt_action)` — now with a task group, it fires — and
-   **skip** the `task_cancel.cancel_type` branches (an `elif`, not a fall-through). This
-   matters: the task-level branches call `active.interrupt(resolution)` too, and the
-   runner handles the *live* `interrupt_action`, so falling through would let a task
-   `score` overwrite a per-sample `cancel`. Per-sample-wins matches the sweep's rule (a
+2. **The per-sample intent fires at start, ahead of the task-level self-check.**
+   `active.start(tg)` fires a stamped intent (hook, then scope cancel). The
+   `task_cancel.cancel_type` branches that follow call `active.interrupt(resolution)`,
+   which is a no-op once an action is set, so a task `score` cannot overwrite a
+   per-sample `cancel`. Per-sample-wins matches the sweep's rule (a
    task-level stamp never overwrites a sample's own intent), so the start-time check and
    the sweep agree on precedence.
 3. **`cancel_sample` merges the initializing case into the active row.** With an
-   `ActiveSample` found and `completed is None`: `started is None` **and** an intent
-   already stamped → the repeat no-op (scoped to the initializing case — the running row
-   keeps re-interrupting with `changed: true`, as today); `action == "error" and
+   `ActiveSample` found and `completed is None`: an intent already stamped → the repeat
+   no-op (initializing or running); `action == "error" and
    fails_on_error` → the existing gate; otherwise `sample.interrupt(action)` (fires now or
    defers) and `CancelSampleChanged`, which gains an optional `reason` carrying the
    deferral note when `started is None` (the CLI renders it after "Cancelled …").
