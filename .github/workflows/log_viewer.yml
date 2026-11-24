@@ -258,11 +258,33 @@ jobs:
         working-directory: src/inspect_ai/_view/ts-mono
         run: pnpm --filter @meridianlabs/log-viewer build
 
+      # Compare the build output with the committed dist as git trees, not
+      # through the working tree: the build's copy into dist can be skipped,
+      # and the working tree follows PR-controlled .gitignore and
+      # .gitattributes. A tree hash covers paths, contents, modes, symlinks
+      # and submodules. Source maps are built but not committed.
       - name: Check dist is up-to-date
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: |
-          if ! git diff --exit-code src/inspect_ai/_view/dist
+          build="$PWD/src/inspect_ai/_view/ts-mono/apps/inspect/dist"
+          find "$build" -type f -name '*.map' -delete
+          git_dir="$(git rev-parse --absolute-git-dir)"
+          GIT_INDEX_FILE="$(mktemp -d "$RUNNER_TEMP/dist-index.XXXXXX")/index"
+          export GIT_INDEX_FILE
+          git --git-dir="$git_dir" --work-tree="$build" -C "$build" add --all --force .
+          built="$(git --git-dir="$git_dir" write-tree)"
+          unset GIT_INDEX_FILE
+          entry="$(git ls-tree HEAD src/inspect_ai/_view/dist)"
+          if [ "${entry%% *}" != 040000 ]
           then
+            echo "❌ src/inspect_ai/_view/dist is missing or not a directory in the commit."
+            exit 1
+          fi
+          committed="$(git rev-parse HEAD:src/inspect_ai/_view/dist)"
+          if [ "$built" != "$committed" ]
+          then
+            git --no-pager diff --stat "$committed" "$built"
+            git --no-pager diff "$committed" "$built"
             echo "❌ dist/ is out of sync with the frontend source!"
             echo ""
             echo "The build output has changed. Run:"

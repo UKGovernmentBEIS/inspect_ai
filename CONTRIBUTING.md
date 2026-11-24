@@ -17,8 +17,10 @@ There are two paths:
   PRs that aren't linked to an accepted issue are closed automatically, with
   a comment explaining the available paths; if a linked issue is later
   accepted, reopen the PR and it will pass.
-  **Exception:** trivial documentation fixes (typos, broken links — docs
-  files only, under 25 changed lines) are always welcome directly.
+  **Exception:** trivial documentation fixes (typos, broken links — pages
+  under `docs/` or the top-level README only, under 25 changed lines) and
+  additions to the extensions listing are always welcome directly. The gate checks a PR again whenever it is pushed to or
+  edited.
 
 Whatever your path, a non-draft PR inactive for 60 days is closed with an
 invitation to reopen. And whatever your path, check for an existing open PR

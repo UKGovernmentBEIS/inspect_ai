@@ -20,6 +20,7 @@ Inspect makes every fetch and resend with the provider's own client, so the
 provider's own code reads the response as it reads any reply.
 """
 
+import random
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -29,6 +30,7 @@ from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, cast
 import anyio
 from pydantic import BaseModel, TypeAdapter
 
+from inspect_ai._util._async import unwrap_exception_group
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.http import status_code_of
 from inspect_ai.approval._approval import ApprovalDecision
@@ -59,6 +61,7 @@ from ._endpoint import (
     SidecarCallError,
 )
 from ._lookup import (
+    RESULT_WAIT,
     SAMPLE_FAILURES,
     Answer,
     Looked,
@@ -78,6 +81,18 @@ NO_QUESTION_PAUSE = 0.5
 The sidecar said a question was open. So the question closed in between, or the
 sidecar is still processing its answer.
 """
+
+OPEN_CHECK_RETRY_PAUSE = 30.0
+"""Seconds to wait before asking again whether a question a person is shown is still open, after a check that failed.
+
+Each later wait is twice the one before, up to `OPEN_CHECK_RETRY_PAUSE_MAX`,
+and a check that succeeds starts again from here. It is as long as the sidecar
+holds a check that succeeds, so a proxy that is failing is asked no more often
+than one that works.
+"""
+
+OPEN_CHECK_RETRY_PAUSE_MAX = 300.0
+"""The longest of those waits, in seconds."""
 
 CANCEL_TIMEOUT = 5.0
 """Seconds Inspect waits for the sidecar to accept the cancellation of a paused call.
@@ -672,9 +687,16 @@ async def ask_person(received: ReceivedCall) -> None:
             # the model call's time.
             shown = time.monotonic()
             try:
-                received.decisions[id] = await _get_decision(received, question)
+                decision = await _get_decision_while_open(received, question)
             finally:
                 received.person_time += time.monotonic() - shown
+            if decision is None:
+                # The sidecar closed the question before the person answered,
+                # so there is no answer to send. The caller reads what the
+                # call came to.
+                received.settled_questions.add(id)
+                continue
+            received.decisions[id] = decision
             received.answer_details[id] = (_asked_about(question), time.time())
         # If the answer doesn't reach the sidecar, Inspect sends the stored
         # answer again later, and doesn't ask the person again. It waits
@@ -694,6 +716,86 @@ async def ask_person(received: ReceivedCall) -> None:
                 f"A person's answer couldn't be sent to the sentinel sidecar at {sidecar.origin}: {lost}"
             ) from lost
         await anyio.sleep(LOOKUP_RETRY_PAUSE * 2 ** (received.answer_send_failures - 1))
+
+
+async def _get_decision_while_open(
+    received: ReceivedCall, question: dict[str, Any]
+) -> tuple[str, str | None] | None:
+    # Asks the person, and stops asking if the sidecar closes the question
+    # first: it expired, or its call ended. Returns None then. Inspect cancels
+    # only its own wait for the person, and each approval surface does with
+    # that what it does when a sample is cancelled.
+    decision: tuple[str, str | None] | None = None
+    # an error from asking the person leaves as itself, not in a group
+    async with unwrap_exception_group(), anyio.create_task_group() as tasks:
+
+        async def stop_asking_once_closed() -> None:
+            await _wait_until_question_closes(
+                received, question["request_id"], question["id"]
+            )
+            tasks.cancel_scope.cancel()
+
+        tasks.start_soon(stop_asking_once_closed)
+        decision = await _get_decision(received, question)
+        tasks.cancel_scope.cancel()
+    return decision
+
+
+async def _wait_until_question_closes(
+    received: ReceivedCall, request_id: str, id: str
+) -> None:
+    # Returns once the sidecar says the question no longer waits for an
+    # answer. Each `request_result` names the question, so the sidecar holds
+    # its answer while the question is open, and Inspect asks again.
+    #
+    # A check that fails is only tried again, however often it fails: it
+    # never fails the sample or stops the person being asked. Without it the
+    # person's own answer still ends the wait. A sidecar that says it doesn't
+    # hold the call counts as a check that failed: one that has restarted
+    # says so until the eval has registered with it again.
+    pause = OPEN_CHECK_RETRY_PAUSE
+    while True:
+        asked = time.monotonic()
+        try:
+            answer = await ask_request_result(
+                received, request_id, wait=RESULT_WAIT, question=id
+            )
+            if answer.result.get("records") != "held":
+                raise SidecarCallError(
+                    "request_result", "the sidecar doesn't hold the call's records"
+                )
+        except SidecarCallError as ex:
+            logger.debug(
+                f"Inspect couldn't ask the sentinel sidecar at {received.sidecar.origin} whether a question a person is shown is still open: {ex}"
+            )
+            # less up to a tenth at random, so that the samples paused behind
+            # one proxy don't all ask again at the same moment
+            await anyio.sleep(pause * (1 - random.random() / 10))
+            pause = min(pause * 2, OPEN_CHECK_RETRY_PAUSE_MAX)
+            continue
+        pause = OPEN_CHECK_RETRY_PAUSE
+        if _has_question_closed(answer.result, id):
+            return
+        # A sidecar that answered sooner didn't hold the answer. It is asked
+        # again no sooner than one that does.
+        await anyio.sleep(max(0.0, RESULT_WAIT - (time.monotonic() - asked)))
+
+
+def _has_question_closed(result: dict[str, Any], id: str) -> bool:
+    # Whether a `request_result` answer about a call the sidecar holds says
+    # the question no longer waits for an answer. That is so if no question
+    # of the call is open, or if the question's own record has an answer or
+    # says how its wait ended, as when another of the call's questions is
+    # open.
+    if result.get("state") != "awaiting_review":
+        return True
+    reviews = result.get("reviews")
+    return any(
+        isinstance(record, dict)
+        and record.get("id") == id
+        and (record.get("resolution") is not None or record.get("decision") is not None)
+        for record in (reviews if isinstance(reviews, list) else [])
+    )
 
 
 async def _get_decision(
