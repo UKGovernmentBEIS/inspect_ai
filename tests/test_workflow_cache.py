@@ -1,13 +1,17 @@
-"""Cache safety for the shared-action call sites.
+"""Cache safety for the workflows' jobs.
 
-Jobs that hold credentials restore no cache, and every job that does not save
-to the Actions cache declares a cache-mode.
+Jobs that hold credentials, and the viewer bundle check, restore no cache.
+Every job that does not save to the Actions cache declares a cache-mode.
 
 A malicious package installed by any job can write to the shared Actions
 cache, so a job holding secrets, an id-token or write permissions must not
 restore one. The shared install actions move the uv setup behind a call, so a
 call counts as a restore from the Actions cache unless it sets
 actions-cache: none.
+
+The viewer bundle check compares the committed bundle with a fresh build. An
+earlier revision of a PR can write that PR's cache, so a restored package
+store could make the build emit the committed bundle.
 
 cache-mode, which the Actions cache enforces, is the only setting that stops a
 write by any step holding the Actions cache token (save-cache: false stops only
@@ -46,6 +50,10 @@ CREDENTIAL_JOBS = [
     ("sandbox-tools-build.yml", "validate"),
 ]
 
+# dist-validation is the only check tying the committed viewer bundle, which
+# the wheel ships, to the pinned ts-mono source.
+INTEGRITY_GATE_JOBS = [("log_viewer.yml", "dist-validation")]
+
 # The cache-mode each job that does not save to the Actions cache must declare.
 # actions-cache none -> cache-mode none; restore-only -> a cache-mode that
 # blocks a write (slow-tool-tests-dev uses read). docs is the one restore-only
@@ -56,6 +64,7 @@ CACHE_MODE_JOBS = {
     ("suppressions.yml", "suppressions"): "none",
     ("suppressions-comment.yml", "comment"): "none",
     ("build.yml", "slow-tool-tests-dev"): "read",
+    ("log_viewer.yml", "dist-validation"): "none",
 }
 NO_CACHE_MODE_JOBS = {("build.yml", "docs")}
 
@@ -101,6 +110,8 @@ def assert_restores_no_cache(steps: list[dict[str, Any]]) -> None:
         if action == "actions/setup-node":
             assert "cache" not in inputs
             assert inputs.get("package-manager-cache") is False
+        if action == "pnpm/action-setup":
+            assert not inputs.get("cache")
         if action == "docker/setup-qemu-action":
             assert inputs.get("cache-image") is False
         if action == "docker/setup-buildx-action":
@@ -111,6 +122,11 @@ def assert_restores_no_cache(steps: list[dict[str, Any]]) -> None:
 
 @pytest.mark.parametrize("workflow,job", CREDENTIAL_JOBS)
 def test_credential_holding_jobs_restore_no_cache(workflow: str, job: str) -> None:
+    assert_restores_no_cache(job_steps(workflow, job))
+
+
+@pytest.mark.parametrize("workflow,job", INTEGRITY_GATE_JOBS)
+def test_integrity_gate_jobs_restore_no_cache(workflow: str, job: str) -> None:
     assert_restores_no_cache(job_steps(workflow, job))
 
 
