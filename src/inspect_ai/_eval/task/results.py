@@ -563,6 +563,8 @@ def scorers_from_metric_dict(
             group = registry_unqualified_name(target_metric)
             if isinstance(value, Mapping):
                 for key, val in value.items():
+                    if val is None:
+                        continue
                     name = metrics_unique_key(
                         f"{metric_name}_{key}", list(result_metrics.keys())
                     )
@@ -574,6 +576,8 @@ def scorers_from_metric_dict(
                     )
             elif isinstance(value, Sequence) and not isinstance(value, str | bytes):
                 for idx, item in enumerate(value):
+                    if item is None:
+                        continue
                     name = metrics_unique_key(
                         f"{metric_name}_{idx}", list(result_metrics.keys())
                     )

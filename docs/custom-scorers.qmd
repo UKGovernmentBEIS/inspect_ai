@@ -139,7 +139,7 @@ return Score.unscored(
 )
 ```
 
-This creates a score with a `NaN` value and preserves the supplied reason, answer, and explanation. Metrics exclude the value. Coverage counts are calculated after epoch reduction, and the built-in epoch reducers leave out unscored epochs. See [Interpreting coverage](scoring-policy.qmd#interpreting-coverage).
+This creates a score with a `NaN` value and preserves the supplied reason, answer, and explanation. Metrics exclude the value. Coverage counts are calculated after epoch reduction, and the built-in epoch reducers leave out unscored epochs (a custom `value_to_float` passed to a reducer should return `NaN` for a `NaN` value). See [Interpreting coverage](scoring-policy.qmd#interpreting-coverage).
 
 The optional `reason` accepts standard `ScoreReason` labels or custom strings. Use a reason that describes the outcome and an explanation with the details needed to understand it.
 

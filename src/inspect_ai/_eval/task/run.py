@@ -2658,16 +2658,24 @@ def update_metrics_display_fn(
         nonlocal next_compute_time
         time_start = time.perf_counter()
         if time_start >= next_compute_time:
-            # compute metrics
-            results, reductions = eval_results(
-                samples=sample_count,
-                scores=sample_scores,
-                reducers=reducers,
-                scorers=scorers,
-                metrics=metrics,
-                scorer_names=scorer_names,
-                headline_metric=headline_metric,
-            )
+            # Progress metrics reduce whichever epochs have completed, so a
+            # sample's partial reduction can fail a metric (e.g. an
+            # aggregate() key that is None in the epochs so far) even though
+            # its final result is valid. Skip this refresh rather than abort
+            # the eval; the final eval_results() still raises real errors.
+            try:
+                results, reductions = eval_results(
+                    samples=sample_count,
+                    scores=sample_scores,
+                    reducers=reducers,
+                    scorers=scorers,
+                    metrics=metrics,
+                    scorer_names=scorer_names,
+                    headline_metric=headline_metric,
+                )
+            except Exception as ex:
+                py_logger.debug(f"Skipping progress metrics update: {ex!r}")
+                return None
 
             # Name, reducer, value
             task_metrics: list[TaskDisplayMetric] = []

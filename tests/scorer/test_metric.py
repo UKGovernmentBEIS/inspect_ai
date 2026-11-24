@@ -5,7 +5,9 @@ import pytest
 from pydantic import BaseModel
 
 from inspect_ai import Epochs, Task, eval, score
+from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._eval.task.results import eval_results
+from inspect_ai._eval.task.run import update_metrics_display_fn
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.registry import registry_info
@@ -2016,3 +2018,61 @@ def test_all_none_key_reaches_aggregate_as_missing(reducer: ScoreReducer) -> Non
     assert zero["dict_scorer"].metrics["aggregate"].value == pytest.approx(0.5)
     with pytest.raises(ValueError, match="is None"):
         _key_results(values, [aggregate("k", mean())], reducers=reducer)
+
+
+@pytest.mark.parametrize(
+    "reducer", [mean_score(), at_least(1)], ids=["mean", "at_least"]
+)
+def test_progress_metrics_skip_partial_epoch_errors(reducer: ScoreReducer) -> None:
+    """Progress metrics on a partial epoch group must not raise.
+
+    After epoch 1 the key is None in every completed epoch, which
+    aggregate()'s default on_missing="error" rejects, although the final
+    result over both epochs is valid. The refresh is skipped instead.
+    """
+
+    @scorer(metrics=[aggregate("k", mean())])
+    def dict_score():
+        async def score(state: TaskState, target: Target) -> Score:
+            raise NotImplementedError
+
+        return score
+
+    def scores(*values: float | None) -> list[dict[str, SampleScore]]:
+        return [
+            {
+                "dict_score": SampleScore(
+                    score=Score(value={"k": value}), sample_id=1, scorer="dict_score"
+                )
+            }
+            for value in values
+        ]
+
+    updates: list[list[TaskDisplayMetric]] = []
+    compute = update_metrics_display_fn(updates.append, min_interval=0)
+    compute(1, scores(None), [dict_score()], ["dict_score"], reducer, None)
+    assert updates == []
+    compute(2, scores(None, 1), [dict_score()], ["dict_score"], reducer, None)
+    assert [m.value for m in updates[-1]] == [pytest.approx(1.0)]
+
+
+def test_per_key_metric_none_result_field_is_skipped() -> None:
+    """A per-key metric may report None for a field, e.g. over no scored samples."""
+
+    @metric
+    def count_and_estimate() -> Metric:
+        def compute(scores: list[SampleScore]) -> Value:
+            values = [s.score.as_float() for s in scores]
+            return {
+                "count": len(values),
+                "estimate": sum(values) / len(values) if values else None,
+            }
+
+        return compute
+
+    results = _key_results(
+        [[{"k": None}], [{"k": None}]], [{"k": [count_and_estimate()]}], reducers=[]
+    )
+    k = results["k"]
+    assert _metric_values(k) == {"count_and_estimate_count": 0}
+    assert k.unscored_samples == 2
