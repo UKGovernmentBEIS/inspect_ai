@@ -186,7 +186,7 @@ from inspect_ai.util import (
 if is_dockerfile(config):
    # handle dockerfile
 
-elif is_compose_yaml(config, str):
+elif is_compose_yaml(config):
    # parse and handle compose config
    compose_config = parse_compose_yaml(config)
 

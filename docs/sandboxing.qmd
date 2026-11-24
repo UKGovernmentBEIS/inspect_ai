@@ -115,10 +115,10 @@ Here is a `Task` that defines a `sandbox`:
 ``` python
 Task(
     dataset=dataset,
-    plan([
-        use_tools([read_file(), list_files()])), 
+    solver=[
+        use_tools([read_file(), list_files()]),
         generate()
-    ]),
+    ],
     scorer=match(),
     sandbox="docker"
 )

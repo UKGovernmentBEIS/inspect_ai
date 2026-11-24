@@ -74,7 +74,7 @@ Before we get into the specifics of how solvers work, we should describe `TaskSt
 
 ``` python
 class TaskState:
-    messages: list[ChatMessage],
+    messages: list[ChatMessage]
     output: ModelOutput
 ```
 
