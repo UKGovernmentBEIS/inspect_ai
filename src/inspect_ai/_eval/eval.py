@@ -111,6 +111,7 @@ from inspect_ai.util._display import (
     display_type,
     display_type_initialized,
     display_type_scope,
+    display_type_scope_active,
     init_display_type,
 )
 from inspect_ai.util._limit import TokenLimit, token_limit_fields
@@ -655,11 +656,15 @@ async def eval_async(
 
     result: list[EvalLog] | None = None
 
+    # not called from eval(), eval_retry() or eval_set()
+    direct = not display_type_scope_active()
+
     async def run(tg: TaskGroup) -> None:
         try:
             nonlocal result
             result = await _eval_async_inner(
                 tg=tg,
+                direct=direct,
                 tasks=tasks,
                 model=model,
                 model_base_url=model_base_url,
@@ -744,6 +749,7 @@ async def eval_async(
 
 async def _eval_async_inner(
     tg: TaskGroup,
+    direct: bool,
     tasks: Tasks,
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
@@ -818,13 +824,9 @@ async def _eval_async_inner(
     if _eval_async_running:
         raise RuntimeError("Multiple concurrent calls to eval_async are not allowed.")
 
-    # if we are called outside of eval() then set display type to "plain".
-    # This and applying a display type restored by an earlier eval call come
-    # before the running flag, which blocks display type changes.
-    if not display_type_initialized():
-        init_display_type("plain")
-    else:
-        display_type()
+    # before the running flag, which blocks display type changes
+    if direct:
+        init_eval_async_display()
 
     _eval_async_running = True
 
@@ -2184,6 +2186,18 @@ def eval_resolve_tasks(
 
     # return tasks, approval, and review
     return resolved_tasks, approval, review
+
+
+def init_eval_async_display() -> None:
+    """Initialize the display for eval_async() called outside eval().
+
+    Uses "plain" when no display type is set. The "full" display needs the
+    task app that eval() runs, so "rich" is used in its place.
+    """
+    if not display_type_initialized():
+        init_display_type("plain")
+    elif display_type() == "full":
+        init_display_type("rich")
 
 
 def init_eval_display(

@@ -26,6 +26,10 @@ _display_scope_depth = 0
 
 
 def init_display_type(display: str | None = None) -> DisplayType:
+    return _init_display_type(display, warn=True)
+
+
+def _init_display_type(display: str | None, warn: bool) -> DisplayType:
     display = (
         display or os.environ.get("INSPECT_DISPLAY", DEFAULT_DISPLAY).lower().strip()
     )
@@ -55,11 +59,11 @@ def init_display_type(display: str | None = None) -> DisplayType:
             )
             new_display_type = "full"
 
-    return _apply_display_type(new_display_type, display_name, requested)
+    return _apply_display_type(new_display_type, display_name, requested, warn)
 
 
 def _apply_display_type(
-    new_display_type: DisplayType, display_name: str, requested: str
+    new_display_type: DisplayType, display_name: str, requested: str, warn: bool
 ) -> DisplayType:
     global _display_type, _applied_display_type
 
@@ -80,13 +84,14 @@ def _apply_display_type(
             # a request for the current type that only differs because of the
             # background thread throttle (e.g. score() with no display called
             # from a scorer on a worker thread) isn't a change
-            if requested != _applied_display_type:
+            if warn and requested != _applied_display_type:
                 logger.warning(
                     f"Ignoring display type '{display_name}' while the "
                     f"'{_applied_display_type}' display is in use."
                 )
-            _display_type = _applied_display_type
-            return _display_type
+            # `_display_type` is left as it is, so a type restored by an eval
+            # call still applies once the display is no longer in use
+            return _applied_display_type
 
         # the active display was built for the previous type (e.g. by an
         # earlier eval() in this process), so drop it to be rebuilt
@@ -118,17 +123,25 @@ def display_type_scope() -> Iterator[None]:
             _display_type = previous
 
 
+def display_type_scope_active() -> bool:
+    """Is an eval call (eval(), eval_async(), ...) in progress?"""
+    return _display_scope_depth > 0
+
+
 def display_type() -> DisplayType:
     """Get the current console display type.
 
     Returns:
        DisplayType: Display type.
     """
+    # a query doesn't warn when a display in use keeps a type restored by an
+    # eval call (see display_type_scope) from applying yet
     if _display_type is None:
-        return init_display_type()
+        return _init_display_type(None, warn=False)
     elif _display_type != _applied_display_type:
-        # restored by an eval call (see display_type_scope)
-        return _apply_display_type(_display_type, _display_type, _display_type)
+        return _apply_display_type(
+            _display_type, _display_type, _display_type, warn=False
+        )
     else:
         return _display_type
 

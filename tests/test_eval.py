@@ -1008,6 +1008,67 @@ def test_eval_display_does_not_carry_to_later_eval_async(
     assert log.eval.config.max_samples is None
 
 
+@pytest.mark.parametrize("first", ["query", "restore"])
+def test_eval_async_outside_eval_runs_full_display_as_rich(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    first: str,
+) -> None:
+    import io
+    import sys
+
+    from inspect_ai.util._display import display_type
+
+    class TerminalOutput(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    # a terminal, where "full" would select the textual display
+    monkeypatch.setenv("INSPECT_DISPLAY", "full")
+    monkeypatch.setattr(sys, "stdout", TerminalOutput())
+    types: list[DisplayType] = []
+    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
+    log_dir = str(tmp_path)
+
+    # as get_model().generate() does outside an eval
+    display_type()
+    if first == "restore":
+        eval(task, model="mockllm/model", display="rich", log_dir=log_dir)
+
+    [log] = anyio.run(
+        functools.partial(eval_async, task, model="mockllm/model", log_dir=log_dir)
+    )
+    assert log.status == "success"
+    assert types[-1] == "rich"
+
+
+def test_eval_display_restored_after_query_inside_status(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    import rich
+
+    from inspect_ai.util._display import display_type
+
+    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
+    types: list[DisplayType] = []
+    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
+    eval(task, model="mockllm/model", trace=True, log_dir=str(tmp_path))
+
+    # as get_model().generate() does inside a status: the conversation
+    # display is in use, so it keeps its type for now
+    with rich.get_console().status("working"):
+        assert display_type() == "conversation"
+
+    [log] = eval(task, model="mockllm/model", log_dir=str(tmp_path))
+    assert types == ["conversation", "rich"]
+    assert log.eval.config.max_samples is None
+    assert "Ignoring display type" not in caplog.text
+
+
 def test_eval_retry_display_does_not_carry_to_later_evals(
     fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1194,7 +1255,9 @@ def test_display_type_change_warning_names_requested_type_on_trio(
     from inspect_ai.util import _display
 
     task = Task(dataset=[Sample(input="hi", target="hi")])
-    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+    # the process display type, as `inspect --display plain` sets it
+    _display.init_display_type("plain")
+    eval(task, model="mockllm/model", log_dir=str(tmp_path))
 
     # trio runs "full" as "rich", which the warning shouldn't name instead
     monkeypatch.setattr(_display, "configured_async_backend", lambda: "trio")
