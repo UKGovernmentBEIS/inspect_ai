@@ -127,8 +127,8 @@ selector with no match, a sample that has not started (or runs without a
 shared buffer), and a log removed during the read are `not_found`. An
 ambiguous selector is `ambiguous` through the same `_resolve_target_eval`
 as live mode, run over the mode's rows; so is a sample key two shards hold.
-A log that exists but does not parse, or buffered events that do not, are
-`invalid_response` for a single-target read. List reads never fail on one
+A log that exists but does not parse, or a manifest or buffered events
+that do not, are `invalid_response` for a single-target read. List reads never fail on one
 bad log: they report it in `unreadable` with `incomplete: true` on the row
 and the envelope, warn on stderr, and count nothing from it. `_fail_from`
 in `_log_dir.py` holds the mapping; `test_cli_per_sample_failures_map_to_error_kinds`
@@ -254,16 +254,13 @@ as the merge treats such a companion as gone. In a shard set:
 - The merged log is the newest of `<name>.eval` and
   `<name>-recovered.eval`. The other is not read and is listed in the row's
   `unreadable` as an older merged log.
-- The set is keyed by the newest merged log's `task_id` when that log can
-  be read. Otherwise it takes the `task_id` the merge would stamp,
-  `merged_log_task_id` (`src/inspect_ai/_util/log_layout.py`, shared with
-  the merge) from `<name>` and the `task` and `model` of the first shard,
-  the merge's template shard. When neither can be read it falls back to the
-  `{id}` parsed from `<name>`, or `<name>` itself (`_set_key`), which under
-  a file name pattern without `{id}` can differ from the merge's id. So
-  while the merged log or the first shard can be read, the set folds with a
-  retry carrying the merged log's `task_id`, under any file name pattern
-  (`test_a_shard_set_keeps_the_merges_task_id_with_or_without_its_log`).
+- The set is keyed by the merge's task id: the newest merged log's
+  `task_id`, or, without a readable merged log, the id the merge would
+  stamp (`merged_log_task_id`, shared with the merge). While the merged log
+  or the first shard can be read, the set has the merge's task id under any
+  file name pattern, so it folds with a retry of its merged log
+  (`test_a_shard_set_keeps_the_merges_task_id_with_or_without_its_log`,
+  `test_an_unreadable_newest_merged_log_keys_the_set_as_the_merge_does`).
 - A task id has at most one shard set, the first companion by path. A
   second companion with the same task id is not read beyond its merged log,
   and is listed in the row's `unreadable` (decision: Ransom, 2026-10-13).
@@ -277,20 +274,16 @@ follows the merged header's, minted at the merge, and can sort before the
 launcher-minted merged log's name. The superseded shard set counts in
 `attempts`, only its merged log is read (for the task id), and the row's
 `shards` is null as for any unsharded current attempt (decision: Ransom,
-2026-10-13). When that retry cannot be read, the shard set stays current,
-the row lists the retry in `unreadable`, and per-sample reads fail with its
-error.
+2026-10-13).
 
 **A merged log whose companion is gone** (shards deleted after a merge) is
 an ordinary unsharded attempt.
 
-**Unreadable logs.** A log whose plan cannot be read is reported, never
-silently dropped. When a readable task's id is in its file name it is
-listed in that task's `unreadable` and counted in `attempts`; when it would
-be the task's newest attempt, per-sample reads fail with its error, since
-the key may be in it. A task whose every log is unreadable is identified
-from its file names alone (`UnreadableTask`), so selecting it reports the
-failure rather than `not_found`.
+**Unreadable logs.** An unreadable log is reported, never dropped, and a
+per-sample read that might need it fails with its error
+(`test_an_unreadable_newer_attempt_blocks_per_sample_reads`,
+`test_an_unreadable_shard_marks_the_row_and_blocks_sample_reads`,
+`test_cli_a_task_whose_only_log_is_unreadable_reports_its_failure`).
 
 **Identity.** For a shard set, `task`, `model`, `solver` and `epochs` come
 from the first readable shard (else the merged log); `eval_id` and `run_id`
@@ -387,7 +380,12 @@ data (`read_member` in `snapshot.py`, `consistency.py`):
   cache entries can cost extra reads but cannot weaken it
   (`test_a_key_flushed_after_the_plan_read_is_read_from_the_log`,
   `test_a_key_admitted_to_the_manifest_of_an_unchanged_log_is_found`).
-  Members with no manifest have no second object to order against.
+  It relies on the version check being fresh and identifying the log's
+  content, as it does for local and S3 logs. Other fsspec backends answer
+  it from whatever metadata they report (Azure can answer from its listing
+  cache), so within one invocation they can keep a stale view of a log and
+  miss a key flushed after it. Members with no manifest have no second
+  object to order against.
 - **A retried key can drop out between syncs.** A key whose attempt was
   discarded for a sample-level retry is in neither object until a sync
   publishes its new attempt ("What the log directory holds while a run is
@@ -413,8 +411,10 @@ data (`read_member` in `snapshot.py`, `consistency.py`):
   source selection, manifest then log, so a sample flushed meanwhile is
   served from the log (`test_a_segment_removed_mid_read_re_selects_the_flushed_record`).
 - **When the re-reads are exhausted**, list reads keep the other members
-  and report the member in `unreadable`; per-sample reads fail with
-  `storage_error` naming the object.
+  and report the member in `unreadable`. Per-sample reads fail naming the
+  object: `storage_error` when it kept changing, `invalid_response` when
+  consistent bytes kept failing to parse ("Structured errors in the
+  mode").
 - **Per-sample reads use current key sets.** Before answering, a per-sample
   read refreshes every current member's view as a list read does, and fails
   with a member's error rather than answer while any member that might hold
@@ -472,10 +472,11 @@ from live:
   null and zero usage (the start snapshot).
 - A conflicted key yields one row per shard holding it, each with that
   shard's status and `conflict: true`. `counts` counts distinct keys and
-  leaves conflicted keys out, and the envelope gains `conflicted`; the human
-  footer of a capped listing counts the conflict rows, so its "of N" is the
-  number of rows `--all` returns
-  (`test_overlapping_shards_are_conflicts`,
+  leaves conflicted keys out, and the envelope gains `conflicted`. The human
+  footer of a capped listing counts the conflict rows, and also the
+  pending samples an authoritative total counts without rows, so its "of
+  N" is the number of rows `--all` returns only when there are none of
+  those (`test_overlapping_shards_are_conflicts`,
   `test_cli_capped_sample_list_counts_conflict_rows`).
 - Rows add `shard` (`<k>` or null), `log_location` (the member log holding
   the chosen record, to hand to `inspect log` commands) and `conflict`; the
@@ -553,13 +554,11 @@ of what changed (`cache.py`):
   (`test_cli_cache_entries_change_what_is_fetched_never_what_is_returned`).
   Concurrent pollers may overwrite each other's entries in either order;
   every surviving entry describes a real version of its log.
-- **Writes** happen once per log per invocation, when the CLI command ends,
-  atomically, into the existing directory, which a write never recreates.
-  An entry of another schema or Inspect version is a miss. The first
-  failure to key, load, validate, serialize or write an entry turns the
-  cache off for the rest of the invocation; an entry that fails to validate
-  is removed. A log holding a value the serializer refuses therefore stays
-  uncached, with output unaffected.
+- **Writes** are atomic, once per log per invocation, into the existing
+  directory, which a write never recreates. Any cache failure turns the
+  cache off for the rest of the invocation and never changes output
+  (`test_after_a_cache_failure_a_replaced_log_is_read_as_uncached`,
+  `test_cli_cache_entries_change_what_is_fetched_never_what_is_returned`).
 - **Backends.** Only local and S3 logs are cached: only their version names
   their content. Other backends' metadata can stay the same across a
   rewrite, so their logs are read in full on every poll
@@ -648,9 +647,9 @@ polling guidance, weighing request cost against seeing each buffer sync.
 - **One source per key.** Every read reports the same record for a key, also
   while a re-run attempt runs, completes and is flushed
   (`test_every_read_follows_a_re_run_key_through_its_attempt`).
-- **No key lost to a torn read.** A key that leaves the manifest through
-  the flush handoff is reported from the manifest or the log, never as
-  pending or missing; a mid-read replacement is re-read, and an exhausted
+- **No key lost to a torn read.** On local and S3 logs, a key that leaves
+  the manifest through the flush handoff is reported from the manifest or
+  the log, never as pending or missing; a mid-read replacement is re-read, and an exhausted
   re-read is reported, never turned into missing data
   (`test_read_consistently_retries_torn_reads_then_succeeds`,
   `test_exhausted_re_reads_fail_the_read_and_mark_list_reads_incomplete`,
@@ -812,7 +811,7 @@ applies with a different transport:
 - A sample-level retry's key drops out of the published state until the
   next sync; keeping the discarded attempt's row until its successor is
   synced would close the gap for every buffer reader.
-- `AsyncZipReader` reads a 64 KiB suffix to find every central directory,
+- `AsyncZipReader` reads a fixed-size suffix to find every central directory,
   which dominates the bytes of reading many small logs (the viewer and
   header reads pay it too); a smaller first read with a fallback would cut
   it.
