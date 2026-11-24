@@ -814,6 +814,14 @@ def test_a_recovered_merged_log_does_not_merge_the_shards_beside_it(
     assert _files(str(tmp_path)) == before
 
 
+def test_merge_refuses_a_log_with_an_empty_name(tmp_path: Path) -> None:
+    _run(f"{tmp_path}/.shards", "0", sample_id=[1, 2])
+    before = _files(str(tmp_path))
+    with pytest.raises(ValueError, match="Expected a merged log"):
+        merge_eval_log_shards(f"{tmp_path}/.eval", _task())
+    assert _files(str(tmp_path)) == before
+
+
 def test_a_recovered_name_merges_its_own_shards_directory(tmp_path: Path) -> None:
     import shutil
 

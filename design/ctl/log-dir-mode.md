@@ -605,8 +605,9 @@ them, as live `/tasks` folds attempts by `task_id`
 
 **A sharded run and an ordinary retry of it.** An unsharded log whose
 `task_id` equals a shard set's task id is an `eval_retry` of the merged log
-(only that path gives an unsharded log the merged log's `task_id`; shards
-keep their own). Both fold into one logical task, and the retry is current
+or a recovered copy of it (`X-recovered.eval`, "Sharded runs"); only those
+give an unsharded log the merged log's `task_id`, and shards keep their
+own. Both fold into one logical task, and the unsharded log is current
 whatever the file names say: the shard set is placed as the oldest attempt
 (`snapshot.py`). File names need not agree: the launcher mints the merged
 log's name, while a retry's `{created}` stamp follows the merged header's

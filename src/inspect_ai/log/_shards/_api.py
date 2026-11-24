@@ -344,7 +344,7 @@ def _derive_paths(log: str) -> tuple[str, str]:
     name = basename(location)
     if name.endswith(".shards") and name != ".shards":
         return eval_log_for_shards_dir(location), location
-    if name.endswith(".eval"):
+    if name.endswith(".eval") and name != ".eval":
         return location, eval_shards_dir(location)
     raise ValueError(
         f"Expected a merged log (<name>.eval) or its shards directory "
