@@ -271,16 +271,18 @@ async def _start_running_log(
     logged: list[int],
     sample_ids: list[int] | None,
     log_shared: int | None = None,
+    task_id: str = "RUNNINGTASK000000000000",
 ) -> _RunningLog:
     """A running log holding ``logged`` samples, with its recorder kept open.
 
     ``log_shared`` records the eval as run with ``--log-shared``, so a
-    shared buffer beside it is read.
+    shared buffer beside it is read. ``task_id`` is the header's task id (the
+    file name keeps the default).
     """
     assert source.samples is not None
     spec = source.eval.model_copy(
         update={
-            "task_id": "RUNNINGTASK000000000000",
+            "task_id": task_id,
             "eval_id": "RUNNINGEVAL000000000000",
             "dataset": source.eval.dataset.model_copy(
                 update={"sample_ids": sample_ids}
@@ -1402,15 +1404,14 @@ async def test_names_without_a_timestamp_order_by_mtime_alone(
     assert row["log_location"] == str(new)
 
 
-def test_cli_errored_footer_points_at_the_log_dir(log_dir: Path) -> None:
-    import shlex
-
-    result = _ctl(str(log_dir), "task", "list")
+def test_cli_errored_footer_points_at_the_log_dir(
+    log_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a relative --log-dir keeps the temporary path out of the command
+    monkeypatch.chdir(log_dir)
+    result = _ctl(".", "task", "list")
     assert result.exit_code == 0, result.output
-    assert (
-        f"see `inspect ctl sample errors --log-dir {shlex.quote(str(log_dir))}`"
-        in result.stdout
-    )
+    assert "see `inspect ctl sample errors --log-dir .`" in result.stdout
 
 
 _BROKEN = "2099-01-01T00-00-00+00-00_broken_BROKENTASK000000000000.eval"
@@ -2025,6 +2026,101 @@ def test_cli_buffer_rows_messages_and_store_are_unsupported(
         )
     human = _ctl(str(tmp_path), "task", "list")
     assert "running samples are visible only with --log-shared" in human.stderr
+
+
+def _running_buffer_row(directory: Path, source: EvalLog, task_id: str) -> None:
+    """A running log with header ``task_id`` whose sample 2 is a buffer row."""
+    running = anyio.run(
+        functools.partial(
+            _start_running_log,
+            directory,
+            source,
+            logged=[1],
+            sample_ids=[1, 2],
+            log_shared=10,
+            task_id=task_id,
+        )
+    )
+    _write_buffer(running.location, [(_buffer_summary(2), [[_info("a", "e1")]])])
+
+
+@pytest.mark.parametrize("verb", ["messages", "store"])
+def test_cli_buffer_row_hint_quotes_a_task_id_with_shell_characters(
+    tmp_path: Path,
+    finished_log: EvalLog,
+    no_discovery: None,
+    monkeypatch: pytest.MonkeyPatch,
+    verb: str,
+) -> None:
+    task_id = "task id's $(x)"
+    _running_buffer_row(tmp_path, finished_log, task_id)
+    # a relative --log-dir keeps the temporary path out of the command
+    monkeypatch.chdir(tmp_path)
+    hint = (
+        "`inspect ctl sample events 'task id'\"'\"'s $(x)' 2 1 --type model "
+        "--log-dir .` shows its model calls."
+    )
+    human = _ctl(".", "sample", verb, task_id, "2")
+    assert human.exit_code == 1
+    assert hint in human.stderr
+    as_json = _ctl(".", "sample", verb, task_id, "2", "--json")
+    assert as_json.exit_code == 1
+    assert hint in as_json.stderr
+    assert hint in _json(as_json)["error"]["message"]
+
+
+@pytest.mark.parametrize("verb", ["messages", "store"])
+@pytest.mark.parametrize(
+    "task_id",
+    [
+        pytest.param("task\x1b'id", id="escape-before-quote"),
+        pytest.param("task id\x1b", id="trailing-escape"),
+        pytest.param("task\x1b[' id", id="csi"),
+        pytest.param("task\x1b]0;id", id="unterminated-string-sequence"),
+        pytest.param("task\tid", id="tab"),
+        pytest.param("task\nid", id="newline"),
+        pytest.param("task\u202eid", id="bidi-control"),
+    ],
+)
+def test_cli_buffer_row_hint_gives_no_command_for_a_non_printable_task_id(
+    tmp_path: Path, finished_log: EvalLog, no_discovery: None, task_id: str, verb: str
+) -> None:
+    """The task id is read from the log's header, so it can hold any character.
+
+    A command quoted around such an id could lose its quote characters to the
+    terminal sanitizer, and a command around the sanitized id could name
+    another task.
+    """
+    _running_buffer_row(tmp_path, finished_log, task_id)
+    message = (
+        f"its {'message list' if verb == 'messages' else 'store'} is not in the "
+        "shared buffer. `inspect ctl sample events TASK SAMPLE_ID 1 --type model "
+        "--log-dir DIR` (arguments not shown: one holds non-printable characters) "
+        "shows its model calls."
+    )
+    human = _ctl(str(tmp_path), "sample", verb, task_id, "2")
+    assert human.exit_code == 1
+    assert human.stderr.endswith(message + "\n")
+    as_json = _ctl(str(tmp_path), "sample", verb, task_id, "2", "--json")
+    assert as_json.exit_code == 1
+    assert as_json.stderr.endswith(message + "\n")
+    error = _json(as_json)["error"]
+    assert error["kind"] == "unsupported"
+    assert error["message"].endswith(message)
+
+
+def test_cli_errored_footer_gives_no_command_for_a_non_printable_log_dir(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    log_dir = tmp_path / "logs\u00a0dir"
+    log_dir.mkdir()
+    shutil.copy(finished_log.location, log_dir / Path(finished_log.location).name)
+    result = _ctl(str(log_dir), "task", "list")
+    assert result.exit_code == 0, result.output
+    assert result.stdout.endswith(
+        "1 sample errored — see `inspect ctl sample errors --log-dir DIR` "
+        "(arguments not shown: one holds non-printable characters)\n"
+    )
 
 
 def test_cli_buffer_reads_leave_the_directory_unchanged(
