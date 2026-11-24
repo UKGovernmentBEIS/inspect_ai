@@ -199,6 +199,8 @@ def registry_tag(
 def extract_named_params(
     type: Callable[..., Any], apply_defaults: bool, /, *args: Any, **kwargs: Any
 ) -> dict[str, Any]:
+    from inspect_ai.model._model_role import ModelRole
+
     # positional-only for the same collision reason documented on
     # registry_tag: a creation keyword argument named `type` must land in
     # **kwargs rather than in these leading parameters.
@@ -234,6 +236,15 @@ def extract_named_params(
             for kwarg_name, kwarg_value in value.items():
                 named_params[kwarg_name] = registry_value(kwarg_value)
         else:
+            # Restored role dictionaries need ModelRole's credential filtering.
+            # Only convert when the annotation has no other dictionary branch.
+            if isinstance(value, dict) and sig.parameters[param].annotation in (
+                ModelRole,
+                ModelRole | str,
+                ModelRole | None,
+                ModelRole | str | None,
+            ):
+                value = ModelRole.model_validate(value)
             named_params[param] = registry_value(value)
 
     # callables are not serializable so use their names

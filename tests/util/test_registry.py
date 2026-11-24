@@ -1,4 +1,6 @@
-from typing import cast
+from copy import deepcopy
+from importlib.util import module_from_spec, spec_from_loader
+from typing import Any, cast
 
 import pytest
 
@@ -18,10 +20,13 @@ from inspect_ai._util.registry import (
     registry_key,
     registry_kwargs,
     registry_lookup,
+    registry_params,
     registry_tag,
     registry_value,
+    set_annotations,
 )
 from inspect_ai.dataset import Sample
+from inspect_ai.model import ModelRole
 from inspect_ai.model._compaction.auto import CompactionAuto
 from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.native import CompactionNative
@@ -329,6 +334,98 @@ def test_registry_create_from_dict_instantiates_without_type_name_heuristic() ->
 def _extract(fn, *args, **kwargs):
     """Helper to call extract_named_params with apply_defaults=True."""
     return extract_named_params(fn, True, *args, **kwargs)
+
+
+@pytest.fixture
+def role_spec() -> dict[str, Any]:
+    return {
+        "name": "grader",
+        "default": {
+            "model": "nonexistent-provider/fallback",
+            "args": {"api_key": "runtime-key", "test_argument": "preserved"},
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "annotation",
+    [ModelRole, str | ModelRole, ModelRole | None, str | ModelRole | None],
+)
+@pytest.mark.parametrize("construction", ["positional", "keyword", "default"])
+def test_registry_model_role_dictionary_serialization(
+    annotation: Any, construction: str, role_spec: dict[str, Any]
+) -> None:
+    def factory(judge: Any = role_spec) -> None: ...
+
+    # Unrelated forward references need not resolve during argument capture.
+    set_annotations(factory, {"judge": annotation, "return": "UnavailableType"})
+    original = deepcopy(role_spec)
+    if construction == "positional":
+        params = extract_named_params(factory, False, role_spec)
+    elif construction == "keyword":
+        params = extract_named_params(factory, False, judge=role_spec)
+    else:
+        params = extract_named_params(factory, True)
+
+    assert params["judge"]["name"] == "grader"
+    assert params["judge"]["required"] is False
+    assert params["judge"]["default"]["model"] == "nonexistent-provider/fallback"
+    assert params["judge"]["default"]["args"] == {"test_argument": "preserved"}
+    assert role_spec == original
+
+
+@pytest.mark.parametrize(
+    "annotation",
+    [
+        dict[str, Any],
+        dict[str, ModelRole],
+        ModelRole | dict[str, str],
+        ModelRole | Any,
+        "ModelRole",
+        "dict[str, Any] | 'CustomConfig'",
+        "UnavailableType",
+    ],
+)
+def test_registry_preserves_unrelated_dictionaries(
+    annotation: Any, role_spec: dict[str, Any]
+) -> None:
+    def factory(model_role: Any, **kwargs: Any) -> None: ...
+
+    set_annotations(factory, {"model_role": annotation})
+    assert extract_named_params(
+        factory, False, model_role=role_spec, other=role_spec
+    ) == {"model_role": role_spec, "other": role_spec}
+
+
+def test_registry_role_serialization_preserves_factory_arguments(
+    role_spec: dict[str, Any],
+) -> None:
+    received: list[object] = []
+
+    @solver
+    def create_solver(judge: ModelRole) -> Solver:
+        received.append(judge)
+        return use_tools([])
+
+    instance = create_solver(cast(ModelRole, role_spec))
+    assert received == [role_spec]
+    assert received[0] is role_spec
+    assert registry_params(instance)["judge"]["default"]["args"] == {
+        "test_argument": "preserved"
+    }
+
+
+def test_registry_preserves_file_factory_annotations() -> None:
+    spec = spec_from_loader("unregistered_factory", loader=None)
+    assert spec is not None
+    module = module_from_spec(spec)
+    exec(
+        "from __future__ import annotations\n"
+        "def factory(options: dict[str, str]) -> None: pass\n",
+        module.__dict__,
+    )
+    options = {"option": "preserved"}
+    assert extract_named_params(module.factory, False, options) == {"options": options}
 
 
 def test_repr_params_serialization() -> None:

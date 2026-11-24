@@ -1,16 +1,14 @@
 import logging
 import re
 import secrets
-from functools import partial, wraps
-from inspect import signature
-from typing import Any, Callable, ParamSpec
+from functools import partial
+from typing import Any, Callable
 
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.dict import omit
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.list import remove_last_match_and_after
 from inspect_ai._util.logger import warn_once
-from inspect_ai._util.registry import registry_info
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -30,36 +28,13 @@ from ._metric import Score
 from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
 from ._reducer.types import ScoreReducer
-from ._scorer import Scorer, scorer, scorer_register
+from ._scorer import Scorer, scorer
 from ._target import Target
 
 logger = logging.getLogger(__name__)
 
-P = ParamSpec("P")
 
-
-def _model_graded_scorer(factory: Callable[P, Scorer]) -> Callable[P, Scorer]:
-    """Normalize role specs before the scorer decorator records arguments.
-
-    ModelRole's serializer filters credentials from configured defaults.
-    Register the normalizing wrapper so scorer reconstruction uses it too.
-    """
-    registered = scorer(metrics=[accuracy(), stderr()])(factory)
-    factory_signature = signature(factory)
-
-    @wraps(registered)
-    def create(*args: P.args, **kwargs: P.kwargs) -> Scorer:
-        bound = factory_signature.bind(*args, **kwargs)
-        role = bound.arguments.get("model_role")
-        if isinstance(role, dict):
-            bound.arguments["model_role"] = as_model_role(role)
-        return registered(*bound.args, **bound.kwargs)
-
-    info = registry_info(registered)
-    return scorer_register(create, name=info.name, metadata=info.metadata)
-
-
-@_model_graded_scorer
+@scorer(metrics=[accuracy(), stderr()])
 def model_graded_fact(
     template: str | None = None,
     instructions: str | None = None,
@@ -143,7 +118,7 @@ def model_graded_fact(
     )
 
 
-@_model_graded_scorer
+@scorer(metrics=[accuracy(), stderr()])
 def model_graded_qa(
     template: str | None = None,
     instructions: str | None = None,
