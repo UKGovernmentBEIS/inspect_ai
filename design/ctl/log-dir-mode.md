@@ -187,9 +187,14 @@ buffer segments or checkpoint objects, whose counts grow with run age:
   with size, mtime and (on S3) ETag. Locally it does not follow directory
   symlinks, so a symlink loop cannot hang the walk. Listings run
   concurrently up to a fixed cap (`walk.py`).
-- **`.buffer/` is never listed.** Its presence in a directory's listing is
-  recorded on the logs beside it, and a log's manifest path is derived as
-  `.buffer/<stem>/manifest.json`. `*.checkpoints/` is skipped. Every other
+- **Buffer and checkpoint contents are never paged through.** Outside a
+  companion, `.buffer/` and `*.checkpoints/` are not listed: a buffer's
+  presence in a directory's listing is recorded on the logs beside it, and
+  a log's manifest path is derived as `.buffer/<stem>/manifest.json`.
+  Inside a companion, the shared walk lists each immediate child directory
+  once, the companion's own `.buffer/` and checkpoint directories included,
+  and does not descend into a buffer or checkpoint directory
+  (`test_the_walk_lists_shard_directories_once_and_no_deeper`). Every other
   subdirectory is descended, as `list_eval_logs` recurses, so an eval-set
   directory or a directory of runs works.
 - **Companions.** The first `<name>.shards/` on each path below the root is
@@ -348,10 +353,10 @@ unsharded current log's `results.total_samples` (`authoritative_total`,
 when larger, which is then not final) and `pending_unlisted` is the pending
 samples it counts that no record names. Otherwise `samples.total` is the
 known-key count, a lower bound: a running log, a finished log without
-`results`, an older log with no recorded ids, and every shard set report a
-lower bound, since shards that have not started are not in the directory
-and ctl does not read the merged log's recorded selection ("The merged
-log").
+`results`, and every shard set report a lower bound, since shards that
+have not started are not in the directory and ctl does not read the merged
+log's recorded selection ("The merged log"). Recorded ids do not matter
+here: a finished log that records none still has an authoritative total.
 
 As the eval writes it, `results.total_samples` counts every admitted
 sample, dynamically admitted ones included. After a rescore that replaced
@@ -571,7 +576,8 @@ On S3, with reads issued concurrently on one `AsyncFilesystem`:
 
 - **The walk** costs one LIST per directory visited (per 1,000 entries):
   `N + 2` for a sharded run of `N` shards (the root, the companion, each
-  `<k>/`), whatever the buffers and checkpoints hold, plus one per
+  `<k>/`), whatever the buffers and checkpoints hold, plus one per other
+  immediate directory of the companion (its `.buffer/`, say) and one per
   directory descended below a `<k>/` (two per shard for one scan's output).
   A recursive listing would page through every segment object, about
   100,000 keys after an hour of 300 shards syncing every 10 seconds.
@@ -661,11 +667,11 @@ polling guidance, weighing request cost against seeing each buffer sync.
   token or message progress until it completes. A crashed worker's log
   stays `started`; only `updated_at` hints at it. A key retrying after an
   error drops back to its earlier record, `pending` or absent until a sync
-  publishes its new attempt. A sharded task's total is a lower bound and
-  its whole-task metrics are not shown until a merged log replaces the
-  shard set; a rescored finished log's total can count only its logged
-  samples and still read final ("Totals"). Messages and store of a buffer row, and
-  `--active-since`, are unsupported. `.json` logs are not read.
+  publishes its new attempt. A sharded task's total is a lower bound; a
+  rescored finished log's total can count only its logged
+  samples and still read final ("Totals"). The mode shows no whole-task
+  metrics, for sharded or unsharded tasks. Messages and store of a buffer
+  row, and `--active-since`, are unsupported. `.json` logs are not read.
 
 ## Alternatives considered
 
@@ -761,7 +767,8 @@ applies with a different transport:
   (`test_cli_human_output_sanitizes_hostile_file_names`).
 - **No code execution.** The mode never recomputes metrics, never resolves
   scorers or imports a header-named task file, never runs recovery and
-  never merges. Stored metrics are shown as stored.
+  never merges. Stored per-sample scores are shown as stored; whole-task
+  metrics are not shown.
 - **Read-only.** Nothing is written to the log directory: no buffer cleanup,
   no recovery output, no merge. Buffer objects are read through
   `AsyncFilesystem` only. Local writes go only to the owner-only cache
