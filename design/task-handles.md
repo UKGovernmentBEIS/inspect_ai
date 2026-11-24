@@ -17,8 +17,9 @@ slot, so a search that waits on the rollouts it sends works at any
 then ends once the samples already sent have run. Closing never stops
 those samples; `cancel()` does. A fed task is never retried and cannot run
 on its own: its log is marked by the reserved dataset name
-`samples_from_handle`, and the log of the task that added it, not the fed
-task's, decides an eval set's result.
+`samples_from_handle`, and only logs that are not fed decide an eval set's
+result, so a fed task's failure counts only through a task that is not fed
+and fails because of it.
 
 Handles build on the run queue of [task-dispatch.md](task-dispatch.md): an
 added task is a record in the run's queue, which the run's dispatcher
@@ -210,8 +211,8 @@ nothing that reuses a sample record by `(id, epoch)` can match one sent
 sample to another (`test_fed_task_sample_ids_and_delivery`,
 `test_fed_tasks_of_a_retried_creator_share_no_sample_id`). It is built from
 the task's id rather than the attempt's because a sample can be sent before
-the attempt starts. The format, and how far ids sort in send order, are in
-`HandleChannel.send` and the `TaskHandle.enqueue_sample` docstring.
+the attempt starts. Ids sort in send order within a task, up to the
+counter width `HandleChannel.send` formats them with.
 
 **Delivery.** A sample sent before the fed task's attempt starts is
 delivered when the attempt starts; later ones go to the running attempt
@@ -316,8 +317,9 @@ A send that already has its run keeps it; one abandoned raises
 (`test_run_cancellation_keeps_a_fed_tasks_written_log`,
 `test_fed_request_at_run_cancellation_ends_with_no_log`).
 
-A send to a channel that no longer accepts samples raises by one order,
-first match wins: once the task has ended, `TaskEndedError` with its final
+A send of a valid sample (no `id`; a sample with one raises `ValueError`
+first, whatever the task's state) to a channel that no longer accepts
+samples raises by one order, first match wins: once the task has ended, `TaskEndedError` with its final
 log or `None`; while the channel is closed (by any cause above) and the
 task still runs its last samples, `RuntimeError` ("the handle is closed").
 `TaskEndedError` is a `RuntimeError` subclass, and the tests assert the
@@ -392,9 +394,12 @@ viewer show it. A `.json`-logged run feeds tasks as an `.eval` one does. A
 fed task that runs is reported to the run's `TaskSource` like any task.
 
 - **Results.** `all_evals_succeeded`, which is `eval_set()`'s result, its
-  retry predicate and a selection worker's result, skips fed logs. A
-  creator that cancels its running rollout task, or replaces a failed one,
-  does not fail the set; the creator's own log does, if the creator fails
+  retry predicate and a selection worker's result, skips every fed log,
+  however deeply it is nested, so only logs that are not fed decide the
+  result. A creator that cancels its running rollout task, or replaces a
+  failed one, does not fail the set; a creator that is not fed and fails
+  does. A fed creator's failure, like any fed failure, counts only if it
+  makes a task that is not fed fail in turn
   (`test_fed_task_failure_does_not_fail_an_eval_set`).
   `retryable_eval_logs` likewise leaves fed logs out.
 - **Identifier.** `task_identifier()` builds a fed task's identifier, from
@@ -437,10 +442,17 @@ handle wait depends on, and none is lent to a waiter:
   inside it, so a hook that awaits a sent sample on the creator's model
   holds a permit that sample needs.
 
-A run without that headroom waits, with no warning, until an operator
-raises the limit through the control channel while the run goes on
-(`test_sandbox_headroom_for_a_send_can_be_raised_while_it_waits`). The user
-docs ("Waiting on a handle") state the headroom and how to raise it.
+A run without that headroom waits, with no warning. Raising the sandbox
+or sample limit through the control channel while the run goes on frees
+the wait at once
+(`test_sandbox_headroom_for_a_send_can_be_raised_while_it_waits`). Raising
+`max_connections` does not: the control channel retunes only an adaptive
+connection controller's ceiling, and the controller grows its live limit
+only as requests complete, which no blocked hook does
+(`AdaptiveConcurrencyController.set_max` in
+`src/inspect_ai/util/_concurrency.py`). A connection wait of this kind
+needs its headroom when the run starts. The user docs ("Waiting on a
+handle") state the headroom.
 
 ## Guarantees and limits
 
@@ -456,9 +468,11 @@ docs ("Waiting on a handle") state the headroom and how to raise it.
 - **A fed log never stands in for a requested task**: not in eval-set
   matching, `resume`, `eval_retry()` or the eval set's result.
 - **Limits.**
-  - A run whose `max_sandboxes`, `max_samples` or `max_connections` leaves
-    no room for the work a handle wait depends on hangs until a limit is
-    raised ("Waits and limits").
+  - A run whose `max_sandboxes` or `max_samples` leaves no room for the
+    work a handle wait depends on hangs until that limit is raised; one
+    whose connections are all held by hooks waiting on sent samples hangs
+    for good, since raising `max_connections` while it runs cannot free
+    them ("Waits and limits").
   - A fed task does not count toward `max_tasks`, so a supervisor that
     sets `max_tasks` as a ceiling (a selection worker's) sees one extra
     running task for each fed task that has been sent a sample and has not
@@ -568,6 +582,9 @@ docs ("Waiting on a handle") state the headroom and how to raise it.
 - **Task-first settings for every task added from inside a running task.**
   It changes an existing feature and brings identifier, `eval_retry()` and
   migration work; fed tasks are new and need none of it.
+- **A fed task's `max_samples` skipping the run's value**, going from its
+  own straight to its model's default. Unnecessary: a task that wants a
+  size apart from the run's sets its own, which already wins.
 - **`max_samples` as an `enqueue_task()` argument.** A second precedence
   rule beside the task's own setting, covering only one entry point.
 - **A `send_samples=True` option on `enqueue_task()`** attaching a port to
@@ -592,6 +609,9 @@ docs ("Waiting on a handle") state the headroom and how to raise it.
 - **Applying the run's `--limit` and `--sample-id` to fed tasks.** They
   select among requested tasks' samples; a run limited for debugging would
   drop most rollouts.
+- **`async with` cancelling the task on exit.** A creator that hits a
+  time limit would abort the rollouts it already sent, and one that returns
+  normally would abort the rollout task before it finished its samples.
 - **`started()` and `state` on the handle.** Nothing in the use case waits
   for a start or polls a state.
 - **A warning when a wait starts with every sandbox permit in use**, or a
