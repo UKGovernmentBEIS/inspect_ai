@@ -238,10 +238,10 @@ def _shard_companion(name: str) -> str | None:
     the directory above it ends in `.shards`, or when its parent directory
     ends in `.shards` (a stray file the merge refuses). Only the name's last
     path components are read, split on slashes and backslashes, so the rule
-    does not depend on how a provider lists the log directory. It is broader
-    than the layout helper's `is_shard_path`: it also matches when the log
-    directory is a companion or a shard directory, and a companion nested
-    in a shard's ancillary directory (decision: Ransom, 2026-11-18).
+    does not depend on how a provider lists the log directory. It also
+    matches when the log directory is a companion or a shard directory, and
+    a companion nested in a shard's ancillary directory (decision: Ransom,
+    2026-11-18).
     """
     parts = re.split(r"[/\\]", name)
     if len(parts) >= 2 and parts[-2].endswith(_SHARDS_SUFFIX):

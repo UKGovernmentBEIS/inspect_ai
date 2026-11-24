@@ -80,7 +80,7 @@ class ShardSetFiles(NamedTuple):
     ``<name>-recovered.eval``), newest first. Only the newest is read."""
 
     stray: list[StrayFile]
-    """Logs in the companion that are not shard attempts."""
+    """Logs and directories in the companion that are not shard attempts."""
 
 
 class LogDirListing(NamedTuple):
@@ -96,7 +96,7 @@ class LogDirListing(NamedTuple):
     """The shard sets, sorted by location."""
 
     stray: list[StrayFile]
-    """Stray logs in companions that hold no shard attempt."""
+    """Stray logs and directories in companions that hold no shard attempt."""
 
 
 async def walk_log_dir(
@@ -109,13 +109,10 @@ async def walk_log_dir(
     stray logs come from the shared shard-set walk, and the merged log beside
     it (``<name>.eval`` or ``<name>-recovered.eval``) belongs to it rather
     than being an ordinary log. A companion with no shard attempt is not a shard set, and its merged
-    log is an ordinary log. Directories in a companion that the shard-set
-    walk does not list are walked as ordinary directories, in which a nested
-    ``*.shards/`` is an ordinary directory too, so every log below ``root``
-    is either a shard path or an ordinary log (see
-    :func:`~inspect_ai.log._shards._walk.is_shard_path`). Without it, every
-    ``*.shards/`` is an ordinary directory and every log an ordinary log
-    (``task list --shards``).
+    log is an ordinary log. Nothing in a companion below what the shard-set
+    walk lists is walked, so a log nested below a ``<k>/`` is not listed.
+    Without it, every ``*.shards/`` is an ordinary directory and every log
+    an ordinary log (``task list --shards``).
 
     Raises ``FileNotFoundError`` when a local ``root`` does not exist. A
     subdirectory that disappears during the walk is skipped: its logs are gone,
@@ -175,13 +172,6 @@ async def walk_log_dir(
         else:
             eval_files.extend(merged)
             stray.extend(listing.stray)
-        await tg_collect(
-            [
-                functools.partial(visit, d, False, False)
-                for d in listing.unlisted_dirs
-                if _descend_below(companion, d)
-            ]
-        )
 
     await visit(root, True, shard_sets)
     eval_files.sort(key=lambda f: f.location)
@@ -208,14 +198,6 @@ def basename(location: str) -> str:
 def _descend(name: str) -> bool:
     """Whether the walk lists a subdirectory with this name."""
     return name != _BUFFER_DIR and not name.endswith(_CHECKPOINTS_SUFFIX)
-
-
-def _descend_below(companion: str, directory: str) -> bool:
-    """Whether the walk lists ``directory``, found below ``companion``.
-
-    No directory on the path between them may be one it skips.
-    """
-    return all(_descend(part) for part in _relative(companion, directory).split("/"))
 
 
 def _is_companion(directory: str) -> bool:

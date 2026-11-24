@@ -77,7 +77,7 @@ from inspect_ai._control.log_dir.walk import walk_log_dir
 from inspect_ai._control.state import _iso_to_timestamp
 from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, FileContent
-from inspect_ai._util.file import filesystem, local_path
+from inspect_ai._util.file import filesystem
 from inspect_ai._util.log_layout import (
     eval_log_name,
     log_basename,
@@ -89,7 +89,6 @@ from inspect_ai.log import (
     EvalLog,
     EvalSample,
     EvalSpec,
-    list_eval_logs,
     read_eval_log_async,
     write_eval_log_async,
 )
@@ -109,7 +108,6 @@ from inspect_ai.log._recorders.buffer.types import (
     SampleData,
 )
 from inspect_ai.log._recorders.eval import EvalRecorder
-from inspect_ai.log._shards._walk import is_shard_path
 from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
@@ -895,8 +893,8 @@ async def test_s3_walk_does_not_list_a_checkpoint_directory_in_a_companion(
     async with AsyncFilesystem() as fs:
         listing = await walk_log_dir(fs, f"s3://test-bucket/{prefix}")
     assert len(listing.shard_sets) == 1
-    # root, companion, 0/ and stray.checkpoints/; nothing below the last
-    assert s3_requests == Counter({"ListObjectsV2": 4})
+    # root, companion and 0/; stray.checkpoints/ is stray, not listed
+    assert s3_requests == Counter({"ListObjectsV2": 3})
 
 
 @skip_if_trio
@@ -2573,39 +2571,6 @@ async def test_a_shard_directory_with_no_attempt_is_not_a_shard(
     assert row["samples"]["total"] == 2 and row["incomplete"] is False
 
 
-@pytest.mark.parametrize("root", ["dir", "companion", "shard"])
-async def test_the_walk_agrees_with_eval_set_on_shard_paths(
-    tmp_path: Path, finished_log: EvalLog, root: str
-) -> None:
-    companion = await _shard_set(tmp_path, finished_log, {"0": [1], "1": [2]})
-    await _merged(tmp_path, finished_log)
-    await _merged(tmp_path, finished_log, suffix="-recovered")
-    log_name = Path(finished_log.location).name
-    for directory in ("0/scans", ".hidden", ".hidden/sub"):
-        (companion / directory).mkdir(parents=True, exist_ok=True)
-        shutil.copy(finished_log.location, companion / directory / log_name)
-    nested = companion / "1" / "scans" / "n.shards"
-    await _shard(finished_log, nested, "0", [3])
-
-    base = {"dir": tmp_path, "companion": companion, "shard": companion / "0"}[root]
-    async with AsyncFilesystem() as fs:
-        listing = await walk_log_dir(fs, str(base))
-    shard_files = {
-        *(m.location for s in listing.shard_sets for m in s.members),
-        *(x.path for s in listing.shard_sets for x in s.stray),
-        *(x.path for x in listing.stray),
-    }
-    ordinary = {
-        *(f.location for f in listing.eval_files),
-        *(f.location for s in listing.shard_sets for f in s.merged),
-    }
-    logs = {local_path(i.name) for i in list_eval_logs(str(base), formats=["eval"])}
-    assert shard_files | ordinary == logs and not shard_files & ordinary
-    assert shard_files == {log for log in logs if is_shard_path(str(base), log)}
-    sets = {Path(s.location) for s in listing.shard_sets}
-    assert sets == {"dir": {companion}, "companion": {nested}, "shard": set()}[root]
-
-
 async def test_the_walk_pairs_companions_with_logs_in_linear_work(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2825,19 +2790,24 @@ async def test_stray_and_nested_logs_in_a_companion(
     stray = companion / Path(finished_log.location).name
     shutil.copy(finished_log.location, stray)
     (companion / "0" / "notes.json").write_text("{}")
-    # a log nested below a shard directory is an ordinary log
+    # a log nested below a shard directory is not listed
     nested = companion / "0" / "scans" / Path(finished_log.location).name
     nested.parent.mkdir()
     shutil.copy(finished_log.location, nested)
+    # a directory not named with digits is not a shard, and is not listed
+    other = companion / "extra"
+    other.mkdir()
+    shutil.copy(finished_log.location, other / Path(finished_log.location).name)
 
-    _, rows = await _index(tmp_path)
-    by_attempt = {r["current_attempt"]: r for r in rows}
-    assert set(by_attempt) == {"log", "shards"}
-    assert by_attempt["log"]["log_location"] == str(nested)
-    sharded = by_attempt["shards"]
+    _, [sharded] = await _index(tmp_path)
+    assert sharded["current_attempt"] == "shards"
     assert sharded["incomplete"] is True
-    assert [u["log_location"] for u in sharded["unreadable"]] == [str(stray)]
+    assert [u["log_location"] for u in sharded["unreadable"]] == [
+        str(stray),
+        str(other),
+    ]
     assert "not in a shard directory" in sharded["unreadable"][0]["reason"]
+    assert "not named with digits only" in sharded["unreadable"][1]["reason"]
 
 
 async def test_stray_logs_of_a_companion_without_shards_are_unattributed(
@@ -2859,15 +2829,11 @@ async def test_the_walk_lists_shard_directories_once_and_no_deeper(
     for skipped in (
         "0/.buffer/x",
         "0/run.checkpoints/1",
+        "1/scans/x.shards/0",
         ".buffer/x",
-        # checkpoint directories directly in the companion: their sample
-        # repositories are not listed
         "stray.checkpoints/1__1/a/b",
-        ".stray.checkpoints/1__1/a",
     ):
         (companion / skipped).mkdir(parents=True)
-    (companion / "1" / "scans" / "x.shards" / "0").mkdir(parents=True)
-    (companion / ".hidden" / "sub").mkdir(parents=True)
     listed: list[str] = []
     original = AsyncFilesystem.list_dir
 
@@ -2880,21 +2846,17 @@ async def test_the_walk_lists_shard_directories_once_and_no_deeper(
         listing = await walk_log_dir(fs, str(tmp_path))
     [shard_set] = listing.shard_sets
     assert [m.shard for m in shard_set.members] == ["0", "1"]
-    # the companion's dot-directories are listed once for stray logs; a
-    # companion nested below a shard is walked as an ordinary directory
+    # nothing below a shard directory is listed, and a directory not named
+    # with digits is stray, not listed
     assert sorted(Path(p).relative_to(tmp_path).as_posix() for p in listed) == [
         ".",
         companion.name,
-        f"{companion.name}/.buffer",
-        f"{companion.name}/.hidden",
-        f"{companion.name}/.hidden/sub",
-        f"{companion.name}/.stray.checkpoints",
         f"{companion.name}/0",
         f"{companion.name}/1",
-        f"{companion.name}/1/scans",
-        f"{companion.name}/1/scans/x.shards",
-        f"{companion.name}/1/scans/x.shards/0",
-        f"{companion.name}/stray.checkpoints",
+    ]
+    assert [Path(s.path).name for s in shard_set.stray] == [
+        ".buffer",
+        "stray.checkpoints",
     ]
 
 
@@ -2941,19 +2903,27 @@ async def test_s3_walk_of_a_shard_set_lists_each_shard_once(
     name = Path(finished_log.location).name
     s3 = boto3.client("s3")
     for k in range(5):
-        _upload(finished_log.location, f"{prefix}/{_SET_NAME}.shards/{k}/{name}")
+        shard = f"{prefix}/{_SET_NAME}.shards/{k}"
+        _upload(finished_log.location, f"{shard}/{name}")
         for i in range(50):
             s3.put_object(
                 Bucket="test-bucket",
-                Key=f"{prefix}/{_SET_NAME}.shards/{k}/.buffer/x/segment.{i}.zip",
+                Key=f"{shard}/.buffer/x/segment.{i}.zip",
                 Body=b"",
             )
+        # what else a worker writes: scan results, checkpoints, a nested log
+        for key in (
+            f"{shard}/scans/scan_id=x/rows.parquet",
+            f"{shard}/run.checkpoints/1__1/checkpoint",
+            f"{shard}/scans/n.shards/0/{name}",
+        ):
+            s3.put_object(Bucket="test-bucket", Key=key, Body=b"")
     async with AsyncFilesystem() as fs:
         listing = await walk_log_dir(fs, f"s3://test-bucket/{prefix}")
     [shard_set] = listing.shard_sets
     assert len(shard_set.members) == 5
     assert shard_set.path == f"{_SET_NAME}.shards"
-    # N + 2: the root, the companion and each shard, whatever the buffers hold
+    # N + 2: the root, the companion and each shard, whatever the shards hold
     assert s3_requests == Counter({"ListObjectsV2": 7})
 
 
