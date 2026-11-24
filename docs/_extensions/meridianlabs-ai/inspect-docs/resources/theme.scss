@@ -239,3 +239,11 @@ table.table-borderless > :where(thead, tbody) > tr > :where(th, td) {
     padding-top: 0.25rem;
     padding-bottom: 0.25rem;
 }
+
+// "Last updated <date>" line at the bottom of each page (see
+// filters/last-modified.lua)
+.page-last-modified {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color, #6c757d);
+    margin-top: 2rem;
+}
