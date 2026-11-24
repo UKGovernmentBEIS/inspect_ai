@@ -1406,15 +1406,14 @@ async def test_names_without_a_timestamp_order_by_mtime_alone(
     assert row["log_location"] == str(new)
 
 
-def test_cli_errored_footer_points_at_the_log_dir(log_dir: Path) -> None:
-    import shlex
-
-    result = _ctl(str(log_dir), "task", "list")
+def test_cli_errored_footer_points_at_the_log_dir(
+    log_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a relative --log-dir keeps the temporary path out of the command
+    monkeypatch.chdir(log_dir)
+    result = _ctl(".", "task", "list")
     assert result.exit_code == 0, result.output
-    assert (
-        f"see `inspect ctl sample errors --log-dir {shlex.quote(str(log_dir))}`"
-        in result.stdout
-    )
+    assert "see `inspect ctl sample errors --log-dir .`" in result.stdout
 
 
 _BROKEN = "2099-01-01T00-00-00+00-00_broken_BROKENTASK000000000000.eval"
@@ -2049,20 +2048,24 @@ def _running_buffer_row(directory: Path, source: EvalLog, task_id: str) -> None:
 
 @pytest.mark.parametrize("verb", ["messages", "store"])
 def test_cli_buffer_row_hint_quotes_a_task_id_with_shell_characters(
-    tmp_path: Path, finished_log: EvalLog, no_discovery: None, verb: str
+    tmp_path: Path,
+    finished_log: EvalLog,
+    no_discovery: None,
+    monkeypatch: pytest.MonkeyPatch,
+    verb: str,
 ) -> None:
-    import shlex
-
     task_id = "task id's $(x)"
     _running_buffer_row(tmp_path, finished_log, task_id)
+    # a relative --log-dir keeps the temporary path out of the command
+    monkeypatch.chdir(tmp_path)
     hint = (
         "`inspect ctl sample events 'task id'\"'\"'s $(x)' 2 1 --type model "
-        f"--log-dir {shlex.quote(str(tmp_path))}` shows its model calls."
+        "--log-dir .` shows its model calls."
     )
-    human = _ctl(str(tmp_path), "sample", verb, task_id, "2")
+    human = _ctl(".", "sample", verb, task_id, "2")
     assert human.exit_code == 1
     assert hint in human.stderr
-    as_json = _ctl(str(tmp_path), "sample", verb, task_id, "2", "--json")
+    as_json = _ctl(".", "sample", verb, task_id, "2", "--json")
     assert as_json.exit_code == 1
     assert hint in as_json.stderr
     assert hint in _json(as_json)["error"]["message"]
