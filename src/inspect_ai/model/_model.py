@@ -44,7 +44,10 @@ from tenacity import (
 )
 from tenacity.wait import WaitBaseT
 
-from inspect_ai._sentinel._context import is_agent_generate
+from inspect_ai._sentinel._context import (
+    is_agent_generate,
+    raise_if_sentinel_failed,
+)
 from inspect_ai._sentinel._sidecar._act import (
     act_on_judgment,
     end_if_terminated,
@@ -1045,6 +1048,8 @@ class Model:
         Returns:
            ModelOutput
         """
+        raise_if_sentinel_failed()
+
         # if we have a TaskState then update the epoch. without this, it's possible
         # we'd cache the same response for every single epoch
         from inspect_ai.solver._task_state import sample_state

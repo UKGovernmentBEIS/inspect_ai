@@ -31,7 +31,11 @@ from test_helpers.utils import (
 
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
-from inspect_ai._sentinel._context import SentinelFailure, init_sentinel
+from inspect_ai._sentinel._context import (
+    SentinelFailure,
+    init_sentinel,
+    sentinel_failure_latch,
+)
 from inspect_ai._sentinel._scope import sentinel_solving
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.content import (
@@ -1314,6 +1318,61 @@ async def test_sentinel_errors_fail_the_sample(after: bool) -> None:
 
     assert isinstance(bridge._failure, SentinelFailure)
     assert isinstance(bridge._failure.error, PermissionError)
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_a_bridged_scaffold_that_catches_a_sentinel_failure_is_stopped(
+    sandbox: bool,
+) -> None:
+    model = Scripted(calls_output(READ), calls_output())
+    bridge = sandbox_bridge() if sandbox else in_process_bridge([])
+
+    with active(bridge_raising()):
+        with pytest.raises(SentinelFailure, match="sentinel denied") as kept:
+            with sentinel_failure_latch():
+                try:
+                    await generate(bridge, model, [ChatMessageUser(content=TASK)])
+                except SentinelFailure:
+                    pass
+                with pytest.raises(SentinelFailure, match="sentinel denied"):
+                    await generate(bridge, model, [ChatMessageUser(content="Go on.")])
+
+    # the solve ends with the failure, and the model wasn't called again
+    assert isinstance(kept.value.error, PermissionError)
+    assert len(model.inputs) == 1
+    if sandbox:
+        assert isinstance(bridge, SandboxAgentBridge)
+        assert isinstance(bridge._failure, SentinelFailure)
+
+
+@protocol
+def bridge_fails_the_turn() -> Protocol:
+    async def check(
+        context: Context, step: BeforeGenerate, escalations: Escalations
+    ) -> Decision | None:
+        raise PermissionError("sentinel denied")
+
+    return check
+
+
+async def test_a_sentinel_failure_at_a_sandbox_bridged_turn_fails_the_sample() -> None:
+    model = Scripted(calls_output())
+    bridge = sandbox_bridge()
+
+    async def request(
+        json_data: dict[str, JsonValue], headers: dict[str, str] | None = None
+    ) -> dict[str, JsonValue]:
+        await generate(bridge, model, [ChatMessageUser(content=TASK)])
+        return {}
+
+    with active(bridge_fails_the_turn()), sentinel_solving():
+        reply = await _forward_provider_errors(request, bridge)({})
+
+    # the scaffold gets an error reply, and the bridge fails the sample
+    assert PROVIDER_ERROR_KEY in reply
+    assert isinstance(bridge._failure, SentinelFailure)
+    assert isinstance(bridge._failure.error, PermissionError)
+    assert model.inputs == []
 
 
 @protocol

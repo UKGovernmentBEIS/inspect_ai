@@ -1911,6 +1911,355 @@ def test_sentinel_errors_in_a_background_sub_agent_fail_the_sample() -> None:
     assert sample_error.message == "PermissionError('sentinel denied')"
 
 
+@protocol
+def d3_fails_once(checks: list[str]) -> Protocol:
+    # fails the eval's first check of a counted_addition call only, so a step
+    # after it would be passed by the sentinel
+    async def check(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        checks.append(step.call.function)
+        if checks.count("counted_addition") == 1 and checks[-1] == "counted_addition":
+            raise PermissionError("sentinel denied")
+        return None
+
+    return check
+
+
+@tool
+def counted_addition(executed: list[str]) -> Tool:
+    async def execute(x: int, y: int) -> str:
+        """Add two numbers.
+
+        Args:
+            x: First number to add.
+            y: Second number to add.
+        """
+        executed.append(f"{x}+{y}")
+        return str(x + y)
+
+    return execute
+
+
+def counted_model(calls: list[list[ChatMessage]], *outputs: ModelOutput) -> Model:
+    """A model that returns `outputs` in turn, and records each call's input in `calls`."""
+
+    def respond(
+        input: list[ChatMessage], tools: Any, tool_choice: Any, config: Any
+    ) -> ModelOutput:
+        calls.append(list(input))
+        return outputs[min(len(calls), len(outputs)) - 1]
+
+    return get_model("mockllm/model", custom_outputs=respond, memoize=False)
+
+
+def calls_counted_addition() -> ModelOutput:
+    return ModelOutput.for_tool_call(
+        "mockllm/model", tool_name="counted_addition", tool_arguments={"x": 2, "y": 3}
+    )
+
+
+def counted_helper(executed: list[str], kind: str) -> Agent:
+    tools = [counted_addition(executed)]
+    if kind == "react":
+        return react(
+            name="helper",
+            description="A helper agent.",
+            tools=tools,
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    calls_counted_addition(),
+                    ModelOutput.from_content("mockllm/model", content="helper done"),
+                ],
+                memoize=False,
+            ),
+            submit=False,
+        )
+    # a deepagent whose background subagent's call fails
+    helper = subagent(
+        name="helper",
+        description="A helper agent.",
+        prompt="You are a helper.",
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                calls_counted_addition(),
+                ModelOutput.from_content("mockllm/model", content="helper done"),
+            ],
+            memoize=False,
+        ),
+        extra_tools=tools,
+    )
+    return deepagent(
+        subagents=[helper],
+        background=True,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={"prompt": "add 2 and 3", "background": True},
+                ),
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="agent_wait",
+                    tool_arguments={"agent_ids": ["AGENT-1"]},
+                ),
+                ModelOutput.from_content("mockllm/model", content="done"),
+            ],
+            memoize=False,
+        ),
+    )
+
+
+@solver
+def d3_catches_the_sub_agent(sub: Agent, executed: list[str], then: str) -> Solver:
+    """A scaffold that runs `sub` and catches whatever it raises.
+
+    Then it `continues` (a generate and a tool call, each of whose errors it
+    also catches), `returns`, or `raises` an error of its own.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        try:
+            await run_agent(sub, "add 2 and 3")
+        except Exception as ex:
+            if then == "raises":
+                raise RuntimeError("the helper failed") from ex
+        if then == "continues":
+            tools = [counted_addition(executed)]
+            try:
+                await get_model().generate(state.messages, tools=tools)
+            except Exception:
+                pass
+            state.messages.append(
+                ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(
+                            id="scaffold_call",
+                            function="counted_addition",
+                            arguments={"x": 4, "y": 5},
+                        )
+                    ],
+                )
+            )
+            try:
+                await execute_tools(state.messages, tools)
+            except Exception:
+                pass
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("then", ["continues", "returns", "raises"])
+@pytest.mark.parametrize("kind", ["react", "deepagent"])
+def test_a_sentinel_failure_a_scaffold_catches_still_fails_the_sample(
+    kind: str, then: str
+) -> None:
+    checks: list[str] = []
+    executed: list[str] = []
+    agent_calls: list[list[ChatMessage]] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_catches_the_sub_agent(counted_helper(executed, kind), executed, then),
+        sentinel=[d3_fails_once(checks)],
+        message_limit=30,
+    )
+    log = eval(
+        task,
+        model=counted_model(
+            agent_calls, ModelOutput.from_content("mockllm/model", content="done")
+        ),
+    )[0]
+    assert log.status == "error"
+    assert log.samples
+    sample_error = log.samples[0].error
+    assert sample_error is not None
+    assert sample_error.message == "PermissionError('sentinel denied')"
+    # the sentinel failed the helper's call, and nothing ran after it: no
+    # generate, no tool call and no other check
+    assert checks == (["agent"] if kind == "deepagent" else []) + ["counted_addition"]
+    assert agent_calls == []
+    assert executed == []
+    # the failure is recorded once
+    [failed] = [
+        e
+        for e in log.samples[0].events
+        if isinstance(e, SentinelEvent) and e.status == "error"
+    ]
+    assert failed.error == "PermissionError: sentinel denied"
+    if then == "continues":
+        # the scaffold's own call is recorded as not run
+        [blocked] = [
+            e
+            for e in log.samples[0].events
+            if isinstance(e, ToolEvent) and e.id == "scaffold_call"
+        ]
+        assert blocked.failed is True
+        assert blocked.result == ""
+
+
+@tool
+def delegate(sub: Agent) -> Tool:
+    async def execute(task: str) -> str:
+        """Hand a task to a helper agent.
+
+        Args:
+            task: The task.
+        """
+        try:
+            state = await run_agent(sub, task)
+        except Exception as ex:
+            return f"The helper failed: {ex}"
+        return state.output.completion
+
+    return execute
+
+
+def test_a_sentinel_failure_a_tool_catches_still_fails_the_sample() -> None:
+    checks: list[str] = []
+    executed: list[str] = []
+    agent_calls: list[list[ChatMessage]] = []
+    model = counted_model(
+        agent_calls,
+        ModelOutput.for_tool_call(
+            "mockllm/model", tool_name="delegate", tool_arguments={"task": "add"}
+        ),
+        calls_counted_addition(),
+        ModelOutput.from_content("mockllm/model", content="done"),
+    )
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=react(
+            tools=[
+                delegate(counted_helper(executed, "react")),
+                counted_addition(executed),
+            ],
+            submit=False,
+        ),
+        sentinel=[d3_fails_once(checks)],
+        message_limit=30,
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "error"
+    assert log.samples
+    sample_error = log.samples[0].error
+    assert sample_error is not None
+    assert sample_error.message == "PermissionError('sentinel denied')"
+    # the agent's turn that handed out the task ran; the next didn't
+    assert len(agent_calls) == 1
+    assert executed == []
+    assert checks == ["delegate", "counted_addition"]
+
+
+@solver
+def d3_swallows_and_answers(executed: list[str]) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        try:
+            await execute_tools(
+                [
+                    ChatMessageAssistant(
+                        content="",
+                        tool_calls=[
+                            ToolCall(
+                                id="first",
+                                function="counted_addition",
+                                arguments={"x": 1, "y": 2},
+                            )
+                        ],
+                    )
+                ],
+                [counted_addition(executed)],
+            )
+        except Exception:
+            pass
+        return await generate(state)
+
+    return solve
+
+
+def test_a_kept_sentinel_failure_does_not_reach_the_next_attempt_or_epoch() -> None:
+    checks: list[str] = []
+    executed: list[str] = []
+    agent_calls: list[list[ChatMessage]] = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=d3_swallows_and_answers(executed),
+        sentinel=[d3_fails_once(checks)],
+    )
+    log = eval(
+        task,
+        model=counted_model(
+            agent_calls, ModelOutput.from_content("mockllm/model", content="2")
+        ),
+        retry_on_error=1,
+        epochs=2,
+        max_samples=1,
+    )[0]
+    # the first attempt failed, and its retry and the other epoch ran as usual
+    assert log.status == "success", log.error
+    assert log.samples and [s.error for s in log.samples] == [None, None]
+    assert [len(s.error_retries or []) for s in log.samples] == [1, 0]
+    assert len(checks) == 3
+    assert executed == ["1+2", "1+2"]
+    assert len(agent_calls) == 2
+
+
+@scorer(metrics=[])
+def d3_asks_a_model(calls: list[list[ChatMessage]]) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        output = await counted_model(
+            calls, ModelOutput.from_content("mockllm/model", content="C")
+        ).generate("Grade it.")
+        return Score(value=output.completion)
+
+    return score
+
+
+def test_a_sample_failed_by_a_caught_sentinel_failure_is_still_scored() -> None:
+    checks: list[str] = []
+    grader_calls: list[list[ChatMessage]] = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=d3_catches_the_sub_agent(counted_helper([], "react"), [], "continues"),
+        scorer=d3_asks_a_model(grader_calls),
+        sentinel=[d3_fails_once(checks)],
+    )
+    log = eval(task, model="mockllm/model", score_on_error=True)[0]
+    assert log.samples
+    [sample] = log.samples
+    assert sample.error is not None
+    assert sample.error.message == "PermissionError('sentinel denied')"
+    # a scorer's generate is not the agent's, so it runs
+    assert len(grader_calls) == 1
+    assert sample.scores and sample.scores["d3_asks_a_model"].value == "C"
+
+
+def test_a_scaffold_that_catches_nothing_from_the_sentinel_is_unaffected() -> None:
+    executed: list[str] = []
+    agent_calls: list[list[ChatMessage]] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_catches_the_sub_agent(
+            counted_helper(executed, "react"), executed, "continues"
+        ),
+        sentinel=[d3_continue()],
+    )
+    log = eval(
+        task,
+        model=counted_model(
+            agent_calls, ModelOutput.from_content("mockllm/model", content="done")
+        ),
+    )[0]
+    assert log.status == "success", log.error
+    assert executed == ["2+3", "4+5"]
+    assert len(agent_calls) == 1
+
+
 async def run_addition(grouped: bool) -> None:
     message = ChatMessageAssistant(
         content="",

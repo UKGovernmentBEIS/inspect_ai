@@ -5,6 +5,7 @@ from typing import Awaitable, Callable, Protocol, TypeGuard, cast
 import anyio
 from pydantic import JsonValue
 
+from inspect_ai._sentinel._context import SentinelFailure, fails_the_sample
 from inspect_ai._sentinel._scope import solving
 from inspect_ai._sentinel._sidecar._lookup import SAMPLE_FAILURES
 from inspect_ai.model._call_tools import get_tools_info
@@ -73,8 +74,10 @@ def _forward_provider_errors(
     So are the errors a call through a sentinel sidecar raises to fail its
     sample (`SAMPLE_FAILURES`): a sample the sidecar refused, a call it couldn't
     judge, including one of a sample it lost, which a sample retry registers
-    again, and a registration that failed. Their types are kept, so the sample
-    runner retries or refuses the sample as it does a native agent's.
+    again, and a registration that failed. So is an in-process sentinel's own
+    failure at a generate stage (a `SentinelFailure` that is not a limit or a
+    termination). Their types are kept, so the sample runner retries or
+    refuses the sample as it does a native agent's.
 
     A `LimitExceededError` (message, token, cost or turn limit), bare or in an
     exception group such as a filter's task group, is returned as an error
@@ -126,7 +129,8 @@ def _forward_provider_errors(
                 raise
             # a failure the sidecar raised fails the sample whatever else the
             # generation raised beside it, a limit included: the sample was
-            # never judged, so it is neither scored nor retried
+            # never judged, so it is neither scored nor retried. A sentinel's
+            # own failure fails it the same way.
             failed = _first_sample_failure(ex)
             if failed is not None:
                 bridge.request_fail(failed)
@@ -261,12 +265,19 @@ def _first_control(ex: Exception) -> LimitExceededError | ModelRefusalError | No
     return _first_limit(ex)
 
 
+def _fails_the_sample(ex: BaseException) -> bool:
+    """Whether a generation that raised `ex` fails its sample: one of `SAMPLE_FAILURES`, or a sentinel's own failure that isn't a limit or a termination."""
+    return isinstance(ex, SAMPLE_FAILURES) or (
+        isinstance(ex, SentinelFailure) and fails_the_sample(ex)
+    )
+
+
 def _first_sample_failure(ex: Exception) -> Exception | None:
-    """The first of `SAMPLE_FAILURES` among `ex` and its group members, depth first in order, as a filter that generates in a task group raises it wrapped."""
-    if isinstance(ex, SAMPLE_FAILURES):
+    """The first error among `ex` and its group members that fails the sample (`_fails_the_sample`), depth first in order, as a filter that generates in a task group raises it wrapped."""
+    if _fails_the_sample(ex):
         return ex
     if isinstance(ex, ExceptionGroup):
-        failures = ex.subgroup(SAMPLE_FAILURES)
+        failures = ex.subgroup(_fails_the_sample)
         if failures is not None:
             first: Exception = failures
             while isinstance(first, ExceptionGroup):

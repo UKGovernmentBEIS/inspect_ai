@@ -1,10 +1,11 @@
-from collections.abc import Iterator, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from copy import copy
 from dataclasses import fields
+from functools import wraps
 from logging import getLogger
-from typing import Any, Literal, cast
+from typing import Any, Literal, ParamSpec, TypeVar, cast
 from weakref import WeakKeyDictionary
 
 from inspect_sentinel import (
@@ -88,6 +89,8 @@ from ._context import (
     active_sentinel,
     active_task_description,
     active_task_metadata,
+    raise_if_sentinel_failed,
+    sentinel_failed,
 )
 from ._conversation import current_conversation
 from ._person import (
@@ -118,7 +121,30 @@ _UPGRADE = f"inspect_ai requires inspect_sentinel {SENTINEL_MIN_VERSION} or late
 
 _Kind = Literal["observation", "decision"]
 
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
+
+def _latching(entry: Callable[_P, Awaitable[_R]]) -> Callable[_P, Awaitable[_R]]:
+    """Run a sentinel stage under the solve's latch (`sentinel_failure_latch()`).
+
+    A failure kept earlier in the solve is raised again before the stage
+    runs, and a failure the stage raises is kept.
+    """
+
+    @wraps(entry)
+    async def latched(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+        raise_if_sentinel_failed()
+        try:
+            return await entry(*args, **kwargs)
+        except SentinelFailure as ex:
+            sentinel_failed(ex)
+            raise
+
+    return latched
+
+
+@_latching
 async def sentinel_before_tool_call(
     message: str,
     message_id: str | None,
@@ -168,13 +194,16 @@ def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCa
         )
     elif decision.action == "modify":
         if decision.modified is None:
-            raise SentinelFailure(
+            failure = SentinelFailure(
                 RuntimeError("A sentinel modify decision has no modified call.")
             )
+            sentinel_failed(failure)
+            raise failure
         return decision.modified
     return call
 
 
+@_latching
 async def sentinel_after_tool_call(
     message: str,
     message_id: str | None,
@@ -230,6 +259,7 @@ async def sentinel_after_tool_call(
         )
 
 
+@_latching
 async def sentinel_before_generate(
     *,
     generate_id: str,
@@ -274,6 +304,7 @@ async def sentinel_before_generate(
     return step
 
 
+@_latching
 async def sentinel_after_generate(
     before: BeforeGenerate, output: ModelOutput, generate_id: str
 ) -> None:

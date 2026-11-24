@@ -49,7 +49,10 @@ from inspect_ai._display import (
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._sentinel._config import SentinelProxy, SentinelRoot
-from inspect_ai._sentinel._context import SentinelFailure
+from inspect_ai._sentinel._context import (
+    SentinelFailure,
+    sentinel_failure_latch,
+)
 from inspect_ai._sentinel._scope import sentinel_scope, sentinel_solving
 from inspect_ai._sentinel._sidecar._call import end_sidecar_sample
 from inspect_ai._sentinel._sidecar._state import (
@@ -3389,7 +3392,10 @@ async def _task_run_sample_attempt(
 
                                     # set progress for plan then run it
                                     async with span("solvers"):
-                                        with sentinel_solving():
+                                        with (
+                                            sentinel_solving(),
+                                            sentinel_failure_latch(),
+                                        ):
                                             state = await plan(state, generate)
 
                                 # some 'cancel' exceptions are actually user interrupts or the

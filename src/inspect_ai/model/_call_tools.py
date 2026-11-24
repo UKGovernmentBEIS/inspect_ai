@@ -46,7 +46,11 @@ from pydantic import BaseModel, TypeAdapter
 from shortuuid import uuid
 from typing_extensions import is_typeddict
 
-from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
+from inspect_ai._sentinel._context import (
+    SentinelFailure,
+    checks_tool_calls,
+    raise_if_sentinel_failed,
+)
 from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.content import (
@@ -944,6 +948,13 @@ async def call_tool(
         shown = deepcopy(decided)
         event.arguments = shown.arguments
         return shown
+
+    # before an approver is asked about a call that won't run
+    try:
+        raise_if_sentinel_failed()
+    except SentinelFailure:
+        await record_pending_tool_event()
+        raise
 
     # A sentinel sidecar that ended the sample at a call of this turn ends it
     # before any of the turn's calls runs, as an in-process sentinel's
