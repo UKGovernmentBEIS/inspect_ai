@@ -161,8 +161,8 @@ The mode depends on how a worker writes, which it does not change:
   summary and its segment list; each sync adds a `segment.<n>.zip` with the
   rows added since (`src/inspect_ai/log/_recorders/buffer/`). A sample
   enters the manifest when it starts, with its start-time summary (no token
-  or message progress until it completes). It leaves the manifest in one of
-  two ways. **The flush handoff:** the worker writes the log before dropping
+  or message progress until it completes). Rows are removed by sample key,
+  by a flush, a discarded attempt or a requeue. **The flush handoff:** the worker writes the log before dropping
   the flushed rows, so a sample that leaves this way is already in the log
   when that write is published. A local intermediate write skipped on a
   file-in-use error (`write_local_snapshot` in
@@ -175,7 +175,14 @@ The mode depends on how a worker writes, which it does not change:
   attempt's rows without logging it (`src/inspect_ai/_eval/task/run.py`), and a
   sync that races a removal leaves that sample out of its manifest. A
   retried key reappears with its new attempt on a later sync; an abandoned
-  one is never logged.
+  one is never logged. **A requeue** ([`sample-requeue.md`](sample-requeue.md))
+  removes the prior attempt's rows before the re-run starts, while the
+  prior record may still be waiting for its flush, and that flush later
+  removes rows by the same key, the re-run's live row included
+  (`src/inspect_ai/_eval/task/run.py`, `src/inspect_ai/_eval/task/log.py`).
+  So a requeued key can read `pending` or absent until its prior record is
+  published, and can then show that earlier record while the re-run is
+  still active.
 - **Cleanup.** A normal finish deletes the buffer. A hard-killed worker
   leaves its log `started` and its buffer in place, so a crashed worker
   cannot be told from a running one by status alone.
@@ -719,7 +726,9 @@ polling guidance, weighing request cost against seeing each buffer sync.
   token or message progress until it completes. A crashed worker's log
   stays `started`; only `updated_at` hints at it. A key retrying after an
   error drops back to its earlier record, `pending` or absent until a sync
-  publishes its new attempt. A sharded task's total is a lower bound; a
+  publishes its new attempt; a requeued key can read `pending` or absent,
+  or show its earlier record, while its re-run is active ("What the log
+  directory holds while a run is live"). A sharded task's total is a lower bound; a
   rescored finished log's total can count only its logged
   samples and still read final ("Totals"). The mode shows no whole-task
   metrics, for sharded or unsharded tasks. Messages and store of a buffer
