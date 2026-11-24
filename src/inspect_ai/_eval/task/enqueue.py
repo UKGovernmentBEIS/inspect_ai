@@ -109,10 +109,12 @@ class TaskRecord:
         Called in the same synchronous step as ``register_eval``, so a
         directive finds the task either in the queued registry or through its
         ``EvalState``. A cancel or drain accepted while the attempt was
-        starting is applied here, as an ordinary abort of the running task:
-        the attempt's startup writes are never interrupted by it.
+        starting is applied here to the attempt's cancel handle, as an
+        ordinary abort of the running task: the attempt's startup writes are
+        never interrupted by it. It applies even when the attempt registers
+        with no samples (and so reads as finished), since it was accepted
+        first.
         """
-        from inspect_ai._control.cancel import cancel_task
         from inspect_ai._control.queued_tasks import unregister_queued_task
 
         self._reach("registered")
@@ -120,7 +122,8 @@ class TaskRecord:
         self.unregistered_attempts = 0
         unregister_queued_task(self)
         if self.abort_requested:
-            cancel_task(self.task_id)
+            assert self.attempt_cancel is not None, "an attempt holds its cancel handle"
+            self.attempt_cancel.request("abort")
 
     def _reach(self, reached: TaskReached) -> None:
         if _REACHED_ORDER[reached] > _REACHED_ORDER[self.reached]:

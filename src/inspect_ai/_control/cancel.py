@@ -88,8 +88,9 @@ task aborts it before its log starts and reports ``task_queued``. For an
 attempt that is starting, the abort is deferred and reported as
 ``abort_deferred``: the attempt's startup writes run undisturbed, and the
 abort is applied when it registers, as a running task's cancel is (see
-``TaskRecord.on_registered``). Score/error are rejected, since the task has
-no samples. See ``design/task-dispatch.md``, "Control channel".
+``TaskRecord.on_registered``). A starting preview (``run_samples=False``)
+never registers, so its cancel or drain is a no-op and it keeps its
+``started`` log. Score/error are rejected, since the task has no samples. See ``design/task-dispatch.md``, "Control channel".
 """
 
 from __future__ import annotations
@@ -520,6 +521,15 @@ def _queued_task_directive(
     if not attempt_cancel.escalates("abort"):
         # the attempt returned a log that is not an error
         return {**result, "changed": False, "reason": "task already finished"}
+    options = record.options
+    assert options is not None, "a listed task has not ended"
+    if not options.run_samples:
+        # a preview never registers, so a deferred abort would never apply
+        return {
+            **result,
+            "changed": False,
+            "reason": "task is a preview (run_samples=False) that runs no samples",
+        }
     if not dry_run:
         record.abort_requested = True
     return {**result, "changed": True, "abort_deferred": True}

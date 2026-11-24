@@ -925,13 +925,16 @@ async def test_cancel_of_attempt_before_it_registers_aborts_it(
     assert [log.eval.task for log in source.reports].count("B") == 1
 
 
+@pytest.mark.parametrize("empty", [False, True])
 @pytest.mark.parametrize("verb", ["cancel", "drain"])
 async def test_ctl_cancel_of_starting_attempt_aborts_it_when_it_registers(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, verb: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, verb: str, empty: bool
 ) -> None:
     # B's attempt is starting (logger.init() held): a cancel or drain through
     # the control channel is deferred, B's startup runs undisturbed, and B is
-    # aborted when it registers, before any sample, keeping its error log
+    # aborted when it registers, before any sample, keeping its error log.
+    # With `empty`, B's sample selection is empty, so it registers as already
+    # finished; the abort accepted before that still applies
     init = TaskLogger.init
     init_entered = anyio.Event()
     release = anyio.Event()
@@ -967,14 +970,20 @@ async def test_ctl_cancel_of_starting_attempt_aborts_it_when_it_registers(
         seen["finished_status"] = (await ctl_tasks())["B"]["status"]
 
     monkeypatch.setattr(TaskLogger, "init", held_init)
-    source = _WaitForReports([_hook_task("A", cancel_b), _hook_task("B", run_b)], 2)
+    a = _hook_task("A", cancel_b)
+    if empty:
+        # A keeps one sample in the selection, B (one sample) none
+        a = Task(
+            dataset=[Sample(input=str(i)) for i in range(3)], solver=a.solver, name="A"
+        )
     init_display_type("none")
     logs = await eval_async(
-        source,
+        [a, _hook_task("B", run_b)],
         model="mockllm/model",
         log_dir=str(tmp_path),
         max_tasks=2,
         task_retry_attempts=1,
+        limit=(2, 3) if empty else None,
     )
     assert seen["status"] == "queued"
     status, body = seen["first"]
@@ -991,7 +1000,61 @@ async def test_ctl_cancel_of_starting_attempt_aborts_it_when_it_registers(
     # the ordinary cancelled-task log, kept
     assert b.location and Path(b.location).exists()
     assert (await read_eval_log_async(b.location)).status == "error"
-    assert [log.eval.task for log in source.reports].count("B") == 1
+
+
+@pytest.mark.parametrize("verb", ["cancel", "drain"])
+async def test_ctl_cancel_of_starting_preview_is_a_no_op(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, verb: str
+) -> None:
+    # previews (run_samples=False) never register: P1's starting attempt
+    # (logger.init() held) answers a no-op and keeps its `started` log, while
+    # P2, waiting for the one slot, is cancelled at once with no log
+    init = TaskLogger.init
+    init_entered = anyio.Event()
+    release = anyio.Event()
+    seen: dict[str, Any] = {}
+
+    async def held_init(self: TaskLogger) -> None:
+        if self.eval.task == "P1":
+            init_entered.set()
+            with anyio.CancelScope(shield=True):
+                await release.wait()
+        await init(self)
+
+    async def cancel_previews() -> None:
+        with anyio.fail_after(10):
+            await init_entered.wait()
+        try:
+            rows = await ctl_tasks()
+            seen["starting"] = await ctl_task_directive(rows["P1"]["task_id"], verb)
+            seen["waiting"] = await ctl_task_directive(rows["P2"]["task_id"], verb)
+        finally:
+            release.set()
+
+    monkeypatch.setattr(TaskLogger, "init", held_init)
+    init_display_type("none")
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(cancel_previews)
+        logs = await eval_async(
+            [_hook_task("P1", _noop), _hook_task("P2", _noop)],
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            max_tasks=1,
+            run_samples=False,
+        )
+    status, body = seen["starting"]
+    assert status == 200
+    assert body["changed"] is False
+    assert "preview" in body["reason"]
+    assert "abort_deferred" not in body
+    status, body = seen["waiting"]
+    assert status == 200
+    assert body["changed"] is True and body["task_queued"] is True
+    by_task = {log.eval.task: log for log in logs}
+    assert by_task["P1"].status == "started"
+    assert Path(by_task["P1"].location).exists()
+    assert by_task["P2"].status == "error"
+    assert by_task["P2"].location == ""
 
 
 @pytest.mark.parametrize("failures", [2, 3])
