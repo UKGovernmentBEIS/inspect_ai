@@ -97,7 +97,8 @@ from inspect_ai.log._recorders.buffer.database import (
 from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model import CachePolicy, Model, ModelOutput, get_model
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
+from inspect_ai.model._model import active_model, model_roles
 from inspect_ai.scorer import (
     Metric,
     SampleScore,
@@ -158,6 +159,26 @@ def test_eval_set(retry_immediate: bool) -> None:
         )
         assert not success
         assert logs[0].status == "error"
+
+
+def test_eval_set_leaves_the_callers_model_context_unchanged(tmp_path: Path) -> None:
+    before_model = active_model()
+    before_roles = model_roles()
+    before_config = active_generate_config()
+
+    success, _ = eval_set(
+        tasks=Task(dataset=[Sample(input="Say hello", target="hello")]),
+        log_dir=str(tmp_path),
+        model="mockllm/model",
+        model_roles={"grader": "mockllm/grader"},
+        max_connections=1,
+        temperature=0.5,
+    )
+
+    assert success
+    assert active_model() is before_model
+    assert model_roles() is before_roles
+    assert active_generate_config() is before_config
 
 
 @pytest.mark.slow
@@ -1360,6 +1381,14 @@ def test_eval_set_retry_nan_dict_score_leaves() -> None:
         log = read_eval_log(logs[0].location)
         assert log.results is not None
         scores_by_key = {score.name: score for score in log.results.scores}
+
+        # the reloaded leaf is still NaN, not None (missing), which
+        # aggregate(on_missing=...) would treat differently
+        assert log.samples is not None
+        reloaded = next(s for s in log.samples if s.id == 1)
+        assert reloaded.scores is not None
+        leaf = reloaded.scores["nan_leaf_scorer"].as_dict()["a"]
+        assert isinstance(leaf, float) and math.isnan(leaf)
 
         # sample 1's NaN leaf for "a" is unscored: excluded from mean (not
         # counted as 0.0) and never passed to solved_rate as a scalar
@@ -5071,6 +5100,153 @@ def test_eval_set_run_missing_a_requested_task_is_cancelled(
                 model="mockllm/model",
                 display="none",
             )
+
+
+def _cancel_queued_through_ctl(target: str, ran: list[str], name: str) -> Task:
+    """A task that cancels the queued task ``target`` through the control channel."""
+    from test_helpers.ctl import ctl_task_directive, ctl_tasks
+
+    @solver
+    def cancel_target() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            ran.append(name)
+            row = (await ctl_tasks())[target]
+            assert row["status"] == "queued"
+            status, body = await ctl_task_directive(row["task_id"], "cancel")
+            assert status == 200 and body["task_queued"] is True, body
+            return state
+
+        return solve
+
+    return Task(dataset=[Sample(input="x")], solver=cancel_target(), name=name)
+
+
+def test_eval_set_task_cancelled_while_queued_reports_failure(
+    tmp_path: Path,
+) -> None:
+    # under immediate retries an abort is never retried, so the set reports
+    # failure with the task's abort log among its logs
+    ran: list[str] = []
+    success, logs = eval_set(
+        [
+            _cancel_queued_through_ctl("B", ran, "A"),
+            Task(dataset=[Sample(input="x")], name="B"),
+        ],
+        log_dir=str(tmp_path),
+        model="mockllm/model",
+        max_tasks=1,
+        retry_attempts=2,
+        display="none",
+    )
+    assert not success
+    by_task = {log.eval.task: log for log in logs}
+    assert by_task["A"].status == "success"
+    b = by_task["B"]
+    assert b.status == "error"
+    assert b.error is not None
+    assert "Task cancelled by user (abort)" in b.error.message
+    assert ran == ["A"]
+
+
+def test_eval_set_task_cancelled_while_queued_runs_in_the_next_round(
+    tmp_path: Path,
+) -> None:
+    # under retry_immediate=False the next round runs the cancelled task again
+    from test_helpers.ctl import ctl_task_directive, ctl_tasks
+
+    a_runs: list[int] = []
+    b_runs: list[int] = []
+    cancelled: list[dict[str, Any]] = []
+
+    @solver
+    def first_round_cancels_b() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            a_runs.append(1)
+            if len(a_runs) == 1:
+                row = (await ctl_tasks())["B"]
+                _, body = await ctl_task_directive(row["task_id"], "cancel")
+                cancelled.append(body)
+                raise ValueError("A fails in the first round")
+            return state
+
+        return solve
+
+    @solver
+    def count_b() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            b_runs.append(1)
+            return state
+
+        return solve
+
+    success, logs = eval_set(
+        [
+            Task(dataset=[Sample(input="x")], solver=first_round_cancels_b(), name="A"),
+            Task(dataset=[Sample(input="x")], solver=count_b(), name="B"),
+        ],
+        log_dir=str(tmp_path),
+        model="mockllm/model",
+        max_tasks=1,
+        retry_attempts=2,
+        retry_wait=0.001,
+        retry_immediate=False,
+        display="none",
+    )
+    assert success
+    assert {log.eval.task: log.status for log in logs} == {
+        "A": "success",
+        "B": "success",
+    }
+    assert [body.get("task_queued") for body in cancelled] == [True]
+    assert len(a_runs) == 2
+    assert len(b_runs) == 1
+
+
+def test_eval_set_next_round_lists_a_queued_task_once(tmp_path: Path) -> None:
+    # under retry_immediate=False a task waiting in the next round keeps its
+    # task id, so it is listed once, as queued, over its earlier round's row
+    from test_helpers.ctl import ctl_request
+
+    runs: Counter[str] = Counter()
+    seen_by_first: list[list[tuple[str, bool, int]]] = []
+
+    async def statuses(name: str) -> list[tuple[str, bool, int]]:
+        # status, whether it reads finished, and the attempts it keeps
+        response = await ctl_request("GET", "/tasks")
+        return [
+            (row["status"], row["completed_at"] is not None, row["attempts"])
+            for row in response.json()
+            if row["task"] == name
+        ]
+
+    def failing_once(name: str, other: str) -> Task:
+        @solver
+        def fail_once() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                runs[name] += 1
+                if runs[name] == 1:
+                    raise ValueError(f"{name} fails in the first round")
+                if not seen_by_first:
+                    seen_by_first.append(await statuses(other))
+                return state
+
+            return solve
+
+        return Task(dataset=[Sample(input="x")], solver=fail_once(), name=name)
+
+    success, _ = eval_set(
+        [failing_once("X", "Y"), failing_once("Y", "X")],
+        log_dir=str(tmp_path),
+        model="mockllm/model",
+        max_tasks=1,
+        retry_attempts=2,
+        retry_wait=0.001,
+        retry_immediate=False,
+        display="none",
+    )
+    assert success
+    assert runs == {"X": 2, "Y": 2}
+    assert seen_by_first == [[("queued", False, 1)]]
 
 
 # --- tasks fed through a handle (design/task-handles.md) --------------------

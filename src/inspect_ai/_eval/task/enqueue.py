@@ -17,6 +17,7 @@ import logging
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
+from functools import partial
 from typing import TYPE_CHECKING, Callable, Iterator, Literal
 
 import anyio
@@ -77,8 +78,15 @@ class TaskRecord:
     retries_remaining: int
     phase: TaskPhase = "queued"
     reached: TaskReached = "added"
+    unregistered_attempts: int = 0
+    """Retried attempts that ended before registering, since the last
+    registration. The next ``EvalState`` the task registers carries the count."""
+    attempt_registered: bool = False
+    """The current or last attempt registered with the control channel."""
     abort_requested: bool = False
-    """Cancelled while queued: the dispatcher starts an attempt that aborts at once."""
+    """Cancelled before it registered. A queued record's next attempt aborts at
+    once; an attempt already starting is aborted when it registers, as a
+    running task's cancel aborts it (see :meth:`on_registered`)."""
     attempt_cancel: "TaskCancel | None" = None
     """The current attempt's cancel handle, held while the record is in an attempt."""
     attempt_scope: anyio.CancelScope | None = None
@@ -89,13 +97,44 @@ class TaskRecord:
     channel: HandleChannel | None = None
     """The channel of a task fed through its handle."""
 
+    @property
+    def epochs(self) -> int:
+        """The task's planned epoch count."""
+        from inspect_ai._util.constants import DEFAULT_EPOCHS
+
+        assert self.options is not None, "the record has not ended"
+        return self.options.config.epochs or DEFAULT_EPOCHS
+
     def on_row_opened(self) -> None:
         """An attempt opened the task's display row."""
         self._reach("row_opened")
 
     def on_registered(self) -> None:
-        """An attempt registered the task with the control channel."""
+        """An attempt registered the task with the control channel.
+
+        Called in the same synchronous step as ``register_eval``, so a
+        directive finds the task either in the queued registry or through its
+        ``EvalState``. A cancel or drain accepted while the attempt was
+        starting is applied here to the attempt's cancel handle, as an
+        ordinary abort of the running task: the attempt's startup writes are
+        never interrupted by it. It applies even when the attempt registers
+        with no samples (and so reads as finished), since it was accepted
+        first. As for any task abort, no retry follows, so the attempt's
+        ``EvalState`` stops reading as retried (``will_retry``).
+        """
+        from inspect_ai._control.eval_state import latest_eval_for_task
+        from inspect_ai._control.queued_tasks import unregister_queued_task
+
         self._reach("registered")
+        self.attempt_registered = True
+        self.unregistered_attempts = 0
+        unregister_queued_task(self)
+        if self.abort_requested:
+            assert self.attempt_cancel is not None, "an attempt holds its cancel handle"
+            state = latest_eval_for_task(self.task_id)
+            if state is not None:
+                state.will_retry = False
+            self.attempt_cancel.request("abort")
 
     def _reach(self, reached: TaskReached) -> None:
         if _REACHED_ORDER[reached] > _REACHED_ORDER[self.reached]:
@@ -248,6 +287,9 @@ class RunQueue:
         ordered = sorted(resolved, key=lambda task: task.sequence)
         options = self._configure(ordered, names)
 
+        from inspect_ai._control.pause import dispatch_model_name, note_dispatch_models
+        from inspect_ai._control.queued_tasks import register_queued_task
+
         # commit (no checks below)
         self.task_names = names
         records: list[TaskRecord] = []
@@ -256,7 +298,7 @@ class RunQueue:
             record = TaskRecord(
                 task_id=task.id,
                 task=task.task.name,
-                model=str(task.model),
+                model=dispatch_model_name(task.model),
                 index=-1,
                 options=task_options,
                 retries_remaining=0 if fed else self.task_retry_attempts,
@@ -272,13 +314,12 @@ class RunQueue:
             self._ids.add(task.id)
             self.pending.append(record)
             records.append(record)
+            register_queued_task(record, partial(self.cancel, record))
         by_id = {record.task_id: record for record in records}
         for task in ordered if self._results_by_sequence else resolved:
             record = by_id[task.id]
             record.index = len(self.records)
             self.records.append(record)
-
-        from inspect_ai._control.pause import dispatch_model_name, note_dispatch_models
 
         note_dispatch_models([dispatch_model_name(task.model) for task in ordered])
         if not seed and records:
@@ -326,6 +367,9 @@ class RunQueue:
 
     def requeue(self, record: TaskRecord) -> None:
         """Put a record whose attempt failed back at the end of the queue."""
+        if not record.attempt_registered:
+            record.unregistered_attempts += 1
+        record.attempt_registered = False
         record.phase = "queued"
         record.attempt_cancel = None
         record.attempt_scope = None
@@ -333,9 +377,20 @@ class RunQueue:
         self.wake.set()
 
     def end(self, record: TaskRecord, log: "EvalLog | None") -> None:
-        """End a record with ``log`` (``None`` if it has none)."""
+        """End a record with ``log`` (``None`` if it has none).
+
+        A record that never registered with the control channel is
+        registered as a finished eval with no samples before it leaves the
+        queued registry, so the control channel lists it as finished and a
+        repeated directive answers "task already finished".
+        """
+        from inspect_ai._control.queued_tasks import unregister_queued_task
+
         if record.phase == "ended":
             return
+        if record.reached != "registered":
+            _register_finished(record, log)
+        unregister_queued_task(record)
         record.log = log
         record.phase = "ended"
         record.attempt_cancel = None
@@ -384,6 +439,29 @@ class RunQueue:
             raise RuntimeError(
                 "enqueue_task() was called before the run started its tasks."
             )
+
+
+def _register_finished(record: TaskRecord, log: "EvalLog | None") -> None:
+    """Register a record that ends without registering as a finished eval."""
+    from inspect_ai._control.eval_state import register_completed_eval
+
+    if log is not None:
+        spec = log.eval
+    else:
+        assert record.options is not None
+        spec = record.options.logger.eval
+    register_completed_eval(
+        spec.eval_id,
+        total=0,
+        completed=0,
+        task=spec.task,
+        task_id=spec.task_id,
+        model=record.model,
+        log_location=log.location if log is not None else "",
+        run_id=spec.run_id,
+        epochs=record.epochs,
+        unregistered_attempts=record.unregistered_attempts,
+    )
 
 
 def _require_run_loop(queue: RunQueue, call: str = "enqueue_task()") -> None:

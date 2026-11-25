@@ -3,7 +3,7 @@ title: Scoring Workflow
 llms-description: Defer scoring with --no-score, re-score logs with the inspect score command and the score() function, control append vs. overwrite, and edit scores.
 ---
 
-## Unscored Evals
+## Deferred Scoring
 
 By default, model output in evaluations is automatically scored. However, you can defer scoring by using the `--no-score` option. For example:
 
@@ -22,7 +22,7 @@ Using a distinct scoring step is particularly useful during scorer development, 
 You can score an evaluation previously run this way using the `inspect score` command:
 
 ``` bash
-# score an unscored eval
+# score an eval run with --no-score
 inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval
 ```
 

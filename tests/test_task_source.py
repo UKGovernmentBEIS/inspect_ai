@@ -16,6 +16,7 @@ from typing import Any, Awaitable, Callable
 
 import anyio
 import pytest
+from test_helpers.ctl import ctl_request, ctl_task_directive, ctl_tasks
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, TaskSource, eval, eval_async, task_source
@@ -922,6 +923,382 @@ async def test_cancel_of_attempt_before_it_registers_aborts_it(
     assert b.error is not None
     assert "Task cancelled by user (abort)" in b.error.message
     assert [log.eval.task for log in source.reports].count("B") == 1
+
+
+@pytest.mark.parametrize("empty", [False, True])
+@pytest.mark.parametrize("verb", ["cancel", "drain"])
+async def test_ctl_cancel_of_starting_attempt_aborts_it_when_it_registers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, verb: str, empty: bool
+) -> None:
+    # B's attempt is starting (logger.init() held): a cancel or drain through
+    # the control channel is deferred, B's startup runs undisturbed, and B is
+    # aborted when it registers, before any sample, keeping its error log.
+    # With `empty`, B's sample selection is empty, so it registers as already
+    # finished; the abort accepted before that still applies
+    init = TaskLogger.init
+    init_entered = anyio.Event()
+    release = anyio.Event()
+    seen: dict[str, Any] = {}
+    b_ran: list[bool] = []
+
+    async def held_init(self: TaskLogger) -> None:
+        if self.eval.task == "B":
+            init_entered.set()
+            with anyio.CancelScope(shield=True):
+                await release.wait()
+        await init(self)
+
+    async def run_b() -> None:
+        b_ran.append(True)
+
+    async def cancel_b() -> None:
+        with anyio.fail_after(10):
+            await init_entered.wait()
+        try:
+            task_id = (await ctl_tasks())["B"]["task_id"]
+            seen["status"] = (await ctl_tasks())["B"]["status"]
+            seen["first"] = await ctl_task_directive(task_id, verb)
+            seen["repeats"] = [
+                (await ctl_task_directive(task_id, repeat, **params))[1].get("reason")
+                for repeat in ("cancel", "drain")
+                for params in ({}, {"dry_run": True})
+            ]
+        finally:
+            release.set()
+        with anyio.fail_after(10):
+            await _record("B").ended.wait()
+        seen["finished_status"] = (await ctl_tasks())["B"]["status"]
+
+    monkeypatch.setattr(TaskLogger, "init", held_init)
+    a = _hook_task("A", cancel_b)
+    if empty:
+        # A keeps one sample in the selection, B (one sample) none
+        a = Task(
+            dataset=[Sample(input=str(i)) for i in range(3)], solver=a.solver, name="A"
+        )
+    init_display_type("none")
+    logs = await eval_async(
+        [a, _hook_task("B", run_b)],
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=2,
+        task_retry_attempts=1,
+        limit=(2, 3) if empty else None,
+    )
+    assert seen["status"] == "queued"
+    status, body = seen["first"]
+    assert status == 200
+    assert body["changed"] is True and body["abort_deferred"] is True
+    assert "task_queued" not in body
+    assert seen["repeats"] == ["cancel already requested (abort)"] * 4
+    assert seen["finished_status"] == "completed"
+    assert b_ran == []
+    [b] = [log for log in logs if log.eval.task == "B"]
+    assert b.status == "error"
+    assert b.error is not None
+    assert "Task cancelled by user (abort)" in b.error.message
+    # the ordinary cancelled-task log, kept
+    assert b.location and Path(b.location).exists()
+    assert (await read_eval_log_async(b.location)).status == "error"
+
+
+@pytest.mark.parametrize("verb", ["cancel", "drain"])
+async def test_deferred_abort_of_resumed_task_reads_its_cancelled_sample_as_final(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, verb: str
+) -> None:
+    # B resumes a log holding a sample cancelled by its sibling's failure,
+    # with a retry left (so it registers with will_retry). The deferred abort
+    # suppresses the retry, so that inherited sample reads `cancelled`, not
+    # `pending`, in the sample listing and the sample detail
+    from inspect_ai._eval.task.resolved import ResolvedTask
+    from inspect_ai._eval.task.task import PreviousTask
+
+    started = anyio.Event()
+
+    @solver
+    def failing_sibling() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 1:
+                started.set()
+                await anyio.sleep_forever()
+            await started.wait()
+            raise RuntimeError("second sample failed")
+
+        return solve
+
+    b_task = Task(
+        name="B",
+        dataset=[Sample(input="x"), Sample(input="y")],
+        solver=failing_sibling(),
+    )
+    init_display_type("none")
+    [prior] = await eval_async(
+        b_task, model="mockllm/model", log_dir=str(tmp_path / "prior"), max_samples=2
+    )
+    prior = await read_eval_log_async(prior.location)
+    assert prior.samples is not None
+    [cancelled] = [
+        s for s in prior.samples if s.error and "cancel" in s.error.message.lower()
+    ]
+
+    init = TaskLogger.init
+    init_entered = anyio.Event()
+    release = anyio.Event()
+    seen: dict[str, Any] = {}
+
+    async def held_init(self: TaskLogger) -> None:
+        if self.eval.task == "B":
+            init_entered.set()
+            with anyio.CancelScope(shield=True):
+                await release.wait()
+        await init(self)
+
+    async def cancel_b() -> None:
+        with anyio.fail_after(10):
+            await init_entered.wait()
+        try:
+            task_id = (await ctl_tasks())["B"]["task_id"]
+            seen["first"] = await ctl_task_directive(task_id, verb)
+        finally:
+            release.set()
+        with anyio.fail_after(10):
+            await _record("B").ended.wait()
+        eval_id = (await ctl_tasks())["B"]["eval_id"]
+        listing = await ctl_request("GET", f"/evals/{eval_id}/samples")
+        seen["listing"] = {
+            str(row["sample_id"]): row["status"] for row in listing.json()["samples"]
+        }
+        detail = await ctl_request(
+            "GET",
+            f"/evals/{eval_id}/sample",
+            {"sample_id": str(cancelled.id), "epoch": cancelled.epoch},
+        )
+        seen["detail"] = detail.json()["status"]
+
+    monkeypatch.setattr(TaskLogger, "init", held_init)
+    previous = PreviousTask(
+        id=prior.eval.task_id,
+        task=b_task,
+        task_args={},
+        model=None,
+        model_roles=None,
+        sandbox=None,
+        log=prior,
+        log_info=None,
+    )
+    a = resolve_tasks(
+        _hook_task("A", cancel_b), {}, get_model("mockllm/model"), None, None, None
+    )
+    with anyio.fail_after(30):
+        tasks: list[PreviousTask | ResolvedTask] = [*a, previous]
+        await eval_async(
+            tasks,
+            model="mockllm/model",
+            log_dir=str(tmp_path / "resume"),
+            max_tasks=2,
+            task_retry_attempts=1,
+        )
+    status, body = seen["first"]
+    assert status == 200 and body["abort_deferred"] is True
+    assert seen["listing"][str(cancelled.id)] == "cancelled"
+    assert "pending" not in seen["listing"].values()
+    assert seen["detail"] == "cancelled"
+
+
+@pytest.mark.parametrize("verb", ["cancel", "drain"])
+async def test_ctl_cancel_of_starting_preview_is_a_no_op(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, verb: str
+) -> None:
+    # previews (run_samples=False) never register: P1's starting attempt
+    # (logger.init() held) answers a no-op and keeps its `started` log, while
+    # P2, waiting for the one slot, is cancelled at once with no log
+    init = TaskLogger.init
+    init_entered = anyio.Event()
+    release = anyio.Event()
+    seen: dict[str, Any] = {}
+
+    async def held_init(self: TaskLogger) -> None:
+        if self.eval.task == "P1":
+            init_entered.set()
+            with anyio.CancelScope(shield=True):
+                await release.wait()
+        await init(self)
+
+    async def cancel_previews() -> None:
+        with anyio.fail_after(10):
+            await init_entered.wait()
+        try:
+            rows = await ctl_tasks()
+            seen["starting"] = await ctl_task_directive(rows["P1"]["task_id"], verb)
+            seen["waiting"] = await ctl_task_directive(rows["P2"]["task_id"], verb)
+        finally:
+            release.set()
+
+    monkeypatch.setattr(TaskLogger, "init", held_init)
+    init_display_type("none")
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(cancel_previews)
+        logs = await eval_async(
+            [_hook_task("P1", _noop), _hook_task("P2", _noop)],
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            max_tasks=1,
+            run_samples=False,
+        )
+    status, body = seen["starting"]
+    assert status == 200
+    assert body["changed"] is False
+    assert "preview" in body["reason"]
+    assert "abort_deferred" not in body
+    status, body = seen["waiting"]
+    assert status == 200
+    assert body["changed"] is True and body["task_queued"] is True
+    by_task = {log.eval.task: log for log in logs}
+    assert by_task["P1"].status == "started"
+    assert Path(by_task["P1"].location).exists()
+    assert by_task["P2"].status == "error"
+    assert by_task["P2"].location == ""
+
+
+@pytest.mark.parametrize("failures", [2, 3])
+async def test_attempts_count_startup_failures_before_registering(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failures: int
+) -> None:
+    # B's log init fails `failures` times with two retries allowed: B either
+    # registers on its third attempt or ends unregistered after its third
+    # failure, and its row counts all three attempts either way
+    init = TaskLogger.init
+    inits = 0
+    seen: dict[str, Any] = {}
+
+    async def failing_init(self: TaskLogger) -> None:
+        nonlocal inits
+        if self.eval.task == "B":
+            inits += 1
+            if inits <= failures:
+                raise OSError("cannot start log")
+        await init(self)
+
+    async def b_running() -> None:
+        seen["running"] = (await ctl_tasks())["B"]["attempts"]
+
+    async def b_finished() -> None:
+        with anyio.fail_after(10):
+            await _record("B").ended.wait()
+        seen["finished"] = (await ctl_tasks())["B"]["attempts"]
+
+    monkeypatch.setattr(TaskLogger, "init", failing_init)
+    source = _WaitForReports(
+        [_hook_task("A", b_finished), _hook_task("B", b_running)], 2
+    )
+    init_display_type("none")
+    logs = await eval_async(
+        source,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=2,
+        task_retry_attempts=2,
+    )
+    assert inits == 3
+    [b] = [log for log in logs if log.eval.task == "B"]
+    if failures == 2:
+        assert b.status == "success"
+        assert seen["running"] == 3
+    else:
+        assert b.status == "error"
+        assert "running" not in seen
+    assert seen["finished"] == 3
+
+
+async def test_ctl_cancel_while_unregistered_attempt_prepares_retry_ends_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # B's log init fails and its retry is being prepared (reinit() held): a
+    # cancel through the control channel is deferred, and the retry it
+    # queues aborts before it starts, not as a pending retry abandoned
+    init = TaskLogger.init
+    reinit = TaskLogger.reinit
+    reinit_entered = anyio.Event()
+    release = anyio.Event()
+    seen: dict[str, Any] = {}
+
+    async def failing_init(self: TaskLogger) -> None:
+        if self.eval.task == "B":
+            raise OSError("cannot start log")
+        await init(self)
+
+    async def held_reinit(self: TaskLogger) -> None:
+        if self.eval.task == "B":
+            reinit_entered.set()
+            await release.wait()
+        await reinit(self)
+
+    async def cancel_b() -> None:
+        with anyio.fail_after(10):
+            await reinit_entered.wait()
+        try:
+            task_id = (await ctl_tasks())["B"]["task_id"]
+            seen["cancel"] = await ctl_task_directive(task_id, "cancel")
+        finally:
+            release.set()
+
+    monkeypatch.setattr(TaskLogger, "init", failing_init)
+    monkeypatch.setattr(TaskLogger, "reinit", held_reinit)
+    source = _WaitForReports([_hook_task("A", cancel_b), _hook_task("B", _noop)], 2)
+    init_display_type("none")
+    logs = await eval_async(
+        source,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=2,
+        task_retry_attempts=2,
+    )
+    status, body = seen["cancel"]
+    assert status == 200
+    assert body["changed"] is True and body["abort_deferred"] is True
+    assert "retry_abandoned" not in body
+    [b] = [log for log in logs if log.eval.task == "B"]
+    assert b.status == "error"
+    assert b.error is not None
+    assert "Task cancelled by user (abort)" in b.error.message
+    # the failed attempt and the aborted retry
+    assert [log.eval.task for log in source.reports].count("B") == 2
+
+
+async def test_task_failing_before_it_registers_stays_listed_as_finished(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    init = TaskLogger.init
+    seen: dict[str, Any] = {}
+
+    async def failing_init(self: TaskLogger) -> None:
+        if self.eval.task == "B":
+            raise OSError("cannot start log")
+        await init(self)
+
+    async def check_b() -> None:
+        with anyio.fail_after(10):
+            await _record("B").ended.wait()
+        row = (await ctl_tasks())["B"]
+        seen["row"] = row
+        seen["cancel"] = (await ctl_task_directive(row["task_id"], "cancel"))[1]
+
+    monkeypatch.setattr(TaskLogger, "init", failing_init)
+    source = _WaitForReports([_hook_task("A", check_b), _hook_task("B", _noop)], 2)
+    init_display_type("none")
+    await eval_async(
+        source,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=2,
+        task_retry_attempts=0,
+    )
+    row = seen["row"]
+    assert row["status"] == "completed"
+    assert row["samples"]["total"] == 0
+    assert row["attempts"] == 1
+    assert seen["cancel"]["changed"] is False
+    assert seen["cancel"]["reason"] == "task already finished"
 
 
 async def test_next_tasks_error_ends_the_run(tmp_path: Path) -> None:

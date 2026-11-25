@@ -1,4 +1,5 @@
 import contextlib
+import functools
 import hashlib
 import logging
 import os
@@ -6,9 +7,19 @@ import re
 import threading
 from collections.abc import Callable, Iterator, Sequence
 from collections.abc import Set as AbstractSet
+from contextvars import copy_context
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, TypeVar, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    NamedTuple,
+    ParamSpec,
+    Set,
+    TypeVar,
+    cast,
+)
 
 import rich
 from pydantic import BaseModel
@@ -168,6 +179,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _T = TypeVar("_T")
+_P = ParamSpec("_P")
 
 
 class Log(NamedTuple):
@@ -304,6 +316,24 @@ def _overridden_epochs(
     return epochs
 
 
+def _in_copied_context(fn: Callable[_P, _T]) -> Callable[_P, _T]:
+    """Run `fn` in a copy of the caller's context.
+
+    `eval_set()` sets up the eval (`eval_init`, `eval_resolve_tasks`)
+    synchronously in its caller's context, which sets the active model,
+    generate config, model roles and other context variables. Running in a
+    copy keeps those settings from staying in the caller's context after it
+    returns, as `eval()` does by running on its own event loop.
+    """
+
+    @functools.wraps(fn)
+    def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _T:
+        return copy_context().run(fn, *args, **kwargs)
+
+    return wrapper
+
+
+@_in_copied_context
 @display_type_scope()
 def eval_set(
     tasks: Tasks,
@@ -516,9 +546,10 @@ def eval_set(
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to the greater of 10 and the number of models being
-            evaluated). A task cancelled before it starts is started outside
-            this limit and ends at once with an error log reporting the
-            cancellation, so it never takes a slot.
+            evaluated). A task cancelled before it starts (`inspect ctl task
+            cancel` or `drain`) is started outside this limit and ends at once
+            with an error log reporting the cancellation, so it never takes a
+            slot.
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -1889,7 +1920,9 @@ def _resumed_task(task: ResolvedTask, identifier: str, resume: str) -> PreviousT
 def all_evals_succeeded(logs: list[EvalLog]) -> bool:
     """Whether every log succeeded, leaving out tasks fed through a handle.
 
-    A fed task's log does not decide the result: the task that added it does.
+    Every fed log is skipped, however deeply nested, so only logs that are
+    not fed decide the result. A fed task's failure counts only if it makes
+    a task that is not fed fail.
     """
     return all(
         log.status == "success" and not log.invalidated

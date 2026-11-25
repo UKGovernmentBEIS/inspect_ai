@@ -174,7 +174,9 @@ def _resolve_scope(
     and task log-flush today; task cancel/drain are expected to reuse it): an
     explicit ``TASK`` targets that task; no ``TASK`` defaults to the sole
     process — a single-active-task process resolves to that task (completed
-    eval-set siblings don't count), a multi-task process resolves to the
+    eval-set siblings and queued tasks don't count; a process with only
+    queued tasks resolves to the process scope), a multi-task process
+    resolves to the
     process-level scope. ``model`` composes with both paths — an explicit
     ``TASK``'s matches are filtered to tasks running a matching model (see
     ``_resolve_target_eval``), and the no-``TASK`` defaults resolve over the
@@ -227,7 +229,7 @@ def _resolve_scope(
         # "process-wide is exactly the named task" while a *different*
         # (active) task would absorb the retune
         siblings = _active_siblings(summaries, socket_path)
-        if not _is_active(target):
+        if not _is_reachable(target):
             siblings += 1
         return _DirectiveScope(
             socket_path=socket_path,
@@ -251,20 +253,29 @@ def _resolve_scope(
         )
     socket_path = sockets[0]
     tasks_in_proc = [s for s in visible if str(s.get("socket_path")) == socket_path]
+    # a queued task is never a default target (its task-scoped routes answer
+    # 404 until it starts); a process with only queued tasks resolves to the
+    # process scope, as a process with no tasks listed yet does
+    started = [s for s in tasks_in_proc if s.get("status") != "queued"]
     # a finished task's config is no longer meaningfully adjustable, so the
     # sole-task default keys on what is still active — an eval-set with one
     # running and N completed tasks resolves to the running one
-    active = [s for s in tasks_in_proc if _is_active(s)]
-    candidates = active or tasks_in_proc
+    active = [s for s in started if _is_active(s)]
+    candidates = active or started
     if len(candidates) == 1 and str(candidates[0].get("task_id") or ""):
         target = candidates[0]
+        # a completed default target counts toward the blast radius, as an
+        # explicit one does
+        siblings = _active_siblings(summaries, socket_path)
+        if not _is_reachable(target):
+            siblings += 1
         return _DirectiveScope(
             socket_path=socket_path,
             pid=target.get("pid"),
             task_id=str(target["task_id"]),
             task=str(target.get("task") or "") or None,
             header=_task_header(target),
-            siblings=_active_siblings(summaries, socket_path),
+            siblings=siblings,
         )
     if per_task_option is not None:
         addressable = [c for c in candidates if str(c.get("task_id") or "")]
@@ -273,13 +284,18 @@ def _resolve_scope(
             # impossible advice — either a just-starting attempt whose
             # registration hasn't landed yet (status running/pending), or
             # pre-task-id reused logs (completed)
-            starting = any(_is_active(c) for c in candidates)
-            reason = (
-                "the running task hasn't finished registering yet — retry in a moment"
-                if starting
-                else "this process's tasks predate task ids (older reused "
-                "logs) and can't be targeted by task-keyed directives"
-            )
+            if not candidates:
+                reason = "no task in this process has started yet — retry in a moment"
+            elif any(_is_active(c) for c in candidates):
+                reason = (
+                    "the running task hasn't finished registering yet — retry "
+                    "in a moment"
+                )
+            else:
+                reason = (
+                    "this process's tasks predate task ids (older reused "
+                    "logs) and can't be targeted by task-keyed directives"
+                )
             _fail(
                 "invalid_request", f"{per_task_option} needs a task id, but {reason}."
             )
@@ -306,22 +322,34 @@ def _resolve_scope(
 def _is_active(summary: dict[str, Any]) -> bool:
     """Whether a task summary is still running or pending.
 
-    The one predicate behind scope resolution's sole-task default, the
-    orphan-vs-reused-log routing, and the blast-radius sibling count — kept
-    single so a new active-like status can't desynchronize them.
+    The predicate behind scope resolution's sole-task default and the
+    orphan-vs-reused-log routing. A ``queued`` task (not started) is not a
+    default target, so a command without ``TASK`` still resolves to the one
+    running task while others wait; the blast-radius count uses
+    :func:`_is_reachable` instead.
     """
     return summary.get("status") in ("running", "pending")
 
 
-def _active_siblings(summaries: list[dict[str, Any]], socket_path: str) -> int:
-    """Count the running/pending tasks sharing a process.
+def _is_reachable(summary: dict[str, Any]) -> bool:
+    """Whether a process-scoped retune can still reach the task.
 
-    The blast-radius denominator for process-scoped knobs: completed eval-set
-    siblings share the socket but can't be affected by a retune, so counting
-    them would overstate the note (and defeat its single-task suppression).
+    A running or pending task, or a ``queued`` one, which uses the
+    process-wide settings when it starts.
+    """
+    return _is_active(summary) or summary.get("status") == "queued"
+
+
+def _active_siblings(summaries: list[dict[str, Any]], socket_path: str) -> int:
+    """Count the tasks sharing a process that a process-scoped retune reaches.
+
+    The blast-radius denominator for process-scoped knobs: running, pending
+    and queued tasks (see :func:`_is_reachable`). Completed eval-set siblings
+    share the socket but can't be affected by a retune, so counting them
+    would overstate the note (and defeat its single-task suppression).
     """
     return sum(
         1
         for s in summaries
-        if str(s.get("socket_path")) == socket_path and _is_active(s)
+        if str(s.get("socket_path")) == socket_path and _is_reachable(s)
     )
