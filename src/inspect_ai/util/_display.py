@@ -20,17 +20,7 @@ _display_type: DisplayType | None = None
 _display_scope_depth = 0
 
 
-def init_display_type(
-    display: str | None = None, *, restore: bool = False
-) -> DisplayType:
-    """Set the display type.
-
-    Args:
-       display: Display type (defaults to `INSPECT_DISPLAY`, else "full").
-       restore: Restoring the process display type (`display`, or the
-          configured default), possibly from another thread, so the
-          background thread throttle doesn't apply to it.
-    """
+def init_display_type(display: str | None = None) -> DisplayType:
     global _display_type
     display = (
         display or os.environ.get("INSPECT_DISPLAY", DEFAULT_DISPLAY).lower().strip()
@@ -48,7 +38,7 @@ def init_display_type(
     # ("full" requires textual which cannot run in a background thread
     # b/c it calls the Python signal function; "rich" assumes exclusive
     # display access which may not be the case for threads)
-    if display in ["full", "rich"] and not is_main_thread() and not restore:
+    if display in ["full", "rich"] and not is_main_thread():
         display = "plain"
 
     new_display_type: DisplayType
@@ -105,11 +95,14 @@ def display_type_scope() -> Iterator[None]:
     so a first direct eval_async() uses "plain" and later ones the configured
     type. While live Rich output (e.g. a caller's status) still uses the
     call's display, the type is kept and a warning is logged.
+
+    Only calls made on the main thread restore the display type. A call on a
+    worker thread leaves the display type it set.
     """
     global _display_scope_depth
-    outermost = _display_scope_depth == 0
+    restore = _display_scope_depth == 0 and is_main_thread()
     previous = _display_type
-    if outermost and previous is None:
+    if restore and previous is None:
         # the project .env (which the call loads anyway) can set
         # INSPECT_DISPLAY, which the call's own display may use
         from inspect_ai._util.dotenv import init_dotenv
@@ -120,8 +113,8 @@ def display_type_scope() -> Iterator[None]:
         yield
     finally:
         _display_scope_depth -= 1
-        if outermost:
-            init_display_type(previous, restore=True)
+        if restore:
+            init_display_type(previous)
 
 
 def display_type_scope_active() -> bool:
