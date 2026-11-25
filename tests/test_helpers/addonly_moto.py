@@ -81,12 +81,19 @@ class CliResult(NamedTuple):
 
     def stopped(self) -> list[str]:
         """The key of each ``stopped`` line."""
+        return self.listed("stopped")
+
+    def not_logged(self) -> list[str]:
+        """The key of each ``not_logged`` line."""
+        return self.listed("not_logged")
+
+    def listed(self, kind: str) -> list[str]:
         return [
             rest.partition(":")[0]
-            for kind, _, rest in (
+            for line_kind, _, rest in (
                 line.partition(" ") for line in self.output.splitlines()
             )
-            if kind == "stopped"
+            if line_kind == kind
         ]
 
 

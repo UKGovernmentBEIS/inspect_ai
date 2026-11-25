@@ -46,7 +46,14 @@ from inspect_ai._util.registry import _registry
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
 from inspect_ai.event import Event, InfoEvent, ScoreEvent, ToolEvent
-from inspect_ai.hooks import Hooks, SampleAttemptEnd, SampleEnd, SampleScoring, hooks
+from inspect_ai.hooks import (
+    Hooks,
+    SampleAttemptEnd,
+    SampleEnd,
+    SampleInit,
+    SampleScoring,
+    hooks,
+)
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log, write_eval_log
 from inspect_ai.log._addonly._records import (
     CLOSING,
@@ -859,6 +866,17 @@ class StuckScoringHook(Hooks):
             _cancel_gates["hook_timed_out"].set()
 
 
+class StuckInitHook(Hooks):
+    """s0's sample init hook, before its first record, waits as `StuckSampleEndHook` does."""
+
+    async def on_sample_init(self, data: SampleInit) -> None:
+        if data.summary.id == "s0":
+            _cancel_gates["s0_hook"].set()
+            with anyio.move_on_after(30):
+                await anyio.Event().wait()
+            _cancel_gates["hook_timed_out"].set()
+
+
 class StuckRetryHook(Hooks):
     """s0's attempt end hook before its retry waits as `StuckSampleEndHook` does."""
 
@@ -886,7 +904,7 @@ def fail_once_s0_hook_waits(s0_fails: bool) -> Solver:
     return solve
 
 
-@pytest.mark.parametrize("hook", ["scoring", "attempt_end"])
+@pytest.mark.parametrize("hook", ["init", "scoring", "attempt_end"])
 def test_eval_stopped_while_hook_waits_lists_stopped(
     evalhost_env: MotoStore,
     tmp_path: Path,
@@ -896,14 +914,19 @@ def test_eval_stopped_while_hook_waits_lists_stopped(
 ) -> None:
     """s1 fails the eval while s0 waits in a hook, before its closing record.
 
-    In its sample scoring hook, or (with retry_on_error) in its attempt end
-    hook before the retry. The eval's failure cancels the hook, so s0 is not
-    logged, and its attempt is listed as stopped.
+    In its sample init hook (s0 has no records), in its sample scoring hook,
+    or (with retry_on_error) in its attempt end hook before the retry. The
+    eval's failure cancels the hook, so s0 is not logged, and its attempt is
+    listed as stopped.
     """
     monkeypatch.setitem(_cancel_gates, "s0_hook", threading.Event())
     monkeypatch.setitem(_cancel_gates, "hook_timed_out", threading.Event())
     hooks("stuck_hook", "Waits in a hook of s0.")(
-        StuckScoringHook if hook == "scoring" else StuckRetryHook
+        {
+            "init": StuckInitHook,
+            "scoring": StuckScoringHook,
+            "attempt_end": StuckRetryHook,
+        }[hook]
     )
     try:
         log = eval(
@@ -970,6 +993,96 @@ def test_eval_stopped_while_retry_waits_lists_stopped(
     assert result.stopped() == [f"{log.eval.eval_id}/{id}.1/1" for id in samples], (
         result.output
     )
+
+
+CRASH_PROGRAM = """
+import os
+import sys
+
+from inspect_ai import Task, eval
+from inspect_ai._eval.task.log import TaskLogger
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import includes
+from inspect_ai.solver import solver
+
+log_dir, store, crash = sys.argv[1:]
+
+if crash == "before_first_flush":
+    start_addonly = TaskLogger._start_addonly
+
+    async def exit_after_start(self, *args, **kwargs):
+        await start_addonly(self, *args, **kwargs)
+        os._exit(17)
+
+    TaskLogger._start_addonly = exit_after_start
+
+
+started = []
+
+
+@solver
+def exit_in_second_sample():
+    async def solve(state, generate):
+        started.append(state.sample_id)
+        if len(started) == 2:
+            os._exit(17)
+        return await generate(state)
+
+    return solve
+
+
+eval(
+    Task(
+        dataset=[Sample(id=f"s{i}", input="hi", target="Default") for i in range(6)],
+        solver=exit_in_second_sample(),
+        scorer=includes(),
+    ),
+    model="mockllm/model",
+    log_dir=log_dir,
+    display="none",
+    max_samples=1,
+    tamper_evident_store=store,
+)
+"""
+"""An eval whose process exits partway (the `crash` argument says where)."""
+
+
+@pytest.mark.parametrize("crash", ["before_first_flush", "sample_not_logged"])
+def test_eval_host_crash_lists_stopped(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli, crash: str
+) -> None:
+    """The eval's process exits partway, as when its host dies.
+
+    After the start record and before the first .eval file write: there is
+    no .eval file, and the eval is listed as stopped. Or in the second
+    sample, after the first closed: the log buffer (default size: 2 samples
+    for 6) still holds the first, so the .eval file is "started" with no
+    samples, and the first is listed as not logged.
+    """
+    exited = subprocess.run(
+        [sys.executable, "-c", CRASH_PROGRAM, str(tmp_path), evalhost_env.url, crash],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert exited.returncode == 17, exited.stderr
+    eval_files = list(tmp_path.glob("*.eval"))
+    if crash == "before_first_flush":
+        assert eval_files == []
+    else:
+        (eval_file,) = eval_files
+        log = read_eval_log(eval_file)
+        assert log.status == "started" and not log.samples
+
+    (eval_id,) = validate(evalhost_env, tmp_path).evals
+    result = validate_cli(evalhost_env, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
+    assert result.stopped() == [eval_id], result.output
+    not_logged = result.not_logged()
+    assert len(not_logged) == (0 if crash == "before_first_flush" else 1)
+    assert all(key.startswith(f"{eval_id}/") for key in not_logged), result.output
+    assert "1 eval(s), 0 sample(s) compared, 0 finding(s)." in result.output
 
 
 def test_task_retry_attempts_validates(
@@ -1161,6 +1274,39 @@ def test_delete_reused_sample(
     result = validate_cli(evalhost_env, tmp_path)
     assert_fails_with(result, "missing_sample")
     assert f"missing_sample {log.eval.eval_id}/s1.1:" in result.output
+
+
+def test_retry_logs_prior_copy_of_sample_it_ran(
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    failures: Path,
+) -> None:
+    """A retry ran s0 with no closing record, and its .eval has the first eval's s0.
+
+    The retry has records of s0, so its s0 is never compared with the first
+    eval's records.
+    """
+    log = retried_task_run(evalhost_env, tmp_path, failures, s0_failures=1)
+    retry = eval_retry(
+        log,
+        log_dir=str(tmp_path),
+        display="none",
+        tamper_evident_store=evalhost_env.url,
+    )[0]
+    assert retry.status == "success", retry.error
+
+    evalhost_env.remove_version(f"{retry.eval.eval_id}/s0.1/1/{CLOSING}")
+    with zipfile.ZipFile(log.location) as zf:
+        prior_s0 = json.loads(zf.read("samples/s0_epoch_1.json"))
+    assert prior_s0["error"]
+    edit_zip_entry(Path(retry.location), "samples/s0_epoch_1.json", lambda _: prior_s0)
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert_fails_with(result, "unstored_sample")
+    assert f"unstored_sample {retry.eval.eval_id}/s0.1:" in result.output
+    assert "for this eval, which ran it." in result.output
+    assert result.stopped() == [f"{retry.eval.eval_id}/s0.1/1"]
 
 
 class StreamingMockLLM(MockLLM):
@@ -1978,6 +2124,43 @@ def test_stopped_attempt_records_checked(
     stored = _read_eval(eval_id, list(records), records.__getitem__)
     assert [f.kind for f in stored.findings] == ([change] if change else [])
     assert stored.stopped == [eval_id, f"{eval_id}/s0.1/1"]
+
+
+@pytest.mark.parametrize("table", ["message_pool", "call_pool", "attachments"])
+def test_stopped_attempt_malformed_buffer_row(
+    clean_run: CleanRun, validate_cli: ValidateCli, table: str
+) -> None:
+    """A stopped attempt's record, with the eval's nonce and a row the eval could not have written.
+
+    A pool row that is not JSON, or an attachment already stored. The sample
+    closing record and the .eval sample are gone, so nothing is compared,
+    but the attempt's rows are still rebuilt.
+    """
+    records = [
+        SampleRecord.model_validate_json(clean_run.read(clean_run.sample_key(i)))
+        for i in range(1, clean_run.records() + 1)
+    ]
+    rows = (
+        BufferRows(attachments=[_rebuild_rows(records).attachments[0]])
+        if table == "attachments"
+        else BufferRows.model_validate(
+            {table: [BufferPoolRow(key="new-key", data="not json")]}
+        )
+    )
+    seq = len(records) + 1
+    clean_run.put(
+        clean_run.sample_key(seq),
+        records[0].model_copy(update={"seq": seq, "rows": rows}).model_dump_json(),
+    )
+    clean_run.store.remove_version(clean_run.sample_key(CLOSING))
+    log = read_eval_log(clean_run.location)
+    log.samples = []
+    write_eval_log(log, clean_run.location)
+
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "malformed_record")
+    assert f"malformed_record {clean_run.eval_id}/s0.1/1:" in result.output
+    assert result.stopped() == [f"{clean_run.eval_id}/s0.1/1"]
 
 
 def test_remove_start(clean_run: CleanRun, validate_cli: ValidateCli) -> None:

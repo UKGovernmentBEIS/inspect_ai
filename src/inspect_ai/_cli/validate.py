@@ -39,6 +39,11 @@ def validate_command(log_dir: str, store: str, verbose: bool) -> None:
         click.echo(
             f"stopped {key}: No closing record: cut short, or its host stopped writing."
         )
+    for key in report.not_logged:
+        click.echo(
+            f"not_logged {key}: Closed, not in the .eval file: the eval stopped "
+            "before it logged the sample."
+        )
     for eval_id, later_ids in report.prior_without_file.items():
         for later_id in later_ids:
             click.echo(

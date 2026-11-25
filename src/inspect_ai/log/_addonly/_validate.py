@@ -23,7 +23,9 @@ from typing import Any, Literal, NamedTuple
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from inspect_ai._util._async import run_coroutine
+from inspect_ai.event import Event
 from inspect_ai.event._validate import validate_events
+from inspect_ai.log._condense import mark_attachments_resolved
 from inspect_ai.log._file import (
     list_eval_logs,
     read_eval_log,
@@ -94,6 +96,10 @@ class ValidationReport(BaseModel):
     host stopped writing. Listed, not findings. Their records are still
     checked. A sample in a .eval file still needs a closed attempt, and a
     finished .eval file its eval closing record."""
+    not_logged: list[str] = []
+    """Closed samples not in the .eval file of a stopped eval (one with no
+    eval closing record and a .eval file still "started"): the eval stopped
+    before it logged them. Listed, not findings."""
     prior_without_file: dict[str, list[str]] = {}
     """Evals with no .eval file, with the later evals that name each one as
     their prior eval. Listed, not findings: eval_set's ``retry_cleanup``
@@ -108,7 +114,11 @@ class ValidationReport(BaseModel):
 _record_adapter: TypeAdapter[StoreRecord] = TypeAdapter(StoreRecord)
 
 
-_FinalAttempt = tuple[SampleClosingRecord, list[SampleRecord]]
+class _FinalAttempt(NamedTuple):
+    closing: SampleClosingRecord
+    records: list[SampleRecord]
+    events: list[Event] | None
+    """Rebuilt from the records (None if they cannot be: a malformed_record)."""
 
 
 class _StoredEval(NamedTuple):
@@ -121,7 +131,8 @@ class _StoredEval(NamedTuple):
     """The start record's eval spec (None without a start record)."""
     closing: EvalClosingRecord | None
     sample_parts: set[str]
-    """``<sample-id>.<epoch>`` of every attempt in the store."""
+    """``<sample-id>.<epoch>`` of every attempt in the store or the eval
+    closing record."""
     final_attempts: dict[str, _FinalAttempt]
     """The last closed attempt of each sample, by ``<sample-id>.<epoch>``."""
     prior_eval_id: str | None
@@ -253,6 +264,7 @@ def validate_store(
         findings=findings,
         samples_compared=sum(c.samples_compared for c in compared.values()),
         stopped=[key for e in stored.values() for key in e.stopped],
+        not_logged=[key for c in compared.values() for key in c.not_logged],
         prior_without_file={
             eval_id: c.named_by for eval_id, c in compared.items() if c.named_by
         },
@@ -356,8 +368,11 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
         for a in (eval_closing.samples if eval_closing else [])
     }
 
+    # the eval closing record names every attempt that started, also one
+    # stopped before its first record
     final_attempts: dict[str, _FinalAttempt] = {}
-    for (sample_part, attempt), records in sorted(attempts.items()):
+    for sample_part, attempt in sorted(attempts.keys() | listed):
+        records = attempts.get((sample_part, attempt), {})
         prefix = f"{eval_id}/{sample_part}/{attempt}"
         if eval_closing is not None and (sample_part, attempt) not in listed:
             finding("unlisted_attempt", "Not in the eval's closing record.", prefix)
@@ -368,6 +383,17 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
         seqs = [r.seq for r in sample_records]
         if seqs != list(range(1, len(seqs) + 1)):
             finding("sequence_gap", f"Sequence numbers {seqs} have a gap.", prefix)
+        # a row the eval could not have written (a pool row that is not JSON,
+        # a key stored twice) fails here, not when its record is read
+        events: list[Event] | None = None
+        try:
+            events = rebuild_events(sample_records)
+        except (ValueError, sqlite3.IntegrityError) as ex:
+            finding(
+                "malformed_record",
+                f"Cannot rebuild the sample's events: {_first_error(ex)}",
+                prefix,
+            )
         closing = records.get(CLOSING)
         if closing is None:
             stopped.append(prefix)
@@ -381,8 +407,13 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
                     prefix,
                 )
             current = final_attempts.get(sample_part)
-            if current is None or current[0].sample.attempt < closing.sample.attempt:
-                final_attempts[sample_part] = (closing, sample_records)
+            if (
+                current is None
+                or current.closing.sample.attempt < closing.sample.attempt
+            ):
+                final_attempts[sample_part] = _FinalAttempt(
+                    closing, sample_records, events
+                )
         for message in _event_version_problems(sample_records):
             finding(*message, key=prefix)
 
@@ -391,7 +422,7 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
         stopped,
         start.eval,
         eval_closing,
-        {sample_part for sample_part, _ in attempts},
+        {sample_part for sample_part, _ in attempts.keys() | listed},
         final_attempts,
         start.prior_eval_id,
     )
@@ -402,6 +433,8 @@ class _Compared(NamedTuple):
     samples_compared: int
     named_by: list[str] = []
     """The later evals that name the eval as prior, if it has no .eval file."""
+    not_logged: list[str] = []
+    """Closed samples not in the .eval file of a stopped eval."""
 
 
 def _compare_eval_file(
@@ -409,8 +442,8 @@ def _compare_eval_file(
 ) -> _Compared:
     """Compare the eval's .eval file with its records.
 
-    A .eval sample with no closed attempt of its own is one a retry reused:
-    it is compared with the records of the earlier eval that ran it.
+    A .eval sample with no attempt of its own is one a retry reused: it is
+    compared with the records of the earlier eval that ran it.
     """
     findings: list[Finding] = []
 
@@ -428,7 +461,9 @@ def _compare_eval_file(
             for other_id, e in evals.items()
             if other_id != eval_id and e.prior_eval_id == eval_id
         )
-        if not named_by:
+        # an eval with no closing record is listed as stopped: it can stop
+        # before its first .eval file write
+        if not named_by and stored.closing is not None:
             finding(
                 "missing_eval_file", "No .eval file in the log dir has this eval id."
             )
@@ -457,20 +492,32 @@ def _compare_eval_file(
                 f"The .eval file's {changed} differ from the eval closing record's.",
             )
 
-    # (key for findings, note for messages, closing, records)
-    to_compare: list[tuple[str, str, SampleClosingRecord, list[SampleRecord]]] = [
-        (f"{eval_id}/{sample_part}/{closing.sample.attempt}", "", closing, records)
-        for sample_part, (closing, records) in stored.final_attempts.items()
+    # an eval stopped before it finished its .eval file (or its host
+    # stopped writing) may not have logged every sample it closed
+    not_logged: list[str] = []
+
+    def missing_sample(message: str, key: str) -> None:
+        if stored.closing is None and header["status"] == "started":
+            not_logged.append(key)
+        else:
+            finding("missing_sample", message, key)
+
+    # (key for findings, note for messages, attempt)
+    to_compare: list[tuple[str, str, _FinalAttempt]] = [
+        (f"{eval_id}/{sample_part}/{final.closing.sample.attempt}", "", final)
+        for sample_part, final in stored.final_attempts.items()
     ]
     eval_file_samples = _eval_file_samples(eval_file)
     for sample_part in sorted(eval_file_samples - stored.final_attempts.keys()):
-        earlier = _earlier_attempt(evals, stored.prior_eval_id, sample_part)
+        earlier = _earlier_attempt(evals, eval_id, sample_part)
         if earlier is None:
             finding(
                 "unstored_sample",
                 "In the .eval file, with no closed attempt in the store"
                 + (
-                    f" for this eval, the prior eval {stored.prior_eval_id} "
+                    " for this eval, which ran it."
+                    if sample_part in stored.sample_parts
+                    else f" for this eval, the prior eval {stored.prior_eval_id} "
                     "or the evals it reused from."
                     if stored.prior_eval_id
                     else "."
@@ -478,13 +525,12 @@ def _compare_eval_file(
                 f"{eval_id}/{sample_part}",
             )
             continue
-        source, closing, records = earlier
+        source, final = earlier
         to_compare.append(
             (
                 f"{eval_id}/{sample_part}",
-                f" (reused from {source}/{sample_part}/{closing.sample.attempt})",
-                closing,
-                records,
+                f" (reused from {source}/{sample_part}/{final.closing.sample.attempt})",
+                final,
             )
         )
 
@@ -499,57 +545,48 @@ def _compare_eval_file(
     }
     for sample_part in sorted(prior_samples - stored.sample_parts - eval_file_samples):
         earlier = _earlier_attempt(evals, stored.prior_eval_id, sample_part)
-        if earlier is not None and earlier[1].error is None:
-            source, closing, _ = earlier
-            finding(
-                "missing_sample",
+        if earlier is not None and earlier[1].closing.error is None:
+            source, final = earlier
+            missing_sample(
                 f"Not in {eval_file}. A retry reuses it from "
-                f"{source}/{sample_part}/{closing.sample.attempt}, which closed "
-                "without an error.",
+                f"{source}/{sample_part}/{final.closing.sample.attempt}, which "
+                "closed without an error.",
                 f"{eval_id}/{sample_part}",
             )
 
     compared = 0
-    for key, note, closing, sample_records in to_compare:
-        ref = closing.sample
+    for key, note, final in to_compare:
+        ref = final.closing.sample
         try:
             logged = read_eval_log_sample(
                 eval_file, ref.sample_id, ref.epoch, resolve_attachments="full"
             )
         except IndexError:
-            finding(
-                "missing_sample",
+            missing_sample(
                 f"Sample {ref.sample_id} epoch {ref.epoch} is not in {eval_file}"
                 f"{note}.",
+                key,
             )
             continue
-        stored_scores = {k: v.score for k, v in closing.scores.items()}
+        stored_scores = {k: v.score for k, v in final.closing.scores.items()}
         if changed := _changed_keys(logged.scores or {}, stored_scores):
             finding(
                 "score_mismatch",
                 f"Scores {changed} differ from the sample closing record's{note}.",
                 key,
             )
-        # a row the eval could not have written (a pool row that is not JSON,
-        # a key stored twice) fails here, not when its record is read
-        try:
-            difference = _compare_events(logged, sample_records)
-        except (ValueError, sqlite3.IntegrityError) as ex:
-            finding(
-                "malformed_record",
-                f"Cannot rebuild the sample's events{note}: {_first_error(ex)}",
-                key,
-            )
+        # records that cannot be rebuilt have a malformed_record finding
+        if final.events is None:
             continue
         compared += 1
-        if difference is not None:
+        if difference := _compare_events(logged, final):
             finding("event_mismatch", f"{difference}{note}", key)
-    return _Compared(findings, compared)
+    return _Compared(findings, compared, not_logged=not_logged)
 
 
 def _earlier_attempt(
     evals: Mapping[str, _StoredEval], eval_id: str | None, sample_part: str
-) -> tuple[str, SampleClosingRecord, list[SampleRecord]] | None:
+) -> tuple[str, _FinalAttempt] | None:
     """The eval that ran a reused sample, and its last closed attempt.
 
     A retry of a retry reuses the sample from the first retry, which reused
@@ -559,7 +596,7 @@ def _earlier_attempt(
     for prior_id in _prior_evals(evals, eval_id):
         stored = evals[prior_id]
         if sample_part in stored.final_attempts:
-            return (prior_id, *stored.final_attempts[sample_part])
+            return prior_id, stored.final_attempts[sample_part]
         if sample_part in stored.sample_parts:
             return None
     return None
@@ -700,13 +737,17 @@ def _rebuild_rows(records: list[SampleRecord]) -> BufferRows:
     )
 
 
-def rebuild_sample(base: EvalSample, records: list[SampleRecord]) -> EvalSample:
-    """Rebuild a sample's events from its records.
+def rebuild_events(records: list[SampleRecord]) -> list[Event]:
+    """Rebuild a sample's events from its records, with attachments resolved.
 
     Uses the code inspect_ai uses to log a sample whose events were evicted
     from memory: the rows go into a sample buffer, which is read back with
-    ``open_sample_history`` and ``materialize_streaming_sample``.
+    ``open_sample_history`` and ``materialize_streaming_sample``. The events
+    match a logged sample's read with ``resolve_attachments="full"``.
     """
+    base = mark_attachments_resolved(
+        EvalSample(id="rebuild", epoch=1, input="", target=""), "full"
+    )
     with tempfile.TemporaryDirectory() as tmp:
         db = SampleBufferDatabase(
             location=str(Path(tmp) / "rebuild.eval"), db_dir=Path(tmp)
@@ -714,19 +755,17 @@ def rebuild_sample(base: EvalSample, records: list[SampleRecord]) -> EvalSample:
         try:
             db.insert_sample_rows(base.id, base.epoch, _rebuild_rows(records))
             with db.open_sample_history(base.id, base.epoch) as history:
-                return materialize_streaming_sample(
-                    base.model_copy(update={"events": [], "events_data": None}),
-                    history,
-                )
+                return materialize_streaming_sample(base, history).events
         finally:
             db.cleanup()
 
 
-def _compare_events(logged: EvalSample, records: list[SampleRecord]) -> str | None:
+def _compare_events(logged: EvalSample, final: _FinalAttempt) -> str | None:
     """The first difference between the logged events and the stored ones, if any."""
-    rebuilt = rebuild_sample(logged, records)
+    assert final.events is not None
+    records = final.records
     logged_events = [e.model_dump(mode="json") for e in logged.events]
-    stored_events = [e.model_dump(mode="json") for e in rebuilt.events]
+    stored_events = [e.model_dump(mode="json") for e in final.events]
     for index, (lhs, rhs) in enumerate(zip(logged_events, stored_events)):
         if not _same_json(lhs, rhs):
             fields = sorted(

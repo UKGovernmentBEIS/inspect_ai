@@ -254,6 +254,7 @@ Changes after the run (plan v83), with Eric's go:
   and is not a finding. With no later closed attempt, it is still
   `missing_closing`. Test: `test_retry_on_error_validates`. *Review round
   2:* also only when `retry_on_error` allows the attempt (fix 4).
+  *Changed Nov-25:* replaced by `stopped`.
 - **eval_retry.** A sample the retry reused from an earlier eval has no
   records under the retry's eval id, so the validator reported
   `unstored_sample`. The retry's .eval does not say which eval the sample
@@ -329,7 +330,8 @@ and its own commit.
    `eval.config.retry_on_error`; else `missing_closing`. Test:
    `test_retried_needs_retry_on_error`. With `retry_on_error` on, a
    compromised process can still write a later attempt so that an earlier
-   attempt's events are not compared; the docs say so.
+   attempt's events are not compared; the docs say so. *Changed Nov-25:*
+   replaced by `stopped`.
 5. **eval_set retry cleanup** (231a7f0b5; Eric's decision D2, option b).
    `retry_cleanup` (on by default) deletes the failed attempt's .eval file,
    so the validator reported `missing_eval_file`. Now an eval with no .eval
@@ -497,6 +499,75 @@ checked, whether or not its attempt or eval closed; and every sample in a
 .eval file, and every finished .eval file, must match a closing record in
 the store. An attempt or eval with no closing record is listed as
 stopped.
+
+## Review of the stopped change: fixes
+
+A Codex review and a Claude review of 3d0c17711 found these. Dev Desk
+decided item 4 under Eric's "I'd like the validator to record that it
+stopped rather than failed validation".
+
+1. **Record checks for every attempt.** The validator rebuilt a sample's
+   events from its records only to compare them with a .eval sample. So
+   a stopped attempt's pool row that is not JSON, or an attachment key
+   stored twice, was not a finding. Now `_read_eval` rebuilds every
+   attempt once (`rebuild_events`), closed or not. A rebuild that fails
+   is `malformed_record`, and the comparison uses the events of that
+   rebuild. Test: `test_stopped_attempt_malformed_buffer_row[message_pool]`,
+   `[call_pool]` and `[attachments]`.
+2. **Attempts with no records.** An attempt that the eval closing record
+   names, with no records and no closing record, was not listed. It is
+   now in `stopped`. Test:
+   `test_eval_stopped_while_hook_waits_lists_stopped[init]` (s0 waits in
+   `on_sample_init`, before its first record, when s1's error stops the
+   eval).
+3. **A retry's own stopped sample.** For a .eval sample with no closed
+   attempt, the lookup of a closed attempt started at the prior eval,
+   also when the retry had records of the sample. So a retry with a
+   stopped attempt of s0 and the prior eval's errored s0 in its .eval
+   file passed. The lookup now starts at the eval itself, so a sample
+   that the eval ran is never compared with a prior eval's copy. The
+   result is `unstored_sample`: "with no closed attempt in the store for
+   this eval, which ran it." Test:
+   `test_retry_logs_prior_copy_of_sample_it_ran`.
+4. **Honest crash.** The sample closing record is written before the
+   sample is logged, and the .eval recorder writes logged samples in
+   groups (`log_buffer`; `default_log_buffer` gives up to 10 for most
+   runs). So an eval host that dies
+   usually leaves closed samples that are not in the .eval file, which
+   gave `missing_sample`. A death before the first .eval write gave
+   `missing_eval_file`. Now, when the eval has no closing record and its
+   .eval file is `started`, each closed sample that is not in the file is
+   in `ValidationReport.not_logged`, and `inspect validate` prints
+   `not_logged <key>: Closed, not in the .eval file: the eval stopped
+   before it logged the sample.` The same rule applies to a retry's
+   reused sample (the `missing_sample` check of the prior chain). An eval
+   with no closing record and no .eval file is only in `stopped`.
+   `missing_sample` still applies to an eval with a closing record or a
+   finished .eval file, and `missing_eval_file` to an eval with a closing
+   record. Tests: `test_eval_host_crash_lists_stopped[before_first_flush]`
+   and `[sample_not_logged]`. Each runs the eval in a subprocess that
+   calls `os._exit`. The second has 6 samples, so the default buffer is 2.
+5. The two older `retried` entries have a *Changed Nov-25* mark.
+
+Effect on the protection: someone who deletes samples from the .eval
+file of a crashed eval (status `started`) gets a `not_logged` line, not
+a finding. A compromised process can already hide a sample's events: it
+does not write the sample's closing record. So the change adds nothing
+for that threat. It removes the deletion check for the logs of crashed
+evals only. The docs list it under "What it does not protect".
+
+Each new test failed at 3d0c17711: `missing_eval_file` and
+`missing_sample` for the two crash tests, an empty stopped list for
+`[init]`, and a pass with 0 findings for the three malformed-row tests
+and the retry test.
+
+After these fixes, the guarantees are: every record in the store is
+checked, also the rows of a stopped attempt; a sample in a .eval file
+must match a closed attempt of the eval that ran it, and a closed sample
+must be in the .eval file unless the eval stopped before it finished the
+file; a finished .eval file must match its eval closing record. An
+attempt or eval with no closing record is listed as stopped, and a
+closed sample that a stopped eval did not log is listed as not logged.
 
 ## The evals that were run
 
@@ -967,7 +1038,8 @@ At 408cf8bd0, moto server only:
   earlier eval's records are protected, so a reused sample is still
   checked against them; a wrong id gives a finding for each reused sample.
 - A retry that stops early can give a false `missing_sample` (review
-  round 2, fix 3, cases a to c).
+  round 2, fix 3, cases a to c). A retry that stops before it finishes
+  its .eval file lists the sample as `not_logged` instead.
 - A deleted .eval file of an eval that a later eval names is not a
   finding (review round 2, fix 5); it is listed as `prior_without_file`
   (review round 3, fix 2). Eval-host keys can forge such a later eval.
@@ -982,6 +1054,9 @@ At 408cf8bd0, moto server only:
 - A failed write or a failed buffer insert gives `unstored_sample`, and an
   eval closing record that cannot be written after the .eval file is
   finished gives `missing_eval_closing`, for runs that were not changed.
+- A sample deleted from the .eval file of an eval that stopped before it
+  finished the file (no eval closing record, status `started`) is listed
+  as `not_logged`, not a finding. An honest crash leaves such samples.
 
 ## Not tested
 
