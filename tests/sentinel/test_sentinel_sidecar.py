@@ -209,6 +209,21 @@ async def test_a_sidecar_behind_the_models_base_url_is_found(
             "http://proxy.test",
             ["secret"],
         ),
+        # the anthropic SDK's errors show the page, which can repeat them
+        (
+            "anthropic",
+            "http://proxy.test?api_key=secret",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["secret"],
+        ),
+        (
+            "anthropic",
+            "http://proxy.test/v1#se%40cret",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["se%40cret", "se@cret"],
+        ),
         (
             "anthropic",
             "http://user:secret@[::1]:8080/v1",
@@ -230,13 +245,16 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
     provider: str, base_url: str, origin: str, proxy_url: str, secrets: list[str]
 ) -> None:
     # a proxy's error page may repeat the URL Inspect asked for, credentials
-    # and all, as given or decoded; the anthropic SDK's errors show the page
+    # and all, or the base URL as configured, with its query and fragment, as
+    # given or decoded; the anthropic SDK's errors show the page
     asked: list[httpx2.URL] = []
 
     def echo(request: httpx2.Request) -> httpx2.Response:
         asked.append(request.url)
-        url = str(request.url)
-        return httpx2.Response(500, text=f"upstream failed for {url} ({unquote(url)})")
+        repeated = f"{request.url} {base_url}"
+        return httpx2.Response(
+            500, text=f"upstream failed for {repeated} ({unquote(repeated)})"
+        )
 
     model = get_model(
         _MODELS[provider],
@@ -247,7 +265,12 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
     )
     client = await proxy_client(model.api)
     assert client is not None
-    sidecar = Sidecar(_origin(client.sdk.base_url), "whole", client.sdk)
+    sidecar = Sidecar(
+        _origin(client.sdk.base_url),
+        "whole",
+        client.sdk,
+        base_url=str(client.sdk.base_url),
+    )
     assert (sidecar.origin, sidecar.proxy_url) == (origin, proxy_url)
 
     found = await probe(client)

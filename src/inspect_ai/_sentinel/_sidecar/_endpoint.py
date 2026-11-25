@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from itertools import count
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 
 import anyio
 
@@ -122,6 +122,8 @@ class Sidecar:
     Inspect shows them in its approval UI.
     """
     access: EvalAccess | None = field(default=None, repr=False)
+    base_url: str | None = field(default=None, repr=False)
+    """The model's base URL, whose query and fragment, which the origin drops, an error may still repeat. Where it isn't given, the origin's credentials are the only secrets the URL holds."""
 
     @property
     def proxy_url(self) -> str:
@@ -167,7 +169,7 @@ class Sidecar:
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Call a method of the endpoint for evals, and return its result.
 
-        A registration's request holds the eval's token, the origin may hold the proxy's credentials, and an error may repeat the request, as a proxy's error page does. So no error raised here holds either, in its message or in an error it is chained to.
+        A registration's request holds the eval's token, the base URL may hold the proxy's credentials, in its user info, query or fragment, and an error may repeat the request or the base URL, as a proxy's error page does. So no error raised here holds either, in its message or in an error it is chained to.
         """
         failed: str | None = None
         answer: Any = None
@@ -210,7 +212,7 @@ class Sidecar:
 
     def _secrets(self) -> list[tuple[str, str]]:
         # each secret an error may repeat, with what stands in its place
-        secrets = _credentials(self.origin)
+        secrets = _credentials(self.origin if self.base_url is None else self.base_url)
         if self.access is not None:
             secrets.append((self.access.token, REDACTED))
         return secrets
@@ -298,7 +300,8 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
     Raises:
         SentinelProxyError: If a sidecar answered that Inspect can't work with.
     """
-    origin = _origin(client.sdk.base_url)
+    base_url = str(client.sdk.base_url)
+    origin = _origin(base_url)
     shown = without_credentials(origin)
     try:
         response = await client.sdk.get(
@@ -307,7 +310,7 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
             options={"max_retries": 0, "timeout": PROBE_TIMEOUT},
         )
     except Exception as ex:
-        failure = _replaced(str(ex), _credentials(origin))
+        failure = _replaced(str(ex), _credentials(base_url))
         return NoSidecar(*_no_answer(shown, getattr(ex, "status_code", None), failure))
 
     try:
@@ -333,7 +336,7 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
     # A sidecar that doesn't report `review`, such as one from before sidecars
     # could ask a person through an eval, asks no questions through the eval.
     review = info.get("review") is True
-    return Sidecar(origin, release, client.sdk, version, review)
+    return Sidecar(origin, release, client.sdk, version, review, base_url=base_url)
 
 
 def _no_answer(origin: str, status: object, failure: str) -> tuple[str, bool]:
@@ -369,22 +372,32 @@ def without_credentials(origin: str) -> str:
     return str(shown).removesuffix("/")
 
 
-def _credentials(origin: str) -> list[tuple[str, str]]:
-    # each form an error may repeat the origin's credentials in, percent-encoded
-    # as in the URL or decoded as sent, with what stands in its place: the
-    # whole user info goes, and the secret part alone is redacted, which is
-    # the password, or for a URL with only a token, the user
+def _credentials(url: str) -> list[tuple[str, str]]:
+    # each form an error may repeat the URL's secrets in, percent-encoded as
+    # in the URL or decoded as sent, with what stands in its place: the whole
+    # user info goes, and its secret part alone is redacted, which is the
+    # password, or for a URL with only a token, the user. So is each query
+    # value, or an item with no value, and the fragment, less any slash the
+    # anthropic SDK puts on the end of its base URL.
     import httpx2
 
-    userinfo = httpx2.URL(origin).userinfo.decode("ascii")
-    if not userinfo:
-        return []
-    user, _, password = userinfo.partition(":")
-    secret = password or user
     forms: dict[str, str] = {}
-    for encoded, shown in ((f"{userinfo}@", ""), (secret, REDACTED)):
-        forms.setdefault(encoded, shown)
-        forms.setdefault(unquote(encoded), shown)
+
+    def add(secret: str, shown: str) -> None:
+        if secret:
+            forms.setdefault(secret, shown)
+            forms.setdefault(unquote(secret), shown)
+
+    userinfo = httpx2.URL(url).userinfo.decode("ascii")
+    if userinfo:
+        user, _, password = userinfo.partition(":")
+        add(f"{userinfo}@", "")
+        add(password or user, REDACTED)
+    parts = urlsplit(url)
+    for item in parts.query.split("&"):
+        name, equals, value = item.partition("=")
+        add((value if equals else name).rstrip("/"), REDACTED)
+    add(parts.fragment.rstrip("/"), REDACTED)
     return list(forms.items())
 
 
