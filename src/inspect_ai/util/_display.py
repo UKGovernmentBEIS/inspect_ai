@@ -3,8 +3,11 @@ from contextlib import contextmanager
 from logging import getLogger
 from typing import Iterator, Literal
 
+from rich import get_console
+
 from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.constants import DEFAULT_DISPLAY
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.thread import is_main_thread
 
 logger = getLogger(__name__)
@@ -111,6 +114,10 @@ def display_type_scope() -> Iterator[None]:
     _display_scope_depth += 1
     try:
         yield
+    except PrerequisiteError as ex:
+        if restore and ex.quiet is None:
+            ex.quiet = get_console().quiet
+        raise
     finally:
         _display_scope_depth -= 1
         if restore:

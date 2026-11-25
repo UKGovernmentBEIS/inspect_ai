@@ -1181,6 +1181,30 @@ def test_eval_on_worker_thread_keeps_its_display(
     assert types == ["plain", "plain", "plain"]
 
 
+def test_failed_eval_reports_error_under_its_display_and_restores(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
+    types: list[DisplayType] = []
+    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
+
+    # no cost data for the model
+    with pytest.raises(PrerequisiteError) as excinfo:
+        eval(
+            task,
+            model="mockllm/model",
+            cost_limit=1,
+            display="none",
+            log_dir=str(tmp_path),
+        )
+    # reported as the "none" display would (to stderr), though the call has
+    # restored the display type
+    assert excinfo.value.quiet is True
+
+    eval(task, model="mockllm/model", log_dir=str(tmp_path))
+    assert types == ["rich"]
+
+
 @pytest.mark.parametrize("between", ["score_async", "worker_thread_generate"])
 def test_eval_keeps_configured_display_after_implicit_display_choice(
     fresh_display: None,
