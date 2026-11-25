@@ -437,6 +437,21 @@ async def test_a_failed_call_to_a_sidecar_names_its_causes_without_a_secret(
     assert (raised.value.__cause__, raised.value.__context__) == (None, None)
 
 
+async def test_a_call_before_the_eval_registered_keeps_no_error_it_was_made_in() -> (
+    None
+):
+    sidecar = Sidecar("http://proxy.test", "whole", None)
+
+    # as the model calls the sidecar, while handling its call's error
+    with pytest.raises(SidecarCallError, match="hasn't registered") as raised:
+        try:
+            raise ValueError("http://proxy.test?key=demo-token")
+        except ValueError:
+            await sidecar.eval_call("end_sample", {})
+
+    assert raised.value.__context__ is None
+
+
 async def test_a_secret_repeated_over_itself_is_redacted_whole() -> None:
     class Failing:
         async def post(self, *args: Any, **kwargs: Any) -> Any:

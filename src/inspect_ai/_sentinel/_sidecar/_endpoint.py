@@ -8,7 +8,7 @@ import traceback
 from dataclasses import dataclass, field
 from itertools import count
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, NoReturn
 from urllib.parse import unquote, urlsplit
 
 import anyio
@@ -145,8 +145,8 @@ class Sidecar:
         """
         access = self.access
         if access is None or not access.registered:
-            raise SidecarCallError(
-                method, "the eval hasn't registered with the sidecar"
+            _raise_unchained(
+                SidecarCallError(method, "the eval hasn't registered with the sidecar")
             )
         return await self.call(method, {**params, **access.credentials(method)})
 
@@ -163,8 +163,10 @@ class Sidecar:
         """
         access = self.access
         if access is None or not access.registered:
-            raise SidecarCallError(
-                "answer_question", "the eval hasn't registered with the sidecar"
+            _raise_unchained(
+                SidecarCallError(
+                    "answer_question", "the eval hasn't registered with the sidecar"
+                )
             )
         return await self.call(
             "answer_question", access.answer_params(id, decision, reason)
@@ -178,10 +180,7 @@ class Sidecar:
         try:
             return await self._call(method, params)
         except SidecarCallError as ex:
-            # raised while the caller handles an error, such as a failed model
-            # call through the proxy, it takes that for its context
-            ex.__context__ = None
-            raise
+            _raise_unchained(ex)
 
     async def _call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         handling = sys.exception()
@@ -206,7 +205,6 @@ class Sidecar:
             # described and raised outside the handler, so that neither this
             # error nor one in describing it is chained to the failure
             described = self._without_secrets(_described(failed, handling))
-            del failed
             raise SidecarCallError(method, described)
         if not isinstance(answer, dict):
             raise SidecarCallError(method, "the answer isn't JSON-RPC")
@@ -233,6 +231,16 @@ class Sidecar:
     def _without_secrets(self, text: str) -> str:
         # the text with the proxy's credentials and the eval's token taken out
         return _replaced(text, self._secrets())
+
+
+def _raise_unchained(error: SidecarCallError) -> NoReturn:
+    # raised while the caller handles an error, such as a failed model call
+    # through the proxy, an error takes that for its context, which keeps the
+    # request to the proxy
+    try:
+        raise error
+    finally:
+        error.__context__ = None
 
 
 def _described(error: BaseException, handling: BaseException | None) -> str:
