@@ -361,6 +361,11 @@ def _register(kind: Kind, factory: F, name: str | None, version: int) -> F:
             **{k: config_from_sentinel(v).model_dump() for k, v in nested.items()},
         }
         setattr(instance, _ENTRY, entry)
+        marked = getattr(factory, _SOURCE_REFERENCES, ())
+        origins = {
+            key: _origin(value) for key, value in arguments.items() if key in marked
+        }
+        setattr(instance, _ORIGINS, {k: v for k, v in origins.items() if v})
         return instance
 
     registry_add(create, info)
@@ -427,38 +432,42 @@ def source_references(*params: str) -> Callable[[F], F]:
     return decorate
 
 
-def rebase_config(config: SentinelConfig, from_dir: str, to_dir: str) -> SentinelConfig:
-    """The marked params' relative `.py` files, rebased from `from_dir` to `to_dir`, as `inspect_sentinel`'s `rebase_config()`."""
-
-    def layer(value: Any) -> Any:
-        if isinstance(value, list):
-            return [layer(entry) for entry in value]
-        if not isinstance(value.get("name"), str):
-            return {name: layer(entry) for name, entry in value.items()}
-        factory = registry_lookup("protocol", value["name"]) or registry_lookup(
-            "monitor", value["name"]
-        )
-        marked = getattr(factory, _SOURCE_REFERENCES, ())
-        params = {
-            key: rebase(param) if key in marked else param
-            for key, param in value["params"].items()
-        }
-        nested = {k: layer(v) for k, v in value.items() if k not in ENTRY_KEYS}
-        return {**value, "params": params, **nested}
-
-    def rebase(reference: str) -> str:
-        file, _, name = reference.rpartition(":")
-        if not file.endswith(".py") or Path(file).is_absolute():
-            return reference
-        rebased = os.path.relpath(
-            Path(from_dir, file).resolve(), Path(to_dir).resolve()
-        )
-        return f"{Path(rebased).as_posix()}:{name}"
-
-    return SentinelConfig.model_validate(layer(config.model_dump()))
+_ORIGINS = "__fake_sentinel_origins__"
 
 
-ENTRY_KEYS = ("name", "params", "version", "meta")
+def _origin(reference: object) -> Path | None:
+    # the file a relative "<file>.py:name" reference names, resolved where the
+    # factory is called, as `inspect_sentinel` keeps it in memory
+    if not isinstance(reference, str):
+        return None
+    file = reference.rpartition(":")[0]
+    if not file.endswith(".py") or Path(file).is_absolute():
+        return None
+    return (Path.cwd() / file).resolve()
+
+
+def config_relative_to(sentinels: Sentinels, directory: str) -> SentinelConfig:
+    """`config_from_sentinel()` with each marked reference's file, resolved where its instance was made, relative to `directory` (absolute where there is no relative path), as `inspect_sentinel`'s `config_relative_to()`. Top-level instances only."""
+
+    def relative(entry: Any, instance: object) -> Any:
+        params = dict(entry["params"])
+        for key, origin in getattr(instance, _ORIGINS, {}).items():
+            try:
+                file = os.path.relpath(origin, Path(directory).resolve())
+            except ValueError:
+                file = str(origin)
+            params[key] = f"{Path(file).as_posix()}:{params[key].rpartition(':')[2]}"
+        return {**entry, "params": params}
+
+    layer: Any = config_from_sentinel(sentinels).model_dump()
+    if isinstance(sentinels, list):
+        layer = [relative(e, s) for e, s in zip(layer, cast(list[object], sentinels))]
+    elif isinstance(sentinels, Mapping):
+        mapping = cast(Mapping[str, object], sentinels)
+        layer = {name: relative(layer[name], s) for name, s in mapping.items()}
+    else:
+        layer = relative(layer, sentinels)
+    return SentinelConfig.model_validate(layer)
 
 
 def config_from_sentinel(sentinels: Sentinels) -> SentinelConfig:

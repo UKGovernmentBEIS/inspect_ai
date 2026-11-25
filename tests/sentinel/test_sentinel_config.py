@@ -1,3 +1,4 @@
+import importlib.util
 import inspect
 import json
 import os
@@ -957,6 +958,8 @@ FAILED_ONCE = Path(__file__).parent / "failed_once"
 def noted(reason: str) -> Protocol:
     file, _, name = reason.rpartition(":")
     text = runpy.run_path(file)[name]
+    with open(Path(__file__).parent / "reads.txt", "a") as reads:
+        reads.write(text + "\\n")
 
     async def decide(context, step: BeforeToolCall, escalations) -> Decision | None:
         return Decision.reject(text)
@@ -1050,12 +1053,12 @@ def test_cli_eval_retry_rebuilds_a_task_sentinels_file_reference(
     }
 
 
-def test_a_sentinel_without_rebase_config_logs_its_references_as_recorded(
+def test_a_sentinel_without_config_relative_to_logs_its_references_as_recorded(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from test_helpers import fake_sentinel
 
-    monkeypatch.delattr(fake_sentinel, "rebase_config")
+    monkeypatch.delattr(fake_sentinel, "config_relative_to")
     write_noted_task(tmp_path)
     monkeypatch.chdir(tmp_path)
 
@@ -1066,6 +1069,81 @@ def test_a_sentinel_without_rebase_config_logs_its_references_as_recorded(
         "name": "noted",
         "params": {"reason": "reasons.py:REASON"},
     }
+
+
+def import_noted_task(task_file: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    # the task file imported as a module, registering `imported_noted_task`,
+    # as a project imports its own task factories
+    task_file.write_text(
+        NOTED_TASK.replace("def noted_task", "def imported_noted_task")
+    )
+    spec = importlib.util.spec_from_file_location("imported_noted", task_file)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, "imported_noted", module)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("called_as", ["object", "name"])
+def test_an_imported_task_factorys_sentinel_is_logged_from_where_it_was_made(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, called_as: str
+) -> None:
+    # the factory runs in the launch directory, so its relative file is the
+    # root's, not the one beside the task file
+    task_file = write_noted_task(tmp_path)
+    (task_file.parent / "reasons.py").write_text('REASON = "beside the task file"\n')
+    (tmp_path / "reasons.py").write_text('REASON = "root"\n')
+    module = import_noted_task(task_file, monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    task = (
+        module.imported_noted_task() if called_as == "object" else "imported_noted_task"
+    )
+    log = eval(task, model="mockllm/model", log_dir="logs")[0]
+    assert log.status == "error"
+
+    retried = eval_retry(log, log_dir="logs")[0]
+
+    assert config_data(log) == {
+        "name": "noted",
+        "params": {"reason": "reasons.py:REASON"},
+    }
+    assert retried.status == "success", retried.error
+    # the retry loads the task from its file, in its directory, then builds
+    # the logged sentinel, which replaces the task's own, in the root
+    reads = (task_file.parent / "reads.txt").read_text().splitlines()
+    assert reads == ["root", "beside the task file", "root"]
+
+
+def test_a_sentinel_made_elsewhere_and_attached_to_a_task_is_logged_from_there(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    task_file = write_noted_task(tmp_path)
+    (tmp_path / "reasons.py").write_text('REASON = "root"\n')
+    (tmp_path / "elsewhere").mkdir()
+    (tmp_path / "elsewhere" / "reasons.py").write_text('REASON = "elsewhere"\n')
+    module = import_noted_task(task_file, monkeypatch)
+    monkeypatch.chdir(tmp_path / "elsewhere")
+    sentinel = module.noted(reason="reasons.py:REASON")
+    monkeypatch.chdir(tmp_path)
+    log = eval(
+        task_with(module.imported_noted_task(), sentinel=sentinel),
+        model="mockllm/model",
+        log_dir="logs",
+    )[0]
+    assert log.status == "error"
+
+    retried = eval_retry(log, log_dir="logs")[0]
+
+    assert config_data(log) == {
+        "name": "noted",
+        "params": {"reason": "elsewhere/reasons.py:REASON"},
+    }
+    assert retried.status == "success", retried.error
+    # once when it was made and once from the log on retry; the retried
+    # task's own sentinel reads the root's
+    reads = (task_file.parent / "reads.txt").read_text().splitlines()
+    assert reads.count("elsewhere") == 2
 
 
 # a task file with no sentinel of its own, which fails once

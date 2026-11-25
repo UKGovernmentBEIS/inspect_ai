@@ -243,36 +243,28 @@ def resolve_sentinel_root(sentinels: Sentinels) -> SentinelRoot:
     return resolve_sentinel(cast("inspect_sentinel._integration.Sentinels", sentinels))
 
 
-def sentinel_config(sentinels: Sentinels) -> SentinelConfig:
-    _require_sentinel()
-    from inspect_sentinel._integration import config_from_sentinel
-
-    return config_from_sentinel(
-        cast("inspect_sentinel._integration.Sentinels", sentinels)
-    )
-
-
-def rebase_sentinel_config(
-    config: SentinelConfig, from_dir: str, to_dir: str
+def sentinel_config(
+    sentinels: Sentinels, relative_to: str | None = None
 ) -> SentinelConfig:
-    """A sentinel configuration with its file references rebased from one directory to another.
+    """The configuration the eval log records for constructed sentinels.
 
-    A sentinel records a relative file reference (e.g. `human(channel=)`'s
-    `"review.py:ask"`) relative to the directory it was constructed in. A
-    task's own sentinel is constructed in the task file's directory, but the
-    log records paths relative to the launch directory, where `eval_retry()`
-    rebuilds the logged sentinel. inspect_sentinel decides which values are
-    file references; with one that has no `rebase_config()`, the configuration
-    is returned unchanged.
+    A sentinel's relative file reference (e.g. `human(channel=)`'s
+    `"review.py:ask"`) is relative to the directory it was constructed in,
+    which is the task file's directory for a task file the loader creates,
+    and the caller's for an imported task factory or a sentinel attached to a
+    task. The log records paths relative to the launch directory, where
+    `eval_retry()` rebuilds the logged sentinel. inspect_sentinel keeps the
+    file each reference resolved to at construction and records it relative
+    to `relative_to`; with an inspect_sentinel without
+    `config_relative_to()`, references are recorded as constructed.
 
     Args:
-        config: The configuration, as `sentinel_config()` records it.
-        from_dir: The directory the sentinel was constructed in.
-        to_dir: The directory the log's paths are relative to.
+        sentinels: The constructed sentinels.
+        relative_to: The directory to record file references relative to.
     """
     _require_sentinel()
     integration = importlib.import_module("inspect_sentinel._integration")
-    rebase_config = getattr(integration, "rebase_config", None)
-    if rebase_config is None:
-        return config
-    return cast(SentinelConfig, rebase_config(config, from_dir, to_dir))
+    config_relative_to = getattr(integration, "config_relative_to", None)
+    if relative_to is not None and config_relative_to is not None:
+        return cast(SentinelConfig, config_relative_to(sentinels, relative_to))
+    return cast(SentinelConfig, integration.config_from_sentinel(sentinels))

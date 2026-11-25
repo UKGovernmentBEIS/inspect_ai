@@ -55,7 +55,6 @@ from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._sentinel._config import (
     SentinelProxy,
     Sentinels,
-    rebase_sentinel_config,
     resolve_sentinel_root,
     sentinel_config,
 )
@@ -381,10 +380,8 @@ async def eval_run(
                 if sentinel is not None:
                     task.sentinel = sentinel
                 elif task.sentinel is not None:
-                    task_eval_config.sentinel = rebase_sentinel_config(
-                        sentinel_config(task.sentinel),
-                        task_run_dir(resolved_task.task, eval_wd),
-                        eval_wd,
+                    task_eval_config.sentinel = sentinel_config(
+                        task.sentinel, relative_to=eval_wd
                     )
                 sentinel_root = (
                     resolve_sentinel_root(task.sentinel)
