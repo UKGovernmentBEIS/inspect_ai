@@ -20,7 +20,16 @@ _display_type: DisplayType | None = None
 _display_scope_depth = 0
 
 
-def init_display_type(display: str | None = None) -> DisplayType:
+def init_display_type(
+    display: str | None = None, *, restore: bool = False
+) -> DisplayType:
+    """Set the display type.
+
+    Args:
+       display: Display type (defaults to `INSPECT_DISPLAY`, else "full").
+       restore: `display` is a display type set earlier, possibly on another
+          thread, so the background thread throttle doesn't apply to it.
+    """
     global _display_type
     display = (
         display or os.environ.get("INSPECT_DISPLAY", DEFAULT_DISPLAY).lower().strip()
@@ -38,7 +47,7 @@ def init_display_type(display: str | None = None) -> DisplayType:
     # ("full" requires textual which cannot run in a background thread
     # b/c it calls the Python signal function; "rich" assumes exclusive
     # display access which may not be the case for threads)
-    if display in ["full", "rich"] and not is_main_thread():
+    if display in ["full", "rich"] and not is_main_thread() and not restore:
         display = "plain"
 
     new_display_type: DisplayType
@@ -111,7 +120,7 @@ def display_type_scope() -> Iterator[None]:
     finally:
         _display_scope_depth -= 1
         if outermost:
-            init_display_type(previous)
+            init_display_type(previous, restore=previous is not None)
 
 
 def display_type_scope_active() -> bool:

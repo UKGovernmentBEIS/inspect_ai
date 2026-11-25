@@ -1123,6 +1123,72 @@ def test_eval_set_interrupted_retry_wait_stops_status_and_restores_display(
     assert types == ["rich"]
 
 
+def test_eval_async_outside_eval_refuses_full_display_it_cannot_change(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import io
+    import sys
+
+    import rich
+
+    from inspect_ai._display.core.active import display
+    from inspect_ai._display.textual.display import TextualDisplay
+
+    class TerminalOutput(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setenv("INSPECT_DISPLAY", "full")
+    monkeypatch.setattr(sys, "stdout", TerminalOutput())
+
+    # as a log utility's progress does on a terminal: a textual display
+    # without the task app that eval() runs
+    assert isinstance(display(), TextualDisplay)
+
+    task = Task(dataset=[Sample(input="hi")])
+    with rich.get_console().status("working"):
+        with pytest.raises(PrerequisiteError, match="INSPECT_DISPLAY"):
+            anyio.run(
+                functools.partial(
+                    eval_async, task, model="mockllm/model", log_dir=str(tmp_path)
+                )
+            )
+
+
+@pytest.mark.parametrize("call", ["eval", "eval_async", "eval_set"])
+def test_eval_on_worker_thread_restores_main_thread_display(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    call: str,
+) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
+    types: list[DisplayType] = []
+    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
+    eval(task, model="mockllm/model", log_dir=str(tmp_path / "first"))
+
+    def run_on_worker() -> None:
+        log_dir = str(tmp_path / "worker")
+        if call == "eval":
+            eval(task, model="mockllm/model", display="none", log_dir=log_dir)
+        elif call == "eval_async":
+            anyio.run(
+                functools.partial(
+                    eval_async, task, model="mockllm/model", log_dir=log_dir
+                )
+            )
+        else:
+            eval_set(task, model="mockllm/model", display="none", log_dir=log_dir)
+
+    with ThreadPoolExecutor() as executor:
+        executor.submit(run_on_worker).result()
+
+    eval(task, model="mockllm/model", log_dir=str(tmp_path / "last"))
+    assert types[-1] == "rich"
+
+
 @pytest.mark.parametrize("between", ["score_async", "worker_thread_generate"])
 def test_eval_keeps_configured_display_after_implicit_display_choice(
     fresh_display: None,

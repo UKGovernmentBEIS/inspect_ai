@@ -2192,12 +2192,25 @@ def init_eval_async_display() -> None:
     """Initialize the display for eval_async() called outside eval().
 
     Uses "plain" when no display type is set. The "full" display needs the
-    task app that eval() runs, so "rich" is used in its place.
+    task app that eval() runs, so "rich" is used in its place. If that change
+    is refused because other Rich output uses a textual display, raises
+    PrerequisiteError rather than run without the task app.
     """
+    from inspect_ai._display.core.active import active_display
+    from inspect_ai._display.textual.display import TextualDisplay
+
     if not display_type_initialized():
         init_display_type("plain")
     elif display_type() == "full":
-        init_display_type("rich")
+        if init_display_type("rich") == "full" and isinstance(
+            active_display(), TextualDisplay
+        ):
+            raise PrerequisiteError(
+                "eval_async() can't use the 'full' display outside eval(), and "
+                "can't change to the 'rich' display while other Rich output is "
+                "open. Set INSPECT_DISPLAY to 'rich' or 'plain', or call "
+                "eval_async() after that output closes."
+            )
 
 
 def init_eval_display(
