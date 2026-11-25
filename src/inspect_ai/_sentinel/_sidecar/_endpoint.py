@@ -371,10 +371,9 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
         if isinstance(v, int) and not isinstance(v, bool)
     ]
     if not any(v in VERSIONS for v in served):
-        shown_served = _replaced(str(served), _credentials(base_url))
         _raise_unchained(
             SentinelProxyError(
-                f"The sentinel sidecar at {shown} serves versions {shown_served} of its endpoint for evals, and this Inspect speaks {list(VERSIONS)}."
+                f"The sentinel sidecar at {shown} serves versions {served} of its endpoint for evals, and this Inspect speaks {list(VERSIONS)}."
             )
         )
     release = info.get("release", "whole")

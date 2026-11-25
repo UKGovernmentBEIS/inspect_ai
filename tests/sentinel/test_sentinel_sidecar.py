@@ -381,6 +381,9 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
     if provider == "anthropic":
         assert f"{proxy_url}/sentinel/info" in found.reason
         assert f"{proxy_url}/sentinel/v1" in shown[1]
+    # each error shows the proxy's page, so that it is the redaction that
+    # takes the secrets out
+    assert all("upstream failed for" in text for text in shown)
     assert not [secret for secret in secrets if any(secret in text for text in shown)]
 
 
