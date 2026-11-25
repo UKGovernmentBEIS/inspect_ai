@@ -159,7 +159,7 @@ A key that is `None` in every epoch reduces to `None`. Otherwise, a reduced valu
 - `pass_at_{k}` and `pass_k_{k}` are unscored when fewer than `k` epochs have a usable value.
 - `at_least_{k}` counts only usable values, so it reduces to `0` when at least one but fewer than `k` epochs have one.
 
-These rules apply when metrics are computed. Reading an existing log does not change the results stored in it; recomputing its metrics (for example with `inspect score` or after a score edit) applies them.
+These rules apply when metrics are computed. Reading an existing log does not change the results stored in it. To apply them to an existing log's stored scores without rerunning the scorers, use `recompute_metrics(log)` from `inspect_ai.log`; editing a score also recomputes its log's metrics.
 
 Use `None` for a key when the metric should decide how to treat a missing value, for example with `aggregate("key", mean(), on_missing="zero")`. Use `NaN` when the key should be unscored. Metrics that receive the whole score, including custom metrics and `aggregate()`, get the dictionary with `None` values in place. Unless a metric declares `scores="unreduced"`, that is the dictionary after epoch reduction, so `on_missing` applies to what the reducer returns: a key that is `None` in every epoch, or absent from every epoch. With the default mean reducer, epochs `{"k": 1}` and `{"k": None}` reduce to `{"k": 1.0}`, so `on_missing` does not apply. To count each missing epoch as `0`, return `0` from the scorer, or give `aggregate(..., on_missing="zero")` the unreduced scores (with `Epochs(n, [])`, or in a custom metric declared with `scores="unreduced"`).
 
