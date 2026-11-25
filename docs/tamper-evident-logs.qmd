@@ -23,24 +23,31 @@ At each of these points the sample waits until S3 confirms the write. Later, the
 
 - **Edits to a finished log.** If someone changes a sample's events or scores, deletes or adds a sample, or replaces the `.eval` file, `inspect validate` reports it. The original events stay in the add-only store.
 - **Edits by a compromised eval process.** Events that the store confirmed before the compromise cannot be changed. If the process changes them in its local copy, the `.eval` file no longer matches the store.
-- **Lost samples.** Each sample attempt writes a closing record at its end, and each eval writes one after it finishes its `.eval` file. A sample in the `.eval` file must have an attempt with a closing record, or the validator reports `unstored_sample`. A sample with a closed attempt must be in the `.eval` file, or the validator reports `missing_sample`. A finished `.eval` file must have its eval closing record, or the validator reports `missing_eval_closing`. Each attempt and eval with no closing record is also listed as `stopped`, and the validator still checks every record that it wrote.
+- **Lost samples.** Each sample attempt writes a closing record at its end. If a sample has a closing record and is not in the `.eval` file, the validator reports `missing_sample`. The exception is an eval that stopped before it finished its `.eval` file (see below).
 
 ## What it does not protect
 
 - **Anything the process writes after it is compromised.** A compromised process can write false events to the store, with the correct secret for its eval. Events that the sample recorded after its last confirmed write, before the compromise, are also not protected.
 - **A whole fake eval.** A compromised eval host can write the records of an eval that never ran. The validator reports it only if no `.eval` file has its eval id.
-- **An attempt or eval that stops writing.** A compromised process can stop writing a sample attempt before its closing record. The validator lists the attempt as `stopped` and does not compare its events with the `.eval` file. If the sample is not in the `.eval` file, or the process writes a later attempt of the sample with a closing record, the stopped attempt's events show only in the store. In the same way, an eval with no closing record and a `.eval` file that is not finished is listed as `stopped`, and its status, stats and results are not compared.
-- **Samples deleted from the `.eval` file of an eval that stopped.** Inspect writes samples to the `.eval` file in groups of several samples (the `log_buffer` option), not one at a time. So when an honest eval host dies, the store usually has closed samples that are not in the file. When an eval has no closing record and its `.eval` file has the status `started`, the validator lists each closed sample that is not in the file as `not_logged`. So if someone deletes samples from the `.eval` file of such an eval, the validator shows a `not_logged` line for each sample, not a finding. An eval with no closing record and no `.eval` file is listed only as `stopped`.
-- **A deleted `.eval` file of an eval that a later eval names.** When a later eval's start record names an eval as the one it retried, the validator does not report a missing `.eval` file for the earlier eval. It lists the eval as `prior_without_file`, which does not change the exit code. Eval-host keys can forge a later eval that names any eval. So when someone deletes the `.eval` file of any eval, successful or not, and forges such an eval, the deletion shows only in this list, not as a finding. If the forged eval has its own records of the same samples, the validator compares the samples with these records, not with the records of the earlier eval. The earlier eval's records stay in the store.
+- **An attempt or eval that stops writing.** A compromised process can stop writing before a closing record. The validator lists the attempt or eval as `stopped`. It does not compare a stopped attempt's events, or a stopped eval's status, stats and results, with the `.eval` file.
+- **Samples deleted from the `.eval` file of an eval that stopped.** If an eval stopped before it finished its `.eval` file, a sample deleted from that file shows as a `not_logged` line, not a finding.
+- **A deleted `.eval` file of an eval that a later eval names.** It shows as a `prior_without_file` line, not a finding. Eval-host keys can forge such a later eval.
 - **Fields that are not stored.** The validator checks each sample's events and scores, which samples the `.eval` file has, and the eval's status, stats and results. It does not check other fields, for example the eval spec and plan, each sample's messages, output and error, or the sample summaries.
 
 A pass shows that the `.eval` file matches what was stored. It does not show that the run was honest.
 
+The design notes have the details of these cases: [Validation edge cases](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/design/tamper-evident-logs-findings.md#validation-edge-cases).
+
 ## Set up the add-only store
 
-Use a bucket in an AWS account that is separate from the account of the eval hosts. People who can sign in to an eval host must not be able to change the bucket's settings.
+Use two AWS accounts:
 
-1.  Create the bucket with Object Lock in COMPLIANCE mode. This also turns on versioning. Set the retention period to the time that you must keep the records. Nobody can delete a stored version, or make the retention shorter, until the period ends.
+- the bucket's account, which holds the bucket and the validator's role;
+- the eval hosts' account, which holds the eval hosts and their role.
+
+People who can sign in to an eval host must not be able to change the bucket's settings. AWS allows a request from another account only when both the bucket policy and the caller's own IAM policy allow it ([cross-account policy evaluation](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic-cross-account.html)). So the eval hosts' role needs an `Allow` in the bucket policy and in its own IAM policy.
+
+1.  In the bucket's account, create the bucket with Object Lock in COMPLIANCE mode. This also turns on versioning. Set the retention period to the time that you must keep the records. Nobody can delete a stored version, or make the retention shorter, until the period ends.
 
     ``` bash
     aws s3api create-bucket --bucket my-addonly-store --region us-east-1 \
@@ -52,7 +59,9 @@ Use a bucket in an AWS account that is separate from the account of the eval hos
 
     In a region other than `us-east-1`, also give `--create-bucket-configuration LocationConstraint=<region>`.
 
-2.  Add a bucket policy that refuses a put without `If-None-Match`. Without this policy, a put can add a second version of an object.
+    Keep the default Object Ownership setting, `BucketOwnerEnforced`. With it, the bucket's account owns each record that the eval hosts add ([Object Ownership](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html)).
+
+2.  Add a bucket policy. Its first statement refuses a put without `If-None-Match`. Without this statement, a put can add a second version of an object. The other two statements let the eval hosts' role add objects and read the Object Lock settings. Replace `111122223333` with the ID of the eval hosts' account, and `eval-host` with the name of their role.
 
     ``` json
     {
@@ -65,12 +74,28 @@ Use a bucket in an AWS account that is separate from the account of the eval hos
           "Action": "s3:PutObject",
           "Resource": "arn:aws:s3:::my-addonly-store/*",
           "Condition": {"Null": {"s3:if-none-match": "true"}}
+        },
+        {
+          "Sid": "EvalHostPut",
+          "Effect": "Allow",
+          "Principal": {"AWS": "arn:aws:iam::111122223333:role/eval-host"},
+          "Action": "s3:PutObject",
+          "Resource": "arn:aws:s3:::my-addonly-store/*"
+        },
+        {
+          "Sid": "EvalHostReadObjectLock",
+          "Effect": "Allow",
+          "Principal": {"AWS": "arn:aws:iam::111122223333:role/eval-host"},
+          "Action": "s3:GetBucketObjectLockConfiguration",
+          "Resource": "arn:aws:s3:::my-addonly-store"
         }
       ]
     }
     ```
 
-3.  Make a role for the eval hosts that can only add objects and read the Object Lock settings. The eval uses the usual AWS credential chain (for example `AWS_PROFILE` or the instance role) to get these credentials.
+    Do not allow the eval hosts' role anything else. The start check (see [Turn it on](#turn-it-on)) fails if the role can read or delete a record.
+
+3.  In the eval hosts' account, make the `eval-host` role, with an IAM policy that can only add objects and read the Object Lock settings. The eval uses the usual AWS credential chain (for example `AWS_PROFILE` or the instance role) to get these credentials.
 
     ``` json
     {
@@ -90,7 +115,7 @@ Use a bucket in an AWS account that is separate from the account of the eval hos
     }
     ```
 
-4.  Make a read-only role for the validator:
+4.  In the bucket's account, make a read-only role for the validator. The validator reads the bucket policy, and S3 refuses that read to every other account ([GetBucketPolicy](https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketPolicy.html)). A validator in another account cannot check the bucket's settings. In the bucket's account, the role's own IAM policy is enough:
 
     ``` json
     {
@@ -156,7 +181,7 @@ A sample that a retry reuses from the earlier eval is not written again. The ret
 
 With `retry_on_error`, the failed attempt keeps its records in the store and has no closing record. The validator lists it as `stopped`, and does not report it as a finding.
 
-`eval_set()` deletes the `.eval` file of a failed attempt after its retry (`retry_cleanup`, on by default). This does not cause a finding: the retry's records name the failed attempt's eval, and the validator still uses that eval's records to check the samples that the retry reused. The validator lists the failed attempt's eval as `prior_without_file`.
+`eval_set()` deletes the `.eval` file of a failed attempt after its retry (`retry_cleanup`, on by default). The validator lists the failed attempt's eval as `prior_without_file`, not as a finding. It still uses that eval's records to check the samples that the retry reused.
 
 ## Validate logs
 
@@ -179,27 +204,13 @@ Not checked: everything else, including the eval spec and plan, each sample's me
 A pass does not show that the run was honest.
 ```
 
-A sample attempt or an eval with no closing record shows as one `stopped` line before the count. It is not a finding:
+Lines that start with `stopped`, `not_logged` or `prior_without_file` can come before the count. They are not findings, and they do not change the exit code. For example:
 
 ``` default
 stopped LdM2ww.../s0.1/1: No closing record: cut short, or its host stopped writing.
 ```
 
-The line means that the store has no closing record for the attempt or the eval. The attempt or the eval was cut short, for example by a cancel, an error in another sample, a crash or a retry, or its host stopped writing. The validator still checks every record that it wrote. An eval that stopped before it wrote its `.eval` file has only this line.
-
-A closed sample that is not in the `.eval` file of a stopped eval shows as one `not_logged` line. It is not a finding:
-
-``` default
-not_logged LdM2ww.../s0.1/1: Closed, not in the .eval file: the eval stopped before it logged the sample.
-```
-
-The line means that the sample attempt wrote its closing record, and the eval stopped before the sample was in its `.eval` file. The eval has no closing record, and its `.eval` file has the status `started`.
-
-An eval with no `.eval` file that a later eval names as its prior eval also shows as one line before the count. It is not a finding. Make sure that you ran the later eval as a retry of the eval, because eval-host keys can forge the later eval:
-
-``` default
-prior_without_file MBjNiQ...: No .eval file; EMhV3K... names it as its prior eval.
-```
+See [What each line means](#what-each-line-means).
 
 ### A failure
 
@@ -224,13 +235,48 @@ Use `--verbose` to list every record in the store with the time that S3 received
 
 To see the original events of a sample, read its records from the add-only store. Each sample attempt has the keys `<eval-id>/<sample-id>.<epoch>/<attempt>/<n>` (one record per write) and `<eval-id>/<sample-id>.<epoch>/<attempt>/closing`.
 
+### What each line means
+
+These lines are listed, and are not findings. They do not change the exit code.
+
+| Line | What it means | What to do |
+|------------------------|------------------------------------|------------------------------------|
+| `stopped` | The store has no closing record for this eval or sample attempt. A cancel, an error in another sample, a crash or a retry cuts a run short. A compromised host can also stop writing. The validator still checks each record that the eval or attempt wrote. It does not compare a stopped attempt's events, or a stopped eval's status, stats and results, with the `.eval` file. | Make sure that you know why the run stopped. If you do not, treat what the eval or attempt did as not checked. |
+| `not_logged` | The sample attempt wrote its closing record, but the sample is not in the `.eval` file. Shown only for an eval with no closing record whose `.eval` file has the status `started`. | If the eval host crashed or was killed, this is expected: Inspect writes samples to the `.eval` file in groups. Otherwise, someone may have deleted the sample from the file. |
+| `prior_without_file` | No `.eval` file has this eval id, and a later eval names this eval as its prior eval. `eval_set()` deletes such files after a retry (`retry_cleanup`). | Make sure that you ran the later eval as a retry of this eval. Eval-host keys can forge the later eval, so a deleted `.eval` file can also show this way. |
+
+Each finding makes the command exit with 1.
+
+| Finding | What it means | What to do |
+|------------------------|------------------------------------|------------------------------------|
+| `settings` | The bucket does not have Object Lock in COMPLIANCE mode, versioning is not on, or the bucket policy has no statement that refuses a put without `If-None-Match`. The validator also reports the last one when it cannot read the bucket policy. | Fix the bucket with the steps in [Set up the add-only store](#set-up-the-add-only-store), and run the validator in the bucket's account. While a setting was wrong, someone could change or delete records. |
+| `overwrite` | A record has more than one version, or a delete marker. The validator uses the earliest version. | Find out who could write or delete in the bucket. |
+| `multipart` | A record was uploaded in parts. The eval never does this. The arrival time of such a record is when the upload started. | Treat the record as written by someone other than the eval. |
+| `missing_start` | The store has records under this eval id, but no start record. The validator checks nothing else for this eval, and does not compare its `.eval` file. | Treat the records as forged. The eval writes its start record before any other record. |
+| `nonce` | A record's nonce differs from the start record's. The eval host's keys cannot read the nonce from the store. | Treat the record as forged. |
+| `sequence_gap` | The sample records of an attempt are not numbered 1, 2, 3 and so on. | In an attempt with a closing record, treat the extra record as forged. In a `stopped` attempt, a crash while two writes were in flight can also cause it. |
+| `record_count` | The number of sample records differs from the count in the attempt's closing record. | Treat the extra records, or the closing record, as forged. |
+| `late_event_version` | A record has a new version of an event that an earlier record stored complete. | An agent that calls [bridged tools](agent-bridge.qmd#bridged-tools) one at a time causes this in an honest run. Otherwise, treat the new version as a change to an event that the store confirmed. |
+| `event_without_uuid` | A stored event has no uuid, or its uuid differs from the id of its buffer row. The eval always writes both. | Treat the record as forged. |
+| `malformed_record` | A key that the eval never writes, a record that cannot be read or holds the wrong type of record, or sample records whose events cannot be rebuilt. | Treat the record as forged. The validator still checks the eval's other records. If the events cannot be rebuilt, they are not compared with the `.eval` file. |
+| `unlisted_attempt` | The store has records of a sample attempt that the eval closing record does not list. | Treat the attempt as written by someone other than the eval. |
+| `unstored_eval` | A `.eval` file in the log directory has an eval id with no records under the store prefix. | Make sure that the store prefix is correct and that the eval ran with `tamper_evident_store`. Otherwise, treat the file as not checked. |
+| `duplicate_eval_file` | More than one `.eval` file has this eval id. The validator compares only the first, by file name. | Find out where the copies came from. |
+| `missing_eval_file` | The store has an eval with an eval closing record, but no `.eval` file in the log directory has its eval id. | Make sure that the log directory and the store prefix match. Otherwise, someone deleted or moved the `.eval` file. |
+| `missing_eval_closing` | The `.eval` file is finished (its status is not `started`), but the store has no eval closing record. | An S3 outage at the end of an honest run can cause this. Otherwise, someone changed the file's status. |
+| `eval_mismatch` | The `.eval` file's status, stats or results differ from the eval closing record. | `inspect score` and other tools that change a log after the run cause this. Otherwise, someone changed the file. |
+| `unstored_sample` | A sample in the `.eval` file has no attempt with a closing record in the store, for this eval or for the earlier evals that a retry reused samples from. | A failed write to the store, or a failed insert into the sample buffer, causes this in an honest run. The sample then has an error in the `.eval` file. Otherwise, someone added the sample. |
+| `missing_sample` | A sample with a closing record in the store is not in the `.eval` file. In a retry, it can also be a sample that the earlier eval completed without an error and that the retry selects. | A retry that stopped early can cause this in an honest run. Otherwise, someone deleted the sample. |
+| `event_mismatch` | A sample's events differ from the events rebuilt from the store. The message names the first event that differs. | `inspect score`, and a warning logged from a worker thread during the sample, cause this in an honest run. Otherwise, someone changed the events. |
+| `score_mismatch` | A sample's scores differ from its closing record. | `inspect score` causes this. Otherwise, someone changed the scores. |
+
 ## Known limits
 
-- **What a `stopped` line means.** How to interpret a stopped attempt or eval is an open question. It can come from an honest cancel or crash, but a compromised host can also stop writing to hide what a sample did. The validator lists it and does not decide. The same applies to a `not_logged` line.
-- **Honest runs with a missing closing record.** A sample stops writing without a closing record when its write to the store fails, or when an event cannot go into the local sample buffer. The sample is still in the `.eval` file with its error, so the validator reports `unstored_sample` for a run that was not changed. An eval that finishes its `.eval` file and then cannot write its eval closing record (for example during an S3 outage) gives `missing_eval_closing` in the same way.
+- **What a `stopped` line means.** An honest cancel or crash and a compromised host that stops writing both leave a `stopped` line. The validator does not decide which, and the same applies to `not_logged`.
+- **Honest runs with a missing closing record.** A failed write to the store or to the sample buffer gives `unstored_sample` for a run that was not changed. A failed write of the eval closing record, after the `.eval` file is finished, gives `missing_eval_closing`.
 - **Rescoring.** `inspect score` changes the scores and results, and also writes the sample's events again in a different order. The validator then reports `score_mismatch`, `eval_mismatch` and `event_mismatch`. How to show a rescore separately from tampering is an open question.
 - **Other changes after the run.** A tool that changes the eval's status, stats or results after the run makes validation fail, as a hand edit does. Merged shard logs and samples removed during the run are not yet handled.
-- **A retry that stops early.** A retry must keep each sample that the earlier eval completed without an error and that the retry selects (by its sample ids and number of epochs), or the validator reports `missing_sample`. A retry copies these samples into its log before it runs any sample, so it usually keeps them. But in these cases a retry that stops before it runs the sample has no copy and no records of it, and the validator reports a `missing_sample` for a run that was not changed: the earlier `.eval` file was gone when the retry started, or `log_samples` is off; a dataset that adds samples while it runs, with `limit` set, was cancelled; or the earlier eval stopped after it stored the sample and before the sample was in its `.eval` file. A later retry that completes keeps the samples. If eval_set deletes the stopped retry's `.eval` file, the finding goes away. A retry that stops before it finishes its `.eval` file lists the sample as `not_logged` instead.
+- **A retry that stops early.** In some cases a retry that stops before it runs a sample gives `missing_sample` for a run that was not changed. A later retry that completes keeps the sample.
 - **A deleted sample that failed in the earlier eval.** A retry also copies the samples that the earlier eval completed with an error. If the retry stops before it runs such a sample again, and someone deletes the copy from the retry's `.eval` file, the validator does not report it.
 - **Checkpoint resume.** The validator does not check a resumed sample's restored state against the earlier eval's records.
 - **Validation cost.** The validator reads every record of every eval under the prefix, one S3 request each.

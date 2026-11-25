@@ -1030,6 +1030,55 @@ At 408cf8bd0, moto server only:
 - `ruff check`, `ruff format`, `mypy --exclude tests/test_package src tests`
   (plus the timing script): clean.
 
+## Validation edge cases
+
+The user docs (`docs/tamper-evident-logs.qmd`) give one line for each of
+these cases. This section has the full text.
+
+### Lost samples and closing records
+
+- **Lost samples.** Each sample attempt writes a closing record at its end, and each eval writes one after it finishes its `.eval` file. A sample in the `.eval` file must have an attempt with a closing record, or the validator reports `unstored_sample`. A sample with a closed attempt must be in the `.eval` file, or the validator reports `missing_sample`. A finished `.eval` file must have its eval closing record, or the validator reports `missing_eval_closing`. Each attempt and eval with no closing record is also listed as `stopped`, and the validator still checks every record that it wrote.
+
+- **Honest runs with a missing closing record.** A sample stops writing without a closing record when its write to the store fails, or when an event cannot go into the local sample buffer. The sample is still in the `.eval` file with its error, so the validator reports `unstored_sample` for a run that was not changed. An eval that finishes its `.eval` file and then cannot write its eval closing record (for example during an S3 outage) gives `missing_eval_closing` in the same way.
+
+### Attempts and evals that stop
+
+- **An attempt or eval that stops writing.** A compromised process can stop writing a sample attempt before its closing record. The validator lists the attempt as `stopped` and does not compare its events with the `.eval` file. If the sample is not in the `.eval` file, or the process writes a later attempt of the sample with a closing record, the stopped attempt's events show only in the store. In the same way, an eval with no closing record and a `.eval` file that is not finished is listed as `stopped`, and its status, stats and results are not compared.
+
+```
+stopped LdM2ww.../s0.1/1: No closing record: cut short, or its host stopped writing.
+```
+
+The line means that the store has no closing record for the attempt or the eval. The attempt or the eval was cut short, for example by a cancel, an error in another sample, a crash or a retry, or its host stopped writing. The validator still checks every record that it wrote. An eval that stopped before it wrote its `.eval` file has only this line.
+
+- **What a `stopped` line means.** How to interpret a stopped attempt or eval is an open question. It can come from an honest cancel or crash, but a compromised host can also stop writing to hide what a sample did. The validator lists it and does not decide. The same applies to a `not_logged` line.
+
+### Samples not logged by an eval that stopped
+
+- **Samples deleted from the `.eval` file of an eval that stopped.** Inspect writes samples to the `.eval` file in groups of several samples (the `log_buffer` option), not one at a time. So when an honest eval host dies, the store usually has closed samples that are not in the file. When an eval has no closing record and its `.eval` file has the status `started`, the validator lists each closed sample that is not in the file as `not_logged`. So if someone deletes samples from the `.eval` file of such an eval, the validator shows a `not_logged` line for each sample, not a finding. An eval with no closing record and no `.eval` file is listed only as `stopped`.
+
+```
+not_logged LdM2ww.../s0.1/1: Closed, not in the .eval file: the eval stopped before it logged the sample.
+```
+
+The line means that the sample attempt wrote its closing record, and the eval stopped before the sample was in its `.eval` file. The eval has no closing record, and its `.eval` file has the status `started`.
+
+### Evals with no `.eval` file that a later eval names
+
+- **A deleted `.eval` file of an eval that a later eval names.** When a later eval's start record names an eval as the one it retried, the validator does not report a missing `.eval` file for the earlier eval. It lists the eval as `prior_without_file`, which does not change the exit code. Eval-host keys can forge a later eval that names any eval. So when someone deletes the `.eval` file of any eval, successful or not, and forges such an eval, the deletion shows only in this list, not as a finding. If the forged eval has its own records of the same samples, the validator compares the samples with these records, not with the records of the earlier eval. The earlier eval's records stay in the store.
+
+An eval with no `.eval` file that a later eval names as its prior eval also shows as one line before the count. It is not a finding. Make sure that you ran the later eval as a retry of the eval, because eval-host keys can forge the later eval:
+
+```
+prior_without_file MBjNiQ...: No .eval file; EMhV3K... names it as its prior eval.
+```
+
+`eval_set()` deletes the `.eval` file of a failed attempt after its retry (`retry_cleanup`, on by default). This does not cause a finding: the retry's records name the failed attempt's eval, and the validator still uses that eval's records to check the samples that the retry reused. The validator lists the failed attempt's eval as `prior_without_file`.
+
+### A retry that stops early
+
+- **A retry that stops early.** A retry must keep each sample that the earlier eval completed without an error and that the retry selects (by its sample ids and number of epochs), or the validator reports `missing_sample`. A retry copies these samples into its log before it runs any sample, so it usually keeps them. But in these cases a retry that stops before it runs the sample has no copy and no records of it, and the validator reports a `missing_sample` for a run that was not changed: the earlier `.eval` file was gone when the retry started, or `log_samples` is off; a dataset that adds samples while it runs, with `limit` set, was cancelled; or the earlier eval stopped after it stored the sample and before the sample was in its `.eval` file. A later retry that completes keeps the samples. If eval_set deletes the stopped retry's `.eval` file, the finding goes away. A retry that stops before it finishes its `.eval` file lists the sample as `not_logged` instead.
+
 ## Known limits
 
 - **Rescore fails validation today; design pending with Eric.** See
