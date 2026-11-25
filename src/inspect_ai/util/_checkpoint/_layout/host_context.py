@@ -30,9 +30,9 @@ and directories. The restored files come from an untrusted
 repo, so the resume-side checks — the snapshot listing check in
 ``restore_repo`` and the ``lstat`` regular-file check in :func:`read` —
 reject anything else, and never fire on legitimate data. The snapshot's
-recorded modes and extended attributes are not kept either:
-``restore_repo`` sets every restored file to mode 0600 before moving it
-into place.
+recorded modes and extended attributes are not kept either: on POSIX
+``restore_repo`` resets every restored file's mode (to 0600 where the
+filesystem stores modes) before moving it into place.
 """
 
 from __future__ import annotations

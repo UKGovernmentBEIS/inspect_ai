@@ -21,7 +21,6 @@ import os
 import stat
 import subprocess
 import sys
-import threading
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
@@ -567,6 +566,7 @@ async def test_restore_repo_replaces_restored_modes(
     target = tmp_path / "ctx"
     target.mkdir()
     target.chmod(0o2775)
+    target_mode = _mode(target)
     scratch_at_restore: list[Path] = []
     scratch_mode_at_restore: list[int] = []
 
@@ -599,7 +599,7 @@ async def test_restore_repo_replaces_restored_modes(
 
     assert [p.parent for p in scratch_at_restore] == [target]
     assert scratch_mode_at_restore == [0o700]
-    assert _mode(target) == 0o2775
+    assert _mode(target) == target_mode
     assert sorted(p.name for p in target.iterdir()) == [
         "events.json",
         "locked",
@@ -701,43 +701,6 @@ async def test_restore_repo_leaves_target_mode_alone_when_listing_rejected(
 
     assert _mode(target) == 0o770
     assert list(target.iterdir()) == []
-
-
-@posix_modes
-async def test_restore_repo_cancelled_while_adopting_finishes_the_move(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Cancellation while the restored tree is being adopted does not leave it half moved."""
-    from inspect_ai.util._restic import ops
-
-    target = tmp_path / "ctx"
-    adopting = anyio.Event()
-    release = threading.Event()
-    normalize = ops._normalize_restored_tree
-
-    def blocked_normalize(root: Path) -> None:
-        anyio.from_thread.run_sync(adopting.set)
-        release.wait(timeout=30)
-        normalize(root)
-
-    def restore(path: Path) -> None:
-        _write_store(path)
-        (path / "events.json").write_text("[]")
-
-    _fake_restic(monkeypatch, _STORE_ONLY, restore)
-    monkeypatch.setattr(ops, "_normalize_restored_tree", blocked_normalize)
-
-    try:
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(_restore, target)
-            with anyio.fail_after(30):
-                await adopting.wait()
-            tg.cancel_scope.cancel()
-            release.set()
-    finally:
-        release.set()
-
-    assert sorted(p.name for p in target.iterdir()) == ["events.json", "store.json"]
 
 
 async def test_restore_repo_restores_in_place_without_posix_modes(

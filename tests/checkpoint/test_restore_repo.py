@@ -287,6 +287,42 @@ async def test_restore_replaces_recorded_modes(tmp_path: Path) -> None:
         assert _mode(target / name) == 0o600, name
 
 
+@posix_modes
+async def test_restic_leaves_scratch_dir_mode_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Restic does not change the mode of the directory it restores into.
+
+    The scratch dir's 0700 is what keeps recorded modes out of reach until
+    they are reset, so a restic that applied the source dir's recorded mode
+    (0777 here) to its target would undo that.
+    """
+    from inspect_ai.util._restic import ops
+
+    restic, repo = await _init_repo(tmp_path)
+    source = tmp_path / "sample" / "context"
+    source.mkdir(parents=True)
+    (source / "store.json").write_text("{}")
+    source.chmod(0o777)
+    await run_backup(restic, repo, PASSWORD, str(source), "ckpt-00001")
+
+    scratch_modes: list[int] = []
+    adopt = ops._adopt_restored_tree
+
+    def record_then_adopt(scratch: Path, target: Path) -> None:
+        scratch_modes.append(_mode(scratch) & 0o777)
+        adopt(scratch, target)
+
+    monkeypatch.setattr(ops, "_adopt_restored_tree", record_then_adopt)
+    target = tmp_path / "restored"
+    await restore_repo(
+        restic, repo, PASSWORD, str(target), max_files=MAX_FILES, max_bytes=MAX_BYTES
+    )
+
+    assert scratch_modes == [0o700]
+    assert _tree(target) == {"store.json": "{}"}
+
+
 @pytest.mark.skipif(sys.platform != "linux", reason="os.setxattr is Linux-only")
 async def test_restore_does_not_reapply_extended_attributes(tmp_path: Path) -> None:
     """An extended attribute the snapshot recorded is not set on the restored file.

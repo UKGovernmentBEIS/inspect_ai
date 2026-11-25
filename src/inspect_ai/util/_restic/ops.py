@@ -204,7 +204,7 @@ async def restore_repo(
         check=True,
     )
     if scratch is not None:
-        await anyio.to_thread.run_sync(_adopt_restored_tree, scratch, target_dir)
+        _adopt_restored_tree(scratch, target_dir)
 
 
 def _prepare_target(target: str) -> Path:
@@ -251,7 +251,9 @@ def _restore_scratch_dir(target: Path) -> Path:
 def _adopt_restored_tree(scratch: Path, target: Path) -> None:
     """Reset the modes of the tree in ``scratch``, then move it into ``target``.
 
-    Called in a worker thread: local filesystem work bounded by ``max_files``.
+    Synchronous, so a cancellation cannot leave the tree half moved: a
+    worker thread would run on after a native asyncio cancellation. The
+    work is local and bounded by ``max_files``.
     """
     _normalize_restored_tree(scratch)
     with os.scandir(scratch) as scan:
