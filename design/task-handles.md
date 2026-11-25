@@ -276,7 +276,11 @@ feeder sees it at once: `close()`, `result()`, leaving `async with`,
 `cancel()`, any operator cancel of the task (`abort`, `drain`, `score` or
 `error`), the end of the creator's attempt by any exit (so a fed task that
 is itself a creator closes its own channels when it ends) and the end of
-the fed task. A creator that forgets to close cannot keep a rollout task
+the fed task. One operator cancel closes it later: a control-channel cancel
+of an attempt that has not yet registered is deferred until it registers
+([task-dispatch.md](task-dispatch.md#control-channel)), and the channel
+still accepts sends until then, or until the task ends; a handle's
+`cancel()` closes it at once. A creator that forgets to close cannot keep a rollout task
 open past its own attempt (`test_creator_attempt_end_closes_its_channels`).
 
 `cancel()` of a fed task still queued (which has never started, since fed

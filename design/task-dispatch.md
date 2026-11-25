@@ -22,7 +22,8 @@ directory before a provider sees them, and every provider call runs in the
 launch directory. The `ContextVar` state a provider binds in `task_init` is
 captured per setup, so each `task_cleanup` sees the state its own
 `task_init` produced and each sample the state its configuration's
-`task_init` produced, whichever task's attempt ran the setup.
+`task_init` produced, whichever task's attempt ran the setup (with one
+sharing limit, under "Provider state per setup").
 
 [task-handles.md](task-handles.md) builds on this queue: handles that let a
 running task cancel the tasks it adds, send samples to a task fed through
@@ -243,9 +244,13 @@ by the control channel and by a handle's `cancel()`):
 
 A task that has registered is cancelled as the control channel's task
 cancel cancels it: a running attempt is aborted, a pending retry abandoned. An
-abort is never retried, so an ordinary task cancelled before it registers
-ends with the abort's error log, not an earlier attempt's, and an eval set
-or selection worker that requested it reports failure.
+abort is never retried, so an ordinary task whose abort is delivered before
+it registers ends with the abort's error log, not an earlier attempt's, and
+an eval set or selection worker that requested it reports failure. A
+deferred control-channel abort is delivered only when an attempt
+registers: if the starting attempt fails first and no retry remains, the
+abort is never delivered and the task ends with that failure's error log,
+reported to the source once.
 
 **An attempt's exception exit ends its record** before the exception
 propagates, so a handle wait on it held in another attempt's shielded
@@ -259,8 +264,11 @@ storage failed (`test_every_attempt_is_reported_including_failed_log_init`,
 `test_attempt_whose_log_storage_failed_is_reported`). A task retried twice
 is reported three times. Not reported: a preview (`run_samples=False`), an
 attempt abandoned by the retry-abandon stamp (it has no log of its own), a
-record ended unstarted when dispatch ends, and a fed task that ends before
-it starts. A `task_complete` exception is logged and leaves the attempt's
+record ended unstarted when dispatch ends, a fed task that ends before
+it starts, and an attempt that exits by exception before it is reported: a
+run cancellation (Ctrl-C) during its startup, or an error re-raised under
+`debug_errors`. A source therefore hears of every attempt that returns,
+not of every attempt the dispatcher picked. A `task_complete` exception is logged and leaves the attempt's
 log as its result (it propagates under `debug_errors`); a cancellation that
 no cancellation of the run caused becomes a `RuntimeError` that ends the
 run (`test_task_complete_raising_stray_cancellation_ends_run`).
@@ -367,6 +375,11 @@ nothing (`test_preview_runs_no_setup`).
   spec used from two task directories, or with different metadata values
   for its `task_init_environment`, gets a `task_init` and a `task_cleanup`
   of its own for each. The task display is suspended during the call.
+- **Setups run one at a time across the run.** A task that needs a
+  configuration not yet set up waits for any other setup in progress,
+  holding its slot while it waits, and so does a `SampleSource` feeder
+  adding samples that need one; tasks and samples whose configurations are
+  already set up do not wait.
 - **Slots.** An attempt holds its slot while it builds, and the dispatcher
   starts other tasks meanwhile, so a task with no sandboxes, or whose
   configurations are set up, starts at once
@@ -563,8 +576,9 @@ Tests: `test_setup_bindings_per_configuration`,
   sees its configuration's bindings unless it bound its own, with the
   limit for setups that differ only in `task_init_environment` values
   ("Provider state per setup").
-- **Each attempt is reported to the run's `TaskSource` once**, with the
-  exceptions under "Reporting to the source".
+- **Each attempt that returns is reported to the run's `TaskSource`
+  once**, with the exceptions under "Reporting to the source"; an attempt
+  that exits by a run cancellation or a `debug_errors` exception is not.
 - **Limits.**
   - An added task's model controller is created on its first `generate`,
     so a connection-limit retune made before then misses it when no
@@ -575,8 +589,10 @@ Tests: `test_setup_bindings_per_configuration`,
     then. A queued fed task ends at once, with no log.
   - `max_tasks` does not count a task cancelled while queued, or a fed
     task.
-  - An ordinary task cancelled before it registers ends with the abort's
-    error log, even when an earlier attempt left a different error log.
+  - An ordinary task whose abort is delivered before it registers ends with
+    the abort's error log, even when an earlier attempt left a different
+    error log; a deferred control-channel abort that no attempt registers
+    to receive leaves the last attempt's error log instead.
   - An abort that interrupts a header write can leave a partial log file,
     and the returned log's `location` names the file the attempt was
     writing, written or not.
@@ -627,9 +643,10 @@ Tests: `test_setup_bindings_per_configuration`,
   leaves `queued` in the dispatcher's pick**, so a cancel after the pick
   aborts a counted attempt that keeps its slot until it ends (decision:
   Ransom, 2026-11-17).
-- **Every attempt is reported to the `TaskSource`**, a failed log
-  initialisation and a later storage failure included, so a source waiting
-  on a task's report is never left waiting (decision: Ransom, 2026-11-18).
+- **Every attempt that returns is reported to the `TaskSource`**, a failed
+  log initialisation and a later storage failure included, so a source
+  waiting on a task's report is never left waiting while the run goes on
+  (decision: Ransom, 2026-11-18).
 - **An ordinary task added from inside a running task keeps the run-wins
   settings resolution**; only a fed task resolves its own first (decision:
   Ransom, 2026-11-19).
