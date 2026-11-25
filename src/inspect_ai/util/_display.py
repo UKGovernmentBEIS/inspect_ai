@@ -27,8 +27,9 @@ def init_display_type(
 
     Args:
        display: Display type (defaults to `INSPECT_DISPLAY`, else "full").
-       restore: `display` is a display type set earlier, possibly on another
-          thread, so the background thread throttle doesn't apply to it.
+       restore: Restoring the process display type (`display`, or the
+          configured default), possibly from another thread, so the
+          background thread throttle doesn't apply to it.
     """
     global _display_type
     display = (
@@ -120,7 +121,7 @@ def display_type_scope() -> Iterator[None]:
     finally:
         _display_scope_depth -= 1
         if outermost:
-            init_display_type(previous, restore=previous is not None)
+            init_display_type(previous, restore=True)
 
 
 def display_type_scope_active() -> bool:

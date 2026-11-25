@@ -1189,6 +1189,57 @@ def test_eval_on_worker_thread_restores_main_thread_display(
     assert types[-1] == "rich"
 
 
+@pytest.mark.parametrize("call", ["eval", "eval_async", "eval_set", "eval_retry"])
+def test_first_eval_on_worker_thread_restores_configured_display(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    call: str,
+) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    from inspect_ai._display.core import active
+    from inspect_ai.util import _display
+
+    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
+    types: list[DisplayType] = []
+    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
+    log_dir = str(tmp_path / "worker")
+
+    if call == "eval_retry":
+        [log] = eval(
+            max_samples_retry_task(
+                failed_marker=str(tmp_path / "failed"), max_samples=None
+            ),
+            model="mockllm/model",
+            log_dir=log_dir,
+        )
+        assert log.status == "error"
+        # no display type set yet, as in a new process
+        monkeypatch.setattr(_display, "_display_type", None)
+        monkeypatch.setattr(active, "_active_display", None)
+
+    def run_on_worker() -> None:
+        if call == "eval":
+            eval(task, model="mockllm/model", display="none", log_dir=log_dir)
+        elif call == "eval_async":
+            anyio.run(
+                functools.partial(
+                    eval_async, task, model="mockllm/model", log_dir=log_dir
+                )
+            )
+        elif call == "eval_set":
+            eval_set(task, model="mockllm/model", display="none", log_dir=log_dir)
+        else:
+            eval_retry(log, display="none", log_dir=log_dir)
+
+    with ThreadPoolExecutor() as executor:
+        executor.submit(run_on_worker).result()
+
+    eval(task, model="mockllm/model", log_dir=str(tmp_path / "last"))
+    assert types[-1] == "rich"
+
+
 @pytest.mark.parametrize("between", ["score_async", "worker_thread_generate"])
 def test_eval_keeps_configured_display_after_implicit_display_choice(
     fresh_display: None,
