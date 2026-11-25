@@ -1801,6 +1801,34 @@ def test_malformed_buffer_row(
     assert "2 eval(s), 1 sample(s) compared" in result.output
 
 
+@pytest.mark.parametrize("field", ["input_refs", "call_refs"])
+def test_forged_model_event_pool_refs_out_of_range(
+    clean_run: CleanRun, validate_cli: ValidateCli, field: str
+) -> None:
+    """A model event whose pool refs point past the end of the pool, or below 0.
+
+    The rebuild reads the pools as lists, and a slice past either end is
+    empty, so the validator reports the extra event and does not stop.
+    """
+    seq = clean_run.records() + 1
+    event = next(
+        e
+        for i in range(1, seq)
+        for e in clean_run.stored_events(i)
+        if e["event"] == "model" and e.get("call")
+    )
+    refs = [[99, 100], [-99, -98]]
+    if field == "input_refs":
+        event["input_refs"] = refs
+    else:
+        event["call"]["call_refs"] = refs
+    event["uuid"] = "forged-model-event"
+    clean_run.put(clean_run.sample_key(seq), clean_run.forged_record(seq, event))
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "nonce", "record_count", "event_mismatch")
+    assert "Traceback" not in result.output
+
+
 def test_forged_attempt(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
     """A second attempt of the sample: attempt 1's rows and closing, copied."""
     records = [
