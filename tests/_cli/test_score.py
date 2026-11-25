@@ -131,6 +131,89 @@ async def test_score(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("action", ["append", "overwrite"])
+@pytest.mark.parametrize("stream", [True, False], ids=["stream", "no-stream"])
+async def test_score_a_log_with_fewer_samples_than_it_planned(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stream: bool,
+    action: ScoreAction,
+) -> None:
+    """A log that early stopping or a drain ended holds fewer samples than planned.
+
+    Each sample it holds is scored once, streamed or not.
+    """
+    input_file = tmp_path / LOG_SCORED.name
+    output_file = tmp_path / "rescored.eval"
+
+    log = await read_eval_log_async(str(LOG_SCORED))
+    assert log.samples is not None and log.results is not None
+    held = len(log.samples)
+    log.results.total_samples = held + 3
+    log.results.early_stopping = early_stops(3)
+    await write_eval_log_async(log, str(input_file))
+
+    monkeypatch.setattr(score_cli, "init_eval_context", lambda *args, **kwargs: None)
+    monkeypatch.setattr(score_cli, "print_results", lambda *args, **kwargs: None)
+
+    await score(
+        log_dir="",
+        log_file=str(input_file),
+        action=action,
+        log_level=None,
+        output_file=str(output_file),
+        overwrite=True,
+        scorer="f1",
+        s=(),
+        metric=None,
+        model="mockllm/model",
+        stream=stream,
+    )
+
+    rescored = await read_eval_log_async(output_file)
+    assert rescored.samples is not None and rescored.results is not None
+    assert len(rescored.samples) == held
+    assert all(
+        sample.scores is not None and "f1" in sample.scores
+        for sample in rescored.samples
+    )
+    assert "f1" in [score.name for score in rescored.results.scores]
+    if action == "overwrite":
+        # counted over the samples in the log, as without --stream
+        assert rescored.results.total_samples == held
+        assert rescored.results.completed_samples == held
+    else:
+        assert rescored.results.total_samples == held + 3
+
+
+async def test_score_async_needs_samples_for_a_sample_count() -> None:
+    from inspect_ai import score_async
+
+    log = await read_eval_log_async(str(LOG_SCORED), header_only=True)
+    log.samples = []
+    with pytest.raises(ValueError, match="requires `samples`"):
+        await score_async(log, scorers=[], sample_count=1)
+
+
+async def test_score_async_refuses_a_negative_sample_count() -> None:
+    from collections.abc import AsyncIterator
+    from contextlib import asynccontextmanager
+
+    from inspect_ai import score_async
+    from inspect_ai.log import EvalSample
+
+    log = await read_eval_log_async(str(LOG_SCORED), header_only=True)
+
+    @asynccontextmanager
+    async def no_sample(idx: int) -> AsyncIterator[EvalSample]:
+        raise AssertionError("no sample is read")
+        yield
+
+    with pytest.raises(ValueError, match="negative"):
+        await score_async(log, scorers=[], samples=no_sample, sample_count=-1)
+
+
+@pytest.mark.anyio
 async def test_score_stream_preserves_log_updates(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -165,6 +248,7 @@ async def test_score_stream_preserves_log_updates(
         action,
         copy,
         samples,
+        sample_count,
         _log_scorers,
     ):
         assert samples is not None
@@ -281,6 +365,7 @@ async def test_score_stream_flushes_periodically(
         action,
         copy,
         samples,
+        sample_count,
         _log_scorers,
     ):
         assert samples is not None

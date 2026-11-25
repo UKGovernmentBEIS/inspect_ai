@@ -253,6 +253,7 @@ async def score_async(
     copy: bool = True,
     samples: Callable[[int], AsyncContextManager[EvalSample]] | None = None,
     *,
+    sample_count: int | None = None,
     _log_scorers: bool = False,
 ) -> EvalLog:
     """Score an evaluation log.
@@ -283,12 +284,25 @@ async def score_async(
          Function to read samples from the log, which accepts the
          sample index and async yields an EvalSample. Can be used to
          stream samples without loading the entire log into memory.
+       sample_count: The number of samples `samples` reads, at indexes
+         0 to `sample_count - 1`. Defaults to `log.results.total_samples`,
+         which counts planned samples: a log that early stopping or a drain
+         ended holds fewer.
 
     Returns:
        Log with scores yielded by scorer.
+
+    Raises:
+       ValueError: There are no samples to score, or `sample_count` is
+         negative or passed without `samples`.
     """
     if samples is None and log.samples is None:
         raise ValueError("There are no samples to score in the log.")
+    if sample_count is not None:
+        if samples is None:
+            raise ValueError("`sample_count` requires `samples`.")
+        if sample_count < 0:
+            raise ValueError(f"`sample_count` is negative ({sample_count}).")
 
     # resolve scorers
     resolved_scorers = resolve_scorer(scorers)
@@ -327,6 +341,8 @@ async def score_async(
 
         samples = _read_sample
         total_samples = len(_samples)
+    elif sample_count is not None:
+        total_samples = sample_count
     else:
         total_samples = log.results.total_samples if log.results else None
 
