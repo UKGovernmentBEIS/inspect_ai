@@ -361,40 +361,52 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
 
 
 @pytest.mark.parametrize(
-    ("where", "key", "secret"),
+    ("where", "key", "secret", "described"),
     [
-        ("message", "abc%FFdef", "abc\udcffdef"),
-        ("note", "demo-token", "demo-token"),
-        ("group", "demo-token", "demo-token"),
-        ("group", "demo%0Atoken", "demo\ntoken"),
-        ("hidden context", "demo-token", "demo-token"),
+        ("message", "abc%FFdef", "abc\udcffdef", "for http://proxy.test?<>"),
+        (
+            "cause",
+            "demo-token",
+            "demo-token",
+            "denied <- ValueError: for http://proxy.test?<>",
+        ),
+        (
+            "hidden context",
+            "demo-token",
+            "demo-token",
+            "Error code: 500 <- ValueError: for http://proxy.test?<>",
+        ),
+        (
+            "note",
+            "demo-token",
+            "demo-token",
+            "denied <- ValueError: upstream failed\nfor http://proxy.test?<>",
+        ),
     ],
 )
-async def test_a_failed_call_to_a_sidecar_keeps_no_error_that_shows_a_secret(
-    where: str, key: str, secret: str
+async def test_a_failed_call_to_a_sidecar_names_its_causes_without_a_secret(
+    where: str, key: str, secret: str, described: str
 ) -> None:
-    # an error may keep a byte that isn't UTF-8 as its surrogate. A traceback
-    # prints an error's notes, and the errors of a group, which the error's
-    # message leaves out, past the 15 Python's own formatting shows, and with
-    # a margin that splits a secret across lines. An SDK raises its status
-    # error `from None`, which hides, but keeps, the HTTP error that names
-    # the URL.
+    # the error keeps no error it was raised from, which may keep the request,
+    # its credentials and the eval's token; it names each, as a traceback
+    # does, notes and all. An error may keep a byte that isn't UTF-8 as its
+    # surrogate, and an SDK raises its status error `from None`, which hides
+    # the HTTP error that names the URL.
     class Failing:
         async def post(self, *args: Any, **kwargs: Any) -> Any:
             repeated = f"for http://proxy.test?key={secret}"
             if where == "message":
                 raise ValueError(repeated)
-            if where == "note":
-                failure = ValueError("upstream failed")
-                failure.add_note(repeated)
-                raise failure
+            if where == "cause":
+                raise RuntimeError("denied") from ValueError(repeated)
             if where == "hidden context":
                 try:
                     raise ValueError(repeated)
                 except ValueError:
                     raise RuntimeError("Error code: 500") from None
-            others = [ValueError("upstream failed") for _ in range(15)]
-            raise ExceptionGroup("upstream failed", [*others, ValueError(repeated)])
+            noted = ValueError("upstream failed")
+            noted.add_note(repeated)
+            raise RuntimeError("denied") from noted
 
     sidecar = Sidecar(
         "http://proxy.test",
@@ -406,15 +418,9 @@ async def test_a_failed_call_to_a_sidecar_keeps_no_error_that_shows_a_secret(
     with pytest.raises(SidecarCallError) as raised:
         await sidecar.call("end_sample", {})
 
-    reached: list[BaseException | None] = [raised.value]
-    while reached:
-        error = reached.pop()
-        if error is None:
-            continue
-        assert secret not in "".join(traceback.format_exception_only(error))
-        reached += [error.__cause__, error.__context__]
-        if isinstance(error, BaseExceptionGroup):
-            reached += error.exceptions
+    shown = described.replace("<>", REDACTED)
+    assert str(raised.value) == f"The sidecar's end_sample failed: {shown}"
+    assert (raised.value.__cause__, raised.value.__context__) == (None, None)
 
 
 async def test_a_secret_repeated_over_itself_is_redacted_whole() -> None:

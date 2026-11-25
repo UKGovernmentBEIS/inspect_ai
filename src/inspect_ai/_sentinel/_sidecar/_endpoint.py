@@ -172,7 +172,7 @@ class Sidecar:
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Call a method of the endpoint for evals, and return its result.
 
-        A registration's request holds the eval's token, the base URL may hold the proxy's credentials, in its user info, query or fragment, and an error may repeat the request or the base URL, as a proxy's error page does. So no error raised here holds either, in its message or in an error it is chained to.
+        A registration's request holds the eval's token, the base URL may hold the proxy's credentials, in its user info, query or fragment, and an error may repeat the request or the base URL, as a proxy's error page does, or keep the request. So no error raised here holds either in its message, nor is chained to one that may.
         """
         failed: str | None = None
         answer: Any = None
@@ -190,13 +190,9 @@ class Sidecar:
             )
             answer = response.json()
         except Exception as ex:
-            if not self._holds_secret(ex):
-                raise SidecarCallError(method, str(ex)) from ex
-            failed = self._without_secrets(str(ex))
+            failed = self._without_secrets(_described(ex))
         if failed is not None:
-            # Raised outside the handler, so the error that holds a secret
-            # is neither this one's cause nor its context: a traceback prints
-            # both.
+            # raised outside the handler, so that it has no context
             raise SidecarCallError(method, failed)
         if not isinstance(answer, dict):
             raise SidecarCallError(method, "the answer isn't JSON-RPC")
@@ -224,25 +220,18 @@ class Sidecar:
         # the text with the proxy's credentials and the eval's token taken out
         return _replaced(text, self._secrets())
 
-    def _holds_secret(self, error: BaseException) -> bool:
-        # whether the error, or any error it reaches, shows a secret in its
-        # message or notes: its cause, its context even when a traceback
-        # hides it, and each of a group's errors
-        secrets = self._secrets()
-        seen: set[int] = set()
-        pending: list[BaseException | None] = [error]
-        while pending:
-            found = pending.pop()
-            if found is None or id(found) in seen:
-                continue
-            seen.add(id(found))
-            shown = "".join(traceback.format_exception_only(found))
-            if _found(shown, secrets):
-                return True
-            pending += [found.__cause__, found.__context__]
-            if isinstance(found, BaseExceptionGroup):
-                pending += found.exceptions
-        return False
+
+def _described(error: BaseException) -> str:
+    # the error's message, then each error it was raised from or while
+    # handling, as a traceback names them
+    described = [str(error)]
+    seen = {id(error)}
+    found = error.__cause__ or error.__context__
+    while found is not None and id(found) not in seen:
+        seen.add(id(found))
+        described.append("".join(traceback.format_exception_only(found)).strip())
+        found = found.__cause__ or found.__context__
+    return " <- ".join(described)
 
 
 class _Client(NamedTuple):
