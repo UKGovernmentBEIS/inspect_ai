@@ -9,7 +9,7 @@ is free, under `eval()`, `eval_set()` and eval-set selection-mode workers
 alike. Adding a task checks its configuration and sample selection at
 once, so a mistake raises to the caller, and a task's log file is created
 only when its attempt starts. Every task in the queue, including one that
-has not started, is listed by `inspect ctl task list` and can be cancelled
+has not started, is listed by the control channel and can be cancelled
 or drained, and stays listed as finished once it ends.
 
 Each task sets up its own sandboxes (a provider's `task_init`) inside its
@@ -53,7 +53,8 @@ User documentation: "Adding tasks imperatively", "Defining a source" and
 "Returning follow-up tasks" in [Task Sources](../docs/task-source.qmd);
 the cancelled-task exception in "Multiple Tasks" in
 [Parallelism](../docs/parallelism.qmd#sec-multiple-tasks); "Listing Tasks",
-"Cancellation" and the `--max-tasks` retune in "Configuration" in
+"Cancellation", "Pause and Resume" and the task-limit retune in
+"Configuration" in
 [Control Channel](../docs/control-channel.qmd); and the directory,
 environment and repeat-call rules for providers in "Lifecycle Methods" in
 [Sandbox Extensions](../docs/extensions-sandboxes.qmd#sec-lifecycle-methods).
@@ -89,8 +90,8 @@ Code:
 - `src/inspect_ai/_eval/evalset.py`: `run_eval`'s rule for a requested
   task with no log.
 
-Tests need no network or provider; the async ones run on asyncio and (with
-`--runtrio`) trio, and the Docker ones are `--runslow`:
+Tests need no network or provider; the async ones also run on trio, and
+the Docker ones are gated slow tests:
 
 - `tests/test_enqueue_task.py`, section "one queue, one dispatcher":
   starting while the creator runs, refusals, log start, setup in the
@@ -128,9 +129,9 @@ anything is added:
   outlived it and kept its context: `RuntimeError`, before anything is
   resolved (`test_enqueue_task_after_dispatch_ended_raises`).
 - `enqueue_task()` off the run's event loop, for example from a worker
-  thread that copied the run's context: `RuntimeError` naming the
-  `anyio.from_thread.run_sync()` call that runs it on the loop
-  (`test_enqueue_task_off_the_run_loop`).
+  thread that copied the run's context: `RuntimeError` that says how to
+  call it on the run's loop instead, as "Adding tasks imperatively" in the
+  user docs does (`test_enqueue_task_off_the_run_loop`).
 - A task id the run already holds, or one repeated in the batch:
   `ValueError` ("Adding tasks").
 - Handle misuse: see
@@ -169,9 +170,15 @@ Who adds, and where errors go:
   the creator's model inside a running attempt, else once per run model;
   [task-source.md](task-source.md#relationship-to-enqueue_task)); errors
   raise to its caller.
-- A `TaskSource` callback's return (`_enqueue_source_tasks`) and a
-  `next_tasks()` batch are added for the source; an add error ends the
-  run. Once dispatch has ended, what the source returns is dropped with a
+- What a `TaskSource` returns is added for the source
+  (`_enqueue_source_tasks`), and where an add error goes depends on the
+  callback. A `sample_complete` or `sample_abandoned` return is added
+  inside its task's attempt, so an add error fails that task, which ends
+  with its error log while the other tasks run on. A `task_complete`
+  return and a `next_tasks()` batch are added outside any attempt, so an
+  add error ends the run (`test_task_complete_returned_task_error_propagates`).
+  An exception raised by `task_complete` itself is a separate case
+  ("Reporting to the source"). Once dispatch has ended, what the source returns is dropped with a
   warning instead, so a callback that runs in a cancelled attempt's
   shielded cleanup cannot replace the run's outcome
   (`test_source_returns_after_the_run_stopped_are_dropped`).
@@ -193,13 +200,13 @@ paths against the process directory. Nothing in that block awaits, so no
 other coroutine sees the change.
 
 **Model controllers.** The seed's adaptive connection controllers are
-created before the seed is added (`ensure_controllers`), so `inspect ctl
-config --max-connections` can retune them while images build and a bad
+created before the seed is added (`ensure_controllers`), so a
+control-channel connection-limit retune reaches them while images build and a bad
 adaptive setting on a seed task raises from `eval()`. An added task's
 controller is created on its model's first `generate`, as for any model the
 seed does not use, so a bad adaptive setting on it fails inside its
 attempt (the task, or each of its samples, ends with the error) rather than
-in whoever added it, and a `--max-connections` retune made before that
+in whoever added it, and a connection-limit retune made before that
 `generate` misses it unless another task already created that model's
 controller ("Not this design").
 
@@ -218,8 +225,8 @@ row, task-start hook, log file or buffer database
 **Cancelling a task that has never registered** (`RunQueue.cancel`, reached
 by the control channel and by a handle's `cancel()`):
 
-- An ordinary task is aborted, as `inspect ctl task cancel` aborts a
-  running task. A queued one gets an attempt that the dispatcher starts on
+- An ordinary task is aborted, as the control channel's task cancel
+  aborts a running task. A queued one gets an attempt that the dispatcher starts on
   its next pass, outside `max_tasks` and through any pause, and that aborts
   before its log starts; it ends with an unwritten "Task cancelled by user
   (abort)" error log with an empty `location`
@@ -229,8 +236,8 @@ by the control channel and by a handle's `cancel()`):
 - A fed task still queued ends at once with no log and no attempt
   ([task-handles.md](task-handles.md#closing-and-cancelling)).
 
-A task that has registered is cancelled as `inspect ctl task cancel`
-cancels it: a running attempt is aborted, a pending retry abandoned. An
+A task that has registered is cancelled as the control channel's task
+cancel cancels it: a running attempt is aborted, a pending retry abandoned. An
 abort is never retried, so an ordinary task cancelled before it registers
 ends with the abort's error log, not an earlier attempt's, and an eval set
 or selection worker that requested it reports failure.
@@ -256,7 +263,7 @@ run (`test_task_complete_raising_stray_cancellation_ends_run`).
 **Listed after it ends.** A record that ends before any attempt registered
 is registered with the control channel as a finished eval with zero
 samples (`register_completed_eval`) as it leaves the queued registry, so
-`inspect ctl task list` shows it as finished and a repeated cancel or drain
+the control channel's task list shows it as finished and a repeated cancel or drain
 answers "task already finished" rather than 404
 (`test_task_failing_before_it_registers_stays_listed_as_finished`).
 
@@ -343,11 +350,16 @@ registers and its task-start hooks run, before its first sample, and a
 (`test_setup_runs_in_the_attempt_after_registration`). A preview sets up
 nothing (`test_preview_runs_no_setup`).
 
-- **Shared configurations.** `SandboxManager` is run-wide: a configuration
-  is set up once per run, and two tasks that need one configuration set it
-  up once, the second waiting for the first
-  (`test_two_tasks_needing_one_configuration_set_it_up_once`). The task
-  display is suspended during the call.
+- **Shared configurations.** `SandboxManager` is run-wide. A setup is
+  identified by the resolved sandbox spec, the task's directory and the
+  values Docker's `task_init_environment` returned
+  (`TaskSandboxEnvironment` in `src/inspect_ai/_eval/task/sandbox.py`), and
+  each identity is set up successfully at most once per run, so two tasks
+  that share all three set up once, the second waiting for the first
+  (`test_two_tasks_needing_one_configuration_set_it_up_once`). The same
+  spec used from two task directories, or with different metadata values
+  for its `task_init_environment`, gets a `task_init` and a `task_cleanup`
+  of its own for each. The task display is suspended during the call.
 - **Slots.** An attempt holds its slot while it builds, and the dispatcher
   starts other tasks meanwhile, so a task with no sandboxes, or whose
   configurations are set up, starts at once
@@ -376,9 +388,13 @@ behaviour is documented in
 [Listing Tasks](../docs/control-channel.qmd#listing-tasks) and
 [Cancellation](../docs/control-channel.qmd#cancellation):
 
-- **`GET /tasks`** lists a queued task with `status: "queued"` and zero
-  sample totals (`_add_queued_tasks`); CLI selectors resolve it like a
-  running task, but it is never the default target of a mutation.
+- **`GET /tasks`** lists a queued task with `status: "queued"`
+  (`_add_queued_tasks`): a task with no registered history has zero sample
+  totals, and one an earlier `eval_set(retry_immediate=False)` round ran
+  keeps that round's counters and log location under the queued status
+  (`test_queued_task_with_earlier_round_reads_queued_and_current_pause`).
+  CLI selectors resolve a queued task like a running one, but it is never
+  the default target of a mutation.
 - **Task cancel and drain** of a task that has not registered
   (`_queued_task_directive`) abort it. A task waiting for a slot follows
   `RunQueue.cancel` (`task_queued`). A task whose attempt is starting gets
@@ -386,14 +402,15 @@ behaviour is documented in
   never interrupted
   (`test_ctl_cancel_of_starting_attempt_aborts_it_when_it_registers`); a
   starting preview never registers, so the directive changes nothing
-  (`test_ctl_cancel_of_starting_preview_is_a_no_op`). `--action score` and
-  `--action error` are refused: the task has no samples to resolve.
+  (`test_ctl_cancel_of_starting_preview_is_a_no_op`). The score and error
+  resolutions are refused: the task has no samples to resolve.
 - **Task pause and resume** find a task only through its `EvalState`. A
   queued task that has never registered answers "not found", though `task
   list` shows it; a pending retry of a task that has registered is paused
   and resumed as before, and the pause holds its retry
   (`tests/_control/test_pause.py::test_pause_task_between_attempts_parks_the_retry`).
-  `inspect ctl process pause` and `model pause` hold queued tasks.
+  Process and model pauses hold queued tasks
+  ([Pause and Resume](../docs/control-channel.qmd#pause-and-resume)).
 - **`CONTROL_API_VERSION`** records the queued rows and the new cancel
   results; older CLIs see an unknown status value.
 
@@ -401,10 +418,15 @@ behaviour is documented in
 with the abort's error log, so `eval_set()` reports failure, a selection
 worker returns `False`, and under immediate retries no task retry follows.
 A requested task with no log at all was still queued when the run was
-cancelled, so `run_eval` raises `KeyboardInterrupt`. Under
+cancelled, so `run_eval` raises `KeyboardInterrupt`, except for a task
+whose retry an operator abandoned between rounds. Under
 `retry_immediate=False` the next round reruns every requested task that
 did not succeed, a task cancelled while queued included
-(`test_eval_set_task_cancelled_while_queued_runs_in_the_next_round`).
+(`test_eval_set_task_cancelled_while_queued_runs_in_the_next_round`); a
+task whose retry was abandoned is passed to later rounds but ends there
+with no attempt and no log, its earlier error log standing, and that is
+not read as a cancellation of the set
+(`test_retry_abandoned_between_passes_is_not_a_cancel`).
 
 ### Setup does not change the process's directory or environment
 
@@ -443,7 +465,8 @@ worker threads can.
   sample sees them.
 - **Other providers' `task_init_environment` values are refused** with a
   `PrerequisiteError` naming the migration (put the values in the config
-  and pass them to subprocesses with `subprocess(env=...)`), before the
+  and pass them to the subprocesses `task_init` starts; "Lifecycle Methods"
+  in the provider docs), before the
   provider's `task_init` runs; the error ends that task like any setup
   error (`test_non_docker_task_init_environment_is_refused`). An empty
   mapping, every provider's default, is unaffected.
@@ -526,7 +549,7 @@ Tests: `test_setup_bindings_per_configuration`,
   exceptions under "Reporting to the source".
 - **Limits.**
   - An added task's model controller is created on its first `generate`,
-    so a `--max-connections` retune made before then misses it when no
+    so a connection-limit retune made before then misses it when no
     other task has created that model's controller.
   - A cancel of an ordinary queued task takes effect on the dispatcher's
     next pass; while `next_tasks()` blocks, that is when the call returns,
@@ -542,8 +565,8 @@ Tests: `test_setup_bindings_per_configuration`,
   - A task's setup failure fails the task, not the whole run, but a sample
     a `SampleSource` adds whose own configuration fails to set up fails
     its whole task too ("Not this design").
-  - `inspect ctl task pause` and `resume` of a queued task that has never
-    registered answer "not found".
+  - A task pause or resume of a queued task that has never registered
+    answers "not found".
   - Tasks whose `task:id` selectors name each other must be added in one
     call.
 
@@ -591,8 +614,8 @@ Tests: `test_setup_bindings_per_configuration`,
 - **An ordinary task added from inside a running task keeps the run-wins
   settings resolution**; only a fed task resolves its own first (decision:
   Ransom, 2026-11-19).
-- **`inspect ctl task pause` and `resume` do not reach a queued task that
-  has never registered** (decision: Ransom, 2026-11-19).
+- **Task pause and resume do not reach a queued task that has never
+  registered** (decision: Ransom, 2026-11-19).
 - **A control-channel cancel of an attempt that is starting is deferred
   until it registers**, so its startup writes are never interrupted
   (decision: Ransom, 2026-11-24).
@@ -656,7 +679,8 @@ Alternatives for the handles are in
   ([task-handles.md](task-handles.md#the-handle-api)), so calls on the
   run's loop that ignore the result work unchanged. A call from a worker
   thread that copied the run's context raises `RuntimeError`; the worker
-  calls it through `anyio.from_thread.run_sync()`. Tasks whose `task:id`
+  hands the call to the run's loop, as "Adding tasks imperatively" in the
+  user docs shows. Tasks whose `task:id`
   selectors name each other need one call.
 - **Sandbox providers.** `task_init`, `task_init_environment` and
   `task_cleanup` run in the launch directory, after the task's
@@ -665,7 +689,7 @@ Alternatives for the handles are in
   task-level calls relied on the process directory being the task
   directory needs a change; of the surveyed providers only Proxmox does,
   for a relative `PROXMOX_CONFIG_FILE` found only under the task directory,
-  which now falls back to `PROXMOX_HOST` or no pools. A provider other than
+  which now falls back to its other configuration. A provider other than
   Docker whose `task_init_environment` returns variables fails setup with
   a `PrerequisiteError` naming the migration.
 - **Eval authors.** A `ComposeConfig` on Modal or Daytona with a relative
@@ -713,17 +737,17 @@ Alternatives for the handles are in
 
 ## Not this design
 
-- A `--max-connections` retune reaching a model controller created after
+- A connection-limit retune reaching a model controller created after
   it, as an added task's lazily created controller is: remember each
   retune and apply the matching ones when a controller is created
   ([#6645](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6645)).
 - A failed sandbox setup for one sample a `SampleSource` (or a handle)
   adds failing only that sample rather than its task
   ([#6646](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6646)).
-- Pausing and resuming a queued task that has never registered through
-  `inspect ctl task pause` and `resume`. It needs the pause verbs to look in the queued registry first
-  and a pause gate that keeps holding the task's samples after it starts;
-  `process pause` and a cancel cover the use (decision: Ransom,
+- Task pause and resume of a queued task that has never registered. It
+  needs the pause directives to look in the queued registry first and a
+  pause gate that keeps holding the task's samples after it starts; a
+  process pause and a cancel cover the use (decision: Ransom,
   2026-11-19).
 - Building sandboxes outside the task's slot, and setup retries apart from
   the task's own.
@@ -732,8 +756,8 @@ Alternatives for the handles are in
 - Recording in the log which task added a task.
 - A provider's own lookups in `sample_init` (a missing config's compose-file
   search) seeing the task directory.
-- A caller's own cancellation of `eval_async()` (for example
-  `anyio.fail_after`) being absorbed like a Ctrl-C.
+- A caller's own cancellation of `eval_async()` (a timeout scope around
+  it) being absorbed like a Ctrl-C.
 - `TaskSource` under `eval_set()` (see
   [task-source.md](task-source.md#eval_set-support--feasible-but-only-pays-off-for-deterministic-sources)).
 - The log a retry ends with when it is abandoned inside a startup `await`
