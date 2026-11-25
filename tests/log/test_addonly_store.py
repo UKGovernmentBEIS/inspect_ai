@@ -523,11 +523,18 @@ def fail_attempts_in_file(path: str) -> Solver:
     A count is by sample id, or by `<sample-id>.<epoch>` for one epoch.
     eval_retry imports the task file again, so module state does not carry
     over to the retry; the file and its path (a task arg) do.
+
+    An attempt fails only once s1 is logged in its epoch and each earlier one
+    (the `failures` fixture's hook lists them in the file), so its error
+    cannot cancel s1, whichever sample starts first.
     """
+
+    def read() -> dict[str, Any]:
+        return json.loads(Path(path).read_text())
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         state = await generate(state)
-        failures = json.loads(Path(path).read_text())
+        failures = read()
         key = next(
             (
                 k
@@ -537,6 +544,11 @@ def fail_attempts_in_file(path: str) -> Solver:
             "",
         )
         if failures.get(key, 0) > 0:
+            s1 = {f"s1.{epoch}" for epoch in range(1, state.epoch + 1)}
+            with anyio.fail_after(30):
+                while not s1 <= set(read().get("logged", [])):
+                    await anyio.sleep(0.01)
+            failures = read()
             failures[key] -= 1
             Path(path).write_text(json.dumps(failures))
             raise RuntimeError("attempt fails")
@@ -557,19 +569,36 @@ def retried_task(failures: str) -> Task:
     )
 
 
-def retried_task_run(store: MotoStore, log_dir: Path, s0_failures: int) -> EvalLog:
-    """First eval of `retried_task`: s1 succeeds, then s0 fails and stops the eval.
+@pytest.fixture
+def failures(tmp_path: Path) -> Iterator[Path]:
+    """`retried_task`'s failures file, with a hook that lists each logged sample in it."""
+    path = tmp_path / "failures.json"
 
-    One sample at a time, so the error cannot cancel s1.
-    """
-    failures = log_dir / "failures.json"
+    class ListLogged(Hooks):
+        async def on_sample_end(self, data: SampleEnd) -> None:
+            failures = json.loads(path.read_text())
+            failures["logged"] = [
+                *failures.get("logged", []),
+                f"{data.sample.id}.{data.sample.epoch}",
+            ]
+            path.write_text(json.dumps(failures))
+
+    hooks("list_logged", "Lists each logged sample in the failures file.")(ListLogged)
+    yield path
+    del _registry["hooks:list_logged"]
+
+
+def retried_task_run(
+    store: MotoStore, log_dir: Path, failures: Path, s0_failures: int
+) -> EvalLog:
+    """First eval of `retried_task`: s1 succeeds, then s0 fails and stops the eval."""
     failures.write_text(json.dumps({"s0": s0_failures}))
     log = eval(
         retried_task(str(failures)),
         model="mockllm/model",
         log_dir=str(log_dir),
         display="none",
-        max_samples=1,
+        max_samples=2,
         tamper_evident_store=store.url,
     )[0]
     assert log.status == "error"
@@ -577,7 +606,10 @@ def retried_task_run(store: MotoStore, log_dir: Path, s0_failures: int) -> EvalL
 
 
 def test_eval_retry_validates(
-    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    failures: Path,
 ) -> None:
     """eval_retry twice: s0 fails twice, s1 is reused from the first eval each time.
 
@@ -585,7 +617,7 @@ def test_eval_retry_validates(
     the eval it reused samples from; the second retry's names the first
     retry, whose own names the first eval, where the records are.
     """
-    log = retried_task_run(evalhost_env, tmp_path, s0_failures=2)
+    log = retried_task_run(evalhost_env, tmp_path, failures, s0_failures=2)
     for status in ["error", "success"]:
         log = eval_retry(
             log,
@@ -651,10 +683,13 @@ def test_eval_retry_after_cancel_in_close_validates(
 
     That put finishes only after the eval's failure has cancelled s2, so the
     cancellation reaches s0 after it, as when S3 is slow: before s0's closing
-    record, or before s0 is logged. Then eval_retry.
+    record, or before s0 is logged. It still cancels s0's sample end hook,
+    once s0 is logged. Then eval_retry.
     """
     monkeypatch.setitem(_cancel_gates, "s0_closing", threading.Event())
     monkeypatch.setitem(_cancel_gates, "cancelled", threading.Event())
+    monkeypatch.setitem(_cancel_gates, "s0_hook", threading.Event())
+    monkeypatch.setitem(_cancel_gates, "hook_timed_out", threading.Event())
     put = AddOnlyStore._put
 
     def gated_put(self: AddOnlyStore, key: str, body: bytes) -> None:
@@ -666,15 +701,20 @@ def test_eval_retry_after_cancel_in_close_validates(
     monkeypatch.setattr(AddOnlyStore, "_put", gated_put)
     fail = tmp_path / "fail.json"
     fail.write_text("true")
-    log = eval(
-        cancel_in_close_task(str(fail)),
-        model="mockllm/model",
-        log_dir=str(tmp_path),
-        display="none",
-        max_samples=3,
-        tamper_evident_store=evalhost_env.url,
-    )[0]
+    hooks("stuck_sample_end", "Waits in s0's sample end hook.")(StuckSampleEndHook)
+    try:
+        log = eval(
+            cancel_in_close_task(str(fail)),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            display="none",
+            max_samples=3,
+            tamper_evident_store=evalhost_env.url,
+        )[0]
+    finally:
+        del _registry["hooks:stuck_sample_end"]
     assert log.status == "error"
+    assert not _cancel_gates["hook_timed_out"].is_set()
 
     fail.write_text("false")
     log = eval_retry(
@@ -856,10 +896,12 @@ def test_eval_retry_after_cancel_at_boundary_validates(
 
 
 def test_task_retry_attempts_validates(
-    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    failures: Path,
 ) -> None:
     """task_retry_attempts: the second eval reuses s1 from the first."""
-    failures = tmp_path / "failures.json"
     failures.write_text(json.dumps({"s0": 1}))
     log_dir = tmp_path / "logs"
     log = eval(
@@ -867,7 +909,7 @@ def test_task_retry_attempts_validates(
         model="mockllm/model",
         log_dir=str(log_dir),
         display="none",
-        max_samples=1,
+        max_samples=2,
         task_retry_attempts=1,
         tamper_evident_store=evalhost_env.url,
     )[0]
@@ -883,6 +925,7 @@ def test_eval_set_retry_validates(
     evalhost_env: MotoStore,
     tmp_path: Path,
     validate_cli: ValidateCli,
+    failures: Path,
     retry_cleanup: bool,
 ) -> None:
     """eval_set retry: the second eval reuses s1 from the first.
@@ -891,7 +934,6 @@ def test_eval_set_retry_validates(
     second eval's start record names the first eval, so the missing file is
     not a finding, and s1 is still compared with the first eval's records.
     """
-    failures = tmp_path / "failures.json"
     failures.write_text(json.dumps({"s0": 1}))
     log_dir = tmp_path / "logs"
     success, logs = eval_set(
@@ -899,7 +941,7 @@ def test_eval_set_retry_validates(
         log_dir=str(log_dir),
         model="mockllm/model",
         display="none",
-        max_samples=1,
+        max_samples=2,
         retry_attempts=1,
         retry_cleanup=retry_cleanup,
         tamper_evident_store=evalhost_env.url,
@@ -923,6 +965,7 @@ def test_eval_set_narrower_retry_validates(
     evalhost_env: MotoStore,
     tmp_path: Path,
     validate_cli: ValidateCli,
+    failures: Path,
     first: dict[str, Any],
     retry: dict[str, Any],
 ) -> None:
@@ -931,14 +974,13 @@ def test_eval_set_narrower_retry_validates(
     The retry copies only the samples it selects into its .eval, so the
     samples it does not select are not missing.
     """
-    failures = tmp_path / "failures.json"
     failures.write_text(json.dumps({"s0" if "sample_id" in retry else "s0.2": 1}))
     log_dir = tmp_path / "logs"
     options: dict[str, Any] = dict(
         log_dir=str(log_dir),
         model="mockllm/model",
         display="none",
-        max_samples=1,
+        max_samples=2,
         retry_attempts=0,
         tamper_evident_store=evalhost_env.url,
     )
@@ -958,10 +1000,13 @@ def test_eval_set_narrower_retry_validates(
 
 
 def test_edit_reused_sample(
-    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    failures: Path,
 ) -> None:
     """A retry's reused sample edited: compared with the earlier eval's records."""
-    log = retried_task_run(evalhost_env, tmp_path, s0_failures=1)
+    log = retried_task_run(evalhost_env, tmp_path, failures, s0_failures=1)
     retry = eval_retry(
         log,
         log_dir=str(tmp_path),
@@ -985,10 +1030,13 @@ def test_edit_reused_sample(
 
 
 def test_add_sample_to_retry(
-    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    failures: Path,
 ) -> None:
     """A sample added to a retry's .eval: no eval in the chain ran it."""
-    log = retried_task_run(evalhost_env, tmp_path, s0_failures=1)
+    log = retried_task_run(evalhost_env, tmp_path, failures, s0_failures=1)
     retry = eval_retry(
         log,
         log_dir=str(tmp_path),
@@ -1012,10 +1060,13 @@ def test_add_sample_to_retry(
 
 
 def test_delete_reused_sample(
-    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    failures: Path,
 ) -> None:
     """s1 deleted from a retry of a retry: the first eval closed it without an error."""
-    log = retried_task_run(evalhost_env, tmp_path, s0_failures=2)
+    log = retried_task_run(evalhost_env, tmp_path, failures, s0_failures=2)
     for status in ["error", "success"]:
         log = eval_retry(
             log,
