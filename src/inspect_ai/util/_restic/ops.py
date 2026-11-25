@@ -27,13 +27,15 @@ from .summary import ResticBackupSummary
 
 _RESTORED_DIR_MODE = 0o700
 _RESTORED_FILE_MODE = 0o600
+"""Modes the restored tree is given, whatever the snapshot recorded. The
+host's own context files are created by ``tempfile.mkstemp``, also 0600."""
+
 _SPECIAL_MODE_BITS = 0o7000
+"""setuid | setgid | sticky."""
 
 _RESTORE_VIA_SCRATCH_DIR = sys.platform != "win32"
 """Windows has no POSIX modes for a snapshot to choose, so a restore there
-writes straight into its target, as it did before modes were reset."""
-"""Modes the restored tree is given, whatever the snapshot recorded. The
-host's own context files are created by ``tempfile.mkstemp``, also 0600."""
+writes straight into its target."""
 
 
 class RestoredTreeError(RuntimeError):
@@ -135,18 +137,13 @@ async def restore_repo(
     bound hold for what actually lands on disk.
 
     The snapshot's recorded mode, owner and extended attributes are not
-    trusted. Extended attributes are excluded from the restore. Restic
-    restores into a scratch directory created inside ``target``
-    (:func:`_restore_scratch_dir`); once it exits, restored directories
-    are set to 0700 and files to 0600, and only then is the tree moved up
-    into ``target`` (:func:`_adopt_restored_tree`). ``target``'s own mode
-    and owner are not changed, and other users are assumed unable to
-    write it or the directories above it. On a filesystem that assigns
-    modes itself, the scratch directory and the restored entries have the
-    modes it assigns. Not reset: the owner and group restic applied (any,
-    when it runs as root; otherwise at most a group the user belongs to).
-    On Windows none of this applies: restic restores straight into
-    ``target`` and reapplies the recorded security descriptor.
+    trusted. Extended attributes are excluded, and restic restores into a
+    scratch directory inside ``target``, where modes are reset before the
+    tree is moved up into ``target`` (:func:`_restore_scratch_dir`,
+    :func:`_adopt_restored_tree`). ``target``'s own mode and owner are not
+    changed. Not reset: the owner and group restic applied (any, when it
+    runs as root; otherwise at most a group the user belongs to). Windows
+    has no such modes, and restic restores straight into ``target`` there.
 
     ``target`` must be a directory or absent; a symlink is refused without
     being followed (:func:`_prepare_target`). It is emptied before restic
@@ -238,26 +235,23 @@ def _prepare_target(target: str) -> Path:
 def _restore_scratch_dir(target: Path) -> Path:
     """A new, empty directory inside ``target`` for restic to restore into.
 
-    ``tempfile.mkdtemp`` creates it with permission bits 0700, owned by
-    the user running the restore, so other users cannot enter the tree
-    while it carries recorded modes. That holds as long as they cannot
-    write ``target`` or a directory above it, and so cannot replace the
-    scratch directory itself, and no ACL inherited from ``target`` grants
-    them access to it.
+    ``tempfile.mkdtemp`` creates it with permission bits 0700, so other
+    users cannot enter the tree while it carries recorded modes. That
+    assumes they cannot write ``target`` or a directory above it (and so
+    replace the scratch directory), that no inherited ACL grants them
+    access, and that the filesystem does not assign modes itself.
 
-    It is inside ``target`` so the move is a rename on one filesystem,
-    and so that whatever skips ``target`` when copying or uploading the
-    directory around it also skips a scratch directory that a killed
-    restore left behind.
+    It is inside ``target`` so the move is a rename on one filesystem, and
+    so that whatever skips ``target`` when copying or uploading the
+    directory around it also skips one that a killed restore left behind.
     """
     return Path(tempfile.mkdtemp(prefix=".restore-", dir=target))
 
 
 def _adopt_restored_tree(scratch: Path, target: Path) -> None:
-    """Replace the modes of the tree in ``scratch``, then move it into ``target``.
+    """Reset the modes of the tree in ``scratch``, then move it into ``target``.
 
-    Runs in a worker thread: the walk and the renames are local filesystem
-    work bounded by ``max_files``, and nothing here needs the event loop.
+    Called in a worker thread: local filesystem work bounded by ``max_files``.
     """
     _normalize_restored_tree(scratch)
     with os.scandir(scratch) as scan:
@@ -288,20 +282,17 @@ def _chmod(path: str, mode: int) -> None:
 def _normalize_restored_tree(root: Path) -> None:
     """Set every directory under ``root`` to 0700 and every file to 0600.
 
-    The listing check compares paths as strings, so it cannot be the only
-    control: on a case-insensitive filesystem a listed file and a listed
+    Works from what is on disk, because the listing check cannot see every
+    case: on a case-insensitive filesystem a listed file and a listed
     directory can be one path, and restic then applies the directory's
-    mode (exempt from that check) to the regular file. Modes are therefore
-    set from what is on disk once restic has exited.
+    mode to the file.
 
-    Entries are classified without following symlinks; one that is neither
-    a regular file nor a directory raises :class:`RestoredTreeError`. So
-    does a regular file that still has a setuid, setgid or sticky bit
-    afterwards: on a filesystem that assigns modes itself the chmod can be
-    refused or have no effect, and such a file must not be moved into
-    place whatever the reason. A directory is chmodded before it is read,
-    so one restored unreadable does not stop the walk. Iterative, because
-    the listing bounds entries but not depth.
+    Raises :class:`RestoredTreeError` for an entry that is neither a
+    regular file nor a directory (classified without following symlinks),
+    and for a file that still has a setuid, setgid or sticky bit, which a
+    filesystem that assigns modes itself can leave. A directory is
+    chmodded before it is read. Iterative: the listing bounds entries, not
+    depth.
     """
     pending = [str(root)]
     while pending:
@@ -409,10 +400,9 @@ def _check_snapshot_nodes(
     malformed node names such as ``..``).
     A path listed twice is rejected: an honest backup never produces one,
     and restic then applies one node's metadata to the other's entry. A
-    file node must record an integer ``mode`` (absent means 0) with no bit
-    beyond the nine permission bits, which refuses setuid, setgid and
-    sticky files. Directories are exempt: the listing includes the source
-    path's ancestors, which may honestly be sticky or setgid.
+    file node's ``mode`` (absent means 0) must be an integer with no bit
+    beyond the nine permission bits. Directories are exempt: the listing
+    includes the source path's ancestors, which may be sticky or setgid.
     The node count (including the source path's ancestor directories,
     which restic lists too) is bounded by ``max_files`` and the summed
     file sizes by ``max_bytes``; a file node without an integer ``size``

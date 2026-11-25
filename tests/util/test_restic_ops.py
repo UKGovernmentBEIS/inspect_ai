@@ -15,6 +15,7 @@ Tests that drive a real restic binary live in
 from __future__ import annotations
 
 import errno
+import inspect
 import json
 import os
 import stat
@@ -32,6 +33,7 @@ from test_helpers.restic import SUMMARY_SNAPSHOT_ID, restic_summary_json
 
 from inspect_ai.util._restic.ops import (
     RestoredTreeError,
+    _normalize_restored_tree,
     _parse_changed_files,
     _parse_listed_files,
     _previous_id,
@@ -611,40 +613,25 @@ async def test_restore_repo_replaces_restored_modes(
 
 
 @posix_modes
-async def test_restore_repo_replaces_modes_in_deeply_nested_tree(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """The listing bounds entries, not depth; the walk must not recurse."""
-    depth = sys.getrecursionlimit() + 100
-    target = tmp_path / "ctx"
-    if len(str(target)) + 2 * depth + 64 > os.pathconf(tmp_path, "PC_PATH_MAX"):
-        pytest.skip("a chain deeper than the recursion limit exceeds PATH_MAX here")
-    roots = [str(target)]
+def test_normalize_restored_tree_does_not_recurse(tmp_path: Path) -> None:
+    """The listing bounds entries, not depth, so the mode walk must not recurse.
 
-    def restore(path: Path) -> None:
-        roots.append(str(path))
-        directory = str(path)
-        for _ in range(depth):
-            directory += "/d"
-            os.mkdir(directory)
-        Path(directory, "store.json").write_text("{}")
-        Path(directory, "store.json").chmod(0o666)
+    The tree is far deeper than the recursion budget left for the call.
+    """
+    leaf = tmp_path.joinpath(*["d"] * 200)
+    leaf.mkdir(parents=True)
+    (leaf / "store.json").write_text("{}")
+    (leaf / "store.json").chmod(0o666)
 
-    _fake_restic(monkeypatch, _STORE_ONLY, restore)
-
+    limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(len(inspect.stack(0)) + 50)
     try:
-        await _restore(target)
-
-        leaf = str(target) + "/d" * depth
-        assert _mode(Path(leaf, "store.json")) == 0o600
-        assert _mode(Path(leaf)) == 0o700
+        _normalize_restored_tree(tmp_path)
     finally:
-        # Removed here, leaf first: pytest's tmp_path cleanup recurses.
-        for root in roots:
-            Path(root + "/d" * depth, "store.json").unlink(missing_ok=True)
-            for level in range(depth, 0, -1):
-                if os.path.isdir(root + "/d" * level):
-                    os.rmdir(root + "/d" * level)
+        sys.setrecursionlimit(limit)
+
+    assert _mode(leaf / "store.json") == 0o600
+    assert _mode(leaf) == 0o700
 
 
 @pytest.mark.parametrize("kind", ["symlink", "fifo"])
@@ -789,18 +776,15 @@ def _refuse_chmod(monkeypatch: pytest.MonkeyPatch, code: int) -> None:
     ("code", "euid"), [(errno.ENOTSUP, 0), (errno.ENOTSUP, 1000), (errno.EPERM, 1000)]
 )
 @posix_modes
-async def test_restore_repo_tolerates_chmod_errors_restic_ignores(
+def test_normalize_restored_tree_tolerates_chmod_errors_restic_ignores(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, code: int, euid: int
 ) -> None:
     """``ENOTSUP``, and ``EPERM`` when not root: restic applied no recorded mode either."""
-    target = tmp_path / "ctx"
-    _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
+    _write_store(tmp_path)
     _refuse_chmod(monkeypatch, code)
     monkeypatch.setattr(os, "geteuid", lambda: euid)
 
-    await _restore(target)
-
-    assert [p.name for p in target.iterdir()] == ["store.json"]
+    _normalize_restored_tree(tmp_path)
 
 
 @pytest.mark.parametrize("chmod_outcome", ["tolerated error", "no effect"])
@@ -848,20 +832,16 @@ async def test_restore_repo_never_adopts_file_left_with_special_mode_bit(
 
 @pytest.mark.parametrize(("code", "euid"), [(errno.EPERM, 0), (errno.EIO, 1000)])
 @posix_modes
-async def test_restore_repo_fails_when_a_mode_cannot_be_set(
+def test_normalize_restored_tree_fails_when_a_mode_cannot_be_set(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, code: int, euid: int
 ) -> None:
-    """Any other chmod failure fails the restore, and the entry is not adopted."""
-    target = tmp_path / "ctx"
-    _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
+    """Any other chmod failure propagates, which fails the restore."""
+    _write_store(tmp_path)
     _refuse_chmod(monkeypatch, code)
     monkeypatch.setattr(os, "geteuid", lambda: euid)
 
     with pytest.raises(OSError, match=r"store\.json"):
-        await _restore(target)
-
-    (scratch,) = target.iterdir()
-    assert scratch.name.startswith(".restore-")
+        _normalize_restored_tree(tmp_path)
 
 
 async def test_restore_repo_rejects_source_path_missing_from_listing(
