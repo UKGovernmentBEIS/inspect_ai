@@ -1,4 +1,5 @@
 import shlex
+import sys
 from typing import Literal, overload
 
 import anyio
@@ -55,6 +56,43 @@ async def test_service_paths_do_not_bypass_output_limits(stream: str) -> None:
     with override_max_exec_output_size(16):
         with pytest.raises(OutputLimitExceededError):
             await proxy.exec(["echo", "/var/tmp/sandbox-services"])
+
+
+@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+async def test_output_not_valid_utf8_is_measured_by_the_bytes_it_held(
+    stream: str,
+) -> None:
+    # providers decode with errors="replace": each invalid byte is one U+FFFD,
+    # which is 3 bytes as UTF-8
+    init_transcript(Transcript())
+
+    def result(chars: int) -> ExecResult[str]:
+        return ExecResult(
+            success=True,
+            returncode=0,
+            stdout="\ufffd" * chars if stream == "stdout" else "",
+            stderr="\ufffd" * chars if stream == "stderr" else "",
+        )
+
+    with override_max_exec_output_size(16):
+        under = SandboxEnvironmentProxy(CannedSandbox.returning(result(16)))
+        assert await under.exec(["cat", "binary"]) == result(16)
+
+        over = SandboxEnvironmentProxy(CannedSandbox.returning(result(17)))
+        with pytest.raises(OutputLimitExceededError):
+            await over.exec(["cat", "binary"])
+
+
+async def test_local_exec_returns_output_not_valid_utf8_under_the_limit() -> None:
+    from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
+
+    init_transcript(Transcript())
+    sandbox = SandboxEnvironmentProxy(LocalSandboxEnvironment())
+    code = "import sys; sys.stdout.buffer.write(bytes([255]) * 400)"
+    with override_max_exec_output_size(1000):
+        result = await sandbox.exec([sys.executable, "-c", code])
+    assert result.success
+    assert result.stdout == "\ufffd" * 400
 
 
 class _GatedSandbox(SandboxEnvironment):
