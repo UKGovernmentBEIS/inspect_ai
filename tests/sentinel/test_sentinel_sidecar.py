@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable
 from math import inf, nan
 from pathlib import Path
 from typing import Any, Literal
-from urllib.parse import unquote
+from urllib.parse import unquote, unquote_plus
 
 import anyio
 import httpx2
@@ -224,6 +224,14 @@ async def test_a_sidecar_behind_the_models_base_url_is_found(
             "http://proxy.test",
             ["se%40cret", "se@cret"],
         ),
+        # a short value inside a longer one, which is repeated form-decoded too
+        (
+            "anthropic",
+            "http://proxy.test?v=9&key=pass9word+two",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["pass", "word", "two"],
+        ),
         (
             "anthropic",
             "http://user:secret@[::1]:8080/v1",
@@ -246,14 +254,21 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
 ) -> None:
     # a proxy's error page may repeat the URL Inspect asked for, credentials
     # and all, or the base URL as configured, with its query and fragment, as
-    # given or decoded; the anthropic SDK's errors show the page
+    # given or decoded; the anthropic SDK's errors show the page. The proxy
+    # fails the first probe, answers the second as a sidecar, and fails the
+    # call to the sidecar that probe found.
     asked: list[httpx2.URL] = []
 
     def echo(request: httpx2.Request) -> httpx2.Response:
         asked.append(request.url)
+        if len(asked) == 2:
+            return httpx2.Response(
+                200, json={"service": "inspect_sentinel", "versions": [1]}
+            )
         repeated = f"{request.url} {base_url}"
         return httpx2.Response(
-            500, text=f"upstream failed for {repeated} ({unquote(repeated)})"
+            500,
+            text=f"upstream failed for {repeated} ({unquote(repeated)}) ({unquote_plus(repeated)})",
         )
 
     model = get_model(
@@ -265,21 +280,18 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
     )
     client = await proxy_client(model.api)
     assert client is not None
-    sidecar = Sidecar(
-        _origin(client.sdk.base_url),
-        "whole",
-        client.sdk,
-        base_url=str(client.sdk.base_url),
-    )
-    assert (sidecar.origin, sidecar.proxy_url) == (origin, proxy_url)
 
     found = await probe(client)
     assert isinstance(found, NoSidecar)
+    sidecar = await probe(client)
+    assert isinstance(sidecar, Sidecar)
+    assert (sidecar.origin, sidecar.proxy_url) == (origin, proxy_url)
     with pytest.raises(SidecarCallError) as raised:
         await sidecar.call("end_sample", {})
 
     # each call at the proxy's root, with the credentials and no query
     assert [(_origin(url), url.raw_path) for url in asked] == [
+        (origin, b"/sentinel/info"),
         (origin, b"/sentinel/info"),
         (origin, b"/sentinel/v1"),
     ]

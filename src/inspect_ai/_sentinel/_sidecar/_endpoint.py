@@ -1,11 +1,12 @@
 """Finding a sentinel sidecar behind a model's proxy, and calling its endpoint for evals."""
 
+import re
 import secrets
 from dataclasses import dataclass, field
 from itertools import count
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote, unquote_plus, urlsplit
 
 import anyio
 
@@ -374,19 +375,20 @@ def without_credentials(origin: str) -> str:
 
 def _credentials(url: str) -> list[tuple[str, str]]:
     # each form an error may repeat the URL's secrets in, percent-encoded as
-    # in the URL or decoded as sent, with what stands in its place: the whole
-    # user info goes, and its secret part alone is redacted, which is the
-    # password, or for a URL with only a token, the user. So is each query
-    # value, or an item with no value, and the fragment, less any slash the
-    # anthropic SDK puts on the end of its base URL.
+    # in the URL, decoded as sent, or for a query, form-decoded, with what
+    # stands in its place: the whole user info goes, and its secret part
+    # alone is redacted, which is the password, or for a URL with only a
+    # token, the user. So is each query value, or an item with no value, and
+    # the fragment, with and without the slash the anthropic SDK puts on the
+    # end of its base URL.
     import httpx2
 
     forms: dict[str, str] = {}
 
-    def add(secret: str, shown: str) -> None:
-        if secret:
-            forms.setdefault(secret, shown)
-            forms.setdefault(unquote(secret), shown)
+    def add(secret: str, shown: str, *decoded: str) -> None:
+        for form in (secret, unquote(secret), *decoded):
+            if form:
+                forms.setdefault(form, shown)
 
     userinfo = httpx2.URL(url).userinfo.decode("ascii")
     if userinfo:
@@ -396,17 +398,27 @@ def _credentials(url: str) -> list[tuple[str, str]]:
     parts = urlsplit(url)
     for item in parts.query.split("&"):
         name, equals, value = item.partition("=")
-        add((value if equals else name).rstrip("/"), REDACTED)
-    add(parts.fragment.rstrip("/"), REDACTED)
+        secret = value if equals else name
+        for form in (secret, secret.removesuffix("/")):
+            add(form, REDACTED, unquote_plus(form))
+    for form in (parts.fragment, parts.fragment.removesuffix("/")):
+        add(form, REDACTED)
     return list(forms.items())
 
 
 def _replaced(text: str, secrets: list[tuple[str, str]]) -> str:
-    # the text with each secret replaced, in order, so the whole user info
-    # goes before its secret part is redacted
-    for secret, shown in secrets:
-        text = text.replace(secret, shown)
-    return text
+    # the text with each secret replaced in one pass, taking the longest at
+    # each position: a short secret inside a longer one would otherwise leave
+    # the rest of the longer one, and the whole user info, being longer than
+    # its secret part, goes whole
+    shown: dict[str, str] = {}
+    for secret, replacement in secrets:
+        if secret:
+            shown.setdefault(secret, replacement)
+    if not shown:
+        return text
+    pattern = "|".join(map(re.escape, sorted(shown, key=len, reverse=True)))
+    return re.sub(pattern, lambda found: shown[found.group(0)], text)
 
 
 def _response_type() -> type:
