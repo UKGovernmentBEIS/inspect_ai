@@ -123,8 +123,7 @@ A handle carries the task's id, name and model. Its methods, documented on
   have run.
 - `cancel()` aborts the task, as an operator's task cancel does, and does
   nothing once the task has ended. It works from the moment the task is
-  added, including while the task is queued and before the control channel
-  can see it ("Closing and cancelling").
+  added, including while the task is queued ("Closing and cancelling").
 - `async with handle` closes the handle on exit and never cancels.
 
 `enqueue_sample()` and `result()` need a task fed through the handle and
@@ -277,7 +276,11 @@ feeder sees it at once: `close()`, `result()`, leaving `async with`,
 `cancel()`, any operator cancel of the task (`abort`, `drain`, `score` or
 `error`), the end of the creator's attempt by any exit (so a fed task that
 is itself a creator closes its own channels when it ends) and the end of
-the fed task. A creator that forgets to close cannot keep a rollout task
+the fed task. One operator cancel closes it later: a control-channel cancel
+of an attempt that has not yet registered is deferred until it registers
+([task-dispatch.md](task-dispatch.md#control-channel)), and the channel
+still accepts sends until then, or until the task ends; a handle's
+`cancel()` closes it at once. A creator that forgets to close cannot keep a rollout task
 open past its own attempt (`test_creator_attempt_end_closes_its_channels`).
 
 `cancel()` of a fed task still queued (which has never started, since fed
@@ -293,12 +296,11 @@ its channel at once, so a send right after `cancel()` raises
 when a drain, `score` or `error` cancel closes the channel follow that
 directive's rules; an abort cancels them with the task.
 
-The control channel sees a fed task only once its attempt registers, as
-for any task added during a run: a queued fed task is not listed by the
-control channel's task list and cannot be cancelled or drained there, only
-through its handle (`RunQueue.cancel`). Listing and cancelling queued tasks
-through the control channel belongs to
-[task-dispatch.md](task-dispatch.md#control-channel-1).
+The control channel lists a fed task from the moment it is added, as for
+any task of the run, and a task cancel or drain of it while queued ends it
+as `cancel()` does: at once, with no attempt and no log, after which it
+stays listed as finished
+([task-dispatch.md](task-dispatch.md#control-channel)).
 
 ### Terminal outcomes
 
@@ -490,9 +492,6 @@ starts. The user docs ("Waiting on a handle") state the headroom.
     yet); see [task-dispatch.md](task-dispatch.md#not-this-design).
   - A fed log is only for the run that wrote it: it cannot be retried, so
     a creator that is retried adds and feeds a fresh rollout task.
-  - The control channel sees a fed task only once its attempt registers;
-    while it is queued, only its handle can cancel it ("Closing and
-    cancelling").
   - An operator requeue of a sent sample whose result was already returned
     replaces its logged result without reaching the sender ("Model and
     epochs").
