@@ -6,7 +6,6 @@ The read runners live in ``_sample_read``.
 from __future__ import annotations
 
 import json as json_lib
-import shlex
 import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
@@ -51,6 +50,7 @@ from ._group import (
 from ._http import _failure_prefix
 from ._mutate import _CANCEL_ROUTE_MISSING, _mutation_envelope, _mutation_outcome
 from ._render import (
+    _command_hint,
     _echo,
     _echo_raw,
     _render_table,
@@ -1461,11 +1461,12 @@ def _run_sample_agent_action(
         return f"no-op — {who}: {detail(result)}"
 
     def unknown_outcome(task_id: str, resolved_epoch: int) -> str:
-        command = shlex.join(
+        command = _command_hint(
             ["inspect", "ctl", "sample", "agent", "list", task_id, sample_id]
-            + [str(resolved_epoch)]
+            + [str(resolved_epoch)],
+            fallback=f"inspect ctl sample agent list TASK SAMPLE_ID {resolved_epoch}",
         )
-        return f"Check with `{command}` before sending it again."
+        return f"Check with {command} before sending it again."
 
     extra_params: dict[str, Any] = (
         {"agent": agent} if agent is not None else {"group": group}

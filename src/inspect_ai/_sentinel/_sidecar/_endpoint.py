@@ -5,12 +5,15 @@ from dataclasses import dataclass, field
 from itertools import count
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
+from urllib.parse import unquote
 
 import anyio
 
 from ._sign import answer_message, eval_call_message, now, sign
 
 if TYPE_CHECKING:
+    import httpx2
+
     from inspect_ai.model._model import ModelAPI
 
 logger = getLogger(__name__)
@@ -108,6 +111,7 @@ class Sidecar:
     """A sidecar that answered the probe, reached through the model's proxy with the model's own credentials."""
 
     origin: str
+    """The proxy's scheme, host and port, as the model's base URL gives them, credentials included, since Inspect's calls to the sidecar authenticate with them. It holds no path, query or fragment."""
     release: Literal["whole", "early"]
     client: Any = field(repr=False)
     version: int = 1
@@ -118,6 +122,12 @@ class Sidecar:
     Inspect shows them in its approval UI.
     """
     access: EvalAccess | None = field(default=None, repr=False)
+
+    @property
+    def proxy_url(self) -> str:
+        """The proxy's address without its credentials, for messages and the log."""
+        return without_credentials(self.origin)
+
     """The eval's id and token for this sidecar, shared by every model of the task whose calls go through it."""
     _ids: "count[int]" = field(default_factory=lambda: count(1), repr=False)
 
@@ -157,7 +167,7 @@ class Sidecar:
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Call a method of the endpoint for evals, and return its result.
 
-        A registration's request holds the eval's token, and an error may repeat the request, as a proxy's error page does. So no error raised here holds the token, in its message or in an error it is chained to.
+        A registration's request holds the eval's token, the origin may hold the proxy's credentials, and an error may repeat the request, as a proxy's error page does. So no error raised here holds either, in its message or in an error it is chained to.
         """
         failed: str | None = None
         answer: Any = None
@@ -175,11 +185,11 @@ class Sidecar:
             )
             answer = response.json()
         except Exception as ex:
-            if not self._holds_token(ex):
+            if not self._holds_secret(ex):
                 raise SidecarCallError(method, str(ex)) from ex
-            failed = self._without_token(str(ex))
+            failed = self._without_secrets(str(ex))
         if failed is not None:
-            # Raised outside the handler, so the error that holds the token
+            # Raised outside the handler, so the error that holds a secret
             # is neither this one's cause nor its context: a traceback prints
             # both.
             raise SidecarCallError(method, failed)
@@ -190,7 +200,7 @@ class Sidecar:
             code = error.get("code")
             raise SidecarCallError(
                 method,
-                self._without_token(str(error.get("message", ""))),
+                self._without_secrets(str(error.get("message", ""))),
                 code if isinstance(code, int) else None,
             )
         result = answer.get("result")
@@ -198,15 +208,21 @@ class Sidecar:
             raise SidecarCallError(method, "the answer has no result")
         return result
 
-    def _without_token(self, text: str) -> str:
-        # the text with the eval's token taken out
-        access = self.access
-        return text.replace(access.token, REDACTED) if access is not None else text
+    def _secrets(self) -> list[tuple[str, str]]:
+        # each secret an error may repeat, with what stands in its place
+        secrets = _credentials(self.origin)
+        if self.access is not None:
+            secrets.append((self.access.token, REDACTED))
+        return secrets
 
-    def _holds_token(self, error: BaseException) -> bool:
-        # whether the error, or one it is chained to, holds the eval's token
-        access = self.access
-        if access is None:
+    def _without_secrets(self, text: str) -> str:
+        # the text with the proxy's credentials and the eval's token taken out
+        return _replaced(text, self._secrets())
+
+    def _holds_secret(self, error: BaseException) -> bool:
+        # whether the error, or one it is chained to, holds a secret
+        secrets = [secret for secret, _ in self._secrets()]
+        if not secrets:
             return False
         seen: set[int] = set()
         pending: list[BaseException | None] = [error]
@@ -215,7 +231,7 @@ class Sidecar:
             if found is None or id(found) in seen:
                 continue
             seen.add(id(found))
-            if access.token in str(found):
+            if any(secret in str(found) for secret in secrets):
                 return True
             pending += [found.__cause__, found.__context__]
         return False
@@ -283,6 +299,7 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
         SentinelProxyError: If a sidecar answered that Inspect can't work with.
     """
     origin = _origin(client.sdk.base_url)
+    shown = without_credentials(origin)
     try:
         response = await client.sdk.get(
             f"{origin}/sentinel/info",
@@ -290,7 +307,8 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
             options={"max_retries": 0, "timeout": PROBE_TIMEOUT},
         )
     except Exception as ex:
-        return NoSidecar(*_no_answer(origin, getattr(ex, "status_code", None), ex))
+        failure = _replaced(str(ex), _credentials(origin))
+        return NoSidecar(*_no_answer(shown, getattr(ex, "status_code", None), failure))
 
     try:
         info = response.json()
@@ -298,18 +316,18 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
         info = None
     if not isinstance(info, dict) or info.get("service") != "inspect_sentinel":
         return NoSidecar(
-            f"{origin} answered the probe, but not as a sidecar", definite=True
+            f"{shown} answered the probe, but not as a sidecar", definite=True
         )
 
     versions = info.get("versions")
     if not isinstance(versions, list) or not any(v in VERSIONS for v in versions):
         raise SentinelProxyError(
-            f"The sentinel sidecar at {origin} serves versions {versions} of its endpoint for evals, and this Inspect speaks {list(VERSIONS)}."
+            f"The sentinel sidecar at {shown} serves versions {versions} of its endpoint for evals, and this Inspect speaks {list(VERSIONS)}."
         )
     release = info.get("release", "whole")
     if release != "whole":
         raise SentinelProxyError(
-            f"The sentinel sidecar at {origin} releases replies early ({release!r}), which Inspect doesn't support yet. Run the sidecar with `--release whole`."
+            f"The sentinel sidecar at {shown} releases replies early ({release!r}), which Inspect doesn't support yet. Run the sidecar with `--release whole`."
         )
     version = max(v for v in versions if v in VERSIONS)
     # A sidecar that doesn't report `review`, such as one from before sidecars
@@ -318,7 +336,7 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
     return Sidecar(origin, release, client.sdk, version, review)
 
 
-def _no_answer(origin: str, status: object, ex: Exception) -> tuple[str, bool]:
+def _no_answer(origin: str, status: object, failure: str) -> tuple[str, bool]:
     # An HTTP status means the endpoint answered: a 404 says there is no
     # sidecar, and any other 4xx that none can be reached there with the
     # model's credentials, as from a gateway that answers an unknown route
@@ -331,14 +349,51 @@ def _no_answer(origin: str, status: object, ex: Exception) -> tuple[str, bool]:
             f"{origin} answered the probe with {status}, so no sidecar can be reached there",
             True,
         )
-    return f"probing {origin} for a sidecar failed: {ex}", False
+    return f"probing {origin} for a sidecar failed: {failure}", False
 
 
-def _origin(base_url: Any) -> str:
-    # a proxy forwards /sentinel/ at its root, and an OpenAI base URL ends in /v1
-    url = str(base_url)
-    scheme, _, rest = url.partition("://")
-    return f"{scheme}://{rest.split('/', 1)[0]}"
+def _origin(url: "httpx2.URL | str") -> str:
+    # a proxy forwards /sentinel/ at its root, an OpenAI base URL ends in /v1,
+    # and a base URL's query or fragment isn't the proxy's
+    import httpx2
+
+    root = httpx2.URL(url).copy_with(path="/", query=None, fragment=None)
+    return str(root).removesuffix("/")
+
+
+def without_credentials(origin: str) -> str:
+    """An origin without the user and password a base URL can carry, for showing or recording it."""
+    import httpx2
+
+    shown = httpx2.URL(origin).copy_with(username=None, password=None, path="/")
+    return str(shown).removesuffix("/")
+
+
+def _credentials(origin: str) -> list[tuple[str, str]]:
+    # each form an error may repeat the origin's credentials in, percent-encoded
+    # as in the URL or decoded as sent, with what stands in its place: the
+    # whole user info goes, and the secret part alone is redacted, which is
+    # the password, or for a URL with only a token, the user
+    import httpx2
+
+    userinfo = httpx2.URL(origin).userinfo.decode("ascii")
+    if not userinfo:
+        return []
+    user, _, password = userinfo.partition(":")
+    secret = password or user
+    forms: dict[str, str] = {}
+    for encoded, shown in ((f"{userinfo}@", ""), (secret, REDACTED)):
+        forms.setdefault(encoded, shown)
+        forms.setdefault(unquote(encoded), shown)
+    return list(forms.items())
+
+
+def _replaced(text: str, secrets: list[tuple[str, str]]) -> str:
+    # the text with each secret replaced, in order, so the whole user info
+    # goes before its secret part is redacted
+    for secret, shown in secrets:
+        text = text.replace(secret, shown)
+    return text
 
 
 def _response_type() -> type:

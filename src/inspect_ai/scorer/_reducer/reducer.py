@@ -11,7 +11,11 @@ from .types import ScoreReducer
 
 @score_reducer(name="mode")
 def mode_score() -> ScoreReducer:
-    r"""Take the mode from a list of scores."""
+    r"""Take the mode from a list of scores.
+
+    Unscored (NaN) values and `None` values inside a dictionary score are not
+    counted. A key that is `None` on every score stays `None`.
+    """
 
     def reduce(scores: list[Score]) -> Score:
         r"""A utility function for the most common score in a list of scores.
@@ -50,9 +54,10 @@ def majority_score() -> ScoreReducer:
     the order the panel was declared in.
 
     For dict and list values the threshold applies per key and per index, and
-    the total is still the number of scores reduced: a value missing from one
-    key (or a score that is unscored at the root) withholds a vote for that
-    key alone, or for every key, respectively.
+    the total is still the number of scores reduced: a value that is NaN or
+    `None` under one key (or a score that is unscored at the root) withholds a
+    vote for that key alone, or for every key, respectively. `None` never wins
+    a vote. A key that is `None` on every score stays `None`.
 
     The reduced score's metadata records the individual votes under a
     `panel` key (replacing any `panel` carried over from the first score),
@@ -89,8 +94,8 @@ def mean_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     A `None` inside a dictionary score is missing. It is left out of the
     mean instead of being converted to `0.0`. A key that is `None` on every
     score stays `None`, so a metric can still apply its missing-value
-    behavior. The same rule is used by the other dictionary statistics
-    (`median_score`, `pass_at`, and `pass_k`).
+    behavior. Every built-in reducer that accepts dictionary scores handles
+    `None` this way.
 
     Args:
        value_to_float: Function to convert the value to a float
@@ -137,6 +142,9 @@ def at_least(
     k: int, value: float = 1.0, value_to_float: ValueToFloat = value_to_float()
 ) -> ScoreReducer:
     r"""Score correct if there are at least k score values greater than or equal to the value.
+
+    Unscored (NaN) values and `None` values inside a dictionary score are not
+    counted. A key that is `None` on every score stays `None`.
 
     Args:
        k: Number of score values that must exceed `value`.
@@ -254,6 +262,9 @@ def pass_k(
 def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     r"""Take the maximum value from a list of scores.
 
+    Unscored (NaN) values and `None` values inside a dictionary score are left
+    out. A key that is `None` on every score stays `None`.
+
     Args:
        value_to_float: Function to convert the value to a float
     """
@@ -265,17 +276,14 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
         if isinstance(representative.value, dict):
             dict_scores = _partition_dict_scores(scores)
             dict_result: dict[str, str | int | float | bool | None] = {}
-            keys = dict_scores[0].value.keys()  # type: ignore
-            for key in keys:
-                key_values = [
-                    cast(str | int | float | bool, score.value[key])  # type: ignore
-                    for score in dict_scores
-                    if _is_reducible(score.value[key])  # type: ignore
-                ]
+            dicts = [score.as_dict() for score in dict_scores]
+            for key in dicts[0]:
+                raw = [d[key] for d in dicts]
+                key_values = [v for v in raw if v is not None and _is_reducible(v)]
                 if len(key_values) == 0:
-                    dict_result[key] = float("nan")
+                    dict_result[key] = _empty_key_result(raw, len(scores))
                 else:
-                    dict_result[key] = max(key_values, key=value_to_float)  # type: ignore
+                    dict_result[key] = max(key_values, key=value_to_float)
             return _reduced_score(dict_result, scores)
         elif isinstance(representative.value, list):
             list_scores = _partition_list_scores(scores)
@@ -374,24 +382,17 @@ def _count_dict(
     if len(dict_scores) == 0:
         return _nan_score(scores)
 
-    dict_result: dict[str, str | int | float | bool] = {}
-    keys = dict_scores[0].value.keys()  # type: ignore
-    for key in keys:
-        key_values = []
-        for score in dict_scores:
-            key_value = cast(str | int | float | bool, score.value[key])  # type: ignore
-            if _is_reducible(key_value):
-                key_values.append(key_value)
-
-        # there are no reducible values
+    dict_result: dict[str, str | int | float | bool | None] = {}
+    dicts = [score.as_dict() for score in dict_scores]
+    for key in dicts[0]:
+        raw = [d[key] for d in dicts]
+        key_values = [v for v in raw if v is not None and _is_reducible(v)]
         if len(key_values) == 0:
-            dict_result[key] = float("nan")
+            dict_result[key] = _empty_key_result(raw, len(scores))
         else:
             counts: Counter[str | int | float | bool] = Counter(key_values)
             dict_result[key] = counter_fn(counts)
-    return _reduced_score(
-        cast(dict[str, str | int | float | bool | None], dict_result), scores
-    )
+    return _reduced_score(dict_result, scores)
 
 
 def _count_list(
@@ -443,30 +444,17 @@ def _compute_dict_stat(
         return _nan_score(scores)
 
     dict_result: dict[str, str | int | float | bool | None] = {}
-    for key in dict_scores[0].value.keys():  # type: ignore
+    dicts = [score.as_dict() for score in dict_scores]
+    for key in dicts[0]:
         values: list[float] = []
-        saw_none = False
-        saw_value = False
-        for score in dict_scores:
-            # None is missing. Converting it first yields 0.0 and counts
-            # the gap in the statistic. Scores here are dict-shaped;
-            # _partition_dict_scores rejects anything else.
-            value = score.value
-            if not isinstance(value, dict):
-                continue
-            key_value = value[key]
-            if key_value is None:
-                saw_none = True
-                continue
-            saw_value = True
-            converted = value_to_float(key_value)
-            if _is_reducible(converted):
-                values.append(converted)
-
+        for d in dicts:
+            key_value = d[key]
+            if key_value is not None:
+                converted = value_to_float(key_value)
+                if _is_reducible(converted):
+                    values.append(converted)
         if len(values) == 0:
-            # All-None stays None so metrics still see a missing value.
-            # A key that was only NaN stays the unscored sentinel.
-            dict_result[key] = None if saw_none and not saw_value else float("nan")
+            dict_result[key] = _empty_key_result([d[key] for d in dicts], len(scores))
         else:
             dict_result[key] = statistic(values)
     return _reduced_score(dict_result, scores)
@@ -528,6 +516,26 @@ def _compute_scalar_stat(
 
     result = statistic(values)
     return _reduced_score(result, scores)
+
+
+def _empty_key_result(
+    raw_values: list[str | int | float | bool | None], total_scores: int
+) -> float | None:
+    r"""Reduced value of a dictionary key that has no usable value.
+
+    `None` is a missing value and NaN is unscored, so reducers leave both out.
+    A key that is `None` in every score reduces to `None`, which keeps it
+    visible to a metric's missing-value handling such as
+    `aggregate(on_missing=...)`. Otherwise it reduces to NaN, including when a
+    score that is unscored at the root (NaN for every key) was left out of
+    `raw_values`.
+
+    Args:
+        raw_values: the key's value in each dict-valued score.
+        total_scores: number of scores being reduced.
+    """
+    all_none = len(raw_values) == total_scores and all(v is None for v in raw_values)
+    return None if all_none else float("nan")
 
 
 def _is_unscored(value: Value) -> bool:

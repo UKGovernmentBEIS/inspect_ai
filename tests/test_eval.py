@@ -1550,7 +1550,10 @@ def test_eval_sandbox_init_when_first_task_has_no_sandbox():
     from inspect_ai._eval.run import SandboxManager
 
     with mock.patch.object(
-        SandboxManager, "start", autospec=True, side_effect=SandboxManager.start
+        SandboxManager,
+        "_start_sandboxenvs",
+        autospec=True,
+        side_effect=SandboxManager._start_sandboxenvs,
     ) as start_spy:
         results = eval(
             tasks=[
@@ -2142,7 +2145,7 @@ async def test_terminal_log_write_failure_preserves_recovery(
         assert "persistent final write failure" in logs[0].error.message
         assert len(buffers) == task_retry_attempts + 1
         logger = loggers[-1]
-        written = await read_eval_log_async(logger.location)
+        written = await read_eval_log_async(_initialized_location(logger))
         assert written.status == "started"
         assert not written.samples
         assert logger.buffer_db is None
@@ -2165,7 +2168,7 @@ async def test_terminal_log_write_failure_preserves_recovery(
         # Restore storage for recovery; the missing DB simulates another machine.
         monkeypatch.setattr(ZipLogFile, "flush", flush)
         recovered_log = await recover_eval_log_async(
-            logger.location,
+            _initialized_location(logger),
             _db_dir=tmp_path
             / ("db" if recovery_source == "database" else "missing-db"),
         )
@@ -2428,7 +2431,7 @@ async def test_terminal_retry_startup_releases_recorder(
     logs = list_eval_logs(str(tmp_path))
     assert len(logs) == (2 if failure_stage == "flush" else 1)
     if failure_stage == "flush":
-        written = await read_eval_log_async(failed_loggers[0].location)
+        written = await read_eval_log_async(_initialized_location(failed_loggers[0]))
         assert written.status == "started"
         assert written.samples is not None and len(written.samples) == 1
         assert written.samples[0].error == (prior.samples or [])[0].error
@@ -3206,6 +3209,12 @@ async def test_eval_scoring_hook_cancellation_closes_sample_streams(
     finally:
         for receive in receivers:
             receive.close()
+
+
+def _initialized_location(logger: TaskLogger) -> str:
+    """The location of a logger whose log has been initialised."""
+    assert logger.location is not None
+    return logger.location
 
 
 @solver

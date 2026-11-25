@@ -135,9 +135,35 @@ See [Handling Errors](handling-errors.qmd) for configuration details.
 
 The counts are recorded on each `EvalScore` as `scored_samples` and `unscored_samples`; errored samples are visible per-sample via `sample.error`. These counts describe the inputs to the metrics, after epoch reduction where applicable.
 
-With the default mean reducer, a sample with one correct epoch and one unscored epoch reduces to `1.0`, giving `scored_samples=1` and `unscored_samples=0`. Other reducers can handle unscored values differently; see [Reducing Epochs](metrics.qmd#reducing-epochs).
+With the default mean reducer, a sample with one correct epoch and one unscored epoch reduces to `1.0`, giving `scored_samples=1` and `unscored_samples=0`. Every built-in reducer leaves out unscored epochs; see [Missing and unscored values](#missing-and-unscored-values) for the cases where a reduced score is still unscored.
 
-Individual epoch scores retain the original unscored results. A missing score entry, including a scorer returning `None`, does not add to the unscored count. With multiple scorers, each scorer's metric results have their own counts.
+Individual epoch scores retain the original unscored results. A missing score entry, including a scorer returning `None`, does not add to the unscored count. With multiple scorers, each scorer's metric results have their own counts. Metrics applied per key of a dictionary score (see [Multiple Scorers](multiple-scorers.qmd)) have their own counts for each key.
+
+### Missing and unscored values
+
+`NaN` means unscored: a verdict was expected but not obtained. Inside a dictionary score, a key can also be `None`, which means the value is missing. The two are handled the same way except by `aggregate()`, which applies its `on_missing` setting to `None`:
+
+| Scorer produces | Epoch reducers | Per-key metrics | `aggregate()` |
+|---|---|---|---|
+| `None` (no score) | No score to reduce | Not counted | Not counted |
+| `Score.unscored()` | Left out | Unscored for every key | Skipped |
+| `NaN` under a key | Left out | Unscored for that key | Skipped |
+| `None` under a key | Left out; a key that is `None` in every epoch stays `None` | Unscored for that key | Applies `on_missing` |
+| Key absent | Error if epochs have different keys | Error if the key is in the first dictionary score | Applies `on_missing` |
+
+: {tbl-colwidths=[22,34,22,22]}
+
+A key that is `None` in every epoch reduces to `None`. Otherwise, a reduced value is unscored (`NaN`) when no epoch has a usable value, including when an epoch is `Score.unscored()`. In addition:
+
+- `majority` counts `NaN` and `None` values toward the panel size but never as a vote, so a value needs more than half of the scores passed to the reducer to win. (A scorer that returns `None` produces no score, and an excluded epoch is removed before reduction, so neither is part of the panel.)
+- `pass_at_{k}` and `pass_k_{k}` are unscored when fewer than `k` epochs have a usable value.
+- `at_least_{k}` counts only usable values, so it reduces to `0` when at least one but fewer than `k` epochs have one.
+
+These rules apply when metrics are computed. Reading an existing log does not change the results stored in it. To apply them to an existing log's stored scores without rerunning the scorers, use `recompute_metrics(log)` from `inspect_ai.log`; editing a score also recomputes its log's metrics.
+
+Use `None` for a key when the metric should decide how to treat a missing value, for example with `aggregate("key", mean(), on_missing="zero")`. Use `NaN` when the key should be unscored. Metrics that receive the whole score, including custom metrics and `aggregate()`, get the dictionary with `None` values in place. Unless a metric declares `scores="unreduced"`, that is the dictionary after epoch reduction, so `on_missing` applies to what the reducer returns: a key that is `None` in every epoch, or absent from every epoch. With the default mean reducer, epochs `{"k": 1}` and `{"k": None}` reduce to `{"k": 1.0}`, so `on_missing` does not apply. To count each missing epoch as `0`, return `0` from the scorer, or give `aggregate(..., on_missing="zero")` the unreduced scores (with `Epochs(n, [])`, or in a custom metric declared with `scores="unreduced"`).
+
+The `mean`, `median`, `pass_at_{k}` and `pass_k_{k}` reducers convert each value with their `value_to_float` before leaving out `NaN`. A custom converter must therefore return `NaN` for a `NaN` value to keep that epoch out of the result. `None` values are left out before conversion. `aggregate()` counts the samples it receives, so a sample it skips with `on_missing="skip"` is still counted in `scored_samples`.
 
 ## See also
 

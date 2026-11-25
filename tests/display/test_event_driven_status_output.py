@@ -112,7 +112,7 @@ def test_log_display_reports_row_completed_before_exception(caplog):
     with caplog.at_level(logging.INFO):
         with display.task(task_profile()) as td:
             error = RuntimeError("sample failure")
-            td.complete(TaskError(0, RuntimeError, error, None))
+            td.complete(TaskError.from_exception(0, RuntimeError, error, None))
         with pytest.raises(RuntimeError, match="abandoned"):
             with display.task(task_profile(name="MirrorCode (retry 1 of 1)")) as td:
                 td.complete(TaskCancelled(0, stats))

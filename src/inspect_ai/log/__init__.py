@@ -88,6 +88,13 @@ from ._recover import (
 from ._resolve import resolve_sample_events_data
 from ._retry import retryable_eval_logs
 from ._score import edit_score
+from ._sentinel_stats import (
+    SentinelEvalStats,
+    SentinelHumanReviewCounts,
+    SentinelRemoteStats,
+    SentinelStats,
+    SentinelStepCounts,
+)
 from ._shards._api import (
     ShardMergeResult,
     merge_eval_log_shards,
@@ -136,6 +143,11 @@ __all__ = [
     "EvalSpec",
     "EvalStats",
     "EvalStatus",
+    "SentinelEvalStats",
+    "SentinelHumanReviewCounts",
+    "SentinelRemoteStats",
+    "SentinelStats",
+    "SentinelStepCounts",
     "EvalLogInfo",
     "WriteEvalLogResult",
     "HeadlineMetric",

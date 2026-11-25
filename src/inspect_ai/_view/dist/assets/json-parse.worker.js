@@ -1269,8 +1269,7 @@
 			key: null,
 			prev: null
 		}];
-		while (stack.length > 0) {
-			const frame = stack.pop();
+		for (let frame = stack.pop(); frame; frame = stack.pop()) {
 			const node = frame.node;
 			if (typeof node === "string") {
 				if (node === sentinels.nan || node === sentinels.inf || node === sentinels.ninf) {

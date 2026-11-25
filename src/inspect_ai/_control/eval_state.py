@@ -291,6 +291,10 @@ class EvalState:
     """Epoch count, paired with :attr:`sample_ids` to enumerate the
     planned ``(sample_id, epoch)`` pairs."""
 
+    unregistered_attempts: int = 0
+    """Earlier attempts of the task that ended before registering, since its
+    previous registered attempt. Counted in the task's ``attempts``."""
+
     sample_epochs: list[tuple[str | int, int]] = field(default_factory=list)
     """Planned ``(sample_id, epoch)`` pairs added with an explicit epoch."""
 
@@ -459,6 +463,7 @@ def register_eval(
     will_retry: bool = False,
     task_cancel: "TaskCancel | None" = None,
     dynamic: bool = False,
+    unregistered_attempts: int = 0,
 ) -> EvalState:
     """Initialize tracking for a new eval.
 
@@ -488,6 +493,7 @@ def register_eval(
             will_retry=will_retry,
             task_cancel=task_cancel,
             dynamic=dynamic,
+            unregistered_attempts=unregistered_attempts,
         )
         _eval_states[eval_id] = state
         # A zero-sample eval (``total == 0``, eg. a limit past the dataset) is
@@ -516,6 +522,8 @@ def register_completed_eval(
     total_tokens: int = 0,
     total_messages: int = 0,
     deferred_sample_stats: DeferredStatsProvider | None = None,
+    epochs: int = 1,
+    unregistered_attempts: int = 0,
 ) -> EvalState:
     """Register an eval that has already finished.
 
@@ -524,7 +532,9 @@ def register_completed_eval(
     enter ``task_run.py``, so the per-sample counter path that would
     normally maintain the state never fires. This bulk-equivalent
     sets the terminal counters up-front so ``current_eval_summaries``
-    surfaces the eval as completed.
+    surfaces the eval as completed. The run queue also uses it, with no
+    samples, for a task that ends without registering (cancelled before it
+    started, or failed in startup), so the task stays listed as finished.
 
     ``completed`` / ``errored`` / ``total_messages`` may be provisional
     (header-derived) values refined later by ``deferred_sample_stats`` —
@@ -551,6 +561,8 @@ def register_completed_eval(
             total_tokens=total_tokens,
             total_messages=total_messages,
             deferred_sample_stats=deferred_sample_stats,
+            epochs=epochs,
+            unregistered_attempts=unregistered_attempts,
         )
         _eval_states[eval_id] = state
         return state
@@ -1128,6 +1140,7 @@ def reset_run_registries() -> None:
         reset_process_pause,
         reset_task_pause_gates,
     )
+    from inspect_ai._control.queued_tasks import reset_queued_tasks
     from inspect_ai._control.scoring import reset_score_passes
     from inspect_ai.model._generate_overrides import (
         reset_generate_config_overrides,
@@ -1136,6 +1149,7 @@ def reset_run_registries() -> None:
     from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
     clear_all_eval_states()
+    reset_queued_tasks()
     reset_retry_abandoned()
     reset_gracefully_resolved()
     reset_generate_config_overrides()

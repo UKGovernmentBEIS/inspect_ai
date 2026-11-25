@@ -76,7 +76,7 @@ planned-but-unqueued 409 rows — see the first note below):
 | State | `action=cancel` | `action=score\|error` |
 |---|---|---|
 | task finished / between attempts / task cancel in flight (queued + planned-but-unqueued rows; on the latter only the cancel-in-flight gate is reachable — see the first note below) | **409** (new — mirrors requeue's task-level gates) | same |
-| running (`ActiveSample`, started) | interrupt — unchanged | unchanged (score / error, with the fail-on-error gate) |
+| running (`ActiveSample`, started) | interrupt — unchanged (a repeat is the `changed: false` no-op, first resolution wins) | unchanged (score / error, with the fail-on-error gate) |
 | initializing (`ActiveSample`, `started is None`) | 409 here; since made cancellable — a deferred interrupt that fires as the sample starts — by [`initializing-sample-cancel.md`](initializing-sample-cancel.md) | 409 here; same follow-up (all three actions) |
 | **queued re-run** (pending-requeue key, no `ActiveSample`) | **applied — un-requeue**: the pending entry is withdrawn and the prior terminal record stands | **409** — there is no work to score and no error to record; the message names `--action cancel` (in the departed blind window, every action gets the departed 409 instead — the `--action cancel` hint would immediately 409 there) |
 | **never started** (planned, *at the queue* — arrival-stamped, not departed — no `ActiveSample`, no record, fanout open) | **applied — cancelled before start**: removed from the queue, counted `cancelled`, absent from the log | **409** — same message (upgrades today's 404 to a truthful answer) |
