@@ -79,6 +79,16 @@ class CliResult(NamedTuple):
     def kinds(self) -> set[str]:
         return {kind for kind, _ in self.findings()}
 
+    def stopped(self) -> list[str]:
+        """The key of each ``stopped`` line."""
+        return [
+            rest.partition(":")[0]
+            for kind, _, rest in (
+                line.partition(" ") for line in self.output.splitlines()
+            )
+            if kind == "stopped"
+        ]
+
 
 @dataclass(frozen=True)
 class MotoStore:

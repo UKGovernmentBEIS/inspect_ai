@@ -404,6 +404,100 @@ whose .eval file is gone is a finding unless another eval names it, and
 then it is listed. The start record (its `prior_eval_id` and eval spec)
 serves all three.
 
+## Stopped attempts and evals
+
+Eric's decision, Nov-25: "I'm interested in the honest run that stops
+partway through. why is it considered a validation failure? we should be
+able to validate that every that was written so far is valid." And: "I'd
+like the validator to record that it stopped rather than failed
+validation. How to interpret what that means is a separate issue".
+
+Changes:
+
+1. **Stopped, not a finding.** A sample attempt with no closing record is
+   listed in `ValidationReport.stopped` (its key prefix), and
+   `inspect validate` prints `stopped <prefix>: No closing record: cut
+   short, or its host stopped writing.` before the count. The exit code
+   does not change. Every record that the attempt wrote is still checked:
+   nonce, sequence numbers, record type, event versions, malformed
+   records. `missing_closing` is gone from `FindingKind`.
+2. **One list for retries too.** The `retried` list and its
+   `retry_on_error` condition are gone. A retried attempt has no closing
+   record, so it is in `stopped`.
+3. **Evals.** An eval with no closing record is in `stopped` (its eval
+   id). Checks that need the eval closing record (`unlisted_attempt`)
+   are skipped, as before.
+4. **A sample in the .eval file needs a closed attempt.** Built as first
+   briefed, a .eval sample whose only attempt has no closing record was
+   not compared and not reported: a compromised process could skip a
+   sample's closing record and then change its confirmed events in the
+   .eval copy (`test_remove_sample_closing` passed with "0 sample(s)
+   compared"). That breaks the documented protection against edits by a
+   compromised eval process. With the coordinator's go (option a), the
+   `unstored_sample` check now takes the .eval samples with no closed
+   attempt, not the ones with no records. A reused sample already needed
+   a closed attempt in the eval that ran it.
+5. **A finished .eval file needs its eval closing record.** The same rule
+   one level up: when the eval has no closing record and its .eval file
+   has a status other than `started`, the validator reports
+   `missing_eval_closing`. A .eval file that is still `started` (the host
+   stopped before it finished the file) only lists the eval as stopped.
+
+Tests (`tests/log/test_addonly_store.py`):
+
+- `test_stopped_attempt_records_checked[None]`: an attempt and an eval
+  with no closing record give no finding and are both listed.
+  `[sequence_gap]` and `[nonce]`: the stopped attempt's records still give
+  these findings.
+- `test_eval_host_stops_before_finish`: no eval closing record and a .eval
+  file still `started`: 0 findings, the eval listed, its sample compared.
+- `test_remove_eval_closing`: `missing_eval_closing`, the eval listed.
+- `test_remove_sample_closing`: `unstored_sample`, the attempt listed.
+- The three honest cancel cases from the reviews of 901a1f6fb. Each gave
+  `missing_closing` at 66522b474 and gives 0 findings now, with the
+  attempt listed:
+  `test_eval_stopped_while_hook_waits_lists_stopped[scoring]` (s0 waits in
+  `on_sample_scoring` when s1's error stops the eval),
+  `[attempt_end]` (with `retry_on_error`, s0 waits in its attempt end hook
+  before the retry), and
+  `test_eval_stopped_while_retry_waits_lists_stopped` (with
+  `retry_on_error` and one sample slot, a retry still waits for the slot
+  when the eval stops).
+- `test_failed_write_stops_eval` and `test_failed_buffer_insert_stops_sample`
+  now expect the findings below.
+
+Honest runs that still give a finding (documented as known limits):
+
+- A sample whose write to the store fails, or that has an event the
+  sample buffer cannot insert, writes no closing record but is logged with
+  its error: `unstored_sample`. Before, these gave `missing_closing`.
+- An eval that finishes its .eval file and then cannot write its eval
+  closing record (the eval closing record is written after the .eval file
+  is finished): `missing_eval_closing`, as before.
+
+The completion shield in `run.py` (`completion_scope`) and the shielded
+put in `SampleRecordWriter._put` are still needed. With each removed in a
+copy of the tree: without the put shield, a sample cancelled at a
+boundary is logged with no closing record, so
+`test_eval_retry_after_cancel_at_boundary_validates[True]` and `[False]`
+give `unstored_sample`. Without the completion shield, a sample cancelled
+after its closing record and before it is logged gives `missing_sample`
+in the retry (`test_eval_retry_after_cancel_in_close_validates[closing]`).
+A sample cancelled between its last record and its closing record
+(`[2]`) now gives only a stopped attempt, so that part of the shield is
+not needed for validation; the docs still promise that a scored sample
+writes its closing record and is logged when the eval is cancelled.
+
+Open question: how to interpret a stopped attempt or eval. It can be an
+honest cancel or crash, but a compromised host can also stop writing to
+hide what a sample did. The validator lists it and does not decide.
+
+After this change, the guarantees are: every record in the store is
+checked, whether or not its attempt or eval closed; and every sample in a
+.eval file, and every finished .eval file, must match a closing record in
+the store. An attempt or eval with no closing record is listed as
+stopped.
+
 ## The evals that were run
 
 All use mockllm with a scripted output function
@@ -702,6 +796,8 @@ changed decisions 2, 3, 5 and 6, and added 14 and 15; each change is marked.
    then reports the attempt as cut short (`test_failed_write_stops_eval`,
    which removes the eval host's write permission from inside a tool).
    *Extended in 1b:* the same holds after a failed buffer insert.
+   *Changed Nov-25:* the attempt is listed as stopped; the logged sample
+   gives `unstored_sample`.
 7. A failed write fails the eval even with `fail_on_error=False` and
    `retry_on_error` set.
 8. The sample closing record is written after scoring and before the .eval
@@ -761,7 +857,9 @@ for each other, validator scope). These remain or are new:
    stops the sample" cannot apply when no boundary follows (scoring with no
    model call). The sample is logged; the store has no closing record for
    it, so the validator reports it cut short. The plan could say this is
-   the expected result.
+   the expected result. (*Nov-25:* the attempt is listed as stopped, and
+   the logged sample gives `unstored_sample`; see
+   [Stopped attempts and evals](#stopped-attempts-and-evals).)
 
 ## What a real build would change
 
@@ -875,6 +973,15 @@ At 408cf8bd0, moto server only:
   (review round 3, fix 2). Eval-host keys can forge such a later eval.
 - A copied errored sample deleted from a retry's .eval, before the retry
   runs it again, is not reported (review round 3, fix 4).
+- A stopped attempt or eval is listed, not a finding. How to interpret it
+  (an honest cancel or crash, or a compromised host that stops writing to
+  hide what a sample did) is an open question. A compromised process that
+  stops writing an attempt, and keeps the sample out of the .eval file or
+  writes a later closed attempt, leaves the stopped attempt's events in
+  the store only.
+- A failed write or a failed buffer insert gives `unstored_sample`, and an
+  eval closing record that cannot be written after the .eval file is
+  finished gives `missing_eval_closing`, for runs that were not changed.
 
 ## Not tested
 

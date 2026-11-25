@@ -54,7 +54,6 @@ FindingKind = Literal[
     "missing_start",
     "nonce",
     "sequence_gap",
-    "missing_closing",
     "record_count",
     "late_event_version",
     "event_without_uuid",
@@ -90,9 +89,11 @@ class ValidationReport(BaseModel):
     records: list[StoredRecordInfo]
     findings: list[Finding]
     samples_compared: int
-    retried: list[str] = []
-    """Attempts with no closing record whose sample has a later closed attempt,
-    when the eval's ``retry_on_error`` allows the retry. Listed, not findings."""
+    stopped: list[str] = []
+    """Evals and sample attempts with no closing record: cut short, or their
+    host stopped writing. Listed, not findings. Their records are still
+    checked. A sample in a .eval file still needs a closed attempt, and a
+    finished .eval file its eval closing record."""
     prior_without_file: dict[str, list[str]] = {}
     """Evals with no .eval file, with the later evals that name each one as
     their prior eval. Listed, not findings: eval_set's ``retry_cleanup``
@@ -114,7 +115,8 @@ class _StoredEval(NamedTuple):
     """One eval's records, checked; what the .eval comparison needs."""
 
     findings: list[Finding]
-    retried: list[str]
+    stopped: list[str]
+    """The eval id and attempt prefixes with no closing record."""
     spec: EvalSpec | None
     """The start record's eval spec (None without a start record)."""
     closing: EvalClosingRecord | None
@@ -250,7 +252,7 @@ def validate_store(
         ),
         findings=findings,
         samples_compared=sum(c.samples_compared for c in compared.values()),
-        retried=[key for e in stored.values() for key in e.retried],
+        stopped=[key for e in stored.values() for key in e.stopped],
         prior_without_file={
             eval_id: c.named_by for eval_id, c in compared.items() if c.named_by
         },
@@ -303,7 +305,7 @@ def _eval_files(log_dir: str) -> dict[str, list[str]]:
 
 def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
     findings: list[Finding] = []
-    retried: list[str] = []
+    stopped: list[str] = []
 
     def finding(kind: FindingKind, message: str, key: str | None = None) -> None:
         findings.append(Finding(kind=kind, eval_id=eval_id, key=key, message=message))
@@ -331,10 +333,9 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
     start = stored.get(f"{eval_id}/{START}")
     if start is None:
         finding("missing_start", "No start record.")
-        return _StoredEval(findings, retried, None, None, set(), {}, None)
+        return _StoredEval(findings, stopped, None, None, set(), {}, None)
     assert isinstance(start, StartRecord)
     nonce = start.nonce
-    retry_on_error = start.eval.config.retry_on_error or 0
 
     # attempts: "<eval>/<sample>.<epoch>/<attempt>/<seq|closing>"
     attempts: dict[tuple[str, str], dict[str, StoreRecord]] = defaultdict(dict)
@@ -349,17 +350,12 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
             attempts[(parts[1], parts[2])][parts[3]] = record
 
     if eval_closing is None:
-        finding("missing_eval_closing", "No closing record: the eval was cut short.")
+        stopped.append(eval_id)
     listed = {
         (sample_key_part(a.sample_id, a.epoch), str(a.attempt))
         for a in (eval_closing.samples if eval_closing else [])
     }
 
-    closed = {
-        (sample_part, int(attempt))
-        for (sample_part, attempt), records in attempts.items()
-        if CLOSING in records
-    }
     final_attempts: dict[str, _FinalAttempt] = {}
     for (sample_part, attempt), records in sorted(attempts.items()):
         prefix = f"{eval_id}/{sample_part}/{attempt}"
@@ -374,13 +370,7 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
             finding("sequence_gap", f"Sequence numbers {seqs} have a gap.", prefix)
         closing = records.get(CLOSING)
         if closing is None:
-            # attempt n is retried only when retry_on_error allows attempt n + 1
-            if int(attempt) <= retry_on_error and any(
-                part == sample_part and later > int(attempt) for part, later in closed
-            ):
-                retried.append(prefix)
-            else:
-                finding("missing_closing", "No closing record: cut short.", prefix)
+            stopped.append(prefix)
         else:
             assert isinstance(closing, SampleClosingRecord)
             if seqs and max(seqs) > closing.records or len(seqs) != closing.records:
@@ -398,7 +388,7 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
 
     return _StoredEval(
         findings,
-        retried,
+        stopped,
         start.eval,
         eval_closing,
         {sample_part for sample_part, _ in attempts},
@@ -419,8 +409,8 @@ def _compare_eval_file(
 ) -> _Compared:
     """Compare the eval's .eval file with its records.
 
-    A .eval sample with no records of its own is one a retry reused: it is
-    compared with the records of the earlier eval that ran it.
+    A .eval sample with no closed attempt of its own is one a retry reused:
+    it is compared with the records of the earlier eval that ran it.
     """
     findings: list[Finding] = []
 
@@ -444,11 +434,20 @@ def _compare_eval_file(
             )
         return _Compared(findings, 0, named_by)
 
-    if stored.closing is not None:
-        fields = {"status", "stats", "results"}
-        header = read_eval_log(eval_file, header_only=True).model_dump(
-            mode="json", include=fields
-        )
+    fields = {"status", "stats", "results"}
+    header = read_eval_log(eval_file, header_only=True).model_dump(
+        mode="json", include=fields
+    )
+    if stored.closing is None:
+        # a .eval file that is not still "started" was finished, and the
+        # eval writes its closing record after that
+        if header["status"] != "started":
+            finding(
+                "missing_eval_closing",
+                f"The .eval file's status is {header['status']}, and the store "
+                "has no eval closing record.",
+            )
+    else:
         closing_fields = stored.closing.model_dump(mode="json", include=fields)
         if changed := sorted(
             f for f in fields if not _same_json(header.get(f), closing_fields.get(f))
@@ -464,15 +463,15 @@ def _compare_eval_file(
         for sample_part, (closing, records) in stored.final_attempts.items()
     ]
     eval_file_samples = _eval_file_samples(eval_file)
-    for sample_part in sorted(eval_file_samples - stored.sample_parts):
+    for sample_part in sorted(eval_file_samples - stored.final_attempts.keys()):
         earlier = _earlier_attempt(evals, stored.prior_eval_id, sample_part)
         if earlier is None:
             finding(
                 "unstored_sample",
-                "In the .eval file, with no records in the store"
+                "In the .eval file, with no closed attempt in the store"
                 + (
-                    f", and no closed attempt in the prior eval "
-                    f"{stored.prior_eval_id} or the evals it reused from."
+                    f" for this eval, the prior eval {stored.prior_eval_id} "
+                    "or the evals it reused from."
                     if stored.prior_eval_id
                     else "."
                 ),

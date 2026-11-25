@@ -35,8 +35,10 @@ def validate_command(log_dir: str, store: str, verbose: bool) -> None:
     if verbose:
         for record in report.records:
             click.echo(f"{record.arrival.isoformat()}  {record.key}")
-    for key in report.retried:
-        click.echo(f"retried {key}: No closing record; a later attempt has one.")
+    for key in report.stopped:
+        click.echo(
+            f"stopped {key}: No closing record: cut short, or its host stopped writing."
+        )
     for eval_id, later_ids in report.prior_without_file.items():
         for later_id in later_ids:
             click.echo(

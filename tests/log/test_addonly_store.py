@@ -46,12 +46,11 @@ from inspect_ai._util.registry import _registry
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
 from inspect_ai.event import Event, InfoEvent, ScoreEvent, ToolEvent
-from inspect_ai.hooks import Hooks, SampleEnd, hooks
+from inspect_ai.hooks import Hooks, SampleAttemptEnd, SampleEnd, SampleScoring, hooks
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log, write_eval_log
 from inspect_ai.log._addonly._records import (
     CLOSING,
     START,
-    EvalClosingRecord,
     SampleAttemptRef,
     SampleClosingRecord,
     SampleRecord,
@@ -65,6 +64,7 @@ from inspect_ai.log._addonly._store import (
     sample_key_part,
 )
 from inspect_ai.log._addonly._validate import (
+    FindingKind,
     ValidationReport,
     _event_version_problems,
     _read_eval,
@@ -448,7 +448,7 @@ def fail_attempts(failures: dict[str, int]) -> Solver:
 def test_retry_on_error_validates(
     evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
 ) -> None:
-    """Attempt 1 errors and is retried: it has no closing record, attempt 2 has one."""
+    """Attempt 1 errors and is retried: it has no closing record, so it is listed as stopped."""
     log = eval(
         Task(
             dataset=[Sample(id="s0", input="hi", target="Default")],
@@ -466,54 +466,7 @@ def test_retry_on_error_validates(
     result = validate_cli(evalhost_env, tmp_path)
     assert result.exit_code == 0, result.output
     assert result.findings() == []
-    assert (
-        f"retried {log.eval.eval_id}/s0.1/1: No closing record; a later attempt "
-        "has one.\n" in result.output
-    )
-
-
-@pytest.mark.parametrize("retry_on_error", [None, 1])
-def test_retried_needs_retry_on_error(
-    clean_run: CleanRun, retry_on_error: int | None
-) -> None:
-    """An attempt with no closing record is retried only when retry_on_error allows it.
-
-    A process that has the nonce writes attempt 2 as a copy of attempt 1,
-    and does not write attempt 1's closing record. Without retry_on_error,
-    the eval cannot have retried attempt 1.
-    """
-    eval_id = clean_run.eval_id
-    seqs = range(1, clean_run.records() + 1)
-    adapter: TypeAdapter[StoreRecord] = TypeAdapter(StoreRecord)
-    records = {
-        key: adapter.validate_json(clean_run.read(stored_key))
-        for key, stored_key in [
-            (f"{eval_id}/{START}", f"{eval_id}/{START}"),
-            (f"{eval_id}/{CLOSING}", f"{eval_id}/{CLOSING}"),
-            *[(clean_run.sample_key(seq),) * 2 for seq in seqs],
-            *[
-                (clean_run.sample_key(last, attempt=2), clean_run.sample_key(last))
-                for last in [*seqs, CLOSING]
-            ],
-        ]
-    }
-    start = records[f"{eval_id}/{START}"]
-    assert isinstance(start, StartRecord)
-    start.eval.config.retry_on_error = retry_on_error
-    eval_closing = records[f"{eval_id}/{CLOSING}"]
-    assert isinstance(eval_closing, EvalClosingRecord)
-    eval_closing.samples.append(SampleAttemptRef(sample_id="s0", epoch=1, attempt=2))
-
-    stored = _read_eval(eval_id, list(records), records.__getitem__)
-    attempt_1 = f"{eval_id}/s0.1/1"
-    if retry_on_error:
-        assert stored.findings == []
-        assert stored.retried == [attempt_1]
-    else:
-        assert [(f.kind, f.key) for f in stored.findings] == [
-            ("missing_closing", attempt_1)
-        ]
-        assert stored.retried == []
+    assert result.stopped() == [f"{log.eval.eval_id}/s0.1/1"], result.output
 
 
 @solver
@@ -893,6 +846,130 @@ def test_eval_retry_after_cancel_at_boundary_validates(
     assert result.exit_code == 0, result.output
     assert result.findings() == []
     assert "2 eval(s), 6 sample(s) compared, 0 finding(s)." in result.output
+
+
+class StuckScoringHook(Hooks):
+    """The first sample scoring hook (s0's: s1 waits for it) waits as `StuckSampleEndHook` does."""
+
+    async def on_sample_scoring(self, data: SampleScoring) -> None:
+        if not _cancel_gates["s0_hook"].is_set():
+            _cancel_gates["s0_hook"].set()
+            with anyio.move_on_after(30):
+                await anyio.Event().wait()
+            _cancel_gates["hook_timed_out"].set()
+
+
+class StuckRetryHook(Hooks):
+    """s0's attempt end hook before its retry waits as `StuckSampleEndHook` does."""
+
+    async def on_sample_attempt_end(self, data: SampleAttemptEnd) -> None:
+        if data.summary.id == "s0" and data.will_retry:
+            _cancel_gates["s0_hook"].set()
+            with anyio.move_on_after(30):
+                await anyio.Event().wait()
+            _cancel_gates["hook_timed_out"].set()
+
+
+@solver
+def fail_once_s0_hook_waits(s0_fails: bool) -> Solver:
+    """s1 raises once s0 waits in a hook. With ``s0_fails``, s0 raises too."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state = await generate(state)
+        if state.sample_id == "s1":
+            assert await anyio.to_thread.run_sync(_cancel_gates["s0_hook"].wait, 30)
+            raise RuntimeError("attempt fails")
+        if s0_fails:
+            raise RuntimeError("attempt fails")
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("hook", ["scoring", "attempt_end"])
+def test_eval_stopped_while_hook_waits_lists_stopped(
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    monkeypatch: pytest.MonkeyPatch,
+    hook: str,
+) -> None:
+    """s1 fails the eval while s0 waits in a hook, before its closing record.
+
+    In its sample scoring hook, or (with retry_on_error) in its attempt end
+    hook before the retry. The eval's failure cancels the hook, so s0 is not
+    logged, and its attempt is listed as stopped.
+    """
+    monkeypatch.setitem(_cancel_gates, "s0_hook", threading.Event())
+    monkeypatch.setitem(_cancel_gates, "hook_timed_out", threading.Event())
+    hooks("stuck_hook", "Waits in a hook of s0.")(
+        StuckScoringHook if hook == "scoring" else StuckRetryHook
+    )
+    try:
+        log = eval(
+            Task(
+                dataset=[
+                    Sample(id=f"s{i}", input="hi", target="Default") for i in range(2)
+                ],
+                solver=fail_once_s0_hook_waits(s0_fails=hook == "attempt_end"),
+                scorer=includes(),
+            ),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            display="none",
+            max_samples=2,
+            retry_on_error=1 if hook == "attempt_end" else None,
+            tamper_evident_store=evalhost_env.url,
+        )[0]
+    finally:
+        del _registry["hooks:stuck_hook"]
+    assert log.status == "error"
+    assert not _cancel_gates["hook_timed_out"].is_set()
+    assert [s.id for s in log.samples or []] == ["s1"]
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
+    # with retry_on_error, s1's first attempt is stopped too (its retry closed)
+    assert result.stopped() == [
+        f"{log.eval.eval_id}/s{i}.1/1"
+        for i in ([0, 1] if hook == "attempt_end" else [0])
+    ], result.output
+
+
+def test_eval_stopped_while_retry_waits_lists_stopped(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """The eval fails while a retry waits for a free sample slot.
+
+    One slot, every attempt fails, and a retry goes to the back of the queue.
+    The first retry fails the eval. The second retry takes the slot and is
+    cancelled. The third retry never starts, so its sample is not logged.
+    Each first attempt is listed as stopped.
+    """
+    samples = [f"s{i}" for i in range(3)]
+    log = eval(
+        Task(
+            dataset=[Sample(id=id, input="hi", target="Default") for id in samples],
+            solver=fail_attempts({id: 2 for id in samples}),
+            scorer=includes(),
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+        max_samples=1,
+        retry_on_error=1,
+        tamper_evident_store=evalhost_env.url,
+    )[0]
+    assert log.status == "error"
+    assert len(log.samples or []) == 2
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
+    assert result.stopped() == [f"{log.eval.eval_id}/{id}.1/1" for id in samples], (
+        result.output
+    )
 
 
 def test_task_retry_attempts_validates(
@@ -1829,7 +1906,8 @@ def test_delete_marker(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
 def test_remove_sample_closing(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
     clean_run.store.remove_version(clean_run.sample_key(CLOSING))
     result = validate_cli(clean_run.store, clean_run.log_dir)
-    assert_fails_with(result, "missing_closing")
+    assert_fails_with(result, "unstored_sample")
+    assert result.stopped() == [f"{clean_run.eval_id}/s0.1/1"]
 
 
 def test_remove_last_record(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
@@ -1845,9 +1923,61 @@ def test_remove_middle_record(clean_run: CleanRun, validate_cli: ValidateCli) ->
 
 
 def test_remove_eval_closing(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """The eval is listed as stopped, and its finished .eval file is a finding."""
     clean_run.store.remove_version(f"{clean_run.eval_id}/{CLOSING}")
     result = validate_cli(clean_run.store, clean_run.log_dir)
     assert_fails_with(result, "missing_eval_closing")
+    assert result.stopped() == [clean_run.eval_id]
+
+
+def test_eval_host_stops_before_finish(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """No eval closing record, and a .eval file still "started": listed as stopped.
+
+    As when the host stops writing before the eval finishes: its .eval file
+    has no header.json yet.
+    """
+    clean_run.store.remove_version(f"{clean_run.eval_id}/{CLOSING}")
+    with zipfile.ZipFile(clean_run.location) as zf:
+        entries = {
+            info.filename: zf.read(info)
+            for info in zf.infolist()
+            if info.filename != "header.json"
+        }
+    with zipfile.ZipFile(clean_run.location, "w", zipfile.ZIP_DEFLATED) as zf:
+        for entry, data in entries.items():
+            zf.writestr(entry, data)
+    assert read_eval_log(clean_run.location, header_only=True).status == "started"
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert result.exit_code == 0, result.output
+    assert result.stopped() == [clean_run.eval_id]
+    assert "1 eval(s), 1 sample(s) compared, 0 finding(s)." in result.output
+
+
+@pytest.mark.parametrize("change", [None, "sequence_gap", "nonce"])
+def test_stopped_attempt_records_checked(
+    clean_run: CleanRun, change: FindingKind | None
+) -> None:
+    """An attempt and an eval with no closing record are listed as stopped.
+
+    Their records are still checked: a gap in the sequence numbers or a
+    wrong nonce is a finding.
+    """
+    eval_id = clean_run.eval_id
+    adapter: TypeAdapter[StoreRecord] = TypeAdapter(StoreRecord)
+    keys = [f"{eval_id}/{START}"] + [
+        clean_run.sample_key(seq) for seq in range(1, clean_run.records() + 1)
+    ]
+    records = {key: adapter.validate_json(clean_run.read(key)) for key in keys}
+    if change == "sequence_gap":
+        del records[clean_run.sample_key(2)]
+    if change == "nonce":
+        records[clean_run.sample_key(1)].nonce = FORGED_NONCE
+
+    stored = _read_eval(eval_id, list(records), records.__getitem__)
+    assert [f.kind for f in stored.findings] == ([change] if change else [])
+    assert stored.stopped == [eval_id, f"{eval_id}/s0.1/1"]
 
 
 def test_remove_start(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
@@ -2003,8 +2133,15 @@ def test_failed_write_stops_eval(
         assert log.status == "error"
         assert log.error and "AccessDenied" in log.error.message
 
-        kinds = [f.kind for f in validate(store, tmp_path).findings]
-        assert "missing_closing" in kinds
+        # the sample is logged with its error, and the store refused its
+        # closing record and the eval's, as it refused the record
+        report = validate(store, tmp_path)
+        assert [f.kind for f in report.findings] == [
+            "missing_eval_closing",
+            "unstored_sample",
+        ]
+        eval_id = log.eval.eval_id
+        assert report.stopped == [eval_id, f"{eval_id}/1.1/1"]
 
 
 class _FlakyPut:
@@ -2107,8 +2244,9 @@ def test_failed_buffer_insert_stops_sample(
     # the boundary before the next request stopped it
     assert requests == [0]
 
-    kinds = [f.kind for f in validate(evalhost_env, tmp_path).findings]
-    assert "missing_closing" in kinds
+    report = validate(evalhost_env, tmp_path)
+    assert report.stopped == [f"{log.eval.eval_id}/1.1/1"]
+    assert [f.kind for f in report.findings] == ["unstored_sample"]
 
 
 # ------------------------------------------------------------------- writer

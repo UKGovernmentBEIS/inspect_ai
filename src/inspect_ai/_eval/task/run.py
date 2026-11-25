@@ -3789,9 +3789,8 @@ async def _task_run_sample_attempt(
 
             # complete the sample if there is no error or if there is no retry_on_error in play
             # (with the add-only store on, also when the eval is cancelled,
-            # until the sample is logged: a sample stopped between its records
-            # and its closing record, or before it is logged, would fail
-            # validation)
+            # until the sample is logged: a sample stopped after its closing
+            # record and before it is logged fails a retry's validation)
             with anyio.CancelScope(
                 shield=isinstance(failure, _AttemptCancel)
                 or sample_record_writer is not None
