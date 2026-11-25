@@ -185,7 +185,7 @@ class Sidecar:
 
     async def _call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         handling = sys.exception()
-        failed: str | None = None
+        failed: Exception | None = None
         answer: Any = None
         try:
             response = await self.client.post(
@@ -201,10 +201,13 @@ class Sidecar:
             )
             answer = response.json()
         except Exception as ex:
-            failed = self._without_secrets(_described(ex, handling))
+            failed = ex
         if failed is not None:
-            # raised outside the handler, so that it has no context
-            raise SidecarCallError(method, failed)
+            # described and raised outside the handler, so that neither this
+            # error nor one in describing it is chained to the failure
+            described = self._without_secrets(_described(failed, handling))
+            del failed
+            raise SidecarCallError(method, described)
         if not isinstance(answer, dict):
             raise SidecarCallError(method, "the answer isn't JSON-RPC")
         error = answer.get("error")
@@ -310,6 +313,8 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
     base_url = str(client.sdk.base_url)
     origin = _origin(base_url)
     shown = without_credentials(origin)
+    failed: Exception | None = None
+    response: Any = None
     try:
         response = await client.sdk.get(
             f"{origin}/sentinel/info",
@@ -317,8 +322,14 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
             options={"max_retries": 0, "timeout": PROBE_TIMEOUT},
         )
     except Exception as ex:
-        failure = _replaced(str(ex), _credentials(base_url))
-        return NoSidecar(*_no_answer(shown, getattr(ex, "status_code", None), failure))
+        failed = ex
+    if failed is not None:
+        # redacted outside the handler, so that an error in redacting isn't
+        # chained to the failure
+        failure = _replaced(str(failed), _credentials(base_url))
+        return NoSidecar(
+            *_no_answer(shown, getattr(failed, "status_code", None), failure)
+        )
 
     try:
         info = response.json()
@@ -386,8 +397,8 @@ def _credentials(url: str) -> list[tuple[str, str]]:
     # whole user info goes, and each of its parts is redacted, as is the
     # Basic authorization httpx sends for it. So is each query value, or the
     # name of an item with none, and the fragment. The slash the anthropic
-    # SDK puts on the end of its base URL is left off, as redacting a value
-    # covers it with the slash.
+    # SDK puts on the end of its base URL's query is left off, as redacting a
+    # value covers it with the slash.
     import httpx2
 
     secrets: list[tuple[str, str]] = []
@@ -415,7 +426,7 @@ def _credentials(url: str) -> list[tuple[str, str]]:
         name, _, value = item.partition("=")
         add(value or name, REDACTED)
         add(item, REDACTED)
-    add(parts.fragment.removesuffix("/"), REDACTED)
+    add(parts.fragment, REDACTED)
     return [(secret, shown) for secret, shown in secrets if secret]
 
 
