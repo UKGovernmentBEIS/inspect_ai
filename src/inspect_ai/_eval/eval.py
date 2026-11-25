@@ -47,9 +47,7 @@ from inspect_ai._display.core.active import display as task_display
 from inspect_ai._eval.task.scan import Scanners, scan_context
 from inspect_ai._sentinel._config import (
     SentinelProxy,
-    Sentinels,
     SentinelSpec,
-    resolve_retry_sentinel_spec,
     resolve_sentinel_spec,
     sentinel_config,
 )
@@ -134,7 +132,6 @@ from .task.images import InputMediaPolicy
 from .task.resolved import ResolvedTask, resolved_model_names
 from .task.sample_source import HANDLE_DATASET_NAME
 from .task.tasks import Tasks
-from .task.util import task_run_dir
 
 log = logging.getLogger(__name__)
 
@@ -880,15 +877,9 @@ async def _eval_async_inner(
             input_media_policy="trusted_pre_run",
             review=review,
         )
-        eval_sentinel: Sentinels | None = None
-        if sentinel is not None:
-            eval_sentinel = resolve_sentinel_spec(sentinel)
-        elif isinstance(tasks, PreviousTask) and tasks.sentinel is not None:
-            # built only now that the task file has registered the factories
-            # the logged sentinel names
-            eval_sentinel = resolve_retry_sentinel_spec(
-                tasks.sentinel, task_run_dir(resolved_tasks[0].task)
-            )
+        eval_sentinel = (
+            resolve_sentinel_spec(sentinel) if sentinel is not None else None
+        )
 
         # warn and return empty string if we resolved no tasks
         if len(resolved_tasks) == 0:
@@ -1866,6 +1857,7 @@ async def eval_retry_async(
         )
         approval = eval_log.eval.config.approval
         review = eval_log.eval.config.review
+        sentinel = eval_log.eval.config.sentinel
         retry_sentinel_proxy = (
             sentinel_proxy
             if sentinel_proxy is not None
@@ -2006,7 +1998,6 @@ async def eval_retry_async(
                     ),
                     log=eval_log,
                     log_info=None,
-                    sentinel=eval_log.eval.config.sentinel,
                 ),
                 model=model,
                 model_roles=model_roles,
@@ -2021,6 +2012,7 @@ async def eval_retry_async(
                 metadata=metadata,
                 approval=approval,
                 review=review,
+                sentinel=sentinel,
                 sentinel_proxy=retry_sentinel_proxy,
                 notification=notification,
                 log_level=log_level,

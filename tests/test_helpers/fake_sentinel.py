@@ -16,9 +16,8 @@ escalations. There are no compositions (`observe_only`, `threshold`,
 """
 
 import inspect
-from collections.abc import Awaitable, Callable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
-from contextvars import ContextVar
+import os
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import wraps
 from importlib import metadata
@@ -415,6 +414,53 @@ def _build(
     return cast(Callable[..., object], factory)(**layer.params, **nested)
 
 
+_SOURCE_REFERENCES = "__fake_sentinel_source_references__"
+
+
+def source_references(*params: str) -> Callable[[F], F]:
+    """Mark params whose value is a `"<file>.py:name"` reference, relative to where the factory is called, as `inspect_sentinel` marks `human(channel=)`. Applied below `@monitor` or `@protocol`."""
+
+    def decorate(factory: F) -> F:
+        setattr(factory, _SOURCE_REFERENCES, params)
+        return factory
+
+    return decorate
+
+
+def rebase_config(config: SentinelConfig, from_dir: str, to_dir: str) -> SentinelConfig:
+    """The marked params' relative `.py` files, rebased from `from_dir` to `to_dir`, as `inspect_sentinel`'s `rebase_config()`."""
+
+    def layer(value: Any) -> Any:
+        if isinstance(value, list):
+            return [layer(entry) for entry in value]
+        if not isinstance(value.get("name"), str):
+            return {name: layer(entry) for name, entry in value.items()}
+        factory = registry_lookup("protocol", value["name"]) or registry_lookup(
+            "monitor", value["name"]
+        )
+        marked = getattr(factory, _SOURCE_REFERENCES, ())
+        params = {
+            key: rebase(param) if key in marked else param
+            for key, param in value["params"].items()
+        }
+        nested = {k: layer(v) for k, v in value.items() if k not in ENTRY_KEYS}
+        return {**value, "params": params, **nested}
+
+    def rebase(reference: str) -> str:
+        file, _, name = reference.rpartition(":")
+        if not file.endswith(".py") or Path(file).is_absolute():
+            return reference
+        rebased = os.path.relpath(
+            Path(from_dir, file).resolve(), Path(to_dir).resolve()
+        )
+        return f"{Path(rebased).as_posix()}:{name}"
+
+    return SentinelConfig.model_validate(layer(config.model_dump()))
+
+
+ENTRY_KEYS = ("name", "params", "version", "meta")
+
+
 def config_from_sentinel(sentinels: Sentinels) -> SentinelConfig:
     if isinstance(sentinels, list):
         layer: Any = [getattr(s, _ENTRY) for s in cast(list[object], sentinels)]
@@ -578,25 +624,3 @@ def report_version(
 
     monkeypatch.setattr("inspect_ai._util.version.version", version)
     monkeypatch.setattr("inspect_ai._sentinel._config.version", version)
-
-
-_source_fallback: ContextVar[Path | None] = ContextVar("source_fallback", default=None)
-
-
-@contextmanager
-def source_fallback(directory: str) -> Iterator[None]:
-    token = _source_fallback.set(Path(directory).resolve())
-    try:
-        yield
-    finally:
-        _source_fallback.reset(token)
-
-
-def source_path(file: str) -> Path:
-    """A source file a configuration names by a relative path, as `inspect_sentinel` finds it: in the working directory, else in `source_fallback()`'s directory where it is there."""
-    path = Path.cwd() / file
-    fallback = _source_fallback.get()
-    if fallback is None or path.exists():
-        return path
-    second = fallback / file
-    return second if second.exists() else path

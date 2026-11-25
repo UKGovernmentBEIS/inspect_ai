@@ -1,8 +1,6 @@
 import importlib
-import os
 import typing
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from contextlib import nullcontext
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeAlias, Union, cast
 
@@ -21,7 +19,6 @@ from pydantic import (
 from inspect_ai._util.config import parse_cli_args
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import exists, local_path
-from inspect_ai._util.path import chdir_python
 from inspect_ai._util.registry import is_registry_object
 from inspect_ai._util.version import has_required_version
 
@@ -220,24 +217,6 @@ def resolve_sentinel_spec(spec: SentinelSpec) -> Sentinels:
     return sentinels
 
 
-def resolve_retry_sentinel_spec(spec: SentinelSpec, task_dir: str) -> Sentinels:
-    # a logged sentinel, rebuilt for a retry in the task file's directory,
-    # where a sentinel made in the task file recorded its relative paths; a
-    # relative source file it names that is not there is looked for in the
-    # directory the retry runs in, where an eval's own sentinel recorded them.
-    # inspect_sentinel decides, on whether the file exists; one older than
-    # its `source_fallback()` looks in the task file's directory only
-    _require_sentinel()
-    integration = importlib.import_module("inspect_sentinel._integration")
-    source_fallback = getattr(integration, "source_fallback", None)
-    retry_dir = os.getcwd()
-    with (
-        chdir_python(task_dir),
-        source_fallback(retry_dir) if source_fallback else nullcontext(),
-    ):
-        return resolve_sentinel_spec(spec)
-
-
 def _is_constructed(spec: object) -> bool:
     if is_registry_object(spec):
         return True
@@ -271,3 +250,29 @@ def sentinel_config(sentinels: Sentinels) -> SentinelConfig:
     return config_from_sentinel(
         cast("inspect_sentinel._integration.Sentinels", sentinels)
     )
+
+
+def rebase_sentinel_config(
+    config: SentinelConfig, from_dir: str, to_dir: str
+) -> SentinelConfig:
+    """A sentinel configuration with its file references rebased from one directory to another.
+
+    A sentinel records a relative file reference (e.g. `human(channel=)`'s
+    `"review.py:ask"`) relative to the directory it was constructed in. A
+    task's own sentinel is constructed in the task file's directory, but the
+    log records paths relative to the launch directory, where `eval_retry()`
+    rebuilds the logged sentinel. inspect_sentinel decides which values are
+    file references; with one that has no `rebase_config()`, the configuration
+    is returned unchanged.
+
+    Args:
+        config: The configuration, as `sentinel_config()` records it.
+        from_dir: The directory the sentinel was constructed in.
+        to_dir: The directory the log's paths are relative to.
+    """
+    _require_sentinel()
+    integration = importlib.import_module("inspect_sentinel._integration")
+    rebase_config = getattr(integration, "rebase_config", None)
+    if rebase_config is None:
+        return config
+    return cast(SentinelConfig, rebase_config(config, from_dir, to_dir))

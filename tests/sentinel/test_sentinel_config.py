@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, get_type_hints
 import pytest
 import semver
 from pydantic import ValidationError
-from test_helpers.fake_sentinel import report_version, source_path
+from test_helpers.fake_sentinel import report_version
 
 from inspect_ai import (
     Task,
@@ -49,6 +49,7 @@ from inspect_ai.model import (
 from inspect_ai.model._model import ModelName
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, tool
+from inspect_ai.util import resource
 
 # mypy checks the tests against inspect_sentinel's API; they run on the fake
 if TYPE_CHECKING:
@@ -930,26 +931,35 @@ def test_sentinel_is_the_last_positional_parameter(fn: Callable[..., Any]) -> No
     assert names[-len(expected) :] == expected
 
 
-# a task file whose sentinel reads a file named relative to the directory it is
-# built in, as a protocol naming a function by its file's path does; the task
-# fails once, so there is a retry
+# a task file whose sentinel reads a source file named relative to the
+# directory it is created in, as `human(channel=)` does; the task fails once,
+# so there is a retry
 NOTED_TASK = """
+import runpy
 from pathlib import Path
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import solver
-from inspect_sentinel import BeforeToolCall, Decision, Protocol, protocol
+from inspect_sentinel import (
+    BeforeToolCall,
+    Decision,
+    Protocol,
+    protocol,
+    source_references,
+)
 
 FAILED_ONCE = Path(__file__).parent / "failed_once"
 
 
 @protocol
-def noted(note: str) -> Protocol:
-    reason = Path(note).read_text()
+@source_references("reason")
+def noted(reason: str) -> Protocol:
+    file, _, name = reason.rpartition(":")
+    text = runpy.run_path(file)[name]
 
     async def decide(context, step: BeforeToolCall, escalations) -> Decision | None:
-        return Decision.reject(reason)
+        return Decision.reject(text)
 
     return decide
 
@@ -970,7 +980,7 @@ def noted_task():
     return Task(
         dataset=[Sample(input="x", target="y")],
         solver=fail_once(),
-        sentinel=noted(note="note.txt"),
+        sentinel=noted(reason="reasons.py:REASON"),
     )
 """
 
@@ -978,39 +988,39 @@ def noted_task():
 def write_noted_task(project: Path) -> Path:
     tasks = project / "tasks"
     tasks.mkdir(parents=True)
-    (tasks / "note.txt").write_text("noted")
+    (tasks / "reasons.py").write_text('REASON = "noted"\n')
     task_file = tasks / "noted_task.py"
     task_file.write_text(NOTED_TASK)
     return task_file
 
 
-@pytest.mark.parametrize("retry_from", ["parent", "elsewhere"])
-def test_eval_retry_builds_the_logged_sentinel_in_the_task_files_directory(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, retry_from: str
+@pytest.mark.parametrize(
+    ("launch", "reference"),
+    [
+        ("project", "tasks/reasons.py:REASON"),
+        # outside the project, so the log records the task file by its
+        # absolute path
+        ("run", "../project/tasks/reasons.py:REASON"),
+    ],
+)
+def test_a_task_sentinels_file_reference_is_logged_relative_to_the_launch_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, launch: str, reference: str
 ) -> None:
     task_file = write_noted_task(tmp_path / "project")
-    if retry_from == "parent":
-        monkeypatch.chdir(tmp_path / "project")
-        task = "tasks/noted_task.py"
-    else:
-        # run outside the project, so the log records the task file by its
-        # absolute path, and retry from yet another directory
-        (tmp_path / "run").mkdir()
-        (tmp_path / "retry").mkdir()
-        monkeypatch.chdir(tmp_path / "run")
-        task = str(task_file)
+    (tmp_path / launch).mkdir(exist_ok=True)
+    monkeypatch.chdir(tmp_path / launch)
+    task = "tasks/noted_task.py" if launch == "project" else str(task_file)
     log = eval(task, model="mockllm/model", log_dir=str(tmp_path / "logs"))[0]
     assert log.status == "error"
-    if retry_from == "elsewhere":
-        monkeypatch.chdir(tmp_path / "retry")
 
     retried = eval_retry(log, log_dir=str(tmp_path / "logs"))[0]
 
+    assert config_data(log) == {"name": "noted", "params": {"reason": reference}}
     assert retried.status == "success", retried.error
-    assert config_data(retried) == {"name": "noted", "params": {"note": "note.txt"}}
+    assert config_data(retried) == config_data(log)
 
 
-def test_cli_eval_retry_builds_the_logged_sentinel_in_the_task_files_directory(
+def test_cli_eval_retry_rebuilds_a_task_sentinels_file_reference(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     write_noted_task(tmp_path)
@@ -1034,19 +1044,43 @@ def test_cli_eval_retry_builds_the_logged_sentinel_in_the_task_files_directory(
         if str(file) != log.location
     ]
     assert retried.status == "success", retried.error
+    assert config_data(retried) == {
+        "name": "noted",
+        "params": {"reason": "tasks/reasons.py:REASON"},
+    }
+
+
+def test_a_sentinel_without_rebase_config_logs_its_references_as_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from test_helpers import fake_sentinel
+
+    monkeypatch.delattr(fake_sentinel, "rebase_config")
+    write_noted_task(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    log = eval("tasks/noted_task.py", model="mockllm/model", log_dir="logs")[0]
+
+    assert log.status == "error"
+    assert config_data(log) == {
+        "name": "noted",
+        "params": {"reason": "reasons.py:REASON"},
+    }
 
 
 # a task file with no sentinel of its own, which fails once
-PLAIN_TASK = NOTED_TASK.replace('sentinel=noted(note="note.txt"),', "")
+PLAIN_TASK = NOTED_TASK.replace('sentinel=noted(reason="reasons.py:REASON"),', "")
 
 
 @protocol
-def noted_source(note: str, reads: str) -> Protocol:
-    # reads a source file named by a relative path, as inspect_sentinel finds
-    # one, and appends what it read to `reads`, a file named by its absolute
-    # path (a retry may load this module again, so not a list in it)
+def d2_policy(policy_file: str, reader: str, reads: str) -> Protocol:
+    # reads a data file named relative to where it is created, and appends what
+    # it read to `reads`, a file named by its absolute path
+    policy = (
+        Path(policy_file).read_text() if reader == "path" else resource(policy_file)
+    )
     with open(reads, "a") as file:
-        file.write(source_path(note).read_text() + "\n")
+        file.write(policy + "\n")
 
     async def decide(
         context: Context, step: BeforeToolCall, escalations: Escalations
@@ -1056,30 +1090,22 @@ def noted_source(note: str, reads: str) -> Protocol:
     return decide
 
 
-@pytest.mark.parametrize(
-    ("in_task_dir", "read"),
-    [
-        # an eval's own sentinel, whose file is relative to where it ran
-        (False, "beside the eval"),
-        # a file of the same name beside the task file wins
-        (True, "beside the task file"),
-    ],
-)
-def test_eval_retry_looks_for_a_source_file_where_the_retry_runs_when_the_task_files_directory_has_none(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, in_task_dir: bool, read: str
+@pytest.mark.parametrize("reader", ["path", "resource"])
+def test_eval_retry_rebuilds_an_eval_sentinel_where_the_eval_ran(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reader: str
 ) -> None:
+    # a data file of the same name beside the task file is not read
     tasks = tmp_path / "tasks"
     tasks.mkdir()
     (tasks / "plain_task.py").write_text(PLAIN_TASK)
-    (tmp_path / "note.txt").write_text("beside the eval")
-    if in_task_dir:
-        (tasks / "note.txt").write_text("beside the task file")
+    (tasks / "policy.txt").write_text("the task file's policy")
+    (tmp_path / "policy.txt").write_text("the eval's policy")
     reads = tmp_path / "reads.txt"
     monkeypatch.chdir(tmp_path)
     log = eval(
         "tasks/plain_task.py",
         model="mockllm/model",
-        sentinel=noted_source(note="note.txt", reads=str(reads)),
+        sentinel=d2_policy(policy_file="policy.txt", reader=reader, reads=str(reads)),
         log_dir="logs",
     )[0]
     assert log.status == "error"
@@ -1087,8 +1113,5 @@ def test_eval_retry_looks_for_a_source_file_where_the_retry_runs_when_the_task_f
     retried = eval_retry(log, log_dir="logs")[0]
 
     assert retried.status == "success", retried.error
-    assert reads.read_text().splitlines() == ["beside the eval", read]
-    assert config_data(retried) == {
-        "name": "noted_source",
-        "params": {"note": "note.txt", "reads": str(reads)},
-    }
+    assert reads.read_text().splitlines() == ["the eval's policy"] * 2
+    assert config_data(retried) == config_data(log)
