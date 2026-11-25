@@ -18,6 +18,7 @@ import click
 import httpx
 import pytest
 from test_helpers.trace import action_record, write_trace_log
+from test_helpers.utils import skip_if_trio
 
 from _control.conftest import cli_runner
 from inspect_ai._cli.ctl import ctl_command
@@ -226,6 +227,44 @@ def test_tasks_table_shows_model_and_solver_columns(
     assert "model" in lines[0] and "solver" in lines[0]
     row = next(ln for ln in lines if ln.startswith("aaa111"))
     assert "openai/gpt-5" in row and "react" in row
+
+
+def test_tasks_table_shows_queued_and_finished_tasks_with_no_samples(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # a task that has not started, and one that ended without starting
+    empty = {"total": 0, "completed": 0, "in_flight": 0, "queued": 0}
+    # an earlier eval set round's counts, kept on a task queued again
+    earlier = {"total": 1, "completed": 0, "errored": 1, "in_flight": 0, "queued": 0}
+    _print_human_table(
+        [
+            _task_row("aaa111", "t1", status="queued", samples=empty),
+            _task_row("bbb222", "t2", status="completed", samples=empty),
+            _task_row("ccc333", "t3", status="queued", samples=earlier),
+        ]
+    )
+    lines = capsys.readouterr().out.splitlines()
+    assert "queued" in next(ln for ln in lines if ln.startswith("aaa111"))
+    assert "0/0 (finished)" in next(ln for ln in lines if ln.startswith("bbb222"))
+    retried = next(ln for ln in lines if ln.startswith("ccc333"))
+    assert "queued" in retried and "complete" not in retried
+
+
+def test_tasks_table_shows_zero_attempts_for_a_queued_task_beside_a_retried_one(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    empty = {"total": 0, "completed": 0, "in_flight": 0, "queued": 0}
+    _print_human_table(
+        [
+            _task_row("aaa111", "t1", attempts=2),
+            _task_row("bbb222", "t2", status="queued", samples=empty, attempts=0),
+        ]
+    )
+    lines = capsys.readouterr().out.splitlines()
+    column = lines[0].index("attempts")
+    rows = [ln for ln in lines if ln.startswith(("aaa111", "bbb222"))]
+    cells = {ln[:6]: ln[column:].split()[0] for ln in rows}
+    assert cells == {"aaa111": "2", "bbb222": "0"}
 
 
 def test_tasks_table_hides_solver_column_when_absent(
@@ -6185,6 +6224,56 @@ def test_task_drain_retry_abandoned_output(monkeypatch: pytest.MonkeyPatch) -> N
     )
 
 
+@pytest.mark.parametrize("verb", ["cancel", "drain"])
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_task_stop_of_queued_task_output(
+    monkeypatch: pytest.MonkeyPatch, verb: str, dry_run: bool
+) -> None:
+    """A task that has not started ends without running samples."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1", status="queued")])
+    spy = _RequestSpy(
+        {"ok": True, "changed": True, "task_queued": True, "in_flight": 0}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    args = ["task", verb, "t1"] + (["--dry-run"] if dry_run else [])
+    terse = cli_runner().invoke(ctl_command, args)
+    assert terse.exit_code == 0, terse.output
+    assert spy.paths == [f"/tasks/aaa111/{verb}"]
+    if dry_run:
+        assert terse.stdout == (
+            f"{verb} t1: dry-run — the task has not started, so it would end "
+            "without running any samples\n"
+        )
+    else:
+        assert terse.stdout == (
+            f"{verb} t1: requested — the task has not started, so it ends "
+            "without running any samples\n"
+        )
+    full = cli_runner().invoke(ctl_command, [*args, "--no-terse"])
+    assert full.exit_code == 0, full.output
+    assert "queued" in full.stdout  # the task header
+    expected = f"Would {verb}" if dry_run else f"{verb.capitalize()} requested"
+    assert f"{expected} — the task has not started" in full.stdout
+
+
+@pytest.mark.parametrize("verb", ["cancel", "drain"])
+def test_task_stop_of_starting_task_says_it_aborts_when_it_starts(
+    monkeypatch: pytest.MonkeyPatch, verb: str
+) -> None:
+    """A task whose attempt is starting is aborted when it starts."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1", status="queued")])
+    spy = _RequestSpy(
+        {"ok": True, "changed": True, "abort_deferred": True, "in_flight": 0}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", verb, "t1"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout == (
+        f"{verb} t1: requested — the task is starting, so it will abort when it "
+        "starts, before running any samples\n"
+    )
+
+
 def test_task_drain_missing_route_names_version_skew(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -8097,6 +8186,126 @@ def test_resolve_scope_siblings_counts_active_only() -> None:
     assert scope is not None
     assert scope.siblings == 1  # the completed sibling is excluded
     assert scope.pid == 7  # carried for the busy-escalation pointer
+
+
+def test_resolve_scope_queued_task_is_reached_but_not_a_default_target() -> None:
+    """Queued tasks count in the blast radius but are not the default target."""
+    from inspect_ai._cli.ctl._mutate import _resolve_scope
+
+    summaries = [
+        _full_summary("aaa111", "t1", status="running"),
+        _full_summary("bbb222", "t2", status="queued"),
+        _full_summary("ccc333", "t3", status="completed"),
+    ]
+    default = _resolve_scope([], summaries, None, per_task_option="--max-samples")
+    assert default is not None
+    assert default.task_id == "aaa111"  # the sole running task
+    assert default.siblings == 2  # the running and the queued task
+    named = _resolve_scope([], summaries, "bbb222")
+    assert named is not None
+    assert named.task_id == "bbb222"
+    assert named.siblings == 2  # the queued target is counted once
+
+
+def test_resolve_scope_sole_queued_task_resolves_to_process_scope() -> None:
+    """A task that has not started is not a default target, even when alone."""
+    from inspect_ai._cli.ctl._mutate import _resolve_scope
+
+    queued = [_full_summary("aaa111", "t1", status="queued")]
+    scope = _resolve_scope([], queued, None)
+    assert scope is not None
+    assert scope.task_id is None  # process scope
+    assert scope.siblings == 1
+    with pytest.raises(click.exceptions.Exit):
+        _resolve_scope([], queued, None, per_task_option="--max-samples")
+    # an explicit selector still targets the queued task
+    named = _resolve_scope([], queued, "t1")
+    assert named is not None and named.task_id == "aaa111"
+    # a completed task stays the fallback default beside a queued one
+    beside_completed = _resolve_scope(
+        [], [*queued, _full_summary("bbb222", "t2", status="completed")], None
+    )
+    assert beside_completed is not None and beside_completed.task_id == "bbb222"
+    # the completed target and the queued task a process-wide change reaches
+    assert beside_completed.siblings == 2
+
+
+def test_resolve_scope_queued_only_second_process_makes_default_ambiguous(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A process listing only queued tasks still counts in process selection.
+
+    Without TASK, a running task in one process and a queued task in another
+    are ambiguous; naming the running task resolves it.
+    """
+    from inspect_ai._cli.ctl._mutate import _resolve_scope
+
+    rows = [
+        _full_summary("aaa111", "t1", pid=7),
+        _full_summary("bbb222", "t2", pid=8, status="queued"),
+    ]
+    with pytest.raises(click.exceptions.Exit):
+        _resolve_scope([], rows, None)
+    assert "Multiple processes are running" in capsys.readouterr().err
+    named = _resolve_scope([], rows, "t1")
+    assert named is not None and named.task_id == "aaa111"
+    assert named.socket_path == "/tmp/7.sock"
+
+
+def test_config_process_knob_notes_queued_task_beside_completed_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A completed default target with a queued task still gets the process note."""
+    _patch_surface(
+        monkeypatch,
+        [
+            _full_summary("aaa111", "t1", status="completed"),
+            _full_summary("bbb222", "t2", status="queued"),
+        ],
+    )
+    _stub_limits(monkeypatch)
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-connections", "5", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["target"]["task_id"] == "aaa111"
+    assert any("process-wide" in note for note in payload["notes"])
+
+
+def test_config_process_knob_with_sole_queued_task_targets_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A process setting during startup goes to the process, not the queued task."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1", status="queued")])
+    _stub_limits(monkeypatch)
+    result = cli_runner().invoke(ctl_command, ["config", "--max-tasks", "2", "--json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["target"]["scope"] == "process"
+    task_knob = cli_runner().invoke(ctl_command, ["config", "--max-samples", "3"])
+    assert task_knob.exit_code == 1
+    assert "no task in this process has started yet" in task_knob.stderr
+
+
+def test_config_process_knob_notes_queued_tasks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A process-wide retune with one running and one queued task notes its reach."""
+    _patch_surface(
+        monkeypatch,
+        [
+            _full_summary("aaa111", "t1", status="running"),
+            _full_summary("bbb222", "t2", status="queued"),
+        ],
+    )
+    _stub_limits(monkeypatch)
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-connections", "5", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["target"]["task_id"] == "aaa111"
+    assert any("process-wide" in note for note in payload["notes"])
 
 
 def test_sample_list_unscoped_skips_busy_eval(
@@ -10062,3 +10271,63 @@ def test_explicit_log_dir_works_through_the_entry_point(tmp_path: Path) -> None:
     )
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["incomplete"] is False
+
+
+@pytest.mark.real_ctl_server
+@skip_if_trio  # the control server runs on asyncio only
+async def test_ctl_lists_and_cancels_a_queued_task_in_a_live_run(
+    short_data_dir: Path,
+) -> None:
+    """`inspect ctl` against a live eval: a queued task is listed and cancelled.
+
+    The task is added while `next_tasks()` blocks, so it stays queued; the
+    CLI runs in a worker thread while the eval's loop serves its requests.
+    """
+    from inspect_ai import Task, TaskSource, eval_async
+    from inspect_ai._eval.task.enqueue import enqueue_task
+    from inspect_ai.dataset import Sample
+    from inspect_ai.util._display import init_display_type
+
+    seen: dict[str, Any] = {}
+
+    def ctl(*args: str) -> Any:
+        result = cli_runner().invoke(ctl_command, [*args, "--json"])
+        assert result.exit_code == 0, (result.output, result.exception)
+        return json.loads(result.stdout)
+
+    class _Src(TaskSource):
+        calls = 0
+
+        def initial_tasks(self) -> list[Task]:
+            return [Task(dataset=[Sample(input="x")], name="seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            self.calls += 1
+            if self.calls == 1:
+                enqueue_task(Task(dataset=[Sample(input="x")], name="waiting"))
+                seen["list"] = await anyio.to_thread.run_sync(ctl, "task", "list")
+                seen["cancel"] = await anyio.to_thread.run_sync(
+                    ctl, "task", "cancel", "waiting"
+                )
+            return None
+
+    init_display_type("none")
+    with anyio.fail_after(60):
+        logs = await eval_async(
+            _Src(),
+            model="mockllm/model",
+            log_dir=str(short_data_dir / "logs"),
+            ctl_server=True,
+        )
+
+    [row] = [t for t in seen["list"]["tasks"] if t["task"] == "waiting"]
+    assert row["status"] == "queued"
+    assert row["attempts"] == 0
+    cancel = seen["cancel"]
+    assert cancel["applied"] is True
+    assert cancel["detail"]["task_queued"] is True
+    assert cancel["detail"]["in_flight"] == 0
+    [waiting] = [log for log in logs if log.eval.task == "waiting"]
+    assert waiting.status == "error"
+    assert waiting.error is not None
+    assert "Task cancelled by user (abort)" in waiting.error.message

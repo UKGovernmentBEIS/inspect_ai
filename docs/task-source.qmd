@@ -207,7 +207,7 @@ def search() -> Task:
 A task fed through its handle:
 
 - Is added with `enqueue_task()` from code running inside a task: a solver, scorer, tool or task hook. A `TaskSource` callback cannot add one.
-- Runs once, under the model of the task that added it, with one epoch. Each sent sample runs once; send it again to repeat it. A sent sample must have no `id`: the handle assigns one (`send-<token>-<n>`).
+- Runs once, with one epoch, under its own `model` if it sets one, otherwise under the model of the task that added it. Each sent sample runs once; send it again to repeat it. A sent sample must have no `id`: the handle assigns one (`send-<token>-<n>`).
 - Starts when its first sample is sent and does not count toward `max_tasks`, so a search that waits on its rollouts works at any `max_tasks`. A handle closed before any sample is sent costs nothing.
 - Keeps its own sample limits, error tolerance (`fail_on_error`, `continue_on_fail`, `score_on_error`) and `max_samples`, falling back to the run's values when it sets none. The run's `epochs`, epoch reducer, `--limit` and `--sample-id` do not apply to it. The run's `approval`, `review` and `sentinel` policies still do.
 - Is never retried. With the default `fail_on_error`, the first errored sample is returned to its sender with its `error` set and then ends the task; set `fail_on_error=False` to keep accepting samples after an error.

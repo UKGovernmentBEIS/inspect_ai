@@ -867,7 +867,7 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         ]
         if any_solver:
             cells.append(s.get("solver", "") or "")
-        cells.append(_format_samples(samples))
+        cells.append(_format_samples(samples, s.get("status")))
         if any_errors:
             cells.append(str(samples.get("errored", 0)))
         # Blank, not 0, when the key is absent — the same rule the samples table
@@ -887,7 +887,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
             cells.append(str(s.get("resolving") or ""))
         cells.append(_format_started(s.get("started_at", 0)))
         if any_retries:
-            cells.append(str(int(s.get("attempts", 1) or 1)))
+            attempts = s.get("attempts")
+            cells.append(str(1 if attempts is None else int(attempts)))
         if any_shards:
             cells.append(_format_shards(s))
         rows.append(tuple(cells))
@@ -1092,7 +1093,7 @@ def _task_header(target: dict[str, Any]) -> str:
         parts.append(str(target["status"]))
     # a --log-dir resolution row carries identity only (no samples block)
     if "samples" in target:
-        parts.append(_format_samples(target.get("samples") or {}))
+        parts.append(_format_samples(target.get("samples") or {}, target.get("status")))
     attempts = int(target.get("attempts", 1) or 1)
     if attempts > 1:
         parts.append(f"{attempts} attempts")
@@ -1262,13 +1263,16 @@ def _render_table(
         _echo(_fmt_row(row), err=err)
 
 
-def _format_samples(samples: dict[str, Any]) -> str:
+def _format_samples(samples: dict[str, Any], status: str | None = None) -> str:
     """Compact one-cell representation of sample progress.
 
     Shape:
     - ``done/total (N running)`` when samples are in flight
     - ``done/total (complete)`` when total > 0 and nothing in flight + nothing queued
     - ``0/total (queued)`` when no samples started yet
+    - ``queued`` for a task that has not started (``status`` ``queued``),
+      whatever counters an earlier round left
+    - ``0/0 (finished)`` for a finished task with no samples
     - ``done/total`` as the bland fallback
 
     ``done`` = ``completed + errored + cancelled`` (terminal counts).
@@ -1281,10 +1285,17 @@ def _format_samples(samples: dict[str, Any]) -> str:
     queued = int(samples.get("queued", 0) or 0)
 
     done = completed + errored + cancelled
+    if status == "queued" and not in_flight:
+        # not started (a task with an earlier round's counters included)
+        return "queued"
     if total == 0:
         # No total recorded — show in_flight as a single number so
         # the user sees something useful pre-EvalState registration.
-        return f"{in_flight} running" if in_flight else "starting"
+        if in_flight:
+            return f"{in_flight} running"
+        if status == "completed":
+            return "0/0 (finished)"
+        return "starting"
 
     if in_flight > 0:
         return f"{done}/{total} ({in_flight} running)"

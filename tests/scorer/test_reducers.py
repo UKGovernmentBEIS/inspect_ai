@@ -376,6 +376,90 @@ def test_dict_stat_nan_key_stays_nan_when_mixed_with_none() -> None:
     assert _is_nan(reduced["x"])
 
 
+_NAN = float("nan")
+
+# Reduced value of one dict key across epochs for every built-in reducer that
+# accepts dict scores. Every reducer skips None, keeps an all-None key as None
+# (so aggregate(on_missing=...) still sees it as missing), and gives NaN when
+# only NaN is left. majority counts None and NaN toward the panel size.
+_NONE_REDUCTION_REDUCERS: dict[str, ScoreReducer] = {
+    "mean": mean_score(),
+    "median": median_score(),
+    "pass_at_1": pass_at(1),
+    "pass_k_1": pass_k(1),
+    "mode": mode_score(),
+    "majority": majority_score(),
+    "max": max_score(),
+    "at_least_1": at_least(1),
+}
+_NONE_REDUCTION_CASES: list[tuple[list[float | int | None], list[Any]]] = [
+    # epochs           mean  median pass@1 pass^1 mode  majority max   at_least_1
+    ([1, None], [1, 1, 1, 1, 1, _NAN, 1, 1]),
+    ([0, None], [0, 0, 0, 0, 0, _NAN, 0, 0]),
+    ([None, None], [None] * 8),
+    ([1, None, None], [1, 1, 1, 1, 1, _NAN, 1, 1]),
+    ([-1, None], [-1, -1, 0, 0, -1, _NAN, -1, 0]),
+    ([_NAN, None], [_NAN] * 8),
+]
+
+
+@pytest.mark.parametrize(
+    "epochs,expected",
+    _NONE_REDUCTION_CASES,
+    ids=[str(epochs) for epochs, _ in _NONE_REDUCTION_CASES],
+)
+def test_dict_reducers_treat_none_consistently(
+    epochs: list[float | int | None], expected: list[Any]
+) -> None:
+    scores = [Score(value={"k": value}) for value in epochs]
+    for (name, reducer), want in zip(_NONE_REDUCTION_REDUCERS.items(), expected):
+        reduced = reducer(scores).value
+        assert isinstance(reduced, dict)
+        got = reduced["k"]
+        if want is None:
+            assert got is None, name
+        elif _is_nan(want):
+            assert _is_nan(got), f"{name}: {got!r}"
+        else:
+            assert got == want, f"{name}: {got!r}"
+
+
+@pytest.mark.parametrize("name", list(_NONE_REDUCTION_REDUCERS))
+def test_root_unscored_epoch_with_none_key_is_unscored(name: str) -> None:
+    # Score.unscored() is NaN for every key, so it combines with a None key
+    # the same way a NaN under the key does.
+    reducer = _NONE_REDUCTION_REDUCERS[name]
+    reduced = reducer([Score.unscored(), Score(value={"k": None})]).value
+    assert isinstance(reduced, dict) and _is_nan(reduced["k"])
+
+
+def test_at_least_counts_only_usable_values() -> None:
+    # None and NaN can't count toward k, so too few usable values is a miss.
+    # A threshold of 0 would count None as a hit if it were converted to 0.0.
+    reduce = at_least(2, value=0)
+    for missing in [None, _NAN]:
+        scores = [Score(value={"k": 1}), Score(value={"k": missing})]
+        assert reduce(scores).value == {"k": 0}
+
+
+def test_dict_stat_leaves_out_nan_like_scalars_with_custom_converter() -> None:
+    # A converter that does not preserve NaN sees it in every shape, as before.
+    reduce = mean_score(value_to_float=lambda v: float(v == "pass"))
+    nan_epoch = Score(value={"k": _NAN})
+    assert reduce([Score(value={"k": "pass"}), nan_epoch]).value == {"k": 0.5}
+    assert reduce([Score(value="pass"), Score(value=_NAN)]).value == 0.5
+
+
+def test_majority_counts_none_toward_panel() -> None:
+    # None withholds a vote without lowering the bar: 2 of 3 is a majority,
+    # 1 of 3 is not, and None never wins.
+    reduce = majority_score()
+    assert reduce([Score(value={"k": v}) for v in [1, 1, None]]).value == {"k": 1}
+    for votes in ([1, None, None], [1, None, _NAN]):
+        reduced = reduce([Score(value={"k": v}) for v in votes]).value
+        assert isinstance(reduced, dict) and _is_nan(reduced["k"])
+
+
 def test_score_unscored() -> None:
     # Score.unscored() constructs a NaN-valued Score and preserves
     # answer/explanation/metadata.
