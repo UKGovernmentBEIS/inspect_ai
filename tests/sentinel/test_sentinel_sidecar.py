@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 from math import inf, nan
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import unquote
 
 import anyio
 import httpx2
@@ -31,7 +32,6 @@ from inspect_ai._sentinel._sidecar._endpoint import (
     probe,
     proxy_client,
 )
-from inspect_ai._sentinel._sidecar._events import SIDECAR_METADATA
 from inspect_ai._sentinel._sidecar._lookup import RESULT_WAIT, request_result
 from inspect_ai._sentinel._sidecar._received import (
     ReceivedCall,
@@ -173,6 +173,104 @@ async def test_a_sidecar_behind_the_models_base_url_is_found(
     [asked] = stand_in.probes
     assert str(asked.url) == "http://proxy.test/sentinel/info"
     assert asked.headers["authorization"] == "Bearer test-key"
+
+
+@pytest.mark.parametrize(
+    ("provider", "base_url", "origin", "proxy_url", "secrets"),
+    [
+        (
+            "anthropic",
+            "http://user:secret@proxy.test/v1",
+            "http://user:secret@proxy.test",
+            "http://proxy.test",
+            ["secret"],
+        ),
+        # a token alone, as the user
+        (
+            "anthropic",
+            "http://secret@proxy.test",
+            "http://secret@proxy.test",
+            "http://proxy.test",
+            ["secret"],
+        ),
+        # a key in the query, or a fragment, of a base URL with no path, which
+        # the openai SDK keeps as given
+        (
+            "openai",
+            "http://proxy.test?api_key=secret",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["secret"],
+        ),
+        (
+            "openai",
+            "http://proxy.test#secret",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["secret"],
+        ),
+        (
+            "anthropic",
+            "http://user:secret@[::1]:8080/v1",
+            "http://user:secret@[::1]:8080",
+            "http://[::1]:8080",
+            ["secret"],
+        ),
+        # repeated percent-encoded, as in the URL, or decoded, as sent
+        (
+            "anthropic",
+            "http://user:se%40cret@proxy.test",
+            "http://user:se%40cret@proxy.test",
+            "http://proxy.test",
+            ["se%40cret", "se@cret"],
+        ),
+    ],
+)
+async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_shown_without_them(
+    provider: str, base_url: str, origin: str, proxy_url: str, secrets: list[str]
+) -> None:
+    # a proxy's error page may repeat the URL Inspect asked for, credentials
+    # and all, as given or decoded; the anthropic SDK's errors show the page
+    asked: list[httpx2.URL] = []
+
+    def echo(request: httpx2.Request) -> httpx2.Response:
+        asked.append(request.url)
+        url = str(request.url)
+        return httpx2.Response(500, text=f"upstream failed for {url} ({unquote(url)})")
+
+    model = get_model(
+        _MODELS[provider],
+        base_url=base_url,
+        api_key="test-key",
+        memoize=False,
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(echo)),
+    )
+    client = await proxy_client(model.api)
+    assert client is not None
+    sidecar = Sidecar(_origin(client.sdk.base_url), "whole", client.sdk)
+    assert (sidecar.origin, sidecar.proxy_url) == (origin, proxy_url)
+
+    found = await probe(client)
+    assert isinstance(found, NoSidecar)
+    with pytest.raises(SidecarCallError) as raised:
+        await sidecar.call("end_sample", {})
+
+    # each call at the proxy's root, with the credentials and no query
+    assert [(_origin(url), url.raw_path) for url in asked] == [
+        (origin, b"/sentinel/info"),
+        (origin, b"/sentinel/v1"),
+    ]
+    assert proxy_url in found.reason
+    # nor in an error a traceback would print beside the call's
+    shown = [found.reason]
+    error: BaseException | None = raised.value
+    while error is not None:
+        shown.append(str(error))
+        error = error.__cause__ or error.__context__
+    if provider == "anthropic":
+        assert f"{proxy_url}/sentinel/info" in found.reason
+        assert f"{proxy_url}/sentinel/v1" in shown[1]
+    assert not [secret for secret in secrets if any(secret in text for text in shown)]
 
 
 async def test_a_sidecar_behind_an_openai_compatible_models_base_url_is_found() -> None:
@@ -577,8 +675,7 @@ def test_an_eval_that_requires_a_sidecar_fails_its_task_without_one() -> None:
     assert log.status == "error"
     assert log.error is not None
     assert "A sentinel sidecar is required" in log.error.message
-    # the setting isn't part of the log format
-    assert "sentinel_proxy" not in log.eval.config.model_dump()
+    assert log.eval.config.sentinel_proxy == "required"
 
 
 def test_an_eval_told_to_look_finds_a_sidecar() -> None:
@@ -4229,8 +4326,8 @@ def test_each_report_says_which_models_judged_it(
     # the sidecar's own roles judged, whatever the eval set, and the log says so
     assert log.samples is not None
     [event] = _sentinel_events(log.samples[0])
-    assert event.metadata is not None
-    assert event.metadata[SIDECAR_METADATA]["models"] == [
+    assert event.remote is not None and event.remote.models is not None
+    assert [m.model_dump(exclude_none=True) for m in event.remote.models] == [
         {"role": "monitor", "model": "mockllm/judge"},
         {"model": "mockllm/named"},
     ]
@@ -5090,9 +5187,11 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
         "stage": "tool_call",
         "call": "call_1",
         "decision": {"action": "reject", "message": "Tokyo is not allowed."},
+        "reviews": ["q_1"],
     }
     if not trimmed:
-        step["recorded"] = _RECORDED
+        # the decision is the root's, at the empty path
+        step["recorded"] = [_RECORDED[0], {**_RECORDED[1], "path": ""}]
     judgment: dict[str, Any] = {
         "outcome": "proceed",
         "steps": [step],
@@ -5115,16 +5214,11 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
     events = _sentinel_events(sample)
     irid = stand_in.model_calls[0].headers["x-irid"]
     assert all(e.step_id == "call_1" and e.stage == "tool_call" for e in events)
-    # where each came from, in its metadata, as the log format has no field
-    assert all(e.metadata and SIDECAR_METADATA in e.metadata for e in events)
-    assert events[0].metadata is not None
-    where = events[0].metadata[SIDECAR_METADATA]
-    assert (where["proxy"], where["version"], where["release"], where["request"]) == (
-        "http://proxy.test",
-        1,
-        "whole",
-        irid,
-    )
+    # where each came from
+    assert all(e.remote is not None for e in events)
+    where = events[0].remote
+    assert where is not None
+    assert (where.proxy_url, where.request_id) == ("http://proxy.test", irid)
     if trimmed:
         # the step's decision, without the protocol that made it
         [event] = events
@@ -5133,7 +5227,9 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
             "reject",
             "",
         )
-        assert where["trimmed"]
+        assert where.trimmed
+        assert where.human_reviews is not None
+        assert [r.id for r in where.human_reviews] == ["q_1"]
     else:
         # one per report, as in process
         observed, decided = events
@@ -5143,12 +5239,66 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
             0.9,
         )
         assert (decided.path, decided.action, decided.message) == (
-            "no_tokyo",
+            "",
             "reject",
             "Tokyo is not allowed.",
         )
         assert decided.function == "decide"
-        assert not where["trimmed"]
+        assert not where.trimmed
+        assert _review_ids(events) == [None, ["q_1"]]
+
+
+def _review_ids(events: list[SentinelEvent]) -> list[list[str] | None]:
+    return [
+        None
+        if e.remote is None or e.remote.human_reviews is None
+        else [r.id for r in e.remote.human_reviews]
+        for e in events
+    ]
+
+
+@pytest.mark.parametrize(
+    ("recorded", "review_ids"),
+    [
+        # no root record: the step's last
+        ([_RECORDED[0], _RECORDED[1]], [None, ["q_1"]]),
+        # two root records: the first alone
+        (
+            [
+                {**_RECORDED[1], "path": "", "kind": "superseded"},
+                {**_RECORDED[1], "path": ""},
+            ],
+            [["q_1"], None],
+        ),
+    ],
+    ids=["no-root", "two-roots"],
+)
+def test_a_steps_question_ids_are_on_one_of_its_events(
+    recorded: list[dict[str, Any]], review_ids: list[list[str] | None]
+) -> None:
+    step: dict[str, Any] = {
+        "stage": "tool_call",
+        "call": "call_1",
+        "decision": {"action": "reject", "message": "Tokyo is not allowed."},
+        "reviews": ["q_1"],
+        "recorded": recorded,
+    }
+    judgment: dict[str, Any] = {
+        "outcome": "proceed",
+        "steps": [step],
+        "proposed": {
+            "message": _turn_json(("call_1", "Tokyo"), ("call_2", "Oslo")),
+            "results": {"call_1": "Tokyo is not allowed."},
+        },
+    }
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(calls=[("call_2", "weather", {"city": "Oslo"})], judgment=judgment),
+            Turn(),
+        ]
+    )
+
+    assert _review_ids(_sentinel_events(_run_agent(stand_in))) == review_ids
 
 
 def test_a_step_without_records_keeps_its_decisions_metadata() -> None:
@@ -5182,9 +5332,9 @@ def test_a_step_without_records_keeps_its_decisions_metadata() -> None:
     sample = _run_agent(stand_in)
 
     [event] = _sentinel_events(sample)
-    assert event.metadata is not None
-    assert event.metadata["rule"] == "no_tokyo"
-    assert event.metadata[SIDECAR_METADATA]["trimmed"] is False
+    assert event.metadata == {"rule": "no_tokyo"}
+    assert event.remote is not None and event.remote.trimmed is False
+    assert event.function == ""
 
 
 @scorer(metrics=[mean()])
