@@ -960,6 +960,88 @@ def test_eval_stopped_while_hook_waits_lists_stopped(
     ], result.output
 
 
+@solver
+def fail_then_once_s0_hook_waits(phase: str) -> Solver:
+    """While the file holds "first", each sample raises; then as `fail_once_s0_hook_waits`."""
+    then = fail_once_s0_hook_waits(s0_fails=False)
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if Path(phase).read_text() == "first":
+            await generate(state)
+            raise RuntimeError("attempt fails")
+        return await then(state, generate)
+
+    return solve
+
+
+@task
+def stopped_retry_task(phase: str) -> Task:
+    return Task(
+        dataset=[Sample(id=f"s{i}", input="hi", target="Default") for i in range(2)],
+        solver=fail_then_once_s0_hook_waits(phase),
+        scorer=includes(),
+    )
+
+
+@pytest.mark.parametrize("hook", ["init", "scoring"])
+def test_retry_stopped_while_hook_waits_validates(
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    monkeypatch: pytest.MonkeyPatch,
+    hook: str,
+) -> None:
+    """eval_retry of an eval that closed s0 and s1 with errors stops while s0 waits.
+
+    s1 fails the retry while s0 waits in its sample init hook (no records)
+    or its sample scoring hook. The retry's .eval keeps the first eval's
+    copy of s0, which is compared with the first eval's records, and the
+    retry's s0 attempt is listed as stopped.
+    """
+    phase = tmp_path / "phase"
+    phase.write_text("first")
+    log_dir = tmp_path / "logs"
+    log = eval(
+        stopped_retry_task(str(phase)),
+        model="mockllm/model",
+        log_dir=str(log_dir),
+        display="none",
+        max_samples=2,
+        fail_on_error=False,
+        tamper_evident_store=evalhost_env.url,
+    )[0]
+    assert [bool(s.error) for s in log.samples or []] == [True, True]
+
+    phase.write_text("retry")
+    monkeypatch.setitem(_cancel_gates, "s0_hook", threading.Event())
+    monkeypatch.setitem(_cancel_gates, "hook_timed_out", threading.Event())
+    hooks("stuck_hook", "Waits in a hook of s0.")(
+        {"init": StuckInitHook, "scoring": StuckScoringHook}[hook]
+    )
+    try:
+        retry = eval_retry(
+            log,
+            log_dir=str(log_dir),
+            display="none",
+            fail_on_error=True,
+            tamper_evident_store=evalhost_env.url,
+        )[0]
+    finally:
+        del _registry["hooks:stuck_hook"]
+    assert retry.status == "error"
+    assert not _cancel_gates["hook_timed_out"].is_set()
+    logged = read_eval_log(retry.location).samples or []
+    assert {str(s.id): s.uuid for s in logged}["s0"] == next(
+        s.uuid for s in log.samples or [] if s.id == "s0"
+    )
+
+    result = validate_cli(evalhost_env, log_dir)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
+    assert result.stopped() == [f"{retry.eval.eval_id}/s0.1/1"], result.output
+    assert "2 eval(s), 4 sample(s) compared, 0 finding(s)." in result.output
+
+
 def test_eval_stopped_while_retry_waits_lists_stopped(
     evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
 ) -> None:
@@ -1083,6 +1165,38 @@ def test_eval_host_crash_lists_stopped(
     assert len(not_logged) == (0 if crash == "before_first_flush" else 1)
     assert all(key.startswith(f"{eval_id}/") for key in not_logged), result.output
     assert "1 eval(s), 0 sample(s) compared, 0 finding(s)." in result.output
+
+
+def test_eval_host_crash_eval_file_deleted(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """The eval's process exits after a sample closed, and its .eval file is deleted.
+
+    An honest eval writes its first .eval file before any sample runs, so an
+    eval with a closed attempt and no .eval file is a finding.
+    """
+    exited = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            CRASH_PROGRAM,
+            str(tmp_path),
+            evalhost_env.url,
+            "sample_not_logged",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert exited.returncode == 17, exited.stderr
+    (eval_file,) = tmp_path.glob("*.eval")
+    eval_file.unlink()
+
+    (eval_id,) = validate(evalhost_env, tmp_path).evals
+    result = validate_cli(evalhost_env, tmp_path)
+    assert_fails_with(result, "missing_eval_file")
+    assert f"missing_eval_file {eval_id}:" in result.output
+    assert result.stopped() == [eval_id], result.output
 
 
 def test_task_retry_attempts_validates(
@@ -1274,39 +1388,6 @@ def test_delete_reused_sample(
     result = validate_cli(evalhost_env, tmp_path)
     assert_fails_with(result, "missing_sample")
     assert f"missing_sample {log.eval.eval_id}/s1.1:" in result.output
-
-
-def test_retry_logs_prior_copy_of_sample_it_ran(
-    evalhost_env: MotoStore,
-    tmp_path: Path,
-    validate_cli: ValidateCli,
-    failures: Path,
-) -> None:
-    """A retry ran s0 with no closing record, and its .eval has the first eval's s0.
-
-    The retry has records of s0, so its s0 is never compared with the first
-    eval's records.
-    """
-    log = retried_task_run(evalhost_env, tmp_path, failures, s0_failures=1)
-    retry = eval_retry(
-        log,
-        log_dir=str(tmp_path),
-        display="none",
-        tamper_evident_store=evalhost_env.url,
-    )[0]
-    assert retry.status == "success", retry.error
-
-    evalhost_env.remove_version(f"{retry.eval.eval_id}/s0.1/1/{CLOSING}")
-    with zipfile.ZipFile(log.location) as zf:
-        prior_s0 = json.loads(zf.read("samples/s0_epoch_1.json"))
-    assert prior_s0["error"]
-    edit_zip_entry(Path(retry.location), "samples/s0_epoch_1.json", lambda _: prior_s0)
-
-    result = validate_cli(evalhost_env, tmp_path)
-    assert_fails_with(result, "unstored_sample")
-    assert f"unstored_sample {retry.eval.eval_id}/s0.1:" in result.output
-    assert "for this eval, which ran it." in result.output
-    assert result.stopped() == [f"{retry.eval.eval_id}/s0.1/1"]
 
 
 class StreamingMockLLM(MockLLM):

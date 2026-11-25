@@ -528,7 +528,8 @@ stopped rather than failed validation".
    that the eval ran is never compared with a prior eval's copy. The
    result is `unstored_sample`: "with no closed attempt in the store for
    this eval, which ran it." Test:
-   `test_retry_logs_prior_copy_of_sample_it_ran`.
+   `test_retry_logs_prior_copy_of_sample_it_ran`. *Changed Nov-25:*
+   reverted in review round 8.
 4. **Honest crash.** The sample closing record is written before the
    sample is logged, and the .eval recorder writes logged samples in
    groups (`log_buffer`; `default_log_buffer` gives up to 10 for most
@@ -542,6 +543,7 @@ stopped rather than failed validation".
    before it logged the sample.` The same rule applies to a retry's
    reused sample (the `missing_sample` check of the prior chain). An eval
    with no closing record and no .eval file is only in `stopped`.
+   *Changed Nov-25:* also needs no closed attempt (review round 8).
    `missing_sample` still applies to an eval with a closing record or a
    finished .eval file, and `missing_eval_file` to an eval with a closing
    record. Tests: `test_eval_host_crash_lists_stopped[before_first_flush]`
@@ -568,6 +570,53 @@ must be in the .eval file unless the eval stopped before it finished the
 file; a finished .eval file must match its eval closing record. An
 attempt or eval with no closing record is listed as stopped, and a
 closed sample that a stopped eval did not log is listed as not logged.
+
+## Review round 8: fixes
+
+A Codex review and a Claude review of d3af27e47 found these.
+
+1. **An honest retry that stops while it runs a sample again.** A retry
+   seeds its .eval file with the prior eval's samples, also the ones
+   closed with an error, before it runs any sample
+   (`TaskLogger.seed_from_prior`). When the retry stops while it runs
+   such a sample again, the seeded copy stays in the file. Fix 3 of the
+   stopped change started the lookup at the retry, which has records (or
+   an attempt in its closing record) of the sample, so this run gave
+   `unstored_sample`. The lookup starts at the prior eval again, as
+   before fix 3. The copy is compared with the prior eval's records, and
+   the retry's attempt is listed as `stopped`. So the retry's own stored
+   events for the sample are not compared; the docs list this under
+   "What Is Not Protected". Test:
+   `test_retry_stopped_while_hook_waits_validates[init]` and
+   `[scoring]`. The first eval closes s0 and s1 with errors; in the
+   retry, s1 fails while s0 waits in a hook. The test
+   `test_retry_logs_prior_copy_of_sample_it_ran` is deleted.
+2. **A deleted .eval file of a crashed eval.** Fix 4 of the stopped
+   change reported `missing_eval_file` only for an eval with a closing
+   record, so deleting the .eval file of a crashed eval gave no finding.
+   An honest eval writes its first .eval file before any sample runs
+   (`log_start`), so an eval with a closed attempt always has one. Now
+   `missing_eval_file` applies to an eval with a closing record or a
+   closed attempt. An eval with neither and no .eval file is listed only
+   as `stopped`. Test: `test_eval_host_crash_eval_file_deleted`; the
+   `[before_first_flush]` case of `test_eval_host_crash_lists_stopped`
+   covers the other case.
+3. **Setup order.** The bucket policy names the `eval-host` role, and S3
+   refuses a policy whose principal does not exist. The docs now create
+   the role (step 2) before the bucket policy (step 3).
+
+Each new test failed at d3af27e47: `unstored_sample` for the two retry
+cases, and 0 findings for the deleted file.
+
+After these fixes, the guarantees are: every record in the store is
+checked, also the rows of a stopped attempt; a sample in a .eval file
+must match a closed attempt of the eval or of the prior evals it reused
+from, and a closed sample must be in the .eval file unless the eval
+stopped before it finished the file; a finished .eval file must match
+its eval closing record, and an eval with a closing record or a closed
+attempt must have a .eval file. An attempt or eval with no closing
+record is listed as stopped, and a closed sample that a stopped eval did
+not log is listed as not logged.
 
 ## The evals that were run
 
@@ -1051,11 +1100,13 @@ stopped LdM2ww.../s0.1/1: No closing record: cut short, or its host stopped writ
 
 The line means that the store has no closing record for the attempt or the eval. The attempt or the eval was cut short, for example by a cancel, an error in another sample, a crash or a retry, or its host stopped writing. The validator still checks every record that it wrote. An eval that stopped before it wrote its `.eval` file has only this line.
 
+- **A sample that a retry stopped running.** A retry copies the samples that the earlier eval completed with an error into its `.eval` file before it runs them again. If the retry stops writing such a sample, its `.eval` file can keep the earlier eval's copy. The validator compares that copy with the earlier eval's records, so the retry's own stored events for the sample are not compared. The retry's attempt is listed as `stopped`.
+
 - **What a `stopped` line means.** How to interpret a stopped attempt or eval is an open question. It can come from an honest cancel or crash, but a compromised host can also stop writing to hide what a sample did. The validator lists it and does not decide. The same applies to a `not_logged` line.
 
 ### Samples not logged by an eval that stopped
 
-- **Samples deleted from the `.eval` file of an eval that stopped.** Inspect writes samples to the `.eval` file in groups of several samples (the `log_buffer` option), not one at a time. So when an honest eval host dies, the store usually has closed samples that are not in the file. When an eval has no closing record and its `.eval` file has the status `started`, the validator lists each closed sample that is not in the file as `not_logged`. So if someone deletes samples from the `.eval` file of such an eval, the validator shows a `not_logged` line for each sample, not a finding. An eval with no closing record and no `.eval` file is listed only as `stopped`.
+- **Samples deleted from the `.eval` file of an eval that stopped.** Inspect writes samples to the `.eval` file in groups of several samples (the `log_buffer` option), not one at a time. So when an honest eval host dies, the store usually has closed samples that are not in the file. When an eval has no closing record and its `.eval` file has the status `started`, the validator lists each closed sample that is not in the file as `not_logged`. So if someone deletes samples from the `.eval` file of such an eval, the validator shows a `not_logged` line for each sample, not a finding. An eval with no closing record, no closed sample attempt and no `.eval` file is listed only as `stopped`. An eval with a closed sample attempt and no `.eval` file is a `missing_eval_file` finding, because an honest eval writes its `.eval` file before any sample runs.
 
 ```
 not_logged LdM2ww.../s0.1/1: Closed, not in the .eval file: the eval stopped before it logged the sample.

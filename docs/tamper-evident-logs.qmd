@@ -41,6 +41,8 @@ There are also a number of things that tamper-evident logs do not protect agains
 
 -   **An attempt or eval that stops writing.** A compromised process can stop writing before a closing record. The validator lists the attempt or eval as `stopped`, but does not compare a stopped attempt's events (or a stopped eval's status, stats and results) with the `.eval` file.
 
+-   **A sample that a retry stopped running.** A retry's `.eval` file can keep the earlier eval's copy of a sample that the retry stopped writing. The validator compares that copy with the earlier eval's records, so the retry's own stored events for the sample are not compared (its attempt is listed as `stopped`).
+
 -   **Samples deleted from the `.eval` file of an eval that stopped.** If an eval stopped before it finished its `.eval` file, a sample deleted from that file shows up as a `not_logged` line rather than a finding.
 
 -   **A deleted `.eval` file of an eval that a later eval names.** This shows up as a `prior_without_file` line rather than a finding. Note that eval-host keys can forge such a later eval.
@@ -78,7 +80,27 @@ Here are the steps required to create the store:
 
     Keep the default Object Ownership setting (`BucketOwnerEnforced`). With this setting, the bucket's account owns each record that the eval hosts add (see [Object Ownership](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html)).
 
-2.  Add a bucket policy. Its first statement refuses a put without `If-None-Match` (without this statement, a put can add a second version of an object). The other two statements let the eval hosts' role add objects and read the Object Lock settings. Replace `111122223333` with the ID of the eval hosts' account, and `eval-host` with the name of their role.
+2.  In the eval hosts' account, create the `eval-host` role with an IAM policy that can only add objects and read the Object Lock settings. The eval gets these credentials using the usual AWS credential chain (for example `AWS_PROFILE` or the instance role).
+
+    ``` json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": "s3:PutObject",
+          "Resource": "arn:aws:s3:::my-addonly-store/*"
+        },
+        {
+          "Effect": "Allow",
+          "Action": "s3:GetBucketObjectLockConfiguration",
+          "Resource": "arn:aws:s3:::my-addonly-store"
+        }
+      ]
+    }
+    ```
+
+3.  Add a bucket policy. Its first statement refuses a put without `If-None-Match` (without this statement, a put can add a second version of an object). The other two statements let the eval hosts' role add objects and read the Object Lock settings. Replace `111122223333` with the ID of the eval hosts' account, and `eval-host` with the name of their role.
 
     ``` json
     {
@@ -111,26 +133,6 @@ Here are the steps required to create the store:
     ```
 
     Don't allow the eval hosts' role anything else. The [start check](#start-check) fails if the role can read or delete a record.
-
-3.  In the eval hosts' account, create the `eval-host` role with an IAM policy that can only add objects and read the Object Lock settings. The eval gets these credentials using the usual AWS credential chain (for example `AWS_PROFILE` or the instance role).
-
-    ``` json
-    {
-      "Version": "2012-10-17",
-      "Statement": [
-        {
-          "Effect": "Allow",
-          "Action": "s3:PutObject",
-          "Resource": "arn:aws:s3:::my-addonly-store/*"
-        },
-        {
-          "Effect": "Allow",
-          "Action": "s3:GetBucketObjectLockConfiguration",
-          "Resource": "arn:aws:s3:::my-addonly-store"
-        }
-      ]
-    }
-    ```
 
 4.  In the bucket's account, create a read-only role for the validator. The validator reads the bucket policy, and S3 refuses that read to every other account (see [GetBucketPolicy](https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketPolicy.html)), so a validator in another account cannot check the bucket's settings. Within the bucket's account, the role's own IAM policy is enough:
 
@@ -294,7 +296,7 @@ The following lines are findings. Each finding makes the command exit with 1:
 | `unlisted_attempt` | The store has records of a sample attempt that the eval closing record does not list. | Treat the attempt as written by someone other than the eval. |
 | `unstored_eval` | A `.eval` file in the log directory has an eval id with no records under the store prefix. | Make sure that the store prefix is correct and that the eval ran with `tamper_evident_store`. Otherwise, treat the file as not checked. |
 | `duplicate_eval_file` | More than one `.eval` file has this eval id. The validator compares only the first, by file name. | Find out where the copies came from. |
-| `missing_eval_file` | The store has an eval with an eval closing record, but no `.eval` file in the log directory has its eval id. | Make sure that the log directory and the store prefix match. Otherwise, someone deleted or moved the `.eval` file. |
+| `missing_eval_file` | The store has an eval with an eval closing record or a closed sample attempt, but no `.eval` file in the log directory has its eval id. | Make sure that the log directory and the store prefix match. Otherwise, someone deleted or moved the `.eval` file. |
 | `missing_eval_closing` | The `.eval` file is finished (its status is not `started`), but the store has no eval closing record. | An S3 outage at the end of an honest run can cause this. Otherwise, someone changed the file's status. |
 | `eval_mismatch` | The `.eval` file's status, stats or results differ from the eval closing record. | `inspect score` and other tools that change a log after the run cause this. Otherwise, someone changed the file. |
 | `unstored_sample` | A sample in the `.eval` file has no attempt with a closing record in the store, for this eval or for the earlier evals that a retry reused samples from. | A failed write to the store, or a failed insert into the sample buffer, causes this in an honest run. The sample then has an error in the `.eval` file. Otherwise, someone added the sample. |

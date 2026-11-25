@@ -442,8 +442,8 @@ def _compare_eval_file(
 ) -> _Compared:
     """Compare the eval's .eval file with its records.
 
-    A .eval sample with no attempt of its own is one a retry reused: it is
-    compared with the records of the earlier eval that ran it.
+    A .eval sample with no closed attempt of its own is one a retry reused:
+    it is compared with the records of the earlier eval that ran it.
     """
     findings: list[Finding] = []
 
@@ -461,9 +461,9 @@ def _compare_eval_file(
             for other_id, e in evals.items()
             if other_id != eval_id and e.prior_eval_id == eval_id
         )
-        # an eval with no closing record is listed as stopped: it can stop
-        # before its first .eval file write
-        if not named_by and stored.closing is not None:
+        # an eval that stopped before its first .eval file write has no
+        # closed attempt (the write comes before any sample runs)
+        if not named_by and (stored.closing is not None or stored.final_attempts):
             finding(
                 "missing_eval_file", "No .eval file in the log dir has this eval id."
             )
@@ -509,15 +509,13 @@ def _compare_eval_file(
     ]
     eval_file_samples = _eval_file_samples(eval_file)
     for sample_part in sorted(eval_file_samples - stored.final_attempts.keys()):
-        earlier = _earlier_attempt(evals, eval_id, sample_part)
+        earlier = _earlier_attempt(evals, stored.prior_eval_id, sample_part)
         if earlier is None:
             finding(
                 "unstored_sample",
                 "In the .eval file, with no closed attempt in the store"
                 + (
-                    " for this eval, which ran it."
-                    if sample_part in stored.sample_parts
-                    else f" for this eval, the prior eval {stored.prior_eval_id} "
+                    f" for this eval, the prior eval {stored.prior_eval_id} "
                     "or the evals it reused from."
                     if stored.prior_eval_id
                     else "."
