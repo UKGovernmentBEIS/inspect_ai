@@ -259,12 +259,12 @@ def _adopt_restored_tree(scratch: Path, target: Path) -> None:
 def _chmod(path: str, mode: int) -> None:
     """``os.chmod`` for an entry restic just restored (no-op on Windows).
 
-    Tolerates the errors restic ignores when it applies a node's mode,
-    ``ENOTSUP`` and, when not running as root, ``EPERM``: they mean the
-    filesystem assigns modes itself. A regular file left with a setuid,
-    setgid or sticky bit is not tolerated, because restic may have set a
-    mode that this chmod could not replace. Any other failure propagates
-    and fails the restore.
+    Tolerates ``ENOTSUP`` and, when not running as root, ``EPERM``: they
+    mean the filesystem assigns modes itself, and restic ignores both when
+    it applies a node's mode. A regular file left with a setuid, setgid or
+    sticky bit is not tolerated, because restic may have set a mode that
+    this chmod could not replace. Any other failure, including the
+    ``EACCES`` that restic also ignores, propagates and fails the restore.
 
     Skipped on Windows, where ``os.chmod`` only toggles the read-only
     attribute and can be denied on an entry the user may otherwise write.
