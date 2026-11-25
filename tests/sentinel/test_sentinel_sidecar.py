@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 from math import inf, nan
 from pathlib import Path
 from typing import Any, Literal
-from urllib.parse import unquote, unquote_plus
+from urllib.parse import unquote, unquote_plus, urlsplit
 
 import anyio
 import httpx2
@@ -245,14 +245,14 @@ async def test_a_sidecar_behind_the_models_base_url_is_found(
             "http://proxy.test",
             [],
         ),
-        # an escape that isn't UTF-8, repeated as given, in lower case, or
-        # decoded as U+FFFD
+        # escapes that aren't UTF-8, a byte or a cut-off sequence, repeated as
+        # given, in lower case, or decoded with U+FFFD
         (
             "anthropic",
-            "http://proxy.test?key=abc%FFdef",
+            "http://proxy.test?key=abc%FFdef&sig=ghi%E2%82jkl",
             "http://proxy.test",
             "http://proxy.test",
-            ["abc%FFdef", "abc%ffdef", "abc�def"],
+            ["abc%FFdef", "abc%ffdef", "abc�def", "ghi%e2%82jkl", "ghi�jkl"],
         ),
         # a value that matches one character before another, and an escape
         # repeated in lower case
@@ -297,8 +297,10 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
             return httpx2.Response(
                 200, json={"service": "inspect_sentinel", "versions": [1]}
             )
+        # and names each query item it rejects
         authorization = request.headers.get("authorization", "")
-        repeated = f"{request.url} {base_url} {authorization}"
+        items = " ".join(re.split("[&;]", urlsplit(base_url).query))
+        repeated = f"{request.url} {base_url} {authorization} {items}"
         lowered = re.sub("%[0-9A-F]{2}", lambda escape: escape[0].lower(), repeated)
         return httpx2.Response(
             500,

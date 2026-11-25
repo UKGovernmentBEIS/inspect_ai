@@ -378,27 +378,27 @@ def _credentials(url: str) -> list[tuple[str, str]]:
     import httpx2
 
     secrets: list[tuple[str, str]] = []
+
+    def add(text: str, shown: str) -> None:
+        # decoded keeping each byte that isn't UTF-8, and decoded as Python
+        # does by default, which writes one U+FFFD for a cut-off sequence
+        for errors in ("surrogateescape", "replace"):
+            secrets.append((unquote(text, errors=errors), shown))
+
     userinfo = httpx2.URL(url).userinfo.decode("ascii")
     if userinfo:
         user, _, password = userinfo.partition(":")
+        add(f"{userinfo}@", "")
+        add(user, REDACTED)
+        add(password, REDACTED)
         basic = f"{unquote(user)}:{unquote(password)}".encode()
-        secrets += [
-            (_decoded(f"{userinfo}@"), ""),
-            (_decoded(user), REDACTED),
-            (_decoded(password), REDACTED),
-            (base64.b64encode(basic).decode("ascii"), REDACTED),
-        ]
+        secrets.append((base64.b64encode(basic).decode("ascii"), REDACTED))
     parts = urlsplit(url)
     for item in re.split("[&;]", parts.query.removesuffix("/")):
         name, _, value = item.partition("=")
-        secrets.append((_decoded(value or name), REDACTED))
-    secrets.append((_decoded(parts.fragment.removesuffix("/")), REDACTED))
+        add(value or name, REDACTED)
+    add(parts.fragment.removesuffix("/"), REDACTED)
     return [(secret, shown) for secret, shown in secrets if secret]
-
-
-def _decoded(text: str) -> str:
-    # percent-decoded, keeping each byte that isn't UTF-8 as a surrogate
-    return unquote(text, errors="surrogateescape")
 
 
 def _spellings(secret: str) -> str:
