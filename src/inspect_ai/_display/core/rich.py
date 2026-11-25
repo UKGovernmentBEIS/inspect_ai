@@ -86,6 +86,9 @@ def rich_record_settings() -> None:
     detected are detected again for its current output.
     """
     global _console_settings
+    # detect settings restored by an earlier display type change again, as the
+    # console's output may have changed since (e.g. stdout redirected)
+    rich_restore_defaults()
     console = rich.get_console()
     settings = _display_settings(console)
     _console_settings = _ConsoleSettings(
@@ -226,11 +229,13 @@ def rich_restore_defaults() -> None:
     rich_initialise (e.g. by the user between evals) are left as they are, as
     is a console replaced by `rich.reconfigure()`. Settings the console had
     detected are detected again, as its output may have changed since (e.g.
-    stdout redirected to a file).
+    stdout redirected to a file). They are detected once more when the next
+    display is set up, which can be after the output changed.
     """
     global _console_settings
     console = rich.get_console()
     settings = _console_settings
+    _console_settings = None
     if settings and settings.console_state is console.__dict__:
         restore = [
             name
@@ -240,10 +245,13 @@ def rich_restore_defaults() -> None:
         for name in restore:
             setattr(console, name, settings.before[name])
         detected = _detected_settings(console)
-        for name in restore:
-            if name in settings.detected:
-                setattr(console, name, detected[name])
-    _console_settings = None
+        redetected = [name for name in restore if name in settings.detected]
+        for name in redetected:
+            setattr(console, name, detected[name])
+        current = _display_settings(console)
+        _console_settings = _ConsoleSettings(
+            console.__dict__, current, current, frozenset(redetected)
+        )
 
 
 def rich_console_in_use() -> bool:

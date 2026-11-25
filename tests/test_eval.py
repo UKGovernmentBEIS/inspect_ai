@@ -447,10 +447,11 @@ def test_eval_display_change_keeps_console_contexts(
     assert ("captured before the change" in capture.get()) == shown
     assert "recorded before the change" in console.export_text()
 
-    # the capture no longer holds output back
+    # the capture no longer holds output back, and the "none" display's
+    # quiet console ends with its eval
     capsys.readouterr()
     console.print("after the change")
-    assert ("after the change" in capsys.readouterr().out) == shown
+    assert "after the change" in capsys.readouterr().out
 
 
 def test_eval_display_change_keeps_console_settings_made_between_evals(
@@ -534,6 +535,7 @@ def test_eval_display_change_shows_input_screen_inside_capture(
 
     import inspect_ai._display.core.rich as display_rich
     from inspect_ai.util import input_screen
+    from inspect_ai.util._display import init_display_type
 
     monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
 
@@ -547,6 +549,8 @@ def test_eval_display_change_shows_input_screen_inside_capture(
         return solve
 
     task = Task(dataset=[Sample(input="hi", target="hi")], solver=ask())
+    # the process display type, so its display stays built between the evals
+    init_display_type(first)
     eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
     capsys.readouterr()
 
@@ -594,7 +598,6 @@ def test_display_change_after_full_scoring_detects_settings_for_redirected_stdou
     # progress without setting the console up, then redirects stdout
     monkeypatch.setattr(active, "_active_display", None)
     monkeypatch.setattr(_display, "_display_type", None)
-    monkeypatch.setattr(_display, "_applied_display_type", None)
     monkeypatch.setattr(display_rich, "_console_settings", None)
     monkeypatch.setattr(display_rich, "_reconfigure_in_place", False)
     monkeypatch.setattr(sys, "stdout", TerminalOutput())
@@ -765,6 +768,7 @@ def test_eval_display_change_keeps_recording_through_input_screen(
 
     import inspect_ai._display.core.rich as display_rich
     from inspect_ai.util import input_screen
+    from inspect_ai.util._display import init_display_type
 
     monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
 
@@ -778,6 +782,8 @@ def test_eval_display_change_keeps_recording_through_input_screen(
         return solve
 
     task = Task(dataset=[Sample(input="hi", target="hi")], solver=ask())
+    # the process display type, so its display stays built between the evals
+    init_display_type(first)
     eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
 
     console = rich.get_console()
@@ -936,7 +942,6 @@ def test_eval_display_change_matches_fresh_display(
     # start again as a new process, then change from the first display
     monkeypatch.setattr(active, "_active_display", None)
     monkeypatch.setattr(_display, "_display_type", None)
-    monkeypatch.setattr(_display, "_applied_display_type", None)
     monkeypatch.setattr(display_rich, "_console_settings", None)
     monkeypatch.setattr(display_rich, "_reconfigure_in_place", False)
     monkeypatch.setattr(rich.get_console(), "__dict__", Console().__dict__)
@@ -1044,30 +1049,78 @@ def test_eval_async_outside_eval_runs_full_display_as_rich(
     assert types[-1] == "rich"
 
 
-def test_eval_display_restored_after_query_inside_status(
+@pytest.mark.parametrize("second", ["eval", "eval_async", "eval_set"])
+def test_eval_inside_status_after_trace_is_not_conversation(
     fresh_display: None,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    caplog: pytest.LogCaptureFixture,
+    second: str,
 ) -> None:
     import rich
-
-    from inspect_ai.util._display import display_type
 
     monkeypatch.setenv("INSPECT_DISPLAY", "rich")
     types: list[DisplayType] = []
     task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
-    eval(task, model="mockllm/model", trace=True, log_dir=str(tmp_path))
+    eval(task, model="mockllm/model", trace=True, log_dir=str(tmp_path / "trace"))
 
-    # as get_model().generate() does inside a status: the conversation
-    # display is in use, so it keeps its type for now
+    # a caller's spinner around the next eval
     with rich.get_console().status("working"):
-        assert display_type() == "conversation"
+        log_dir = str(tmp_path / "second")
+        if second == "eval":
+            [log] = eval(task, model="mockllm/model", log_dir=log_dir)
+        elif second == "eval_async":
+            [log] = anyio.run(
+                functools.partial(
+                    eval_async, task, model="mockllm/model", log_dir=log_dir
+                )
+            )
+        else:
+            success, [log] = eval_set(task, model="mockllm/model", log_dir=log_dir)
+            assert success
 
-    [log] = eval(task, model="mockllm/model", log_dir=str(tmp_path))
     assert types == ["conversation", "rich"]
     assert log.eval.config.max_samples is None
-    assert "Ignoring display type" not in caplog.text
+
+
+def test_eval_set_interrupted_retry_wait_stops_status_and_restores_display(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from types import SimpleNamespace
+
+    from inspect_ai._display.core.rich import rich_console_in_use
+
+    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
+
+    def interrupt(seconds: float) -> None:
+        raise KeyboardInterrupt()
+
+    # Ctrl-C during the wait between retries
+    monkeypatch.setattr("tenacity.nap.time", SimpleNamespace(sleep=interrupt))
+
+    @solver
+    def fail() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            raise ValueError("fail")
+
+        return solve
+
+    with pytest.raises(KeyboardInterrupt):
+        eval_set(
+            Task(dataset=[Sample(input="hi")], solver=fail()),
+            model="mockllm/model",
+            display="none",
+            retry_immediate=False,
+            retry_attempts=2,
+            retry_wait=1,
+            log_dir=str(tmp_path / "set"),
+        )
+    # the "waiting" status is stopped
+    assert not rich_console_in_use()
+
+    types: list[DisplayType] = []
+    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
+    eval(task, model="mockllm/model", log_dir=str(tmp_path / "eval"))
+    assert types == ["rich"]
 
 
 @pytest.mark.parametrize("between", ["score_async", "worker_thread_generate"])
@@ -1364,12 +1417,15 @@ def test_display_type_change_inside_screen_keeps_terminal_cleanup(
     import rich
 
     import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util._display import init_display_type
 
     monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
     types: list[DisplayType] = []
     task = Task(
         dataset=[Sample(input="hi", target="hi")], solver=_record_display(types)
     )
+    # the process display type, so its display stays built between the evals
+    init_display_type("rich")
     eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
 
     output = io.StringIO()

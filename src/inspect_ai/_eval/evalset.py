@@ -1367,6 +1367,9 @@ def eval_set(
         # return status + results
         return success, results
     finally:
+        # an interrupted retry wait leaves its status running
+        if status is not None:
+            status.stop()
         reset_run_registries()
 
 

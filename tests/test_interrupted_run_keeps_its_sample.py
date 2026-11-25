@@ -231,11 +231,6 @@ def sync_rich_eval_first(
     monkeypatch.setattr(
         display_type_module, "_display_type", display_type_module._display_type
     )
-    monkeypatch.setattr(
-        display_type_module,
-        "_applied_display_type",
-        display_type_module._applied_display_type,
-    )
     monkeypatch.setattr(active_display_module, "_active_display", None)
     display_type_module.init_display_type("rich")
     eval(

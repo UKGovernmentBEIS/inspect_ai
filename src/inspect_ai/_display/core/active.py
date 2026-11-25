@@ -29,9 +29,6 @@ def clear_active_display() -> None:
 
 def display() -> Display:
     global _active_display
-    # applies a display type restored after an eval, dropping a display built
-    # for the eval's type
-    display_type()
     if _active_display is None:
         # for displays that don't set the console up (e.g. log, or full showing
         # only progress), so a display type change can detect settings again

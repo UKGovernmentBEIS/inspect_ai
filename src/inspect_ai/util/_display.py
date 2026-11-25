@@ -1,7 +1,7 @@
 import os
 from contextlib import contextmanager
 from logging import getLogger
-from typing import Iterator, Literal, NamedTuple
+from typing import Iterator, Literal
 
 from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.constants import DEFAULT_DISPLAY
@@ -15,39 +15,13 @@ DisplayType = Literal["full", "conversation", "rich", "plain", "log", "none"]
 
 _display_type: DisplayType | None = None
 
-# the display type last applied, which the active display (if any) and the
-# console settings are for. It differs from `_display_type` once an eval call
-# has restored the display type it found.
-_applied_display_type: DisplayType | None = None
-
 # eval calls in progress (eval() runs eval_async(), eval_set() runs eval()), so
 # that only the outermost one restores the display type
 _display_scope_depth = 0
 
 
 def init_display_type(display: str | None = None) -> DisplayType:
-    return _init_display_type(display, warn=True)
-
-
-def _init_display_type(display: str | None, warn: bool) -> DisplayType:
-    resolved = _resolve_display_type(display, warn_unknown=True)
-    return _apply_display_type(
-        resolved.display_type, resolved.name, resolved.requested, warn
-    )
-
-
-class _ResolvedDisplay(NamedTuple):
-    name: str
-    """The display type asked for, or the configured default."""
-
-    requested: str
-    """The display type asked for, after the trio throttle."""
-
-    display_type: DisplayType
-    """The display type to use."""
-
-
-def _resolve_display_type(display: str | None, warn_unknown: bool) -> _ResolvedDisplay:
+    global _display_type
     display = (
         display or os.environ.get("INSPECT_DISPLAY", DEFAULT_DISPLAY).lower().strip()
     )
@@ -72,21 +46,12 @@ def _resolve_display_type(display: str | None, warn_unknown: bool) -> _ResolvedD
         case "full" | "conversation" | "rich" | "plain" | "log" | "none":
             new_display_type = display
         case _:
-            if warn_unknown:
-                logger.warning(
-                    f"Unknown display type '{display}' (setting display to 'full')"
-                )
+            logger.warning(
+                f"Unknown display type '{display}' (setting display to 'full')"
+            )
             new_display_type = "full"
 
-    return _ResolvedDisplay(display_name, requested, new_display_type)
-
-
-def _apply_display_type(
-    new_display_type: DisplayType, display_name: str, requested: str, warn: bool
-) -> DisplayType:
-    global _display_type, _applied_display_type
-
-    if _applied_display_type is not None and new_display_type != _applied_display_type:
+    if _display_type is not None and new_display_type != _display_type:
         from inspect_ai._display.core.active import (
             active_display,
             clear_active_display,
@@ -103,20 +68,18 @@ def _apply_display_type(
             # a request for the current type that only differs because of the
             # background thread throttle (e.g. score() with no display called
             # from a scorer on a worker thread) isn't a change
-            if warn and requested != _applied_display_type:
+            if requested != _display_type:
                 logger.warning(
                     f"Ignoring display type '{display_name}' while the "
-                    f"'{_applied_display_type}' display is in use."
+                    f"'{_display_type}' display is in use."
                 )
-            # `_display_type` is left as it is, so a type restored by an eval
-            # call still applies once the display is no longer in use
-            return _applied_display_type
+            return _display_type
 
         # the active display was built for the previous type (e.g. by an
         # earlier eval() in this process), so drop it to be rebuilt
         clear_active_display()
 
-    _display_type = _applied_display_type = new_display_type
+    _display_type = new_display_type
     return _display_type
 
 
@@ -127,31 +90,28 @@ def display_type_scope() -> Iterator[None]:
     eval(), eval_async(), eval_retry() and eval_set() set the display type
     from `display`, `trace` or (eval_async()) "plain". When the outermost of
     these calls returns, after its display has shut down, the display type it
-    found is restored. When none was set, the configured default
-    (`INSPECT_DISPLAY`, from the environment or the project .env) is set in
-    its place, so a later call that only sets a type when none is set (e.g.
-    score_async()) can't replace it. So a first direct eval_async() uses
-    "plain", and later ones use the configured type. The active
-    display and the console settings change at the next use of the display
-    type, as for any other change of display type.
+    found is applied again. When none was set, the configured default
+    (`INSPECT_DISPLAY`, from the environment or the project .env) is applied,
+    so a first direct eval_async() uses "plain" and later ones the configured
+    type. While live Rich output (e.g. a caller's status) still uses the
+    call's display, the type is kept and a warning is logged.
     """
-    global _display_type, _display_scope_depth
+    global _display_scope_depth
+    outermost = _display_scope_depth == 0
     previous = _display_type
-    if previous is None and _display_scope_depth == 0:
-        # resolved now, as the thread and backend of the call decide it, and
-        # left unset during the call so eval_async() can choose "plain". The
-        # project .env (which the call loads anyway) can set INSPECT_DISPLAY.
+    if outermost and previous is None:
+        # the project .env (which the call loads anyway) can set
+        # INSPECT_DISPLAY, which the call's own display may use
         from inspect_ai._util.dotenv import init_dotenv
 
         init_dotenv()
-        previous = _resolve_display_type(None, warn_unknown=False).display_type
     _display_scope_depth += 1
     try:
         yield
     finally:
         _display_scope_depth -= 1
-        if _display_scope_depth == 0:
-            _display_type = previous
+        if outermost:
+            init_display_type(previous)
 
 
 def display_type_scope_active() -> bool:
@@ -165,16 +125,11 @@ def display_type() -> DisplayType:
     Returns:
        DisplayType: Display type.
     """
-    # a query doesn't warn when a display in use keeps a type restored by an
-    # eval call (see display_type_scope) from applying yet
-    if _display_type is None:
-        return _init_display_type(None, warn=False)
-    elif _display_type != _applied_display_type:
-        return _apply_display_type(
-            _display_type, _display_type, _display_type, warn=False
-        )
-    else:
+    global _display_type
+    if _display_type:
         return _display_type
+    else:
+        return init_display_type()
 
 
 def display_type_plain() -> bool:
