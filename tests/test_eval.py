@@ -1184,6 +1184,30 @@ def test_eval_display_from_project_dotenv_in_fresh_process(
     assert f"TYPES {expected}" in result.stdout
 
 
+def test_eval_set_none_display_stays_quiet_when_resume_reuses_all_logs(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from inspect_ai.model import get_model
+
+    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+    log_dir = str(tmp_path)
+    success, _ = eval_set(task, model="mockllm/model", display="none", log_dir=log_dir)
+    assert success
+
+    # applies the restored "rich" type, dropping the quiet console
+    anyio.run(get_model("mockllm/model").generate, "hi")
+    capsys.readouterr()
+
+    # every log is reused, so no eval() builds the display
+    success, _ = eval_set(task, model="mockllm/model", display="none", log_dir=log_dir)
+    assert success
+    assert capsys.readouterr().out == ""
+
+
 def test_eval_retry_display_does_not_carry_to_later_evals(
     fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

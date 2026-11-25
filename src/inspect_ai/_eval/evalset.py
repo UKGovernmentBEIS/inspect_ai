@@ -1269,6 +1269,9 @@ def eval_set(
             _register_reused_logs(success_logs)
 
             if not tasks_to_run:
+                # no eval() builds the display, so build it here to apply its
+                # console settings (e.g. quiet for "none") to the summary
+                display_manager()
                 return [log.header for log in success_logs]
 
         # run the tasks
