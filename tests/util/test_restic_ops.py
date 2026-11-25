@@ -674,6 +674,7 @@ async def test_restore_repo_failure_keeps_recorded_modes_inside_scratch_dir(
         await _restore(target)
 
     (scratch,) = target.iterdir()
+    assert [p.name for p in scratch.iterdir()] == ["partial.json"]
     assert _mode(scratch) & 0o777 == 0o700
     assert _mode(target) == 0o775
 
@@ -719,10 +720,14 @@ async def test_restore_repo_cancelled_while_adopting_finishes_the_move(
     _fake_restic(monkeypatch, _STORE_ONLY, restore)
     monkeypatch.setattr(ops, "_normalize_restored_tree", blocked_normalize)
 
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(_restore, target)
-        await adopting.wait()
-        tg.cancel_scope.cancel()
+    try:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(_restore, target)
+            with anyio.fail_after(30):
+                await adopting.wait()
+            tg.cancel_scope.cancel()
+            release.set()
+    finally:
         release.set()
 
     assert sorted(p.name for p in target.iterdir()) == ["events.json", "store.json"]
@@ -732,10 +737,10 @@ def _refuse_chmod(monkeypatch: pytest.MonkeyPatch, code: int) -> None:
     """Make ``os.chmod`` fail with ``code`` for the restored ``store.json`` only."""
     real_chmod = os.chmod
 
-    def chmod(path: object, mode: int) -> None:
+    def chmod(path: str, mode: int, **kwargs: bool) -> None:
         if str(path).endswith("store.json"):
             raise OSError(code, os.strerror(code), str(path))
-        real_chmod(str(path), mode)
+        real_chmod(path, mode, **kwargs)
 
     monkeypatch.setattr(os, "chmod", chmod)
 
@@ -756,6 +761,28 @@ async def test_restore_repo_tolerates_chmod_errors_restic_ignores(
     await _restore(target)
 
     assert [p.name for p in target.iterdir()] == ["store.json"]
+
+
+@posix_modes
+async def test_restore_repo_does_not_tolerate_chmod_error_on_special_mode_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A refused chmod is not ignored when the file it would have reset is setuid."""
+    target = tmp_path / "ctx"
+
+    def restore(path: Path) -> None:
+        _write_store(path)
+        (path / "store.json").chmod(0o4755)
+
+    _fake_restic(monkeypatch, _STORE_ONLY, restore)
+    _refuse_chmod(monkeypatch, errno.EPERM)
+    monkeypatch.setattr(os, "geteuid", lambda: 1000)
+
+    with pytest.raises(PermissionError, match=r"store\.json"):
+        await _restore(target)
+
+    (scratch,) = target.iterdir()
+    assert scratch.name.startswith(".restore-")
 
 
 @pytest.mark.parametrize(("code", "euid"), [(errno.EPERM, 0), (errno.EIO, 1000)])

@@ -129,26 +129,26 @@ async def restore_repo(
     size or content disagrees with the node, which is what makes the byte
     bound hold for what actually lands on disk.
 
-    Restic reapplies each node's recorded mode, owner and extended
-    attributes, and none of that metadata is trusted. Extended attributes
-    are excluded from the restore, and restic restores into a scratch
-    directory created inside ``target`` with mode 0700
-    (:func:`_restore_scratch_dir`), not into ``target`` itself. Once
-    restic exits, every restored directory is set to 0700 and every file
-    to 0600, and only then is the tree moved up into ``target``
-    (:func:`_adopt_restored_tree`). ``target``'s own mode and owner are
-    never changed. Not reset: the owner and group restic applied (any,
-    when it runs as root; otherwise at most a group the user belongs to),
-    and on Windows the recorded security descriptor.
+    The snapshot's recorded mode, owner and extended attributes are not
+    trusted. Extended attributes are excluded from the restore. Restic
+    restores into a scratch directory created inside ``target``
+    (:func:`_restore_scratch_dir`); once it exits, restored directories
+    are set to 0700 and files to 0600, and only then is the tree moved up
+    into ``target`` (:func:`_adopt_restored_tree`). ``target``'s own mode
+    and owner are not changed, and other users are assumed unable to
+    write it or the directories above it. Not reset: the owner and group
+    restic applied (any, when it runs as root; otherwise at most a group
+    the user belongs to), and on Windows the recorded security descriptor.
 
     ``target`` must be a directory or absent; a symlink is refused without
     being followed (:func:`_prepare_target`). It is emptied before restic
     runs: restic overwrites the snapshot's members but leaves other names
     alone, so files an interrupted fire left in the same directory would
     otherwise survive as state newer than the committed checkpoint. A
-    failed or cancelled restore leaves its partial tree in the scratch
-    directory; the exception propagates so nothing reads it, and the next
-    restore into ``target`` empties it first.
+    failed or cancelled restore leaves its partial tree behind, in the
+    scratch directory unless the move had begun; the exception propagates
+    so nothing reads it, and the next restore into ``target`` empties it
+    first.
 
     Raises:
         RestoredTreeError: the snapshot holds something other than regular
@@ -228,15 +228,16 @@ def _prepare_target(target: str) -> Path:
 def _restore_scratch_dir(target: Path) -> Path:
     """A new, empty directory inside ``target`` for restic to restore into.
 
-    ``tempfile.mkdtemp`` creates it with mode 0700, owned by the user
-    running the restore, so its mode bits keep other users out of the
-    restored tree while that still carries recorded modes. Nothing depends
-    on ``target``'s own mode or owner, which the restore never changes.
+    ``tempfile.mkdtemp`` creates it with permission bits 0700, owned by
+    the user running the restore, so other users cannot enter the tree
+    while it carries recorded modes. That holds as long as they cannot
+    write ``target`` or a directory above it, and so cannot replace the
+    scratch directory itself.
 
-    It sits inside ``target`` so the move into ``target`` is a rename on
-    one filesystem, and because ``context/`` is the one name in a sample
-    dir that the resume copy and host egress both skip: a scratch
-    directory left by a killed restore is never copied or uploaded.
+    It is inside ``target`` so the move is a rename on one filesystem,
+    and so that whatever skips ``target`` when copying or uploading the
+    directory around it also skips a scratch directory that a killed
+    restore left behind.
     """
     return Path(tempfile.mkdtemp(prefix=".restore-", dir=target))
 
@@ -258,12 +259,12 @@ def _adopt_restored_tree(scratch: Path, target: Path) -> None:
 def _chmod(path: str, mode: int) -> None:
     """``os.chmod`` for an entry restic just restored (no-op on Windows).
 
-    Tolerates the errors restic itself ignores when it applies a node's
-    mode: ``ENOTSUP``, and ``EPERM`` when not running as root. The same
-    user's chmod of the same entry is refused the same way, so restic
-    applied no recorded mode and the entry still has the mode restic
-    created it with (0600 for a file, 0700 for a directory). Any other
-    failure propagates and fails the restore.
+    Tolerates the errors restic ignores when it applies a node's mode,
+    ``ENOTSUP`` and, when not running as root, ``EPERM``: they mean the
+    filesystem assigns modes itself. A regular file left with a setuid,
+    setgid or sticky bit is not tolerated, because restic may have set a
+    mode that this chmod could not replace. Any other failure propagates
+    and fails the restore.
 
     Skipped on Windows, where ``os.chmod`` only toggles the read-only
     attribute and can be denied on an entry the user may otherwise write.
@@ -273,11 +274,17 @@ def _chmod(path: str, mode: int) -> None:
     try:
         os.chmod(path, mode)
     except OSError as ex:
-        if ex.errno == errno.ENOTSUP:
-            return
-        if ex.errno == errno.EPERM and os.geteuid() != 0:
-            return
-        raise
+        ignored_by_restic = ex.errno == errno.ENOTSUP or (
+            ex.errno == errno.EPERM and os.geteuid() != 0
+        )
+        if not ignored_by_restic or _is_special_mode_file(path):
+            raise
+
+
+def _is_special_mode_file(path: str) -> bool:
+    """Whether ``path`` is a regular file with a setuid, setgid or sticky bit."""
+    st = os.lstat(path)
+    return stat.S_ISREG(st.st_mode) and bool(stat.S_IMODE(st.st_mode) & 0o7000)
 
 
 def _normalize_restored_tree(root: Path) -> None:
