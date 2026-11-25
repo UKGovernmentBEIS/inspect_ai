@@ -1,7 +1,7 @@
 import math
 import statistics
 from collections import Counter
-from typing import Any, Callable, NamedTuple, cast
+from typing import Any, Callable, cast
 
 from inspect_ai.scorer._metric import Score, Value, ValueToFloat, value_to_float
 
@@ -94,7 +94,8 @@ def mean_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     A `None` inside a dictionary score is missing. It is left out of the
     mean instead of being converted to `0.0`. A key that is `None` on every
     score stays `None`, so a metric can still apply its missing-value
-    behavior. Every built-in reducer handles `None` this way.
+    behavior. Every built-in reducer that accepts dictionary scores handles
+    `None` this way.
 
     Args:
        value_to_float: Function to convert the value to a float
@@ -275,13 +276,14 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
         if isinstance(representative.value, dict):
             dict_scores = _partition_dict_scores(scores)
             dict_result: dict[str, str | int | float | bool | None] = {}
-            keys = dict_scores[0].value.keys()  # type: ignore
-            for key in keys:
-                key_values = _dict_key_values(dict_scores, key, len(scores))
-                if len(key_values.values) == 0:
-                    dict_result[key] = key_values.empty_result
+            dicts = [score.as_dict() for score in dict_scores]
+            for key in dicts[0]:
+                raw = [d[key] for d in dicts]
+                key_values = [v for v in raw if v is not None and _is_reducible(v)]
+                if len(key_values) == 0:
+                    dict_result[key] = _empty_key_result(raw, len(scores))
                 else:
-                    dict_result[key] = max(key_values.values, key=value_to_float)
+                    dict_result[key] = max(key_values, key=value_to_float)
             return _reduced_score(dict_result, scores)
         elif isinstance(representative.value, list):
             list_scores = _partition_list_scores(scores)
@@ -381,13 +383,14 @@ def _count_dict(
         return _nan_score(scores)
 
     dict_result: dict[str, str | int | float | bool | None] = {}
-    keys = dict_scores[0].value.keys()  # type: ignore
-    for key in keys:
-        key_values = _dict_key_values(dict_scores, key, len(scores))
-        if len(key_values.values) == 0:
-            dict_result[key] = key_values.empty_result
+    dicts = [score.as_dict() for score in dict_scores]
+    for key in dicts[0]:
+        raw = [d[key] for d in dicts]
+        key_values = [v for v in raw if v is not None and _is_reducible(v)]
+        if len(key_values) == 0:
+            dict_result[key] = _empty_key_result(raw, len(scores))
         else:
-            counts: Counter[str | int | float | bool] = Counter(key_values.values)
+            counts: Counter[str | int | float | bool] = Counter(key_values)
             dict_result[key] = counter_fn(counts)
     return _reduced_score(dict_result, scores)
 
@@ -441,26 +444,17 @@ def _compute_dict_stat(
         return _nan_score(scores)
 
     dict_result: dict[str, str | int | float | bool | None] = {}
-    for key in dict_scores[0].value.keys():  # type: ignore
-        # same rule as _dict_key_values(), inlined: this runs per key for
-        # every sample, including on live metric refreshes
+    dicts = [score.as_dict() for score in dict_scores]
+    for key in dicts[0]:
         values: list[float] = []
-        saw_value = False
-        for score in dict_scores:
-            value = score.value
-            if not isinstance(value, dict):
-                continue
-            key_value = value[key]
-            if key_value is None:
-                continue
-            saw_value = True
-            converted = value_to_float(key_value)
-            if _is_reducible(converted):
-                values.append(converted)
+        for d in dicts:
+            key_value = d[key]
+            if key_value is not None:
+                converted = value_to_float(key_value)
+                if _is_reducible(converted):
+                    values.append(converted)
         if len(values) == 0:
-            dict_result[key] = _empty_key_result(
-                saw_value, len(dict_scores), len(scores)
-            )
+            dict_result[key] = _empty_key_result([d[key] for d in dicts], len(scores))
         else:
             dict_result[key] = statistic(values)
     return _reduced_score(dict_result, scores)
@@ -524,59 +518,23 @@ def _compute_scalar_stat(
     return _reduced_score(result, scores)
 
 
-class _DictKeyValues(NamedTuple):
-    values: list[str | int | float | bool]
-    """The key's values that are neither `None` nor NaN as given (a custom
-    `value_to_float` may still convert one of them to NaN)."""
-
-    empty_result: float | None
-    """Reduced value when `values` is empty (see `_empty_key_result()`)."""
-
-
-def _dict_key_values(
-    dict_scores: list[Score], key: str, total_scores: int
-) -> _DictKeyValues:
-    r"""Collect the values under `key` that a dictionary reducer can count.
-
-    `None` is a missing value and NaN is unscored, so neither is returned.
-
-    Args:
-        dict_scores: dict-valued scores with matching keys.
-        key: the key to collect.
-        total_scores: number of scores being reduced, including those that
-            are unscored at the root.
-    """
-    values: list[str | int | float | bool] = []
-    saw_value = False
-    for score in dict_scores:
-        value = score.as_dict()[key]
-        if value is None:
-            continue
-        saw_value = True
-        if _is_reducible(value):
-            values.append(value)
-    return _DictKeyValues(
-        values=values,
-        empty_result=_empty_key_result(saw_value, len(dict_scores), total_scores),
-    )
-
-
 def _empty_key_result(
-    saw_value: bool, dict_scores: int, total_scores: int
+    raw_values: list[str | int | float | bool | None], total_scores: int
 ) -> float | None:
     r"""Reduced value of a dictionary key that has no usable value.
 
+    `None` is a missing value and NaN is unscored, so reducers leave both out.
     A key that is `None` in every score reduces to `None`, which keeps it
     visible to a metric's missing-value handling such as
     `aggregate(on_missing=...)`. Otherwise it reduces to NaN, including when a
-    score that is unscored at the root (NaN for every key) was left out.
+    score that is unscored at the root (NaN for every key) was left out of
+    `raw_values`.
 
     Args:
-        saw_value: whether any score had a value other than `None` for the key.
-        dict_scores: number of dict-valued scores.
+        raw_values: the key's value in each dict-valued score.
         total_scores: number of scores being reduced.
     """
-    all_none = not saw_value and dict_scores == total_scores
+    all_none = len(raw_values) == total_scores and all(v is None for v in raw_values)
     return None if all_none else float("nan")
 
 

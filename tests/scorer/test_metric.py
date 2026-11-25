@@ -1898,7 +1898,7 @@ def _key_results(
     """EvalScores from eval_results(), by score name."""
 
     @scorer(metrics=metrics)
-    def dict_scorer():
+    def dict_scorer() -> Scorer:
         async def score(state: TaskState, target: Target) -> Score:
             raise NotImplementedError
 
