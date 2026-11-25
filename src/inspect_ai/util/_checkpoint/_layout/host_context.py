@@ -31,8 +31,8 @@ repo, so the resume-side checks — the snapshot listing check in
 ``restore_repo`` and the ``lstat`` regular-file check in :func:`read` —
 reject anything else, and never fire on legitimate data. The snapshot's
 recorded modes and extended attributes are not kept either:
-``restore_repo`` leaves ``context/`` at mode 0700 and every restored
-file at 0600.
+``restore_repo`` gives every restored file mode 0600 before it appears
+in ``context/``.
 """
 
 from __future__ import annotations

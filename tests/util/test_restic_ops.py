@@ -20,6 +20,7 @@ import os
 import stat
 import subprocess
 import sys
+import threading
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
@@ -361,10 +362,13 @@ async def test_restore_repo_restores_known_subfolder(
 
     assert [c[3] for c in calls] == ["ls", "restore"]
     assert calls[0][3:] == ["ls", "--json", "--", "latest"]
+    scratch = Path(calls[1][calls[1].index("--target") + 1])
+    assert scratch.parent == target
+    assert scratch.name.startswith(".restore-")
     assert calls[1][3:] == [
         "restore",
         "--target",
-        str(target),
+        str(scratch),
         "--verify",
         "--exclude-xattr",
         "*",
@@ -521,24 +525,33 @@ def _mode(path: Path) -> int:
     return stat.S_IMODE(os.lstat(path).st_mode)
 
 
+def _beside_scratch(scratch: Path) -> list[str]:
+    """Names in the target other than the scratch dir restic is restoring into."""
+    return sorted(p.name for p in scratch.parent.iterdir() if p != scratch)
+
+
 @posix_modes
 async def test_restore_repo_replaces_restored_modes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """What lands on disk gets host-chosen modes, whatever the listing said.
+    """What lands in the target has host-chosen modes, whatever the listing said.
 
     The listing here is clean while the restore leaves special and
     group/other bits behind, as restic can on a case-insensitive
-    filesystem where two listed paths are one file. The target is already
-    0700 when restic runs.
+    filesystem where two listed paths are one file. Restic writes into a
+    scratch dir inside the target that only its owner can enter (it
+    inherits the target's setgid bit, which grants nothing), and the
+    target's own mode is kept.
     """
     target = tmp_path / "ctx"
-    target.mkdir(mode=0o777)
-    target.chmod(0o2777)
-    target_mode_at_restore: list[int] = []
+    target.mkdir()
+    target.chmod(0o2775)
+    scratch_at_restore: list[Path] = []
+    scratch_mode_at_restore: list[int] = []
 
     def restore(path: Path) -> None:
-        target_mode_at_restore.append(_mode(path))
+        scratch_at_restore.append(path)
+        scratch_mode_at_restore.append(_mode(path) & 0o777)
         _write_store(path)
         (path / "store.json").chmod(0o4777)
         (path / "events.json").write_text("[]")
@@ -559,11 +572,19 @@ async def test_restore_repo_replaces_restored_modes(
         await _restore(target)
         assert _mode(target / "locked") == 0o700
     finally:
-        if (target / "locked").exists():
-            (target / "locked").chmod(0o700)
+        for parent in (target, *scratch_at_restore):
+            if (parent / "locked").exists():
+                (parent / "locked").chmod(0o700)
 
-    assert target_mode_at_restore == [0o700]
-    assert _mode(target) == 0o700
+    assert [p.parent for p in scratch_at_restore] == [target]
+    assert scratch_mode_at_restore == [0o700]
+    assert _mode(target) == 0o2775
+    assert sorted(p.name for p in target.iterdir()) == [
+        "events.json",
+        "locked",
+        "shared",
+        "store.json",
+    ]
     assert _mode(target / "shared") == 0o700
     for name in ("store.json", "events.json", "shared/x.json", "locked/y.json"):
         assert _mode(target / name) == 0o600, name
@@ -577,32 +598,34 @@ async def test_restore_repo_replaces_modes_in_deeply_nested_tree(
     """The listing bounds entries, not depth; the walk must not recurse."""
     depth = sys.getrecursionlimit() + 100
     target = tmp_path / "ctx"
-    if len(str(target)) + 2 * depth + 32 > os.pathconf(tmp_path, "PC_PATH_MAX"):
+    if len(str(target)) + 2 * depth + 64 > os.pathconf(tmp_path, "PC_PATH_MAX"):
         pytest.skip("a chain deeper than the recursion limit exceeds PATH_MAX here")
-    chain = [str(target)]
+    roots = [str(target)]
 
     def restore(path: Path) -> None:
+        roots.append(str(path))
+        directory = str(path)
         for _ in range(depth):
-            os.mkdir(chain[-1] + "/d")
-            chain.append(chain[-1] + "/d")
-        leaf = Path(chain[-1]) / "store.json"
-        leaf.write_text("{}")
-        leaf.chmod(0o666)
+            directory += "/d"
+            os.mkdir(directory)
+        Path(directory, "store.json").write_text("{}")
+        Path(directory, "store.json").chmod(0o666)
 
     _fake_restic(monkeypatch, _STORE_ONLY, restore)
 
     try:
         await _restore(target)
 
-        assert len(chain) == depth + 1
-        assert _mode(Path(chain[-1]) / "store.json") == 0o600
-        assert _mode(Path(chain[-1])) == 0o700
+        leaf = str(target) + "/d" * depth
+        assert _mode(Path(leaf, "store.json")) == 0o600
+        assert _mode(Path(leaf)) == 0o700
     finally:
         # Removed here, leaf first: pytest's tmp_path cleanup recurses.
-        if len(chain) > 1:
-            Path(chain[-1], "store.json").unlink(missing_ok=True)
-        for directory in reversed(chain[1:]):
-            os.rmdir(directory)
+        for root in roots:
+            Path(root + "/d" * depth, "store.json").unlink(missing_ok=True)
+            for level in range(depth, 0, -1):
+                if os.path.isdir(root + "/d" * level):
+                    os.rmdir(root + "/d" * level)
 
 
 @pytest.mark.parametrize("kind", ["symlink", "fifo"])
@@ -610,10 +633,11 @@ async def test_restore_repo_replaces_modes_in_deeply_nested_tree(
 async def test_restore_repo_rejects_non_regular_entry_in_restored_tree(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, kind: str
 ) -> None:
-    """A non-regular entry on disk after restore raises and is not chmodded through."""
+    """A non-regular entry on disk after restore raises; it is neither chmodded nor adopted."""
     outside = tmp_path / "outside.json"
     outside.write_text("{}")
     outside.chmod(0o644)
+    target = tmp_path / "ctx"
 
     def restore(path: Path) -> None:
         if kind == "symlink":
@@ -624,100 +648,84 @@ async def test_restore_repo_rejects_non_regular_entry_in_restored_tree(
     _fake_restic(monkeypatch, _STORE_ONLY, restore)
 
     with pytest.raises(RestoredTreeError, match=r"non-regular entry.*store\.json"):
-        await _restore(tmp_path / "ctx")
+        await _restore(target)
     assert _mode(outside) == 0o644
+    (scratch,) = target.iterdir()
+    assert scratch.name.startswith(".restore-")
 
 
 @posix_modes
-async def test_restore_repo_replaces_modes_when_restic_fails(
+async def test_restore_repo_failure_keeps_recorded_modes_inside_scratch_dir(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A failed restore's partial tree is normalized, and the retry can empty it."""
+    """A failed restore's partial tree is only reachable through the 0700 scratch dir."""
     target = tmp_path / "ctx"
+    target.mkdir()
+    target.chmod(0o775)
 
     def fail_midway(path: Path) -> None:
         (path / "partial.json").write_text("{")
         (path / "partial.json").chmod(0o4777)
-        locked = path / "locked"
-        locked.mkdir()
-        (locked / "x.json").write_text("{")
-        locked.chmod(0)
-        raise subprocess.CalledProcessError(1, ["restic", "restore"])
-
-    _fake_restic(monkeypatch, _STORE_ONLY, fail_midway)
-    try:
-        with pytest.raises(subprocess.CalledProcessError):
-            await _restore(target)
-        assert _mode(target / "locked") == 0o700
-    finally:
-        if (target / "locked").exists():
-            (target / "locked").chmod(0o700)
-    assert _mode(target) == 0o700
-    assert _mode(target / "partial.json") == 0o600
-
-    _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
-    await _restore(target)
-    assert [p.name for p in target.iterdir()] == ["store.json"]
-
-
-@posix_modes
-async def test_restore_repo_failure_propagates_when_partial_tree_is_irregular(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Normalizing a failed restore is best effort: restic's failure still propagates."""
-
-    def fail_midway(path: Path) -> None:
-        os.mkfifo(path / "store.json")
         raise subprocess.CalledProcessError(1, ["restic", "restore"])
 
     _fake_restic(monkeypatch, _STORE_ONLY, fail_midway)
 
     with pytest.raises(subprocess.CalledProcessError):
-        await _restore(tmp_path / "ctx")
+        await _restore(target)
+
+    (scratch,) = target.iterdir()
+    assert _mode(scratch) & 0o777 == 0o700
+    assert _mode(target) == 0o775
 
 
 @posix_modes
-async def test_restore_repo_replaces_modes_when_cancelled_mid_restore(
+async def test_restore_repo_leaves_target_mode_alone_when_listing_rejected(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Cancellation while restic writes still normalizes what was written."""
+    """A refused snapshot changes nothing about the target, its mode included."""
+    listing = _ls_chain(_ls_node(f"{_SNAPSHOT_PATH}/store.json", "symlink"))
+    _fake_restic(monkeypatch, listing, _write_store)
     target = tmp_path / "ctx"
-    written = anyio.Event()
+    target.mkdir()
+    target.chmod(0o770)
 
-    async def fake_run_process(command: list[str], **kwargs: object) -> SimpleNamespace:
-        if "ls" in command:
-            lines = "\n".join(json.dumps(record) for record in _STORE_ONLY)
-            return SimpleNamespace(stdout=lines.encode())
-        (target / "partial.json").write_text("{")
-        (target / "partial.json").chmod(0o4777)
-        written.set()
-        await anyio.sleep_forever()
-        raise AssertionError("unreachable")
+    with pytest.raises(RestoredTreeError, match="symlink"):
+        await _restore(target)
 
-    monkeypatch.setattr(anyio, "run_process", fake_run_process)
+    assert _mode(target) == 0o770
+    assert list(target.iterdir()) == []
+
+
+async def test_restore_repo_cancelled_while_adopting_finishes_the_move(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Cancellation while the restored tree is being adopted does not leave it half moved."""
+    from inspect_ai.util._restic import ops
+
+    target = tmp_path / "ctx"
+    adopting = anyio.Event()
+    release = threading.Event()
+    normalize = ops._normalize_restored_tree
+
+    def blocked_normalize(root: Path) -> None:
+        anyio.from_thread.run_sync(adopting.set)
+        release.wait(timeout=30)
+        normalize(root)
+
+    def restore(path: Path) -> None:
+        _write_store(path)
+        (path / "events.json").write_text("[]")
+
+    _fake_restic(monkeypatch, _STORE_ONLY, restore)
+    monkeypatch.setattr(ops, "_normalize_restored_tree", blocked_normalize)
+
     async with anyio.create_task_group() as tg:
         tg.start_soon(_restore, target)
-        await written.wait()
+        await adopting.wait()
         tg.cancel_scope.cancel()
+        release.set()
 
-    assert _mode(target) == 0o700
-    assert _mode(target / "partial.json") == 0o600
-
-
-async def test_restore_repo_tolerates_filesystem_without_modes(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """A filesystem that reports modes as unsupported still restores, as under restic."""
-
-    def chmod(path: object, mode: int) -> None:
-        raise OSError(errno.ENOTSUP, os.strerror(errno.ENOTSUP), str(path))
-
-    calls = _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
-    monkeypatch.setattr(os, "chmod", chmod)
-
-    await _restore(tmp_path / "ctx")
-
-    assert [c[3] for c in calls] == ["ls", "restore"]
+    assert sorted(p.name for p in target.iterdir()) == ["events.json", "store.json"]
 
 
 def _refuse_chmod(monkeypatch: pytest.MonkeyPatch, code: int) -> None:
@@ -732,46 +740,40 @@ def _refuse_chmod(monkeypatch: pytest.MonkeyPatch, code: int) -> None:
     monkeypatch.setattr(os, "chmod", chmod)
 
 
-@posix_modes
-@pytest.mark.skipif(
-    not hasattr(os, "geteuid") or os.geteuid() == 0,
-    reason="root's chmod failures are not tolerated",
+@pytest.mark.parametrize(
+    ("code", "euid"), [(errno.ENOTSUP, 0), (errno.ENOTSUP, 1000), (errno.EPERM, 1000)]
 )
-async def test_restore_repo_tolerates_filesystem_refusing_owner_chmod(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """``EPERM`` on an entry the unprivileged user owns means the filesystem holds no modes."""
-    calls = _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
-    _refuse_chmod(monkeypatch, errno.EPERM)
-
-    await _restore(tmp_path / "ctx")
-
-    assert [c[3] for c in calls] == ["ls", "restore"]
-
-
 @posix_modes
-async def test_restore_repo_fails_when_chmod_is_refused_on_entry_owned_by_another_user(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+async def test_restore_repo_tolerates_chmod_errors_restic_ignores(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, code: int, euid: int
 ) -> None:
-    """``EPERM`` on someone else's entry is not a filesystem limit; the restore fails."""
+    """``ENOTSUP``, and ``EPERM`` when not root: restic applied no recorded mode either."""
+    target = tmp_path / "ctx"
     _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
-    _refuse_chmod(monkeypatch, errno.EPERM)
-    owner = os.geteuid()
-    monkeypatch.setattr(os, "geteuid", lambda: owner + 1)
+    _refuse_chmod(monkeypatch, code)
+    monkeypatch.setattr(os, "geteuid", lambda: euid)
 
-    with pytest.raises(PermissionError, match=r"store\.json"):
-        await _restore(tmp_path / "ctx")
+    await _restore(target)
+
+    assert [p.name for p in target.iterdir()] == ["store.json"]
 
 
+@pytest.mark.parametrize(("code", "euid"), [(errno.EPERM, 0), (errno.EIO, 1000)])
+@posix_modes
 async def test_restore_repo_fails_when_a_mode_cannot_be_set(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, code: int, euid: int
 ) -> None:
-    """Any other chmod failure fails the restore rather than keeping recorded modes."""
+    """Any other chmod failure fails the restore, and the entry is not adopted."""
+    target = tmp_path / "ctx"
     _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
-    _refuse_chmod(monkeypatch, errno.EIO)
+    _refuse_chmod(monkeypatch, code)
+    monkeypatch.setattr(os, "geteuid", lambda: euid)
 
     with pytest.raises(OSError, match=r"store\.json"):
-        await _restore(tmp_path / "ctx")
+        await _restore(target)
+
+    (scratch,) = target.iterdir()
+    assert scratch.name.startswith(".restore-")
 
 
 async def test_restore_repo_rejects_source_path_missing_from_listing(
@@ -947,7 +949,7 @@ async def test_restore_repo_empties_target_before_restore(
     seen_at_restore: list[list[str]] = []
 
     def restore(path: Path) -> None:
-        seen_at_restore.append(sorted(p.name for p in path.iterdir()))
+        seen_at_restore.append(_beside_scratch(path))
         _write_store(path)
 
     _fake_restic(monkeypatch, _STORE_ONLY, restore)
@@ -1032,7 +1034,7 @@ async def test_restore_repo_surfaces_target_emptying_failure(
 async def test_restore_repo_propagates_restic_failure(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A failed restore propagates and leaves its partial tree; the next restore empties it."""
+    """A failed restore leaves its partial tree in the scratch dir; the next restore empties it."""
     target = tmp_path / "ctx"
 
     def fail_midway(path: Path) -> None:
@@ -1042,7 +1044,9 @@ async def test_restore_repo_propagates_restic_failure(
     _fake_restic(monkeypatch, _STORE_ONLY, fail_midway)
     with pytest.raises(subprocess.CalledProcessError):
         await _restore(target)
-    assert [p.name for p in target.iterdir()] == ["partial.json"]
+    (scratch,) = target.iterdir()
+    assert scratch.name.startswith(".restore-")
+    assert [p.name for p in scratch.iterdir()] == ["partial.json"]
 
     _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
     await _restore(target)
@@ -1059,7 +1063,8 @@ async def test_restore_repo_cancelled_mid_restore_then_retried(
         if "ls" in command:
             lines = "\n".join(json.dumps(record) for record in _STORE_ONLY)
             return SimpleNamespace(stdout=lines.encode())
-        (target / "partial.json").write_text("{")
+        scratch = Path(command[command.index("--target") + 1])
+        (scratch / "partial.json").write_text("{")
         await anyio.sleep_forever()
         raise AssertionError("unreachable")
 
@@ -1067,12 +1072,13 @@ async def test_restore_repo_cancelled_mid_restore_then_retried(
     with anyio.move_on_after(0.2) as scope:
         await _restore(target)
     assert scope.cancelled_caught
-    assert [p.name for p in target.iterdir()] == ["partial.json"]
+    (scratch,) = target.iterdir()
+    assert [p.name for p in scratch.iterdir()] == ["partial.json"]
 
     seen_at_restore: list[list[str]] = []
 
     def restore(path: Path) -> None:
-        seen_at_restore.append(sorted(p.name for p in path.iterdir()))
+        seen_at_restore.append(_beside_scratch(path))
         _write_store(path)
 
     _fake_restic(monkeypatch, _STORE_ONLY, restore)

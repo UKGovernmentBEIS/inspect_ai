@@ -250,7 +250,8 @@ async def test_restore_replaces_recorded_modes(tmp_path: Path) -> None:
     """Restored files land 0600 and directories 0700, whatever the snapshot recorded.
 
     The source dir itself is setgid here, as a context dir created under a
-    ``g+s`` log directory is; that must not refuse the restore.
+    ``g+s`` log directory is; that must not refuse the restore. The
+    target's own mode is not changed.
     """
     restic, repo = await _init_repo(tmp_path)
     source = tmp_path / "sample" / "context"
@@ -280,7 +281,7 @@ async def test_restore_replaces_recorded_modes(tmp_path: Path) -> None:
         "shared": None,
         "shared/x.json": "{}",
     }
-    assert _mode(target) == 0o700
+    assert _mode(target) == 0o777
     assert _mode(target / "shared") == 0o700
     for name in ("store.json", "events.json", "shared/x.json"):
         assert _mode(target / name) == 0o600, name

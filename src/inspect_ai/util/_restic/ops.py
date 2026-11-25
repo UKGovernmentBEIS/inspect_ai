@@ -7,7 +7,6 @@ source(s)/target, and tag.
 
 from __future__ import annotations
 
-import contextlib
 import errno
 import io
 import json
@@ -16,6 +15,7 @@ import re
 import shutil
 import stat
 import sys
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 from subprocess import CalledProcessError
@@ -123,31 +123,32 @@ async def restore_repo(
     ``max_files`` / ``max_bytes`` (:func:`_check_snapshot_nodes`). The
     source directory is then restored with restic's
     ``<snapshot>:<subfolder>`` syntax, which places its contents directly
-    in ``target`` with no path chain to walk or rename.
+    in the restore directory with no path chain to walk or rename.
     The listing's sizes are the repo's own claims, so the restore runs with
     ``--verify``: restic reads each restored file back and fails if its
     size or content disagrees with the node, which is what makes the byte
     bound hold for what actually lands on disk.
 
-    The snapshot's recorded metadata is not kept. Extended attributes are
-    excluded from the restore, ``target`` is set to mode 0700 before
-    restic runs and stays that way (:func:`_prepare_target`), and once
-    restic exits every restored directory is set to 0700 and every file to
-    0600 (:func:`_normalize_restored_tree`). A mode that cannot be set
-    fails the restore, except where the filesystem refuses mode changes
-    (:func:`_chmod`). Not reset: the owner and group restic applied (any,
+    Restic reapplies each node's recorded mode, owner and extended
+    attributes, and none of that metadata is trusted. Extended attributes
+    are excluded from the restore, and restic restores into a scratch
+    directory created inside ``target`` with mode 0700
+    (:func:`_restore_scratch_dir`), not into ``target`` itself. Once
+    restic exits, every restored directory is set to 0700 and every file
+    to 0600, and only then is the tree moved up into ``target``
+    (:func:`_adopt_restored_tree`). ``target``'s own mode and owner are
+    never changed. Not reset: the owner and group restic applied (any,
     when it runs as root; otherwise at most a group the user belongs to),
-    access an ACL already on ``target`` or inherited from its parent
-    grants, and on Windows the recorded security descriptor.
+    and on Windows the recorded security descriptor.
 
     ``target`` must be a directory or absent; a symlink is refused without
     being followed (:func:`_prepare_target`). It is emptied before restic
     runs: restic overwrites the snapshot's members but leaves other names
     alone, so files an interrupted fire left in the same directory would
     otherwise survive as state newer than the committed checkpoint. A
-    failed or cancelled restore leaves its partial tree in ``target``,
-    normalized on a best-effort basis; the exception propagates so nothing
-    reads it, and the next restore into the directory empties it first.
+    failed or cancelled restore leaves its partial tree in the scratch
+    directory; the exception propagates so nothing reads it, and the next
+    restore into ``target`` empties it first.
 
     Raises:
         RestoredTreeError: the snapshot holds something other than regular
@@ -158,8 +159,9 @@ async def restore_repo(
         RuntimeError: ``target`` is a symlink or not a directory, the repo
             has no snapshot, the snapshot records no/several source paths,
             or its source path is not a directory in the listing.
-        OSError: ``target`` could not be created or emptied, or a mode
-            could not be set.
+        OSError: ``target`` could not be created or emptied, a restored
+            entry's mode could not be set, or the restored tree could not
+            be moved into ``target``.
         subprocess.CalledProcessError: ``restic restore`` failed, including
             a ``--verify`` mismatch.
     """
@@ -177,34 +179,29 @@ async def restore_repo(
         nodes, paths[0], max_files=max_files, max_bytes=max_bytes
     )
     _empty_dir(target_dir)
-    try:
-        await anyio.run_process(
-            [
-                str(restic),
-                "-r",
-                repo,
-                "restore",
-                "--target",
-                str(target_dir),
-                "--verify",
-                "--exclude-xattr",
-                "*",
-                "--",
-                f"{snapshot['id']}:{subfolder}",
-            ],
-            env=restic_env(password),
-            check=True,
-        )
-    except BaseException:
-        # Best effort only: the restore's own failure is what propagates.
-        with contextlib.suppress(OSError, RestoredTreeError):
-            _normalize_restored_tree(target_dir)
-        raise
-    _normalize_restored_tree(target_dir)
+    scratch = _restore_scratch_dir(target_dir)
+    await anyio.run_process(
+        [
+            str(restic),
+            "-r",
+            repo,
+            "restore",
+            "--target",
+            str(scratch),
+            "--verify",
+            "--exclude-xattr",
+            "*",
+            "--",
+            f"{snapshot['id']}:{subfolder}",
+        ],
+        env=restic_env(password),
+        check=True,
+    )
+    await anyio.to_thread.run_sync(_adopt_restored_tree, scratch, target_dir)
 
 
 def _prepare_target(target: str) -> Path:
-    """``target`` as an absolute directory with mode 0700, created if absent.
+    """``target`` as an absolute path, created if absent.
 
     Checked with ``lstat`` before anything resolves the path: the
     ``mkdir(exist_ok=True)`` that creates the context dir on the caller's
@@ -212,54 +209,75 @@ def _prepare_target(target: str) -> Path:
     directory, and resolving one would redirect both the restore and the
     pre-restore emptying at wherever it points on the host. A symlink or a
     non-directory at ``target`` is refused.
-
-    The mode is left at 0700. Restic never touches the target's own
-    metadata, so its mode bits keep other users out of the tree while it
-    still carries recorded modes, including after a failed restore or a
-    killed process.
     """
     path = Path(os.path.abspath(target))
     try:
         st = os.lstat(path)
     except FileNotFoundError:
         path.mkdir(parents=True)
-    else:
-        if stat.S_ISLNK(st.st_mode):
-            raise RuntimeError(
-                f"restic restore: target is a symlink; refusing to follow it: {path}"
-            )
-        if not stat.S_ISDIR(st.st_mode):
-            raise RuntimeError(f"restic restore: target is not a directory: {path}")
-    _chmod(path, _RESTORED_DIR_MODE)
+        return path
+    if stat.S_ISLNK(st.st_mode):
+        raise RuntimeError(
+            f"restic restore: target is a symlink; refusing to follow it: {path}"
+        )
+    if not stat.S_ISDIR(st.st_mode):
+        raise RuntimeError(f"restic restore: target is not a directory: {path}")
     return path
 
 
-def _chmod(path: str | Path, mode: int) -> None:
-    """``os.chmod``, tolerating a filesystem that refuses mode changes.
+def _restore_scratch_dir(target: Path) -> Path:
+    """A new, empty directory inside ``target`` for restic to restore into.
 
-    Tolerated: ``ENOTSUP``, and ``EPERM`` on an entry the unprivileged
-    user running the restore owns. An owner can always change a mode the
-    filesystem stores, so either error means it does not; restic ignores
-    both when it applies a node's mode, so no recorded mode was applied
-    either. ``EPERM`` on an entry someone else owns, and any other
-    failure, propagates and fails the restore.
+    ``tempfile.mkdtemp`` creates it with mode 0700, owned by the user
+    running the restore, so its mode bits keep other users out of the
+    restored tree while that still carries recorded modes. Nothing depends
+    on ``target``'s own mode or owner, which the restore never changes.
+
+    It sits inside ``target`` so the move into ``target`` is a rename on
+    one filesystem, and because ``context/`` is the one name in a sample
+    dir that the resume copy and host egress both skip: a scratch
+    directory left by a killed restore is never copied or uploaded.
     """
+    return Path(tempfile.mkdtemp(prefix=".restore-", dir=target))
+
+
+def _adopt_restored_tree(scratch: Path, target: Path) -> None:
+    """Replace the modes of the tree in ``scratch``, then move it into ``target``.
+
+    Runs in a worker thread: the walk and the renames are local filesystem
+    work bounded by ``max_files``, and nothing here needs the event loop.
+    """
+    _normalize_restored_tree(scratch)
+    with os.scandir(scratch) as scan:
+        entries = list(scan)
+    for entry in entries:
+        os.rename(entry.path, target / entry.name)
+    os.rmdir(scratch)
+
+
+def _chmod(path: str, mode: int) -> None:
+    """``os.chmod`` for an entry restic just restored (no-op on Windows).
+
+    Tolerates the errors restic itself ignores when it applies a node's
+    mode: ``ENOTSUP``, and ``EPERM`` when not running as root. The same
+    user's chmod of the same entry is refused the same way, so restic
+    applied no recorded mode and the entry still has the mode restic
+    created it with (0600 for a file, 0700 for a directory). Any other
+    failure propagates and fails the restore.
+
+    Skipped on Windows, where ``os.chmod`` only toggles the read-only
+    attribute and can be denied on an entry the user may otherwise write.
+    """
+    if sys.platform == "win32":
+        return
     try:
         os.chmod(path, mode)
     except OSError as ex:
         if ex.errno == errno.ENOTSUP:
             return
-        if ex.errno == errno.EPERM and _owned_by_unprivileged_user(path):
+        if ex.errno == errno.EPERM and os.geteuid() != 0:
             return
         raise
-
-
-def _owned_by_unprivileged_user(path: str | Path) -> bool:
-    """Whether the process is not root and owns ``path`` (never on Windows)."""
-    if sys.platform == "win32":
-        return False
-    euid = os.geteuid()
-    return euid != 0 and os.lstat(path).st_uid == euid
 
 
 def _normalize_restored_tree(root: Path) -> None:
@@ -275,8 +293,7 @@ def _normalize_restored_tree(root: Path) -> None:
     a regular file nor a directory raises :class:`RestoredTreeError`. A
     directory is chmodded before it is read, so one restored unreadable
     does not stop the walk. Iterative, because the listing bounds entries
-    but not depth, and synchronous, so no cancellation point separates
-    restic's exit from the modes being replaced.
+    but not depth.
     """
     pending = [str(root)]
     while pending:
@@ -299,7 +316,7 @@ def _empty_dir(path: Path) -> None:
 
     Symlink entries are unlinked, not descended, so a link to a directory
     elsewhere on the host is never emptied. Nothing is suppressed: an entry
-    that cannot be removed (say a directory a killed restore of a hostile
+    that cannot be removed (say a directory a failed restore of a hostile
     snapshot left unreadable) fails the restore rather than leaving stale
     state beside the restored files.
     """
