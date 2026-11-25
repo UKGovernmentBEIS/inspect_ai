@@ -5,12 +5,15 @@ from dataclasses import dataclass, field
 from itertools import count
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
+from urllib.parse import unquote
 
 import anyio
 
 from ._sign import answer_message, eval_call_message, now, sign
 
 if TYPE_CHECKING:
+    import httpx2
+
     from inspect_ai.model._model import ModelAPI
 
 logger = getLogger(__name__)
@@ -108,7 +111,7 @@ class Sidecar:
     """A sidecar that answered the probe, reached through the model's proxy with the model's own credentials."""
 
     origin: str
-    """The proxy's scheme and host, as the model's base URL gives them, credentials included, since Inspect's calls to the sidecar authenticate with them."""
+    """The proxy's scheme, host and port, as the model's base URL gives them, credentials included, since Inspect's calls to the sidecar authenticate with them. It holds no path, query or fragment."""
     release: Literal["whole", "early"]
     client: Any = field(repr=False)
     version: int = 1
@@ -207,18 +210,14 @@ class Sidecar:
 
     def _secrets(self) -> list[tuple[str, str]]:
         # each secret an error may repeat, with what stands in its place
-        secrets = []
-        if self.origin != self.proxy_url:
-            secrets.append((self.origin, self.proxy_url))
+        secrets = _credentials(self.origin)
         if self.access is not None:
             secrets.append((self.access.token, REDACTED))
         return secrets
 
     def _without_secrets(self, text: str) -> str:
         # the text with the proxy's credentials and the eval's token taken out
-        for secret, shown in self._secrets():
-            text = text.replace(secret, shown)
-        return text
+        return _replaced(text, self._secrets())
 
     def _holds_secret(self, error: BaseException) -> bool:
         # whether the error, or one it is chained to, holds a secret
@@ -308,7 +307,7 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
             options={"max_retries": 0, "timeout": PROBE_TIMEOUT},
         )
     except Exception as ex:
-        failure = str(ex).replace(origin, shown)
+        failure = _replaced(str(ex), _credentials(origin))
         return NoSidecar(*_no_answer(shown, getattr(ex, "status_code", None), failure))
 
     try:
@@ -353,17 +352,48 @@ def _no_answer(origin: str, status: object, failure: str) -> tuple[str, bool]:
     return f"probing {origin} for a sidecar failed: {failure}", False
 
 
-def _origin(base_url: Any) -> str:
-    # a proxy forwards /sentinel/ at its root, and an OpenAI base URL ends in /v1
-    url = str(base_url)
-    scheme, _, rest = url.partition("://")
-    return f"{scheme}://{rest.split('/', 1)[0]}"
+def _origin(url: "httpx2.URL | str") -> str:
+    # a proxy forwards /sentinel/ at its root, an OpenAI base URL ends in /v1,
+    # and a base URL's query or fragment isn't the proxy's
+    import httpx2
+
+    root = httpx2.URL(url).copy_with(path="/", query=None, fragment=None)
+    return str(root).removesuffix("/")
 
 
 def without_credentials(origin: str) -> str:
     """An origin without the user and password a base URL can carry, for showing or recording it."""
-    scheme, separator, host = origin.partition("://")
-    return f"{scheme}{separator}{host.rpartition('@')[2]}"
+    import httpx2
+
+    shown = httpx2.URL(origin).copy_with(username=None, password=None, path="/")
+    return str(shown).removesuffix("/")
+
+
+def _credentials(origin: str) -> list[tuple[str, str]]:
+    # each form an error may repeat the origin's credentials in, percent-encoded
+    # as in the URL or decoded as sent, with what stands in its place: the
+    # whole user info goes, and the secret part alone is redacted, which is
+    # the password, or for a URL with only a token, the user
+    import httpx2
+
+    userinfo = httpx2.URL(origin).userinfo.decode("ascii")
+    if not userinfo:
+        return []
+    user, _, password = userinfo.partition(":")
+    secret = password or user
+    forms: dict[str, str] = {}
+    for encoded, shown in ((f"{userinfo}@", ""), (secret, REDACTED)):
+        forms.setdefault(encoded, shown)
+        forms.setdefault(unquote(encoded), shown)
+    return list(forms.items())
+
+
+def _replaced(text: str, secrets: list[tuple[str, str]]) -> str:
+    # the text with each secret replaced, in order, so the whole user info
+    # goes before its secret part is redacted
+    for secret, shown in secrets:
+        text = text.replace(secret, shown)
+    return text
 
 
 def _response_type() -> type:

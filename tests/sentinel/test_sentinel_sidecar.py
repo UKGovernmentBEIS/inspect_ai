@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 from math import inf, nan
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import unquote
 
 import anyio
 import httpx2
@@ -174,47 +175,102 @@ async def test_a_sidecar_behind_the_models_base_url_is_found(
     assert asked.headers["authorization"] == "Bearer test-key"
 
 
-async def test_a_sidecar_is_shown_without_the_credentials_its_base_url_holds() -> None:
-    stand_in = StandInSidecar()
-
-    found = await _probed(
-        _model(stand_in, "openai", "http://user:secret@proxy.test/v1")
-    )
-
-    assert isinstance(found, Sidecar)
-    # its calls keep the credentials, and what is shown or logged drops them
-    assert found.origin == "http://user:secret@proxy.test"
-    assert found.proxy_url == "http://proxy.test"
-
-
-async def test_an_error_that_repeats_the_proxys_url_holds_no_credentials() -> None:
+@pytest.mark.parametrize(
+    ("provider", "base_url", "origin", "proxy_url", "secrets"),
+    [
+        (
+            "anthropic",
+            "http://user:secret@proxy.test/v1",
+            "http://user:secret@proxy.test",
+            "http://proxy.test",
+            ["secret"],
+        ),
+        # a token alone, as the user
+        (
+            "anthropic",
+            "http://secret@proxy.test",
+            "http://secret@proxy.test",
+            "http://proxy.test",
+            ["secret"],
+        ),
+        # a key in the query, or a fragment, of a base URL with no path, which
+        # the openai SDK keeps as given
+        (
+            "openai",
+            "http://proxy.test?api_key=secret",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["secret"],
+        ),
+        (
+            "openai",
+            "http://proxy.test#secret",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["secret"],
+        ),
+        (
+            "anthropic",
+            "http://user:secret@[::1]:8080/v1",
+            "http://user:secret@[::1]:8080",
+            "http://[::1]:8080",
+            ["secret"],
+        ),
+        # repeated percent-encoded, as in the URL, or decoded, as sent
+        (
+            "anthropic",
+            "http://user:se%40cret@proxy.test",
+            "http://user:se%40cret@proxy.test",
+            "http://proxy.test",
+            ["se%40cret", "se@cret"],
+        ),
+    ],
+)
+async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_shown_without_them(
+    provider: str, base_url: str, origin: str, proxy_url: str, secrets: list[str]
+) -> None:
     # a proxy's error page may repeat the URL Inspect asked for, credentials
-    # and all
+    # and all, as given or decoded; the anthropic SDK's errors show the page
+    asked: list[httpx2.URL] = []
+
     def echo(request: httpx2.Request) -> httpx2.Response:
-        return httpx2.Response(500, text=f"upstream failed for {request.url}")
+        asked.append(request.url)
+        url = str(request.url)
+        return httpx2.Response(500, text=f"upstream failed for {url} ({unquote(url)})")
 
     model = get_model(
-        _MODELS["anthropic"],
-        base_url="http://user:secret@proxy.test",
+        _MODELS[provider],
+        base_url=base_url,
         api_key="test-key",
         memoize=False,
         http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(echo)),
     )
     client = await proxy_client(model.api)
     assert client is not None
+    sidecar = Sidecar(_origin(client.sdk.base_url), "whole", client.sdk)
+    assert (sidecar.origin, sidecar.proxy_url) == (origin, proxy_url)
 
     found = await probe(client)
     assert isinstance(found, NoSidecar)
-    assert "http://proxy.test/sentinel/info" in found.reason
-    assert "secret" not in found.reason
-
-    sidecar = Sidecar(_origin(client.sdk.base_url), "whole", client.sdk)
     with pytest.raises(SidecarCallError) as raised:
         await sidecar.call("end_sample", {})
-    assert "http://proxy.test/sentinel/v1" in str(raised.value)
-    assert "secret" not in str(raised.value)
-    # nor in an error a traceback would print beside it
-    assert raised.value.__cause__ is None and raised.value.__context__ is None
+
+    # each call at the proxy's root, with the credentials and no query
+    assert [(_origin(url), url.raw_path) for url in asked] == [
+        (origin, b"/sentinel/info"),
+        (origin, b"/sentinel/v1"),
+    ]
+    assert proxy_url in found.reason
+    # nor in an error a traceback would print beside the call's
+    shown = [found.reason]
+    error: BaseException | None = raised.value
+    while error is not None:
+        shown.append(str(error))
+        error = error.__cause__ or error.__context__
+    if provider == "anthropic":
+        assert f"{proxy_url}/sentinel/info" in found.reason
+        assert f"{proxy_url}/sentinel/v1" in shown[1]
+    assert not [secret for secret in secrets if any(secret in text for text in shown)]
 
 
 async def test_a_sidecar_behind_an_openai_compatible_models_base_url_is_found() -> None:
