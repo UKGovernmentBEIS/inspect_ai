@@ -29,7 +29,6 @@ from typing import (
     cast,
     overload,
 )
-from urllib.parse import urlparse
 
 import anyio
 import anyio.to_thread
@@ -2566,10 +2565,21 @@ def s3_exists(s3: Any, bucket: str, key: str) -> bool:
 
 
 def s3_bucket_and_key(filename: str) -> tuple[str, str]:
-    parsed = urlparse(filename)
-    bucket = parsed.netloc
-    key = parsed.path.lstrip("/")
-    return bucket, key
+    """Split an S3 URL into its bucket and key.
+
+    The key is all the text after the bucket, without leading slashes.
+    `urlparse` is not used: it would end the key at a `#` or `?` (as a
+    fragment or query) and remove tab, CR and LF characters, so the key would
+    name another object.
+
+    Raises:
+        ValueError: `filename` is not a URL.
+    """
+    scheme, separator, rest = filename.partition("://")
+    if not separator or not scheme:
+        raise ValueError(f"{filename} is not an S3 URL.")
+    bucket, _, key = rest.partition("/")
+    return bucket, key.lstrip("/")
 
 
 def is_s3_filename(filename: str) -> bool:

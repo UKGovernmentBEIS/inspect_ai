@@ -3754,32 +3754,14 @@ def _s3_objects(prefix: str) -> dict[str, bytes]:
 
 
 @pytest.mark.parametrize("delete", [False, True], ids=["merge", "delete"])
-@pytest.mark.parametrize(
-    "target",
-    [
-        "{root}/{name}#tag.eval",
-        "{root}/{name}#tag.shards",
-        "{root}/dir#tag/{name}.eval",
-        "{root}/{name}?tag.eval",
-        "/{root}/{name}.eval",
-    ],
-    ids=["name", "shards", "parent", "query", "leading-slash"],
-)
-def test_s3_locations_s3_would_read_as_another_key_are_refused(
-    s3_shards: tuple[str, str], s3_root: str, target: str, delete: bool
+def test_an_s3_location_with_a_leading_slash_in_its_key_is_refused(
+    s3_shards: tuple[str, str], s3_root: str, delete: bool
 ) -> None:
-    from inspect_ai._util.asyncfiles import s3_bucket_and_key
-
-    location = target.format(root=s3_root, name=NAME)
-    companion = location.removesuffix(".eval").removesuffix(".shards") + ".shards"
-    _s3_copy(f"{s3_root}/{NAME}.shards/", f"{companion}/")
-    # what S3 would read instead (for the leading slash, the ordinary
-    # companion): another shard set, with an unrelated object that must survive
-    _, read_as = s3_bucket_and_key(f"s3://test-bucket/{companion}")
-    if read_as != f"{s3_root}/{NAME}.shards":
-        _s3_copy(f"{s3_root}/{NAME}.shards/", f"{read_as}/")
+    location = f"/{s3_root}/{NAME}.eval"
+    _s3_copy(f"{s3_root}/{NAME}.shards/", f"/{s3_root}/{NAME}.shards/")
+    # S3 would read the ordinary shard set instead, which must survive
     boto3.client("s3").put_object(
-        Bucket="test-bucket", Key=f"{read_as}/keep.txt", Body=b"keep"
+        Bucket="test-bucket", Key=f"{s3_root}/{NAME}.shards/keep.txt", Body=b"keep"
     )
     roots = [f"{s3_root}/", f"/{s3_root}/"]
     before = [_s3_objects(root) for root in roots]
@@ -3788,6 +3770,38 @@ def test_s3_locations_s3_would_read_as_another_key_are_refused(
             f"s3://test-bucket/{location}", _task(), delete_shards=delete
         )
     assert [_s3_objects(root) for root in roots] == before
+
+
+@pytest.mark.parametrize("delete", [False, True], ids=["merge", "delete"])
+@pytest.mark.parametrize(
+    "target",
+    [
+        "{root}/{name}#tag.eval",
+        "{root}/{name}#tag.shards",
+        "{root}/dir#tag/{name}.eval",
+        "{root}/{name}?tag.eval",
+    ],
+    ids=["name", "shards", "parent", "query"],
+)
+def test_an_s3_location_with_a_hash_or_question_mark_merges(
+    s3_shards: tuple[str, str], s3_root: str, target: str, delete: bool
+) -> None:
+    location = target.format(root=s3_root, name=NAME)
+    companion = location.removesuffix(".eval").removesuffix(".shards") + ".shards"
+    merged = companion.removesuffix(".shards") + ".eval"
+    _s3_copy(f"{s3_root}/{NAME}.shards/", f"{companion}/")
+    before = _s3_objects(f"{s3_root}/")
+    result = merge_eval_log_shards(
+        f"s3://test-bucket/{location}", _task(), delete_shards=delete
+    )
+    assert result.written and result.log.status == "success"
+    # only the merged log is added, under its full key, and only this
+    # companion is deleted: nothing is read or written at a key cut at the
+    # `#` or `?`
+    after = _s3_objects(f"{s3_root}/")
+    assert set(after) - set(before) == {merged}
+    deleted = {key for key in before if key.startswith(f"{companion}/")}
+    assert set(before) - set(after) == (deleted if delete else set())
 
 
 def test_a_literal_percent_sign_in_an_s3_name_merges(
@@ -3801,37 +3815,6 @@ def test_a_literal_percent_sign_in_an_s3_name_merges(
     assert f"{s3_root}/{NAME}%23tag.eval" in _s3_keys(f"{s3_root}/")
 
 
-@pytest.mark.parametrize(
-    "child", ["0#tag", "0/worker#tag.eval"], ids=["dir", "attempt"]
-)
-async def test_s3_shard_paths_s3_would_read_as_another_key_are_refused(
-    s3_shards: tuple[str, str], s3_root: str, child: str
-) -> None:
-    from inspect_ai.log import merge_eval_log_shards_async
-
-    merged, _ = s3_shards
-    shards = f"{s3_root}/{NAME}.shards"
-    [attempt] = [k for k in _s3_keys(f"{shards}/1/") if k.endswith(".eval")]
-    client = boto3.client("s3")
-    if child == "0#tag":
-        # shard 0 under a directory S3 would list as `0`
-        _s3_copy(f"{shards}/0/", f"{shards}/0#tag/")
-    else:
-        # an attempt S3 would read as the non-log object `worker`, which holds
-        # another shard's samples
-        source = {"Bucket": "test-bucket", "Key": attempt}
-        client.copy_object(
-            Bucket="test-bucket", Key=f"{shards}/{child}", CopySource=source
-        )
-        client.copy_object(
-            Bucket="test-bucket", Key=f"{shards}/0/worker", CopySource=source
-        )
-    before = _s3_objects(f"{s3_root}/")
-    with pytest.raises(ShardSetError, match="S3 would read it as"):
-        await merge_eval_log_shards_async(merged, _task())
-    assert _s3_objects(f"{s3_root}/") == before
-
-
 _NOT_DIRECTLY = "is not a file or directory directly in it"
 
 
@@ -3839,13 +3822,11 @@ _NOT_DIRECTLY = "is not a file or directory directly in it"
 @pytest.mark.parametrize(
     "hidden,match",
     [
-        ("1#tag/worker.eval", "S3 would read it as"),
-        ("1?tag/worker.eval", "S3 would read it as"),
         ("/worker.eval", _NOT_DIRECTLY),
         ("//worker.eval", _NOT_DIRECTLY),
         ("0//worker.eval", _NOT_DIRECTLY),
     ],
-    ids=["fragment", "query", "root-empty", "root-empty-twice", "shard-empty"],
+    ids=["root-empty", "root-empty-twice", "shard-empty"],
 )
 async def test_an_s3_worker_the_listing_would_hide_is_refused(
     s3_shards: tuple[str, str], s3_root: str, hidden: str, match: str, merge: str
@@ -3868,9 +3849,8 @@ async def test_an_s3_worker_the_listing_would_hide_is_refused(
             merged, _task(), sample_ids=[1, 2, 3]
         )
         assert result.written and result.log.status == "success"
-    # shard 1's unmerged worker, under a key the listing would drop: a
-    # directory S3 would list as the absent `1`, or an empty path component
-    # that lists as the directory listed
+    # shard 1's unmerged worker, under a key the listing would drop: an
+    # empty path component lists as the directory listed
     client.copy_object(
         Bucket="test-bucket",
         Key=f"{shards}/{hidden}",
@@ -3938,8 +3918,11 @@ def test_s3_attempt_names_with_a_backslash_are_refused(
     assert _s3_objects(f"{s3_root}/") == before
 
 
-def test_a_literal_percent_sign_in_an_s3_attempt_name_merges(
-    s3_shards: tuple[str, str], s3_root: str
+@pytest.mark.parametrize(
+    "name", ["worker%23tag.eval", "worker#tag.eval", "worker?tag.eval"]
+)
+def test_an_s3_attempt_name_with_a_percent_sign_hash_or_question_mark_merges(
+    s3_shards: tuple[str, str], s3_root: str, name: str
 ) -> None:
     merged, _ = s3_shards
     shards = f"{s3_root}/{NAME}.shards"
@@ -3947,14 +3930,14 @@ def test_a_literal_percent_sign_in_an_s3_attempt_name_merges(
     client = boto3.client("s3")
     client.copy_object(
         Bucket="test-bucket",
-        Key=f"{shards}/0/worker%23tag.eval",
+        Key=f"{shards}/0/{name}",
         CopySource={"Bucket": "test-bucket", "Key": attempt},
     )
     client.delete_object(Bucket="test-bucket", Key=attempt)
     result = merge_eval_log_shards(merged, _task())
     assert result.written
     assert result.log.status == "success" and result.log.eval.shards is not None
-    assert result.log.eval.shards.ledger[0].log == "worker%23tag.eval"
+    assert result.log.eval.shards.ledger[0].log == name
 
 
 @pytest.mark.parametrize("merge", ["fresh", "existing"])
@@ -3962,7 +3945,8 @@ def test_a_literal_percent_sign_in_an_s3_attempt_name_merges(
     "name,match",
     [
         ("a", "not named with digits only"),
-        ("1#tag", "S3 would read it as"),
+        ("1#tag", "not named with digits only"),
+        ("1?tag", "not named with digits only"),
         ("prefix\\0", "not named with digits only"),
     ],
 )
@@ -6088,16 +6072,15 @@ def test_delete_shards_stays_in_prefix(
     )
 
 
-def test_delete_shards_refuses_unsafe_s3_name(
+def test_delete_shards_deletes_s3_names_with_a_hash_or_question_mark(
     s3_shards: tuple[str, str], s3_root: str
 ) -> None:
     merged, shards = s3_shards
-    # deeper than the merge lists, so only deletion's listing sees it
+    # deeper than the merge lists, so only deletion's listing sees them
     _put(f"{shards}/0/scans/rows#1.parquet")
-    before = _s3_objects(f"{s3_root}/")
-    with pytest.raises(ShardSetError, match="S3 would read it as.*Rename it"):
-        merge_eval_log_shards(merged, _task(), delete_shards=True)
-    assert _s3_objects(f"{s3_root}/") == before
+    _put(f"{shards}/0/scans/rows?1.parquet")
+    merge_eval_log_shards(merged, _task(), delete_shards=True)
+    assert _s3_keys(f"{s3_root}/") == [merged.removeprefix("s3://test-bucket/")]
 
 
 def test_delete_shards_storage_error(

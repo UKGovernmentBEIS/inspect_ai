@@ -4617,3 +4617,56 @@ async def test_dir_over_a_sync_filesystem_keeps_the_synchronous_path(
     monkeypatch.setitem(fsspec.config.conf, "dir", dir_options)
     async with AsyncFilesystem() as afs:
         assert await afs.read_file("dir://a.bin") == _PAYLOAD
+
+
+@pytest.mark.parametrize(
+    "url,bucket,key",
+    [
+        ("s3://b/logs/run.eval", "b", "logs/run.eval"),
+        ("s3://b/logs/run#tag.eval", "b", "logs/run#tag.eval"),
+        ("s3://b/logs/run?tag.eval", "b", "logs/run?tag.eval"),
+        ("s3://b/dir#x/run?y#z", "b", "dir#x/run?y#z"),
+        ("s3://b/tab\there\r\n", "b", "tab\there\r\n"),
+        ("s3://b/sp ace%23é", "b", "sp ace%23é"),
+        ("s3://b//logs/run.eval", "b", "logs/run.eval"),
+        ("s3://b/a//b/", "b", "a//b/"),
+        ("s3://b/", "b", ""),
+        ("s3://b", "b", ""),
+    ],
+)
+def test_s3_bucket_and_key_keeps_the_whole_key(url: str, bucket: str, key: str) -> None:
+    assert s3_bucket_and_key(url) == (bucket, key)
+
+
+def test_s3_bucket_and_key_refuses_a_path() -> None:
+    with pytest.raises(ValueError, match="not an S3 URL"):
+        s3_bucket_and_key("bucket/key#1")
+
+
+async def test_s3_keys_with_a_hash_or_question_mark_name_their_own_object(
+    mock_s3: None,
+) -> None:
+    import boto3
+
+    s3 = boto3.client("s3")
+    # the object a key cut at the `#` or `?` would name
+    s3.put_object(Bucket="test-bucket", Key="hash_keys/a", Body=b"a")
+    s3.put_object(Bucket="test-bucket", Key="hash_keys/r#d.txt", Body=b"r#d")
+    async with AsyncFilesystem() as fs:
+        await fs.write_file(f"{S3_BUCKET}/hash_keys/a#b.txt", b"a#b")
+        await fs.write_file(f"{S3_BUCKET}/hash_keys/a?b.txt", b"a?b")
+        assert await fs.exists(f"{S3_BUCKET}/hash_keys/r#d.txt")
+        assert await fs.read_file(f"{S3_BUCKET}/hash_keys/r#d.txt") == b"r#d"
+        # absent, though the key cut at the `?` names an object
+        assert not await fs.exists(f"{S3_BUCKET}/hash_keys/a?x")
+    listing = s3.list_objects_v2(Bucket="test-bucket", Prefix="hash_keys/")
+    stored = {
+        o["Key"]: s3.get_object(Bucket="test-bucket", Key=o["Key"])["Body"].read()
+        for o in listing["Contents"]
+    }
+    assert stored == {
+        "hash_keys/a": b"a",
+        "hash_keys/a#b.txt": b"a#b",
+        "hash_keys/a?b.txt": b"a?b",
+        "hash_keys/r#d.txt": b"r#d",
+    }

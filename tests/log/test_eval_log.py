@@ -5,6 +5,7 @@ import json
 import math
 import os
 import re
+import sys
 import tempfile
 import uuid
 from datetime import datetime, timezone
@@ -3631,3 +3632,46 @@ def test_log_without_description_reads(log_file: str) -> None:
     assert log.samples
     assert all(sample.description is None for sample in log.samples)
     assert all(sample.summary().description is None for sample in log.samples)
+
+
+@pytest.mark.parametrize(
+    "char",
+    [
+        "#",
+        pytest.param(
+            "?",
+            # the sample buffer is a local file named after the log
+            marks=pytest.mark.skipif(
+                sys.platform == "win32", reason="'?' can't be in a Windows file name"
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize("where", ["task", "log_dir"])
+@pytest.mark.parametrize("format", ["eval", "json"])
+def test_s3_log_named_with_a_hash_or_question_mark_is_written_under_its_full_key(
+    mock_s3: None, char: str, where: str, format: Literal["eval", "json"]
+) -> None:
+    """A `#` or `?` in the task name or log dir is kept in the log's key."""
+    import boto3
+
+    from inspect_ai.log import list_eval_logs
+
+    name = f"issue{char}12" if where == "task" else "issue"
+    log_dir = f"s3://test-bucket/{'hash' if char == '#' else 'query'}-{format}-{where}"
+    if where == "log_dir":
+        log_dir = f"{log_dir}/exp{char}3"
+    log = eval(
+        Task(dataset=[Sample(input="hi", target="x")], name=name),
+        model="mockllm/model",
+        log_dir=log_dir,
+        log_format=format,
+        display="none",
+    )[0]
+    assert log.status == "success"
+    prefix = log_dir.removeprefix("s3://test-bucket/") + "/"
+    listing = boto3.client("s3").list_objects_v2(Bucket="test-bucket", Prefix=prefix)
+    stored = [f"s3://test-bucket/{o['Key']}" for o in listing.get("Contents", [])]
+    assert stored == [log.location]
+    assert [info.name for info in list_eval_logs(log_dir)] == [log.location]
+    assert read_eval_log(log.location).eval.task == name
