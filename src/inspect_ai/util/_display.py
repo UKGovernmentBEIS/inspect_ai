@@ -128,8 +128,10 @@ def display_type_scope() -> Iterator[None]:
     from `display`, `trace` or (eval_async()) "plain". When the outermost of
     these calls returns, after its display has shut down, the display type it
     found is restored. When none was set, the configured default
-    (`INSPECT_DISPLAY`) is set in its place, so a later call that only sets a
-    type when none is set (e.g. score_async()) can't replace it. The active
+    (`INSPECT_DISPLAY`, from the environment or the project .env) is set in
+    its place, so a later call that only sets a type when none is set (e.g.
+    score_async()) can't replace it. So a first direct eval_async() uses
+    "plain", and later ones use the configured type. The active
     display and the console settings change at the next use of the display
     type, as for any other change of display type.
     """
@@ -137,7 +139,11 @@ def display_type_scope() -> Iterator[None]:
     previous = _display_type
     if previous is None and _display_scope_depth == 0:
         # resolved now, as the thread and backend of the call decide it, and
-        # left unset during the call so eval_async() can choose "plain"
+        # left unset during the call so eval_async() can choose "plain". The
+        # project .env (which the call loads anyway) can set INSPECT_DISPLAY.
+        from inspect_ai._util.dotenv import init_dotenv
+
+        init_dotenv()
         previous = _resolve_display_type(None, warn_unknown=False).display_type
     _display_scope_depth += 1
     try:

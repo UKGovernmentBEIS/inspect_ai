@@ -1105,6 +1105,85 @@ def test_eval_keeps_configured_display_after_implicit_display_choice(
     assert types == ["rich", "rich"]
 
 
+def test_repeated_direct_eval_async_uses_plain_then_configured_display(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("INSPECT_DISPLAY", "full")
+    types: list[DisplayType] = []
+    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
+    for _ in range(2):
+        anyio.run(
+            functools.partial(
+                eval_async, task, model="mockllm/model", log_dir=str(tmp_path)
+            )
+        )
+
+    # the first call finds no display type set and uses "plain"; it then
+    # leaves the configured type set, which later calls use ("full" runs as
+    # "rich" outside eval())
+    assert types == ["plain", "rich"]
+
+
+_DOTENV_DISPLAY_SCRIPT = """
+import sys
+
+import anyio
+
+from inspect_ai import Task, eval, eval_async, eval_set
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import solver
+from inspect_ai.util._display import display_type
+
+types = []
+
+
+@solver
+def record():
+    async def solve(state, generate):
+        types.append(display_type())
+        return state
+
+    return solve
+
+
+task = Task(dataset=[Sample(input="hi")], solver=record())
+first = sys.argv[1]
+if first == "eval_set":
+    eval_set(task, model="mockllm/model", log_dir="set")
+elif first == "eval":
+    eval(task, model="mockllm/model", log_dir="first")
+else:
+    anyio.run(lambda: eval_async(task, model="mockllm/model", log_dir="first"))
+eval(task, model="mockllm/model", log_dir="second")
+print("TYPES", ",".join(types))
+"""
+
+
+@pytest.mark.parametrize(
+    "first,expected",
+    [("eval_set", "none,none"), ("eval", "none,none"), ("eval_async", "plain,none")],
+)
+def test_eval_display_from_project_dotenv_in_fresh_process(
+    tmp_path: Path, first: str, expected: str
+) -> None:
+    import subprocess
+
+    (tmp_path / ".env").write_text("INSPECT_DISPLAY=none\n")
+    script = tmp_path / "run.py"
+    script.write_text(_DOTENV_DISPLAY_SCRIPT)
+    env = {k: v for k, v in os.environ.items() if k != "INSPECT_DISPLAY"}
+    result = subprocess.run(
+        [sys.executable, str(script), first],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    assert result.returncode == 0, result.stderr
+    assert f"TYPES {expected}" in result.stdout
+
+
 def test_eval_retry_display_does_not_carry_to_later_evals(
     fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
