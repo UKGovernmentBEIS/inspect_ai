@@ -3,6 +3,7 @@
 from ._store import AddOnlyStoreError, StoreLocation
 from ._writer import (
     EvalRecordWriter,
+    RescoreRecordWriter,
     SampleRecordWriter,
     init_sample_record_writer,
     store_boundary,
@@ -11,6 +12,7 @@ from ._writer import (
 __all__ = [
     "AddOnlyStoreError",
     "EvalRecordWriter",
+    "RescoreRecordWriter",
     "SampleRecordWriter",
     "StoreLocation",
     "init_sample_record_writer",

@@ -9,6 +9,11 @@ exist, the eval's status, stats and results) match it, not that the run was
 honest: records written after a compromise pass too. Other .eval fields
 (for example sample messages and output, the sample summaries) are not
 checked.
+
+A rescored .eval file names its latest rescore in each sample's events. Its
+expected samples are the original run's, with each rescore of the chain
+applied by ``inspect score``'s own functions; its results come from the
+latest rescore's closing record.
 """
 
 import json
@@ -17,13 +22,20 @@ import tempfile
 from collections import defaultdict
 from collections.abc import Iterator, Mapping
 from datetime import datetime
+from functools import reduce
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
+from inspect_ai._eval.score import (
+    ScoreAction,
+    _get_updated_events,
+    _get_updated_scores,
+)
 from inspect_ai._util._async import run_coroutine
 from inspect_ai.event import Event
+from inspect_ai.event._tree import EventTreeSpan, event_tree
 from inspect_ai.event._validate import validate_events
 from inspect_ai.log._condense import mark_attachments_resolved
 from inspect_ai.log._file import (
@@ -32,7 +44,7 @@ from inspect_ai.log._file import (
     read_eval_log_sample,
     read_eval_log_sample_summaries,
 )
-from inspect_ai.log._log import EvalSample, EvalSpec
+from inspect_ai.log._log import EvalResults, EvalSample, EvalSpec
 from inspect_ai.log._recorders import recorder_type_for_location
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.types import BufferRows
@@ -40,12 +52,18 @@ from inspect_ai.log._recorders.streaming import materialize_streaming_sample
 
 from ._records import (
     CLOSING,
+    RESCORES,
     START,
     EvalClosingRecord,
+    RescoreClosingRecord,
+    RescoreRef,
+    RescoreSampleRecord,
+    RescoreStartRecord,
     SampleClosingRecord,
     SampleRecord,
     StartRecord,
     StoreRecord,
+    latest_rescore,
 )
 from ._store import StoreLocation, s3_client, sample_key_part
 
@@ -66,10 +84,12 @@ FindingKind = Literal[
     "event_mismatch",
     "malformed_record",
     "unstored_eval",
-    "duplicate_eval_file",
     "unstored_sample",
     "score_mismatch",
     "eval_mismatch",
+    "rescore_without_eval",
+    "missing_rescore",
+    "rescore_mismatch",
 ]
 
 
@@ -84,6 +104,16 @@ class StoredRecordInfo(BaseModel):
     key: str
     arrival: datetime
     """When S3 recorded the object's arrival (the host cannot set it)."""
+
+
+class RescoreInfo(BaseModel):
+    eval_id: str
+    rescore_id: str
+    arrival: datetime
+    """When S3 recorded the rescore's start record."""
+    action: ScoreAction
+    original_results: EvalResults | None
+    """The eval closing record's results (None without one)."""
 
 
 class ValidationReport(BaseModel):
@@ -105,6 +135,9 @@ class ValidationReport(BaseModel):
     their prior eval. Listed, not findings: eval_set's ``retry_cleanup``
     deletes these files, but eval-host keys can forge a later eval that
     names any eval."""
+    rescores: list[RescoreInfo] = []
+    """Each rescore with a start record, oldest first. Listed, not findings:
+    a rescore is a claim by whoever could add to the store."""
 
     @property
     def passed(self) -> bool:
@@ -137,6 +170,23 @@ class _StoredEval(NamedTuple):
     """The last closed attempt of each sample, by ``<sample-id>.<epoch>``."""
     prior_eval_id: str | None
     """The eval a retry reuses samples from (the start record's)."""
+    nonce: str | None
+    """The start record's nonce (None without a start record)."""
+
+
+class _StoredRescore(NamedTuple):
+    """One rescore's records, checked."""
+
+    findings: list[Finding]
+    start: RescoreStartRecord | None
+    closing: RescoreClosingRecord | None
+    samples: dict[str, RescoreSampleRecord]
+    """By ``<sample-id>.<epoch>``."""
+
+
+class _RescoreStep(NamedTuple):
+    action: ScoreAction
+    record: RescoreSampleRecord
 
 
 class _Version(NamedTuple):
@@ -211,11 +261,25 @@ def validate_store(
         )["Body"].read()
         return _record_adapter.validate_json(body)
 
-    # group keys by eval id (the first part after the prefix)
-    relative = {key: key.removeprefix(prefix) for key in by_key}
+    # group keys by eval id (the first part after the prefix), and rescore
+    # keys ("rescores/<eval-id>/<rescore-id>/<last>") by eval and rescore id
     evals: dict[str, list[str]] = defaultdict(list)
-    for key, rel in relative.items():
-        evals[rel.split("/", 1)[0]].append(rel)
+    rescore_keys: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for key in by_key:
+        rel = key.removeprefix(prefix)
+        parts = rel.split("/")
+        if parts[0] != RESCORES:
+            evals[parts[0]].append(rel)
+        elif len(parts) == 4:
+            rescore_keys[(parts[1], parts[2])].append(parts[3])
+        else:
+            findings.append(
+                Finding(
+                    kind="malformed_record",
+                    key=key,
+                    message="Not a key a rescore writes.",
+                )
+            )
 
     eval_files = _eval_files(log_dir)
     findings.extend(
@@ -227,28 +291,47 @@ def validate_store(
         for eval_id, (eval_file, *_) in sorted(eval_files.items())
         if eval_id not in evals
     )
-    findings.extend(
-        Finding(
-            kind="duplicate_eval_file",
-            eval_id=eval_id,
-            message=f"{len(names)} .eval files have this eval id: {names}. "
-            "The first is compared.",
-        )
-        for eval_id, names in sorted(eval_files.items())
-        if len(names) > 1
-    )
     stored = {
         eval_id: _read_eval(eval_id, keys, lambda rel: read(location.key(rel)))
         for eval_id, keys in sorted(evals.items())
     }
+    rescores = {
+        (eval_id, rescore_id): _read_rescore(
+            eval_id,
+            rescore_id,
+            lasts,
+            lambda rel: read(location.key(rel)),
+            stored[eval_id].nonce if eval_id in stored else None,
+        )
+        for (eval_id, rescore_id), lasts in sorted(rescore_keys.items())
+    }
+    # every .eval file with the eval id (for example an original and its
+    # rescored copy)
     compared = {
-        eval_id: _compare_eval_file(eval_id, stored, eval_files.get(eval_id, [None])[0])
+        eval_id: [
+            _compare_eval_file(eval_id, stored, rescores, eval_file)
+            for eval_file in eval_files.get(eval_id, [None])
+        ]
         for eval_id in stored
     }
     findings.extend(
         f
         for eval_id in stored
-        for f in [*stored[eval_id].findings, *compared[eval_id].findings]
+        for f in [
+            *stored[eval_id].findings,
+            *(f for c in compared[eval_id] for f in c.findings),
+        ]
+    )
+    findings.extend(f for r in rescores.values() for f in r.findings)
+    findings.extend(
+        Finding(
+            kind="rescore_without_eval",
+            eval_id=eval_id,
+            key=_rescore_name(eval_id, rescore_id),
+            message="The store has no records of the eval this rescore names.",
+        )
+        for eval_id, rescore_id in rescores
+        if eval_id not in evals
     )
 
     return ValidationReport(
@@ -262,13 +345,73 @@ def validate_store(
             key=lambda r: (r.arrival, r.key),
         ),
         findings=findings,
-        samples_compared=sum(c.samples_compared for c in compared.values()),
-        stopped=[key for e in stored.values() for key in e.stopped],
-        not_logged=[key for c in compared.values() for key in c.not_logged],
+        samples_compared=sum(
+            c.samples_compared for cs in compared.values() for c in cs
+        ),
+        stopped=[
+            *(key for e in stored.values() for key in e.stopped),
+            *(
+                _rescore_name(*ids)
+                for ids, r in rescores.items()
+                if r.start is not None and r.closing is None
+            ),
+        ],
+        not_logged=[
+            key for cs in compared.values() for c in cs for key in c.not_logged
+        ],
         prior_without_file={
-            eval_id: c.named_by for eval_id, c in compared.items() if c.named_by
+            eval_id: c.named_by
+            for eval_id, cs in compared.items()
+            for c in cs
+            if c.named_by
         },
+        rescores=sorted(
+            (
+                RescoreInfo(
+                    eval_id=eval_id,
+                    rescore_id=rescore_id,
+                    arrival=by_key[
+                        location.key(_rescore_name(eval_id, rescore_id), START)
+                    ][-1].arrival,
+                    action=r.start.action,
+                    original_results=_original_results(stored.get(eval_id)),
+                )
+                for (eval_id, rescore_id), r in rescores.items()
+                if r.start is not None
+            ),
+            key=lambda info: (info.arrival, info.rescore_id),
+        ),
     )
+
+
+def read_eval_nonce(store: str, eval_id: str, client: Any | None = None) -> str:
+    """The eval's nonce, from the earliest version of its start record.
+
+    A rescore of the eval writes it in each record. Needs the validator's
+    read access.
+
+    Raises:
+       ValueError: The store has no readable start record for the eval.
+    """
+    location = StoreLocation.parse(store)
+    s3 = client if client is not None else s3_client()
+    key = location.key(eval_id, START)
+    # the store prefix, as validate_store lists it (moto refuses a "/" in it)
+    versions = [
+        v
+        for page in s3.get_paginator("list_object_versions").paginate(
+            Bucket=location.bucket, Prefix=location.key("").rstrip("/")
+        )
+        for v in page.get("Versions", [])
+        if v["Key"] == key
+    ]
+    if not versions:
+        raise ValueError(f"The store has no start record for eval {eval_id}.")
+    # S3 lists a key's versions newest first
+    body = s3.get_object(
+        Bucket=location.bucket, Key=key, VersionId=versions[-1]["VersionId"]
+    )["Body"].read()
+    return StartRecord.model_validate_json(body).nonce
 
 
 def _check_settings(s3: Any, bucket: str) -> list[Finding]:
@@ -345,7 +488,7 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
     start = stored.get(f"{eval_id}/{START}")
     if start is None:
         finding("missing_start", "No start record.")
-        return _StoredEval(findings, stopped, None, None, set(), {}, None)
+        return _StoredEval(findings, stopped, None, None, set(), {}, None, None)
     assert isinstance(start, StartRecord)
     nonce = start.nonce
 
@@ -425,6 +568,7 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
         {sample_part for sample_part, _ in attempts.keys() | listed},
         final_attempts,
         start.prior_eval_id,
+        nonce,
     )
 
 
@@ -438,12 +582,17 @@ class _Compared(NamedTuple):
 
 
 def _compare_eval_file(
-    eval_id: str, evals: Mapping[str, _StoredEval], eval_file: str | None
+    eval_id: str,
+    evals: Mapping[str, _StoredEval],
+    rescores: Mapping[tuple[str, str], _StoredRescore],
+    eval_file: str | None,
 ) -> _Compared:
-    """Compare the eval's .eval file with its records.
+    """Compare a .eval file of the eval with its records.
 
     A .eval sample with no closed attempt of its own is one a retry reused:
-    it is compared with the records of the earlier eval that ran it.
+    it is compared with the records of the earlier eval that ran it. A
+    rescored sample is compared with its records after the rescores its
+    markers name.
     """
     findings: list[Finding] = []
 
@@ -469,28 +618,11 @@ def _compare_eval_file(
             )
         return _Compared(findings, 0, named_by)
 
-    fields = {"status", "stats", "results"}
-    header = read_eval_log(eval_file, header_only=True).model_dump(
-        mode="json", include=fields
-    )
-    if stored.closing is None:
-        # a .eval file that is not still "started" was finished, and the
-        # eval writes its closing record after that
-        if header["status"] != "started":
-            finding(
-                "missing_eval_closing",
-                f"The .eval file's status is {header['status']}, and the store "
-                "has no eval closing record.",
-            )
-    else:
-        closing_fields = stored.closing.model_dump(mode="json", include=fields)
-        if changed := sorted(
-            f for f in fields if not _same_json(header.get(f), closing_fields.get(f))
-        ):
-            finding(
-                "eval_mismatch",
-                f"The .eval file's {changed} differ from the eval closing record's.",
-            )
+    header_log = read_eval_log(eval_file, header_only=True)
+    header = {
+        **header_log.model_dump(mode="json", include={"status", "stats", "results"}),
+        "epochs_reducer": header_log.eval.config.epochs_reducer,
+    }
 
     # an eval stopped before it finished its .eval file (or its host
     # stopped writing) may not have logged every sample it closed
@@ -553,6 +685,8 @@ def _compare_eval_file(
             )
 
     compared = 0
+    # the latest rescore of this eval each sample names (None: not rescored)
+    file_rescores: set[RescoreRef | None] = set()
     for key, note, final in to_compare:
         ref = final.closing.sample
         try:
@@ -566,8 +700,30 @@ def _compare_eval_file(
                 key,
             )
             continue
-        stored_scores = {k: v.score for k, v in final.closing.scores.items()}
-        if changed := _changed_keys(logged.scores or {}, stored_scores):
+        latest = latest_rescore(logged.events)
+        file_rescores.add(latest if latest and latest.eval_id == eval_id else None)
+        chain = _rescore_chain(
+            rescores, latest, sample_key_part(ref.sample_id, ref.epoch)
+        )
+        if isinstance(chain, str):
+            finding("missing_rescore", f"{chain}{note}", key)
+            continue
+        if chain:
+            names = ", ".join(step.record.rescore_id for step in chain)
+            note = f"{note} (after rescores {names})"
+        expected = reduce(
+            _rescored,
+            chain,
+            EvalSample(
+                id=ref.sample_id,
+                epoch=ref.epoch,
+                input="",
+                target="",
+                scores={k: v.score for k, v in final.closing.scores.items()},
+                events=final.events or [],
+            ),
+        )
+        if changed := _changed_keys(logged.scores or {}, expected.scores or {}):
             finding(
                 "score_mismatch",
                 f"Scores {changed} differ from the sample closing record's{note}.",
@@ -577,9 +733,188 @@ def _compare_eval_file(
         if final.events is None:
             continue
         compared += 1
-        if difference := _compare_events(logged, final):
+        if difference := _compare_events(logged, expected.events, final, chain):
             finding("event_mismatch", f"{difference}{note}", key)
+
+    # status and stats come from the eval closing record, results from the
+    # closing record of the latest rescore the samples name
+    mixed = len(file_rescores) > 1
+    if mixed:
+        latest_names = sorted(
+            _rescore_name(r.eval_id, r.rescore_id) if r else "none"
+            for r in file_rescores
+        )
+        finding(
+            "rescore_mismatch",
+            f"The samples of {eval_file} name different latest rescores: "
+            f"{latest_names}.",
+        )
+    file_rescore = None if mixed else next(iter(file_rescores), None)
+
+    def compare(source: str, closing: BaseModel, fields: set[str]) -> None:
+        closing_fields = closing.model_dump(mode="json", include=fields)
+        if changed := sorted(
+            f for f in fields if not _same_json(header.get(f), closing_fields.get(f))
+        ):
+            finding(
+                "eval_mismatch",
+                f"The .eval file's {changed} differ from the {source}'s.",
+            )
+
+    # a .eval file that is not still "started" was finished, and the eval
+    # (or the rescore) writes its closing record before or after that
+    if stored.closing is None:
+        if header["status"] != "started":
+            finding(
+                "missing_eval_closing",
+                f"The .eval file's status is {header['status']}, and the store "
+                "has no eval closing record.",
+            )
+    else:
+        compare(
+            "eval closing record",
+            stored.closing,
+            {"status", "stats"} | (set() if mixed or file_rescore else {"results"}),
+        )
+    rescore = file_rescore and rescores.get(
+        (file_rescore.eval_id, file_rescore.rescore_id)
+    )
+    # a rescore not in the store has a missing_rescore finding
+    if rescore and rescore.start is not None:
+        assert file_rescore is not None
+        name = _rescore_name(file_rescore.eval_id, file_rescore.rescore_id)
+        if rescore.closing is not None:
+            compare(
+                f"rescore closing record ({name})",
+                rescore.closing,
+                {"results", "epochs_reducer"},
+            )
+        elif header["status"] != "started":
+            finding(
+                "missing_eval_closing",
+                f"The .eval file's status is {header['status']}, and its "
+                f"samples name rescore {name}, which has no closing record.",
+            )
     return _Compared(findings, compared, not_logged=not_logged)
+
+
+def _rescore_name(eval_id: str, rescore_id: str) -> str:
+    return f"{RESCORES}/{eval_id}/{rescore_id}"
+
+
+def _original_results(stored: _StoredEval | None) -> EvalResults | None:
+    return stored.closing.results if stored and stored.closing else None
+
+
+def _read_rescore(
+    eval_id: str,
+    rescore_id: str,
+    lasts: list[str],
+    read: Any,
+    eval_nonce: str | None,
+) -> _StoredRescore:
+    """Read and check one rescore's records (``lasts``: the last key parts).
+
+    Each record must have the eval's nonce (``eval_nonce``; None when the
+    store has no start record of the eval, which is a finding of its own).
+    """
+    name = _rescore_name(eval_id, rescore_id)
+    findings: list[Finding] = []
+
+    def finding(kind: FindingKind, message: str, key: str) -> None:
+        findings.append(Finding(kind=kind, eval_id=eval_id, key=key, message=message))
+
+    stored: dict[str, StoreRecord] = {}
+    for last in lasts:
+        key = f"{name}/{last}"
+        record_type = {START: RescoreStartRecord, CLOSING: RescoreClosingRecord}.get(
+            last, RescoreSampleRecord
+        )
+        try:
+            record = read(key)
+        except ValueError as ex:
+            finding("malformed_record", f"Cannot read it: {_first_error(ex)}", key)
+            continue
+        if not isinstance(record, record_type):
+            finding("malformed_record", f"Holds a {record.type} record.", key)
+            continue
+        if isinstance(record, RescoreSampleRecord) and not _one_scorers_span(
+            record.events
+        ):
+            finding(
+                "malformed_record",
+                "Its events are not one top-level scorers span, as a rescore "
+                "adds them.",
+                key,
+            )
+            continue
+        stored[last] = record
+
+    findings.extend(
+        Finding(
+            kind="nonce",
+            eval_id=eval_id,
+            key=f"{name}/{last}",
+            message="Nonce differs from the eval's start record's.",
+        )
+        for last, record in stored.items()
+        if eval_nonce is not None and record.nonce != eval_nonce
+    )
+    start = stored.pop(START, None)
+    if start is None:
+        finding("missing_start", "No start record.", name)
+        return _StoredRescore(findings, None, None, {})
+    assert isinstance(start, RescoreStartRecord)
+    closing = stored.pop(CLOSING, None)
+    assert closing is None or isinstance(closing, RescoreClosingRecord)
+    samples = {
+        last: record
+        for last, record in stored.items()
+        if isinstance(record, RescoreSampleRecord)
+    }
+    return _StoredRescore(findings, start, closing, samples)
+
+
+def _one_scorers_span(events: list[Event]) -> bool:
+    """Whether ``inspect score`` can apply the events: one top-level scorers span."""
+    match event_tree(events):
+        case [EventTreeSpan(type="scorers", name="scorers", parent_id=None)]:
+            return True
+        case _:
+            return False
+
+
+def _rescore_chain(
+    rescores: Mapping[tuple[str, str], _StoredRescore],
+    latest: RescoreRef | None,
+    sample_part: str,
+) -> list[_RescoreStep] | str:
+    """The rescores to apply to the sample, oldest first, or why they cannot be."""
+    chain: list[_RescoreStep] = []
+    ref = latest
+    while ref is not None:
+        name = _rescore_name(ref.eval_id, ref.rescore_id)
+        rescore = rescores.get((ref.eval_id, ref.rescore_id))
+        if rescore is None or rescore.start is None:
+            return f"The sample names rescore {name}, which is not in the store."
+        record = rescore.samples.get(sample_part)
+        if record is None:
+            return f"The sample names rescore {name}, which has no record of it."
+        if any(step.record is record for step in chain):
+            return f"The sample's rescores name each other in a loop at {name}."
+        chain.append(_RescoreStep(rescore.start.action, record))
+        ref = record.built_on
+    return chain[::-1]
+
+
+def _rescored(sample: EvalSample, step: _RescoreStep) -> EvalSample:
+    """The sample after one rescore, as ``inspect score`` changes it."""
+    return sample.model_copy(
+        update={
+            "scores": _get_updated_scores(sample, step.record.scores, step.action),
+            "events": _get_updated_events(sample, step.record.events, step.action),
+        }
+    )
 
 
 def _earlier_attempt(
@@ -759,12 +1094,15 @@ def rebuild_events(records: list[SampleRecord]) -> list[Event]:
             db.cleanup()
 
 
-def _compare_events(logged: EvalSample, final: _FinalAttempt) -> str | None:
-    """The first difference between the logged events and the stored ones, if any."""
-    assert final.events is not None
-    records = final.records
+def _compare_events(
+    logged: EvalSample,
+    expected: list[Event],
+    final: _FinalAttempt,
+    chain: list[_RescoreStep],
+) -> str | None:
+    """The first difference between the logged events and the expected ones, if any."""
     logged_events = [e.model_dump(mode="json") for e in logged.events]
-    stored_events = [e.model_dump(mode="json") for e in final.events]
+    stored_events = [e.model_dump(mode="json") for e in expected]
     for index, (lhs, rhs) in enumerate(zip(logged_events, stored_events)):
         if not _same_json(lhs, rhs):
             fields = sorted(
@@ -774,8 +1112,10 @@ def _compare_events(logged: EvalSample, final: _FinalAttempt) -> str | None:
             )
             versions = sum(
                 row.event_id == rhs.get("uuid")
-                for r in records
+                for r in final.records
                 for row in r.rows.events
+            ) + sum(
+                e.uuid == rhs.get("uuid") for step in chain for e in step.record.events
             )
             return (
                 f"Event {index} ({rhs.get('event')} {rhs.get('uuid')}) differs in "

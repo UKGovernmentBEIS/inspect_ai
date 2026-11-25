@@ -3,10 +3,11 @@
 import click
 
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.log._log import EvalResults
 
 
 @click.command("validate")
-@click.argument("log_dir", type=str)
+@click.argument("log_dir", type=str, required=False)
 @click.option(
     "--store",
     type=str,
@@ -22,14 +23,39 @@ from inspect_ai._util.error import PrerequisiteError
     default=False,
     help="List every record with its arrival time.",
 )
-def validate_command(log_dir: str, store: str, verbose: bool) -> None:
+@click.option(
+    "--nonce",
+    "nonce_eval_id",
+    type=str,
+    default=None,
+    metavar="EVAL_ID",
+    help="Print only the nonce of eval EVAL_ID, from its start record, and "
+    "check nothing (no LOG_DIR). `inspect score --tamper-evident-store` reads "
+    "it from the INSPECT_TAMPER_EVIDENT_NONCE environment variable. Anyone "
+    "with the nonce can rescore the eval, so give it only to the host that "
+    "runs the rescore.",
+)
+def validate_command(
+    log_dir: str | None, store: str, verbose: bool, nonce_eval_id: str | None
+) -> None:
     """Check tamper-evident logs: compare the .eval files in LOG_DIR with the add-only store.
 
     Also checks the add-only store's settings and records. Exits non-zero on
     any finding. A pass covers the .eval fields the store holds (see the success line),
     not that the run was honest: records written after a compromise pass too.
     """
-    from inspect_ai.log._addonly._validate import validate_store
+    from inspect_ai.log._addonly._validate import read_eval_nonce, validate_store
+
+    if nonce_eval_id is not None:
+        if log_dir is not None:
+            raise click.UsageError("--nonce takes no LOG_DIR.")
+        try:
+            click.echo(read_eval_nonce(store, nonce_eval_id))
+        except ValueError as ex:
+            raise PrerequisiteError(str(ex)) from ex
+        return
+    if log_dir is None:
+        raise click.UsageError("Missing argument 'LOG_DIR'.")
 
     report = validate_store(store, log_dir)
     if verbose:
@@ -50,6 +76,15 @@ def validate_command(log_dir: str, store: str, verbose: bool) -> None:
                 f"prior_without_file {eval_id}: No .eval file; {later_id} names "
                 "it as its prior eval."
             )
+    for rescore in report.rescores:
+        click.echo(
+            f"rescored {rescore.eval_id} by {rescore.rescore_id} at "
+            f"{rescore.arrival.isoformat()} ({rescore.action})"
+        )
+    for eval_id, results in {
+        r.eval_id: r.original_results for r in report.rescores
+    }.items():
+        click.echo(f"original_results {eval_id}: {_results_line(results)}")
     for finding in report.findings:
         click.echo(
             f"{finding.kind} {finding.key or finding.eval_id or ''}: {finding.message}"
@@ -61,6 +96,17 @@ def validate_command(log_dir: str, store: str, verbose: bool) -> None:
     if not report.passed:
         raise PrerequisiteError(summary)
     click.echo(f"{summary}\n{CHECKED}")
+
+
+def _results_line(results: EvalResults | None) -> str:
+    """Each scorer's metrics, as ``<scorer> <metric>=<value>``."""
+    if results is None:
+        return "none (no eval closing record, or it has no results)"
+    return ", ".join(
+        f"{score.name} {metric.name}={metric.value}"
+        for score in results.scores
+        for metric in score.metrics.values()
+    )
 
 
 CHECKED = (

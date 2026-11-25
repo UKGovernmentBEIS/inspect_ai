@@ -206,7 +206,8 @@ Validator bugs the tests found, each fixed with a test that failed first:
    validator in the sample rebuild. Fixed in review round 1 (fix 3 below).
 3. These passed, with the line "The .eval files match the add-only store":
    an extra .eval file with no records (`unstored_eval`), an edited copy of
-   a .eval with the same eval id (`duplicate_eval_file`), an added sample
+   a .eval with the same eval id (`duplicate_eval_file`, removed in
+   [Rescore support](#rescore-support)), an added sample
    (`unstored_sample`), an edited sample score (`score_mismatch`), and an
    edited eval status, stats or results (`eval_mismatch`).
 4. The pass line now says what was checked and what was not. *Review
@@ -275,7 +276,9 @@ Changes after the run (plan v83), with Eric's go:
   `event_sequence`, `event/_tree.py:94`), so each span's events come
   together and parallel spans lose their order, and the new scorers span
   replaces the old one. A rescore then gives `event_mismatch` too. Test:
-  `test_rescore_fails_validation`.
+  `test_rescore_fails_validation`. *Replaced by* [Rescore
+  support](#rescore-support); the test is now
+  `test_rescore_without_store_fails_validation`.
 
 Also: the store location is now the eval option `tamper_evident_store`
 (see [What was built](#what-was-built)); the environment variable is
@@ -664,6 +667,130 @@ record, and an eval with a closing record or a closed attempt must have
 a .eval file. An attempt or eval with no closing record is listed as
 stopped, and a closed sample that a stopped eval did not log is listed
 as not logged.
+
+## Rescore support
+
+Plan: `2026-11-25-1040-6668-rescore-plan.md` (Eric, Nov-25: "rescoring
+protected logs is a common feature. let's do #2 now"). Built on
+6d4c4eaff by Claude Code on Opus 5.5 (`claude-opus-5-5`).
+
+### What was built
+
+- `inspect score` and `score()` / `score_async()` take the store option
+  eval takes (`--tamper-evident-store`, `tamper_evident_store=`). Without
+  it, nothing changes.
+- A rescore has its own id and writes the eval's nonce in each record.
+  `inspect score` takes the nonce from the `INSPECT_TAMPER_EVIDENT_NONCE`
+  environment variable (never a CLI option, never printed or logged) and
+  fails before it scores when the store option is on and the variable is
+  not set. `inspect validate --nonce <eval-id> --store ...` prints the
+  nonce from the eval's start record, with the validator's read access.
+  So the rescorer needs add rights only, as the eval host has. The
+  records, under `rescores/<eval-id>/<rescore-id>/` in the store prefix:
+  - `start`: eval id, rescore id, nonce, action (append or overwrite),
+    scorer names.
+    Written with the same checks as the eval's start record
+    (`put_start_and_check`).
+  - `<sample-id>.<epoch>`, one per sample, written once the sample's
+    scorers finish and before the sample is logged: its new scores
+    (`SampleScore`, as score.py's `_run_score_task` returns them), the
+    events the scorers added (with attachments resolved), and the
+    sample's latest rescore before this one (`built_on`).
+  - `closing`: the new results and `eval.config.epochs_reducer`.
+- The marker: the rescore adds an info event
+  (`source="tamper_evident_rescore"`) to each sample's new scorers span,
+  before the scorers run. Its data names the rescore (eval id and rescore
+  id) and `built_on`. It is in the sample's events, so it reaches the
+  .eval without a change to the log schema, with append and overwrite,
+  and with `--stream`. The rescorer reads the sample's latest marker
+  from its input to fill in `built_on`.
+- Validator:
+  - A sample's expected scores and events are those of the original run
+    (rebuilt from the records as before), with each rescore of the chain
+    applied, oldest first, by score.py's own `_get_updated_scores` and
+    `_get_updated_events`. The chain starts at the sample's latest marker
+    and follows each rescore record's `built_on`. So the new event order
+    is reproduced, not changed.
+  - Status and stats are compared with the eval closing record. Results
+    and the epochs reducer are compared with the closing record of the
+    latest rescore the samples name, or results with the eval closing
+    record if the file is not rescored.
+  - Every .eval file with a given eval id is compared, not only the first
+    (`_eval_files` already listed them). `duplicate_eval_file` is gone:
+    an original and its rescored copy in one log dir are both checked,
+    and an edited copy gets its own findings.
+  - A pass lists each rescore (`rescored <eval-id> by <rescore-id> at
+    <S3 time> (append|overwrite)`, S3 time of the start record) and the
+    eval's original results (`original_results <eval-id>: ...`). A
+    rescore with no closing record is listed as `stopped`
+    (`rescores/<eval-id>/<rescore-id>`).
+  - New findings: `missing_rescore` (a sample names a rescore that is not
+    in the store, or that has no record of the sample; the sample is not
+    compared), `rescore_mismatch` (the samples of a file name different
+    latest rescores of the eval; an honest rescore rescores every sample,
+    so this catches a sample put back to its copy from before a rescore),
+    `rescore_without_eval` (a rescore under an eval id with no other
+    records). Existing kinds cover the rest: `nonce` for a rescore record
+    whose nonce is not the eval's, `missing_start` and `malformed_record`
+    for rescore records, `missing_eval_closing` for a
+    finished file whose latest rescore has no closing record,
+    `score_mismatch` and `event_mismatch` (messages say "after rescores
+    ...") and `eval_mismatch`.
+  - A rescore sample record whose events are not one top-level scorers
+    span is `malformed_record`, not a validator crash: score.py's
+    `_get_updated_events` unpacks one span, and an overwrite asserts that
+    the scorers span's parent is in the tree.
+
+### Changes from the plan
+
+Eric's change during the build (Nov-25): rescore authority is the eval's
+nonce, passed back in. The plan's per-rescore nonce and its "Decision for
+Eric" (a separate rescorer role under `rescores/`) are replaced by it.
+
+Agreed with the coordinator before the build:
+
+1. The rescore a sample built on is in each rescore sample record (and
+   the marker), not in the start record. With `--stream` the rescorer has
+   only the log header when it writes the start record; samples are read
+   one at a time while they are scored.
+2. The marker names the eval id as well as the rescore id, and
+   `built_on`. `eval_retry` copies samples from a rescored prior .eval,
+   so a reused sample's marker names the prior eval's rescore (an honest
+   case; test `test_eval_retry_of_rescored_log_validates`). The latest
+   marker is the one no other marker names as `built_on`, not the last
+   one in the events: an append moves the new events under the old
+   scorers span but leaves their span ids pointing at the dropped new
+   span, so a later append reorders them.
+3. The rescore sample record holds the new events as JSON with
+   attachments resolved, not buffer rows (the rescorer has no sample
+   buffer, and the validator compares with full resolution). The closing
+   record does not list the samples rescored: nothing would check the
+   list (the eval's nonce covers forged records, and `rescore_mismatch` a
+   sample put back to its unrescored copy).
+
+### Guarantees
+
+A rescored sample in a .eval file must match the original run's records
+with each stored rescore of its chain applied as `inspect score` applies
+it; a rescored file's results must match its latest rescore's closing
+record, and its status and stats the eval closing record. Every rescore
+record must have the eval's nonce. A rescore is a claim by whoever held
+that nonce: the validator lists it and does not vouch for it.
+
+### Not changed
+
+- A nonce, once handed out, works for every later rescore of the eval.
+  A process compromised during the run already knows it (an existing
+  limit). The docs say to give it only to the host that runs the
+  rescore.
+- The input is not validated before rescoring (the rescorer has add
+  rights only). An input edited before the rescore still gives a finding,
+  as its other events are checked against the original records.
+- A compromised eval host that writes a scorers span whose parent span
+  is not in the events would crash both `inspect score --action
+  overwrite` and the validator on that sample (the assert in
+  `_get_updated_events`). Only the eval's own nonce can write such
+  original records, so this is not handled.
 
 ## The evals that were run
 
@@ -1179,8 +1306,9 @@ prior_without_file MBjNiQ...: No .eval file; EMhV3K... names it as its prior eva
 
 ## Known limits
 
-- **Rescore fails validation today; design pending with Eric.** See
-  [Review round 1](#review-round-1-fixes-and-changes-after-the-run).
+- A rescore is a claim by whoever held the eval's nonce and could add to
+  the store. A handed-out nonce works for every later rescore of the
+  eval. See [Rescore support](#rescore-support).
 - A retry's `prior_eval_id` is a claim by the retry's eval host. The
   earlier eval's records are protected, so a reused sample is still
   checked against them; a wrong id gives a finding for each reused sample.

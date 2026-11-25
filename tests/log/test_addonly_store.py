@@ -41,7 +41,7 @@ from test_helpers.addonly_moto import (
     moto_addonly_store,
 )
 
-from inspect_ai import Task, eval, eval_retry, eval_set, task
+from inspect_ai import Task, eval, eval_retry, eval_set, score, task
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent import react
@@ -58,7 +58,12 @@ from inspect_ai.hooks import (
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log, write_eval_log
 from inspect_ai.log._addonly._records import (
     CLOSING,
+    RESCORE_MARKER_SOURCE,
     START,
+    RescoreClosingRecord,
+    RescoreMarker,
+    RescoreSampleRecord,
+    RescoreStartRecord,
     SampleAttemptRef,
     SampleClosingRecord,
     SampleRecord,
@@ -79,7 +84,11 @@ from inspect_ai.log._addonly._validate import (
     _rebuild_rows,
     validate_store,
 )
-from inspect_ai.log._addonly._writer import EvalRecordWriter, store_boundary
+from inspect_ai.log._addonly._writer import (
+    RESCORE_NONCE_ENV,
+    EvalRecordWriter,
+    store_boundary,
+)
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.types import (
     BufferAttachmentRow,
@@ -1576,16 +1585,15 @@ def test_extra_eval_file(clean_run: CleanRun, validate_cli: ValidateCli) -> None
 
 
 def test_duplicate_eval_id(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
-    """An edited copy of the .eval file next to the original, with its eval id."""
+    """An edited copy of the .eval file next to the original, with its eval id: each is compared."""
     log = read_eval_log(clean_run.location)
     assert log.samples
     tool_event = next(e for e in log.samples[0].events if isinstance(e, ToolEvent))
     tool_event.result = "harmless"
-    # the copy's name sorts after the original's (a date), which is compared
     write_eval_log(log, clean_run.log_dir / "copy.eval")
     result = validate_cli(clean_run.store, clean_run.log_dir)
-    assert_fails_with(result, "duplicate_eval_file")
-    assert f"duplicate_eval_file {clean_run.eval_id}:" in result.output
+    assert_fails_with(result, "event_mismatch")
+    assert "2 sample(s) compared, 1 finding(s)." in result.output
 
 
 @pytest.mark.parametrize("how", ["log_api", "zip_entry_only"])
@@ -1671,26 +1679,144 @@ def test_edit_score_one_to_true(
     assert "differs in ['score']" in result.output
 
 
-def test_rescore_fails_validation(
-    clean_run: CleanRun, validate_cli: ValidateCli
-) -> None:
-    """`inspect score --action overwrite` after the run: fails validation today.
-
-    Besides the scores and results, `inspect score` writes the sample's
-    events again in span order, with the new scorers span in place of the
-    old one, so the events differ too. How to report a rescore is not yet
-    decided.
-    """
-    rescore = subprocess.run(
+def eval_nonce(store: MotoStore, eval_id: str) -> str:
+    """`inspect validate --nonce` (a subprocess), with the validator's keys."""
+    result = subprocess.run(
         [
-            *[sys.executable, "-m", "inspect_ai", "score", str(clean_run.location)],
-            *["--scorer", "match", "--overwrite", "--action", "overwrite"],
+            *[sys.executable, "-m", "inspect_ai", "validate"],
+            *["--nonce", eval_id, "--store", store.url],
         ],
+        env={**os.environ, **store.env(store.validator)},
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
+
+
+def score_command(
+    log_file: Path, action: str, *options: str, store: str | None, nonce: str | None
+) -> subprocess.CompletedProcess[str]:
+    """`inspect score --scorer match` (a subprocess), with the environment's keys.
+
+    Writes to ``log_file`` unless ``options`` name an output file.
+    """
+    env = {k: v for k, v in os.environ.items() if k != RESCORE_NONCE_ENV}
+    return subprocess.run(
+        [
+            *[sys.executable, "-m", "inspect_ai", "score", str(log_file)],
+            *["--scorer", "match", "--overwrite", "--action", action],
+            *(["--tamper-evident-store", store] if store else []),
+            *options,
+        ],
+        env={**env, **({RESCORE_NONCE_ENV: nonce} if nonce else {})},
         capture_output=True,
         text=True,
         stdin=subprocess.DEVNULL,
     )
-    assert rescore.returncode == 0, rescore.stderr
+
+
+def rescore(
+    log_file: Path,
+    action: str,
+    *options: str,
+    store: MotoStore | None,
+    nonce: str | None = None,
+) -> None:
+    """Rescore with the store, if given, and the eval's nonce, as `inspect validate --nonce` prints it.
+
+    ``nonce`` replaces the eval's.
+    """
+    eval_id = read_eval_log(str(log_file), header_only=True).eval.eval_id
+    result = score_command(
+        log_file,
+        action,
+        *options,
+        store=store.url if store else None,
+        nonce=nonce or (eval_nonce(store, eval_id) if store else None),
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def rescored_lines(result: CliResult) -> list[str]:
+    return [line for line in result.output.splitlines() if line.startswith("rescored ")]
+
+
+@pytest.mark.parametrize(
+    "actions",
+    [["overwrite"], ["append"], ["append", "append"], ["append", "overwrite"]],
+)
+@pytest.mark.parametrize("stream", [False, True])
+def test_rescore_validates(
+    clean_run: CleanRun,
+    validate_cli: ValidateCli,
+    actions: list[str],
+    stream: bool,
+) -> None:
+    """`inspect score --tamper-evident-store`, once or twice: no findings.
+
+    Each pass lists each rescore and the original results.
+    """
+    for action in actions:
+        rescore(
+            clean_run.location,
+            action,
+            *(["--stream"] if stream else []),
+            store=clean_run.store,
+        )
+    log = read_eval_log(clean_run.location)
+    assert log.samples and log.samples[0].scores
+    expected_scores = (
+        {"match"}
+        if actions[-1] == "overwrite"
+        else {"includes", "match", "match1"}
+        if len(actions) == 2
+        else {"includes", "match"}
+    )
+    assert set(log.samples[0].scores) == expected_scores
+
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
+    assert result.stopped() == []
+    rescored = rescored_lines(result)
+    assert sorted(line.rpartition(" ")[2] for line in rescored) == sorted(
+        f"({action})" for action in actions
+    )
+    assert all(
+        line.startswith(f"rescored {clean_run.eval_id} by ") for line in rescored
+    )
+    assert f"original_results {clean_run.eval_id}: includes accuracy=1.0" in (
+        result.output
+    )
+
+
+def test_rescored_copy_validates(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """The original and a rescored copy, with the same eval id, in one log dir: both compared."""
+    rescore(
+        clean_run.location,
+        "overwrite",
+        "--output-file",
+        str(clean_run.log_dir / "rescored.eval"),
+        store=clean_run.store,
+    )
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert result.exit_code == 0, result.output
+    assert "1 eval(s), 2 sample(s) compared, 0 finding(s)." in result.output
+
+
+def test_rescore_without_store_fails_validation(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """`inspect score` without the store option: the rescore is not stored.
+
+    Besides the scores and results, `inspect score` writes the sample's
+    events again in span order, with the new scorers span in place of the
+    old one, so the events differ too.
+    """
+    rescore(clean_run.location, "overwrite", store=None)
     log = read_eval_log(clean_run.location)
     assert log.eval.eval_id == clean_run.eval_id
     assert log.samples and log.samples[0].scores
@@ -1698,6 +1824,228 @@ def test_rescore_fails_validation(
 
     result = validate_cli(clean_run.store, clean_run.log_dir)
     assert_fails_with(result, "score_mismatch", "eval_mismatch", "event_mismatch")
+
+
+def test_edit_score_after_rescore(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """A rescored score changed with inspect's own log API."""
+    rescore(clean_run.location, "append", store=clean_run.store)
+
+    def edit(sample: EvalSample) -> None:
+        assert sample.scores
+        sample.scores["match"].value = "I"
+
+    edit_sample(clean_run, edit)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "score_mismatch")
+    assert (
+        "Scores ['match'] differ from the sample closing record's (after rescores"
+        in (result.output)
+    )
+
+
+def rescore_marker(sample: EvalSample) -> InfoEvent:
+    (marker,) = [
+        e
+        for e in sample.events
+        if isinstance(e, InfoEvent) and e.source == RESCORE_MARKER_SOURCE
+    ]
+    return marker
+
+
+def test_forged_rescore_marker(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """A rescore marker changed to name a rescore the store does not have."""
+    rescore(clean_run.location, "overwrite", store=clean_run.store)
+
+    def edit(sample: EvalSample) -> None:
+        marker = rescore_marker(sample)
+        assert isinstance(marker.data, dict)
+        marker.data = {
+            **marker.data,
+            "rescore": {"eval_id": clean_run.eval_id, "rescore_id": "forged"},
+        }
+
+    edit_sample(clean_run, edit)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "missing_rescore")
+    assert f"rescores/{clean_run.eval_id}/forged, which is not in the store" in (
+        result.output
+    )
+
+
+def test_unrescored_sample_in_rescored_file(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """One sample of a rescored file put back as it was before the rescore.
+
+    Its scores and events match the original run, so only the other
+    samples' markers show that the file was rescored.
+    """
+    log = run(agent_task(samples=2), tmp_path, tamper_evident_store=evalhost_env.url)
+    original = read_eval_log(log.location)
+    rescore(Path(log.location), "overwrite", store=evalhost_env)
+    rescored = read_eval_log(log.location)
+    assert original.samples and rescored.samples
+    rescored.samples[0] = original.samples[0]
+    write_eval_log(rescored, log.location)
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert_fails_with(result, "rescore_mismatch")
+
+
+def test_rescore_without_eval(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """A rescore record under an eval id the store has no records of."""
+    clean_run.put(
+        "rescores/no-such-eval/r1/start",
+        RescoreStartRecord(
+            eval_id="no-such-eval",
+            rescore_id="r1",
+            nonce=FORGED_NONCE,
+            action="append",
+            scorers=["match"],
+        ).model_dump_json(),
+    )
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "rescore_without_eval")
+    assert result.stopped() == ["rescores/no-such-eval/r1"]
+
+
+def test_rescore_record_without_scorers_span(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """A rescore written with eval-host keys whose sample record's events are not a scorers span.
+
+    A finding, not a validator crash: score.py's functions take one
+    top-level scorers span.
+    """
+    base = f"rescores/{clean_run.eval_id}/r1"
+    eval_id = clean_run.eval_id
+    nonce = StartRecord.model_validate_json(clean_run.read(f"{eval_id}/{START}")).nonce
+    clean_run.put(
+        f"{base}/{START}",
+        RescoreStartRecord(
+            eval_id=eval_id,
+            rescore_id="r1",
+            nonce=nonce,
+            action="append",
+            scorers=["match"],
+        ).model_dump_json(),
+    )
+    clean_run.put(
+        f"{base}/s0.1",
+        RescoreSampleRecord(
+            eval_id=eval_id,
+            rescore_id="r1",
+            nonce=nonce,
+            sample_id="s0",
+            epoch=1,
+            scores={},
+            events=[InfoEvent(data="not a span")],
+        ).model_dump_json(),
+    )
+    clean_run.put(
+        f"{base}/{CLOSING}",
+        RescoreClosingRecord(
+            eval_id=eval_id, rescore_id="r1", nonce=nonce
+        ).model_dump_json(),
+    )
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "malformed_record")
+    assert f"malformed_record {base}/s0.1: Its events are not one" in result.output
+
+
+def test_rescore_with_wrong_nonce(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """A rescore with a nonce other than the eval's: each of its records is a finding."""
+    rescore(clean_run.location, "append", store=clean_run.store, nonce=FORGED_NONCE)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "nonce")
+    assert sorted(
+        rest.partition(":")[0].rpartition("/")[2] for _, rest in result.findings()
+    ) == ["closing", "s0.1", "start"]
+
+
+def test_rescore_without_nonce_fails_before_scoring(
+    clean_run: CleanRun, validate_cli: ValidateCli
+) -> None:
+    """`inspect score --tamper-evident-store` without the nonce variable: an error, nothing written."""
+    before = clean_run.location.read_bytes()
+    result = score_command(
+        clean_run.location, "append", store=clean_run.store.url, nonce=None
+    )
+    assert result.returncode != 0
+    assert RESCORE_NONCE_ENV in result.stdout + result.stderr
+    assert clean_run.location.read_bytes() == before
+    validated = validate_cli(clean_run.store, clean_run.log_dir)
+    assert validated.exit_code == 0, validated.output
+    assert rescored_lines(validated) == []
+
+
+def test_validate_nonce_prints_eval_nonce(clean_run: CleanRun) -> None:
+    """`inspect validate --nonce` prints the start record's nonce, and nothing else."""
+    start = StartRecord.model_validate_json(
+        clean_run.read(f"{clean_run.eval_id}/{START}")
+    )
+    assert eval_nonce(clean_run.store, clean_run.eval_id) == start.nonce
+
+
+@scorer(metrics=[mean()])
+def failing_score() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        raise RuntimeError("Scorer failed.")
+
+    return score
+
+
+def test_stopped_rescore_lists_stopped(
+    clean_run: CleanRun, validate_cli: ValidateCli, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rescore whose scorer fails writes a start record only: listed as stopped."""
+    monkeypatch.setenv(
+        RESCORE_NONCE_ENV, eval_nonce(clean_run.store, clean_run.eval_id)
+    )
+    with pytest.raises(Exception, match="Scorer failed"):
+        score(
+            read_eval_log(clean_run.location),
+            failing_score(),
+            action="append",
+            display="none",
+            tamper_evident_store=clean_run.store.url,
+        )
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert result.exit_code == 0, result.output
+    (stopped,) = result.stopped()
+    assert stopped.startswith(f"rescores/{clean_run.eval_id}/")
+    assert len(rescored_lines(result)) == 1
+
+
+def test_eval_retry_of_rescored_log_validates(
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    failures: Path,
+) -> None:
+    """eval_retry of a rescored .eval: s1, reused, names the first eval's rescore."""
+    log = retried_task_run(evalhost_env, tmp_path, failures, s0_failures=1)
+    rescore(Path(log.location), "append", store=evalhost_env)
+    retry = eval_retry(
+        log.location,
+        log_dir=str(tmp_path),
+        display="none",
+        tamper_evident_store=evalhost_env.url,
+    )[0]
+    assert retry.status == "success", retry.error
+    assert retry.samples
+    reused = next(s for s in retry.samples if s.id == "s1")
+    marker = RescoreMarker.model_validate(rescore_marker(reused).data)
+    assert marker.rescore.eval_id == log.eval.eval_id
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
+    assert "2 eval(s), 4 sample(s) compared, 0 finding(s)." in result.output
 
 
 def test_edit_results(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
@@ -2436,7 +2784,7 @@ def test_failed_write_stops_eval(
         # the sample is logged with its error, and the store refused its
         # closing record and the eval's, as it refused the record
         report = validate(store, tmp_path)
-        assert [f.kind for f in report.findings] == [
+        assert sorted(f.kind for f in report.findings) == [
             "missing_eval_closing",
             "unstored_sample",
         ]

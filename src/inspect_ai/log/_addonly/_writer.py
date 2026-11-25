@@ -1,17 +1,23 @@
-"""Writes an eval's records to the add-only store.
+"""Writes an eval's records, and a rescore's, to the add-only store.
 
 Tamper-evident logs. A sample writes at each
 boundary (before each generate request, before each stage of tool calls,
-and at sample end) and waits until the store confirms the write.
+and at sample end) and waits until the store confirms the write. A rescore
+writes one record per sample once its scorers finish.
 """
 
+import os
 import secrets
 from contextvars import ContextVar
+from typing import Literal
 
 import anyio
 from pydantic import BaseModel
+from shortuuid import uuid
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.json import to_json_safe
+from inspect_ai.event import Event, InfoEvent
 from inspect_ai.log._log import EvalPlan, EvalResults, EvalSpec, EvalStats, EvalStatus
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.types import BufferRows
@@ -19,14 +25,20 @@ from inspect_ai.scorer._metric import SampleScore
 
 from ._records import (
     CLOSING,
+    RESCORES,
     START,
     EvalClosingRecord,
+    RescoreClosingRecord,
+    RescoreMarker,
+    RescoreRef,
+    RescoreSampleRecord,
+    RescoreStartRecord,
     SampleAttemptRef,
     SampleClosingRecord,
     SampleRecord,
     StartRecord,
 )
-from ._store import AddOnlyStore, AddOnlyStoreError, StoreLocation
+from ._store import AddOnlyStore, AddOnlyStoreError, StoreLocation, sample_key_part
 
 
 def _body(record: BaseModel) -> bytes:
@@ -205,6 +217,113 @@ class SampleRecordWriter:
                     records=self._seq,
                     scores=scores,
                     error=error,
+                )
+            ),
+        )
+
+
+RESCORE_NONCE_ENV = "INSPECT_TAMPER_EVIDENT_NONCE"
+"""The eval's nonce, which a rescore of a tamper-evident log writes in each record.
+
+From the environment only, never a CLI argument, so it is not in shell
+history or process listings. ``inspect validate --nonce`` reads it from the
+store.
+"""
+
+
+def rescore_nonce() -> str:
+    """The eval's nonce from ``RESCORE_NONCE_ENV`` (required to rescore with a store)."""
+    nonce = os.environ.get(RESCORE_NONCE_ENV)
+    if not nonce:
+        raise PrerequisiteError(
+            f"Rescoring with a tamper-evident store requires the eval's nonce in "
+            f"the {RESCORE_NONCE_ENV} environment variable. Read it with "
+            "`inspect validate --nonce <eval-id> --store <store>`, using the "
+            "validator's credentials."
+        )
+    return nonce
+
+
+class RescoreRecordWriter:
+    """One rescore's writes, with the eval's nonce (only in memory)."""
+
+    def __init__(self, store: AddOnlyStore, ref: RescoreRef, nonce: str) -> None:
+        self.store = store
+        self.ref = ref
+        self.nonce = nonce
+
+    @classmethod
+    async def start(
+        cls,
+        location: StoreLocation,
+        eval_id: str,
+        nonce: str,
+        action: Literal["append", "overwrite"],
+        scorers: list[str],
+    ) -> "RescoreRecordWriter":
+        """Write the start record and check the store's settings, as an eval does."""
+        writer = cls(
+            AddOnlyStore(location),
+            RescoreRef(eval_id=eval_id, rescore_id=uuid()),
+            nonce,
+        )
+        await writer.store.put_start_and_check(
+            writer._key(START),
+            _body(
+                RescoreStartRecord(
+                    eval_id=writer.ref.eval_id,
+                    rescore_id=writer.ref.rescore_id,
+                    nonce=writer.nonce,
+                    action=action,
+                    scorers=scorers,
+                )
+            ),
+        )
+        return writer
+
+    def _key(self, last: str) -> str:
+        return f"{RESCORES}/{self.ref.eval_id}/{self.ref.rescore_id}/{last}"
+
+    def marker(self, built_on: RescoreRef | None) -> InfoEvent:
+        """The info event that names this rescore in a sample's new scorer events."""
+        return RescoreMarker(rescore=self.ref, built_on=built_on).event()
+
+    async def write_sample(
+        self,
+        sample_id: str | int,
+        epoch: int,
+        built_on: RescoreRef | None,
+        scores: dict[str, SampleScore],
+        events: list[Event],
+    ) -> None:
+        await self.store.put(
+            self._key(sample_key_part(sample_id, epoch)),
+            _body(
+                RescoreSampleRecord(
+                    eval_id=self.ref.eval_id,
+                    rescore_id=self.ref.rescore_id,
+                    nonce=self.nonce,
+                    sample_id=sample_id,
+                    epoch=epoch,
+                    built_on=built_on,
+                    scores=scores,
+                    events=events,
+                )
+            ),
+        )
+
+    async def close(
+        self, results: EvalResults | None, epochs_reducer: list[str] | None
+    ) -> None:
+        await self.store.put(
+            self._key(CLOSING),
+            _body(
+                RescoreClosingRecord(
+                    eval_id=self.ref.eval_id,
+                    rescore_id=self.ref.rescore_id,
+                    nonce=self.nonce,
+                    results=results,
+                    epochs_reducer=epochs_reducer,
                 )
             ),
         )

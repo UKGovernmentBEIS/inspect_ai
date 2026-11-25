@@ -60,6 +60,9 @@ from inspect_ai.event._tree import (
 from inspect_ai.log import (
     EvalLog,
 )
+from inspect_ai.log._addonly import RescoreRecordWriter, StoreLocation
+from inspect_ai.log._addonly._records import latest_rescore
+from inspect_ai.log._addonly._writer import rescore_nonce
 from inspect_ai.log._condense import (
     attachment_refs_from_object,
     attachment_state,
@@ -115,6 +118,7 @@ def score(
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
     copy: bool = True,
+    tamper_evident_store: str | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -138,6 +142,12 @@ def score(
        action: Whether to append or overwrite this score
        display: Progress/status display
        copy: Whether to deepcopy the log before scoring.
+       tamper_evident_store: `s3://bucket/prefix` of the add-only store of a
+           tamper-evident log, as `eval()` takes it. The rescore writes its
+           new scores and events there, so the rescored log validates.
+           Requires the eval's nonce in the `INSPECT_TAMPER_EVIDENT_NONCE`
+           environment variable. Experimental: not yet a stable API; may
+           change without notice.
 
     Returns:
        Log with scores yielded by scorer.
@@ -162,6 +172,7 @@ def score(
                 model_roles=model_roles,
                 action=action,
                 copy=copy,
+                tamper_evident_store=tamper_evident_store,
             )
         )
     else:
@@ -172,6 +183,7 @@ def score(
                 model_roles=model_roles,
                 action=action,
                 copy=copy,
+                tamper_evident_store=tamper_evident_store,
             ),
             log,
             scorers,
@@ -252,6 +264,7 @@ async def score_async(
     display: DisplayType | None = None,
     copy: bool = True,
     samples: Callable[[int], AsyncContextManager[EvalSample]] | None = None,
+    tamper_evident_store: str | None = None,
     *,
     _log_scorers: bool = False,
 ) -> EvalLog:
@@ -283,12 +296,19 @@ async def score_async(
          Function to read samples from the log, which accepts the
          sample index and async yields an EvalSample. Can be used to
          stream samples without loading the entire log into memory.
+       tamper_evident_store: `s3://bucket/prefix` of the add-only store of a
+         tamper-evident log, as `eval()` takes it. The rescore writes its new
+         scores and events there before each sample is yielded back, so the
+         rescored log validates. Requires the eval's nonce in the
+         `INSPECT_TAMPER_EVIDENT_NONCE` environment variable. Experimental:
+         not yet a stable API; may change without notice.
 
     Returns:
        Log with scores yielded by scorer.
     """
     if samples is None and log.samples is None:
         raise ValueError("There are no samples to score in the log.")
+    nonce = rescore_nonce() if tamper_evident_store else None
 
     # resolve scorers
     resolved_scorers = resolve_scorer(scorers)
@@ -337,6 +357,17 @@ async def score_async(
 
     # prime the scoring tasks
     action = action or "append"
+    addonly = (
+        await RescoreRecordWriter.start(
+            StoreLocation.parse(tamper_evident_store),
+            log.eval.eval_id,
+            nonce,
+            action,
+            [registry_unqualified_name(s) for s in resolved_scorers],
+        )
+        if tamper_evident_store and nonce
+        else None
+    )
 
     # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
     # that will be taken care of in eval_results). For append, the new scorer
@@ -377,7 +408,13 @@ async def score_async(
                 # since the sample score carries the scorer name that generated
                 # it (so using sample.scores directly isn't enough)
                 sample_score, names = await _run_score_task(
-                    log, sample, resolved_scorers, active_model, active_roles, action
+                    log,
+                    sample,
+                    resolved_scorers,
+                    active_model,
+                    active_roles,
+                    action,
+                    addonly,
                 )
 
             assert sample.scores is not None
@@ -456,6 +493,9 @@ async def score_async(
         log.results.headline = (
             headline_metric_ref(resolved_headline) if resolved_headline else None
         )
+
+    if addonly is not None:
+        await addonly.close(log.results, log.eval.config.epochs_reducer)
 
     return log
 
@@ -544,6 +584,7 @@ async def _run_score_task(
     model: Model,
     model_roles: dict[str, Model | list[Model]],
     action: ScoreAction,
+    addonly: RescoreRecordWriter | None = None,
 ) -> Tuple[dict[str, SampleScore], list[str]]:
     state, target, resolved_sample = task_state_from_sample(
         sample,
@@ -579,7 +620,10 @@ async def _run_score_task(
                 unique_scorer_name(scorer, list({*existing_score_names, *scorer_names}))
             )
 
+    built_on = latest_rescore(sample.events)
     async with span(name=SCORERS_SPAN_NAME):
+        if addonly is not None:
+            transcript()._event(addonly.marker(built_on))
         if not_scored is not None:
             # said in the scorers' span, where the scores would be, which an
             # overwrite replaces and an append adds to; the warning is recorded
@@ -627,7 +671,8 @@ async def _run_score_task(
     # calls (scoring keeps error calls), which the scoring transcript condensed
     # into its own attachments; bring both to the state of the sample they join
     scoring_transcript = transcript()
-    new_events = list(scoring_transcript.events[len(resolved_sample.events) :])
+    scored_events = list(scoring_transcript.events[len(resolved_sample.events) :])
+    new_events = scored_events
     if attachment_state(sample) == "full":
         new_events = resolve_event_calls(new_events, scoring_transcript.attachments)
     else:
@@ -641,6 +686,15 @@ async def _run_score_task(
             if hash in call_refs
         )
         sample.attachments = attachments
+
+    if addonly is not None:
+        await addonly.write_sample(
+            sample.id,
+            sample.epoch,
+            built_on,
+            results,
+            resolve_event_calls(scored_events, scoring_transcript.attachments),
+        )
 
     sample.scores = _get_updated_scores(sample, results, action=action)
     sample.events = _get_updated_events(sample, new_events, action=action)

@@ -45,6 +45,8 @@ There are also a number of things that tamper-evident logs do not protect agains
 
 -   **Samples deleted from the `.eval` file of an eval that stopped.** If an eval stopped before it finished its `.eval` file, a sample deleted from that file shows up as a `not_logged` line rather than a finding.
 
+-   **Rescores by a holder of the eval's nonce.** Anyone who has the eval's nonce and can add to the store can write a rescore with any scores. A nonce that you hand out works for every later rescore of that eval, and a process that was compromised during the run already knows it. The validator lists each rescore, but does not vouch for it.
+
 -   **A deleted `.eval` file of an eval that a later eval names.** This shows up as a `prior_without_file` line rather than a finding. Note that eval-host keys can forge such a later eval.
 
 -   **Fields that are not stored.** The validator checks each sample's events and scores, which samples the `.eval` file has, and the eval's status, stats and results. It does not check other fields (for example the eval spec and plan, each sample's messages, output and error, or the sample summaries).
@@ -159,6 +161,8 @@ Here are the steps required to create the store:
     }
     ```
 
+Rescore records are stored under `rescores/` in the store prefix (see [Rescoring](#rescoring)).
+
 ::: {.callout-note appearance="simple"}
 Use one prefix in the bucket for each log directory. The validator reports every eval under its prefix that has no `.eval` file in the log directory, so evals from other log directories must not share the prefix.
 :::
@@ -217,6 +221,42 @@ When using `retry_on_error`, the failed attempt keeps its records in the store a
 
 By default, `eval_set()` deletes the `.eval` file of a failed attempt after its retry (the `retry_cleanup` option). The validator lists the failed attempt's eval as `prior_without_file` rather than as a finding. It still uses that eval's records to check the samples that the retry reused.
 
+### Rescoring
+
+A rescore writes its records with the eval's secret (the nonce), which only the eval and the store have. To rescore a tamper-evident log:
+
+1.  With the validator's read-only credentials, read the eval's nonce from its start record:
+
+    ``` bash
+    inspect validate --nonce <eval-id> --store s3://my-addonly-store/team-a
+    ```
+
+    The command prints only the nonce. Anyone with the nonce and add rights to the store can rescore the eval, so give it only to the host that runs the rescore.
+
+2.  On that host, put the nonce in the `INSPECT_TAMPER_EVIDENT_NONCE` environment variable, and pass the store location to `inspect score` (or to `score()`). The eval hosts' credentials are enough to add the records. For example:
+
+    ``` bash
+    inspect score logs/2026-11-22T10-00-00_ctf_abc.eval --scorer match \
+      --action append --tamper-evident-store s3://my-addonly-store/team-a
+    ```
+
+    Or from Python:
+
+    ``` python
+    score(log, match(), action="append",
+          tamper_evident_store="s3://my-addonly-store/team-a")
+    ```
+
+    `inspect score` takes the nonce only from the environment variable, never from an option, and fails before it scores if the variable is not set.
+
+The rescore writes a start record, one record for each sample with its new scores and the events that its scorers added, and a closing record with the new results. It also adds an info event that names the rescore to each sample's new scorer events, so the rescored `.eval` file says which rescores were applied. Both `--action append` and `--action overwrite` work, as does `--stream`, and you can rescore a rescored log again.
+
+The validator rebuilds the expected samples from the original run's records and then applies each rescore that the samples name, in order, in the same way that `inspect score` does. The rescored file's status and stats are checked against the eval's closing record, and its results against the closing record of the latest rescore. If you write the rescored log to a new file, the validator checks both the original and the rescored file.
+
+If you rescore without the store location, the rescore is not stored, and the validator reports `score_mismatch`, `eval_mismatch` and `event_mismatch` for the rescored file.
+
+A retry of a rescored log reuses its samples along with their rescores, and the validator checks them in the same way.
+
 ## Validating Logs
 
 Use the `inspect validate` command to check a log directory against the add-only store. Run it with the read-only credentials of the validator, and always take the store location from your own configuration, never from a `.eval` file. For example:
@@ -238,10 +278,18 @@ Not checked: everything else, including the eval spec and plan, each sample's me
 A pass does not show that the run was honest.
 ```
 
-Lines that start with `stopped`, `not_logged` or `prior_without_file` may appear before the count. These lines are not findings, and they do not change the exit code. For example:
+Lines that start with `stopped`, `not_logged`, `prior_without_file`, `rescored` or `original_results` may appear before the count. These lines are not findings, and they do not change the exit code. For example:
 
 ``` default
 stopped LdM2ww.../s0.1/1: No closing record: cut short, or its host stopped writing.
+```
+
+For a rescored log, the validator lists each rescore with the time that S3 received its start record and its action, followed by the original results of the eval:
+
+``` default
+rescored X8V4zZ... by LumFze... at 2026-11-25T15:41:22+00:00 (append)
+rescored X8V4zZ... by Q2bnxT... at 2026-11-25T15:44:09+00:00 (overwrite)
+original_results X8V4zZ...: includes accuracy=1.0, includes stderr=0.0
 ```
 
 See the [Output Reference](#output-reference) below for what each line means.
@@ -275,9 +323,11 @@ The following lines are listed in the output but are not findings, and do not ch
 
 | Line | What it means | What to do |
 |------------------------|------------------------------------|------------------------------------|
-| `stopped` | The store has no closing record for this eval or sample attempt. A cancel, an error in another sample, a crash or a retry cuts a run short. A compromised host can also stop writing. The validator still checks each record that the eval or attempt wrote. It does not compare a stopped attempt's events, or a stopped eval's status, stats and results, with the `.eval` file. | Make sure that you know why the run stopped. If you do not, treat what the eval or attempt did as not checked. |
+| `stopped` | The store has no closing record for this eval, sample attempt or rescore (`rescores/<eval-id>/<rescore-id>`). A cancel, an error in another sample, a crash or a retry cuts a run short. A compromised host can also stop writing. The validator still checks each record that the eval or attempt wrote. It does not compare a stopped attempt's events, or a stopped eval's status, stats and results, with the `.eval` file. | Make sure that you know why the run stopped. If you do not, treat what the eval or attempt did as not checked. |
 | `not_logged` | The sample attempt wrote its closing record, but the sample is not in the `.eval` file. Shown only for an eval with no closing record whose `.eval` file has the status `started`. | If the eval host crashed or was killed, this is expected: Inspect writes samples to the `.eval` file in groups. Otherwise, someone may have deleted the sample from the file. |
 | `prior_without_file` | No `.eval` file has this eval id, and a later eval names this eval as its prior eval. `eval_set()` deletes such files after a retry (`retry_cleanup`). | Make sure that you ran the later eval as a retry of this eval. Eval-host keys can forge the later eval, so a deleted `.eval` file can also show this way. |
+| `rescored` | The store has a rescore of this eval, with the time that S3 received its start record and its action (`append` or `overwrite`). | Make sure that you know who ran each rescore. Anyone with the eval's nonce and add rights to the store can write one. |
+| `original_results` | The results in the eval's closing record, before any rescore. | Compare them with the rescored results. |
 
 The following lines are findings. Each finding makes the command exit with 1:
 
@@ -287,7 +337,7 @@ The following lines are findings. Each finding makes the command exit with 1:
 | `overwrite` | A record has more than one version, or a delete marker. The validator uses the earliest version. | Find out who could write or delete in the bucket. |
 | `multipart` | A record was uploaded in parts. The eval never does this. The arrival time of such a record is when the upload started. | Treat the record as written by someone other than the eval. |
 | `missing_start` | The store has records under this eval id, but no start record. The validator checks nothing else for this eval, and does not compare its `.eval` file. | Treat the records as forged. The eval writes its start record before any other record. |
-| `nonce` | A record's nonce differs from the start record's. The eval host's keys cannot read the nonce from the store. | Treat the record as forged. |
+| `nonce` | A record's nonce differs from the eval's start record's. This includes the records of a rescore. The eval host's keys cannot read the nonce from the store. | Treat the record as forged. |
 | `sequence_gap` | The sample records of an attempt are not numbered 1, 2, 3 and so on. | In an attempt with a closing record, treat the extra record as forged. In a `stopped` attempt, a crash while two writes were in flight can also cause it. |
 | `record_count` | The number of sample records differs from the count in the attempt's closing record. | Treat the extra records, or the closing record, as forged. |
 | `late_event_version` | A record has a new version of an event that an earlier record stored complete. | An agent that calls [bridged tools](agent-bridge.qmd#bridged-tools) one at a time causes this in an honest run. Otherwise, treat the new version as a change to an event that the store confirmed. |
@@ -295,14 +345,16 @@ The following lines are findings. Each finding makes the command exit with 1:
 | `malformed_record` | A key that the eval never writes, a record that cannot be read or holds the wrong type of record, or sample records whose events cannot be rebuilt. | Treat the record as forged. The validator still checks the eval's other records. If the events cannot be rebuilt, they are not compared with the `.eval` file. |
 | `unlisted_attempt` | The store has records of a sample attempt that the eval closing record does not list. | Treat the attempt as written by someone other than the eval. |
 | `unstored_eval` | A `.eval` file in the log directory has an eval id with no records under the store prefix. | Make sure that the store prefix is correct and that the eval ran with `tamper_evident_store`. Otherwise, treat the file as not checked. |
-| `duplicate_eval_file` | More than one `.eval` file has this eval id. The validator compares only the first, by file name. | Find out where the copies came from. |
 | `missing_eval_file` | The store has an eval with an eval closing record or a closed sample attempt, but no `.eval` file in the log directory has its eval id. | Make sure that the log directory and the store prefix match. Otherwise, someone deleted or moved the `.eval` file. |
-| `missing_eval_closing` | The `.eval` file is finished (its status is not `started`), but the store has no eval closing record. | An S3 outage at the end of an honest run can cause this. Otherwise, someone changed the file's status. |
-| `eval_mismatch` | The `.eval` file's status, stats or results differ from the eval closing record. | `inspect score` and other tools that change a log after the run cause this. Otherwise, someone changed the file. |
+| `missing_eval_closing` | The `.eval` file is finished (its status is not `started`), but the store has no eval closing record, or no closing record for the latest rescore that its samples name. | An S3 outage at the end of an honest run or rescore can cause this. Otherwise, someone changed the file's status or its samples. |
+| `eval_mismatch` | The `.eval` file's status or stats differ from the eval closing record, or its results (or epochs reducer, after a rescore) differ from the closing record of the eval or of the latest rescore. | `inspect score` without the store location, and other tools that change a log after the run, cause this. Otherwise, someone changed the file. |
 | `unstored_sample` | A sample in the `.eval` file has no attempt with a closing record in the store, for this eval or for the earlier evals that a retry reused samples from. | A failed write to the store, or a failed insert into the sample buffer, causes this in an honest run. The sample then has an error in the `.eval` file. Otherwise, someone added the sample. |
 | `missing_sample` | A sample with a closing record in the store is not in the `.eval` file. In a retry, it can also be a sample that the earlier eval completed without an error and that the retry selects. | A retry that stopped early can cause this in an honest run. Otherwise, someone deleted the sample. |
-| `event_mismatch` | A sample's events differ from the events rebuilt from the store. The message names the first event that differs. | `inspect score`, and a warning logged from a worker thread during the sample, cause this in an honest run. So does a failed write to the store or the sample buffer while a retry runs a sample again that the earlier eval completed with an error (the message says `reused from`): check the eval's errors for a failed write before treating it as a change. Otherwise, someone changed the events. |
-| `score_mismatch` | A sample's scores differ from its closing record. | `inspect score` causes this. Otherwise, someone changed the scores. |
+| `event_mismatch` | A sample's events differ from the events rebuilt from the store (after the rescores that the sample names, if any: the message says `after rescores`). The message names the first event that differs. | `inspect score` without the store location, and a warning logged from a worker thread during the sample, cause this in an honest run. So does a failed write to the store or the sample buffer while a retry runs a sample again that the earlier eval completed with an error (the message says `reused from`): check the eval's errors for a failed write before treating it as a change. Otherwise, someone changed the events. |
+| `score_mismatch` | A sample's scores differ from its closing record (after the rescores that the sample names, if any). | `inspect score` without the store location causes this. Otherwise, someone changed the scores. |
+| `missing_rescore` | A sample names a rescore that is not in the store, or that has no record of the sample. The sample is not compared. | Treat the sample as changed. |
+| `rescore_mismatch` | The samples of a `.eval` file name different latest rescores of the eval. A rescore rescores every sample. | Someone replaced a sample with a copy from before or after a rescore. |
+| `rescore_without_eval` | The store has a rescore under an eval id with no other records. | Treat the rescore as forged. |
 
 ## Limitations
 
@@ -311,8 +363,6 @@ Tamper-evident logs currently have the following known limits:
 -   **What a `stopped` line means.** Both an honest cancel or crash and a compromised host that stops writing leave a `stopped` line. The validator does not decide which one occurred, and the same applies to `not_logged`.
 
 -   **Honest runs with a missing closing record.** A failed write to the store or to the sample buffer results in `unstored_sample` for a run that was not changed. If a retry is running a sample again that the earlier eval completed with an error, the result is an `event_mismatch` instead, because the validator compares the retry's copy with the earlier eval's records. Similarly, a failed write of the eval closing record (after the `.eval` file is finished) results in `missing_eval_closing`.
-
--   **Rescoring.** `inspect score` changes the scores and results, and also writes the sample's events again in a different order. The validator will then report `score_mismatch`, `eval_mismatch` and `event_mismatch`. How to show a rescore separately from tampering is an open question.
 
 -   **Other changes after the run.** A tool that changes the eval's status, stats or results after the run will cause validation to fail, just as a hand edit does. Merged shard logs and samples removed during the run are not yet handled.
 
