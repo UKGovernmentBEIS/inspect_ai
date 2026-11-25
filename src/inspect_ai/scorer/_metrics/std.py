@@ -28,7 +28,7 @@ def bootstrap_stderr(
           INCORRECT ("I") to 0, PARTIAL ("P") to 0.5, and
           NOANSWER ("N") to 0, casts numeric values to
           float directly, and prints a warning and returns
-          0 if the Value is a complex object (list or dict).
+          0 if the Value is a complex object (list or dict) or `None`.
 
     Returns:
        bootstrap_stderr metric
@@ -129,7 +129,7 @@ def stderr(
           metrics. The default `value_to_float()` maps CORRECT ("C") to 1.0,
           INCORRECT ("I") to 0, PARTIAL ("P") to 0.5, and NOANSWER ("N") to 0,
           casts numeric values to float directly, and prints a warning and returns
-          0 if the Value is a complex object (list or dict).
+          0 if the Value is a complex object (list or dict) or `None`.
        cluster (str | None): The key from the Sample metadata
           corresponding to a cluster identifier for computing
           [clustered standard errors](https://en.wikipedia.org/wiki/Clustered_standard_errors).
@@ -199,7 +199,7 @@ def ci(
           default `value_to_float()` maps CORRECT ("C") to 1.0, INCORRECT ("I") to
           0, PARTIAL ("P") to 0.5, and NOANSWER ("N") to 0, casts numeric values to
           float directly, and prints a warning and returns 0 if the `Value` is a
-          complex object (list or dict).
+          complex object (list or dict) or `None`.
        cluster (str | None): The key from the Sample metadata corresponding to
           a cluster identifier for computing
           [clustered](https://en.wikipedia.org/wiki/Clustered_standard_errors)
@@ -287,7 +287,7 @@ def ci_wilson(
           default `value_to_float()` maps CORRECT ("C") to 1.0, INCORRECT ("I") to
           0, PARTIAL ("P") to 0.5, and NOANSWER ("N") to 0, casts numeric values to
           float directly, and prints a warning and returns 0 if the `Value` is a
-          complex object (list or dict).
+          complex object (list or dict) or `None`.
        cluster (str | None): The key from the Sample metadata corresponding to
           a cluster identifier for computing
           [clustered](https://en.wikipedia.org/wiki/Clustered_standard_errors)
@@ -544,7 +544,7 @@ def std(to_float: ValueToFloat = value_to_float()) -> Metric:
           metrics. The default `value_to_float()` maps CORRECT ("C") to 1.0,
           INCORRECT ("I") to 0, PARTIAL ("P") to 0.5, and NOANSWER ("N") to 0,
           casts numeric values to float directly, and prints a warning and returns
-          0 if the Value is a complex object (list or dict).
+          0 if the Value is a complex object (list or dict) or `None`.
 
 
     Returns:
@@ -581,7 +581,7 @@ def var(to_float: ValueToFloat = value_to_float()) -> Metric:
             INCORRECT ("I") to 0, PARTIAL ("P") to 0.5, and
             NOANSWER ("N") to 0, casts numeric values to
             float directly, and prints a warning and returns
-            0 if the Value is a complex object (list or dict).
+            0 if the Value is a complex object (list or dict) or `None`.
 
     Returns:
        var metric

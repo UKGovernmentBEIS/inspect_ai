@@ -837,5 +837,5 @@ $ inspect log schema
 
 Because evaluation logs contain lots of numerical data and calculations, it is possible that some `number` values will be `NaN` or `Inf`. These numeric values are supported natively by Python's JSON parser, however are not supported by the JSON parsers built in to browsers and Node JS.
 
-To correctly read `Nan` and `Inf` values from eval logs in JavaScript, we recommend that you use the [JSON5 Parser](https://github.com/json5/json5). For other languages, `Nan` and `Inf` may be natively supported (if not, see these JSON 5 implementations for [other languages](https://github.com/json5/json5/wiki/In-the-Wild)).
+To correctly read `NaN` and `Inf` values from eval logs in JavaScript, we recommend that you use the [JSON5 Parser](https://github.com/json5/json5). For other languages, `NaN` and `Inf` may be natively supported (if not, see these JSON 5 implementations for [other languages](https://github.com/json5/json5/wiki/In-the-Wild)).
 :::

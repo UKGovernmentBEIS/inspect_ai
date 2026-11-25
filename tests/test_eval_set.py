@@ -1382,6 +1382,14 @@ def test_eval_set_retry_nan_dict_score_leaves() -> None:
         assert log.results is not None
         scores_by_key = {score.name: score for score in log.results.scores}
 
+        # the reloaded leaf is still NaN, not None (missing), which
+        # aggregate(on_missing=...) would treat differently
+        assert log.samples is not None
+        reloaded = next(s for s in log.samples if s.id == 1)
+        assert reloaded.scores is not None
+        leaf = reloaded.scores["nan_leaf_scorer"].as_dict()["a"]
+        assert isinstance(leaf, float) and math.isnan(leaf)
+
         # sample 1's NaN leaf for "a" is unscored: excluded from mean (not
         # counted as 0.0) and never passed to solved_rate as a scalar
         assert scores_by_key["a"].scored_samples == 1

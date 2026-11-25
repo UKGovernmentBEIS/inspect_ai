@@ -106,6 +106,8 @@ Score(
 
 `Score.value` may be any `Value` that your metrics know how to interpret. Built-in correctness scorers use the constants `CORRECT` (`"C"`), `INCORRECT` (`"I"`), `PARTIAL` (`"P"`), and `NOANSWER` (`"N"`). The default `value_to_float()` converter used by metrics such as `accuracy()` maps these values to `1.0`, `0.0`, `0.5`, and `0.0` respectively. It also converts numeric values, numeric strings, and common boolean strings such as `"yes"` / `"no"` and `"true"` / `"false"`.
 
+A dictionary value may use `None` for a key whose value is missing. See [Missing and unscored values](scoring-policy.qmd#missing-and-unscored-values) for how `None` and `NaN` keys are handled.
+
 You can return other strings, but the default epoch reducer converts each value with `value_to_float()` before metrics run, including when there is only one epoch.
 A string it does not map, such as `"pass"`, becomes `0.0` unless you pass a converter to the reducer:
 
@@ -137,7 +139,7 @@ return Score.unscored(
 )
 ```
 
-This creates a score with a `NaN` value and preserves the supplied reason, answer, and explanation. Metrics exclude the value. Coverage counts are calculated after epoch reduction: the default mean reducer ignores unscored epochs, while other reducers can handle them differently. See [Interpreting coverage](scoring-policy.qmd#interpreting-coverage).
+This creates a score with a `NaN` value and preserves the supplied reason, answer, and explanation. Metrics exclude the value. Coverage counts are calculated after epoch reduction, and the built-in epoch reducers leave out unscored epochs (a custom `value_to_float` passed to a reducer should return `NaN` for a `NaN` value). See [Interpreting coverage](scoring-policy.qmd#interpreting-coverage).
 
 The optional `reason` accepts standard `ScoreReason` labels or custom strings. Use a reason that describes the outcome and an explanation with the details needed to understand it.
 
