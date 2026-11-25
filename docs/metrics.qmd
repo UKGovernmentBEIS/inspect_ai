@@ -199,7 +199,7 @@ from inspect_ai.scorer import value_to_float
 aggregate("verdict", mean(), to_float=value_to_float())
 ```
 
-Samples where the key is missing (or present but `None`) are routed through `on_missing`: `"error"` (the default) raises, `"skip"` excludes the sample, and `"zero"` counts it as `0.0`. A per-key `NaN` is always treated as unscored and skipped, matching how the framework handles NaN scores elsewhere. If every sample is filtered out, `aggregate()` returns `NaN`.
+Samples where the key is missing (or present but `None`) are routed through `on_missing`: `"error"` (the default) raises, `"skip"` excludes the sample, and `"zero"` counts it as `0.0`. A per-key `NaN` is always treated as unscored and skipped, matching how the framework handles NaN scores elsewhere. If every sample is filtered out, `aggregate()` returns `NaN`. Per-key metrics (`metrics={"key": [...]}`) have no `on_missing` setting and treat `None` as unscored; see [Missing and unscored values](scoring-policy.qmd#missing-and-unscored-values).
 
 ## Clustered Stderr
 
@@ -392,6 +392,8 @@ Inspect includes several built in reducers which are summarised below.
 | collect | Collect all scores into a list, preserving each value instead of aggregating. |
 
 : {tbl-colwidths="\[30,70\]"}
+
+Every built-in reducer leaves out unscored (`NaN`) values. The reducers that accept dictionary scores (all except `collect`, which takes scalar scores only) also leave out `None` values under a key. A key that is `None` in every epoch reduces to `None`, so `aggregate()` can still apply `on_missing` to it. Otherwise, a value with nothing left to reduce is unscored. `majority` counts left-out values toward the panel size, `pass_at_{k}` and `pass_k_{k}` are unscored when fewer than `k` values remain, and `at_least_{k}` reduces to `0` when at least one but fewer than `k` values remain. A custom `value_to_float` passed to a reducer should return `NaN` for a `NaN` value, so that the value stays left out. See [Missing and unscored values](scoring-policy.qmd#missing-and-unscored-values).
 
 ::: callout-note
 The built in reducers will compute a reduced `value` for the score and populate the fields `answer` and `explanation` only if their value is equal across all epochs. The `metadata` field will always be reduced to the value of `metadata` in the first epoch. If your custom metrics function needs differing behavior for reducing fields, you should also implement your own custom reducer and merge or preserve fields in some way.

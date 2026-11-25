@@ -122,6 +122,8 @@ task = Task(
 
 The above example will produce two scores, `a_count` and `e_count`, each of which will have metrics for `mean` and `stderr`.
 
+Each key has its own `scored_samples` and `unscored_samples` counts. A key whose value is `NaN` or `None` is left out of that key's metrics and counted as unscored. To decide how a `None` (missing) value counts, for example as `0`, use [`aggregate()`](metrics.qmd#per-key-aggregation) instead. See [Missing and unscored values](scoring-policy.qmd#missing-and-unscored-values).
+
 When working with complex score values and metrics, you may use globs as keys for mapping metrics to scores. For example, a more succinct way to write the previous example:
 
 ``` python

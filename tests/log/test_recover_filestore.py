@@ -683,18 +683,29 @@ async def _cleanup_filestores_scenario() -> None:
         )
         await write_eval_log_async(log, path)
 
+    # Backslashes are ordinary filename characters on POSIX.
+    running_name = r"team\trial" if os.name == "posix" else "running"
+    directory_suffix = "\\" if os.name == "posix" else ""
     async with AsyncFilesystem():
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory(suffix=directory_suffix) as temp_dir:
             await write_log(os.path.join(temp_dir, "finished.eval"), "success")
-            SampleBufferFilestore(os.path.join(temp_dir, "finished.eval"), create=True)
-            await write_log(os.path.join(temp_dir, "running.eval"), "started")
-            SampleBufferFilestore(os.path.join(temp_dir, "running.eval"), create=True)
+            SampleBufferFilestore(
+                os.path.join(temp_dir, "finished.eval")
+            ).write_manifest(Manifest())
+            running_log = os.path.join(temp_dir, f"{running_name}.eval")
+            await write_log(running_log, "started")
+            SampleBufferFilestore(running_log).write_manifest(Manifest())
 
             await cleanup_sample_buffer_filestores(temp_dir)
 
             # finished eval's buffer removed, running eval's buffer kept
             assert not os.path.exists(os.path.join(temp_dir, ".buffer", "finished"))
-            assert os.path.exists(os.path.join(temp_dir, ".buffer", "running"))
+            assert (
+                Path(temp_dir) / ".buffer" / running_name / "manifest.json"
+            ).is_file()
+            assert SampleBufferFilestore.running_tasks(temp_dir) == [
+                f"{running_name}.eval"
+            ]
 
 
 async def test_cleanup_sample_buffer_filestores() -> None:

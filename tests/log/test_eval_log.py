@@ -585,6 +585,45 @@ def test_read_bytes_format(format):
     assert log2.samples
 
 
+def _log_bytes_with_location(format: Literal["json", "eval"], location: str) -> bytes:
+    """Fixture log bytes with a `location` key added to the serialized EvalLog."""
+    file_path = os.path.join("tests", "log", "test_eval_log", f"log_formats.{format}")
+    if format == "json":
+        with open(file_path, "rb") as f:
+            return json.dumps({**json.load(f), "location": location}).encode()
+    buf = io.BytesIO()
+    with ZipFile(file_path) as src, ZipFile(buf, "w") as dst:
+        for name in src.namelist():
+            content = src.read(name)
+            if name == "header.json":
+                header = {**json.loads(content), "location": location}
+                content = json.dumps(header).encode()
+            dst.writestr(name, content)
+    return buf.getvalue()
+
+
+@pytest.mark.parametrize("format", ["json", "eval"])
+@pytest.mark.parametrize("header_only", [False, True])
+@pytest.mark.parametrize("auto", [False, True])
+def test_read_bytes_ignores_location_in_content(
+    format: Literal["json", "eval"], header_only: bool, auto: bool, tmp_path: Path
+) -> None:
+    """A stream read returns an empty location whatever the bytes contain."""
+    embedded = tmp_path / f"embedded.{format}"
+    log_bytes = _log_bytes_with_location(format, str(embedded))
+
+    log = read_eval_log(
+        io.BytesIO(log_bytes),
+        header_only=header_only,
+        format="auto" if auto else format,
+    )
+
+    assert log.location == ""
+    with pytest.raises(ValueError, match="does not have a location"):
+        write_eval_log(log)
+    assert not embedded.exists()
+
+
 def test_rewrite_eval_zip_dedupes_duplicate_members():
     """A header rewrite keeps one entry per duplicate member name.
 
@@ -692,8 +731,6 @@ def _eval_shards(selection: Literal["ids", "count", "none"]) -> EvalShards:
                 eval_set_id="set-1",
                 status="success",
                 samples=4,
-                selected=2,
-                selection_digest=hashlib.sha256(b'["2","a"]').hexdigest(),
                 started_at="2026-09-24T11:00:00+00:00",
                 completed_at="2026-09-24T11:30:00+00:00",
                 model_usage={
@@ -718,8 +755,6 @@ def _eval_shards(selection: Literal["ids", "count", "none"]) -> EvalShards:
                     message="boom", traceback="Traceback", traceback_ansi="Traceback"
                 ),
                 samples=1,
-                selected=1,
-                selection_digest=hashlib.sha256(b'["b"]').hexdigest(),
                 started_at="2026-09-24T11:05:00+00:00",
                 size=99,
             ),
@@ -755,8 +790,6 @@ def test_eval_log_header_round_trips_shards(
         "eval_set_id",
         "status",
         "samples",
-        "selected",
-        "selection_digest",
         "started_at",
         "completed_at",
         "model_usage",
@@ -766,8 +799,6 @@ def test_eval_log_header_round_trips_shards(
         "mtime",
     }
     assert stored["ledger"][0]["samples"] == 4
-    assert stored["ledger"][0]["selected"] == 2
-    assert len(stored["ledger"][0]["selection_digest"]) == 64
     assert stored["ledger"][0]["etag"] == '"0123abcd"'
     assert "error" not in stored["ledger"][0]
     assert stored["ledger"][1]["error"]["message"] == "boom"

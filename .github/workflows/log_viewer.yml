@@ -215,6 +215,10 @@ jobs:
 
   dist-validation:
     runs-on: ubuntu-latest
+    # Build with no cache. An earlier revision of a PR can write its PR's cache,
+    # so a restored pnpm store could plant tooling that emits a tampered bundle
+    # and makes it match. cache-mode none also stops this job writing entries.
+    cache-mode: none
     permissions:
       contents: read
       pull-requests: read
@@ -245,8 +249,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22.x"
-          cache: pnpm
-          cache-dependency-path: src/inspect_ai/_view/ts-mono/pnpm-lock.yaml
+          package-manager-cache: false
 
       - name: Install dependencies
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'

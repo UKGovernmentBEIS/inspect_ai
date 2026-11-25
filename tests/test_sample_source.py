@@ -17,14 +17,22 @@ from pydantic import BaseModel
 from typing_extensions import override
 
 from inspect_ai import (
+    SampleAbandonedError,
     SampleSource,
     Task,
+    TaskEndedError,
+    TaskHandle,
     enqueue_sample,
+    enqueue_task,
     eval,
+    eval_async,
     eval_retry,
     eval_set,
+    samples_from_handle,
     task,
+    task_with,
 )
+from inspect_ai._eval.task.enqueue import get_run_queue
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
@@ -3059,3 +3067,515 @@ def _initialized_location(logger: TaskLogger) -> str:
     """The location of a logger whose log has been initialised."""
     assert logger.location is not None
     return logger.location
+
+
+# --- tasks fed through a handle (design/task-handles.md) --------------------
+
+
+@solver
+def _fed_solver() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.metadata.get("raise"):
+            raise ValueError("rollout failed")
+        return state
+
+    return solve
+
+
+def _fed_task(**kwargs: Any) -> Task:
+    kwargs.setdefault("fail_on_error", False)
+    return Task(
+        dataset=samples_from_handle(), solver=[_fed_solver()], name="fed", **kwargs
+    )
+
+
+@solver
+def _run_body(body: Any) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        await body(state)
+        return state
+
+    return solve
+
+
+def _creator(body: Any, name: str = "creator", **kwargs: Any) -> Task:
+    return Task(
+        dataset=[Sample(input="x")], solver=[_run_body(body)], name=name, **kwargs
+    )
+
+
+def _logs_named(logs: list[EvalLog], name: str) -> list[EvalLog]:
+    return [log for log in logs if log.eval.task == name]
+
+
+def test_fed_task_dataset_name_is_reserved() -> None:
+    from inspect_ai.dataset import MemoryDataset
+
+    assert _fed_task().dataset.name == "samples_from_handle"
+    reserved = MemoryDataset([Sample(input="x")], name="samples_from_handle")
+    with pytest.raises(ValueError, match="reserved"):
+        Task(dataset=reserved)
+    with pytest.raises(ValueError, match="reserved"):
+        task_with(Task(dataset=[Sample(input="x")]), dataset=reserved)
+
+
+def test_fed_task_sample_ids_and_delivery() -> None:
+    handles: list[TaskHandle] = []
+    sent: list[Sample] = []
+    returned: list[list[str]] = []
+
+    async def body(state: TaskState) -> None:
+        [first, second] = [enqueue_task(_fed_task())[0] for _ in range(2)]
+        handles.extend([first, second])
+        # sent before the task starts, and several at once, equal in value
+        samples = [Sample(input="same") for _ in range(3)]
+        sent.extend(samples)
+        runs: list[EvalSample] = []
+
+        async def send(sample: Sample) -> None:
+            runs.append(await first.enqueue_sample(sample))
+
+        async with anyio.create_task_group() as tg:
+            for sample in samples:
+                tg.start_soon(send, sample)
+        returned.append(sorted(str(run.id) for run in runs))
+        # one sent while next_samples() blocks starts at once
+        run = await first.enqueue_sample(Sample(input="later"))
+        returned.append([str(run.id)])
+        returned.append([str((await second.enqueue_sample(Sample(input="b"))).id)])
+        # the channel holds no request once each call has returned
+        queue = get_run_queue()
+        assert queue is not None
+        for handle in (first, second):
+            record = queue.find(handle.task_id)
+            assert record is not None and record.channel is not None
+            assert record.channel.requests == {}
+
+    logs = eval(_creator(body), model="mockllm/model", display="none")
+    fed = {log.eval.task_id: log for log in _logs_named(logs, "fed")}
+    first_token = handles[0].task_id[:8]
+    second_token = handles[1].task_id[:8]
+    assert first_token != second_token
+    assert returned == [
+        [f"send-{first_token}-000{n}" for n in (1, 2, 3)],
+        [f"send-{first_token}-0004"],
+        [f"send-{second_token}-0001"],
+    ]
+    # the caller's samples keep no id
+    assert all(sample.id is None for sample in sent)
+    first_log = fed[handles[0].task_id]
+    assert first_log.samples is not None
+    assert sorted(str(s.id) for s in first_log.samples) == [
+        f"send-{first_token}-000{n}" for n in (1, 2, 3, 4)
+    ]
+
+
+def test_fed_tasks_of_a_retried_creator_share_no_sample_id() -> None:
+    attempts: list[str] = []
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(_fed_task())
+        run = await handle.enqueue_sample(Sample(input="x"))
+        attempts.append(str(run.id))
+        if len(attempts) == 1:
+            raise ValueError("creator fails once")
+
+    logs = eval(
+        _creator(body),
+        model="mockllm/model",
+        display="none",
+        task_retry_attempts=1,
+    )
+    assert len(attempts) == 2 and attempts[0] != attempts[1]
+    assert len(_logs_named(logs, "fed")) == 2
+
+
+@pytest.mark.parametrize(
+    "run_args",
+    [{"sample_id": 3}, {"limit": 2}, {"epochs": 3}],
+    ids=["sample_id", "limit", "epochs"],
+)
+def test_run_selection_does_not_apply_to_a_fed_task(run_args: dict[str, Any]) -> None:
+    returned: list[int] = []
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(_fed_task())
+        for _ in range(4):
+            await handle.enqueue_sample(Sample(input="x"))
+            returned.append(1)
+        handle.close()
+
+    creator = Task(
+        dataset=[Sample(input=str(n), id=n) for n in range(1, 5)],
+        solver=[_run_body(body)],
+        name="creator",
+    )
+    logs = eval(creator, model="mockllm/model", display="none", **run_args)
+    [creator_log] = _logs_named(logs, "creator")
+    creator_runs = len(creator_log.samples or [])
+    expected_runs = {"sample_id": 1, "limit": 2, "epochs": 12}[next(iter(run_args))]
+    assert creator_runs == expected_runs
+    fed_logs = _logs_named(logs, "fed")
+    assert len(fed_logs) == creator_runs
+    assert len(returned) == 4 * creator_runs
+    for fed in fed_logs:
+        assert fed.samples is not None and len(fed.samples) == 4
+        assert fed.eval.config.limit is None
+        assert fed.eval.config.sample_id is None
+        assert fed.eval.config.epochs == 1
+
+
+@pytest.mark.parametrize("reducer", ["at_least_2", "pass_at_2", "pass_k_2"])
+def test_run_epoch_reducer_does_not_apply_to_a_fed_task(reducer: str) -> None:
+    from inspect_ai import Epochs
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(_fed_task())
+        await handle.enqueue_sample(Sample(input="x"))
+        handle.close()
+
+    logs = eval(
+        _creator(body),
+        model="mockllm/model",
+        display="none",
+        epochs=Epochs(3, reducer),
+    )
+    for fed in _logs_named(logs, "fed"):
+        assert fed.status == "success"
+        assert fed.eval.config.epochs == 1
+        assert fed.eval.config.epochs_reducer in (None, [])
+    [creator_log] = _logs_named(logs, "creator")
+    assert creator_log.eval.config.epochs == 3
+    assert creator_log.eval.config.epochs_reducer == [reducer]
+
+
+def test_fed_task_settings_resolve_before_the_runs() -> None:
+    from inspect_ai.approval import ApprovalPolicy, auto_approver
+
+    async def body(state: TaskState) -> None:
+        own = enqueue_task(
+            _fed_task(
+                time_limit=60,
+                turn_limit=100,
+                fail_on_error=False,
+                max_samples=3,
+                approval=[ApprovalPolicy(auto_approver("reject"), "*")],
+            )
+        )[0]
+        none = enqueue_task(
+            Task(dataset=samples_from_handle(), solver=[_fed_solver()], name="fed_none")
+        )[0]
+        enqueue_task(
+            Task(dataset=[Sample(input="o")], turn_limit=100, epochs=1, name="ordinary")
+        )
+        for handle in (own, none):
+            await handle.enqueue_sample(Sample(input="x"))
+            handle.close()
+
+    logs = eval(
+        _creator(body),
+        model="mockllm/model",
+        display="none",
+        time_limit=10,
+        message_limit=5,
+        turn_limit=5,
+        fail_on_error=True,
+        max_samples=2,
+        epochs=3,
+        approval=[ApprovalPolicy(auto_approver("approve"), "*")],
+    )
+    # the creator runs three epochs, each adding the three tasks
+    assert len(_logs_named(logs, "fed")) == 3
+    own = _logs_named(logs, "fed")[0]
+    none = _logs_named(logs, "fed_none")[0]
+    ordinary = _logs_named(logs, "ordinary")[0]
+    assert own.eval.config.time_limit == 60
+    assert own.eval.config.turn_limit == 100
+    assert own.eval.config.fail_on_error is False
+    assert own.eval.config.message_limit == 5
+    assert own.eval.config.max_samples == 3
+    assert none.eval.config.time_limit == 10
+    assert none.eval.config.turn_limit == 5
+    assert none.eval.config.fail_on_error is True
+    assert none.eval.config.message_limit == 5
+    assert none.eval.config.max_samples == 2
+    # the run's approval policy applies to a fed task that sets its own
+    assert own.eval.config.approval is not None
+    assert own.eval.config.approval.approvers[0].params.get("decision") == "approve"
+    # an ordinary added task takes the run's values, as before
+    assert ordinary.eval.config.turn_limit == 5
+    assert ordinary.eval.config.epochs == 3
+
+
+def test_fed_task_without_max_samples_takes_the_model_default() -> None:
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(_fed_task())
+        await handle.enqueue_sample(Sample(input="x"))
+        handle.close()
+
+    logs = eval(_creator(body), model="mockllm/model", display="none")
+    [fed] = _logs_named(logs, "fed")
+    assert fed.eval.config.max_samples is None
+
+
+def test_free_enqueue_sample_is_refused_in_a_fed_task() -> None:
+    refused: list[BaseException] = []
+
+    @solver
+    def adds_own() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            try:
+                enqueue_sample(Sample(input="extra"))
+            except RuntimeError as ex:
+                refused.append(ex)
+            return state
+
+        return solve
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(
+            Task(dataset=samples_from_handle(), solver=[adds_own()], name="fed")
+        )
+        await handle.enqueue_sample(Sample(input="x"))
+        handle.close()
+
+    @solver
+    def ordinary_adds() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.input == "seed":
+                enqueue_sample(Sample(input="added"))
+            return state
+
+        return solve
+
+    ordinary = Task(
+        dataset=SampleSource.from_samples([Sample(input="seed")]),
+        solver=[ordinary_adds()],
+        name="ordinary",
+    )
+    logs = eval([_creator(body), ordinary], model="mockllm/model", display="none")
+    assert len(refused) == 1
+    [fed] = _logs_named(logs, "fed")
+    assert fed.samples is not None and len(fed.samples) == 1
+    [ordinary_log] = _logs_named(logs, "ordinary")
+    assert _sample_inputs(ordinary_log) == ["added", "seed"]
+
+
+def test_first_errored_rollout_ends_a_fed_task_with_default_fail_on_error() -> None:
+    outcomes: list[Any] = []
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(
+            Task(dataset=samples_from_handle(), solver=[_fed_solver()], name="fed")
+        )
+        run = await handle.enqueue_sample(Sample(input="x", metadata={"raise": True}))
+        outcomes.append(run.error is not None)
+        with pytest.raises(TaskEndedError) as raised:
+            await handle.enqueue_sample(Sample(input="y"))
+        outcomes.append(raised.value.log)
+
+    logs = eval(_creator(body), model="mockllm/model", display="none")
+    [fed] = _logs_named(logs, "fed")
+    assert fed.status == "error"
+    assert outcomes[0] is True
+    assert outcomes[1] is not None and outcomes[1].eval.eval_id == fed.eval.eval_id
+
+
+@pytest.mark.parametrize("action", ["drain", "score", "error"])
+def test_graceful_cancel_of_an_idle_fed_task_ends_it(
+    action: Literal["drain", "score", "error"],
+) -> None:
+    from inspect_ai._control.cancel import cancel_task, drain_task
+
+    outcomes: list[str] = []
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(_fed_task())
+        await handle.enqueue_sample(Sample(input="x"))
+        # the task idles in next_samples(); a graceful cancel ends it
+        if action == "drain":
+            drain_task(handle.task_id)
+        else:
+            cancel_task(handle.task_id, action=action)
+        log = await handle.result()
+        outcomes.append(log.status if log is not None else "none")
+        with pytest.raises(TaskEndedError):
+            await handle.enqueue_sample(Sample(input="y"))
+
+    logs = eval(_creator(body), model="mockllm/model", display="none")
+    assert _logs_named(logs, "creator")[0].status == "success"
+    assert outcomes == ["success"]
+
+
+def test_creator_attempt_end_closes_its_channels() -> None:
+    async def body(state: TaskState) -> None:
+        [used] = enqueue_task(_fed_task())
+        enqueue_task(Task(dataset=samples_from_handle(), name="unused"))
+        await used.enqueue_sample(Sample(input="x"))
+        # neither handle is closed: the creator's attempt end closes both
+
+    logs = eval(_creator(body), model="mockllm/model", display="none")
+    assert sorted(log.eval.task for log in logs) == ["creator", "fed"]
+    assert all(log.status == "success" for log in logs)
+
+
+def test_fed_task_failure_does_not_fail_an_eval_set(tmp_path: Path) -> None:
+    async def body(state: TaskState) -> None:
+        [failing] = enqueue_task(
+            Task(dataset=samples_from_handle(), solver=[_fed_solver()], name="fed")
+        )
+        await failing.enqueue_sample(Sample(input="x", metadata={"raise": True}))
+        with pytest.raises(TaskEndedError):
+            await failing.enqueue_sample(Sample(input="y"))
+        # a fresh rollout task replaces the failed one
+        [fresh] = enqueue_task(_fed_task())
+        await fresh.enqueue_sample(Sample(input="z"))
+        # and one cancelled before it starts, and one cancelled running
+        [unstarted] = enqueue_task(_fed_task())
+        unstarted.cancel()
+        [running] = enqueue_task(_fed_task())
+        await running.enqueue_sample(Sample(input="w"))
+        running.cancel()
+
+    success, logs = eval_set(
+        _creator(body), log_dir=str(tmp_path), model="mockllm/model"
+    )
+    assert success
+    fed_logs = _logs_named(logs, "fed")
+    assert sorted(log.status for log in fed_logs) == ["error", "error", "success"]
+    on_disk = [info.name for info in list_eval_logs(str(tmp_path))]
+    assert len(on_disk) == 4
+
+    # a creator that fails makes the result failure
+    async def failing_body(state: TaskState) -> None:
+        [handle] = enqueue_task(_fed_task())
+        await handle.enqueue_sample(Sample(input="x"))
+        raise ValueError("search failed")
+
+    success, _ = eval_set(
+        _creator(failing_body, name="failing"),
+        log_dir=str(tmp_path / "failing"),
+        model="mockllm/model",
+        retry_attempts=0,
+    )
+    assert not success
+
+
+def test_eval_retry_refuses_a_fed_tasks_log(tmp_path: Path) -> None:
+    factory_calls: list[int] = []
+
+    @task
+    def registered_rollout() -> Task:
+        factory_calls.append(1)
+        return Task(dataset=SampleSource.from_samples([]), name="registered_rollout")
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(
+            task_with(registered_rollout(), dataset=samples_from_handle())
+        )
+        await handle.enqueue_sample(Sample(input="x"))
+
+    logs = eval(
+        _creator(body), model="mockllm/model", display="none", log_dir=str(tmp_path)
+    )
+    [fed] = _logs_named(logs, "registered_rollout")
+    assert fed.status == "success"
+    assert fed.eval.dataset.name == "samples_from_handle"
+    calls = len(factory_calls)
+    before = {info.name for info in list_eval_logs(str(tmp_path))}
+    with pytest.raises(PrerequisiteError, match="took its samples through"):
+        eval_retry(fed, log_dir=str(tmp_path))
+    assert len(factory_calls) == calls
+    assert {info.name for info in list_eval_logs(str(tmp_path))} == before
+
+
+@pytest.mark.parametrize("action", ["sample_cancel", "drain", "score", "error"])
+async def test_sample_abandoned_before_running_settles_its_sender(
+    tmp_path: Path, action: str
+) -> None:
+    from inspect_ai._control.cancel import cancel_sample, cancel_task, drain_task
+    from inspect_ai._control.eval_state import latest_eval_for_task
+
+    running = anyio.Event()
+    release = anyio.Event()
+    outcomes: dict[str, EvalSample | SampleAbandonedError] = {}
+    ids: list[str] = []
+    still_held: list[bool] = []
+
+    @solver
+    def hold() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            running.set()
+            await release.wait()
+            return state
+
+        return solve
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(
+            Task(
+                dataset=samples_from_handle(),
+                solver=[hold()],
+                max_samples=1,
+                fail_on_error=False,
+                name="fed",
+            )
+        )
+        queue = get_run_queue()
+        assert queue is not None
+        record = queue.find(handle.task_id)
+        assert record is not None and record.channel is not None
+        channel = record.channel
+
+        async def send(label: str) -> None:
+            try:
+                outcomes[label] = await handle.enqueue_sample(Sample(input=label))
+            except SampleAbandonedError as ex:
+                outcomes[label] = ex
+                # settled by the abandonment itself, while the task runs on
+                still_held.append(str(ex.sample.id) in channel.requests)
+                still_held.append(record.phase == "ended")
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(send, "a")
+            await running.wait()
+            # b waits for the only sample slot
+            tg.start_soon(send, "b")
+            await anyio.wait_all_tasks_blocked()
+            ids.extend(channel.requests)
+            eval_state = latest_eval_for_task(handle.task_id)
+            assert eval_state is not None
+            if action == "sample_cancel":
+                cancelled = await cancel_sample(
+                    eval_state.eval_id, ids[1], 1, action="cancel"
+                )
+                assert cancelled is not None and cancelled["ok"]
+            else:
+                stamped = (
+                    drain_task(handle.task_id)
+                    if action == "drain"
+                    else cancel_task(
+                        handle.task_id,
+                        action="score" if action == "score" else "error",
+                    )
+                )
+                assert stamped is not None and stamped["ok"]
+            release.set()
+        await handle.result()
+
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            _creator(body), model="mockllm/model", log_dir=str(tmp_path)
+        )
+    assert all(log.status == "success" for log in logs)
+    abandoned = outcomes["b"]
+    assert isinstance(abandoned, SampleAbandonedError)
+    assert abandoned.sample.id == ids[1] and ids[1].startswith("send-")
+    assert still_held == [False, False]
+    # a follows the directive's own rule
+    ran = outcomes["a"]
+    assert isinstance(ran, EvalSample) and ran.id == ids[0]
+    if action in ("sample_cancel", "drain"):
+        assert ran.error is None
+    elif action == "error":
+        assert ran.error is not None

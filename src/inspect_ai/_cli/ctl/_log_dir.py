@@ -9,7 +9,6 @@ See ``design/ctl/log-dir-mode.md``.
 
 from __future__ import annotations
 
-import shlex
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, NoReturn, TypeVar
@@ -22,7 +21,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 # design/ctl/cli-refactor.md).
 from . import _http
 from ._failure import _CtlFailure, _exception_name, _fail
-from ._render import _echo, _format_duration, _short_id
+from ._render import _command_hint, _echo, _format_duration, _short_id
 
 if TYPE_CHECKING:
     from inspect_ai._control.log_dir.cache import LogDirCache
@@ -169,23 +168,15 @@ def _fail_from(ex: BaseException, *, walking: bool) -> NoReturn:
     elif isinstance(ex, (UnsupportedLogFormatError, StrayLogError)):
         kind, message = "unsupported", str(ex)
     elif isinstance(ex, SampleUnsupportedError):
-        events = " ".join(
-            shlex.quote(arg)
-            for arg in (
-                "inspect",
-                "ctl",
-                "sample",
-                "events",
-                ex.task_id,
-                ex.sample_id,
-                str(ex.epoch),
-                "--type",
-                "model",
-                "--log-dir",
-                root or "",
-            )
+        events = _command_hint(
+            ["inspect", "ctl", "sample", "events", ex.task_id, ex.sample_id]
+            + [str(ex.epoch), "--type", "model", "--log-dir", root or ""],
+            fallback=(
+                f"inspect ctl sample events TASK SAMPLE_ID {ex.epoch} --type model "
+                "--log-dir DIR"
+            ),
         )
-        kind, message = "unsupported", f"{ex} `{events}` shows its model calls."
+        kind, message = "unsupported", f"{ex} {events} shows its model calls."
     elif isinstance(ex, LogUnparseableError):
         kind, message = "invalid_response", f"{ex}."
     elif isinstance(ex, LogChangedError):
@@ -523,9 +514,12 @@ def _warn_unreadable(entries: list[dict[str, str]]) -> None:
         _echo(f"warning: skipped {entry['log_location']}: {entry['reason']}", err=True)
 
 
-def _errors_command() -> str:
-    """The ``sample errors`` command for this mode's directory, shell-quoted."""
-    return f"inspect ctl sample errors --log-dir {shlex.quote(_log_dir_root() or '')}"
+def _errors_hint() -> str:
+    """The hint naming the ``sample errors`` command for this mode's directory."""
+    return _command_hint(
+        ["inspect", "ctl", "sample", "errors", "--log-dir", _log_dir_root() or ""],
+        fallback="inspect ctl sample errors --log-dir DIR",
+    )
 
 
 def _print_quiet_footer(rows: list[dict[str, Any]]) -> None:
