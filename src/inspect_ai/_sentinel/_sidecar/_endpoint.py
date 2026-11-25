@@ -3,7 +3,6 @@
 import base64
 import re
 import secrets
-import sys
 import traceback
 from dataclasses import dataclass, field
 from itertools import count
@@ -226,13 +225,24 @@ class Sidecar:
         return _replaced(text, self._secrets())
 
     def _holds_secret(self, error: BaseException) -> bool:
-        # whether a traceback of the error would show a secret: in its
-        # message, its notes, the errors it is chained to, or a group's
-        # errors, every one of them, as the log's tracebacks show them
-        shown = traceback.TracebackException.from_exception(
-            error, max_group_width=sys.maxsize, max_group_depth=sys.maxsize
-        )
-        return bool(_found("".join(shown.format()), self._secrets()))
+        # whether the error, or any error it reaches, shows a secret in its
+        # message or notes: its cause, its context even when a traceback
+        # hides it, and each of a group's errors
+        secrets = self._secrets()
+        seen: set[int] = set()
+        pending: list[BaseException | None] = [error]
+        while pending:
+            found = pending.pop()
+            if found is None or id(found) in seen:
+                continue
+            seen.add(id(found))
+            shown = "".join(traceback.format_exception_only(found))
+            if _found(shown, secrets):
+                return True
+            pending += [found.__cause__, found.__context__]
+            if isinstance(found, BaseExceptionGroup):
+                pending += found.exceptions
+        return False
 
 
 class _Client(NamedTuple):
@@ -318,15 +328,17 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
             f"{shown} answered the probe, but not as a sidecar", definite=True
         )
 
+    # what the sidecar answered may repeat the base URL's secrets
+    secrets = _credentials(base_url)
     versions = info.get("versions")
     if not isinstance(versions, list) or not any(v in VERSIONS for v in versions):
         raise SentinelProxyError(
-            f"The sentinel sidecar at {shown} serves versions {versions} of its endpoint for evals, and this Inspect speaks {list(VERSIONS)}."
+            f"The sentinel sidecar at {shown} serves versions {_replaced(str(versions), secrets)} of its endpoint for evals, and this Inspect speaks {list(VERSIONS)}."
         )
     release = info.get("release", "whole")
     if release != "whole":
         raise SentinelProxyError(
-            f"The sentinel sidecar at {shown} releases replies early ({release!r}), which Inspect doesn't support yet. Run the sidecar with `--release whole`."
+            f"The sentinel sidecar at {shown} releases replies early ({_replaced(repr(release), secrets)}), which Inspect doesn't support yet. Run the sidecar with `--release whole`."
         )
     version = max(v for v in versions if v in VERSIONS)
     # A sidecar that doesn't report `review`, such as one from before sidecars
@@ -405,10 +417,11 @@ def _spellings(secret: str) -> str:
     # a pattern for the secret however an error spells it: each character as
     # itself or percent-encoded, in either case, and a space and a plus as
     # either, as form encoding writes them. A byte that isn't UTF-8 is
-    # percent-encoded, or decoded as U+FFFD.
+    # percent-encoded, kept as its surrogate, or decoded as U+FFFD.
     def spelled(char: str) -> list[str]:
         if "\udc80" <= char <= "\udcff":
-            return [f"%(?i:{ord(char) - 0xDC00:02x})", *spelled("�")]
+            surrogate = [re.escape(char), f"%(?i:{ord(char) - 0xDC00:02x})"]
+            return [*surrogate, *spelled("�")]
         encoded = "".join(f"%(?i:{byte:02x})" for byte in char.encode())
         return [re.escape(char), encoded]
 

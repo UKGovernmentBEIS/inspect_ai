@@ -236,6 +236,14 @@ async def test_a_sidecar_behind_the_models_base_url_is_found(
             "http://proxy.test",
             ["pass", "word", "two", "sk-abc"],
         ),
+        # a name alone
+        (
+            "anthropic",
+            "http://proxy.test?sk-abc",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["sk-abc"],
+        ),
         # a bare query, after which the anthropic SDK puts its slash, has no
         # secret, so nothing else is redacted
         (
@@ -297,10 +305,12 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
             return httpx2.Response(
                 200, json={"service": "inspect_sentinel", "versions": [1]}
             )
-        # and names each query item it rejects
+        # and names the user and each query item it rejects
         authorization = request.headers.get("authorization", "")
         items = " ".join(re.split("[&;]", urlsplit(base_url).query))
-        repeated = f"{request.url} {base_url} {authorization} {items}"
+        repeated = (
+            f"{request.url} {base_url} {authorization} {request.url.username} {items}"
+        )
         lowered = re.sub("%[0-9A-F]{2}", lambda escape: escape[0].lower(), repeated)
         return httpx2.Response(
             500,
@@ -340,20 +350,39 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
     assert not [secret for secret in secrets if any(secret in text for text in shown)]
 
 
-@pytest.mark.parametrize("where", ["note", "group"])
-async def test_a_failed_call_to_a_sidecar_keeps_no_error_whose_traceback_shows_a_secret(
-    where: str,
+@pytest.mark.parametrize(
+    ("where", "key", "secret"),
+    [
+        ("message", "abc%FFdef", "abc\udcffdef"),
+        ("note", "demo-token", "demo-token"),
+        ("group", "demo-token", "demo-token"),
+        ("group", "demo%0Atoken", "demo\ntoken"),
+        ("hidden context", "demo-token", "demo-token"),
+    ],
+)
+async def test_a_failed_call_to_a_sidecar_keeps_no_error_that_shows_a_secret(
+    where: str, key: str, secret: str
 ) -> None:
-    # a traceback prints an error's notes, and the errors of a group, which
-    # the error's message leaves out; the log's tracebacks print every error
-    # of a group, past the 15 Python's own formatting shows
+    # an error may keep a byte that isn't UTF-8 as its surrogate. A traceback
+    # prints an error's notes, and the errors of a group, which the error's
+    # message leaves out, past the 15 Python's own formatting shows, and with
+    # a margin that splits a secret across lines. An SDK raises its status
+    # error `from None`, which hides, but keeps, the HTTP error that names
+    # the URL.
     class Failing:
         async def post(self, *args: Any, **kwargs: Any) -> Any:
-            repeated = "for http://proxy.test?key=demo-token"
+            repeated = f"for http://proxy.test?key={secret}"
+            if where == "message":
+                raise ValueError(repeated)
             if where == "note":
                 failure = ValueError("upstream failed")
                 failure.add_note(repeated)
                 raise failure
+            if where == "hidden context":
+                try:
+                    raise ValueError(repeated)
+                except ValueError:
+                    raise RuntimeError("Error code: 500") from None
             others = [ValueError("upstream failed") for _ in range(15)]
             raise ExceptionGroup("upstream failed", [*others, ValueError(repeated)])
 
@@ -361,16 +390,21 @@ async def test_a_failed_call_to_a_sidecar_keeps_no_error_whose_traceback_shows_a
         "http://proxy.test",
         "whole",
         Failing(),
-        base_url="http://proxy.test?key=demo-token",
+        base_url=f"http://proxy.test?key={key}",
     )
 
     with pytest.raises(SidecarCallError) as raised:
         await sidecar.call("end_sample", {})
 
-    shown = traceback.TracebackException.from_exception(
-        raised.value, max_group_width=100
-    )
-    assert "demo-token" not in "".join(shown.format())
+    reached: list[BaseException | None] = [raised.value]
+    while reached:
+        error = reached.pop()
+        if error is None:
+            continue
+        assert secret not in "".join(traceback.format_exception_only(error))
+        reached += [error.__cause__, error.__context__]
+        if isinstance(error, BaseExceptionGroup):
+            reached += error.exceptions
 
 
 async def test_a_sidecar_behind_an_openai_compatible_models_base_url_is_found() -> None:
@@ -712,9 +746,12 @@ async def test_a_first_registration_sent_again_sends_the_same_token() -> None:
 @pytest.mark.parametrize(
     ("info", "says"),
     [
-        ({"service": "inspect_sentinel", "versions": [2]}, r"serves versions \[2\]"),
         (
-            {"service": "inspect_sentinel", "versions": [1], "release": "early"},
+            {"service": "inspect_sentinel", "versions": [2, "demo-token"]},
+            r"serves versions \[2, ",
+        ),
+        (
+            {"service": "inspect_sentinel", "versions": [1], "release": "demo-token"},
             "releases replies early",
         ),
     ],
@@ -723,8 +760,11 @@ async def test_a_first_registration_sent_again_sends_the_same_token() -> None:
 async def test_a_sidecar_inspect_cant_work_with_is_an_error(
     info: dict[str, Any], says: str
 ) -> None:
-    with pytest.raises(SentinelProxyError, match=says):
-        await _probed(_model(StandInSidecar(info=info)))
+    # and the error doesn't repeat a secret of the base URL the answer holds
+    base_url = "http://proxy.test?key=demo-token"
+    with pytest.raises(SentinelProxyError, match=says) as raised:
+        await _probed(_model(StandInSidecar(info=info), base_url=base_url))
+    assert "demo-token" not in str(raised.value)
 
 
 async def test_a_task_that_requires_a_sidecar_fails_without_one() -> None:
