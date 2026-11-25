@@ -204,7 +204,12 @@ class Sidecar:
         if failed is not None:
             # described and raised outside the handler, so that neither this
             # error nor one in describing it is chained to the failure
-            described = self._without_secrets(_described(failed, handling))
+            # each part redacted before it is trimmed, which could cut a
+            # secret short
+            described = " <- ".join(
+                self._without_secrets(part).strip()
+                for part in _described(failed, handling)
+            )
             raise SidecarCallError(method, described)
         if not isinstance(answer, dict):
             raise SidecarCallError(method, "the answer isn't JSON-RPC")
@@ -233,7 +238,7 @@ class Sidecar:
         return _replaced(text, self._secrets())
 
 
-def _raise_unchained(error: SidecarCallError) -> NoReturn:
+def _raise_unchained(error: Exception) -> NoReturn:
     # raised while the caller handles an error, such as a failed model call
     # through the proxy, an error takes that for its context, which keeps the
     # request to the proxy
@@ -243,18 +248,24 @@ def _raise_unchained(error: SidecarCallError) -> NoReturn:
         error.__context__ = None
 
 
-def _described(error: BaseException, handling: BaseException | None) -> str:
+def _described(error: BaseException, handling: BaseException | None) -> list[str]:
     # the error's message, then each error it was raised from or while
     # handling, as a traceback names them, up to the one the caller was
-    # handling
+    # handling; a context an SDK hid with `from None` too, as it may name
+    # what failed
     described = [str(error)]
     seen = {id(error)}
-    found = error.__cause__ or error.__context__
+    found = _chained(error)
     while found is not None and found is not handling and id(found) not in seen:
         seen.add(id(found))
-        described.append("".join(traceback.format_exception_only(found)).strip())
-        found = found.__cause__ or found.__context__
-    return " <- ".join(described)
+        described.append("".join(traceback.format_exception_only(found)))
+        found = _chained(found)
+    return described
+
+
+def _chained(error: BaseException) -> BaseException | None:
+    # the error this one was raised from, or else while handling
+    return error.__cause__ if error.__cause__ is not None else error.__context__
 
 
 class _Client(NamedTuple):
@@ -348,17 +359,29 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
             f"{shown} answered the probe, but not as a sidecar", definite=True
         )
 
-    # what the sidecar answered may repeat the base URL's secrets
-    secrets = _credentials(base_url)
+    # The errors repeat no text the sidecar answered, which may hold a
+    # secret: of the base URL, or the eval's token, which this probe doesn't
+    # know. Raised while the caller handles an error, such as a failed model
+    # call through the proxy, they keep none.
     versions = info.get("versions")
     if not isinstance(versions, list) or not any(v in VERSIONS for v in versions):
-        raise SentinelProxyError(
-            f"The sentinel sidecar at {shown} serves versions {_replaced(str(versions), secrets)} of its endpoint for evals, and this Inspect speaks {list(VERSIONS)}."
+        served = [
+            v
+            for v in (versions if isinstance(versions, list) else [])
+            if isinstance(v, int) and not isinstance(v, bool)
+        ]
+        shown_served = _replaced(str(served), _credentials(base_url))
+        _raise_unchained(
+            SentinelProxyError(
+                f"The sentinel sidecar at {shown} serves versions {shown_served} of its endpoint for evals, and this Inspect speaks {list(VERSIONS)}."
+            )
         )
     release = info.get("release", "whole")
     if release != "whole":
-        raise SentinelProxyError(
-            f"The sentinel sidecar at {shown} releases replies early ({_replaced(repr(release), secrets)}), which Inspect doesn't support yet. Run the sidecar with `--release whole`."
+        _raise_unchained(
+            SentinelProxyError(
+                f"The sentinel sidecar at {shown} releases replies early, which Inspect doesn't support yet. Run the sidecar with `--release whole`."
+            )
         )
     version = max(v for v in versions if v in VERSIONS)
     # A sidecar that doesn't report `review`, such as one from before sidecars
@@ -442,12 +465,13 @@ def _spellings(secret: str) -> str:
     # a pattern for the secret however an error spells it: each character as
     # itself or percent-encoded, in either case, and a space and a plus as
     # either, as form encoding writes them. A byte that isn't UTF-8, kept as
-    # its surrogate, is that or percent-encoded.
+    # its surrogate, is that or percent-encoded. The encoded spelling is tried
+    # first, so that a `%` doesn't match alone where `%25` spells it.
     def spelled(char: str) -> list[str]:
         if "\udc80" <= char <= "\udcff":
-            return [re.escape(char), f"%(?i:{ord(char) - 0xDC00:02x})"]
+            return [f"%(?i:{ord(char) - 0xDC00:02x})", re.escape(char)]
         encoded = "".join(f"%(?i:{byte:02x})" for byte in char.encode())
-        return [re.escape(char), encoded]
+        return [encoded, re.escape(char)]
 
     pattern = []
     for char in secret:

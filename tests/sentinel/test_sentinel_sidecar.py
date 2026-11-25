@@ -360,6 +360,19 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
     assert not [secret for secret in secrets if any(secret in text for text in shown)]
 
 
+class _FalseError(ValueError):
+    def __bool__(self) -> bool:
+        return False
+
+
+class _Answer:
+    def __init__(self, answer: dict[str, Any]) -> None:
+        self.answer = answer
+
+    def json(self) -> dict[str, Any]:
+        return self.answer
+
+
 @pytest.mark.parametrize(
     ("where", "key", "secret", "described"),
     [
@@ -369,6 +382,21 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
             "demo-token",
             "demo-token",
             "denied <- ValueError: for http://proxy.test?<>",
+        ),
+        # a secret that ends in a space
+        (
+            "cause",
+            "demo-token%20",
+            "demo-token ",
+            "denied <- ValueError: for http://proxy.test?<>",
+        ),
+        ("error answer", "demo-token", "demo-token", "denied"),
+        # raised from an error that is false
+        (
+            "false cause",
+            "demo-token",
+            "demo-token",
+            "denied <- {false}: for http://proxy.test?<>",
         ),
         (
             "attribute",
@@ -405,6 +433,10 @@ async def test_a_failed_call_to_a_sidecar_names_its_causes_without_a_secret(
                 raise ValueError(repeated)
             if where == "cause":
                 raise RuntimeError("denied") from ValueError(repeated)
+            if where == "false cause":
+                raise RuntimeError("denied") from _FalseError(repeated)
+            if where == "error answer":
+                return _Answer({"error": {"code": -32000, "message": "denied"}})
             if where == "attribute":
                 # a message that names no secret, of an error that keeps one
                 raise json.JSONDecodeError("Expecting value", repeated, 0)
@@ -432,14 +464,16 @@ async def test_a_failed_call_to_a_sidecar_names_its_causes_without_a_secret(
         except ValueError:
             await sidecar.call("end_sample", {})
 
-    shown = described.replace("<>", REDACTED)
+    false = f"{_FalseError.__module__}.{_FalseError.__qualname__}"
+    shown = described.replace("<>", REDACTED).replace("{false}", false)
     assert str(raised.value) == f"The sidecar's end_sample failed: {shown}"
     assert (raised.value.__cause__, raised.value.__context__) == (None, None)
 
 
-async def test_a_call_before_the_eval_registered_keeps_no_error_it_was_made_in() -> (
-    None
-):
+@pytest.mark.parametrize("method", ["eval_call", "answer_question"])
+async def test_a_call_before_the_eval_registered_keeps_no_error_it_was_made_in(
+    method: str,
+) -> None:
     sidecar = Sidecar("http://proxy.test", "whole", None)
 
     # as the model calls the sidecar, while handling its call's error
@@ -447,18 +481,29 @@ async def test_a_call_before_the_eval_registered_keeps_no_error_it_was_made_in()
         try:
             raise ValueError("http://proxy.test?key=demo-token")
         except ValueError:
-            await sidecar.eval_call("end_sample", {})
+            if method == "eval_call":
+                await sidecar.eval_call("end_sample", {})
+            else:
+                await sidecar.answer_question("q1", "approve", None)
 
     assert raised.value.__context__ is None
 
 
-async def test_a_secret_repeated_over_itself_is_redacted_whole() -> None:
+@pytest.mark.parametrize(
+    ("value", "repeated"),
+    # repeated over itself, and with a `%` that a `%25` spells
+    [("aba", "ababa"), ("abc%25", "abc%25")],
+)
+async def test_a_secret_is_redacted_whole(value: str, repeated: str) -> None:
     class Failing:
         async def post(self, *args: Any, **kwargs: Any) -> Any:
-            raise ValueError("ababa")
+            raise ValueError(repeated)
 
     sidecar = Sidecar(
-        "http://proxy.test", "whole", Failing(), base_url="http://proxy.test?key=aba"
+        "http://proxy.test",
+        "whole",
+        Failing(),
+        base_url=f"http://proxy.test?key={value}",
     )
 
     with pytest.raises(SidecarCallError) as raised:
@@ -808,7 +853,7 @@ async def test_a_first_registration_sent_again_sends_the_same_token() -> None:
     [
         (
             {"service": "inspect_sentinel", "versions": [2, "demo-token"]},
-            r"serves versions \[2, ",
+            r"serves versions \[2\] ",
         ),
         (
             {"service": "inspect_sentinel", "versions": [1], "release": "demo-token"},
@@ -820,11 +865,17 @@ async def test_a_first_registration_sent_again_sends_the_same_token() -> None:
 async def test_a_sidecar_inspect_cant_work_with_is_an_error(
     info: dict[str, Any], says: str
 ) -> None:
-    # and the error doesn't repeat a secret of the base URL the answer holds
+    # and the error repeats no secret the answer holds, nor keeps the error
+    # the caller was handling, as the model's failed call through the proxy
     base_url = "http://proxy.test?key=demo-token"
+    model = _model(StandInSidecar(info=info), base_url=base_url)
     with pytest.raises(SentinelProxyError, match=says) as raised:
-        await _probed(_model(StandInSidecar(info=info), base_url=base_url))
+        try:
+            raise ValueError(base_url)
+        except ValueError:
+            await _probed(model)
     assert "demo-token" not in str(raised.value)
+    assert raised.value.__context__ is None
 
 
 async def test_a_task_that_requires_a_sidecar_fails_without_one() -> None:
