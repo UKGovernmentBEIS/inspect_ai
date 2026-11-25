@@ -298,7 +298,7 @@ for any task added during a run: a queued fed task is not listed by the
 control channel's task list and cannot be cancelled or drained there, only
 through its handle (`RunQueue.cancel`). Listing and cancelling queued tasks
 through the control channel belongs to
-[task-dispatch.md](task-dispatch.md#control-channel-1).
+[task-dispatch.md](task-dispatch.md#control-channel).
 
 ### Terminal outcomes
 
