@@ -205,7 +205,8 @@ control-channel connection-limit retune reaches them while images build and a ba
 adaptive setting on a seed task raises from `eval()`. An added task's
 controller is created on its model's first `generate`, as for any model the
 seed does not use, so a bad adaptive setting on it fails inside its
-attempt (the task, or each of its samples, ends with the error) rather than
+attempt (the task, or each of its samples under the task's sample-error
+policy, ends with the error) rather than
 in whoever added it, and a connection-limit retune made before that
 `generate` misses it unless another task already created that model's
 controller ("Not this design").
@@ -293,8 +294,10 @@ file or sample buffer database
 ends that attempt with an error log carrying the storage error, the task
 is retried alone and the other tasks run on, so a seed task whose log
 cannot be initialised no longer fails `eval()`
-(`test_log_init_failure_ends_only_that_task`). Such a log has an empty
-`location`, as does any log whose initialisation had not finished.
+(`test_log_init_failure_ends_only_that_task`). Such a log's `location`
+is empty when the failure came before a destination was allocated, and
+otherwise names that destination; a nonempty `location` does not mean a
+complete log was written there.
 
 ### The dispatcher
 
@@ -609,7 +612,8 @@ Tests: `test_setup_bindings_per_configuration`,
   2026-11-12).
 - **The seed's model controllers are created before it is added, an added
   task's on its model's first `generate`**, so a bad adaptive setting
-  fails the task that has it (decision: Ransom, 2026-11-12 and 2026-11-18).
+  fails the task that has it, or its samples, rather than whoever added it
+  (decision: Ransom, 2026-11-12 and 2026-11-18).
 - **`enqueue_task()` stays synchronous and returns handles**: adding a task
   awaits nothing, and an async version would silently break every
   existing call that does not await it (decision: Ransom, 2026-11-16).
@@ -721,10 +725,13 @@ Alternatives for the handles are in
   rewrite or, on failure, delete those samples' `.compose.yaml` when the
   config is an inline `ComposeConfig` or missing. A compose file path is
   unaffected.
-- **Failures.** A sandbox setup error, a failed log initialisation and a
-  bad adaptive setting on an added task end only that task with its error
-  log and are retried under `task_retry_attempts`, rather than failing the
-  run.
+- **Failures.** A sandbox setup error and a failed log initialisation end
+  only that task with its error log, and it is retried under
+  `task_retry_attempts`, rather than failing the run. A bad adaptive
+  setting on an added task stays inside that task too: either the task
+  fails as above, or its samples error under the task's normal
+  sample-error policy, and a task attempt that succeeds despite errored
+  samples is not retried.
 - **Logs.** An ordinary task cancelled before it starts is returned by
   `eval()` with the abort error log ("Task cancelled by user (abort)") and
   an empty `location`, as code reading `log.location` can already see for a
