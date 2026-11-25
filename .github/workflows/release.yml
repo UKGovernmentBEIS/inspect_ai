@@ -255,7 +255,7 @@ jobs:
             echo "$delimiter"
           } >> "$GITHUB_OUTPUT"
 
-      - uses: meridianlabs-ai/actions/slack-release-announce@65f1b6bdb9b1af7eb0bc89942c624dd4efef1316 # main, 2026-11-02
+      - uses: meridianlabs-ai/actions/slack-release-announce@40b7c888e3a8c34a083e8354099b18d1d7e936a0 # main, 2026-11-02
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           title: ":rocket: inspect-ai ${{ needs.release-please.outputs.tag }} released"
@@ -299,7 +299,7 @@ jobs:
       contents: read
       pages: write
       id-token: write
-    uses: meridianlabs-ai/actions/.github/workflows/publish-docs.yml@b63bc2bb3cc6a615e83e27d5465cb87dd27379b9 # main, 2026-11-18
+    uses: meridianlabs-ai/actions/.github/workflows/publish-docs.yml@40b7c888e3a8c34a083e8354099b18d1d7e936a0 # main, 2026-11-18
     with:
       tag: ${{ needs.release-please.outputs.tag }}
       python-version: "3.11"
