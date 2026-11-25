@@ -16560,7 +16560,11 @@ def test_a_bridged_call_id_handed_out_twice_covers_no_later_copy(
     monkeypatch: pytest.MonkeyPatch,
     backend: str,
 ) -> None:
-    """S1 and S10 through a bridge: the model proposes the reviewed call again under its id, so no result under the id names an execution from then on."""
+    """S1 and S10 through a bridge: the model proposes the reviewed call again under its id, so no result under the id names an execution from then on.
+
+    The person judges each result once: the first result, untagged once its
+    id is handed out again, is the step already checked.
+    """
     Panel("approve", "fine").install(monkeypatch)
     log, seen = scaffold_log(
         backend,
@@ -16569,10 +16573,16 @@ def test_a_bridged_call_id_handed_out_twice_covers_no_later_copy(
         bridge_calls_output(READ),
         sentinel=[h_ask("tool_result", ["approve", "reject"])],
     )
+    judged = [
+        e.result_digest
+        for e in logged_sample(log).events
+        if isinstance(e, SentinelEvent) and e.kind == "decision"
+    ]
+    assert len(judged) == len(set(judged)) == 2
     # replay pairs no result with a call id proposed twice (see
     # `steps_from_events`), and the second call repeats the first's key
     replay = assert_replay_rebuilds_bridge_steps(
-        log, seen, bridge_differences=["tool_result.human_decisions"], unbuilt=3
+        log, seen, bridge_differences=["tool_result.human_decisions"], unbuilt=2
     )
     inputs: list[Step] = [s.step for s in replay if s.stage == "model_input"]
     # the first result, reviewed when its handout was the id's only one

@@ -1021,8 +1021,8 @@ class _Steps:
     check builds them without its proposal's context (`_check_part`): the
     request's conversation, the call, its view (as its viewer renders it,
     rejecting a viewer error where the check does; the check is given that
-    view), and the result. The result is all of its fields but its `id`,
-    which the bridge gives each parsed message afresh. The fields left out
+    view), and the result. The result is all of its fields but those the
+    bridge sets on each request's messages (`result`). The fields left out
     are those of `STEP_DIGEST_EXCLUDED`. A value that can't be encoded gives
     a digest no other step has. The digest also covers two things the step
     lacks: the bridged tool the check is of, and where the call sits in the
@@ -1071,8 +1071,16 @@ class _Steps:
 
     @staticmethod
     def result(message: ChatMessageTool) -> bytes:
-        """The result's part of its steps' digests."""
-        return _serialized(message.model_copy(update={"id": None}))
+        """The result's part of its steps' digests: all of its fields but `id` and `execution_id`.
+
+        The bridge sets both on each request's messages (`_Handouts.tag` sets
+        `execution_id`), so neither is the scaffold's result. A call id
+        handed out again leaves the result of no known execution; the
+        unchanged result is still the same step.
+        """
+        return _serialized(
+            message.model_copy(update={"id": None, "execution_id": None})
+        )
 
 
 def _view(check: SentinelCheck, reject_on_viewer_error: bool) -> ToolCallView | None:
