@@ -362,13 +362,12 @@ async def test_restore_repo_restores_known_subfolder(
 
     assert [c[3] for c in calls] == ["ls", "restore"]
     assert calls[0][3:] == ["ls", "--json", "--", "latest"]
-    scratch = Path(calls[1][calls[1].index("--target") + 1])
-    assert scratch.parent == target
-    assert scratch.name.startswith(".restore-")
+    restore_dir = Path(calls[1][calls[1].index("--target") + 1])
+    assert restore_dir == _restore_dir(target, during=restore_dir)
     assert calls[1][3:] == [
         "restore",
         "--target",
-        str(scratch),
+        str(restore_dir),
         "--verify",
         "--exclude-xattr",
         "*",
@@ -525,9 +524,29 @@ def _mode(path: Path) -> int:
     return stat.S_IMODE(os.lstat(path).st_mode)
 
 
-def _beside_scratch(scratch: Path) -> list[str]:
-    """Names in the target other than the scratch dir restic is restoring into."""
-    return sorted(p.name for p in scratch.parent.iterdir() if p != scratch)
+def _is_scratch(path: Path) -> bool:
+    return path.name.startswith(".restore-")
+
+
+def _restore_dir(target: Path, *, during: Path | None = None) -> Path:
+    """Where restic writes for ``target``: its scratch dir, or ``target`` itself in place.
+
+    ``during`` is the directory restic was given; after a failed restore the
+    scratch dir is found in ``target`` instead.
+    """
+    if during is not None:
+        assert during == target or (during.parent == target and _is_scratch(during))
+        return during
+    scratch = [p for p in target.iterdir() if _is_scratch(p)]
+    assert len(scratch) <= 1
+    return scratch[0] if scratch else target
+
+
+def _beside_scratch(restore_dir: Path) -> list[str]:
+    """Names already in the target when restic starts, other than its scratch dir."""
+    if not _is_scratch(restore_dir):
+        return sorted(p.name for p in restore_dir.iterdir())
+    return sorted(p.name for p in restore_dir.parent.iterdir() if p != restore_dir)
 
 
 @posix_modes
@@ -697,6 +716,7 @@ async def test_restore_repo_leaves_target_mode_alone_when_listing_rejected(
     assert list(target.iterdir()) == []
 
 
+@posix_modes
 async def test_restore_repo_cancelled_while_adopting_finishes_the_move(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -731,6 +751,26 @@ async def test_restore_repo_cancelled_while_adopting_finishes_the_move(
         release.set()
 
     assert sorted(p.name for p in target.iterdir()) == ["events.json", "store.json"]
+
+
+async def test_restore_repo_restores_in_place_without_posix_modes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Where there are no POSIX modes to reset (Windows), restic writes into the target itself."""
+    from inspect_ai.util._restic import ops
+
+    def no_chmod(path: str, mode: int, **kwargs: bool) -> None:
+        raise AssertionError(f"unexpected chmod of {path}")
+
+    target = tmp_path / "ctx"
+    calls = _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
+    monkeypatch.setattr(ops, "_RESTORE_VIA_SCRATCH_DIR", False)
+    monkeypatch.setattr(os, "chmod", no_chmod)
+
+    await _restore(target)
+
+    assert calls[1][calls[1].index("--target") + 1] == str(target)
+    assert [p.name for p in target.iterdir()] == ["store.json"]
 
 
 def _refuse_chmod(monkeypatch: pytest.MonkeyPatch, code: int) -> None:
@@ -777,6 +817,14 @@ async def test_restore_repo_never_adopts_file_left_with_special_mode_bit(
     """
     target = tmp_path / "ctx"
     real_chmod = os.chmod
+    probe = tmp_path / "probe"
+    probe.write_text("")
+    try:
+        probe.chmod(mode)
+    except OSError as ex:
+        pytest.skip(f"cannot set mode {mode:04o} on a regular file: {ex}")
+    if _mode(probe) != mode:
+        pytest.skip(f"filesystem did not keep mode {mode:04o} on a regular file")
 
     def restore(path: Path) -> None:
         _write_store(path)
@@ -1084,9 +1132,7 @@ async def test_restore_repo_propagates_restic_failure(
     _fake_restic(monkeypatch, _STORE_ONLY, fail_midway)
     with pytest.raises(subprocess.CalledProcessError):
         await _restore(target)
-    (scratch,) = target.iterdir()
-    assert scratch.name.startswith(".restore-")
-    assert [p.name for p in scratch.iterdir()] == ["partial.json"]
+    assert [p.name for p in _restore_dir(target).iterdir()] == ["partial.json"]
 
     _fake_restic(monkeypatch, _STORE_ONLY, _write_store)
     await _restore(target)
@@ -1112,8 +1158,7 @@ async def test_restore_repo_cancelled_mid_restore_then_retried(
     with anyio.move_on_after(0.2) as scope:
         await _restore(target)
     assert scope.cancelled_caught
-    (scratch,) = target.iterdir()
-    assert [p.name for p in scratch.iterdir()] == ["partial.json"]
+    assert [p.name for p in _restore_dir(target).iterdir()] == ["partial.json"]
 
     seen_at_restore: list[list[str]] = []
 

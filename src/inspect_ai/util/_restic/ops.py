@@ -28,6 +28,10 @@ from .summary import ResticBackupSummary
 _RESTORED_DIR_MODE = 0o700
 _RESTORED_FILE_MODE = 0o600
 _SPECIAL_MODE_BITS = 0o7000
+
+_RESTORE_VIA_SCRATCH_DIR = sys.platform != "win32"
+"""Windows has no POSIX modes for a snapshot to choose, so a restore there
+writes straight into its target, as it did before modes were reset."""
 """Modes the restored tree is given, whatever the snapshot recorded. The
 host's own context files are created by ``tempfile.mkstemp``, also 0600."""
 
@@ -140,8 +144,9 @@ async def restore_repo(
     write it or the directories above it. On a filesystem that assigns
     modes itself, the scratch directory and the restored entries have the
     modes it assigns. Not reset: the owner and group restic applied (any,
-    when it runs as root; otherwise at most a group the user belongs to),
-    and on Windows the recorded security descriptor.
+    when it runs as root; otherwise at most a group the user belongs to).
+    On Windows none of this applies: restic restores straight into
+    ``target`` and reapplies the recorded security descriptor.
 
     ``target`` must be a directory or absent; a symlink is refused without
     being followed (:func:`_prepare_target`). It is emptied before restic
@@ -183,7 +188,7 @@ async def restore_repo(
         nodes, paths[0], max_files=max_files, max_bytes=max_bytes
     )
     _empty_dir(target_dir)
-    scratch = _restore_scratch_dir(target_dir)
+    scratch = _restore_scratch_dir(target_dir) if _RESTORE_VIA_SCRATCH_DIR else None
     await anyio.run_process(
         [
             str(restic),
@@ -191,7 +196,7 @@ async def restore_repo(
             repo,
             "restore",
             "--target",
-            str(scratch),
+            str(scratch or target_dir),
             "--verify",
             "--exclude-xattr",
             "*",
@@ -201,7 +206,8 @@ async def restore_repo(
         env=restic_env(password),
         check=True,
     )
-    await anyio.to_thread.run_sync(_adopt_restored_tree, scratch, target_dir)
+    if scratch is not None:
+        await anyio.to_thread.run_sync(_adopt_restored_tree, scratch, target_dir)
 
 
 def _prepare_target(target: str) -> Path:
@@ -236,7 +242,8 @@ def _restore_scratch_dir(target: Path) -> Path:
     the user running the restore, so other users cannot enter the tree
     while it carries recorded modes. That holds as long as they cannot
     write ``target`` or a directory above it, and so cannot replace the
-    scratch directory itself.
+    scratch directory itself, and no ACL inherited from ``target`` grants
+    them access to it.
 
     It is inside ``target`` so the move is a rename on one filesystem,
     and so that whatever skips ``target`` when copying or uploading the
@@ -261,18 +268,13 @@ def _adopt_restored_tree(scratch: Path, target: Path) -> None:
 
 
 def _chmod(path: str, mode: int) -> None:
-    """``os.chmod`` for an entry restic just restored (no-op on Windows).
+    """``os.chmod`` for an entry restic just restored.
 
     Tolerates ``ENOTSUP`` and, when not running as root, ``EPERM``: they
     mean the filesystem assigns modes itself, and restic ignores both when
     it applies a node's mode. Any other failure, including the ``EACCES``
     that restic also ignores, propagates and fails the restore.
-
-    Skipped on Windows, where ``os.chmod`` only toggles the read-only
-    attribute and can be denied on an entry the user may otherwise write.
     """
-    if sys.platform == "win32":
-        return
     try:
         os.chmod(path, mode)
     except OSError as ex:
