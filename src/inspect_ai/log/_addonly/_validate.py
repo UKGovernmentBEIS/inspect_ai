@@ -189,6 +189,19 @@ class _RescoreStep(NamedTuple):
     record: RescoreSampleRecord
 
 
+class _ToCompare(NamedTuple):
+    """A .eval sample and the closed attempt it is compared with."""
+
+    key: str
+    """For findings."""
+    note: str
+    """For messages."""
+    source: str
+    """The eval that closed the attempt: the file's eval, or an earlier one
+    for a reused sample."""
+    final: _FinalAttempt
+
+
 class _Version(NamedTuple):
     key: str
     version_id: str
@@ -618,11 +631,9 @@ def _compare_eval_file(
             )
         return _Compared(findings, 0, named_by)
 
-    header_log = read_eval_log(eval_file, header_only=True)
-    header = {
-        **header_log.model_dump(mode="json", include={"status", "stats", "results"}),
-        "epochs_reducer": header_log.eval.config.epochs_reducer,
-    }
+    header = read_eval_log(eval_file, header_only=True).model_dump(
+        mode="json", include={"status", "stats", "results"}
+    )
 
     # an eval stopped before it finished its .eval file (or its host
     # stopped writing) may not have logged every sample it closed
@@ -634,9 +645,13 @@ def _compare_eval_file(
         else:
             finding("missing_sample", message, key)
 
-    # (key for findings, note for messages, attempt)
-    to_compare: list[tuple[str, str, _FinalAttempt]] = [
-        (f"{eval_id}/{sample_part}/{final.closing.sample.attempt}", "", final)
+    to_compare = [
+        _ToCompare(
+            f"{eval_id}/{sample_part}/{final.closing.sample.attempt}",
+            "",
+            eval_id,
+            final,
+        )
         for sample_part, final in stored.final_attempts.items()
     ]
     eval_file_samples = _eval_file_samples(eval_file)
@@ -657,9 +672,10 @@ def _compare_eval_file(
             continue
         source, final = earlier
         to_compare.append(
-            (
+            _ToCompare(
                 f"{eval_id}/{sample_part}",
                 f" (reused from {source}/{sample_part}/{final.closing.sample.attempt})",
+                source,
                 final,
             )
         )
@@ -687,7 +703,8 @@ def _compare_eval_file(
     compared = 0
     # the latest rescore of this eval each sample names (None: not rescored)
     file_rescores: set[RescoreRef | None] = set()
-    for key, note, final in to_compare:
+    prior_path = list(_prior_evals(evals, eval_id))
+    for key, note, source, final in to_compare:
         ref = final.closing.sample
         try:
             logged = read_eval_log_sample(
@@ -703,7 +720,10 @@ def _compare_eval_file(
         latest = latest_rescore(logged.events)
         file_rescores.add(latest if latest and latest.eval_id == eval_id else None)
         chain = _rescore_chain(
-            rescores, latest, sample_key_part(ref.sample_id, ref.epoch)
+            rescores,
+            latest,
+            sample_key_part(ref.sample_id, ref.epoch),
+            set(prior_path[: prior_path.index(source) + 1]),
         )
         if isinstance(chain, str):
             finding("missing_rescore", f"{chain}{note}", key)
@@ -784,11 +804,7 @@ def _compare_eval_file(
         assert file_rescore is not None
         name = _rescore_name(file_rescore.eval_id, file_rescore.rescore_id)
         if rescore.closing is not None:
-            compare(
-                f"rescore closing record ({name})",
-                rescore.closing,
-                {"results", "epochs_reducer"},
-            )
+            compare(f"rescore closing record ({name})", rescore.closing, {"results"})
         elif header["status"] != "started":
             finding(
                 "missing_eval_closing",
@@ -888,12 +904,22 @@ def _rescore_chain(
     rescores: Mapping[tuple[str, str], _StoredRescore],
     latest: RescoreRef | None,
     sample_part: str,
+    eval_ids: set[str],
 ) -> list[_RescoreStep] | str:
-    """The rescores to apply to the sample, oldest first, or why they cannot be."""
+    """The rescores to apply to the sample, oldest first, or why they cannot be.
+
+    Each must be a rescore of one of ``eval_ids``: the evals the sample's
+    copy came through.
+    """
     chain: list[_RescoreStep] = []
     ref = latest
     while ref is not None:
         name = _rescore_name(ref.eval_id, ref.rescore_id)
+        if ref.eval_id not in eval_ids:
+            return (
+                f"The sample names rescore {name}, of an eval this copy of the "
+                "sample did not come through."
+            )
         rescore = rescores.get((ref.eval_id, ref.rescore_id))
         if rescore is None or rescore.start is None:
             return f"The sample names rescore {name}, which is not in the store."

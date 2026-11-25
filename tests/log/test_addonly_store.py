@@ -42,6 +42,11 @@ from test_helpers.addonly_moto import (
 )
 
 from inspect_ai import Task, eval, eval_retry, eval_set, score, task
+from inspect_ai._eval.score import (
+    ScoreAction,
+    _get_updated_events,
+    _get_updated_scores,
+)
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent import react
@@ -62,6 +67,7 @@ from inspect_ai.log._addonly._records import (
     START,
     RescoreClosingRecord,
     RescoreMarker,
+    RescoreRef,
     RescoreSampleRecord,
     RescoreStartRecord,
     SampleAttemptRef,
@@ -1914,13 +1920,19 @@ def test_rescore_without_eval(clean_run: CleanRun, validate_cli: ValidateCli) ->
 def test_rescore_record_without_scorers_span(
     clean_run: CleanRun, validate_cli: ValidateCli
 ) -> None:
-    """A rescore written with eval-host keys whose sample record's events are not a scorers span.
+    """A rescore, named by the sample, whose sample record's events are not a scorers span.
 
-    A finding, not a validator crash: score.py's functions take one
+    Findings, not a validator crash: score.py's functions take one
     top-level scorers span.
     """
     base = f"rescores/{clean_run.eval_id}/r1"
     eval_id = clean_run.eval_id
+    edit_sample(
+        clean_run,
+        lambda sample: sample.events.append(
+            RescoreMarker(rescore=RescoreRef(eval_id=eval_id, rescore_id="r1")).event()
+        ),
+    )
     nonce = StartRecord.model_validate_json(clean_run.read(f"{eval_id}/{START}")).nonce
     clean_run.put(
         f"{base}/{START}",
@@ -1947,12 +1959,16 @@ def test_rescore_record_without_scorers_span(
     clean_run.put(
         f"{base}/{CLOSING}",
         RescoreClosingRecord(
-            eval_id=eval_id, rescore_id="r1", nonce=nonce
+            eval_id=eval_id,
+            rescore_id="r1",
+            nonce=nonce,
+            results=read_eval_log(clean_run.location, header_only=True).results,
         ).model_dump_json(),
     )
     result = validate_cli(clean_run.store, clean_run.log_dir)
-    assert_fails_with(result, "malformed_record")
+    assert_fails_with(result, "malformed_record", "missing_rescore")
     assert f"malformed_record {base}/s0.1: Its events are not one" in result.output
+    assert f"{base}, which has no record of it" in result.output
 
 
 def test_rescore_with_wrong_nonce(
@@ -2046,6 +2062,84 @@ def test_eval_retry_of_rescored_log_validates(
     assert result.exit_code == 0, result.output
     assert result.findings() == []
     assert "2 eval(s), 4 sample(s) compared, 0 finding(s)." in result.output
+
+
+def stored_rescore_record(
+    store: MotoStore, eval_id: str, sample_part: str
+) -> RescoreSampleRecord:
+    """The eval's one rescore record of the sample, read with the validator's keys."""
+    s3 = store.client(store.validator)
+    # (moto's signature check fails on a "/" in the listed prefix)
+    (key,) = [
+        o["Key"]
+        for o in s3.list_objects_v2(Bucket=BUCKET, Prefix=store.prefix)["Contents"]
+        if o["Key"].startswith(f"{store.prefix}/rescores/{eval_id}/")
+        and o["Key"].endswith(f"/{sample_part}")
+    ]
+    return RescoreSampleRecord.model_validate_json(
+        s3.get_object(Bucket=BUCKET, Key=key)["Body"].read()
+    )
+
+
+def copy_rescore(
+    log_file: str, sample_id: str, record: RescoreSampleRecord, action: ScoreAction
+) -> None:
+    """Apply a stored rescore record to a sample of the .eval file, as `inspect score` would.
+
+    Leaves the header's results as they are. Needs no nonce or store access.
+    """
+    log = read_eval_log(log_file)
+    assert log.samples
+    sample = next(s for s in log.samples if s.id == sample_id)
+    events = _get_updated_events(sample, record.events, action)
+    sample.scores = _get_updated_scores(sample, record.scores, action)
+    sample.events = events
+    write_eval_log(log, log_file)
+
+
+def test_rescore_of_another_eval(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """Eval B's rescore of s0 copied onto eval A's s0, which was not rescored."""
+    log_a = run(agent_task(samples=1), tmp_path, tamper_evident_store=evalhost_env.url)
+    log_b = run(agent_task(samples=1), tmp_path, tamper_evident_store=evalhost_env.url)
+    rescore(Path(log_b.location), "overwrite", store=evalhost_env)
+    record = stored_rescore_record(evalhost_env, log_b.eval.eval_id, "s0.1")
+    copy_rescore(log_a.location, "s0", record, "overwrite")
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert_fails_with(result, "missing_rescore")
+    assert (
+        f"missing_rescore {log_a.eval.eval_id}/s0.1/1: The sample names rescore "
+        f"rescores/{log_b.eval.eval_id}/{record.rescore_id}, of an eval this copy "
+        "of the sample did not come through." in result.output
+    )
+
+
+def test_retry_takes_prior_rescore_of_own_sample(
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    failures: Path,
+) -> None:
+    """The first eval's rescore of s0 copied onto the retry's s0, which the retry ran itself."""
+    log = retried_task_run(evalhost_env, tmp_path, failures, s0_failures=1)
+    rescore(Path(log.location), "append", store=evalhost_env)
+    retry = eval_retry(
+        log.location,
+        log_dir=str(tmp_path),
+        display="none",
+        tamper_evident_store=evalhost_env.url,
+    )[0]
+    assert retry.status == "success", retry.error
+    record = stored_rescore_record(evalhost_env, log.eval.eval_id, "s0.1")
+    copy_rescore(retry.location, "s0", record, "append")
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert_fails_with(result, "missing_rescore")
+    ((_, message),) = result.findings()
+    assert message.startswith(f"{retry.eval.eval_id}/s0.1/"), message
+    assert f"rescores/{log.eval.eval_id}/{record.rescore_id}, of an eval" in message
 
 
 def test_edit_results(clean_run: CleanRun, validate_cli: ValidateCli) -> None:

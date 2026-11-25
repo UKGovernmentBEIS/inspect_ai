@@ -160,7 +160,6 @@ class RescoreClosingRecord(BaseModel):
     rescore_id: str
     nonce: str
     results: EvalResults | None = None
-    epochs_reducer: list[str] | None = None
 
 
 StoreRecord = Annotated[

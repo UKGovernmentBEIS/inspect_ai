@@ -314,4 +314,9 @@ def moto_addonly_store() -> Iterator[MotoStore]:
         yield store
     finally:
         server.terminate()
-        server.wait(timeout=10)
+        try:
+            server.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            # under CI load the server can be slow to exit
+            server.kill()
+            server.wait()

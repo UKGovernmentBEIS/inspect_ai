@@ -312,9 +312,7 @@ class RescoreRecordWriter:
             ),
         )
 
-    async def close(
-        self, results: EvalResults | None, epochs_reducer: list[str] | None
-    ) -> None:
+    async def close(self, results: EvalResults | None) -> None:
         await self.store.put(
             self._key(CLOSING),
             _body(
@@ -323,7 +321,6 @@ class RescoreRecordWriter:
                     rescore_id=self.ref.rescore_id,
                     nonce=self.nonce,
                     results=results,
-                    epochs_reducer=epochs_reducer,
                 )
             ),
         )

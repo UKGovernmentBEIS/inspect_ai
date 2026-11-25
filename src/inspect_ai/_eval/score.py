@@ -495,7 +495,7 @@ async def score_async(
         )
 
     if addonly is not None:
-        await addonly.close(log.results, log.eval.config.epochs_reducer)
+        await addonly.close(log.results)
 
     return log
 
