@@ -3,6 +3,7 @@
 import base64
 import re
 import secrets
+import sys
 import traceback
 from dataclasses import dataclass, field
 from itertools import count
@@ -174,6 +175,16 @@ class Sidecar:
 
         A registration's request holds the eval's token, the base URL may hold the proxy's credentials, in its user info, query or fragment, and an error may repeat the request or the base URL, as a proxy's error page does, or keep the request. So no error raised here holds either in its message, nor is chained to one that may.
         """
+        try:
+            return await self._call(method, params)
+        except SidecarCallError as ex:
+            # raised while the caller handles an error, such as a failed model
+            # call through the proxy, it takes that for its context
+            ex.__context__ = None
+            raise
+
+    async def _call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        handling = sys.exception()
         failed: str | None = None
         answer: Any = None
         try:
@@ -190,7 +201,7 @@ class Sidecar:
             )
             answer = response.json()
         except Exception as ex:
-            failed = self._without_secrets(_described(ex))
+            failed = self._without_secrets(_described(ex, handling))
         if failed is not None:
             # raised outside the handler, so that it has no context
             raise SidecarCallError(method, failed)
@@ -221,13 +232,14 @@ class Sidecar:
         return _replaced(text, self._secrets())
 
 
-def _described(error: BaseException) -> str:
+def _described(error: BaseException, handling: BaseException | None) -> str:
     # the error's message, then each error it was raised from or while
-    # handling, as a traceback names them
+    # handling, as a traceback names them, up to the one the caller was
+    # handling
     described = [str(error)]
     seen = {id(error)}
     found = error.__cause__ or error.__context__
-    while found is not None and id(found) not in seen:
+    while found is not None and found is not handling and id(found) not in seen:
         seen.add(id(found))
         described.append("".join(traceback.format_exception_only(found)).strip())
         found = found.__cause__ or found.__context__

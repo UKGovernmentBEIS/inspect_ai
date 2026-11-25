@@ -371,6 +371,12 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
             "denied <- ValueError: for http://proxy.test?<>",
         ),
         (
+            "attribute",
+            "demo-token",
+            "demo-token",
+            "Expecting value: line 1 column 1 (char 0)",
+        ),
+        (
             "hidden context",
             "demo-token",
             "demo-token",
@@ -399,6 +405,9 @@ async def test_a_failed_call_to_a_sidecar_names_its_causes_without_a_secret(
                 raise ValueError(repeated)
             if where == "cause":
                 raise RuntimeError("denied") from ValueError(repeated)
+            if where == "attribute":
+                # a message that names no secret, of an error that keeps one
+                raise json.JSONDecodeError("Expecting value", repeated, 0)
             if where == "hidden context":
                 try:
                     raise ValueError(repeated)
@@ -415,8 +424,13 @@ async def test_a_failed_call_to_a_sidecar_names_its_causes_without_a_secret(
         base_url=f"http://proxy.test?key={key}",
     )
 
+    # called as the model does after its call failed, while handling that
+    # call's error, which keeps the request to the proxy
     with pytest.raises(SidecarCallError) as raised:
-        await sidecar.call("end_sample", {})
+        try:
+            raise ValueError("http://proxy.test?key=demo-token")
+        except ValueError:
+            await sidecar.call("end_sample", {})
 
     shown = described.replace("<>", REDACTED)
     assert str(raised.value) == f"The sidecar's end_sample failed: {shown}"
