@@ -55,6 +55,7 @@ from inspect_ai.model._providers.anthropic import (
     _WEB_SEARCH_TOOL_TYPES,
     AnthropicAPI,
     ToolParamDef,
+    _content_data_for_tool_reference,
     anthropic_extra_body_fields,
     assistant_message_blocks,
     content_and_tool_calls_from_assistant_content_blocks,
@@ -723,6 +724,8 @@ def content_block_to_contents(
                 return content_block_to_contents(list(c)[0])
         else:
             raise RuntimeError(f"Unsupported document source type: {source['type']}")
+    elif block["type"] == "tool_reference":
+        return [_content_data_for_tool_reference(block["tool_name"])]
     else:
         raise RuntimeError(f"Unsupported content block type: {block['type']}")
 

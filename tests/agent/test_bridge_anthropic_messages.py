@@ -4,7 +4,7 @@ from typing import Any, cast
 import pytest
 from anthropic.types import ThinkingBlockParam
 
-from inspect_ai._util.content import ContentDocument
+from inspect_ai._util.content import ContentData, ContentDocument
 from inspect_ai.agent._bridge.anthropic_api_impl import (
     anthropic_system_to_texts,
     base_64_data,
@@ -23,7 +23,11 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._message_ids import content_hash
-from inspect_ai.model._providers.anthropic import AnthropicAPI, message_block_params
+from inspect_ai.model._providers.anthropic import (
+    AnthropicAPI,
+    message_block_params,
+    message_param,
+)
 from inspect_ai.tool import WebSearchProviders
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_util import tool_to_tool_info
@@ -116,6 +120,51 @@ async def test_inline_text_document_round_trip() -> None:
         "type": "text",
         "data": "hello inline document",
         "media_type": "text/plain",
+    }
+
+
+@pytest.mark.anyio
+async def test_tool_reference_in_tool_result_round_trip() -> None:
+    """Claude Code's tool search answers with `tool_reference` blocks in a tool result."""
+    tool_result = {
+        "type": "tool_result",
+        "tool_use_id": "toolu_search",
+        "content": [
+            {"type": "tool_reference", "tool_name": "get_weather"},
+            {"type": "tool_reference", "tool_name": "get_forecast"},
+        ],
+    }
+    messages = await messages_from_anthropic_input(
+        cast(
+            Any,
+            [
+                {"role": "user", "content": "What is the weather in Paris?"},
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_search",
+                            "name": "ToolSearch",
+                            "input": {"query": "weather"},
+                        }
+                    ],
+                },
+                {"role": "user", "content": [tool_result]},
+            ],
+        ),
+        tools=[],
+    )
+
+    tool_message = messages[-1]
+    assert isinstance(tool_message, ChatMessageTool)
+    assert tool_message.function == "ToolSearch"
+    assert isinstance(tool_message.content, list)
+    assert all(isinstance(content, ContentData) for content in tool_message.content)
+
+    assert await message_param(tool_message) == {
+        "role": "user",
+        "content": [{**tool_result, "is_error": False}],
     }
 
 

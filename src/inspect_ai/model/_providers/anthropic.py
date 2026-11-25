@@ -3780,6 +3780,7 @@ MessageBlockParam = Union[
     | CodeExecutionToolResultBlockParam
     | BetaWebFetchToolResultBlockParam
     | BetaFallbackBlockParam
+    | ToolReferenceBlockParam
 ]
 
 
@@ -5367,6 +5368,33 @@ def _is_compaction_content(content: Content) -> bool:
     return False
 
 
+def _content_data_for_tool_reference(tool_name: str) -> ContentData:
+    """Wrap a client tool search's `tool_reference` block so it replays as sent."""
+    return ContentData(
+        data={
+            "tool_reference_metadata": {
+                "type": "anthropic_tool_reference",
+                "tool_name": tool_name,
+            }
+        }
+    )
+
+
+def _tool_reference_from_content_data(
+    content: ContentData,
+) -> ToolReferenceBlockParam | None:
+    tool_reference_metadata = content.data.get("tool_reference_metadata", None)
+    if isinstance(tool_reference_metadata, dict):
+        if tool_reference_metadata.get("type") == "anthropic_tool_reference":
+            tool_name = tool_reference_metadata.get("tool_name", None)
+            if isinstance(tool_name, str):
+                return ToolReferenceBlockParam(
+                    type="tool_reference", tool_name=tool_name
+                )
+
+    return None
+
+
 def _fallback_block_models(block: Any) -> tuple[str | None, str | None]:
     """Extract (from_model, to_model) from a server-side fallback block.
 
@@ -6068,6 +6096,9 @@ async def message_block_params(
         fallback_param = _fallback_from_content_data(content)
         if fallback_param:
             return [fallback_param]
+        tool_reference_param = _tool_reference_from_content_data(content)
+        if tool_reference_param:
+            return [tool_reference_param]
         raise RuntimeError(f"Unexpected data block: {content.data}")
 
     else:
