@@ -46,6 +46,7 @@ from inspect_ai._util.registry import _registry
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
 from inspect_ai.event import Event, InfoEvent, ScoreEvent, ToolEvent
+from inspect_ai.hooks import Hooks, SampleEnd, hooks
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log, write_eval_log
 from inspect_ai.log._addonly._records import (
     CLOSING,
@@ -606,7 +607,7 @@ _cancel_gates: dict[str, threading.Event] = {}
 
 @solver
 def fail_while_s0_closes(path: str) -> Solver:
-    """While the file holds true, s1 raises once s0 writes its last record.
+    """While the file holds true, s1 raises once s0 starts the put the test gates.
 
     s2 waits until the eval's failure cancels it.
     """
@@ -615,7 +616,9 @@ def fail_while_s0_closes(path: str) -> Solver:
         state = await generate(state)
         if json.loads(Path(path).read_text()):
             if state.sample_id == "s1":
-                await anyio.to_thread.run_sync(_cancel_gates["s0_closing"].wait)
+                assert await anyio.to_thread.run_sync(
+                    _cancel_gates["s0_closing"].wait, 30
+                )
                 raise RuntimeError("attempt fails")
             if state.sample_id == "s2":
                 try:
@@ -686,6 +689,84 @@ def test_eval_retry_after_cancel_in_close_validates(
     assert result.exit_code == 0, result.output
     assert result.findings() == []
     assert "2 eval(s), 6 sample(s) compared, 0 finding(s)." in result.output
+
+
+@solver
+def fail_while_s0_hook_waits(path: str) -> Solver:
+    """While the file holds true, s1 raises once s0's sample end hook starts."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state = await generate(state)
+        if json.loads(Path(path).read_text()) and state.sample_id == "s1":
+            assert await anyio.to_thread.run_sync(_cancel_gates["s0_hook"].wait, 30)
+            raise RuntimeError("attempt fails")
+        return state
+
+    return solve
+
+
+class StuckSampleEndHook(Hooks):
+    """s0's sample end hook waits on an event that is never set, for up to 30 s."""
+
+    async def on_sample_end(self, data: SampleEnd) -> None:
+        if data.sample.id == "s0":
+            _cancel_gates["s0_hook"].set()
+            with anyio.move_on_after(30):
+                await anyio.Event().wait()
+            _cancel_gates["hook_timed_out"].set()
+
+
+@task
+def stuck_hook_task(fail: str) -> Task:
+    return Task(
+        dataset=[Sample(id=f"s{i}", input="hi", target="Default") for i in range(2)],
+        solver=fail_while_s0_hook_waits(fail),
+        scorer=includes(),
+    )
+
+
+def test_eval_retry_after_cancel_in_sample_end_hook_validates(
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """s1 fails while s0, scored and logged, waits in its sample end hook.
+
+    The eval's failure cancels the hook, as without the store. Then eval_retry.
+    """
+    monkeypatch.setitem(_cancel_gates, "s0_hook", threading.Event())
+    monkeypatch.setitem(_cancel_gates, "hook_timed_out", threading.Event())
+    fail = tmp_path / "fail.json"
+    fail.write_text("true")
+    hooks("stuck_sample_end", "Waits in s0's sample end hook.")(StuckSampleEndHook)
+    try:
+        log = eval(
+            stuck_hook_task(str(fail)),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            display="none",
+            max_samples=2,
+            tamper_evident_store=evalhost_env.url,
+        )[0]
+    finally:
+        del _registry["hooks:stuck_sample_end"]
+    assert log.status == "error"
+    assert not _cancel_gates["hook_timed_out"].is_set()
+
+    fail.write_text("false")
+    log = eval_retry(
+        log,
+        log_dir=str(tmp_path),
+        display="none",
+        tamper_evident_store=evalhost_env.url,
+    )[0]
+    assert log.status == "success", log.error
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
+    assert "2 eval(s), 4 sample(s) compared, 0 finding(s)." in result.output
 
 
 @solver
