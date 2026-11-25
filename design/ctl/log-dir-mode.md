@@ -130,7 +130,11 @@ bucket, a
 selector with no match, a sample that has not started (or runs without a
 shared buffer), and a log removed during the read are `not_found`. An S3
 prefix holding no objects lists as an empty directory, as S3 has no
-directories, so it gives no rows rather than `not_found`. An
+directories, so it gives no rows rather than `not_found`. Over a
+directory that holds no task, the sample reads return their empty
+result (an empty list or page, or null for `sample show`) before resolving a
+selector, so an unmatched selector there exits 0 rather than
+`not_found`. An
 ambiguous selector is `ambiguous` through the same `_resolve_target_eval`
 as live mode, run over the mode's rows; so is a sample key two shards hold.
 A log that exists but does not parse, or a manifest or buffered events
@@ -232,7 +236,9 @@ buffer segments or checkpoint objects, whose counts grow with run age:
   companion's stray entries (a log directly in it, a `.json` log in a
   `<k>/`, and any other directory directly in it, a dot-directory
   included, which is not listed) are reported in `unreadable`, never as
-  rows or attempts (`test_stray_and_nested_logs_in_a_companion`). The
+  rows or attempts (`test_stray_and_nested_logs_in_a_companion`); a
+  second companion for a task id is reported as a whole, without its
+  stray entries ("Logical tasks"). The
   merged log beside the companion, `<name>.eval` (matched by
   `merged_log_name`, which strips only `.eval`), belongs to the shard set
   rather than being an ordinary log. A `<name>-recovered.eval` beside it is
@@ -460,8 +466,10 @@ data (`read_member` in `snapshot.py`, `consistency.py`):
   sample read through a fresh central directory re-reads the sample's
   summary from that version too, so the two never describe different
   records.
-- **The manifest.** A local manifest is rewritten in place, so one that
-  does not parse is re-read the same bounded number of times. A manifest
+- **The manifest.** A manifest that does not parse is re-read the same
+  bounded number of times, then handled as "When the re-reads are exhausted"
+  below says (the filestore in
+  `src/inspect_ai/log/_recorders/buffer/` owns how a sync publishes it). A manifest
   that is gone reads as no manifest, and the log read after it then serves
   the flushed samples. A segment that is gone during an events read (the
   worker deleted its buffer after the final flush) sends the read back to
@@ -883,10 +891,11 @@ applies with a different transport:
   merged log's header, which ctl already reads for the task id, records its
   status, merged sample count and stored whole-task metrics, and the
   intended selection it merged against (an id list or a count). A row
-  could show them as of the merged log's mtime, and use the recorded
-  selection as the shard set's authoritative total (an id list would also
-  make shards that have not started enumerable as pending rows). Cheap,
-  optional, and not built.
+  could show them as of the merged log's mtime and, when the merge
+  recorded an id list or a count (not `selection: none`), use it as the
+  shard set's authoritative total (an id list would also make shards that
+  have not started enumerable as pending rows). Cheap, optional, and not
+  built.
 - `sample store` for a completed buffer row could read the row's
   final-store sidecar (`SampleBufferFilestore.read_sample_store`, which
   recovery uses); today it is `unsupported`, and its message says the store
