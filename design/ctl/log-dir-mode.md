@@ -96,7 +96,8 @@ The commands without the option are the mutations (cancel, pause, resume,
 drain, requeue, scoring, log flush, keep and release, model pause and
 resume) and the reads whose state exists only in the live process: `task
 score --status` and `sample score --status` (pass state in memory), `process
-list` (there are no processes), `process anomalies` (trace files on the
+list` (there are no processes), `sample agent list` (a live sample's
+addressable agents), `process anomalies` (trace files on the
 worker hosts), `model throughput` (an in-memory registry) and `config` (live
 limiter and override state).
 
@@ -301,12 +302,13 @@ no stray entries, and refuses it when it has some. Nothing below its
   second companion with the same task id contributes no sample state and is
   listed in the row's `unreadable` (decision: Ransom, 2026-10-13).
 
-**A shard set and an ordinary retry of it.** An unsharded log with a shard
-set's task id is an `eval_retry` of its merged log or a recovered copy of
-it (the only paths that give an unsharded log the merged log's `task_id`;
-shards keep their own). Both fold into one logical task, the shard set as
-its oldest attempt, so the unsharded log is current whatever the file
-names say: a retry's `{created}`
+**A shard set and an ordinary log of its task.** Any unsharded log with a
+shard set's task id is current over the set: an `eval_retry` of its
+merged log, a recovered copy of it, or a copy `inspect score` wrote of it,
+for example (shards keep their own task ids). Both fold into one logical
+task, the shard set as its oldest attempt, so the unsharded log is current
+whatever the file names say, and while it is, later progress in the
+shards is not shown. A retry's `{created}`
 follows the merged header's, minted at the merge, and can sort before the
 launcher-minted merged log's name. The superseded shard set counts in
 `attempts` and contributes no sample state, and the row's `shards` is null
@@ -911,8 +913,9 @@ applies with a different transport:
   the viewer included, sees its token or message progress until it
   completes; a periodic summary refresh in the buffer would fix it for every
   reader.
-- `AsyncFilesystem` has no conditional GET; `If-None-Match` on manifest
-  reads would make an unchanged running shard's poll a 304.
+- Manifest reads are unconditional (`read_manifest` in `buffer.py`);
+  `If-None-Match` revalidation would make an unchanged running shard's
+  manifest read a 304.
 - A crashed worker's log stays `started` forever; a heartbeat in the buffer
   manifest, or the status-push alternative above, would let every reader
   tell crashed from running.
