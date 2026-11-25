@@ -618,6 +618,53 @@ attempt must have a .eval file. An attempt or eval with no closing
 record is listed as stopped, and a closed sample that a stopped eval did
 not log is listed as not logged.
 
+## Review round 9: fixes
+
+A Codex review and a Claude review of 62cffe88d found these.
+
+1. **A second retry that stops while it runs a sample again.** The first
+   eval closes s0 with an error; a retry stops while it runs s0 again,
+   and a retry of that retry stops the same way. Both retries keep the
+   first eval's copy of s0. The lookup for the second retry stopped at
+   the first retry, which has records of s0 but no closed attempt, so the
+   run gave `unstored_sample`. The lookup now goes on to the nearest
+   earlier eval that closed the sample, so the copy is compared with the
+   first eval's records. This is the round 8 rule (a stopped retry's own
+   events for a kept copy are not compared) for any number of retries.
+   The `missing_sample` check of the prior chain uses the same lookup.
+   Before, it gave no finding when the nearest eval with records of the
+   sample had only stopped it; now it uses an older closed copy. An
+   honest run gets the new finding only when an earlier retry ran a
+   sample that an older eval closed without an error but did not log
+   (one of the causes in "A retry that stops early"), stopped while it
+   ran it, and the later retry stops before it runs it. That is the same
+   limit, one eval further back. Test:
+   `test_retry_stopped_while_hook_waits_validates[*-2]`.
+2. **Test gates.** eval_retry loads the task from its file, which runs
+   the test module again with an empty `_cancel_gates`. So in the retry
+   test, s1 failed with `KeyError` at once instead of waiting for s0's
+   hook, and under Trio the `[scoring]` case failed about half its runs.
+   The gates are now in `tests/test_helpers/addonly_gates.py`, which both
+   module copies import once, and the test checks that the retry's error
+   is the intended one. In the other retry tests, the retry's solver does
+   not read the gates.
+3. **Docs.** A failed write or buffer insert while a retry runs a sample
+   again gives `event_mismatch` "(reused from ...)". The docs now say so
+   in the `event_mismatch` row and the honest-runs limit.
+
+Each `[*-2]` case failed at 62cffe88d with `unstored_sample`.
+
+After these fixes, the guarantees are: every record in the store is
+checked, also the rows of a stopped attempt; a sample in a .eval file
+must match the eval's own closed attempt or, if it has none, the nearest
+earlier eval's closed attempt along the chain of prior evals; a closed
+sample must be in the .eval file unless the eval stopped before it
+finished the file; a finished .eval file must match its eval closing
+record, and an eval with a closing record or a closed attempt must have
+a .eval file. An attempt or eval with no closing record is listed as
+stopped, and a closed sample that a stopped eval did not log is listed
+as not logged.
+
 ## The evals that were run
 
 All use mockllm with a scripted output function
@@ -1100,7 +1147,7 @@ stopped LdM2ww.../s0.1/1: No closing record: cut short, or its host stopped writ
 
 The line means that the store has no closing record for the attempt or the eval. The attempt or the eval was cut short, for example by a cancel, an error in another sample, a crash or a retry, or its host stopped writing. The validator still checks every record that it wrote. An eval that stopped before it wrote its `.eval` file has only this line.
 
-- **A sample that a retry stopped running.** A retry copies the samples that the earlier eval completed with an error into its `.eval` file before it runs them again. If the retry stops writing such a sample, its `.eval` file can keep the earlier eval's copy. The validator compares that copy with the earlier eval's records, so the retry's own stored events for the sample are not compared. The retry's attempt is listed as `stopped`.
+- **A sample that a retry stopped running.** A retry copies the samples that the earlier eval completed with an error into its `.eval` file before it runs them again. If the retry stops writing such a sample, its `.eval` file can keep the earlier eval's copy. The validator compares that copy with the records of the nearest earlier eval that closed the sample, so the retry's own stored events for the sample are not compared. The retry's attempt is listed as `stopped`.
 
 - **What a `stopped` line means.** How to interpret a stopped attempt or eval is an open question. It can come from an honest cancel or crash, but a compromised host can also stop writing to hide what a sample did. The validator lists it and does not decide. The same applies to a `not_logged` line.
 
@@ -1128,7 +1175,7 @@ prior_without_file MBjNiQ...: No .eval file; EMhV3K... names it as its prior eva
 
 ### A retry that stops early
 
-- **A retry that stops early.** A retry must keep each sample that the earlier eval completed without an error and that the retry selects (by its sample ids and number of epochs), or the validator reports `missing_sample`. A retry copies these samples into its log before it runs any sample, so it usually keeps them. But in these cases a retry that stops before it runs the sample has no copy and no records of it, and the validator reports a `missing_sample` for a run that was not changed: the earlier `.eval` file was gone when the retry started, or `log_samples` is off; a dataset that adds samples while it runs, with `limit` set, was cancelled; or the earlier eval stopped after it stored the sample and before the sample was in its `.eval` file. A later retry that completes keeps the samples. If eval_set deletes the stopped retry's `.eval` file, the finding goes away. A retry that stops before it finishes its `.eval` file lists the sample as `not_logged` instead.
+- **A retry that stops early.** A retry must keep each sample that the earlier eval completed without an error and that the retry selects (by its sample ids and number of epochs), or the validator reports `missing_sample`. A retry copies these samples into its log before it runs any sample, so it usually keeps them. But in these cases a retry that stops before it runs the sample has no copy and no records of it, and the validator reports a `missing_sample` for a run that was not changed: the earlier `.eval` file was gone when the retry started, or `log_samples` is off; a dataset that adds samples while it runs, with `limit` set, was cancelled; or the earlier eval stopped after it stored the sample and before the sample was in its `.eval` file. Each of these can also be true of an eval further back in a chain of retries. A later retry that completes keeps the samples. If eval_set deletes the stopped retry's `.eval` file, the finding goes away. A retry that stops before it finishes its `.eval` file lists the sample as `not_logged` instead.
 
 ## Known limits
 
@@ -1154,6 +1201,10 @@ prior_without_file MBjNiQ...: No .eval file; EMhV3K... names it as its prior eva
 - A failed write or a failed buffer insert gives `unstored_sample`, and an
   eval closing record that cannot be written after the .eval file is
   finished gives `missing_eval_closing`, for runs that were not changed.
+  In a retry that runs a sample again that the prior eval closed with an
+  error, a failed write or buffer insert gives `event_mismatch` "(reused
+  from ...)" instead: the retry's copy has no closed attempt, so it is
+  compared with the prior eval's records.
 - A sample deleted from the .eval file of an eval that stopped before it
   finished the file (no eval closing record, status `started`) is listed
   as `not_logged`, not a finding. An honest crash leaves such samples.

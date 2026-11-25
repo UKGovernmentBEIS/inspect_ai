@@ -41,7 +41,7 @@ There are also a number of things that tamper-evident logs do not protect agains
 
 -   **An attempt or eval that stops writing.** A compromised process can stop writing before a closing record. The validator lists the attempt or eval as `stopped`, but does not compare a stopped attempt's events (or a stopped eval's status, stats and results) with the `.eval` file.
 
--   **A sample that a retry stopped running.** A retry's `.eval` file can keep the earlier eval's copy of a sample that the retry stopped writing. The validator compares that copy with the earlier eval's records, so the retry's own stored events for the sample are not compared (its attempt is listed as `stopped`).
+-   **A sample that a retry stopped running.** A retry's `.eval` file can keep the earlier eval's copy of a sample that the retry stopped writing. The validator compares that copy with the records of the nearest earlier eval that closed the sample, so the retry's own stored events for the sample are not compared (its attempt is listed as `stopped`).
 
 -   **Samples deleted from the `.eval` file of an eval that stopped.** If an eval stopped before it finished its `.eval` file, a sample deleted from that file shows up as a `not_logged` line rather than a finding.
 
@@ -301,7 +301,7 @@ The following lines are findings. Each finding makes the command exit with 1:
 | `eval_mismatch` | The `.eval` file's status, stats or results differ from the eval closing record. | `inspect score` and other tools that change a log after the run cause this. Otherwise, someone changed the file. |
 | `unstored_sample` | A sample in the `.eval` file has no attempt with a closing record in the store, for this eval or for the earlier evals that a retry reused samples from. | A failed write to the store, or a failed insert into the sample buffer, causes this in an honest run. The sample then has an error in the `.eval` file. Otherwise, someone added the sample. |
 | `missing_sample` | A sample with a closing record in the store is not in the `.eval` file. In a retry, it can also be a sample that the earlier eval completed without an error and that the retry selects. | A retry that stopped early can cause this in an honest run. Otherwise, someone deleted the sample. |
-| `event_mismatch` | A sample's events differ from the events rebuilt from the store. The message names the first event that differs. | `inspect score`, and a warning logged from a worker thread during the sample, cause this in an honest run. Otherwise, someone changed the events. |
+| `event_mismatch` | A sample's events differ from the events rebuilt from the store. The message names the first event that differs. | `inspect score`, and a warning logged from a worker thread during the sample, cause this in an honest run. So does a failed write to the store or the sample buffer while a retry runs a sample again that the earlier eval completed with an error (the message says `reused from`): check the eval's errors for a failed write before treating it as a change. Otherwise, someone changed the events. |
 | `score_mismatch` | A sample's scores differ from its closing record. | `inspect score` causes this. Otherwise, someone changed the scores. |
 
 ## Limitations
@@ -310,7 +310,7 @@ Tamper-evident logs currently have the following known limits:
 
 -   **What a `stopped` line means.** Both an honest cancel or crash and a compromised host that stops writing leave a `stopped` line. The validator does not decide which one occurred, and the same applies to `not_logged`.
 
--   **Honest runs with a missing closing record.** A failed write to the store or to the sample buffer results in `unstored_sample` for a run that was not changed. Similarly, a failed write of the eval closing record (after the `.eval` file is finished) results in `missing_eval_closing`.
+-   **Honest runs with a missing closing record.** A failed write to the store or to the sample buffer results in `unstored_sample` for a run that was not changed. If a retry is running a sample again that the earlier eval completed with an error, the result is an `event_mismatch` instead, because the validator compares the retry's copy with the earlier eval's records. Similarly, a failed write of the eval closing record (after the `.eval` file is finished) results in `missing_eval_closing`.
 
 -   **Rescoring.** `inspect score` changes the scores and results, and also writes the sample's events again in a different order. The validator will then report `score_mismatch`, `eval_mismatch` and `event_mismatch`. How to show a rescore separately from tampering is an open question.
 

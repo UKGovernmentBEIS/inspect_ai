@@ -585,19 +585,20 @@ def _compare_eval_file(
 def _earlier_attempt(
     evals: Mapping[str, _StoredEval], eval_id: str | None, sample_part: str
 ) -> tuple[str, _FinalAttempt] | None:
-    """The eval that ran a reused sample, and its last closed attempt.
+    """The nearest earlier eval that closed a reused sample, and its last closed attempt.
 
     A retry of a retry reuses the sample from the first retry, which reused
-    it in turn. An eval with records of the sample ran it, so the search
-    stops there.
+    it in turn. A retry that stopped running the sample keeps the copy it
+    reused, so the search goes past it.
     """
-    for prior_id in _prior_evals(evals, eval_id):
-        stored = evals[prior_id]
-        if sample_part in stored.final_attempts:
-            return prior_id, stored.final_attempts[sample_part]
-        if sample_part in stored.sample_parts:
-            return None
-    return None
+    return next(
+        (
+            (prior_id, evals[prior_id].final_attempts[sample_part])
+            for prior_id in _prior_evals(evals, eval_id)
+            if sample_part in evals[prior_id].final_attempts
+        ),
+        None,
+    )
 
 
 def _prior_evals(

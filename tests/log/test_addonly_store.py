@@ -33,6 +33,7 @@ from test_helpers.addonly_agents import (
     scripted_call,
     scripted_output,
 )
+from test_helpers.addonly_gates import cancel_gates
 from test_helpers.addonly_moto import (
     BUCKET,
     CliResult,
@@ -593,10 +594,6 @@ def test_eval_retry_validates(
     assert "3 eval(s), 6 sample(s) compared, 0 finding(s)." in result.output
 
 
-_cancel_gates: dict[str, threading.Event] = {}
-"""Set by the `test_eval_retry_after_cancel_*` tests."""
-
-
 @solver
 def fail_while_s0_closes(path: str) -> Solver:
     """While the file holds true, s1 raises once s0 starts the put the test gates.
@@ -609,14 +606,14 @@ def fail_while_s0_closes(path: str) -> Solver:
         if json.loads(Path(path).read_text()):
             if state.sample_id == "s1":
                 assert await anyio.to_thread.run_sync(
-                    _cancel_gates["s0_closing"].wait, 30
+                    cancel_gates["s0_closing"].wait, 30
                 )
                 raise RuntimeError("attempt fails")
             if state.sample_id == "s2":
                 try:
                     await anyio.sleep_forever()
                 finally:
-                    _cancel_gates["cancelled"].set()
+                    cancel_gates["cancelled"].set()
         return state
 
     return solve
@@ -646,16 +643,16 @@ def test_eval_retry_after_cancel_in_close_validates(
     record, or before s0 is logged. It still cancels s0's sample end hook,
     once s0 is logged. Then eval_retry.
     """
-    monkeypatch.setitem(_cancel_gates, "s0_closing", threading.Event())
-    monkeypatch.setitem(_cancel_gates, "cancelled", threading.Event())
-    monkeypatch.setitem(_cancel_gates, "s0_hook", threading.Event())
-    monkeypatch.setitem(_cancel_gates, "hook_timed_out", threading.Event())
+    monkeypatch.setitem(cancel_gates, "s0_closing", threading.Event())
+    monkeypatch.setitem(cancel_gates, "cancelled", threading.Event())
+    monkeypatch.setitem(cancel_gates, "s0_hook", threading.Event())
+    monkeypatch.setitem(cancel_gates, "hook_timed_out", threading.Event())
     put = AddOnlyStore._put
 
     def gated_put(self: AddOnlyStore, key: str, body: bytes) -> None:
         if key.endswith(f"/s0.1/1/{gated}"):
-            _cancel_gates["s0_closing"].set()
-            assert _cancel_gates["cancelled"].wait(timeout=30)
+            cancel_gates["s0_closing"].set()
+            assert cancel_gates["cancelled"].wait(timeout=30)
         put(self, key, body)
 
     monkeypatch.setattr(AddOnlyStore, "_put", gated_put)
@@ -674,7 +671,7 @@ def test_eval_retry_after_cancel_in_close_validates(
     finally:
         del _registry["hooks:stuck_sample_end"]
     assert log.status == "error"
-    assert not _cancel_gates["hook_timed_out"].is_set()
+    assert not cancel_gates["hook_timed_out"].is_set()
 
     fail.write_text("false")
     log = eval_retry(
@@ -698,7 +695,7 @@ def fail_while_s0_hook_waits(path: str) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         state = await generate(state)
         if json.loads(Path(path).read_text()) and state.sample_id == "s1":
-            assert await anyio.to_thread.run_sync(_cancel_gates["s0_hook"].wait, 30)
+            assert await anyio.to_thread.run_sync(cancel_gates["s0_hook"].wait, 30)
             raise RuntimeError("attempt fails")
         return state
 
@@ -710,10 +707,10 @@ class StuckSampleEndHook(Hooks):
 
     async def on_sample_end(self, data: SampleEnd) -> None:
         if data.sample.id == "s0":
-            _cancel_gates["s0_hook"].set()
+            cancel_gates["s0_hook"].set()
             with anyio.move_on_after(30):
                 await anyio.Event().wait()
-            _cancel_gates["hook_timed_out"].set()
+            cancel_gates["hook_timed_out"].set()
 
 
 @task
@@ -735,8 +732,8 @@ def test_eval_retry_after_cancel_in_sample_end_hook_validates(
 
     The eval's failure cancels the hook, as without the store. Then eval_retry.
     """
-    monkeypatch.setitem(_cancel_gates, "s0_hook", threading.Event())
-    monkeypatch.setitem(_cancel_gates, "hook_timed_out", threading.Event())
+    monkeypatch.setitem(cancel_gates, "s0_hook", threading.Event())
+    monkeypatch.setitem(cancel_gates, "hook_timed_out", threading.Event())
     fail = tmp_path / "fail.json"
     fail.write_text("true")
     hooks("stuck_sample_end", "Waits in s0's sample end hook.")(StuckSampleEndHook)
@@ -752,7 +749,7 @@ def test_eval_retry_after_cancel_in_sample_end_hook_validates(
     finally:
         del _registry["hooks:stuck_sample_end"]
     assert log.status == "error"
-    assert not _cancel_gates["hook_timed_out"].is_set()
+    assert not cancel_gates["hook_timed_out"].is_set()
 
     fail.write_text("false")
     log = eval_retry(
@@ -779,8 +776,8 @@ def boundary_after_cancel(path: str, first: bool) -> Solver:
     """
 
     async def s0_boundary_after_cancel() -> None:
-        _cancel_gates["s0_waiting"].set()
-        await anyio.to_thread.run_sync(_cancel_gates["cancelled"].wait)
+        cancel_gates["s0_waiting"].set()
+        await anyio.to_thread.run_sync(cancel_gates["cancelled"].wait)
         await store_boundary()
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -792,13 +789,13 @@ def boundary_after_cancel(path: str, first: bool) -> Solver:
             if state.sample_id == "s0":
                 await s0_boundary_after_cancel()
             if state.sample_id == "s1":
-                await anyio.to_thread.run_sync(_cancel_gates["s0_waiting"].wait)
+                await anyio.to_thread.run_sync(cancel_gates["s0_waiting"].wait)
                 raise RuntimeError("attempt fails")
             if state.sample_id == "s2":
                 try:
                     await anyio.sleep_forever()
                 finally:
-                    _cancel_gates["cancelled"].set()
+                    cancel_gates["cancelled"].set()
         return state
 
     return solve
@@ -826,8 +823,8 @@ def test_eval_retry_after_cancel_at_boundary_validates(
     The record is still written, so s0, cancelled, writes its closing record.
     Then eval_retry.
     """
-    monkeypatch.setitem(_cancel_gates, "s0_waiting", threading.Event())
-    monkeypatch.setitem(_cancel_gates, "cancelled", threading.Event())
+    monkeypatch.setitem(cancel_gates, "s0_waiting", threading.Event())
+    monkeypatch.setitem(cancel_gates, "cancelled", threading.Event())
     fail = tmp_path / "fail.json"
     fail.write_text("true")
     log = eval(
@@ -859,11 +856,11 @@ class StuckScoringHook(Hooks):
     """The first sample scoring hook (s0's: s1 waits for it) waits as `StuckSampleEndHook` does."""
 
     async def on_sample_scoring(self, data: SampleScoring) -> None:
-        if not _cancel_gates["s0_hook"].is_set():
-            _cancel_gates["s0_hook"].set()
+        if not cancel_gates["s0_hook"].is_set():
+            cancel_gates["s0_hook"].set()
             with anyio.move_on_after(30):
                 await anyio.Event().wait()
-            _cancel_gates["hook_timed_out"].set()
+            cancel_gates["hook_timed_out"].set()
 
 
 class StuckInitHook(Hooks):
@@ -871,10 +868,10 @@ class StuckInitHook(Hooks):
 
     async def on_sample_init(self, data: SampleInit) -> None:
         if data.summary.id == "s0":
-            _cancel_gates["s0_hook"].set()
+            cancel_gates["s0_hook"].set()
             with anyio.move_on_after(30):
                 await anyio.Event().wait()
-            _cancel_gates["hook_timed_out"].set()
+            cancel_gates["hook_timed_out"].set()
 
 
 class StuckRetryHook(Hooks):
@@ -882,10 +879,10 @@ class StuckRetryHook(Hooks):
 
     async def on_sample_attempt_end(self, data: SampleAttemptEnd) -> None:
         if data.summary.id == "s0" and data.will_retry:
-            _cancel_gates["s0_hook"].set()
+            cancel_gates["s0_hook"].set()
             with anyio.move_on_after(30):
                 await anyio.Event().wait()
-            _cancel_gates["hook_timed_out"].set()
+            cancel_gates["hook_timed_out"].set()
 
 
 @solver
@@ -895,7 +892,7 @@ def fail_once_s0_hook_waits(s0_fails: bool) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         state = await generate(state)
         if state.sample_id == "s1":
-            assert await anyio.to_thread.run_sync(_cancel_gates["s0_hook"].wait, 30)
+            assert await anyio.to_thread.run_sync(cancel_gates["s0_hook"].wait, 30)
             raise RuntimeError("attempt fails")
         if s0_fails:
             raise RuntimeError("attempt fails")
@@ -919,8 +916,8 @@ def test_eval_stopped_while_hook_waits_lists_stopped(
     eval's failure cancels the hook, so s0 is not logged, and its attempt is
     listed as stopped.
     """
-    monkeypatch.setitem(_cancel_gates, "s0_hook", threading.Event())
-    monkeypatch.setitem(_cancel_gates, "hook_timed_out", threading.Event())
+    monkeypatch.setitem(cancel_gates, "s0_hook", threading.Event())
+    monkeypatch.setitem(cancel_gates, "hook_timed_out", threading.Event())
     hooks("stuck_hook", "Waits in a hook of s0.")(
         {
             "init": StuckInitHook,
@@ -947,7 +944,7 @@ def test_eval_stopped_while_hook_waits_lists_stopped(
     finally:
         del _registry["hooks:stuck_hook"]
     assert log.status == "error"
-    assert not _cancel_gates["hook_timed_out"].is_set()
+    assert not cancel_gates["hook_timed_out"].is_set()
     assert [s.id for s in log.samples or []] == ["s1"]
 
     result = validate_cli(evalhost_env, tmp_path)
@@ -983,6 +980,7 @@ def stopped_retry_task(phase: str) -> Task:
     )
 
 
+@pytest.mark.parametrize("retries", [1, 2])
 @pytest.mark.parametrize("hook", ["init", "scoring"])
 def test_retry_stopped_while_hook_waits_validates(
     evalhost_env: MotoStore,
@@ -990,12 +988,14 @@ def test_retry_stopped_while_hook_waits_validates(
     validate_cli: ValidateCli,
     monkeypatch: pytest.MonkeyPatch,
     hook: str,
+    retries: int,
 ) -> None:
     """eval_retry of an eval that closed s0 and s1 with errors stops while s0 waits.
 
     s1 fails the retry while s0 waits in its sample init hook (no records)
-    or its sample scoring hook. The retry's .eval keeps the first eval's
-    copy of s0, which is compared with the first eval's records, and the
+    or its sample scoring hook; with two retries, the second retries the
+    first and stops the same way. Each retry's .eval keeps the first eval's
+    copy of s0, which is compared with the first eval's records, and each
     retry's s0 attempt is listed as stopped.
     """
     phase = tmp_path / "phase"
@@ -1011,35 +1011,43 @@ def test_retry_stopped_while_hook_waits_validates(
         tamper_evident_store=evalhost_env.url,
     )[0]
     assert [bool(s.error) for s in log.samples or []] == [True, True]
+    s0_uuid = next(s.uuid for s in log.samples or [] if s.id == "s0")
 
     phase.write_text("retry")
-    monkeypatch.setitem(_cancel_gates, "s0_hook", threading.Event())
-    monkeypatch.setitem(_cancel_gates, "hook_timed_out", threading.Event())
-    hooks("stuck_hook", "Waits in a hook of s0.")(
-        {"init": StuckInitHook, "scoring": StuckScoringHook}[hook]
-    )
-    try:
-        retry = eval_retry(
-            log,
-            log_dir=str(log_dir),
-            display="none",
-            fail_on_error=True,
-            tamper_evident_store=evalhost_env.url,
-        )[0]
-    finally:
-        del _registry["hooks:stuck_hook"]
-    assert retry.status == "error"
-    assert not _cancel_gates["hook_timed_out"].is_set()
-    logged = read_eval_log(retry.location).samples or []
-    assert {str(s.id): s.uuid for s in logged}["s0"] == next(
-        s.uuid for s in log.samples or [] if s.id == "s0"
-    )
+    retry_ids: list[str] = []
+    for _ in range(retries):
+        monkeypatch.setitem(cancel_gates, "s0_hook", threading.Event())
+        monkeypatch.setitem(cancel_gates, "hook_timed_out", threading.Event())
+        hooks("stuck_hook", "Waits in a hook of s0.")(
+            {"init": StuckInitHook, "scoring": StuckScoringHook}[hook]
+        )
+        try:
+            log = eval_retry(
+                log,
+                log_dir=str(log_dir),
+                display="none",
+                fail_on_error=True,
+                tamper_evident_store=evalhost_env.url,
+            )[0]
+        finally:
+            del _registry["hooks:stuck_hook"]
+        assert log.status == "error"
+        assert log.error and "attempt fails" in log.error.message, log.error
+        assert not cancel_gates["hook_timed_out"].is_set()
+        logged = read_eval_log(log.location).samples or []
+        assert {str(s.id): s.uuid for s in logged}["s0"] == s0_uuid
+        retry_ids.append(log.eval.eval_id)
 
     result = validate_cli(evalhost_env, log_dir)
     assert result.exit_code == 0, result.output
     assert result.findings() == []
-    assert result.stopped() == [f"{retry.eval.eval_id}/s0.1/1"], result.output
-    assert "2 eval(s), 4 sample(s) compared, 0 finding(s)." in result.output
+    assert sorted(result.stopped()) == sorted(
+        f"{eval_id}/s0.1/1" for eval_id in retry_ids
+    ), result.output
+    assert (
+        f"{retries + 1} eval(s), {2 * retries + 2} sample(s) compared, 0 finding(s)."
+        in result.output
+    )
 
 
 def test_eval_stopped_while_retry_waits_lists_stopped(
