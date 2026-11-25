@@ -100,8 +100,6 @@ class RescoreMarker(BaseModel):
     """
 
     rescore: RescoreRef
-    built_on: RescoreRef | None = None
-    """The sample's latest rescore before this one (None: the original run)."""
     chain_length: int
     """The number of rescores in the sample's chain, this one included."""
 

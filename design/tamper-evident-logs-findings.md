@@ -700,12 +700,12 @@ protected logs is a common feature. let's do #2 now"). Built on
 - The marker: the rescore adds an info event
   (`source="tamper_evident_rescore"`) to each sample's new scorers span,
   before the scorers run. Its data names the rescore (eval id and rescore
-  id), `built_on`, and the number of rescores in the sample's chain, this
-  one included (`chain_length`). It is in the sample's events, so it
-  reaches the .eval without a change to the log schema, with append and
-  overwrite, and with `--stream`. The rescorer reads the sample's latest
-  marker (the one with the longest chain) from its input to fill in
-  `built_on` and `chain_length`.
+  id) and the number of rescores in the sample's chain, this one included
+  (`chain_length`). It is in the sample's events, so it reaches the .eval
+  without a change to the log schema, with append and overwrite, and with
+  `--stream`. The rescorer reads the sample's latest marker (the one with
+  the longest chain) from its input to fill in the sample record's
+  `built_on` and the new marker's `chain_length`.
 - Validator:
   - A sample's expected scores and events are those of the original run
     (rebuilt from the records as before), with each rescore of the chain
@@ -752,19 +752,19 @@ Eric" (a separate rescorer role under `rescores/`) are replaced by it.
 
 Agreed with the coordinator before the build:
 
-1. The rescore a sample built on is in each rescore sample record (and
-   the marker), not in the start record. With `--stream` the rescorer has
-   only the log header when it writes the start record; samples are read
-   one at a time while they are scored.
-2. The marker names the eval id as well as the rescore id, and
-   `built_on`. `eval_retry` copies samples from a rescored prior .eval,
-   so a reused sample's marker names the prior eval's rescore (an honest
-   case; test `test_eval_retry_of_rescored_log_validates`). The latest
-   marker is not the last one in the events: an append moves the new
-   events under the old scorers span but leaves their span ids pointing
-   at the dropped new span, so a later append reorders them. It was the
-   one no other marker names as `built_on`; review round 12 replaced
-   that with the longest chain.
+1. The rescore a sample built on is in each rescore sample record, not
+   in the start record. With `--stream` the rescorer has only the log
+   header when it writes the start record; samples are read one at a
+   time while they are scored.
+2. The marker names the eval id as well as the rescore id. `eval_retry`
+   copies samples from a rescored prior .eval, so a reused sample's
+   marker names the prior eval's rescore (an honest case; test
+   `test_eval_retry_of_rescored_log_validates`). The latest marker is not
+   the last one in the events: an append moves the new events under the
+   old scorers span but leaves their span ids pointing at the dropped new
+   span, so a later append reorders them. It was the one no other marker
+   named as `built_on`; review round 12 replaced that with the longest
+   chain.
 3. The rescore sample record holds the new events as JSON with
    attachments resolved, not buffer rows (the rescorer has no sample
    buffer, and the validator compares with full resolution). The closing
@@ -827,6 +827,15 @@ Review of 49678616e (Claude Opus 5.5, fresh context).
    The validator checks `rescore_mismatch` only among the file's own
    eval's rescores; checking more would need to know which rescores the
    retry's copy came with, which the store does not record.
+
+### Review round 13: fixes
+
+Review of 31f614186 (Claude Opus 5.5, fresh context).
+
+1. **Marker `built_on` removed.** After round 12 no code read it: the
+   rescorer uses the latest marker's `rescore` for the sample record's
+   `built_on`, and the validator follows the sample records' `built_on`.
+   The marker is still compared as an event with the stored records.
 
 ### Guarantees
 

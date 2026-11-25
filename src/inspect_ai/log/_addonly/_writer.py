@@ -292,7 +292,6 @@ class RescoreRecordWriter:
         """
         return RescoreMarker(
             rescore=self.ref,
-            built_on=latest.rescore if latest else None,
             chain_length=(latest.chain_length if latest else 0) + 1,
         ).event()
 
