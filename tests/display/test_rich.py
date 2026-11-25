@@ -501,3 +501,81 @@ async def test_rich_setup_keeps_the_notebook_output_widget(
     assert not widget.closed
     assert widget.uses_after_close == 0
     assert widget.uses >= 3
+
+
+@pytest.mark.anyio
+async def test_rich_input_screen_stops_the_task_display_while_it_is_up(
+    fresh_display: None, terminal_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The display loop cannot draw over a prompt that waits without blocking.
+
+    The task display comes back cropped, as before the screen.
+    """
+    display = RichDisplay()
+    console, read_fd, out = _terminal_console(height=24)
+    monkeypatch.setattr(rich, "_console", console)
+    async with display.task_screen([], parallel=False) as screen:
+        assert display.live is not None
+        assert display.live.is_started
+        with screen.input_screen(record_event=False):
+            assert not display.live.is_started
+        assert display.live.is_started
+        assert display.live.vertical_overflow == "ellipsis"
+    _read_all(read_fd, out)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("transient", [True, False])
+async def test_rich_setup_that_ends_during_an_input_screen_starts_nothing(
+    fresh_display: None,
+    terminal_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    transient: bool,
+) -> None:
+    """A suspension that ends while a screen is up leaves the screen's renderers off.
+
+    The screen's exit then starts the renderer it selects.
+    """
+    display = RichDisplay()
+    console, read_fd, out = _terminal_console()
+    monkeypatch.setattr(rich, "_console", console)
+    async with display.task_screen([], parallel=False) as screen:
+        assert display.live is not None and display.screen is not None
+        setup = display.suspend_task_app()
+        setup.__enter__()
+        prompt = screen.input_screen(transient=transient, record_event=False)
+        prompt.__enter__()
+        setup.__exit__(None, None, None)
+        assert not display.live.is_started
+        assert not display.screen.status_started
+        prompt.__exit__(None, None, None)
+        assert display.live.is_started == transient
+        assert display.screen.status_started == (not transient)
+    _read_all(read_fd, out)
+
+
+@pytest.mark.anyio
+async def test_rich_input_screen_keeps_the_notebook_output_widget(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """In a notebook, an input screen leaves the task display's output widget open."""
+    import types
+
+    ipywidgets = types.ModuleType("ipywidgets")
+    setattr(ipywidgets, "Output", _OutputWidget)
+    monkeypatch.setitem(sys.modules, "ipywidgets", ipywidgets)
+    monkeypatch.setattr("IPython.display.display", lambda *args, **kwargs: None)
+    monkeypatch.setattr(_OutputWidget, "created", [])
+
+    display = RichDisplay()
+    monkeypatch.setattr(rich, "_console", Console(force_jupyter=True))
+    async with display.task_screen([], parallel=False) as screen:
+        assert display.live is not None
+        display.live.update("TASK", refresh=True)
+        with screen.input_screen(record_event=False):
+            pass
+        display.live.update("TASK 2", refresh=True)
+
+    [widget] = _OutputWidget.created
+    assert not widget.closed
+    assert widget.uses_after_close == 0

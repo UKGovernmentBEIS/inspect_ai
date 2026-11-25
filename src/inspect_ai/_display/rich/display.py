@@ -279,6 +279,21 @@ class RichTaskScreen(TaskScreen):
         self.live.update("", refresh=True)
         self._stop_status()
 
+        # an input screen can wait without blocking the loop (the console
+        # approval prompt does), so stop live updates while it is up: the
+        # display loop would otherwise draw the task status over the prompt
+        if self.suspended:
+            # a suspension that ends while the screen is up starts nothing;
+            # the screen's exit picks what to resume
+            self.resume_live = False
+            self.resume_status = False
+        elif self.live.is_started and not self.live.console.is_jupyter:
+            # Live.stop() sets this to "visible" for its last render; a
+            # notebook is left as it is, as in `suspend()`
+            overflow = self.live.vertical_overflow
+            self.live.stop()
+            self.live.vertical_overflow = overflow
+
         try:
             with input_screen_capture_suspended(self.live.console):
                 # show cursor for input

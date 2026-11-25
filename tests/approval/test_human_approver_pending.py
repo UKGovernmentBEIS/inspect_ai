@@ -62,7 +62,7 @@ async def test_an_in_proc_approval_marks_the_sample_as_waiting(
         await held.wait()
         return Approval(decision="approve")
 
-    def console(*args: object, **kwargs: object) -> Approval:
+    async def console(*args: object, **kwargs: object) -> Approval:
         seen.append(sample.pending_interactions)
         return Approval(decision="approve")
 
@@ -119,12 +119,11 @@ async def test_an_approval_outside_a_sample_is_not_recorded_anywhere(
     async def panel(*args: object, **kwargs: object) -> Approval:
         raise NotImplementedError
 
+    async def console(*args: object, **kwargs: object) -> Approval:
+        return Approval(decision="approve")
+
     monkeypatch.setattr(approver_module, "panel_approval", panel)
-    monkeypatch.setattr(
-        approver_module,
-        "console_approval",
-        lambda *a, **k: Approval(decision="approve"),
-    )
+    monkeypatch.setattr(approver_module, "console_approval", console)
 
     result = await human_approver()(
         "run it?", ToolCall(id="t1", function="bash", arguments={}), ToolCallView(), []
