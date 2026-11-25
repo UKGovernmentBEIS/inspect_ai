@@ -2,11 +2,12 @@
 
 import re
 import secrets
+import traceback
 from dataclasses import dataclass, field
 from itertools import count
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
-from urllib.parse import unquote, unquote_plus, urlsplit
+from urllib.parse import unquote, urlsplit
 
 import anyio
 
@@ -223,21 +224,10 @@ class Sidecar:
         return _replaced(text, self._secrets())
 
     def _holds_secret(self, error: BaseException) -> bool:
-        # whether the error, or one it is chained to, holds a secret
-        secrets = [secret for secret, _ in self._secrets()]
-        if not secrets:
-            return False
-        seen: set[int] = set()
-        pending: list[BaseException | None] = [error]
-        while pending:
-            found = pending.pop()
-            if found is None or id(found) in seen:
-                continue
-            seen.add(id(found))
-            if any(secret in str(found) for secret in secrets):
-                return True
-            pending += [found.__cause__, found.__context__]
-        return False
+        # whether a traceback of the error would show a secret: in its
+        # message, its notes, the errors it is chained to, or a group's errors
+        shown = "".join(traceback.format_exception(error))
+        return bool(_found(shown, self._secrets()))
 
 
 class _Client(NamedTuple):
@@ -374,51 +364,82 @@ def without_credentials(origin: str) -> str:
 
 
 def _credentials(url: str) -> list[tuple[str, str]]:
-    # each form an error may repeat the URL's secrets in, percent-encoded as
-    # in the URL, decoded as sent, or for a query, form-decoded, with what
-    # stands in its place: the whole user info goes, and its secret part
-    # alone is redacted, which is the password, or for a URL with only a
-    # token, the user. So is each query value, or an item with no value, and
-    # the fragment, with and without the slash the anthropic SDK puts on the
-    # end of its base URL.
+    # each secret the URL holds, decoded, with what stands in its place: the
+    # whole user info goes, and its secret part alone is redacted, which is
+    # the password, or for a URL with only a token, the user. So is each
+    # query value, or an item with no value, and the fragment, each with and
+    # without the slash the anthropic SDK puts on the end of its base URL.
     import httpx2
 
-    forms: dict[str, str] = {}
-
-    def add(secret: str, shown: str, *decoded: str) -> None:
-        for form in (secret, unquote(secret), *decoded):
-            if form:
-                forms.setdefault(form, shown)
-
+    secrets: list[tuple[str, str]] = []
     userinfo = httpx2.URL(url).userinfo.decode("ascii")
     if userinfo:
         user, _, password = userinfo.partition(":")
-        add(f"{userinfo}@", "")
-        add(password or user, REDACTED)
+        secrets += [
+            (unquote(f"{userinfo}@"), ""),
+            (unquote(password or user), REDACTED),
+        ]
     parts = urlsplit(url)
-    for item in parts.query.split("&"):
-        name, equals, value = item.partition("=")
-        secret = value if equals else name
-        for form in (secret, secret.removesuffix("/")):
-            add(form, REDACTED, unquote_plus(form))
-    for form in (parts.fragment, parts.fragment.removesuffix("/")):
-        add(form, REDACTED)
-    return list(forms.items())
+    values = [
+        value if equals else name
+        for name, equals, value in (
+            item.partition("=") for item in parts.query.split("&")
+        )
+    ]
+    for value in [*values, parts.fragment]:
+        for form in (value, value.removesuffix("/")):
+            secrets.append((unquote(form), REDACTED))
+    return [(secret, shown) for secret, shown in secrets if secret]
+
+
+def _spellings(secret: str) -> str:
+    # a pattern for the secret however an error spells it: each character as
+    # itself or percent-encoded, in either case, and a space and a plus as
+    # either, as form encoding writes them
+    def spelled(char: str) -> list[str]:
+        encoded = "".join(f"%(?i:{byte:02x})" for byte in char.encode())
+        return [re.escape(char), encoded]
+
+    pattern = []
+    for char in secret:
+        chars = {" ", "+"} if char in " +" else {char}
+        pattern.append(
+            f"(?:{'|'.join(form for c in sorted(chars) for form in spelled(c))})"
+        )
+    return "".join(pattern)
+
+
+def _found(text: str, secrets: list[tuple[str, str]]) -> list[tuple[int, int, str]]:
+    # where the secrets are in the text, however spelled, with what stands in
+    # each place. Matches that overlap are merged, so that no part of a secret
+    # is left beside another that starts before it; a span that holds the
+    # whole user info goes, and any other is redacted.
+    matches = [
+        (found.start(), found.end(1), shown)
+        for secret, shown in secrets
+        if secret
+        for found in re.finditer(f"(?=({_spellings(secret)}))", text)
+    ]
+    merged: list[tuple[int, int, str]] = []
+    for start, end, shown in sorted(matches):
+        if merged and start < merged[-1][1]:
+            first, last, before = merged[-1]
+            removed = "" if "" in (before, shown) else REDACTED
+            merged[-1] = (first, max(last, end), removed)
+        else:
+            merged.append((start, end, shown))
+    return merged
 
 
 def _replaced(text: str, secrets: list[tuple[str, str]]) -> str:
-    # the text with each secret replaced in one pass, taking the longest at
-    # each position: a short secret inside a longer one would otherwise leave
-    # the rest of the longer one, and the whole user info, being longer than
-    # its secret part, goes whole
-    shown: dict[str, str] = {}
-    for secret, replacement in secrets:
-        if secret:
-            shown.setdefault(secret, replacement)
-    if not shown:
-        return text
-    pattern = "|".join(map(re.escape, sorted(shown, key=len, reverse=True)))
-    return re.sub(pattern, lambda found: shown[found.group(0)], text)
+    # the text with each secret, however spelled, replaced
+    pieces: list[str] = []
+    at = 0
+    for start, end, shown in _found(text, secrets):
+        pieces += [text[at:start], shown]
+        at = end
+    pieces.append(text[at:])
+    return "".join(pieces)
 
 
 def _response_type() -> type:

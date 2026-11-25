@@ -1,6 +1,8 @@
 import contextlib
 import json
 import logging
+import re
+import traceback
 from collections.abc import Awaitable, Callable
 from math import inf, nan
 from pathlib import Path
@@ -232,6 +234,15 @@ async def test_a_sidecar_behind_the_models_base_url_is_found(
             "http://proxy.test",
             ["pass", "word", "two"],
         ),
+        # a value that matches one character before another, and an escape
+        # repeated in lower case
+        (
+            "anthropic",
+            "http://proxy.test?tag=%3Dd&key=demo%2Ftoken",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["demo", "token"],
+        ),
         (
             "anthropic",
             "http://user:secret@[::1]:8080/v1",
@@ -266,9 +277,10 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
                 200, json={"service": "inspect_sentinel", "versions": [1]}
             )
         repeated = f"{request.url} {base_url}"
+        lowered = re.sub("%[0-9A-F]{2}", lambda escape: escape[0].lower(), repeated)
         return httpx2.Response(
             500,
-            text=f"upstream failed for {repeated} ({unquote(repeated)}) ({unquote_plus(repeated)})",
+            text=f"upstream failed for {repeated} ({unquote(repeated)}) ({unquote_plus(repeated)}) ({lowered})",
         )
 
     model = get_model(
@@ -296,16 +308,40 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
         (origin, b"/sentinel/v1"),
     ]
     assert proxy_url in found.reason
-    # nor in an error a traceback would print beside the call's
-    shown = [found.reason]
-    error: BaseException | None = raised.value
-    while error is not None:
-        shown.append(str(error))
-        error = error.__cause__ or error.__context__
+    # nor anywhere a traceback of the call's error would print
+    shown = [found.reason, "".join(traceback.format_exception(raised.value))]
     if provider == "anthropic":
         assert f"{proxy_url}/sentinel/info" in found.reason
         assert f"{proxy_url}/sentinel/v1" in shown[1]
     assert not [secret for secret in secrets if any(secret in text for text in shown)]
+
+
+@pytest.mark.parametrize("where", ["note", "group"])
+async def test_a_failed_call_to_a_sidecar_keeps_no_error_whose_traceback_shows_a_secret(
+    where: str,
+) -> None:
+    # a traceback prints an error's notes, and the errors of a group, which
+    # the error's message leaves out
+    class Failing:
+        async def post(self, *args: Any, **kwargs: Any) -> Any:
+            repeated = "for http://proxy.test?key=demo-token"
+            if where == "note":
+                failure = ValueError("upstream failed")
+                failure.add_note(repeated)
+                raise failure
+            raise ExceptionGroup("upstream failed", [ValueError(repeated)])
+
+    sidecar = Sidecar(
+        "http://proxy.test",
+        "whole",
+        Failing(),
+        base_url="http://proxy.test?key=demo-token",
+    )
+
+    with pytest.raises(SidecarCallError) as raised:
+        await sidecar.call("end_sample", {})
+
+    assert "demo-token" not in "".join(traceback.format_exception(raised.value))
 
 
 async def test_a_sidecar_behind_an_openai_compatible_models_base_url_is_found() -> None:
