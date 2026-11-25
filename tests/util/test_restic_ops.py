@@ -763,26 +763,39 @@ async def test_restore_repo_tolerates_chmod_errors_restic_ignores(
     assert [p.name for p in target.iterdir()] == ["store.json"]
 
 
+@pytest.mark.parametrize("chmod_outcome", ["tolerated error", "no effect"])
+@pytest.mark.parametrize("mode", [0o4755, 0o2755, 0o1644])
 @posix_modes
-async def test_restore_repo_does_not_tolerate_chmod_error_on_special_mode_file(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+async def test_restore_repo_never_adopts_file_left_with_special_mode_bit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, mode: int, chmod_outcome: str
 ) -> None:
-    """A refused chmod is not ignored when the file it would have reset is setuid."""
+    """A file whose special bit survives the mode reset fails the restore.
+
+    The reset can be refused with an error that is otherwise tolerated, or
+    report success and change nothing, on a filesystem that assigns modes
+    itself. Either way the file stays in the scratch dir.
+    """
     target = tmp_path / "ctx"
+    real_chmod = os.chmod
 
     def restore(path: Path) -> None:
         _write_store(path)
-        (path / "store.json").chmod(0o4755)
+        real_chmod(path / "store.json", mode)
+
+    def chmod(path: str, mode: int, **kwargs: bool) -> None:
+        if not str(path).endswith("store.json"):
+            real_chmod(path, mode, **kwargs)
+        elif chmod_outcome == "tolerated error":
+            raise OSError(errno.ENOTSUP, os.strerror(errno.ENOTSUP), str(path))
 
     _fake_restic(monkeypatch, _STORE_ONLY, restore)
-    _refuse_chmod(monkeypatch, errno.EPERM)
-    monkeypatch.setattr(os, "geteuid", lambda: 1000)
+    monkeypatch.setattr(os, "chmod", chmod)
 
-    with pytest.raises(PermissionError, match=r"store\.json"):
+    with pytest.raises(RestoredTreeError, match=r"sticky bit.*store\.json"):
         await _restore(target)
 
     (scratch,) = target.iterdir()
-    assert scratch.name.startswith(".restore-")
+    assert [p.name for p in scratch.iterdir()] == ["store.json"]
 
 
 @pytest.mark.parametrize(("code", "euid"), [(errno.EPERM, 0), (errno.EIO, 1000)])
