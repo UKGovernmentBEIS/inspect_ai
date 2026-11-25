@@ -39,6 +39,7 @@ from inspect_ai._sentinel._config import (
     SentinelConfig,
     SentinelEntry,
 )
+from inspect_ai._sentinel._integration import ReviewedResult
 from inspect_ai._util.registry import (
     RegistryInfo,
     is_registry_object,
@@ -161,6 +162,9 @@ class BeforeGenerate:
     agent_messages: Sequence[ChatMessage] | None
     history: Sequence[ChatMessage] | None = field(default=None, kw_only=True)
     human_decisions: Sequence[HumanDecision] | None = field(default=None, kw_only=True)
+    reviewed_results: Sequence[ReviewedResult] | None = field(
+        default=None, kw_only=True
+    )
     tools: list[ToolInfo]
     tool_choice: ToolChoice
     config: GenerateConfig
@@ -174,6 +178,9 @@ class AfterGenerate:
     agent_messages: Sequence[ChatMessage] | None
     history: Sequence[ChatMessage] | None = field(default=None, kw_only=True)
     human_decisions: Sequence[HumanDecision] | None = field(default=None, kw_only=True)
+    reviewed_results: Sequence[ReviewedResult] | None = field(
+        default=None, kw_only=True
+    )
     tools: list[ToolInfo]
     tool_choice: ToolChoice
     config: GenerateConfig
@@ -198,6 +205,9 @@ class BeforeToolCall:
     agent_messages: Sequence[ChatMessage] | None
     history: Sequence[ChatMessage] | None = field(default=None, kw_only=True)
     human_decisions: Sequence[HumanDecision] | None = field(default=None, kw_only=True)
+    reviewed_results: Sequence[ReviewedResult] | None = field(
+        default=None, kw_only=True
+    )
     tools: Sequence[ToolInfo] | None = None
     tool_choice: ToolChoice | None = None
 
@@ -216,6 +226,9 @@ class AfterToolCall:
     agent_messages: Sequence[ChatMessage] | None
     history: Sequence[ChatMessage] | None = field(default=None, kw_only=True)
     human_decisions: Sequence[HumanDecision] | None = field(default=None, kw_only=True)
+    reviewed_results: Sequence[ReviewedResult] | None = field(
+        default=None, kw_only=True
+    )
     tools: Sequence[ToolInfo] | None = None
     tool_choice: ToolChoice | None = None
     truncated: Truncation | Literal[False] | None = None

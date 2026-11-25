@@ -5,6 +5,7 @@ import anyio
 from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid
 
+from inspect_ai._sentinel._context import checks_tool_calls
 from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
@@ -441,6 +442,10 @@ async def _execute_granted(
                 transcript()._event_updated(event)
             else:
                 transcript()._event(event)
+            if checks_tool_calls():
+                from inspect_ai._sentinel._dispatch import note_host_run
+
+                note_host_run(event)
             _await_result_message(
                 bridge,
                 grant,

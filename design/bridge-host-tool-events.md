@@ -216,6 +216,31 @@ keeps the call id and each later one is named by its `execution_id`. The
 `human_decisions` of later steps keep the call id, as live records it. A log
 without the ids replays as before.
 
+While a sentinel is active, each tool result also names its execution
+(`ChatMessageTool.execution_id`): `execute_tools()` sets the `ToolEvent`'s on
+every result it builds, and the bridge sets, in every request, the execution
+its `tool_result` step would record on each result under a call id it handed
+out once, to one target; any other result gets `None`. A person's `human()`
+decision at a tool stage records the call it judged
+(`SentinelEvent.call_digest`), and the host publishes a `ReviewedResult`
+binding the decision to the execution's result only where the call that ran
+is the call decided on: a native execution's `ToolEvent` call, a host tool's
+run of the handout, or, for a tool the scaffold runs, the handed call when no
+instance modified it (`observed=False`, since the host never saw it run). A
+decision at `tool_result` also records the result it judged
+(`SentinelEvent.result_digest`: its message id and what it shows), and a
+record of it covers only that result. A bridged record is published after the
+checks of the first request carrying its result: for a `tool_result` decision,
+the judged result, however many other results of the execution the request
+holds; for a `tool_call` decision, which judged no result, the one result of a
+request carrying exactly one for the execution. A native decision made before
+the call ran is published when the execution completes, which a call a
+fail-fast turn did not run, a cancelled call and a timed-out call never do (a
+log records an operator's cancellation as a timeout). A turn approval is taken
+by the first execution logged for each of its calls, whatever its outcome, so
+a retry of the turn's call under the same ids is never covered by it. Replay rebuilds the
+records from the same events and messages (`_sentinel/_provenance.py`).
+
 A `_Proposal` is referenced only by its grants, so pairing state lives in the
 bounded grant store (1024 entries) and is dropped with the last of its grants,
 consumed or evicted. A later proposal that reuses a call id is a new

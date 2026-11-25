@@ -25,9 +25,24 @@ from inspect_ai import Task, eval
 from inspect_ai._sentinel._integration import (
     EvalInfo,
     MalformedLogError,
+    ReviewedResult,
+    call_digest,
+    covers,
+    result_execution,
     steps_from_events,
 )
-from inspect_ai._sentinel._steps import ListView, PoolView
+from inspect_ai._sentinel._provenance import (
+    BridgedReviews,
+    Reviews,
+    completes,
+    result_digest,
+)
+from inspect_ai._sentinel._steps import (
+    ConversationRecord,
+    ListView,
+    PoolView,
+    content_key,
+)
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.content import (
     Content,
@@ -129,10 +144,12 @@ from inspect_ai.util._span import (
 )
 
 from .test_sentinel_bridge import (
+    bridge_modify,
     bridge_reject_nth,
     openai_scaffold,
     rejecting_approver,
 )
+from .test_sentinel_bridge import calls_output as bridge_calls_output
 from .test_sentinel_dispatch import (
     _RetriedError,
     _RetryingMockLLM,
@@ -165,11 +182,13 @@ if TYPE_CHECKING:
         Decision,
         Escalations,
         HumanAnswer,
+        HumanDecision,
         MonitorGroup,
         Observation,
         Protocol,
         ProtocolGroup,
         ReplayStep,
+        Reported,
         monitor,
         protocol,
     )
@@ -183,11 +202,13 @@ else:
         Decision,
         Escalations,
         HumanAnswer,
+        HumanDecision,
         MonitorGroup,
         Observation,
         Protocol,
         ProtocolGroup,
         ReplayStep,
+        Reported,
         monitor,
         protocol,
     )
@@ -347,19 +368,70 @@ def assert_logged_replay_equals_live(
         assert_step_equals_live(key, rebuilt[key], step, differences)
     assert_inferred(log, replay, inferred)
     if not old_log_differs:
-        old = replay_events(log, without_execution_ids(logged_sample(log).events))
-        assert replay_record(old) == replay_record(replay)
+        sample = logged_sample(log)
+        old = steps_from_events(
+            untagged(sample.messages),
+            without_execution_ids(sample.events),
+            [],
+            sample_uuid=sample.uuid or "",
+            eval_info=EvalInfo.from_eval(log.eval),
+        )
+        assert replay_record(old) == replay_record(without_reviews(replay))
     return replay
 
 
 def without_execution_ids(events: Sequence[Event]) -> list[Event]:
-    """The events as a log written before `execution_id` holds them."""
+    """The events as a log written before `execution_id` holds them: none on an event or a model input's tool message, and no `SentinelEvent.call_digest`."""
+
+    def stripped(event: Event) -> Event:
+        if isinstance(event, SentinelEvent):
+            return event.model_copy(update={"execution_id": None, "call_digest": None})
+        if isinstance(event, ToolEvent | ApprovalEvent):
+            return event.model_copy(update={"execution_id": None})
+        if isinstance(event, ModelEvent) and any(
+            isinstance(m, ChatMessageTool) and m.execution_id for m in event.input
+        ):
+            return event.model_copy(update={"input": untagged(event.input)}, deep=False)
+        return event
+
+    return [stripped(event) for event in events]
+
+
+def untagged(messages: Sequence[ChatMessage]) -> list[ChatMessage]:
+    """The messages with no tool message recording its execution."""
     return [
-        event.model_copy(update={"execution_id": None})
-        if isinstance(event, ToolEvent | ApprovalEvent | SentinelEvent)
-        else event
-        for event in events
+        m.model_copy(update={"execution_id": None})
+        if isinstance(m, ChatMessageTool) and m.execution_id is not None
+        else m
+        for m in messages
     ]
+
+
+def without_reviews(replay: list["ReplayStep"]) -> list["ReplayStep"]:
+    """The steps as an older log replays them (`as_old_log`)."""
+    return [dataclasses.replace(s, step=as_old_log(s.step)) for s in replay]
+
+
+def as_old_log(step: Step) -> Step:
+    """A step as a log written before `execution_id` replays it: no tool message records its execution, so none is a reviewed result (`reviewed_results` is empty)."""
+    return dataclasses.replace(
+        step,
+        **{
+            f.name: untagged_value(getattr(step, f.name))
+            for f in dataclasses.fields(step)
+            if f.name != "reviewed_results"
+        },
+        reviewed_results=[],
+    )
+
+
+def untagged_value(value: Any) -> Any:
+    if isinstance(value, ChatMessageTool):
+        return untagged([value])[0]
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes):
+        if any(isinstance(item, ChatMessageTool) for item in value):
+            return untagged(list(value))
+    return value
 
 
 def replay_record(replay: list["ReplayStep"]) -> list[Any]:
@@ -628,22 +700,29 @@ def test_a_media_result_moved_out_of_the_tool_message_replays_as_it_ran() -> Non
 
 
 @solver
-def clears_the_result() -> Solver:
-    """Run a tool, then clear its result in the conversation under the same id."""
+def clears_the_result(
+    at_turn: int = 2, in_place: bool = False, update: dict[str, Any] | None = None
+) -> Solver:
+    """Run a tool, then change its result in the conversation under the same id before the model call `at_turn` (1: before the result is first sent): its content cleared, or `update` applied."""
+    changes = update if update is not None else {"content": "[cleared]"}
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         model = get_model()
         tools = [returns("original result")]
         for turn in range(3):
-            if turn == 2:
+            if turn == at_turn:
                 [index] = [
                     i
                     for i, message in enumerate(state.messages)
                     if isinstance(message, ChatMessageTool)
                 ]
-                state.messages[index] = state.messages[index].model_copy(
-                    update={"content": "[cleared]"}
-                )
+                if in_place:
+                    for name, value in changes.items():
+                        setattr(state.messages[index], name, value)
+                else:
+                    state.messages[index] = state.messages[index].model_copy(
+                        update=changes
+                    )
             output = await model.generate(state.messages, tools)
             state.messages.append(output.message)
             if output.message.tool_calls:
@@ -661,6 +740,41 @@ def test_a_result_cleared_later_replays_as_it_ran() -> None:
     [after] = [step for step in replay if step.stage == "tool_result"]
     assert isinstance(after.step, AfterToolCall)
     assert after.step.result.text == "original result"
+
+
+@pytest.mark.parametrize("in_place", [True, False])
+@pytest.mark.parametrize(
+    "update",
+    [
+        {"content": "[cleared]"},
+        {"error": ToolCallError("unknown", "[failed]")},
+        {"tool_call_id": "other"},
+    ],
+    ids=["content", "error", "call_id"],
+)
+def test_a_result_changed_before_it_was_sent_replays_as_it_ran(
+    in_place: bool, update: dict[str, Any]
+) -> None:
+    """The log holds only the changed copy under the result's id, so replay rebuilds the result the step saw from its `ToolEvent`, keeping its message id."""
+    replay = assert_replay_equals_live(
+        clears_the_result(at_turn=1, in_place=in_place, update=update),
+        outputs(call("returns"), done(), done()),
+    )
+    [after] = [step for step in replay if step.stage == "tool_result"]
+    assert isinstance(after.step, AfterToolCall)
+    shown = after.step.result
+    assert (shown.text, shown.error, shown.tool_call_id) == (
+        "original result",
+        None,
+        after.step.call.id,
+    )
+    # the model was only ever sent the changed copy, under the result's id
+    [_, second, _] = [step for step in replay if step.stage == "model_input"]
+    assert isinstance(second.step, BeforeGenerate)
+    [sent] = [m for m in second.step.input if isinstance(m, ChatMessageTool)]
+    assert sent.id == shown.id
+    for name, value in update.items():
+        assert getattr(sent, name) == value
 
 
 def helper(model: Any) -> Agent:
@@ -10859,14 +10973,29 @@ def test_an_approvals_view_replays_when_only_a_sentinel_changes_the_call(
 
 
 def test_a_result_is_the_message_the_tool_event_names() -> None:
+    """The logged copy under the event's message id that holds the event's result; else one rebuilt from the event, under its message id, never a copy that differs."""
     from inspect_ai._sentinel._replay import _Driver
 
     logged = ChatMessageTool(
-        id="m1", content="as the model saw it", tool_call_id="c1", function="f"
+        id="m1", content="as the call returned it", tool_call_id="c1", function="f"
     )
     driver = _Driver([], [], [logged], "sample", EvalInfo(None, True), None, ())
-    event = ToolEvent(id="c1", function="f", arguments={}, result="", message_id="m1")
+    event = ToolEvent(
+        id="c1",
+        function="f",
+        arguments={},
+        result="as the call returned it",
+        message_id="m1",
+    )
     assert driver._result(event) is logged
+    edited = event.model_copy(update={"result": "before an edit"})
+    rebuilt = driver._result(edited)
+    assert rebuilt is not logged
+    assert (rebuilt.id, rebuilt.text, rebuilt.tool_call_id) == (
+        "m1",
+        "before an edit",
+        "c1",
+    )
     unknown = event.model_copy(update={"message_id": "m2", "result": "rebuilt"})
     rebuilt = driver._result(unknown)
     assert (rebuilt.id, rebuilt.text) == ("m2", "rebuilt")
@@ -14036,7 +14165,7 @@ def test_a_call_check_pairs_with_its_call_when_a_same_id_turn_completes_during_i
         old = replay_events(log, without_execution_ids(events))
     if replies == "distinct":
         assert "match no tool call" not in caplog.text
-        assert replay_record(old) == replay_record(replay)
+        assert replay_record(old) == replay_record(without_reviews(replay))
     else:
         assert "match no tool call" in caplog.text
         assert [(stage, arguments) for stage, _, arguments in tool_step_calls(old)] == [
@@ -15120,7 +15249,9 @@ def test_a_modified_memory_call_under_a_shared_id_is_skipped_though_the_tool_res
     for step in replay:
         if isinstance(step.step, BeforeToolCall | AfterToolCall):
             assert_step_equals_live(
-                (step.stage, step.id), step, seen_at(events, seen, step.stage, kept)
+                (step.stage, step.id),
+                step,
+                as_old_log(seen_at(events, seen, step.stage, kept)),
             )
 
 
@@ -15619,11 +15750,15 @@ def test_a_modified_call_whose_checked_arguments_the_log_lacks_is_skipped_under_
                 assert_step_equals_live(
                     (stage, rebuilt.id),
                     rebuilt,
-                    step,
+                    step if recorded is events else as_old_log(step),
                     differences=["tool_call.call", "tool_call.view"],
                 )
                 continue
-            assert_step_equals_live((stage, rebuilt.id), rebuilt, step)
+            assert_step_equals_live(
+                (stage, rebuilt.id),
+                rebuilt,
+                step if recorded is events else as_old_log(step),
+            )
 
 
 @approver
@@ -15828,8 +15963,1352 @@ def test_an_approver_modified_call_a_sentinel_modified_is_skipped_under_a_shared
                 assert_step_equals_live(
                     (stage, rebuilt.id),
                     rebuilt,
-                    step,
+                    step if recorded is events else as_old_log(step),
                     differences=["tool_call.call", "tool_call.view"],
                 )
                 continue
-            assert_step_equals_live((stage, rebuilt.id), rebuilt, step)
+            assert_step_equals_live(
+                (stage, rebuilt.id),
+                rebuilt,
+                step if recorded is events else as_old_log(step),
+            )
+
+
+# ---- reviewed results: which tool results a person's human() decision covers
+#
+# Each scenario runs live, and asserts that replay rebuilds every step as live
+# built it (`reviewed_results` included), and which messages the records cover
+# (`covers`): only the result of the execution a person decided about.
+
+
+def p_turn(*calls: ToolCall) -> ModelOutput:
+    """One assistant turn making `calls`, under their own ids."""
+    return ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content="", tool_calls=list(calls)),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+
+def p_add(id: str, x: int, y: int) -> ToolCall:
+    return ToolCall(id=id, function="addition", arguments={"x": x, "y": y})
+
+
+@solver
+def p_tool_loop(change: str = "") -> Solver:
+    """A tool loop over `addition`, which then changes the turns' results as `change` says before the next generate.
+
+    - `forge`: each later result takes the first result's message id.
+    - `edit_before`: the first result's content becomes "3" before it is first sent.
+    - `edit_after`: once the first result was sent, its content becomes "3".
+    - `retag`: the first result names another execution before it is first sent.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        tools = [addition()]
+        first: ChatMessageTool | None = None
+        turn = 0
+        while True:
+            output = await model.generate(state.messages, tools)
+            state.messages.append(output.message)
+            state.output = output
+            if not output.message.tool_calls:
+                return state
+            executed = await execute_tools(state.messages, tools)
+            results = [m for m in executed.messages if isinstance(m, ChatMessageTool)]
+            if first is None:
+                first = results[0]
+                if change == "edit_before":
+                    first.content = "3"
+                elif change == "retag":
+                    first.execution_id = "forged"
+            elif change == "forge":
+                for result in results:
+                    result.id = first.id
+            elif change == "edit_after" and turn == 1:
+                first.content = "3"
+            state.messages.extend(executed.messages)
+            turn += 1
+
+    return solve
+
+
+def p_run(
+    solver: Solver | list[Solver],
+    model: Any,
+    sentinel: Sequence[Any],
+) -> tuple[EvalLog, dict[str, Step], list["ReplayStep"]]:
+    """Run the eval with a probe watching every stage and then `sentinel`, and check that replay rebuilds every step as live built it: each step by its stage and step id, or, where calls share an id, the generate steps by id and the tool steps in order."""
+    seen: dict[str, Step] = {}
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=solver,
+        sentinel=[r7_probe(seen, copies=True), *sentinel],
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+    sample = log.samples[0] if log.samples else None
+    assert sample is not None
+    probed = [
+        e
+        for e in sample.events
+        if isinstance(e, SentinelEvent) and e.path == "r7_probe"
+    ]
+    if len({(e.stage, e.step_id) for e in probed}) == len(probed):
+        return log, seen, assert_logged_replay_equals_live(log, seen)
+    replay = replayed(log)
+    assert [s.stage for s in replay] == [e.stage for e in probed]
+    for event, rebuilt in zip(probed, replay):
+        assert_step_equals_live(
+            (event.stage, rebuilt.id), rebuilt, seen[event.explanation or ""]
+        )
+    return log, seen, replay
+
+
+def reviewed(step: Any) -> Sequence[ReviewedResult]:
+    """A step's `reviewed_results`, which inspect_sentinel's steps don't have yet (the fake's do)."""
+    return cast(Sequence[ReviewedResult], step.reviewed_results)
+
+
+def p_last_input(replay: Sequence["ReplayStep"]) -> Step:
+    """The last `model_input` step."""
+    return [s.step for s in replay if s.stage == "model_input"][-1]
+
+
+def p_covered(step: Step, field: str = "input") -> list[tuple[int, str | None]]:
+    """The messages of a step's list a record covers, as (position, execution id), each covered by its own execution's record only."""
+    found: list[tuple[int, str | None]] = []
+    for position, message in enumerate(getattr(step, field) or []):
+        records = [r for r in step.reviewed_results or [] if covers(r, message)]
+        if records:
+            assert {r.execution_id for r in records} == {message.execution_id}
+            found.append((position, message.execution_id))
+    return found
+
+
+def p_tool_events(log: EvalLog) -> list[ToolEvent]:
+    return [e for e in logged_sample(log).events if isinstance(e, ToolEvent)]
+
+
+def p_results(step: Step, field: str = "input") -> list[tuple[int, ChatMessageTool]]:
+    return [
+        (position, m)
+        for position, m in enumerate(getattr(step, field) or [])
+        if isinstance(m, ChatMessageTool)
+    ]
+
+
+@pytest.mark.parametrize("change", ["", "forge"])
+def test_a_review_covers_only_the_result_of_the_execution_it_was_about(
+    monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    """S1, S5, S7, S10: later executions under the reviewed call id, one with other arguments and one an identical retry, whose results (with `forge`) take the reviewed result's message id and so read exactly as it does."""
+    Panel("approve", "fine").install(monkeypatch)
+    log, _, replay = p_run(
+        p_tool_loop(change),
+        outputs(
+            p_turn(p_add("c", 1, 1)),
+            p_turn(p_add("c", 0, 2)),
+            p_turn(p_add("c", 1, 1)),
+            done(),
+        ),
+        [h_ask("tool_result", ["approve", "reject"], times=1)],
+    )
+    first, other, retry = p_tool_events(log)
+    last = p_last_input(replay)
+    [record] = last.reviewed_results
+    assert record.execution_id == first.execution_id
+    assert record.decision.stage == "tool_result"
+    assert record.observed
+    assert record.call_digest == call_digest(p_add("c", 1, 1))
+    results = p_results(last)
+    assert [m.execution_id for _, m in results] == [
+        first.execution_id,
+        other.execution_id,
+        retry.execution_id,
+    ]
+    assert [m.text for _, m in results] == ["2", "2", "2"]
+    if change == "forge":
+        # identical to the reviewed result but for the execution each names
+        assert len({m.id for _, m in results}) == 1
+        assert all(
+            m.model_dump(exclude={"execution_id"})
+            == results[0][1].model_dump(exclude={"execution_id"})
+            for _, m in results
+        )
+    # the reviewed result alone, in the input and in history
+    assert p_covered(last) == [(results[0][0], first.execution_id)]
+    history = p_covered(last, "history")
+    assert [execution for _, execution in history] == [first.execution_id]
+
+
+@pytest.mark.parametrize("peer", [False, True])
+def test_an_approval_before_a_call_covers_its_result_only_if_that_call_ran(
+    monkeypatch: pytest.MonkeyPatch, peer: bool
+) -> None:
+    """S2: a person approves a call while a peer protocol's modify runs another."""
+    Panel("approve", "fine").install(monkeypatch)
+    log, _, replay = p_run(
+        p_tool_loop(),
+        outputs(p_turn(p_add("c", 1, 1)), done()),
+        [h_ask("tool_call", ["approve", "reject"]), *([d3_modify()] if peer else [])],
+    )
+    [ran] = p_tool_events(log)
+    assert ran.arguments == ({"x": 10, "y": 20} if peer else {"x": 1, "y": 1})
+    last = p_last_input(replay)
+    # the person's decision is kept either way
+    [decided] = last.human_decisions
+    assert decided.stage == "tool_call"
+    if peer:
+        assert last.reviewed_results == []
+        assert p_covered(last) == []
+        return
+    [record] = last.reviewed_results
+    assert record.decision == decided
+    assert record.execution_id == ran.execution_id
+    assert record.call_digest == call_digest(p_add("c", 1, 1))
+    assert record.result.text == "2"
+    [(position, _)] = p_results(last)
+    assert p_covered(last) == [(position, ran.execution_id)]
+
+
+@pytest.mark.parametrize("peer", [False, True])
+def test_a_turn_approval_covers_each_call_that_ran_as_the_turn_made_it(
+    monkeypatch: pytest.MonkeyPatch, peer: bool
+) -> None:
+    """S3: a person approves a turn at `model_output`, then a protocol modifies its calls at `tool_call`."""
+    Panel("approve", "fine").install(monkeypatch)
+    log, _, replay = p_run(
+        p_tool_loop(),
+        outputs(p_turn(p_add("c1", 1, 1), p_add("c2", 2, 2)), done()),
+        [
+            h_ask("model_output", ["approve", "terminate"]),
+            *([d3_modify()] if peer else []),
+        ],
+    )
+    runs = p_tool_events(log)
+    last = p_last_input(replay)
+    [decided] = last.human_decisions
+    assert decided.stage == "model_output"
+    if peer:
+        assert last.reviewed_results == []
+        return
+    assert [
+        (r.decision, r.execution_id, r.result.text) for r in last.reviewed_results
+    ] == [
+        (decided, runs[0].execution_id, "2"),
+        (decided, runs[1].execution_id, "4"),
+    ]
+    assert [execution for _, execution in p_covered(last)] == [
+        runs[0].execution_id,
+        runs[1].execution_id,
+    ]
+
+
+def test_a_review_of_one_of_parallel_results_that_read_alike_covers_it_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """S4: two calls of one turn return the same text; a person reviews one."""
+    Panel("approve", "fine").install(monkeypatch)
+    log, _, replay = p_run(
+        p_tool_loop(),
+        outputs(p_turn(p_add("c1", 1, 1), p_add("c2", 0, 2)), done()),
+        [h_ask("tool_result", ["approve", "reject"], only={"x": 1, "y": 1})],
+    )
+    reviewed, other = p_tool_events(log)
+    last = p_last_input(replay)
+    assert [m.text for _, m in p_results(last)] == ["2", "2"]
+    [record] = last.reviewed_results
+    assert record.execution_id == reviewed.execution_id
+    assert [execution for _, execution in p_covered(last)] == [reviewed.execution_id]
+
+
+@pytest.mark.parametrize("change", ["edit_before", "edit_after"])
+def test_a_result_edited_under_its_id_is_not_covered(
+    monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    """S8: the scaffold edits the reviewed result before it is first sent; S11: after it was sent, when history keeps what was sent."""
+    Panel("approve", "fine").install(monkeypatch)
+    log, _, replay = p_run(
+        p_tool_loop(change),
+        outputs(p_turn(p_add("c", 1, 1)), p_turn(p_add("d", 2, 2)), done()),
+        [h_ask("tool_result", ["approve", "reject"], times=1)],
+    )
+    first = p_tool_events(log)[0]
+    last = p_last_input(replay)
+    [record] = last.reviewed_results
+    # the result as the execution produced it, which the person saw
+    assert record.result.text == "2"
+    edited = [m for _, m in p_results(last) if m.execution_id == first.execution_id]
+    assert [m.text for m in edited] == ["3"]
+    assert p_covered(last) == []
+    history = [
+        m.text
+        for _, m in p_results(last, "history")
+        if m.execution_id == first.execution_id
+    ]
+    if change == "edit_before":
+        # never sent as it ran
+        assert history == ["3"]
+        assert p_covered(last, "history") == []
+    else:
+        # history holds what was sent before this step: the original
+        assert history == ["2"]
+        assert [e for _, e in p_covered(last, "history")] == [first.execution_id]
+
+
+def test_a_result_the_scaffold_retagged_is_not_covered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A scaffold's own execution id on a result is not the host's: the copy is not covered, and replay rebuilds the result as it ran rather than take the retagged copy under its id."""
+    Panel("approve", "fine").install(monkeypatch)
+    log, _, replay = p_run(
+        p_tool_loop("retag"),
+        outputs(p_turn(p_add("c", 1, 1)), done()),
+        [h_ask("tool_result", ["approve", "reject"])],
+    )
+    [ran] = p_tool_events(log)
+    [result_step] = [resulted(s) for s in replay if s.stage == "tool_result"]
+    assert result_step.execution_id == ran.execution_id
+    last = p_last_input(replay)
+    [record] = last.reviewed_results
+    assert record.execution_id == ran.execution_id
+    assert [m.execution_id for _, m in p_results(last)] == ["forged"]
+    assert p_covered(last) == []
+
+
+def test_a_result_that_names_another_execution_is_not_sent_again() -> None:
+    """What a message sends the model leaves out its execution, as its metadata: a bridge's result that stops naming its handout (the id was handed out again) is not new to history."""
+    tagged = ChatMessageTool(content="2", tool_call_id="c", execution_id="e1")
+    untagged_copy = tagged.model_copy(update={"execution_id": None})
+    assert content_key(tagged) == content_key(untagged_copy)
+    record = ConversationRecord()
+    user = ChatMessageUser(content="go")
+    record.record([user, tagged], "mockllm/model")
+    record.record([user, untagged_copy], "mockllm/model")
+    assert list(record.history()) == [user, tagged]
+
+
+def test_covers_requires_the_execution_the_id_and_the_content() -> None:
+    """S9: a copy changed since it was covered (a transform's) is covered no longer."""
+    result = ChatMessageTool(
+        content="2", tool_call_id="c", function="addition", execution_id="e1"
+    )
+    record = ReviewedResult(
+        decision=cast(Any, None),
+        execution_id="e1",
+        call_digest="sha256:x",
+        result=result,
+        observed=True,
+    )
+    assert covers(record, result.model_copy(deep=True))
+    assert covers(
+        record, result.model_copy(update={"content": [ContentText(text="2")]})
+    )
+    assert not covers(record, result.model_copy(update={"content": "3"}))
+    assert not covers(record, result.model_copy(update={"execution_id": "e2"}))
+    assert not covers(record, result.model_copy(update={"execution_id": None}))
+    assert not covers(record, result.model_copy(update={"id": "other"}))
+    assert not covers(record, result.model_copy(update={"tool_call_id": "d"}))
+    assert not covers(
+        record, result.model_copy(update={"error": ToolCallError("unknown", "x")})
+    )
+    assert not covers(record, ChatMessageUser(content="2"))
+    assert result_execution(result) == "e1"
+    assert result_execution(ChatMessageUser(content="2")) is None
+
+
+def test_a_call_digest_is_of_the_call_as_json_carries_it() -> None:
+    digest = call_digest(p_add("c", 1, 1))
+    assert digest is not None and re.fullmatch(r"sha256:[0-9a-f]{64}", digest)
+    # key order, and a tuple JSON carries as a list, are the same call
+    assert call_digest(
+        ToolCall(id="c", function="f", arguments={"b": (1, 2), "a": 1})
+    ) == call_digest(ToolCall(id="c", function="f", arguments={"a": 1, "b": [1, 2]}))
+    assert call_digest(p_add("c", 1, 2)) != digest
+    assert call_digest(p_add("d", 1, 1)) != digest
+    assert call_digest(replace(p_add("c", 1, 1), function="other")) != digest
+    # a value JSON can't carry has no digest, so matches no decided call
+    assert (
+        call_digest(ToolCall(id="c", function="f", arguments={"a": object()})) is None
+    )
+
+
+def test_only_a_persons_decision_at_a_tool_stage_records_the_call_digest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("approve", "fine").install(monkeypatch)
+    log, _, _ = p_run(
+        p_tool_loop(),
+        outputs(p_turn(p_add("c", 1, 1)), done()),
+        [
+            h_ask("tool_call", ["approve", "reject"]),
+            h_ask("tool_result", ["approve", "reject"]),
+            h_ask("model_output", ["approve", "terminate"]),
+            d3_approve_all(),
+        ],
+    )
+    events = [e for e in logged_sample(log).events if isinstance(e, SentinelEvent)]
+    digested = [
+        (e.factory, e.stage, e.call_digest) for e in events if e.call_digest is not None
+    ]
+    expected = call_digest(p_add("c", 1, 1))
+    assert digested == [
+        ("inspect_sentinel/human", "tool_call", expected),
+        ("inspect_sentinel/human", "tool_result", expected),
+    ]
+    # a monitor's observations, another protocol's decisions and the person's
+    # turn decision record none
+    assert {(e.factory, e.stage) for e in events if e.call_digest is None} >= {
+        ("r7_probe", "tool_call"),
+        ("d3_approve_all", "tool_call"),
+        ("inspect_sentinel/human", "model_output"),
+    }
+    # the result is recorded only for the person's decision after it
+    [result] = [
+        m for m in logged_sample(log).messages if isinstance(m, ChatMessageTool)
+    ]
+    assert [
+        (e.factory, e.stage, e.result_digest)
+        for e in events
+        if e.result_digest is not None
+    ] == [("inspect_sentinel/human", "tool_result", result_digest(result))]
+
+
+def test_a_result_digest_is_recorded_only_at_a_decision_after_the_result() -> None:
+    fields: dict[str, Any] = dict(
+        factory="inspect_sentinel/human",
+        path="human",
+        function="human",
+        step_id="c",
+        conversation="conv",
+        kind="decision",
+        status="reported",
+        action="proceed",
+        result_digest="sha256:0",
+    )
+    SentinelEvent(**fields, stage="tool_result")
+    with pytest.raises(ValueError, match="result_digest"):
+        SentinelEvent(**fields, stage="tool_call")
+    with pytest.raises(ValueError, match="result_digest"):
+        SentinelEvent(**{**fields, "status": "superseded"}, stage="tool_result")
+
+
+@protocol
+def d3_approve_all() -> Protocol:
+    async def approve(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        return Decision.proceed("fine")
+
+    return approve
+
+
+@tool
+def p_echo() -> Tool:
+    async def execute(text: str) -> str:
+        """Echo the text.
+
+        Args:
+            text: Text to echo.
+        """
+        return "ok"
+
+    return execute
+
+
+def test_a_large_calls_decision_records_its_digest_not_its_arguments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("approve", "fine").install(monkeypatch)
+    text = "x" * 200_000
+    large = ToolCall(id="c", function="p_echo", arguments={"text": text})
+    task = Task(
+        dataset=[Sample(input="Echo")],
+        solver=[use_tools(p_echo()), generate()],
+        sentinel=h_ask("tool_call", ["approve", "reject"]),
+    )
+    log = eval(task, model=outputs(p_turn(large), done()))[0]
+    assert log.status == "success", log.error
+    [decided] = [e for e in logged_sample(log).events if isinstance(e, SentinelEvent)]
+    assert decided.call_digest == call_digest(large)
+    assert decided.modified is None
+    assert len(decided.model_dump_json()) < 2_000
+
+
+def test_without_a_sentinel_no_result_records_its_execution() -> None:
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?")],
+        solver=p_tool_loop(),
+    )
+    log = eval(task, model=outputs(p_turn(p_add("c", 1, 1)), done()))[0]
+    assert log.status == "success", log.error
+    sample = logged_sample(log)
+    results = [m for m in sample.messages if isinstance(m, ChatMessageTool)]
+    assert len(results) == 1
+    assert all(m.execution_id is None for m in results)
+    assert not any(isinstance(e, SentinelEvent) for e in sample.events)
+    for event in sample.events:
+        if isinstance(event, ModelEvent):
+            assert all(
+                m.execution_id is None
+                for m in event.input
+                if isinstance(m, ChatMessageTool)
+            )
+
+
+def test_a_log_without_execution_ids_covers_no_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A log written before `ChatMessageTool.execution_id` and `SentinelEvent.call_digest`: decisions still reach later steps, and no record is built."""
+    Panel("approve", "fine").install(monkeypatch)
+    log, _, replay = p_run(
+        p_tool_loop(),
+        outputs(p_turn(p_add("c", 1, 1)), done()),
+        [h_ask("tool_call", ["approve", "reject"]), h_ask("tool_result", ["approve"])],
+    )
+    assert len(p_last_input(replay).reviewed_results) == 2
+    sample = logged_sample(log)
+    old = steps_from_events(
+        untagged(sample.messages),
+        without_execution_ids(sample.events),
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval),
+    )
+    assert len(p_last_input(old).human_decisions) == 2
+    assert all(reviewed(s.step) == [] for s in old)
+    # nor where only the digests are gone (a log that tags results, from a
+    # host whose human() decisions record no digest)
+    digestless = steps_from_events(
+        sample.messages,
+        [
+            e.model_copy(update={"call_digest": None})
+            if isinstance(e, SentinelEvent)
+            else e
+            for e in sample.events
+        ],
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval),
+    )
+    assert all(reviewed(s.step) == [] for s in digestless)
+
+
+# ---- reviewed results through an agent bridge
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("stage", ["tool_call", "tool_result"])
+def test_a_bridged_review_covers_the_result_the_scaffold_reported(
+    monkeypatch: pytest.MonkeyPatch, backend: str, stage: str
+) -> None:
+    """S6: a person's decision at a bridge's check covers the result its handout's next request carries, live and in replay, as a tool the host did not run."""
+    Panel("approve", "fine").install(monkeypatch)
+    log, seen = scaffold_log(
+        backend,
+        monkeypatch,
+        bridge_calls_output(READ),
+        sentinel=[h_ask(stage, ["approve", "reject"])],
+    )
+    # replay's result step comes after the check it was decided at (see
+    # `steps_from_events`)
+    replay = assert_replay_rebuilds_bridge_steps(
+        log, seen, bridge_differences=["tool_result.human_decisions"]
+    )
+    last = p_last_input(replay)
+    [record] = last.reviewed_results
+    assert record.decision.stage == stage
+    assert not record.observed
+    assert record.result.text == "file contents"
+    assert record.call_digest == call_digest(READ)
+    [(position, result)] = p_results(last)
+    assert result.execution_id == record.execution_id
+    assert p_covered(last) == [(position, record.execution_id)]
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_bridged_approval_a_peer_modified_covers_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+    backend: str,
+) -> None:
+    """S2 through a bridge: the scaffold is handed the modified call, which the host can't see run."""
+    Panel("approve", "fine").install(monkeypatch)
+    log, seen = scaffold_log(
+        backend,
+        monkeypatch,
+        bridge_calls_output(READ),
+        sentinel=[h_ask("tool_call", ["approve", "reject"]), bridge_modify()],
+    )
+    # replay shows the call as the model wrote it
+    replay = assert_replay_rebuilds_bridge_steps(
+        log, seen, bridge_differences=["tool_result.call", "tool_result.view"]
+    )
+    last = p_last_input(replay)
+    [decided] = last.human_decisions
+    assert decided.stage == "tool_call"
+    assert last.reviewed_results == []
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_bridged_call_id_handed_out_twice_covers_no_later_copy(
+    monkeypatch: pytest.MonkeyPatch,
+    backend: str,
+) -> None:
+    """S1 and S10 through a bridge: the model proposes the reviewed call again under its id, so no result under the id names an execution from then on.
+
+    The person judges each result once: the first result, untagged once its
+    id is handed out again, is the step already checked.
+    """
+    Panel("approve", "fine").install(monkeypatch)
+    log, seen = scaffold_log(
+        backend,
+        monkeypatch,
+        bridge_calls_output(READ),
+        bridge_calls_output(READ),
+        sentinel=[h_ask("tool_result", ["approve", "reject"])],
+    )
+    judged = [
+        e.result_digest
+        for e in logged_sample(log).events
+        if isinstance(e, SentinelEvent) and e.kind == "decision"
+    ]
+    assert len(judged) == len(set(judged)) == 2
+    # replay pairs no result with a call id proposed twice (see
+    # `steps_from_events`), and the second call repeats the first's key
+    replay = assert_replay_rebuilds_bridge_steps(
+        log, seen, bridge_differences=["tool_result.human_decisions"], unbuilt=2
+    )
+    inputs: list[Step] = [s.step for s in replay if s.stage == "model_input"]
+    # the first result, reviewed when its handout was the id's only one
+    [record] = inputs[1].reviewed_results
+    assert [e for _, e in p_covered(inputs[1])] == [record.execution_id]
+    # once handed out again, neither result under the id names an execution
+    last = inputs[-1]
+    assert [m.execution_id for _, m in p_results(last)] == [None, None]
+    assert p_covered(last) == []
+    # history keeps the reviewed result as it was sent
+    assert [e for _, e in p_covered(last, "history")] == [record.execution_id]
+
+
+@pytest.mark.parametrize("stage", ["tool_call", "tool_result"])
+def test_a_bridged_host_tools_review_covers_the_run_the_host_observed(
+    monkeypatch: pytest.MonkeyPatch, stage: str
+) -> None:
+    Panel("approve", "fine").install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_runs_a_bridged_host_tool(report=True)),
+        outputs(call("mcp__host__addition", x=1, y=1), done()),
+        sentinel=[r7_probe(seen, copies=True), h_ask(stage, ["approve", "reject"])],
+    )
+    replay = assert_replay_rebuilds_bridge_steps(
+        log, seen, bridge_differences=[*HOST_DIFFERENCES, "tool_result.human_decisions"]
+    )
+    [ran] = p_tool_events(log)
+    last = p_last_input(replay)
+    [record] = last.reviewed_results
+    assert record.execution_id == ran.execution_id
+    assert record.observed
+    assert record.call_digest == call_digest(
+        ToolCall(id=ran.id, function="addition", arguments={"x": 1, "y": 1})
+    )
+    [(position, result)] = p_results(last)
+    assert result.text == "2"
+    assert p_covered(last) == [(position, ran.execution_id)]
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_bridged_turn_approval_covers_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+    backend: str,
+) -> None:
+    """A turn approval through a bridge is not bound to the handed calls' results (a known limitation, which errs toward not covering)."""
+    Panel("approve", "fine").install(monkeypatch)
+    log, seen = scaffold_log(
+        backend,
+        monkeypatch,
+        bridge_calls_output(READ),
+        sentinel=[h_ask("model_output", ["approve", "terminate"])],
+    )
+    replay = assert_replay_rebuilds_bridge_steps(log, seen)
+    last = p_last_input(replay)
+    assert [d.stage for d in last.human_decisions] == ["model_output"]
+    assert last.reviewed_results == []
+
+
+# ---- a bridged review binds to the result the person judged
+
+
+SAFE = "SAFE RESULT"
+UNREVIEWED = "UNREVIEWED RESULT"
+
+
+@tool(name="read_file")
+def p_read_file() -> Tool:
+    async def execute(path: str) -> str:
+        """Read a file.
+
+        Args:
+            path: The file.
+        """
+        return SAFE
+
+    return execute
+
+
+@agent
+def p_reports_another_result(host: bool, overlapping: bool) -> Agent:
+    """A scaffold that reports its handout's result twice in one request, and another result for the same handout in a later request: after that request, or (`overlapping`) both in a request sent alongside it and in one after both.
+
+    With `host`, it first runs the call through the sandbox bridge's host tool, whose result is the one reported twice.
+    """
+
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+        from inspect_ai.agent._bridge.sandbox.service import call_tool
+        from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+
+        bridge: AgentBridge
+        if host:
+            bridge = SandboxAgentBridge(
+                state=state,
+                filter=None,
+                retry_refusals=None,
+                compaction=None,
+                port=8080,
+                model=None,
+                bridged_tools={"host": {"read_file": p_read_file()}},
+            )
+            [served] = bridge.served_tools.values()
+            declared = {
+                "name": "read_file",
+                "description": served.description,
+                "parameters": served.parameters.model_dump(exclude_none=True),
+            }
+        else:
+            bridge = AgentBridge(
+                state=state, filter=None, retry_refusals=None, compaction=None
+            )
+            declared = {
+                "name": "read_file",
+                "description": "Read a file.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                },
+            }
+        tools = [{"type": "function", "function": declared}]
+        asked = [{"role": "user", "content": "Read it."}]
+        first = await inspect_completions_api_request(
+            {"model": "inspect", "messages": asked, "tools": tools}, None, bridge
+        )
+        message = first.choices[0].message
+        [proposed] = message.tool_calls or []
+        assert proposed.type == "function"
+        if isinstance(bridge, SandboxAgentBridge):
+            await call_tool(bridge)(
+                "host", "read_file", json.loads(proposed.function.arguments)
+            )
+
+        async def request(*contents: str) -> None:
+            await inspect_completions_api_request(
+                {
+                    "model": "inspect",
+                    "messages": [
+                        *asked,
+                        message.model_dump(exclude_none=True),
+                        *(
+                            {
+                                "role": "tool",
+                                "tool_call_id": proposed.id,
+                                "content": content,
+                            }
+                            for content in contents
+                        ),
+                    ],
+                    "tools": tools,
+                },
+                None,
+                bridge,
+            )
+
+        if overlapping:
+            await tg_collect(
+                [partial(request, SAFE, SAFE), partial(request, UNREVIEWED)]
+            )
+        else:
+            await request(SAFE, SAFE)
+        await request(UNREVIEWED)
+        return bridge.state
+
+    return execute
+
+
+def p_records(step: Step) -> list[tuple[str, str, str | None, str, bool]]:
+    return [
+        (r.execution_id, r.decision.stage, r.result.id, r.result.text, r.observed)
+        for r in step.reviewed_results or []
+    ]
+
+
+def p_inputs_live_and_replayed(
+    log: EvalLog, seen: dict[str, Step]
+) -> tuple[dict[str, Step], dict[str, Step]]:
+    """The `model_input` steps by step id, live and replayed, after asserting each has the same records, which cover the same messages."""
+    live = {
+        event.step_id: seen[event.explanation or ""]
+        for event in logged_sample(log).events
+        if isinstance(event, SentinelEvent)
+        and event.path == "r7_probe"
+        and event.stage == "model_input"
+    }
+    replay = {s.id: s.step for s in replayed(log) if s.stage == "model_input"}
+    assert live.keys() == replay.keys()
+    for key in live:
+        assert p_records(replay[key]) == p_records(live[key]), key
+        assert p_covered(replay[key]) == p_covered(live[key]), key
+        assert p_covered(replay[key], "history") == p_covered(live[key], "history")
+    return live, replay
+
+
+@pytest.mark.parametrize("overlapping", [False, True])
+@pytest.mark.parametrize("host", [False, True])
+def test_a_bridged_review_covers_only_the_result_the_person_judged(
+    monkeypatch: pytest.MonkeyPatch, host: bool, overlapping: bool
+) -> None:
+    """A person reviews a result the scaffold reports twice in one request; another result for the same handout, reported in a later or an overlapping request, is not covered, live or in replay: for a tool the scaffold ran (not observed) and for a host tool (observed)."""
+    panel = Panel("approve", "fine")
+    panel.install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(p_reports_another_result(host, overlapping)),
+        outputs(bridge_calls_output(READ), done(), done(), done()),
+        sentinel=[
+            r7_probe(seen, copies=True),
+            h_ask("tool_result", ["approve", "reject"], times=1),
+        ],
+    )
+    [decision] = [
+        e
+        for e in logged_sample(log).events
+        if isinstance(e, SentinelEvent)
+        and e.kind == "decision"
+        and e.status == "reported"
+    ]
+    assert decision.stage == "tool_result"
+    live, replay = p_inputs_live_and_replayed(log, seen)
+    # the result the person was shown, which the decision records
+    [result] = {
+        m.id: m
+        for step in live.values()
+        for _, m in p_results(step)
+        if result_digest(m) == decision.result_digest
+    }.values()
+    [shown] = panel.views
+    assert result.text in shown.model_dump_json()
+    covered = 0
+    for step in [*live.values(), *replay.values()]:
+        for record in step.reviewed_results or []:
+            assert (record.result.id, record.result.text) == (result.id, result.text)
+            assert record.decision.stage == "tool_result"
+            assert record.observed is host
+        # only copies of the judged result, by id and content
+        for position, _ in p_covered(step):
+            message = step.input[position]
+            assert (message.id, message.text) == (result.id, result.text)
+            covered += 1
+    assert covered > 0
+    if not overlapping:
+        assert result.text == SAFE
+    # the last request carries only the other result
+    last = list(replay.values())[-1]
+    [(_, other)] = p_results(last)
+    assert other.text == UNREVIEWED
+    if result.text == SAFE:
+        assert p_covered(last) == []
+        assert p_covered(list(live.values())[-1]) == []
+
+
+def p_decision(stage: str) -> "HumanDecision":
+    return HumanDecision(
+        stage=cast(Any, stage),
+        step_id="c",
+        call_ids=("c",),
+        decided=Reported("human", "human", Decision.proceed(), "ask"),
+    )
+
+
+def p_host_run(call: ToolCall, execution_id: str, **result: Any) -> ToolEvent:
+    event = ToolEvent(
+        id=call.id,
+        execution_id=execution_id,
+        function=call.function,
+        arguments=call.arguments,
+        metadata={"bridge": {}},
+    )
+    event._set_result(
+        result=result.get("result", "2"),
+        truncated=None,
+        error=result.get("error"),
+        working_time=0.0,
+        agent=None,
+        failed=None,
+        message_id=None,
+    )
+    return event
+
+
+@pytest.mark.parametrize(
+    "run,observed",
+    [
+        ("none", False),
+        ("decided", True),
+        ("other", None),
+        ("both", None),
+        ("refused", False),
+    ],
+)
+def test_a_bridged_decision_is_published_only_for_the_call_the_host_ran(
+    run: str, observed: bool | None
+) -> None:
+    """A bridged decision is published when a request first carries one result of its execution: as not observed where the host ran no tool for it, as observed where it ran the decided call, and not at all where it ran another."""
+    decided = p_add("c", 1, 1)
+    reviews = BridgedReviews()
+    record = Reviews()
+    reviews.hold(
+        "e1", p_decision("tool_call"), call_digest(decided), None, "conv", False
+    )
+    if run in ("decided", "both"):
+        reviews.ran(p_host_run(decided, "e1"))
+    if run in ("other", "both"):
+        reviews.ran(p_host_run(p_add("c", 2, 2), "e1", result="4"))
+    if run == "refused":
+        reviews.ran(
+            p_host_run(decided, "e1", result="", error=ToolCallError("parsing", "no"))
+        )
+    result = ChatMessageTool(content="2", tool_call_id="c", execution_id="e1")
+    # a request holding the result twice publishes nothing yet
+    reviews.place([result, result.model_copy()], lambda _: record)
+    assert record.published == []
+    reviews.place([ChatMessageUser(content="go"), result], lambda _: record)
+    if observed is None:
+        assert record.published == []
+        return
+    [published] = record.published
+    assert published.observed is observed
+    assert published.execution_id == "e1"
+    assert published.result == result
+    assert published.result is not result
+    # published once
+    reviews.place([result], lambda _: record)
+    assert len(record.published) == 1
+
+
+def test_a_bridged_approval_a_peer_modified_is_not_held() -> None:
+    reviews = BridgedReviews()
+    record = Reviews()
+    digest = call_digest(p_add("c", 1, 1))
+    shown = ChatMessageTool(content="2", tool_call_id="d", execution_id="e2")
+    reviews.hold("e1", p_decision("tool_call"), digest, None, "conv", True)
+    reviews.hold(
+        "e2", p_decision("tool_result"), digest, result_digest(shown), "conv", True
+    )
+    reviews.place(
+        [
+            ChatMessageTool(content="2", tool_call_id="c", execution_id="e1"),
+            shown,
+        ],
+        lambda _: record,
+    )
+    # a decision after the call ran is about the result shown, whatever was
+    # handed over
+    assert [r.execution_id for r in record.published] == ["e2"]
+
+
+def test_a_bridged_review_is_published_only_for_the_result_the_person_judged() -> None:
+    """A bridged `tool_result` decision binds to the message it judged, by id and content, wherever a request holds it: never to another result of its execution, in that request or a later one."""
+    digest = call_digest(p_add("c", 1, 1))
+    judged = ChatMessageTool(content="safe", tool_call_id="c", execution_id="e1")
+    copy = judged.model_copy(update={"id": "other"})
+    reviews = BridgedReviews()
+    record = Reviews()
+    reviews.hold(
+        "e1", p_decision("tool_result"), digest, result_digest(judged), "conv", False
+    )
+    # another result of the execution, by content and by id
+    unreviewed = judged.model_copy(update={"content": "unreviewed"})
+    reviews.place([unreviewed], lambda _: record)
+    reviews.place([copy], lambda _: record)
+    assert record.published == []
+    # the judged result beside other results of the execution
+    reviews.place([copy, unreviewed, judged, copy], lambda _: record)
+    [published] = record.published
+    assert published.result == judged
+    assert published.result is not judged
+    assert covers(published, judged)
+    assert not covers(published, copy)
+    assert not covers(published, unreviewed)
+    # published once
+    reviews.place([judged], lambda _: record)
+    assert len(record.published) == 1
+    # without the judged result's digest, a decision after the result is not held
+    reviews.hold("e2", p_decision("tool_result"), digest, None, "conv", False)
+    reviews.place([judged.model_copy(update={"execution_id": "e2"})], lambda _: record)
+    assert len(record.published) == 1
+
+
+def test_a_native_review_is_published_only_for_the_result_it_judged() -> None:
+    digest = call_digest(p_add("c", 1, 1))
+    result = ChatMessageTool(content="2", tool_call_id="c", execution_id="e1")
+    for judged in [
+        None,
+        result_digest(result.model_copy(update={"content": "3"})),
+        result_digest(result.model_copy(update={"id": "other"})),
+    ]:
+        reviews = Reviews()
+        reviews.keep(
+            p_decision("tool_result"),
+            execution_id="e1",
+            digest=digest,
+            result=result,
+            judged=judged,
+        )
+        assert reviews.published == []
+    reviews = Reviews()
+    reviews.keep(
+        p_decision("tool_result"),
+        execution_id="e1",
+        digest=digest,
+        result=result,
+        judged=result_digest(result),
+    )
+    assert [r.result for r in reviews.published] == [result]
+
+
+def test_a_result_digest_is_of_the_id_and_what_the_result_shows() -> None:
+    result = ChatMessageTool(content="2", tool_call_id="c", execution_id="e1")
+    same = [
+        result.model_copy(update={"execution_id": "e2"}),
+        result.model_copy(update={"metadata": {"k": "v"}}),
+        result.model_copy(update={"content": [ContentText(text="2")]}),
+    ]
+    other = [
+        result.model_copy(update={"id": "other"}),
+        result.model_copy(update={"content": "3"}),
+        result.model_copy(update={"tool_call_id": "d"}),
+        result.model_copy(update={"error": ToolCallError("unknown", "no")}),
+    ]
+    assert result_digest(result).startswith("sha256:")
+    assert all(result_digest(m) == result_digest(result) for m in same)
+    assert all(result_digest(m) != result_digest(result) for m in other)
+
+
+@pytest.mark.parametrize(
+    "error,completed",
+    [
+        (None, True),
+        (ToolCallError("unknown", "not found"), True),
+        (ToolCallError("file_not_found", "no"), True),
+        (ToolCallError("parsing", "bad"), False),
+        (ToolCallError("approval", "no"), False),
+        (ToolCallError("cancelled", "skipped"), False),
+        (ToolCallError("timeout", "Command timed out before completing."), False),
+    ],
+)
+def test_an_execution_completes_only_where_its_tool_ran_and_returned(
+    error: ToolCallError | None, completed: bool
+) -> None:
+    assert completes(error) is completed
+
+
+def test_a_native_turn_approval_covers_the_first_attempt_at_each_call() -> None:
+    """The first attempt at each of a turn's calls takes the turn's approval of it: its result is covered if it completes, and no later attempt under the same turn and call id is, whatever the first attempt's outcome."""
+    turn = ChatMessageAssistant(
+        id="turn",
+        content="",
+        tool_calls=[p_add("c", 1, 1), p_add("d", 2, 2), p_add("f", 3, 3)],
+    )
+    reviews = Reviews()
+    decision = p_decision("model_output")
+    reviews.keep(decision, execution_id=None, digest=None, turn=turn)
+    result = ChatMessageTool(content="2", tool_call_id="c", execution_id="e1")
+    # another turn's call under the id
+    reviews.attempt("e0", "c", "other")
+    reviews.complete("e0", p_add("c", 1, 1), result)
+    assert reviews.published == []
+    # the first attempt at `c` completes; a second run of it is not covered
+    reviews.attempt("e1", "c", "turn")
+    reviews.complete("e1", p_add("c", 1, 1), result)
+    reviews.attempt("e2", "c", "turn")
+    reviews.complete("e2", p_add("c", 1, 1), result)
+    # the first attempt at `d` ran another call, so the retry of the turn's
+    # call is not covered either
+    reviews.attempt("e3", "d", "turn")
+    reviews.complete("e3", p_add("d", 9, 9), result)
+    reviews.attempt("e4", "d", "turn")
+    reviews.complete("e4", p_add("d", 2, 2), result)
+    # the first attempt at `f` didn't complete (a timeout, a cancellation, an
+    # interrupted review): it takes the approval all the same
+    reviews.attempt("e5", "f", "turn")
+    reviews.attempt("e6", "f", "turn")
+    reviews.complete("e6", p_add("f", 3, 3), result)
+    assert [(r.execution_id, r.decision) for r in reviews.published] == [
+        ("e1", decision)
+    ]
+
+
+# ---- only an execution that ran and returned completes
+
+
+@tool(parallel=True)
+def p_runs_until_cancelled(started: Any) -> Tool:
+    async def execute() -> str:
+        """Run until cancelled."""
+        started.set()
+        await anyio.sleep_forever()
+        return "never"
+
+    return execute
+
+
+@tool(parallel=True)
+def p_raises_once_started(started: Any) -> Tool:
+    async def execute() -> str:
+        """Fail in a way no tool error describes, once the other call runs."""
+        await started.wait()
+        raise RuntimeError("boom")
+
+    return execute
+
+
+@protocol
+def p_holds_each_result(reviewing: Any) -> ProtocolGroup:
+    """Hold each result's review until it is cancelled, once `reviewing` is set."""
+
+    async def tool_result(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        reviewing.set()
+        await anyio.sleep_forever()
+        return None
+
+    return ProtocolGroup(tool_result)
+
+
+@solver
+def p_carries_on(*tools: Tool, interrupt: Any = None) -> Solver:
+    """A tool loop that carries on when a turn's tools raise, or, once `interrupt` is set, are cancelled as an agent interrupt cancels them."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        while True:
+            output = await model.generate(state.messages, list(tools))
+            state.messages.append(output.message)
+            state.output = output
+            if not output.message.tool_calls:
+                return state
+            executed: list[ChatMessage] = []
+            try:
+                with anyio.CancelScope() as scope:
+                    async with anyio.create_task_group() as tg:
+                        if interrupt is not None:
+
+                            async def cancel() -> None:
+                                await interrupt.wait()
+                                scope.cancel()
+
+                            tg.start_soon(cancel)
+                        result = await execute_tools(state.messages, list(tools))
+                        executed = result.messages
+                        tg.cancel_scope.cancel()
+            except Exception:
+                pass
+            state.messages.extend(executed)
+
+    return solve
+
+
+@pytest.mark.parametrize(
+    "case", ["fail_fast", "operator_cancel", "sibling_cancel", "interrupted_review"]
+)
+def test_only_an_execution_that_ran_and_returned_completes_live_and_in_replay(
+    monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    """A person's turn approval covers a call's result once its execution completes: not a call a fail-fast turn did not run, one an operator cancelled, one cancelled with a sibling that raised, or one whose result review was interrupted. Replay builds the records live does, covering the same messages."""
+    Panel("approve").install(monkeypatch)
+    extra: list[Any] = []
+    if case == "fail_fast":
+        halting = calls(("not_found", {}), ("not_found", {}))
+        halting.message.metadata = {TOOL_CALLS_FAIL_FAST: ["not_found"]}
+        solver: Any = tool_loop(not_found())
+        model = outputs(halting, done())
+    elif case == "operator_cancel":
+        solver = tool_loop(cancelled_by_its_operator())
+        model = outputs(call("cancelled_by_its_operator"), done())
+    elif case == "sibling_cancel":
+        started = anyio.Event()
+        solver = p_carries_on(
+            p_runs_until_cancelled(started), p_raises_once_started(started)
+        )
+        model = outputs(
+            calls(("p_runs_until_cancelled", {}), ("p_raises_once_started", {})),
+            done(),
+        )
+    else:
+        reviewing = anyio.Event()
+        solver = p_carries_on(addition(), interrupt=reviewing)
+        model = outputs(call("addition", x=1, y=1), done())
+        extra = [p_holds_each_result(reviewing)]
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        solver,
+        model,
+        sentinel=[
+            r7_probe(seen, copies=True),
+            h_ask("model_output", ["approve", "terminate"]),
+            *extra,
+        ],
+    )
+    events = p_tool_events(log)
+    _, replay = p_inputs_live_and_replayed(log, seen)
+    last = list(replay.values())[-1]
+    [approval] = last.human_decisions or []
+    assert approval.stage == "model_output"
+    if case == "fail_fast":
+        ran, skipped = events
+        assert skipped.error is not None and skipped.error.type == "cancelled"
+        assert [r.execution_id for r in last.reviewed_results] == [ran.execution_id]
+        (position, result), (_, unrun) = p_results(last)
+        assert result.execution_id == ran.execution_id
+        assert unrun.execution_id == skipped.execution_id
+        assert p_covered(last) == [(position, ran.execution_id)]
+        return
+    if case == "operator_cancel":
+        [cancelled] = events
+        assert cancelled.error is not None and cancelled.error.type == "timeout"
+    elif case == "sibling_cancel":
+        cancelled = next(e for e in events if e.function == "p_runs_until_cancelled")
+        assert cancelled.error is not None and "sibling" in cancelled.error.message
+        assert cancelled.failed
+    else:
+        [ran] = events
+        assert ran.error is None and ran.result == "2"
+    assert last.reviewed_results == []
+
+
+@tool
+def p_runs_on_its_second_attempt(first: str) -> Tool:
+    attempts = 0
+
+    async def execute() -> str:
+        """Return on the second attempt; the first times out, is cancelled by its operator, fails with a tool error, or raises."""
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            if first == "timeout":
+                raise TimeoutError()
+            if first == "tool_error":
+                raise ToolError("first attempt failed")
+            if first == "raises":
+                raise RuntimeError("boom")
+            [event] = [
+                e
+                for e in transcript().events
+                if isinstance(e, ToolEvent)
+                and e.function == "p_runs_on_its_second_attempt"
+                and e.pending
+            ]
+            event._cancel()
+            await anyio.sleep(10)
+        return "SECOND RUN UNREVIEWED"
+
+    return execute
+
+
+@solver
+def p_runs_the_turn_twice(first: str) -> Solver:
+    """Execute the model's turn, then execute the same turn message again, with the same message and call ids."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        tool = p_runs_on_its_second_attempt(first)
+        output = await model.generate(state.messages, [tool])
+        state.messages.append(output.message)
+        for _ in range(2):
+            try:
+                result = await execute_tools([output.message], [tool])
+            except Exception:
+                continue
+            state.messages.extend(result.messages)
+        state.output = await model.generate(state.messages, [tool])
+        state.messages.append(state.output.message)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("stage", ["model_output", "tool_call"])
+@pytest.mark.parametrize(
+    "first", ["timeout", "operator_cancel", "tool_error", "raises"]
+)
+def test_an_approval_is_not_left_for_a_retry_of_the_call(
+    monkeypatch: pytest.MonkeyPatch, first: str, stage: str
+) -> None:
+    """A person approves a turn, or its call before the first execution (asked once); the first execution times out, is cancelled, fails with a tool error, or raises, and the scaffold executes the same turn message again, which succeeds. The approval covers the first execution's result if it completed, and never the retry's, live and in replay."""
+    Panel("approve").install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        p_runs_the_turn_twice(first),
+        outputs(call("p_runs_on_its_second_attempt"), done()),
+        sentinel=[
+            r7_probe(seen, copies=True),
+            h_ask(stage, h_choices(stage), times=1),
+        ],
+    )
+    events = p_tool_events(log)
+    assert len(events) == 2
+    attempt, retry = events
+    assert attempt.call_message_id == retry.call_message_id
+    assert attempt.id == retry.id
+    assert attempt.execution_id != retry.execution_id
+    assert retry.error is None and retry.result == "SECOND RUN UNREVIEWED"
+    _, replay = p_inputs_live_and_replayed(log, seen)
+    last = list(replay.values())[-1]
+    [approval] = last.human_decisions or []
+    assert approval.stage == stage
+    covered = [r.execution_id for r in last.reviewed_results]
+    assert retry.execution_id not in covered
+    assert covered == ([attempt.execution_id] if first == "tool_error" else [])
+    assert retry.execution_id not in [e for _, e in p_covered(last)]
+
+
+def test_a_result_on_an_error_path_names_its_execution() -> None:
+    """A tool error's result, and the result of a call a fail-fast batch did not run, name their executions too."""
+    halting = calls(("not_found", {}), ("not_found", {}))
+    halting.message.metadata = {TOOL_CALLS_FAIL_FAST: ["not_found"]}
+    seen: dict[str, Step] = {}
+    task = Task(
+        dataset=[Sample(input="Find it")],
+        solver=tool_loop(not_found()),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    log = eval(task, model=outputs(halting, done()))[0]
+    assert log.status == "success", log.error
+    sample = logged_sample(log)
+    runs = {e.message_id: e for e in sample.events if isinstance(e, ToolEvent)}
+    results = [m for m in sample.messages if isinstance(m, ChatMessageTool)]
+    assert [m.error.type if m.error else None for m in results] == [
+        "unknown",
+        "cancelled",
+    ]
+    for result in results:
+        assert result.execution_id is not None
+        assert result.execution_id == runs[result.id].execution_id

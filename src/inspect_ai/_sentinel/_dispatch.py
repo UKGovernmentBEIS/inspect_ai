@@ -44,6 +44,7 @@ from inspect_ai.event._sentinel import (
     SentinelStatus,
     SentinelSuspicion,
 )
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._samples import sample_active
 from inspect_ai.log._transcript import (
     Transcript,
@@ -98,6 +99,7 @@ from ._person import (
     human_view,
     offered_choices,
 )
+from ._provenance import BridgedReviews, Reviews, call_digest, result_digest
 from ._scope import BRIDGE_CHECK_SPAN, sentinel_scope
 from ._steps import (
     ConversationRecord,
@@ -350,7 +352,9 @@ async def _run(
     except Exception as ex:
         raise SentinelFailure(ex) from ex
     if recorder.kept:
-        _record(step.conversation).publish(recorder.kept)
+        record = _record(step.conversation)
+        record.publish(recorder.kept)
+        _keep_reviews(record, step, recorder, bridge=bridge)
     if decision is not None and decision.action == "escalate":
         raise SentinelFailure(
             RuntimeError(
@@ -359,6 +363,87 @@ async def _run(
             )
         )
     return decision
+
+
+def _keep_reviews(
+    record: ConversationRecord, step: Step, recorder: "_Recorder", *, bridge: bool
+) -> None:
+    """Keep a settled step's published `human()` decisions for the results they cover (`ReviewedResult`): an agent bridge's until a request carries the result, a native step's in its conversation's record."""
+    for decision in recorder.kept:
+        digest = recorder.digests.get(id(decision))
+        judged = recorder.judged.get(id(decision))
+        if bridge:
+            bridged_reviews().hold(
+                recorder.execution_id,
+                decision,
+                digest,
+                judged,
+                step.conversation,
+                recorder.modified,
+            )
+        else:
+            record.reviews.keep(
+                decision,
+                execution_id=recorder.execution_id,
+                digest=digest,
+                result=step.result if isinstance(step, AfterToolCall) else None,
+                judged=judged,
+                turn=step.output.message
+                if isinstance(step, AfterGenerate) and step.output.choices
+                else None,
+            )
+
+
+def sentinel_tool_attempted(
+    execution_id: str, call_id: str, message_id: str | None
+) -> None:
+    """Note a native execution's attempt at a call once its `ToolEvent` is logged, whatever its outcome (`Reviews.attempt`): the first attempt at a turn's call takes the turn's approval of it.
+
+    Args:
+        execution_id: The execution (`ToolEvent.execution_id`).
+        call_id: The call's id (`ToolEvent.id`).
+        message_id: The id of the assistant message whose call it is (`ToolEvent.call_message_id`).
+    """
+    _record(current_conversation()).reviews.attempt(execution_id, call_id, message_id)
+
+
+def sentinel_tool_completed(
+    execution_id: str, call: ToolCall, result: ChatMessageTool
+) -> None:
+    """Publish the results a native execution's earlier `human()` decisions cover, once it completed and its `tool_result` step settled (`Reviews.complete`).
+
+    Args:
+        execution_id: The execution (`ToolEvent.execution_id`).
+        call: The call that ran, as its `ToolEvent` records it (`tool_event_call`).
+        result: The result message the execution produced.
+    """
+    _record(current_conversation()).reviews.complete(execution_id, call, result)
+
+
+def bridged_reviews() -> BridgedReviews:
+    """The current sample's `BridgedReviews`."""
+    reviews = _bridged.get(transcript())
+    if reviews is None:
+        reviews = _bridged[transcript()] = BridgedReviews()
+    return reviews
+
+
+def note_host_run(event: ToolEvent) -> None:
+    """Note a sandbox agent bridge's complete host tool event (`BridgedReviews.ran`)."""
+    bridged_reviews().ran(event)
+
+
+def place_bridged_reviews(input: Sequence[ChatMessage]) -> None:
+    """Publish the bridged `human()` decisions whose results a request's input carries, after the request's checks (`BridgedReviews.place`)."""
+    bridged_reviews().place(input, _conversation_reviews)
+
+
+def _conversation_reviews(conversation: str) -> Reviews:
+    return _record(conversation).reviews
+
+
+# each sample's bridged decisions awaiting their results
+_bridged: "WeakKeyDictionary[Transcript, BridgedReviews]" = WeakKeyDictionary()
 
 
 def _host_context(recorder: "_Recorder") -> HostContext:
@@ -698,9 +783,17 @@ class _Recorder:
     ) -> None:
         self._step_id = step_id
         # the execution a tool-stage step judged (`SentinelEvent.execution_id`)
-        self._execution_id = execution_id
+        self.execution_id = execution_id
         # this step's human() decisions, published once it settles
         self.kept: list[HumanDecision] = []
+        # by id(), the call each kept decision at a tool stage judged
+        # (`SentinelEvent.call_digest`)
+        self.digests: dict[int, str | None] = {}
+        # by id(), the result each kept decision at `tool_result` judged
+        # (`SentinelEvent.result_digest`)
+        self.judged: dict[int, str | None] = {}
+        # whether any instance reported a modify
+        self.modified = False
 
     def record(
         self, context: Context, factory: str, step: Step, reported: Reported[Report]
@@ -719,18 +812,34 @@ class _Recorder:
                 references=report.references,
                 metadata=report.metadata,
             )
-        else:
-            self._emit_decision(
-                context,
-                factory,
-                step,
-                "reported",
-                reported.function,
-                report,
-            )
+            return
+        if report.action == "modify":
+            self.modified = True
         kept = kept_human_decision(factory, step, self._step_id, reported)
+        digest = (
+            call_digest(step.call)
+            if kept is not None and isinstance(step, BeforeToolCall | AfterToolCall)
+            else None
+        )
+        judged = (
+            result_digest(step.result)
+            if kept is not None and isinstance(step, AfterToolCall)
+            else None
+        )
+        self._emit_decision(
+            context,
+            factory,
+            step,
+            "reported",
+            reported.function,
+            report,
+            call_digest=digest,
+            result_digest=judged,
+        )
         if kept is not None:
             self.kept.append(kept)
+            self.digests[id(kept)] = digest
+            self.judged[id(kept)] = judged
 
     def failed(
         self, context: Context, factory: str, step: Step, failed: Failed
@@ -754,7 +863,7 @@ class _Recorder:
                 path="",
                 function=root.__name__,
                 step_id=self._step_id,
-                execution_id=self._execution_id,
+                execution_id=self.execution_id,
                 conversation=step.conversation,
                 stage=step_stage(step),
                 kind="observation",
@@ -794,6 +903,8 @@ class _Recorder:
         status: SentinelStatus,
         function: str,
         decision: Decision,
+        call_digest: str | None = None,
+        result_digest: str | None = None,
     ) -> None:
         self._emit(
             context,
@@ -802,6 +913,8 @@ class _Recorder:
             "decision",
             status,
             function=function,
+            call_digest=call_digest,
+            result_digest=result_digest,
             action=decision.action,
             audit=decision.audit,
             message=decision.message,
@@ -829,6 +942,8 @@ class _Recorder:
         metadata: dict[str, Any] | None = None,
         modified: ToolCall | None = None,
         error: str | None = None,
+        call_digest: str | None = None,
+        result_digest: str | None = None,
     ) -> None:
         transcript()._event(
             SentinelEvent(
@@ -836,7 +951,9 @@ class _Recorder:
                 path=context.path,
                 function=function,
                 step_id=self._step_id,
-                execution_id=self._execution_id,
+                execution_id=self.execution_id,
+                call_digest=call_digest,
+                result_digest=result_digest,
                 conversation=step.conversation,
                 stage=step_stage(step),
                 kind=kind,

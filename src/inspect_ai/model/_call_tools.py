@@ -37,6 +37,7 @@ from typing import (
 if TYPE_CHECKING:
     from inspect_ai.approval import ApprovalPolicy
     from inspect_ai.approval._approval import Approval
+    from inspect_ai.event._tool import ToolEvent
     from inspect_ai.review import ReviewPolicy
 
 import anyio
@@ -274,6 +275,9 @@ async def _execute_tools_impl(
         tdefs = await tool_defs(tools)
         if watch is not None:
             _report_handoffs(watch, tool_calls, tdefs)
+        # while a sentinel checks the calls, each result names its execution
+        # (`ChatMessageTool.execution_id`)
+        tag_results = checks_tool_calls()
 
         async def call_tool_task(
             call: ToolCall,
@@ -379,6 +383,7 @@ async def _execute_tools_impl(
                 tool_call_id=call.id,
                 function=call.function,
                 error=tool_error,
+                execution_id=event.execution_id if tag_results else None,
             )
             execution_result = ExecuteToolsResult(
                 messages=[tool_message] + messages,
@@ -405,6 +410,25 @@ async def _execute_tools_impl(
                     tool_exception = _sentinel_exception(ex)
                 except Exception as ex:
                     tool_exception = ex
+                if (
+                    tool_exception is None
+                    and tag_results
+                    and result_event.execution_id is not None
+                ):
+                    from inspect_ai._sentinel._dispatch import (
+                        sentinel_tool_completed,
+                    )
+                    from inspect_ai._sentinel._provenance import (
+                        completes,
+                        tool_event_call,
+                    )
+
+                    if completes(tool_error):
+                        sentinel_tool_completed(
+                            result_event.execution_id,
+                            tool_event_call(result_event),
+                            tool_message,
+                        )
 
             # yield message and event
             async with send_stream:
@@ -500,6 +524,7 @@ async def _execute_tools_impl(
                         f"Not executed: an earlier {call.function} action in "
                         "this turn failed.",
                     ),
+                    execution_id=event.execution_id if tag_results else None,
                 )
                 skipped_event = ToolEvent(
                     id=call.id,
@@ -525,7 +550,7 @@ async def _execute_tools_impl(
                     failed=None,
                     message_id=tool_message.id,
                 )
-                transcript()._event(event)
+                _log_tool_event(event)
                 transcript().info(
                     f"Tool call '{call.function}' was not executed because an "
                     "earlier call to it in this turn failed."
@@ -662,6 +687,7 @@ async def _execute_tools_impl(
                         error=ToolCallError(
                             "timeout", "Command timed out before completing."
                         ),
+                        execution_id=event.execution_id if tag_results else None,
                     )
                     op_result_event = ToolEvent(
                         id=call.id,
@@ -697,7 +723,7 @@ async def _execute_tools_impl(
                     # subscribers via _process_event, so we do one or
                     # the other — never both).
                     if event not in transcript().events:
-                        transcript()._event(event)
+                        _log_tool_event(event)
                     else:
                         transcript()._event_updated(event)
                     transcript().info(
@@ -782,6 +808,7 @@ async def _execute_tools_impl(
                             "Tool call cancelled because a parallel sibling "
                             "tool call raised an exception.",
                         ),
+                        execution_id=event.execution_id if tag_results else None,
                     )
                     cancellation_event = ToolEvent(
                         id=call.id,
@@ -815,7 +842,7 @@ async def _execute_tools_impl(
                     # notify subscribers via _process_event, so we do
                     # one or the other — never both).
                     if event not in transcript().events:
-                        transcript()._event(event)
+                        _log_tool_event(event)
                     else:
                         transcript()._event_updated(event)
                 else:
@@ -883,6 +910,20 @@ def _report_handoffs(
             watch.called = True
 
 
+def _log_tool_event(event: "ToolEvent") -> None:
+    """Log a native call's `ToolEvent` for the first time.
+
+    While a sentinel checks tool calls, a logged execution is an attempt at its call (`sentinel_tool_attempted`), whatever its outcome, so replay finds every attempt live counted.
+    """
+    from inspect_ai.log._transcript import transcript
+
+    transcript()._event(event)
+    if event.execution_id is not None and checks_tool_calls():
+        from inspect_ai._sentinel._dispatch import sentinel_tool_attempted
+
+        sentinel_tool_attempted(event.execution_id, event.id, event.call_message_id)
+
+
 async def call_tool(
     tools: list[ToolDef],
     message: str,
@@ -894,7 +935,6 @@ async def call_tool(
 ) -> CalledTool:
     from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.event._tool import ToolEvent
-    from inspect_ai.log._transcript import transcript
 
     # dodge circular import
     assert isinstance(event, ToolEvent)
@@ -904,7 +944,7 @@ async def call_tool(
     # means that if we throw early we need to do the enclosure when raising.
     async def record_pending_tool_event() -> None:
         async with span(name=call.function, type="tool"):
-            transcript()._event(event)
+            _log_tool_event(event)
 
     async def record_tool_parsing_error(error: str) -> Exception:
         await record_pending_tool_event()
@@ -1090,7 +1130,7 @@ async def call_tool(
         if isinstance(tool_def.tool, AgentTool):
             async with span(tool_def.tool.name, type="handoff"):
                 async with span(name=call.function, type="tool"):
-                    transcript()._event(event)
+                    _log_tool_event(event)
                     if on_execute is not None:
                         on_execute(call)
                     handoff_result = await agent_handoff(
@@ -1101,7 +1141,7 @@ async def call_tool(
         # normal tool call
         else:
             async with span(name=call.function, type="tool"):
-                transcript()._event(event)
+                _log_tool_event(event)
                 if on_execute is not None:
                     on_execute(call)
                 with sentinel_scope("tool"):

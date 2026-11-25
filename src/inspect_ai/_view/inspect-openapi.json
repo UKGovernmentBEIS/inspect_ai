@@ -1007,6 +1007,17 @@
               }
             ]
           },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
+          },
           "function": {
             "anyOf": [
               {
@@ -10645,6 +10656,17 @@
             "title": "Audit",
             "type": "boolean"
           },
+          "call_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Digest"
+          },
           "conversation": {
             "title": "Conversation",
             "type": "string"
@@ -10765,6 +10787,17 @@
             },
             "title": "References",
             "type": "array"
+          },
+          "result_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Digest"
           },
           "span_id": {
             "anyOf": [
