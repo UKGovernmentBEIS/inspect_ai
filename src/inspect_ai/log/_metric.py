@@ -18,11 +18,13 @@ REDUCER_MISSING = (
 
 
 class LogMetrics(NamedTuple):
-    """Reducers and metrics rebuilt from a log header."""
+    """Reducers, metrics and score names rebuilt from a log header."""
 
     reducers: list[ScoreReducer] | None
     metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None
     scorers: list[ScorerInfo]
+    score_names: list[str] | None = None
+    """Score name of each scorer, or `None` if the header records none."""
 
 
 def resolve_log_metrics(
@@ -59,6 +61,7 @@ def resolve_log_metrics(
         LogTaskFileImport,
         metrics_from_log_header,
         resolve_scorers_info,
+        score_names_from_log_header,
     )
 
     reducers: list[ScoreReducer] | None = None
@@ -82,7 +85,12 @@ def resolve_log_metrics(
     )
     metrics = metrics_from_log_header(log, task_import=task_import)
     scorers = resolve_scorers_info(log, task_import=task_import)
-    return LogMetrics(reducers=reducers, metrics=metrics, scorers=scorers)
+    return LogMetrics(
+        reducers=reducers,
+        metrics=metrics,
+        scorers=scorers,
+        score_names=score_names_from_log_header(log),
+    )
 
 
 def compute_log_metrics(log: EvalLog, resolved: LogMetrics) -> None:
@@ -126,6 +134,7 @@ def compute_log_metrics(log: EvalLog, resolved: LogMetrics) -> None:
         # len(scores) (which is scorer-order dependent)
         completed_samples=sum(1 for s in log.samples if s.error is None),
         headline_metric=log.eval.headline_metric,
+        scorer_names=resolved.score_names,
     )
 
     # Update the log's results and reductions

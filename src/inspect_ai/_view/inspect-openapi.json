@@ -5125,6 +5125,17 @@
               }
             ],
             "title": "Options"
+          },
+          "score_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Name"
           }
         },
         "required": [

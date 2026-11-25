@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from inspect_ai import Epochs, Task, eval, task
+from inspect_ai import Epochs, Task, eval, score, task
 from inspect_ai._util.error import EvalError
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.event import ModelEvent
@@ -227,6 +227,22 @@ def test_zero_samples_refuses_empty_attempt_log(tmp_path: Path) -> None:
     no_scorers = log.model_copy(deep=True)
     no_scorers.eval.scorers = None
     _refused(no_scorers, header(scorers=None), ["a"], "names no scorer")
+
+
+def test_zero_samples_refuses_other_score_names(tmp_path: Path) -> None:
+    """A log rescored under chosen names isn't zeroed from an attempt that uses the scorers' own names."""
+    log = _run(tmp_path, zero_task(fail="b"), fail_on_error=False)
+    empty = _empty(tmp_path, zero_task(fail="b"), sample_id="b")
+    renamed = score(
+        log,
+        {"answer_match": match(), "answer_includes": includes()},
+        action="overwrite",
+        display="none",
+    )
+    errored = _sample(renamed, "b")
+    errored.scores = {}
+
+    _refused(renamed, empty, ["b"], "score names")
 
 
 def test_zero_samples_verdict_rule(tmp_path: Path) -> None:

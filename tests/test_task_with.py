@@ -9,6 +9,7 @@ from inspect_ai._eval.task.task import Task
 from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.log import HeadlineMetric
+from inspect_ai.scorer import match
 
 
 def test_task_with_add_options():
@@ -142,3 +143,15 @@ def test_task_with_max_samples() -> None:
     assert task.max_samples is None
     with pytest.raises(ValueError, match="max_samples must be a positive integer"):
         task_with(task, max_samples=0)
+
+
+def test_task_scorer_dict_is_type_error() -> None:
+    scorers: Any = {"accuracy_strict": match(location="end")}
+    with pytest.raises(TypeError, match="dict of scorers"):
+        Task(scorer=scorers)
+
+
+def test_task_with_scorer_dict_is_type_error() -> None:
+    scorers: Any = {"accuracy_strict": match(location="end")}
+    with pytest.raises(TypeError, match="dict of scorers"):
+        task_with(Task(), scorer=scorers)

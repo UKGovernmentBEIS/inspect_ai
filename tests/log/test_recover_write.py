@@ -18,8 +18,10 @@ from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
+    EvalMetricDefinition,
     EvalPlan,
     EvalSample,
+    EvalScorer,
     EvalSpec,
 )
 from inspect_ai.log._recorders.eval import LogStart
@@ -28,6 +30,7 @@ from inspect_ai.log._recover import (
     default_output_path,
     write_recovered_eval_log,
 )
+from inspect_ai.log._recover._api import _resolve_recovery_metrics
 from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelCall
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.scorer._metric import Score
@@ -38,7 +41,10 @@ def _to_json(obj: object) -> str:
 
 
 def _make_crashed_log(
-    temp_dir: str, task: str = "test_task", samples: list[EvalSample] | None = None
+    temp_dir: str,
+    task: str = "test_task",
+    samples: list[EvalSample] | None = None,
+    scorers: list[EvalScorer] | None = None,
 ) -> CrashedEvalLog:
     """Create a CrashedEvalLog backed by an actual .eval ZIP file."""
     eval_spec = EvalSpec(
@@ -47,6 +53,7 @@ def _make_crashed_log(
         model="mockllm/model",
         dataset=EvalDataset(name="test", samples=4),
         config=EvalConfig(),
+        scorers=scorers,
     )
     plan = EvalPlan()
     log_start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=plan)
@@ -297,3 +304,39 @@ async def test_write_recovered_eval_log_keeps_genuine_references() -> None:
                 assert event.output.message.text == literal
                 assert event.call is not None
                 assert event.call.response == {"content": long_text}
+
+
+async def test_write_recovered_eval_log_keeps_recorded_score_names() -> None:
+    """Recovered metrics use the score names recorded in the log header."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = os.path.join(temp_dir, "recovered.eval")
+            sample = _make_sample(1)
+            sample.scores = {"strict": Score(value="C"), "loose": Score(value="I")}
+            crashed = _make_crashed_log(
+                temp_dir,
+                samples=[sample],
+                scorers=[
+                    EvalScorer(
+                        name="match",
+                        metrics=[EvalMetricDefinition(name="inspect_ai/accuracy")],
+                        score_name=score_name,
+                    )
+                    for score_name in ["strict", "loose"]
+                ],
+            )
+
+            await write_recovered_eval_log(
+                crashed,
+                iter([]),
+                output,
+                metrics=_resolve_recovery_metrics(
+                    crashed, trust_log=False, untrusted_metrics="raise"
+                ),
+            )
+
+            read_log = await read_eval_log_async(output)
+            assert read_log.results is not None
+            assert [
+                (score.name, list(score.metrics)) for score in read_log.results.scores
+            ] == [("strict", ["accuracy"]), ("loose", ["accuracy"])]

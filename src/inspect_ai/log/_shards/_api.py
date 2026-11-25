@@ -50,7 +50,12 @@ from ._plan import (
 )
 from ._publish import merge_guard, publish, supported_location
 from ._walk import ShardDir, check_s3_location, list_shard_set
-from ._write import SampleMember, check_task_matches, write_merged_zip
+from ._write import (
+    SampleMember,
+    check_score_names,
+    check_task_matches,
+    write_merged_zip,
+)
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.task import Task
@@ -445,6 +450,9 @@ async def _merge_pass(
     status = plan_status(entries, keys, selection, epochs, base.eval.dataset.samples)
     if status.status != "success" and not allow_incomplete:
         raise _incomplete(merged_path, status, deleting)
+
+    # check_headers() made base's scorers those of every header merged here
+    check_score_names(task, base, reads[0].file.name)
 
     summaries = [taken[key].summaries[key] for key in keys]
 

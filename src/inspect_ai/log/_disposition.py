@@ -54,13 +54,14 @@ def exclude_samples(
     _check_disposition(log, provenance)
     targets = _select_samples(log, samples)
 
+    score_names = _header_score_names(log)
     edits: list[tuple[EvalSample, list[str]]] = []
     no_scorer: list[EvalSample] = []
     for sample in targets:
         if sample.scores:
             edits.append((sample, list(sample.scores)))
-        elif log.eval.scorers:
-            edits.append((sample, [log.eval.scorers[0].name]))
+        elif score_names:
+            edits.append((sample, [score_names[0]]))
         else:
             no_scorer.append(sample)
     if no_scorer:
@@ -133,7 +134,8 @@ def zero_samples(
        log: Log read with its samples. It must not have status `"started"`.
        empty: Log of the empty attempt, read with its samples. It must have
           status `"success"`, the solver `empty_attempt()`, the task name of
-          `log` and the same scorers, and hold every targeted sample and epoch.
+          `log`, the same scorers and the same score names, and hold every
+          targeted sample and epoch.
        samples: Samples to zero. A sample id selects every epoch of the
           sample, and an `(id, epoch)` pair selects one.
        provenance: Author and reason for the zero. `reason` is required.
@@ -228,6 +230,28 @@ def _check_empty_attempt(log: EvalLog, empty: EvalLog) -> None:
             f"The scorers of the empty-attempt log {empty_scorers} are not "
             f"those of the log {log_scorers}."
         )
+    log_names = _header_score_names(log)
+    empty_names = _header_score_names(empty)
+    if empty_names != log_names:
+        raise ValueError(
+            f"The score names of the empty-attempt log {empty_names} are not "
+            f"those of the log {log_names}."
+        )
+
+
+def _header_score_names(log: EvalLog) -> list[str]:
+    """Score name of each scorer in the log header, in order.
+
+    The name `score()` recorded for a scorer passed in a dict, otherwise the
+    name an eval generates.
+
+    Raises:
+        ValueError: A recorded name is empty, or the names aren't unique.
+    """
+    # imported here: it imports the runner, which imports inspect_ai.log
+    from inspect_ai._eval.score import _header_score_names as header_score_names
+
+    return header_score_names(log.eval.scorers or [])
 
 
 def _verdict_problems(sample: EvalSample, empty_sample: EvalSample) -> list[str]:
