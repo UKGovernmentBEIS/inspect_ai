@@ -26,6 +26,7 @@ from ._endpoint import (
     SidecarCallError,
     probe,
     proxy_client,
+    without_credentials,
 )
 
 if TYPE_CHECKING:
@@ -209,7 +210,7 @@ class TaskSidecars:
                     )
                 except SidecarCallError as ex:
                     logger.warning(
-                        f"The sentinel sidecar at {origin} couldn't be told the sample {sample_uuid} ended: {ex}"
+                        f"The sentinel sidecar at {without_credentials(origin)} couldn't be told the sample {sample_uuid} ended: {ex}"
                     )
 
     async def copy_monitor_state(
@@ -266,7 +267,7 @@ class TaskSidecars:
                 # answer without one is a failed copy, never an empty store
                 kept = result.get("store")
                 if not isinstance(kept, dict):
-                    failed = f"the sentinel sidecar at {sidecar.origin} answered without the sample's store"
+                    failed = f"the sentinel sidecar at {sidecar.proxy_url} answered without the sample's store"
                     withheld = False
                     continue
 
@@ -275,11 +276,11 @@ class TaskSidecars:
                     # sentinel inside Inspect would carry on from the copy
                     conflict = None
                     if key in written_by:
-                        conflict = f"The sentinels in the sidecars at {written_by[key]} and {sidecar.origin} both keep {key!r} for the sample."
+                        conflict = f"The sentinels in the sidecars at {written_by[key]} and {sidecar.proxy_url} both keep {key!r} for the sample."
                     elif (
                         self.in_process_sentinel and key in store and key not in copies
                     ):
-                        conflict = f"The sentinel inside Inspect and the one in the sidecar at {sidecar.origin} both keep {key!r} for the sample."
+                        conflict = f"The sentinel inside Inspect and the one in the sidecar at {sidecar.proxy_url} both keep {key!r} for the sample."
                     if conflict is not None:
                         store.set(
                             MONITOR_STATE_COPY,
@@ -290,11 +291,11 @@ class TaskSidecars:
                             },
                         )
                         raise SentinelProxyError(conflict)
-                    written_by[key] = sidecar.origin
+                    written_by[key] = sidecar.proxy_url
                     copied[key] = value
             if scope.cancel_called:
                 failed = (
-                    f"the sentinel sidecar at {sidecar.origin} didn't answer in time"
+                    f"the sentinel sidecar at {sidecar.proxy_url} didn't answer in time"
                 )
                 withheld = False
         # Asked again, as a restart may have been found while the sidecars
@@ -530,10 +531,10 @@ class TaskSidecars:
             raise SentinelProxyError(_unauthorized(sidecar, ex)) from ex
         if ex.code == REGISTRATION_REFUSED:
             raise SentinelProxyError(
-                f"The sentinel sidecar at {sidecar.origin} runs only the tasks its admin registered, and the task {facts.task!r} isn't one."
+                f"The sentinel sidecar at {sidecar.proxy_url} runs only the tasks its admin registered, and the task {facts.task!r} isn't one."
             ) from ex
         raise SentinelProxyError(
-            f"The sentinel sidecar at {sidecar.origin} couldn't register the task {facts.task!r}: {ex}"
+            f"The sentinel sidecar at {sidecar.proxy_url} couldn't register the task {facts.task!r}: {ex}"
         ) from ex
 
 
@@ -620,7 +621,7 @@ class AttemptRegistration:
         with anyio.move_on_after(REGISTRATION_TIMEOUT):
             return await self._send_unless_held(sidecar)
         raise SentinelProxyError(
-            f"The sentinel sidecar at {sidecar.origin} didn't register the sample {self._sample_id!r} of the task {self._sidecars.facts.task!r} within {REGISTRATION_TIMEOUT:g} seconds."
+            f"The sentinel sidecar at {sidecar.proxy_url} didn't register the sample {self._sample_id!r} of the task {self._sidecars.facts.task!r} within {REGISTRATION_TIMEOUT:g} seconds."
         )
 
     async def _send_unless_held(self, sidecar: Sidecar) -> bool:
@@ -699,10 +700,10 @@ class AttemptRegistration:
             # the sidecar takes only the samples the task's registration
             # names, and would refuse this one again: never retried
             raise SampleRefusedError(
-                f"The sentinel sidecar at {sidecar.origin} takes only the samples the task's registration names, and the sample {self._sample_id!r} of the task {task!r} isn't one: {ex}"
+                f"The sentinel sidecar at {sidecar.proxy_url} takes only the samples the task's registration names, and the sample {self._sample_id!r} of the task {task!r} isn't one: {ex}"
             ) from ex
         raise SentinelProxyError(
-            f"The sentinel sidecar at {sidecar.origin} couldn't register the sample {self._sample_id!r} of the task {task!r}: {ex}"
+            f"The sentinel sidecar at {sidecar.proxy_url} couldn't register the sample {self._sample_id!r} of the task {task!r}: {ex}"
         ) from ex
 
 
@@ -795,7 +796,7 @@ async def _call_through_any(
 
 
 def _unauthorized(sidecar: Sidecar, ex: SidecarCallError) -> str:
-    return f"The sentinel sidecar at {sidecar.origin} won't take the eval's calls. Either it keeps another token for this eval, as when something else registered the eval with it first, or the clocks of Inspect's host and the sidecar's disagree by more than its timestamp window. {ex}"
+    return f"The sentinel sidecar at {sidecar.proxy_url} won't take the eval's calls. Either it keeps another token for this eval, as when something else registered the eval with it first, or the clocks of Inspect's host and the sidecar's disagree by more than its timestamp window. {ex}"
 
 
 def _copied_keys(store: Store) -> set[str]:
@@ -810,10 +811,12 @@ def _not_scored(reason: str) -> str:
 
 def _copy_failure(sidecar: Sidecar, ex: SidecarCallError) -> str:
     if ex.code == UNKNOWN_SAMPLE:
-        return f"the sentinel sidecar at {sidecar.origin} holds nothing for the sample"
+        return (
+            f"the sentinel sidecar at {sidecar.proxy_url} holds nothing for the sample"
+        )
     if ex.code == METHOD_NOT_FOUND:
-        return f"the sentinel sidecar at {sidecar.origin} doesn't send results (--no-eval-results)"
-    return f"the sentinel sidecar at {sidecar.origin} couldn't be asked: {ex}"
+        return f"the sentinel sidecar at {sidecar.proxy_url} doesn't send results (--no-eval-results)"
+    return f"the sentinel sidecar at {sidecar.proxy_url} couldn't be asked: {ex}"
 
 
 _task_sidecars: ContextVar[TaskSidecars | None] = ContextVar(

@@ -196,10 +196,7 @@ The mode depends on how a worker writes, which it does not change:
 - **The recorded selection is a seed.** A log records the sliced dataset's
   ids (`eval.dataset.sample_ids`) at start, but a `SampleSource` can admit
   further samples without updating it, and older logs record no ids. Only a
-  finished log counts every admitted sample: `EvalLog.total_samples`, and
-  `results.total_samples` as the eval writes it. Rescoring with `inspect
-  score` can replace `results` with counts over the samples present in the
-  log, leaving only `EvalLog.total_samples` as the admitted count.
+  finished log counts every admitted sample, in `EvalLog.total_samples`.
 - **One key can have an older record in the log and a newer attempt in the
   buffer**, after a seeded retry re-runs a key it inherited or an
   in-process requeue re-runs a flushed key. Recovery resolves this by
@@ -400,25 +397,31 @@ status through the live row builder (`_summary_from_eval_sample_summary`):
 a running buffer row is `running`, a completed one takes its summary's
 terminal status.
 
-**Totals.** The only total ctl treats as authoritative is a finished
-unsharded current log's `results.total_samples` (`authoritative_total`,
-`totals`). With one, `samples.total` is that total (or the known-key count
-when larger, which is then not final) and `pending_unlisted` is the pending
-samples it counts that no record names. Otherwise `samples.total` is the
-known-key count, a lower bound: a running log, a finished log without
-`results`, and every shard set report a lower bound, since shards that
-have not started are not in the directory and ctl does not read the merged
-log's recorded selection ("The merged log"). Recorded ids do not matter
-here: a finished log that records none still has an authoritative total.
+**Totals.** The total ctl treats as authoritative is a finished unsharded
+current log's `EvalLog.total_samples`, or its `results.total_samples` when
+the header has none (`authoritative_total`, `totals`). With one,
+`samples.total` is that total (or the known-key count when larger, which is
+then not final) and `pending_unlisted` is the pending samples it counts that
+no record names. Otherwise `samples.total` is the known-key count, a lower
+bound: a log without `header.json`, a finished log with neither total, and
+every shard set report a lower bound, since shards that have not started
+are not in the directory and ctl does not read the merged log's recorded
+selection ("The merged log"). Recorded ids do not matter here: a finished
+log that records none still has an authoritative total. A preview
+(`run_samples=False`) has a final total even though its status remains
+`started` and ctl displays `running`.
 
-As the eval writes it, `results.total_samples` counts every admitted
-sample, dynamically admitted ones included. After a rescore that replaced
-`results` with counts over the logged samples, it counts only those, and
-ctl, which does not read `EvalLog.total_samples`, reports that smaller
-total as final: admitted samples that never reached the log and are not in
-the recorded selection (a drained or cancelled run's queued samples, keys a
-`SampleSource` admitted) are then counted nowhere, and `unfinished` can
-read 0 for an incomplete run.
+`EvalLog.total_samples` counts every admitted sample, dynamically admitted
+ones included. The eval writes it at every finish, errored ones included,
+and rescoring with `inspect score` keeps it. Logs from versions before it,
+recovered logs and merged shard logs lack it. For those,
+`results.total_samples` is the total, which recovery computes over the
+samples it recovered and a rescore of an older or merged log can replace
+with a count over the logged samples. ctl then reports that smaller total
+as final: admitted samples that never reached the log and are not in the
+recorded selection (a drained or cancelled run's queued samples, keys a
+`SampleSource` admitted, a count-selected merge's missing samples) are counted
+nowhere, and `unfinished` can read 0 for an incomplete run.
 
 ### Reading a member consistently
 
@@ -754,9 +757,9 @@ polling guidance, weighing request cost against seeing each buffer sync.
   or show its earlier record, while its re-run is active, and a seeded
   retry's inherited record, an error included, stands until a newer
   attempt is published ("What the log directory holds while a run is
-  live"). A sharded task's total is a lower bound; a
-  rescored finished log's total can count only its logged
-  samples and still read final ("Totals"). The mode shows no whole-task
+  live"). A sharded task's total is a lower bound; a recovered
+  log's total, or an older or merged log's after a rescore, can count only
+  its logged samples and still read final ("Totals"). The mode shows no whole-task
   metrics, for sharded or unsharded tasks. Messages and store of a buffer
   row, and `--active-since`, are unsupported. `.json` logs are not read.
 
@@ -900,8 +903,6 @@ applies with a different transport:
   final-store sidecar (`SampleBufferFilestore.read_sample_store`, which
   recovery uses); today it is `unsupported`, and its message says the store
   is not in the shared buffer.
-- Reading `EvalLog.total_samples` for a finished log would keep a rescored
-  log's total at its admitted count ("Totals").
 - A sample-level retry's key drops out of the published state until the
   next sync; keeping the discarded attempt's row until its successor is
   synced would close the gap for every buffer reader.

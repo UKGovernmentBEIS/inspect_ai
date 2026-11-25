@@ -1522,6 +1522,49 @@ def test_a_person_s_answer_reaches_the_conversation_s_next_turn(
     assert root_errors(log) == []
 
 
+@pytest.mark.parametrize("status", ["unjudged", "paused"])
+def test_a_person_s_answer_at_a_step_whose_root_status_is_not_a_finished_one_is_not_published(
+    status: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # `unjudged`, or a status a later release adds, means the step didn't
+    # finish, as `cancelled` does
+    Panel("approve").install(monkeypatch)
+    log = run_logged(
+        tool_loop(addition()),
+        agent_model(),
+        sentinel=[h_ask("tool_call", h_choices("tool_call"))],
+    )
+    sample = logged_sample(log)
+    [answered] = [
+        e
+        for e in sample.events
+        if isinstance(e, SentinelEvent) and e.factory == "inspect_sentinel/human"
+    ]
+    # the step's root, recorded after the person's answer
+    root = SentinelEvent.model_validate(
+        {
+            **answered.model_dump(
+                exclude={"uuid", "function", "action", "references", "modified"}
+            ),
+            "path": "",
+            "status": status,
+            "reason": "the monitor timed out" if status == "unjudged" else None,
+        }
+    )
+    at = sample.events.index(answered) + 1
+    events: list[Event] = [*sample.events[:at], root, *sample.events[at:]]
+
+    replay = steps_from_events(
+        sample.messages,
+        events,
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval),
+    )
+    last = [step for step in replay if step.stage == "model_input"][-1]
+    assert last.step.human_decisions == ()
+
+
 @pytest.mark.parametrize("stage", ["tool_call", "tool_result", "model_output"])
 def test_a_person_s_answer_before_a_sentinel_failure_the_scaffold_caught_is_not_published(
     stage: str, monkeypatch: pytest.MonkeyPatch

@@ -15,7 +15,7 @@ from pydantic import (
 from shortuuid import uuid
 from typing_extensions import TypedDict
 
-from inspect_ai._sentinel._config import SentinelConfig
+from inspect_ai._sentinel._config import SentinelConfig, SentinelProxy
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError, exception_message
@@ -47,6 +47,7 @@ from inspect_ai.util._store_model import SMT
 from inspect_ai.viewer import ViewerConfig
 
 from ..event._event import DiscriminatedEvent
+from ._sentinel_stats import SentinelEvalStats, SentinelStats
 from ._util import thin_input, thin_metadata, thin_target, thin_text
 
 logger = getLogger(__name__)
@@ -123,6 +124,12 @@ class EvalConfig(BaseModel):
     """Sentinel monitors and protocols, as the configuration that rebuilds them.
 
     One entry (a lone monitor or protocol, which is the root itself), a list of entries, or a mapping of instance names to entries. Logs load without `inspect_sentinel` installed.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
+    sentinel_proxy: SentinelProxy | None = Field(default=None)
+    """Whether to look for a sentinel sidecar behind each model's proxy: `off` (the default when not set) never looks, `auto` uses one it finds, and `required` fails a task unless one is found.
 
     Experimental: not yet a stable API; may change without notice.
     """
@@ -333,6 +340,12 @@ class EvalSampleSummary(BaseModel):
 
     model_fallbacks: list[ModelFallback] | None = Field(default=None)
     """Model fallbacks that occurred during the sample (None if no fallbacks)."""
+
+    sentinel_stats: dict[str, SentinelStats] | None = Field(default=None)
+    """What each sentinel did over the sample, keyed by the sentinel's name.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
 
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
@@ -557,6 +570,12 @@ class EvalSample(BaseModel):
     subagents, and scorers alike), aggregated by (model, fallback_model).
     """
 
+    sentinel_stats: dict[str, SentinelStats] | None = Field(default=None)
+    """What each sentinel did over the sample, keyed by the sentinel's name.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
 
@@ -651,6 +670,7 @@ class EvalSample(BaseModel):
             model_usage=self.model_usage,
             role_usage=self.role_usage,
             model_fallbacks=self.model_fallbacks,
+            sentinel_stats=self.sentinel_stats,
             started_at=self.started_at,
             completed_at=self.completed_at,
             total_time=self.total_time,
@@ -1328,6 +1348,12 @@ class EvalStats(BaseModel):
 
     connection_limit_history: list[ConnectionLimitChange] = Field(default_factory=list)
     """History of adaptive-connections controller scale changes (empty unless `adaptive_connections` was enabled)."""
+
+    sentinel_stats: dict[str, SentinelEvalStats] | None = Field(default=None)
+    """What each sentinel did over the eval, keyed by the sentinel's name: its samples' stats added up, where they are complete.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())

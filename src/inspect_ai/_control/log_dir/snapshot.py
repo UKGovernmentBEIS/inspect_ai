@@ -165,7 +165,7 @@ class LogicalTask:
     """Every attempt of one task in the directory; the newest is current.
 
     An unsharded attempt is current over the task's shard set (an
-    ``eval_set()`` retry seeded from the merged log), whatever the mtimes.
+    ``eval_retry`` of the merged log, for example), whatever the mtimes.
     """
 
     key: str
