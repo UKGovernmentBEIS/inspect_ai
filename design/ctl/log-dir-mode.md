@@ -403,11 +403,13 @@ the header has none (`authoritative_total`, `totals`). With one,
 `samples.total` is that total (or the known-key count when larger, which is
 then not final) and `pending_unlisted` is the pending samples it counts that
 no record names. Otherwise `samples.total` is the known-key count, a lower
-bound: a running log, a finished log with neither total, and every shard set
-report a lower bound, since shards that have not started are not in the
-directory and ctl does not read the merged log's recorded selection ("The
-merged log"). Recorded ids do not matter here: a finished log that records
-none still has an authoritative total.
+bound: a log without `header.json`, a finished log with neither total, and
+every shard set report a lower bound, since shards that have not started
+are not in the directory and ctl does not read the merged log's recorded
+selection ("The merged log"). Recorded ids do not matter here: a finished
+log that records none still has an authoritative total. A preview
+(`run_samples=False`) has a final total even though its status remains
+`started` and ctl displays `running`.
 
 `EvalLog.total_samples` counts every admitted sample, dynamically admitted
 ones included. The eval writes it at every finish, errored ones included,

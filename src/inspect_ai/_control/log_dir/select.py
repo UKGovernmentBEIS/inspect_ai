@@ -222,7 +222,9 @@ def authoritative_total(plan: LogPlan) -> int | None:
 
     The header's ``total_samples``, which rescoring leaves unchanged; for a
     log that lacks it (older versions, recovered logs), ``results.total_samples``.
-    ``None`` for a running log and for a finished one with neither.
+    ``None`` for a log without ``header.json`` and for one with neither. A
+    preview (``run_samples=False``) has ``header.json`` and a total while its
+    status stays ``started``.
     """
     if not plan.finished:
         return None
