@@ -514,9 +514,10 @@ def eval_set(
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to the greater of 10 and the number of models being
-            evaluated). A task cancelled before it starts is started outside
-            this limit and ends at once with an error log reporting the
-            cancellation, so it never takes a slot.
+            evaluated). A task cancelled before it starts (`inspect ctl task
+            cancel` or `drain`) is started outside this limit and ends at once
+            with an error log reporting the cancellation, so it never takes a
+            slot.
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)

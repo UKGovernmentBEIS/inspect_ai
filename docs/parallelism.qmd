@@ -85,7 +85,7 @@ eval(
 
 This code will evaluate a total of 6 tasks (3 reasoning effort variations against 2 models each) with up to 5 tasks run in parallel.
 
-A task cancelled before it starts does not count toward `max_tasks`: it is started outside the limit and ends at once with an error log reporting the cancellation, so it never takes a slot.
+A task cancelled before it starts (with `inspect ctl task cancel` or `inspect ctl task drain`; see [Control Channel](control-channel.qmd)) does not count toward `max_tasks`: it is started outside the limit and ends at once with an error log reporting the cancellation, so it never takes a slot.
 
 A task fed through its handle ([`samples_from_handle()`](task-source.qmd#tasks-fed-through-a-handle)) does not count toward `max_tasks` either. It starts when its first sample is sent, whatever the limit, and runs only the samples its creator sends.
 

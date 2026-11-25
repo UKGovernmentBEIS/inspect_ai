@@ -733,7 +733,9 @@ Handles and the control channel show `queued` until the first registration,
 then the `EvalState`.
 
 `RunQueue.cancel(record)`, used by the control channel's cancel or drain of a
-queued row and by a handle's `cancel()`, is synchronous:
+row still waiting for a slot and by a handle's `cancel()`, is synchronous
+(the control channel defers the abort of an attempt that is starting
+instead; see "Control channel" below):
 
 - `ended`: nothing.
 - `reached == "registered"`: today's control-channel task cancel,
@@ -1256,28 +1258,43 @@ The registry takes precedence over `EvalState` history for the same id: under
 task id, and `EvalState`s persist across those calls.
 
 - `GET /tasks` adds a row for a queued record with `status: "queued"`,
-  `attempts: 0` and zero sample totals, or overlays the existing row of a
+  `attempts` counting its attempts that failed before registering (0 for a
+  task that has not run) and zero sample totals, or overlays the existing row of a
   task with history (a legacy retry round), setting `status: "queued"` and
   keeping its history. CLI selectors resolve queued tasks like running ones.
-- `_task_cancel_directive` looks in the registry first. A cancel or drain of
-  a record that has not registered follows `RunQueue.cancel`, which
-  requests its abort (or, for a queued record fed through a handle, ends
-  it at once with no log), and returns `changed: true`, `task_queued: true`,
-  `in_flight: 0` (and `queued: 0` for a drain, whose `queued` is a sample
-  count); `dry_run` reports without acting. When the record is `queued`
-  with `abort_requested` set, a repeated cancel or drain, dry runs
-  included, answers `changed: false`, "cancel already requested (abort)".
-  When it is in its attempt, the directive first asks the attempt's
-  `attempt_cancel`, dry runs included, as today's directive asks a
-  registered attempt's: when an abort is already requested it answers `changed: false`, "cancel already requested
-  (abort)", and when the attempt has already returned a log that is not an
-  error (the `TaskCancel` then accepts nothing) it answers `changed: false`,
-  "task already finished", so a repeated cancel or drain while startup or
-  cleanup still holds the record changes nothing. The CLI renders such a
-  result as a cancel of a task that ran no samples. `action=score|error`
-  answers 409 ("task … has not
-  started, so there are no samples for a resolution to apply to; use cancel
-  or drain").
+- `_task_cancel_directive` looks in the registry first. Every response for
+  a record that has not registered carries `in_flight: 0` (and `queued: 0`
+  for a drain, whose `queued` is a sample count); `dry_run` reports without
+  acting. A repeated cancel or drain of a record with `abort_requested` set,
+  dry runs included, answers `changed: false`, "cancel already requested
+  (abort)". Otherwise:
+  - A `queued` record, waiting for a slot, follows `RunQueue.cancel`: its
+    next attempt aborts at once with no log (or, for a record fed through a
+    handle, it ends at once with no log). The response is `changed: true`,
+    `task_queued: true`.
+  - A record in its attempt is first checked against its `attempt_cancel`,
+    as a registered attempt's is: an abort already requested answers
+    "cancel already requested (abort)", and an attempt that already
+    returned a log that is not an error answers "task already finished",
+    both `changed: false`. A preview (`run_samples=False`) never registers,
+    so its directive answers `changed: false` and the preview keeps its
+    `started` log. Any other attempt gets `abort_requested` set and the
+    response is `changed: true`, `abort_deferred: true`; the attempt's
+    startup writes run undisturbed, and `on_registered()` applies the abort
+    to `attempt_cancel` directly, clearing the `EvalState`'s `will_retry`
+    as an ordinary task abort does. It applies even to an attempt that
+    registers with no samples, which reads as finished at once. The task
+    ends with an ordinary cancelled-task error log. An attempt that fails
+    before registering ends as it would have; a retry it queues aborts
+    before it starts (decision: Ransom, 2026-11-24).
+  The directive does not call `RunQueue.cancel` for a record in its
+  attempt. Called directly, `RunQueue.cancel` still requests the abort of
+  an unregistered attempt at once through `attempt_cancel`, which can
+  interrupt its startup writes. The CLI renders `task_queued` as a cancel
+  of a task that ran no samples and `abort_deferred` as an abort when the
+  task starts. `action=score|error` answers 409 ("task … has not started,
+  so there are no samples for a resolution to apply to; use cancel or
+  drain").
 - `pause_task` and `resume_task` (`_control/pause.py`) are unchanged
   (decision: Ransom, 2026-11-19): they look a task up with
   `latest_eval_for_task`, so for a queued task that has never registered
@@ -1685,7 +1702,9 @@ its error log instead of raising from `eval()`.
 
 Control channel: `GET /tasks` gains queued rows (`status: "queued"`); task
 cancel and drain accept queued tasks (`task_queued` in a cancel or drain
-result; a repeated one before the queued task's abort runs answers "cancel
+result for a task waiting for a slot, `abort_deferred` for one whose attempt
+is starting, which aborts when it registers, and `changed: false` for a
+starting preview; a repeated one before the abort runs answers "cancel
 already requested (abort)"); task pause and resume of a queued task answer
 404, as today, though the task is now listed; a task that ended without
 starting stays listed as finished, and a repeated cancel or drain of it
@@ -2113,7 +2132,8 @@ overlapping running tasks to plain evals, so the setup fix comes first.
    `_control/eval_state.py` and `RunQueue.end` (terminal identity through
    `register_completed_eval` for a record that ends without registering),
    `_control/cancel.py` (the registry first in `_task_cancel_directive`,
-   and the attempt's `attempt_cancel` answers), `_control/state.py` (queued
+   the attempt's `attempt_cancel` answers, and the deferred abort that
+   `on_registered()` applies), `_control/state.py` (queued
    rows in `GET /tasks`),
    `_control/__init__.py` (`CONTROL_API_VERSION`), `_cli/ctl/_task.py`;
    `design/ctl/task-drain.md` ("Out of scope"). Tests:

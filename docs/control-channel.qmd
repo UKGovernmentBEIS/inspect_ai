@@ -144,6 +144,8 @@ These are the same events the TUI footer tallies, but attributed per eval rather
 
 A task is finished exactly when `completed_at` is non-null; `status` (`running` / `completed`) is derived from it. Don't infer completion from sample counts — a cancelled or errored eval finishes with `completed < total`.
 
+A task that has not started yet (waiting for a `max_tasks` slot, or still opening its log) is listed with `status` `queued` and a null `completed_at`. It has no samples, and `attempts` counts its attempts that failed before it started (0 for a task that has not run). If an earlier eval set round ran it under the same task id, its row keeps that round's attempts and counts instead. A task that ends without starting, for example one cancelled while waiting for a slot, stays listed as finished with no samples and no log.
+
 ## Selecting a Task
 
 Commands that operate on one task take a `TASK` argument that selects a task from this list. It matches a task id (or unique prefix) first, then a task name — anchored at the start of the name or after a `/`, so `gpqa` matches `inspect_evals/gpqa_diamond`. When only one task is running you can omit it entirely.
@@ -152,7 +154,7 @@ Task ids are stable across retries, so a command keeps working after a task erro
 
 One task run against several models (`--model openai/gpt-6-sol,anthropic/claude-fable-5-2`) makes the task name ambiguous — it matches both rows. Pass `--model` alongside the selector to pick the row running that model (matched at the name start or after a `/`, so `--model gpt-6-sol` matches `openai/gpt-6-sol`): `inspect ctl task cancel my_task --model gpt-6-sol`. The model filter applies within the tasks the selector matches — what other tasks happen to be running can't change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a `--model` its task isn't running errors by naming the contradiction (the task's actual model) rather than being silently ignored.
 
-On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting it lists across **all** running tasks (each row carries its `task_id`), which makes "what's erroring anywhere in this eval set?" the zero-argument spelling. On *mutations* (`task log-flush`, the task-scoped `config` knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out. Destructive commands (`task cancel`, `task drain`) require the selector outright.
+On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting it lists across **all** running tasks (each row carries its `task_id`), which makes "what's erroring anywhere in this eval set?" the zero-argument spelling. On *mutations* (`task log-flush`, the task-scoped `config` knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out. A queued task is never the default, but it still counts when choosing a process: if a second process lists only queued tasks, an omitted selector is ambiguous and you pass `TASK`. Destructive commands (`task cancel`, `task drain`) require the selector outright.
 
 ## Sample Status
 
@@ -352,6 +354,8 @@ One honesty note: the cancel is *delivered* to the call's cancel scope, which is
 ```bash
 $ inspect ctl task cancel gpqa
 ```
+
+A `queued` task can be cancelled or drained too. A task still waiting for a slot ends before it runs any samples, with no log file, and the `--json` result sets `task_queued`. Its cancel takes effect when the dispatcher next runs, which in a run driven by a task source can wait until `next_tasks()` returns. A task that is still opening its log is aborted as it starts, before any sample runs, and keeps an ordinary cancelled-task error log; the `--json` result sets `abort_deferred`. A preview (`run_samples=False`) that is still opening its log runs no samples and keeps its `started` log; a cancel or drain of it then changes nothing. `--action score` and `--action error` are rejected for a task that has not started.
 
 Pass `--action score` or `--action error` to resolve the task *gracefully* instead of aborting it: each in-flight sample is scored on the work done so far (or marked errored), still-queued samples are abandoned, and the task runs to natural completion — so the eval finishes with a completed status rather than an error. This is how to abandon a task's last few stragglers while still bringing the eval to a completed state. Note that a completed status doesn't mean every sample ran: abandoned samples are absent from the log (visible as `completed_samples < total_samples` in its results); re-invoking `inspect eval-set` on the same log directory later — or an explicit `inspect eval-retry` on the log — will run them if you change your mind, reusing the samples that completed. `--action error` is not permitted when the task's samples are configured to fail on errors. If a graceful cancel stalls — say on a hung scorer — issuing a plain `inspect ctl task cancel` escalates it to an abort.
 
