@@ -412,13 +412,14 @@ none still has an authoritative total.
 `EvalLog.total_samples` counts every admitted sample, dynamically admitted
 ones included. The eval writes it at every finish, errored ones included,
 and rescoring with `inspect score` keeps it. Logs from versions before it,
-and recovered logs, lack it. For those, `results.total_samples` is the
-total, which recovery computes over the samples it recovered and a rescore
-of an older log can replace with a count over the logged samples. ctl then
-reports that smaller total as final: admitted samples that never reached
-the log and are not in the recorded selection (a drained or cancelled run's
-queued samples, keys a `SampleSource` admitted) are counted nowhere, and
-`unfinished` can read 0 for an incomplete run.
+recovered logs and merged shard logs lack it. For those,
+`results.total_samples` is the total, which recovery computes over the
+samples it recovered and a rescore of an older or merged log can replace
+with a count over the logged samples. ctl then reports that smaller total
+as final: admitted samples that never reached the log and are not in the
+recorded selection (a drained or cancelled run's queued samples, keys a
+`SampleSource` admitted, a count-selected merge's missing samples) are counted
+nowhere, and `unfinished` can read 0 for an incomplete run.
 
 ### Reading a member consistently
 
@@ -755,8 +756,8 @@ polling guidance, weighing request cost against seeing each buffer sync.
   retry's inherited record, an error included, stands until a newer
   attempt is published ("What the log directory holds while a run is
   live"). A sharded task's total is a lower bound; a recovered
-  log's total, or an older log's after a rescore, can count only its logged
-  samples and still read final ("Totals"). The mode shows no whole-task
+  log's total, or an older or merged log's after a rescore, can count only
+  its logged samples and still read final ("Totals"). The mode shows no whole-task
   metrics, for sharded or unsharded tasks. Messages and store of a buffer
   row, and `--active-since`, are unsupported. `.json` logs are not read.
 
