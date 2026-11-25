@@ -17019,22 +17019,37 @@ def test_an_execution_completes_only_where_its_tool_ran_and_returned(
     assert completes(error) is completed
 
 
-def test_a_native_turn_approval_covers_the_first_run_of_each_call() -> None:
+def test_a_native_turn_approval_covers_the_first_attempt_at_each_call() -> None:
+    """The first attempt at each of a turn's calls takes the turn's approval of it: its result is covered if it completes, and no later attempt under the same turn and call id is, whatever the first attempt's outcome."""
     turn = ChatMessageAssistant(
-        id="turn", content="", tool_calls=[p_add("c", 1, 1), p_add("d", 2, 2)]
+        id="turn",
+        content="",
+        tool_calls=[p_add("c", 1, 1), p_add("d", 2, 2), p_add("f", 3, 3)],
     )
     reviews = Reviews()
     decision = p_decision("model_output")
     reviews.keep(decision, execution_id=None, digest=None, turn=turn)
     result = ChatMessageTool(content="2", tool_call_id="c", execution_id="e1")
     # another turn's call under the id
-    reviews.complete("e0", p_add("c", 1, 1), "other", result)
+    reviews.attempt("e0", "c", "other")
+    reviews.complete("e0", p_add("c", 1, 1), result)
     assert reviews.published == []
-    reviews.complete("e1", p_add("c", 1, 1), "turn", result)
-    # a second run of the call, and a run of another call under the turn's id
-    reviews.complete("e2", p_add("c", 1, 1), "turn", result)
-    reviews.complete("e3", p_add("d", 9, 9), "turn", result)
-    reviews.complete("e4", p_add("d", 2, 2), "turn", result)
+    # the first attempt at `c` completes; a second run of it is not covered
+    reviews.attempt("e1", "c", "turn")
+    reviews.complete("e1", p_add("c", 1, 1), result)
+    reviews.attempt("e2", "c", "turn")
+    reviews.complete("e2", p_add("c", 1, 1), result)
+    # the first attempt at `d` ran another call, so the retry of the turn's
+    # call is not covered either
+    reviews.attempt("e3", "d", "turn")
+    reviews.complete("e3", p_add("d", 9, 9), result)
+    reviews.attempt("e4", "d", "turn")
+    reviews.complete("e4", p_add("d", 2, 2), result)
+    # the first attempt at `f` didn't complete (a timeout, a cancellation, an
+    # interrupted review): it takes the approval all the same
+    reviews.attempt("e5", "f", "turn")
+    reviews.attempt("e6", "f", "turn")
+    reviews.complete("e6", p_add("f", 3, 3), result)
     assert [(r.execution_id, r.decision) for r in reviews.published] == [
         ("e1", decision)
     ]
@@ -17177,6 +17192,92 @@ def test_only_an_execution_that_ran_and_returned_completes_live_and_in_replay(
         [ran] = events
         assert ran.error is None and ran.result == "2"
     assert last.reviewed_results == []
+
+
+@tool
+def p_runs_on_its_second_attempt(first: str) -> Tool:
+    attempts = 0
+
+    async def execute() -> str:
+        """Return on the second attempt; the first times out, is cancelled by its operator, fails with a tool error, or raises."""
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            if first == "timeout":
+                raise TimeoutError()
+            if first == "tool_error":
+                raise ToolError("first attempt failed")
+            if first == "raises":
+                raise RuntimeError("boom")
+            [event] = [
+                e
+                for e in transcript().events
+                if isinstance(e, ToolEvent)
+                and e.function == "p_runs_on_its_second_attempt"
+                and e.pending
+            ]
+            event._cancel()
+            await anyio.sleep(10)
+        return "SECOND RUN UNREVIEWED"
+
+    return execute
+
+
+@solver
+def p_runs_the_turn_twice(first: str) -> Solver:
+    """Execute the model's turn, then execute the same turn message again, with the same message and call ids."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        tool = p_runs_on_its_second_attempt(first)
+        output = await model.generate(state.messages, [tool])
+        state.messages.append(output.message)
+        for _ in range(2):
+            try:
+                result = await execute_tools([output.message], [tool])
+            except Exception:
+                continue
+            state.messages.extend(result.messages)
+        state.output = await model.generate(state.messages, [tool])
+        state.messages.append(state.output.message)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("stage", ["model_output", "tool_call"])
+@pytest.mark.parametrize(
+    "first", ["timeout", "operator_cancel", "tool_error", "raises"]
+)
+def test_an_approval_is_not_left_for_a_retry_of_the_call(
+    monkeypatch: pytest.MonkeyPatch, first: str, stage: str
+) -> None:
+    """A person approves a turn, or its call before the first execution (asked once); the first execution times out, is cancelled, fails with a tool error, or raises, and the scaffold executes the same turn message again, which succeeds. The approval covers the first execution's result if it completed, and never the retry's, live and in replay."""
+    Panel("approve").install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        p_runs_the_turn_twice(first),
+        outputs(call("p_runs_on_its_second_attempt"), done()),
+        sentinel=[
+            r7_probe(seen, copies=True),
+            h_ask(stage, h_choices(stage), times=1),
+        ],
+    )
+    events = p_tool_events(log)
+    assert len(events) == 2
+    attempt, retry = events
+    assert attempt.call_message_id == retry.call_message_id
+    assert attempt.id == retry.id
+    assert attempt.execution_id != retry.execution_id
+    assert retry.error is None and retry.result == "SECOND RUN UNREVIEWED"
+    _, replay = p_inputs_live_and_replayed(log, seen)
+    last = list(replay.values())[-1]
+    [approval] = last.human_decisions or []
+    assert approval.stage == stage
+    covered = [r.execution_id for r in last.reviewed_results]
+    assert retry.execution_id not in covered
+    assert covered == ([attempt.execution_id] if first == "tool_error" else [])
+    assert retry.execution_id not in [e for _, e in p_covered(last)]
 
 
 def test_a_result_on_an_error_path_names_its_execution() -> None:

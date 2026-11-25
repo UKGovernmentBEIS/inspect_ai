@@ -394,20 +394,30 @@ def _keep_reviews(
             )
 
 
-def sentinel_tool_completed(
-    execution_id: str, call: ToolCall, message_id: str | None, result: ChatMessageTool
+def sentinel_tool_attempted(
+    execution_id: str, call_id: str, message_id: str | None
 ) -> None:
-    """Publish the results a native execution's earlier `human()` decisions cover, once its `tool_result` step settled (`Reviews.complete`).
+    """Note a native execution's attempt at a call once its `ToolEvent` is logged, whatever its outcome (`Reviews.attempt`): the first attempt at a turn's call takes the turn's approval of it.
+
+    Args:
+        execution_id: The execution (`ToolEvent.execution_id`).
+        call_id: The call's id (`ToolEvent.id`).
+        message_id: The id of the assistant message whose call it is (`ToolEvent.call_message_id`).
+    """
+    _record(current_conversation()).reviews.attempt(execution_id, call_id, message_id)
+
+
+def sentinel_tool_completed(
+    execution_id: str, call: ToolCall, result: ChatMessageTool
+) -> None:
+    """Publish the results a native execution's earlier `human()` decisions cover, once it completed and its `tool_result` step settled (`Reviews.complete`).
 
     Args:
         execution_id: The execution (`ToolEvent.execution_id`).
         call: The call that ran, as its `ToolEvent` records it (`tool_event_call`).
-        message_id: The id of the assistant message whose call ran (`ToolEvent.call_message_id`).
         result: The result message the execution produced.
     """
-    _record(current_conversation()).reviews.complete(
-        execution_id, call, message_id, result
-    )
+    _record(current_conversation()).reviews.complete(execution_id, call, result)
 
 
 def bridged_reviews() -> BridgedReviews:

@@ -236,7 +236,9 @@ holds; for a `tool_call` decision, which judged no result, the one result of a
 request carrying exactly one for the execution. A native decision made before
 the call ran is published when the execution completes, which a call a
 fail-fast turn did not run, a cancelled call and a timed-out call never do (a
-log records an operator's cancellation as a timeout). Replay rebuilds the
+log records an operator's cancellation as a timeout). A turn approval is taken
+by the first execution logged for each of its calls, whatever its outcome, so
+a retry of the turn's call under the same ids is never covered by it. Replay rebuilds the
 records from the same events and messages (`_sentinel/_provenance.py`).
 
 A `_Proposal` is referenced only by its grants, so pairing state lives in the

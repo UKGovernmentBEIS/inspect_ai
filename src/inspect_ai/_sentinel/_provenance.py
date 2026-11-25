@@ -73,9 +73,15 @@ def tool_event_call(event: ToolEvent) -> ToolCall:
 class ReviewedResult:
     """A tool result a person's `human()` decision covers, published to the later steps of the decision's conversation.
 
-    The host publishes one only where the call that ran is the call the person decided on: for a decision before the call ran (`tool_call`, or the turn that proposed it at `model_output`), when the execution completes (`completes()`) and its call has the decided call's digest; for a decision after it ran (`tool_result`), with the result the person judged (`result_digest()`), when the step settles, or for an agent bridge's check when a request carries that result. A later change to the call (a peer protocol's or an approver's modify, a scaffold's edit of the turn's call) means no record.
+    The host publishes one only where the call that ran is the call the person decided on: for a decision before the call ran (`tool_call`, or the turn that proposed it at `model_output`), when the execution completes (`completes()`) and its call has the decided call's digest; for a decision after it ran (`tool_result`), with the result the person judged (`result_digest()`), when the step settles, or for an agent bridge's check when a request carries that result. A later change to the call (a peer protocol's or an approver's modify, a scaffold's edit of the turn's call) means no record. A turn approval covers only the first execution attempting each of its calls (`Reviews.attempt`), whatever that attempt's outcome: an execution that doesn't complete leaves nothing for a retry.
 
-    The trust boundary: `observed=False` records a scaffold's report of a result, not a run the host saw; and a message with the record's execution, id and content can't be told apart from the result it covers, so an exact copy of it is covered too.
+    What a record says, and what it doesn't:
+
+    - A decision before the call ran (`tool_call`, `model_output`) is about the call: the person approved the call that ran, before it ran. It says nothing about the result's content. A decision after the result (`tool_result`) is about the result the person was shown, as the host or the scaffold reported it.
+    - `observed=False`: an agent bridge's scaffold reported the result. The host never saw the tool run, nor whether it ran at all.
+    - `observed=True`: the host ran the decided call, natively or as an agent bridge's host tool. For a host tool, the record's result is what the scaffold reported in a later request; the host doesn't check it against what its tool returned.
+    - A message with the record's execution, id and content can't be told apart from the result it covers, so an exact copy of it is covered too.
+    - Code running in the host process can write any field, including the execution id. These records don't authenticate against it.
 
     A message in a step's lists is this result where `covers()` says so. Name the call from the message's producing turn, the assistant message holding its call id, and only where that call's `call_digest()` is `call_digest`; a message whose producing turn is not in the list is not marked.
 
@@ -95,7 +101,7 @@ class ReviewedResult:
     """A detached copy of the result: as the execution produced it for a native call, and as the scaffold reported it in a request for a bridged call."""
 
     observed: bool
-    """Whether the host ran the call: true for a native call and an agent bridge's host tool, false for a tool an agent bridge's scaffold ran itself (or reported a result for without running), whose execution the host never saw. A decision before such a call ran was made before it was handed to the agent."""
+    """Whether the host ran the call: true for a native call and an agent bridge's host tool that ran the decided call, false for a tool an agent bridge's scaffold ran itself (or reported a result for without running), whose execution the host never saw. A decision before such a call ran was made before it was handed to the agent. True says the call ran, not that a bridged result's content is what the host tool returned: the scaffold reports it."""
 
 
 def result_execution(message: ChatMessage) -> str | None:
@@ -104,7 +110,10 @@ def result_execution(message: ChatMessage) -> str | None:
 
 
 def covers(record: ReviewedResult, message: ChatMessage) -> bool:
-    """Whether `message` is the result `record` covers: it carries the record's execution, has its result's id, and the same content (`same_content`: content, call id and error)."""
+    """Whether `message` is the result `record` covers: it carries the record's execution, has its result's id, and the same content (`same_content`: content, call id and error).
+
+    A message this holds for is the record's result as far as the host can tell, an exact copy included. What a mark on it may claim depends on the record (see `ReviewedResult`): a decision before the call ran is about the call, not this content; one after the result is about this content as it was reported; and with `observed=False` the host never saw the tool run.
+    """
     return (
         isinstance(message, ChatMessageTool)
         and message.execution_id is not None
@@ -122,7 +131,7 @@ class _HeldCall(NamedTuple):
 class _HeldTurn(NamedTuple):
     decision: "HumanDecision"
     calls: dict[str, str | None]
-    """By call id, the digest of each call of the turn not yet run, None for an id the turn holds more than once or arguments JSON can't carry."""
+    """By call id, the digest of each call of the turn no execution has attempted yet, None for an id the turn holds more than once or arguments JSON can't carry."""
 
 
 class Reviews:
@@ -135,6 +144,9 @@ class Reviews:
         self._calls: dict[str, list[_HeldCall]] = {}
         # by the turn's output message id, `model_output` decisions
         self._turns: dict[str, list[_HeldTurn]] = {}
+        # by execution id, the `model_output` decisions its attempt took, each
+        # with the digest of the turn's call
+        self._attempts: dict[str, list[_HeldCall]] = {}
 
     def keep(
         self,
@@ -185,32 +197,33 @@ class Reviews:
                     calls[call.id] = None if call.id in calls else call_digest(call)
                 self._turns.setdefault(turn.id, []).append(_HeldTurn(decision, calls))
 
-    def complete(
-        self,
-        execution_id: str,
-        call: ToolCall,
-        message_id: str | None,
-        result: ChatMessageTool,
-    ) -> None:
-        """Publish the records of a native execution that ran `call` (`tool_event_call`), from the turn `message_id`, and produced `result`, once its own `tool_result` step settled.
+    def attempt(self, execution_id: str, call_id: str, message_id: str | None) -> None:
+        """Note a native execution's attempt at the call `call_id` of the turn `message_id`, once its `ToolEvent` is logged, whatever its outcome.
 
-        A `tool_call` decision about the execution covers it where it judged the call that ran. A `model_output` decision about the turn covers the first execution of each of its calls, where the turn's call under the id is the call that ran.
+        The first attempt at each of a turn's calls takes the turn's `model_output` decisions about it: they cover that execution's result if it completes (`complete`), and no later execution under the same turn and call id, such as a retry after a timeout.
         """
-        if not self._calls and not self._turns:
+        if message_id is None:
             return
-        calls = self._calls.pop(execution_id, [])
-        turns: list[_HeldTurn] = (
-            [turn for turn in self._turns.get(message_id, []) if call.id in turn.calls]
-            if message_id is not None
-            else []
-        )
-        if not calls and not turns:
+        for turn in self._turns.get(message_id, []):
+            if call_id in turn.calls:
+                digest = turn.calls.pop(call_id)
+                if digest is not None:
+                    self._attempts.setdefault(execution_id, []).append(
+                        _HeldCall(turn.decision, digest)
+                    )
+
+    def complete(
+        self, execution_id: str, call: ToolCall, result: ChatMessageTool
+    ) -> None:
+        """Publish the records of a native execution that ran `call` (`tool_event_call`), completed (`completes()`) and produced `result`, once its own `tool_result` step settled.
+
+        A `tool_call` decision about the execution, and a `model_output` decision its attempt took (`attempt`), cover it where they judged the call that ran.
+        """
+        held = self._calls.pop(execution_id, []) + self._attempts.pop(execution_id, [])
+        if not held:
             return
         ran = call_digest(call)
-        covered = [held.decision for held in calls if held.digest == ran]
-        for turn in turns:
-            if turn.calls.pop(call.id) == ran:
-                covered.append(turn.decision)
+        covered = [h.decision for h in held if h.digest == ran]
         if ran is None or not covered:
             return
         copy = result.model_copy(deep=True)

@@ -37,6 +37,7 @@ from typing import (
 if TYPE_CHECKING:
     from inspect_ai.approval import ApprovalPolicy
     from inspect_ai.approval._approval import Approval
+    from inspect_ai.event._tool import ToolEvent
     from inspect_ai.review import ReviewPolicy
 
 import anyio
@@ -426,7 +427,6 @@ async def _execute_tools_impl(
                         sentinel_tool_completed(
                             result_event.execution_id,
                             tool_event_call(result_event),
-                            message.id,
                             tool_message,
                         )
 
@@ -550,7 +550,7 @@ async def _execute_tools_impl(
                     failed=None,
                     message_id=tool_message.id,
                 )
-                transcript()._event(event)
+                _log_tool_event(event)
                 transcript().info(
                     f"Tool call '{call.function}' was not executed because an "
                     "earlier call to it in this turn failed."
@@ -723,7 +723,7 @@ async def _execute_tools_impl(
                     # subscribers via _process_event, so we do one or
                     # the other — never both).
                     if event not in transcript().events:
-                        transcript()._event(event)
+                        _log_tool_event(event)
                     else:
                         transcript()._event_updated(event)
                     transcript().info(
@@ -842,7 +842,7 @@ async def _execute_tools_impl(
                     # notify subscribers via _process_event, so we do
                     # one or the other — never both).
                     if event not in transcript().events:
-                        transcript()._event(event)
+                        _log_tool_event(event)
                     else:
                         transcript()._event_updated(event)
                 else:
@@ -910,6 +910,20 @@ def _report_handoffs(
             watch.called = True
 
 
+def _log_tool_event(event: "ToolEvent") -> None:
+    """Log a native call's `ToolEvent` for the first time.
+
+    While a sentinel checks tool calls, a logged execution is an attempt at its call (`sentinel_tool_attempted`), whatever its outcome, so replay finds every attempt live counted.
+    """
+    from inspect_ai.log._transcript import transcript
+
+    transcript()._event(event)
+    if event.execution_id is not None and checks_tool_calls():
+        from inspect_ai._sentinel._dispatch import sentinel_tool_attempted
+
+        sentinel_tool_attempted(event.execution_id, event.id, event.call_message_id)
+
+
 async def call_tool(
     tools: list[ToolDef],
     message: str,
@@ -921,7 +935,6 @@ async def call_tool(
 ) -> CalledTool:
     from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.event._tool import ToolEvent
-    from inspect_ai.log._transcript import transcript
 
     # dodge circular import
     assert isinstance(event, ToolEvent)
@@ -931,7 +944,7 @@ async def call_tool(
     # means that if we throw early we need to do the enclosure when raising.
     async def record_pending_tool_event() -> None:
         async with span(name=call.function, type="tool"):
-            transcript()._event(event)
+            _log_tool_event(event)
 
     async def record_tool_parsing_error(error: str) -> Exception:
         await record_pending_tool_event()
@@ -1117,7 +1130,7 @@ async def call_tool(
         if isinstance(tool_def.tool, AgentTool):
             async with span(tool_def.tool.name, type="handoff"):
                 async with span(name=call.function, type="tool"):
-                    transcript()._event(event)
+                    _log_tool_event(event)
                     if on_execute is not None:
                         on_execute(call)
                     handoff_result = await agent_handoff(
@@ -1128,7 +1141,7 @@ async def call_tool(
         # normal tool call
         else:
             async with span(name=call.function, type="tool"):
-                transcript()._event(event)
+                _log_tool_event(event)
                 if on_execute is not None:
                     on_execute(call)
                 with sentinel_scope("tool"):
