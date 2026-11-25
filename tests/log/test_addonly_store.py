@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import uuid
 import zipfile
 from collections.abc import Callable, Iterator, Mapping
@@ -69,7 +70,7 @@ from inspect_ai.log._addonly._validate import (
     _rebuild_rows,
     validate_store,
 )
-from inspect_ai.log._addonly._writer import EvalRecordWriter
+from inspect_ai.log._addonly._writer import EvalRecordWriter, store_boundary
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.types import (
     BufferAttachmentRow,
@@ -597,6 +598,180 @@ def test_eval_retry_validates(
     assert result.exit_code == 0, result.output
     assert result.findings() == []
     assert "3 eval(s), 6 sample(s) compared, 0 finding(s)." in result.output
+
+
+_cancel_gates: dict[str, threading.Event] = {}
+"""Set by the `test_eval_retry_after_cancel_*` tests."""
+
+
+@solver
+def fail_while_s0_closes(path: str) -> Solver:
+    """While the file holds true, s1 raises once s0 writes its last record.
+
+    s2 waits until the eval's failure cancels it.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state = await generate(state)
+        if json.loads(Path(path).read_text()):
+            if state.sample_id == "s1":
+                await anyio.to_thread.run_sync(_cancel_gates["s0_closing"].wait)
+                raise RuntimeError("attempt fails")
+            if state.sample_id == "s2":
+                try:
+                    await anyio.sleep_forever()
+                finally:
+                    _cancel_gates["cancelled"].set()
+        return state
+
+    return solve
+
+
+@task
+def cancel_in_close_task(fail: str) -> Task:
+    return Task(
+        dataset=[Sample(id=f"s{i}", input="hi", target="Default") for i in range(3)],
+        solver=fail_while_s0_closes(fail),
+        scorer=includes(),
+    )
+
+
+@pytest.mark.parametrize("gated", ["2", CLOSING])
+def test_eval_retry_after_cancel_in_close_validates(
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    monkeypatch: pytest.MonkeyPatch,
+    gated: str,
+) -> None:
+    """s1 fails while s0, scored, writes its last record or its closing record.
+
+    That put finishes only after the eval's failure has cancelled s2, so the
+    cancellation reaches s0 after it, as when S3 is slow: before s0's closing
+    record, or before s0 is logged. Then eval_retry.
+    """
+    monkeypatch.setitem(_cancel_gates, "s0_closing", threading.Event())
+    monkeypatch.setitem(_cancel_gates, "cancelled", threading.Event())
+    put = AddOnlyStore._put
+
+    def gated_put(self: AddOnlyStore, key: str, body: bytes) -> None:
+        if key.endswith(f"/s0.1/1/{gated}"):
+            _cancel_gates["s0_closing"].set()
+            assert _cancel_gates["cancelled"].wait(timeout=30)
+        put(self, key, body)
+
+    monkeypatch.setattr(AddOnlyStore, "_put", gated_put)
+    fail = tmp_path / "fail.json"
+    fail.write_text("true")
+    log = eval(
+        cancel_in_close_task(str(fail)),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+        max_samples=3,
+        tamper_evident_store=evalhost_env.url,
+    )[0]
+    assert log.status == "error"
+
+    fail.write_text("false")
+    log = eval_retry(
+        log,
+        log_dir=str(tmp_path),
+        display="none",
+        tamper_evident_store=evalhost_env.url,
+    )[0]
+    assert log.status == "success", log.error
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
+    assert "2 eval(s), 6 sample(s) compared, 0 finding(s)." in result.output
+
+
+@solver
+def boundary_after_cancel(path: str, first: bool) -> Solver:
+    """While the file holds true, s0 writes at a boundary with a cancel pending.
+
+    s0 waits in a worker thread until the eval's failure (s1) has cancelled
+    s2, then writes before (`first`) or after its generate. The cancel
+    reaches s0 at its next checkpoint, which is in that write.
+    """
+
+    async def s0_boundary_after_cancel() -> None:
+        _cancel_gates["s0_waiting"].set()
+        await anyio.to_thread.run_sync(_cancel_gates["cancelled"].wait)
+        await store_boundary()
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        failing = json.loads(Path(path).read_text())
+        if failing and first and state.sample_id == "s0":
+            await s0_boundary_after_cancel()
+        state = await generate(state)
+        if failing:
+            if state.sample_id == "s0":
+                await s0_boundary_after_cancel()
+            if state.sample_id == "s1":
+                await anyio.to_thread.run_sync(_cancel_gates["s0_waiting"].wait)
+                raise RuntimeError("attempt fails")
+            if state.sample_id == "s2":
+                try:
+                    await anyio.sleep_forever()
+                finally:
+                    _cancel_gates["cancelled"].set()
+        return state
+
+    return solve
+
+
+@task
+def boundary_after_cancel_task(fail: str, first: bool) -> Task:
+    return Task(
+        dataset=[Sample(id=f"s{i}", input="hi", target="Default") for i in range(3)],
+        solver=boundary_after_cancel(fail, first),
+        scorer=includes(),
+    )
+
+
+@pytest.mark.parametrize("first", [True, False])
+def test_eval_retry_after_cancel_at_boundary_validates(
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    monkeypatch: pytest.MonkeyPatch,
+    first: bool,
+) -> None:
+    """s1 fails, and s0 starts its first or a later record with the cancel pending.
+
+    The record is still written, so s0, cancelled, writes its closing record.
+    Then eval_retry.
+    """
+    monkeypatch.setitem(_cancel_gates, "s0_waiting", threading.Event())
+    monkeypatch.setitem(_cancel_gates, "cancelled", threading.Event())
+    fail = tmp_path / "fail.json"
+    fail.write_text("true")
+    log = eval(
+        boundary_after_cancel_task(str(fail), first),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+        max_samples=3,
+        tamper_evident_store=evalhost_env.url,
+    )[0]
+    assert log.status == "error"
+
+    fail.write_text("false")
+    log = eval_retry(
+        log,
+        log_dir=str(tmp_path),
+        display="none",
+        tamper_evident_store=evalhost_env.url,
+    )[0]
+    assert log.status == "success", log.error
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
+    assert "2 eval(s), 6 sample(s) compared, 0 finding(s)." in result.output
 
 
 def test_task_retry_attempts_validates(

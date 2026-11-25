@@ -3788,7 +3788,13 @@ async def _task_run_sample_attempt(
             source_sample: EvalSample | None = None
 
             # complete the sample if there is no error or if there is no retry_on_error in play
-            with anyio.CancelScope(shield=isinstance(failure, _AttemptCancel)):
+            # (with the add-only store on, also when the eval is cancelled: a
+            # sample stopped between its records and its closing record, or
+            # before it is logged, would fail validation)
+            with anyio.CancelScope(
+                shield=isinstance(failure, _AttemptCancel)
+                or sample_record_writer is not None
+            ):
                 # drain sample events for both completion and retry paths
                 await drain_sample_events()
 

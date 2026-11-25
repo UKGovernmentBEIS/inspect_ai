@@ -138,6 +138,8 @@ The eval also needs `log_realtime` (on by default). It fails at start if `log_re
 
 If a write fails with a network error, throttling or a server error, the sample tries it again for up to 60 seconds. If the write still fails, or fails for another reason, the eval fails, whatever `fail_on_error` says. This includes a write that S3 refuses because the object exists.
 
+When you cancel an eval, it waits for each sample that already scored to write its closing record and be logged. A sample also finishes a write that it started. Each write tries again for up to 60 seconds if S3 fails.
+
 ### Retries
 
 The log does not record the store location, so give it again when you retry an eval with `eval_retry()` or `inspect eval-retry`:

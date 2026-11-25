@@ -171,9 +171,13 @@ class SampleRecordWriter:
             rows=rows,
         )
         try:
-            await self._eval.store.put(
-                self._ref.key(self._eval.eval_id, str(seq)), _body(record)
-            )
+            # shielded: a cancel already pending would otherwise stop the put
+            # before it starts, after its sequence number was taken, and the
+            # cancelled sample could not then write its closing record
+            with anyio.CancelScope(shield=True):
+                await self._eval.store.put(
+                    self._ref.key(self._eval.eval_id, str(seq)), _body(record)
+                )
         except BaseException as ex:
             self._failure = self._failure or AddOnlyStoreError(
                 f"An earlier write to the add-only store failed for this sample: {ex}"
