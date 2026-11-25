@@ -392,10 +392,12 @@ def _credentials(url: str) -> list[tuple[str, str]]:
     secrets: list[tuple[str, str]] = []
 
     def add(text: str, shown: str) -> None:
-        # decoded keeping each byte that isn't UTF-8, and decoded as Python
-        # does by default, which writes one U+FFFD for a cut-off sequence
+        # decoded keeping each byte that isn't UTF-8, decoded as Python does
+        # by default, which writes one U+FFFD for a cut-off sequence, and
+        # decoded as Latin-1, as some servers decode a query
         for errors in ("surrogateescape", "replace"):
             secrets.append((unquote(text, errors=errors), shown))
+        secrets.append((unquote(text, encoding="latin-1"), shown))
 
     userinfo = httpx2.URL(url).userinfo.decode("ascii")
     if userinfo:
@@ -406,9 +408,12 @@ def _credentials(url: str) -> list[tuple[str, str]]:
         basic = f"{unquote(user)}:{unquote(password)}".encode()
         secrets.append((base64.b64encode(basic).decode("ascii"), REDACTED))
     parts = urlsplit(url)
+    # each item whole too, as a parser that splits at `;` inside a value, or
+    # at `=` inside a name, repeats it
     for item in re.split("[&;]", parts.query.removesuffix("/")):
         name, _, value = item.partition("=")
         add(value or name, REDACTED)
+        add(item, REDACTED)
     add(parts.fragment.removesuffix("/"), REDACTED)
     return [(secret, shown) for secret, shown in secrets if secret]
 
@@ -416,12 +421,11 @@ def _credentials(url: str) -> list[tuple[str, str]]:
 def _spellings(secret: str) -> str:
     # a pattern for the secret however an error spells it: each character as
     # itself or percent-encoded, in either case, and a space and a plus as
-    # either, as form encoding writes them. A byte that isn't UTF-8 is
-    # percent-encoded, kept as its surrogate, or decoded as U+FFFD.
+    # either, as form encoding writes them. A byte that isn't UTF-8, kept as
+    # its surrogate, is that or percent-encoded.
     def spelled(char: str) -> list[str]:
         if "\udc80" <= char <= "\udcff":
-            surrogate = [re.escape(char), f"%(?i:{ord(char) - 0xDC00:02x})"]
-            return [*surrogate, *spelled("�")]
+            return [re.escape(char), f"%(?i:{ord(char) - 0xDC00:02x})"]
         encoded = "".join(f"%(?i:{byte:02x})" for byte in char.encode())
         return [re.escape(char), encoded]
 

@@ -25,6 +25,7 @@ from inspect_ai import eval as inspect_eval
 from inspect_ai import score as score_log
 from inspect_ai._sentinel._sidecar._call import INSPECT_HEADERS, SidecarCall
 from inspect_ai._sentinel._sidecar._endpoint import (
+    REDACTED,
     EvalAccess,
     NoSidecar,
     SentinelProxyError,
@@ -236,6 +237,15 @@ async def test_a_sidecar_behind_the_models_base_url_is_found(
             "http://proxy.test",
             ["pass", "word", "two", "sk-abc"],
         ),
+        # a value that holds a `;`, as a parser that doesn't split at it reads
+        # it, and one decoded as Latin-1
+        (
+            "anthropic",
+            "http://proxy.test?key=pw7;c2VjcmV0IQ==&sig=caf%E9-token",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["c2VjcmV0IQ", "caf\xe9-token"],
+        ),
         # a name alone
         (
             "anthropic",
@@ -314,7 +324,7 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
         lowered = re.sub("%[0-9A-F]{2}", lambda escape: escape[0].lower(), repeated)
         return httpx2.Response(
             500,
-            text=f"upstream failed for {repeated} ({unquote(repeated)}) ({unquote_plus(repeated)}) ({lowered})",
+            text=f"upstream failed for {repeated} ({unquote(repeated)}) ({unquote_plus(repeated)}) ({unquote(repeated, encoding='latin-1')}) ({lowered})",
         )
 
     model = get_model(
@@ -405,6 +415,21 @@ async def test_a_failed_call_to_a_sidecar_keeps_no_error_that_shows_a_secret(
         reached += [error.__cause__, error.__context__]
         if isinstance(error, BaseExceptionGroup):
             reached += error.exceptions
+
+
+async def test_a_secret_repeated_over_itself_is_redacted_whole() -> None:
+    class Failing:
+        async def post(self, *args: Any, **kwargs: Any) -> Any:
+            raise ValueError("ababa")
+
+    sidecar = Sidecar(
+        "http://proxy.test", "whole", Failing(), base_url="http://proxy.test?key=aba"
+    )
+
+    with pytest.raises(SidecarCallError) as raised:
+        await sidecar.call("end_sample", {})
+
+    assert str(raised.value) == f"The sidecar's end_sample failed: {REDACTED}"
 
 
 async def test_a_sidecar_behind_an_openai_compatible_models_base_url_is_found() -> None:
