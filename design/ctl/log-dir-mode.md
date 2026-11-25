@@ -112,7 +112,8 @@ The mode adds two values to the closed `kind` vocabulary, raised only under
   stray logs) the logs cannot serve. The message names the reason and, for
   a buffer row, the `sample events --type model` command that shows its
   model calls. `exception` and `status` are null.
-- `storage_error`: reading the directory failed other than by absence:
+- `storage_error`: reading the directory failed, other than by absence,
+  with an error the mapper recognizes (an `OSError` or a botocore error):
   permissions, credentials, throttling or transport; a log that kept
   changing under a read, or segments that kept disappearing, after the
   bounded re-reads ("Reading a member consistently"); or a name in a shard
@@ -120,7 +121,8 @@ The mode adds two values to the closed `kind` vocabulary, raised only under
   `ShardSetError`). `status` is an S3 error's HTTP status when there is
   one. It is separate from `connect_error`, to which ctl maps every other
   `OSError`, because a missing object must not read as "the process is
-  gone".
+  gone". A backend whose SDK raises its own exception types rather than
+  `OSError` (Azure's, for one) fails as `internal`.
 
 Existing kinds keep their meanings. A missing local directory or S3
 bucket, a
@@ -197,7 +199,10 @@ The mode depends on how a worker writes, which it does not change:
   buffer**, after a seeded retry re-runs a key it inherited or an
   in-process requeue re-runs a flushed key. Recovery resolves this by
   timestamps (`sample_record_time` in `src/inspect_ai/log/_recover/_api.py`),
-  and so does this mode.
+  and so does this mode. Until a newer attempt's row is published (while
+  the key waits to re-run, or throughout a run without a shared buffer),
+  a seeded retry's inherited record is the key's state, and it can be
+  terminal: an inherited error counts in `errored`, not `unfinished`.
 
 ### Walking the directory
 
@@ -227,9 +232,12 @@ buffer segments or checkpoint objects, whose counts grow with run age:
   `<k>/`, and any other directory directly in it, a dot-directory
   included, which is not listed) are reported in `unreadable`, never as
   rows or attempts (`test_stray_and_nested_logs_in_a_companion`). The
-  merged log beside the companion (`<name>.eval` or
-  `<name>-recovered.eval`, matched by `log_basename`) belongs to the shard
-  set rather than being an ordinary log.
+  merged log beside the companion, `<name>.eval` (matched by
+  `merged_log_name`, which strips only `.eval`), belongs to the shard set
+  rather than being an ordinary log. A `<name>-recovered.eval` beside it is
+  an ordinary log, although checkpoints map it to `<name>.checkpoints/`
+  (decision: Ransom, 2026-11-23; [`eval-sharding.md`](../eval-sharding.md),
+  "Layout"; `test_a_recovered_log_beside_a_shard_set_is_an_ordinary_log`).
 - **Nothing below a `<k>/` is listed** under shard aggregation. A shard's `scans/`, its
   `*.checkpoints/` and any companion nested there are not walked, so a log
   nested below a `<k>/` is not shown from a root above the companion; to
@@ -248,8 +256,10 @@ buffer segments or checkpoint objects, whose counts grow with run age:
 The walk's logs are grouped into logical tasks, the rows of `task list`
 (`index_log_dir` in `snapshot.py`). Each logical task has one or more
 *attempts* and one *current* attempt, whose data the row and the sample
-reads use. Reading the index needs each current log's plan (central
-directory and header) but no sample summaries or manifests.
+reads use. Attempts are grouped by the task id in their headers, so the
+index reads the plan (central directory and header) of every ordinary
+log, superseded attempts included, but no sample summaries or manifests;
+those are read afterwards for current attempts only.
 
 **Attempt order.** "Newest" is the shared `attempt_sort_key`: the
 `{created}` timestamp prefix of the file name, then a `-recovered` copy
@@ -276,14 +286,13 @@ no stray entries, and refuses it when it has some. Nothing below its
   attempts are superseded and not read, the merge's newest-wins rule. A
   `<k>/` with no attempt is not a shard and adds nothing
   (`test_a_shard_directory_with_no_attempt_is_not_a_shard`).
-- The merged log is the newest of `<name>.eval` and
-  `<name>-recovered.eval`. The other is not read and is listed in the row's
-  `unreadable` as an older merged log.
+- The merged log is `<name>.eval`, when present. A recovered copy of it,
+  `<name>-recovered.eval`, records the set's task id, so it is read as an
+  unsharded log and becomes a newer attempt of the set's task (below).
 - While the merged log or the first shard can be read, the set has the
   merge's task id (`merged_log_task_id`, shared with the merge) under any
   file name pattern, so it folds with a retry of its merged log
-  (`test_a_shard_set_keeps_the_merges_task_id_with_or_without_its_log`,
-  `test_an_unreadable_newest_merged_log_keys_the_set_as_the_merge_does`).
+  (`test_a_shard_set_keeps_the_merges_task_id_with_or_without_its_log`).
   Without a readable merged log the id is computed with the current file
   name pattern, so this holds only while `INSPECT_EVAL_LOG_FILE_PATTERN` is
   the one the merge used, the merge's own condition
@@ -293,10 +302,11 @@ no stray entries, and refuses it when it has some. Nothing below its
   listed in the row's `unreadable` (decision: Ransom, 2026-10-13).
 
 **A shard set and an ordinary retry of it.** An unsharded log with a shard
-set's task id is an `eval_retry` of its merged log (the only path that
-gives an unsharded log the merged log's `task_id`; shards keep their own).
-Both fold into one logical task, the shard set as its oldest attempt, so
-the retry is current whatever the file names say: the retry's `{created}`
+set's task id is an `eval_retry` of its merged log or a recovered copy of
+it (the only paths that give an unsharded log the merged log's `task_id`;
+shards keep their own). Both fold into one logical task, the shard set as
+its oldest attempt, so the unsharded log is current whatever the file
+names say: a retry's `{created}`
 follows the merged header's, minted at the merge, and can sort before the
 launcher-minted merged log's name. The superseded shard set counts in
 `attempts` and contributes no sample state, and the row's `shards` is null
@@ -311,9 +321,9 @@ read sequence).
 an ordinary unsharded attempt.
 
 **Unreadable logs.** An unreadable log the index needs is reported, never
-dropped. One exception: a shard read only to find the task id of a set an
-ordinary retry supersedes is not reported when it fails, since the set
-contributes no samples. An unreadable current shard member belongs to its shard set by its directory, whatever
+dropped. One exception: a shard read only to find the task id of a set
+that contributes no samples (one an unsharded attempt supersedes, or a
+second set for a task id) is not reported when it fails. An unreadable current shard member belongs to its shard set by its directory, whatever
 its file name, and blocks its task's per-sample reads
 (`test_an_unreadable_shard_marks_the_row_and_blocks_sample_reads`).
 Attributing an unreadable ordinary log to a task is best effort: it reads
@@ -641,6 +651,10 @@ On S3, with reads issued concurrently on one `AsyncFilesystem`:
 - **A running log** costs its central directory on every poll plus the
   journal members added since; with a shared buffer, its manifest and one
   HEAD to check the log's version.
+- **Superseded ordinary attempts** cost their plan, which grouping needs
+  ("Logical tasks"): nothing when finished and warm, a central directory
+  per poll while still `started`, so accumulated retries add to every
+  poll.
 - **A per-sample read** costs the same key refresh as a list read of its
   task, plus the sample member (and its central directory when not already
   read this invocation) and, for a buffer row, one GET per listed segment. A logged sample's events are re-read and
@@ -727,8 +741,10 @@ polling guidance, weighing request cost against seeing each buffer sync.
   stays `started`; only `updated_at` hints at it. A key retrying after an
   error drops back to its earlier record, `pending` or absent until a sync
   publishes its new attempt; a requeued key can read `pending` or absent,
-  or show its earlier record, while its re-run is active ("What the log
-  directory holds while a run is live"). A sharded task's total is a lower bound; a
+  or show its earlier record, while its re-run is active, and a seeded
+  retry's inherited record, an error included, stands until a newer
+  attempt is published ("What the log directory holds while a run is
+  live"). A sharded task's total is a lower bound; a
   rescored finished log's total can count only its logged
   samples and still read final ("Totals"). The mode shows no whole-task
   metrics, for sharded or unsharded tasks. Messages and store of a buffer
@@ -826,7 +842,11 @@ applies with a different transport:
   write the bucket. They go through the same projections, the
   metadata-only default with `--content`/`--full` opt-ins, and the same
   sanitizing output for human rendering, shard and file names included
-  (`test_cli_human_output_sanitizes_hostile_file_names`).
+  (`test_cli_human_output_sanitizes_hostile_file_names`). A suggested
+  command built from a log's task id or the directory (the `sample events`
+  hint, the `sample errors` footer) is given only when every argument is
+  printable, otherwise with placeholders (`_command_hint`;
+  [`security.md`](security.md)).
 - **No code execution.** The mode never recomputes metrics, never resolves
   scorers or imports a header-named task file, never runs recovery and
   never merges. Stored per-sample scores are shown as stored; whole-task
