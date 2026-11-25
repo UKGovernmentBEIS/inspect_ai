@@ -409,28 +409,26 @@ async def _execute_tools_impl(
                     tool_exception = _sentinel_exception(ex)
                 except Exception as ex:
                     tool_exception = ex
-                # a tool that raised a parsing or approval error reads in the
-                # log as a call refused before it ran, so it completes nothing
                 if (
                     tool_exception is None
                     and tag_results
                     and result_event.execution_id is not None
-                    and (
-                        tool_error is None
-                        or tool_error.type not in ("parsing", "approval")
-                    )
                 ):
                     from inspect_ai._sentinel._dispatch import (
                         sentinel_tool_completed,
                     )
-                    from inspect_ai._sentinel._provenance import tool_event_call
-
-                    sentinel_tool_completed(
-                        result_event.execution_id,
-                        tool_event_call(result_event),
-                        message.id,
-                        tool_message,
+                    from inspect_ai._sentinel._provenance import (
+                        completes,
+                        tool_event_call,
                     )
+
+                    if completes(tool_error):
+                        sentinel_tool_completed(
+                            result_event.execution_id,
+                            tool_event_call(result_event),
+                            message.id,
+                            tool_message,
+                        )
 
             # yield message and event
             async with send_stream:

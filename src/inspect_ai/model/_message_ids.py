@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, TypeVar, cast
@@ -176,6 +177,11 @@ def content_hash(message: ChatMessage) -> str:
     empty string, an empty list and a list with an empty text part are equal.
     """
     return mm3_hash(json.dumps(_shown(message), default=str))
+
+
+def content_sha256(message: ChatMessage) -> str:
+    """A sha256 hex digest of what a message shows (what `content_hash` hashes), for where another message showing the same must be infeasible to craft."""
+    return hashlib.sha256(json.dumps(_shown(message), default=str).encode()).hexdigest()
 
 
 def same_content(a: ChatMessage, b: ChatMessage) -> bool:

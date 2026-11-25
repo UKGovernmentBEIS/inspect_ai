@@ -42,7 +42,7 @@ from inspect_ai.tool._tool_call import (
 from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 from ._conversation import SpanConversations
-from ._provenance import BridgedReviews, Reviews, tool_event_call
+from ._provenance import BridgedReviews, Reviews, completes, tool_event_call
 from ._scope import BRIDGE_CHECK_SPAN, is_agent_turn
 from ._steps import (
     ConversationRecord,
@@ -128,7 +128,7 @@ def steps_from_events(
 
     A bridge's recorded checks (in spans named `sentinel_bridge`), approvals and host `ToolEvent`s are not paired with these steps, so a check's recorded `human()` answers are not attached to them. A `human()` decision at such a check, and a person's approval, still reach the later steps of the conversation, as live; that includes the `tool_result` step of the checked result, which comes after its check. A call a native `ToolEvent` ran (a request filter's own agent generates under the bridge's request) keeps its native steps. Calls sharing an id in one bridged response are skipped, with a warning.
 
-    Where the installed inspect_sentinel's steps have `reviewed_results`, each step gets the results the published `human()` decisions cover (`ReviewedResult`), rebuilt as live built them: a `tool_result` decision when its step settles, from the decision's `SentinelEvent` (`execution_id`, `call_digest`) and the step's result; a `tool_call` decision, or a `model_output` decision about the turn proposing the call, when the execution's `ToolEvent` completes and its call has the decided call's digest; and an agent bridge's decision after the steps of the first later bridged request whose input holds one tool message naming the execution (`ChatMessageTool.execution_id`), unless the host ran another call for it. A log without `call_digest` (before Inspect 0.3.293) has none. In a log from 0.3.293 or later with a sentinel, a native result step's message records its `ToolEvent`'s execution, and a logged copy under the event's message id that names another is not taken for it.
+    Where the installed inspect_sentinel's steps have `reviewed_results`, each step gets the results the published `human()` decisions cover (`ReviewedResult`), rebuilt as live built them: a `tool_result` decision when its step settles, from the decision's `SentinelEvent` (`execution_id`, `call_digest`, `result_digest`) and the step's result, which must be the result the decision judged; a `tool_call` decision, or a `model_output` decision about the turn proposing the call, when the execution's `ToolEvent` completes (it ran and returned: not a call a fail-fast turn did not run, a cancelled call or a timeout, which is how a log records an operator's cancellation) and its call has the decided call's digest; and an agent bridge's decision after the steps of the first later bridged request whose input holds its result, unless the host ran another call for it: for a `tool_result` decision, a tool message naming the execution (`ChatMessageTool.execution_id`) with the judged result's id and content; for a `tool_call` decision, the one tool message naming the execution. A log without `call_digest` (before Inspect 0.3.293) has none, and one without `result_digest` has no `tool_result` records. In a log from 0.3.293 or later with a sentinel, a native result step's message records its `ToolEvent`'s execution, and a logged copy under the event's message id that names another is not taken for it.
 
     A transcript Scout imported from another source (`eval_info` is None) replays from its events where Scout records which model calls its messages come from (`messages_from`): its turns are inferred as for a log without origins, and its tool steps come from its messages, each assistant message joined by its id to the turn whose output it is, which gives the steps that turn's input, tools and conversation; a message no one turn made is placed after the last message before it that one did, with no input. A call under an id an earlier call in the messages has is skipped, with a warning, as step ids are unique in a sample. Its tool events are not read: importers record them without the model's call ids.
 
@@ -2342,6 +2342,7 @@ class _Driver:
                     event.execution_id,
                     decision,
                     event.call_digest,
+                    event.result_digest,
                     conversation,
                     self._modify_reported(span),
                 )
@@ -2351,6 +2352,7 @@ class _Driver:
                     execution_id=event.execution_id,
                     digest=event.call_digest,
                     result=built.result if isinstance(built, AfterToolCall) else None,
+                    judged=event.result_digest,
                     turn=built.output.message
                     if isinstance(built, AfterGenerate) and built.output.choices
                     else None,
@@ -2359,7 +2361,7 @@ class _Driver:
     def _completed(self, call: _Call) -> None:
         """A native execution's completion, after its `tool_result` step settled, as live publishes the results its earlier decisions cover (`Reviews.complete`); for a bridge's host tool, its run (`BridgedReviews.ran`).
 
-        Live completes an execution whose tool ran without raising, as a `ToolEvent` that is not pending, not failed and not refused (`parsing` or `approval`) shows, and whose own review did not fail.
+        Live completes an execution whose tool ran and returned without raising, whose result's error `completes()` accepts, and whose own review did not fail or get cancelled. A `ToolEvent` shows that where it is not pending and not failed, its error is accepted (a call a fail-fast turn did not run is `cancelled`, an operator's cancellation reads as a `timeout`) and its `tool_result` check span did not fail.
         """
         event = call.event
         tool_span = call.tool_span
@@ -2373,7 +2375,7 @@ class _Driver:
             execution_id is None
             or event.pending
             or event.failed
-            or (event.error is not None and event.error.type in ("parsing", "approval"))
+            or not completes(event.error)
             or call.after_span in self.failed
         ):
             return

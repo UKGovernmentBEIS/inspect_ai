@@ -99,7 +99,7 @@ from ._person import (
     human_view,
     offered_choices,
 )
-from ._provenance import BridgedReviews, Reviews, call_digest
+from ._provenance import BridgedReviews, Reviews, call_digest, result_digest
 from ._scope import BRIDGE_CHECK_SPAN, sentinel_scope
 from ._steps import (
     ConversationRecord,
@@ -371,11 +371,13 @@ def _keep_reviews(
     """Keep a settled step's published `human()` decisions for the results they cover (`ReviewedResult`): an agent bridge's until a request carries the result, a native step's in its conversation's record."""
     for decision in recorder.kept:
         digest = recorder.digests.get(id(decision))
+        judged = recorder.judged.get(id(decision))
         if bridge:
             bridged_reviews().hold(
                 recorder.execution_id,
                 decision,
                 digest,
+                judged,
                 step.conversation,
                 recorder.modified,
             )
@@ -385,6 +387,7 @@ def _keep_reviews(
                 execution_id=recorder.execution_id,
                 digest=digest,
                 result=step.result if isinstance(step, AfterToolCall) else None,
+                judged=judged,
                 turn=step.output.message
                 if isinstance(step, AfterGenerate) and step.output.choices
                 else None,
@@ -776,6 +779,9 @@ class _Recorder:
         # by id(), the call each kept decision at a tool stage judged
         # (`SentinelEvent.call_digest`)
         self.digests: dict[int, str | None] = {}
+        # by id(), the result each kept decision at `tool_result` judged
+        # (`SentinelEvent.result_digest`)
+        self.judged: dict[int, str | None] = {}
         # whether any instance reported a modify
         self.modified = False
 
@@ -805,6 +811,11 @@ class _Recorder:
             if kept is not None and isinstance(step, BeforeToolCall | AfterToolCall)
             else None
         )
+        judged = (
+            result_digest(step.result)
+            if kept is not None and isinstance(step, AfterToolCall)
+            else None
+        )
         self._emit_decision(
             context,
             factory,
@@ -813,10 +824,12 @@ class _Recorder:
             reported.function,
             report,
             call_digest=digest,
+            result_digest=judged,
         )
         if kept is not None:
             self.kept.append(kept)
             self.digests[id(kept)] = digest
+            self.judged[id(kept)] = judged
 
     def failed(
         self, context: Context, factory: str, step: Step, failed: Failed
@@ -881,6 +894,7 @@ class _Recorder:
         function: str,
         decision: Decision,
         call_digest: str | None = None,
+        result_digest: str | None = None,
     ) -> None:
         self._emit(
             context,
@@ -890,6 +904,7 @@ class _Recorder:
             status,
             function=function,
             call_digest=call_digest,
+            result_digest=result_digest,
             action=decision.action,
             audit=decision.audit,
             message=decision.message,
@@ -918,6 +933,7 @@ class _Recorder:
         modified: ToolCall | None = None,
         error: str | None = None,
         call_digest: str | None = None,
+        result_digest: str | None = None,
     ) -> None:
         transcript()._event(
             SentinelEvent(
@@ -927,6 +943,7 @@ class _Recorder:
                 step_id=self._step_id,
                 execution_id=self.execution_id,
                 call_digest=call_digest,
+                result_digest=result_digest,
                 conversation=step.conversation,
                 stage=step_stage(step),
                 kind=kind,

@@ -17,8 +17,8 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
-from inspect_ai.model._message_ids import same_content
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.model._message_ids import content_sha256, same_content
+from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 
 if TYPE_CHECKING:
     from inspect_sentinel import HumanDecision
@@ -42,6 +42,28 @@ def call_digest(call: ToolCall) -> str | None:
     return "sha256:" + hashlib.sha256(encoded.encode()).hexdigest()
 
 
+def result_digest(result: ChatMessageTool) -> str:
+    """The digest of a result message's id and what it shows (content, call id and error), as `SentinelEvent.result_digest` records it: `sha256:<hex>`.
+
+    Two messages have the same digest where `covers()` can't tell them apart: the same id and `same_content`.
+    """
+    encoded = json.dumps([result.id, content_sha256(result)], ensure_ascii=True)
+    return "sha256:" + hashlib.sha256(encoded.encode()).hexdigest()
+
+
+def completes(error: ToolCallError | None) -> bool:
+    """Whether a native execution that ran its tool and returned a result with `error` completes, publishing the records of the decisions made before it ran (`Reviews.complete`).
+
+    Not one refused before its tool ran (`parsing`, `approval`), cancelled (`cancelled`: a call a fail-fast turn did not run, or one cancelled with a sibling or its sample) or timed out (`timeout`). A log records an operator's cancellation of a running call as a timeout, so live and replay treat every timeout alike.
+    """
+    return error is None or error.type not in (
+        "parsing",
+        "approval",
+        "cancelled",
+        "timeout",
+    )
+
+
 def tool_event_call(event: ToolEvent) -> ToolCall:
     """The call a `ToolEvent` ran: its id, function and the arguments it records."""
     return ToolCall(id=event.id, function=event.function, arguments=event.arguments)
@@ -51,7 +73,9 @@ def tool_event_call(event: ToolEvent) -> ToolCall:
 class ReviewedResult:
     """A tool result a person's `human()` decision covers, published to the later steps of the decision's conversation.
 
-    The host publishes one only where the call that ran is the call the person decided on: for a decision before the call ran (`tool_call`, or the turn that proposed it at `model_output`), when the execution completes and its call has the decided call's digest; for a decision after it ran (`tool_result`), when the step settles. A later change to the call (a peer protocol's or an approver's modify, a scaffold's edit of the turn's call) means no record.
+    The host publishes one only where the call that ran is the call the person decided on: for a decision before the call ran (`tool_call`, or the turn that proposed it at `model_output`), when the execution completes (`completes()`) and its call has the decided call's digest; for a decision after it ran (`tool_result`), with the result the person judged (`result_digest()`), when the step settles, or for an agent bridge's check when a request carries that result. A later change to the call (a peer protocol's or an approver's modify, a scaffold's edit of the turn's call) means no record.
+
+    The trust boundary: `observed=False` records a scaffold's report of a result, not a run the host saw; and a message with the record's execution, id and content can't be told apart from the result it covers, so an exact copy of it is covered too.
 
     A message in a step's lists is this result where `covers()` says so. Name the call from the message's producing turn, the assistant message holding its call id, and only where that call's `call_digest()` is `call_digest`; a message whose producing turn is not in the list is not marked.
 
@@ -119,6 +143,7 @@ class Reviews:
         execution_id: str | None,
         digest: str | None,
         result: ChatMessageTool | None = None,
+        judged: str | None = None,
         turn: ChatMessageAssistant | None = None,
     ) -> None:
         """Keep a native step's published `human()` decision.
@@ -128,10 +153,17 @@ class Reviews:
             execution_id: The execution a tool-stage step judged.
             digest: The call the step judged (`SentinelEvent.call_digest`).
             result: At `tool_result`, the step's result.
+            judged: At `tool_result`, the result the step judged (`SentinelEvent.result_digest`), which must be `result`.
             turn: At `model_output`, the turn's output message.
         """
         if decision.stage == "tool_result":
-            if execution_id is not None and digest is not None and result is not None:
+            if (
+                execution_id is not None
+                and digest is not None
+                and result is not None
+                and judged is not None
+                and result_digest(result) == judged
+            ):
                 self.published.append(
                     ReviewedResult(
                         decision,
@@ -191,13 +223,15 @@ class Reviews:
 class _HeldBridged(NamedTuple):
     decision: "HumanDecision"
     digest: str
+    judged: str | None
+    """At `tool_result`, the result the person judged (`result_digest`)."""
     conversation: str
 
 
 class BridgedReviews:
     """A sample's `human()` decisions at an agent bridge's checks, each waiting for a request to carry the result of the execution it judged; and the host's runs of bridged tools.
 
-    A decision is published, with the conversation of the check that made it, after the checks of the first request whose input holds one message carrying its execution (`ChatMessageTool.execution_id`, which the bridge sets), as the result that message is. Where the host ran the execution's tool (`ran`), it is published only if the host ran the decided call; otherwise it is published as not observed.
+    A decision is published, with the conversation of the check that made it, after the checks of the first request whose input holds its result: a message carrying its execution (`ChatMessageTool.execution_id`, which the bridge sets), and for a decision after the result (`tool_result`) the result the person judged, by id and content (`result_digest`), wherever in the input and however many other results of the execution it holds. A decision before the call ran (`tool_call`) judged no result: it takes the result of a request holding exactly one message carrying the execution. Where the host ran the execution's tool (`ran`), a decision is published only if the host ran the decided call; otherwise it is published as not observed.
     """
 
     def __init__(self) -> None:
@@ -210,6 +244,7 @@ class BridgedReviews:
         execution_id: str | None,
         decision: "HumanDecision",
         digest: str | None,
+        judged: str | None,
         conversation: str,
         modified: bool,
     ) -> None:
@@ -219,6 +254,7 @@ class BridgedReviews:
             execution_id: The execution the check judged.
             decision: The decision, once the check settled.
             digest: The call the check judged (`SentinelEvent.call_digest`).
+            judged: At `tool_result`, the result the check judged (`SentinelEvent.result_digest`); a decision without it is not held.
             conversation: The check's conversation.
             modified: Whether any instance reported a modify at the check. The scaffold may then have been handed another call than the one decided on, which the host can't compare for a tool the scaffold runs, so a `tool_call` decision is not held.
         """
@@ -226,9 +262,16 @@ class BridgedReviews:
             return
         if decision.stage == "tool_call" and modified:
             return
+        if decision.stage == "tool_result" and judged is None:
+            return
         if execution_id is not None and digest is not None:
             self._held.setdefault(execution_id, []).append(
-                _HeldBridged(decision, digest, conversation)
+                _HeldBridged(
+                    decision,
+                    digest,
+                    judged if decision.stage == "tool_result" else None,
+                    conversation,
+                )
             )
 
     def ran(self, event: ToolEvent) -> None:
@@ -241,7 +284,7 @@ class BridgedReviews:
     def place(
         self, input: Iterable[ChatMessage], reviews: Callable[[str], Reviews]
     ) -> None:
-        """Publish the decisions whose execution's result `input` holds once, to the conversations `reviews` gives."""
+        """Publish the decisions whose results `input` holds, to the conversations `reviews` gives."""
         if not self._held:
             return
         found: dict[str, list[ChatMessageTool]] = {}
@@ -253,11 +296,22 @@ class BridgedReviews:
             ):
                 found.setdefault(message.execution_id, []).append(message)
         for execution_id, messages in found.items():
-            if len(messages) != 1:
-                continue
             ran = self._ran.get(execution_id)
-            result = messages[0].model_copy(deep=True)
+            digests: list[str] | None = None
+            waiting: list[_HeldBridged] = []
             for held in self._held.pop(execution_id):
+                if held.judged is not None:
+                    if digests is None:
+                        digests = [result_digest(message) for message in messages]
+                    result = next(
+                        (m for m, d in zip(messages, digests) if d == held.judged),
+                        None,
+                    )
+                else:
+                    result = messages[0] if len(messages) == 1 else None
+                if result is None:
+                    waiting.append(held)
+                    continue
                 if ran is not None and ran != {held.digest}:
                     continue
                 reviews(held.conversation).published.append(
@@ -265,10 +319,12 @@ class BridgedReviews:
                         held.decision,
                         execution_id,
                         held.digest,
-                        result,
+                        result.model_copy(deep=True),
                         observed=ran is not None,
                     )
                 )
+            if waiting:
+                self._held[execution_id] = waiting
 
 
 def host_ran(event: ToolEvent) -> bool:

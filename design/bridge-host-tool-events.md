@@ -227,9 +227,17 @@ binding the decision to the execution's result only where the call that ran
 is the call decided on: a native execution's `ToolEvent` call, a host tool's
 run of the handout, or, for a tool the scaffold runs, the handed call when no
 instance modified it (`observed=False`, since the host never saw it run). A
-bridged record is published after the checks of the first request carrying
-one result of its execution. Replay rebuilds the records from the same
-events and messages (`_sentinel/_provenance.py`).
+decision at `tool_result` also records the result it judged
+(`SentinelEvent.result_digest`: its message id and what it shows), and a
+record of it covers only that result. A bridged record is published after the
+checks of the first request carrying its result: for a `tool_result` decision,
+the judged result, however many other results of the execution the request
+holds; for a `tool_call` decision, which judged no result, the one result of a
+request carrying exactly one for the execution. A native decision made before
+the call ran is published when the execution completes, which a call a
+fail-fast turn did not run, a cancelled call and a timed-out call never do (a
+log records an operator's cancellation as a timeout). Replay rebuilds the
+records from the same events and messages (`_sentinel/_provenance.py`).
 
 A `_Proposal` is referenced only by its grants, so pairing state lives in the
 bounded grant store (1024 entries) and is dropped with the last of its grants,

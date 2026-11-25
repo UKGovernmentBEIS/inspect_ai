@@ -31,7 +31,12 @@ from inspect_ai._sentinel._integration import (
     result_execution,
     steps_from_events,
 )
-from inspect_ai._sentinel._provenance import BridgedReviews, Reviews
+from inspect_ai._sentinel._provenance import (
+    BridgedReviews,
+    Reviews,
+    completes,
+    result_digest,
+)
 from inspect_ai._sentinel._steps import (
     ConversationRecord,
     ListView,
@@ -16364,6 +16369,34 @@ def test_only_a_persons_decision_at_a_tool_stage_records_the_call_digest(
         ("d3_approve_all", "tool_call"),
         ("inspect_sentinel/human", "model_output"),
     }
+    # the result is recorded only for the person's decision after it
+    [result] = [
+        m for m in logged_sample(log).messages if isinstance(m, ChatMessageTool)
+    ]
+    assert [
+        (e.factory, e.stage, e.result_digest)
+        for e in events
+        if e.result_digest is not None
+    ] == [("inspect_sentinel/human", "tool_result", result_digest(result))]
+
+
+def test_a_result_digest_is_recorded_only_at_a_decision_after_the_result() -> None:
+    fields: dict[str, Any] = dict(
+        factory="inspect_sentinel/human",
+        path="human",
+        function="human",
+        step_id="c",
+        conversation="conv",
+        kind="decision",
+        status="reported",
+        action="proceed",
+        result_digest="sha256:0",
+    )
+    SentinelEvent(**fields, stage="tool_result")
+    with pytest.raises(ValueError, match="result_digest"):
+        SentinelEvent(**fields, stage="tool_call")
+    with pytest.raises(ValueError, match="result_digest"):
+        SentinelEvent(**{**fields, "status": "superseded"}, stage="tool_result")
 
 
 @protocol
@@ -16599,6 +16632,201 @@ def test_a_bridged_turn_approval_covers_nothing(
     assert last.reviewed_results == []
 
 
+# ---- a bridged review binds to the result the person judged
+
+
+SAFE = "SAFE RESULT"
+UNREVIEWED = "UNREVIEWED RESULT"
+
+
+@tool(name="read_file")
+def p_read_file() -> Tool:
+    async def execute(path: str) -> str:
+        """Read a file.
+
+        Args:
+            path: The file.
+        """
+        return SAFE
+
+    return execute
+
+
+@agent
+def p_reports_another_result(host: bool, overlapping: bool) -> Agent:
+    """A scaffold that reports its handout's result twice in one request, and another result for the same handout in a later request: after that request, or (`overlapping`) both in a request sent alongside it and in one after both.
+
+    With `host`, it first runs the call through the sandbox bridge's host tool, whose result is the one reported twice.
+    """
+
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+        from inspect_ai.agent._bridge.sandbox.service import call_tool
+        from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+
+        bridge: AgentBridge
+        if host:
+            bridge = SandboxAgentBridge(
+                state=state,
+                filter=None,
+                retry_refusals=None,
+                compaction=None,
+                port=8080,
+                model=None,
+                bridged_tools={"host": {"read_file": p_read_file()}},
+            )
+            [served] = bridge.served_tools.values()
+            declared = {
+                "name": "read_file",
+                "description": served.description,
+                "parameters": served.parameters.model_dump(exclude_none=True),
+            }
+        else:
+            bridge = AgentBridge(
+                state=state, filter=None, retry_refusals=None, compaction=None
+            )
+            declared = {
+                "name": "read_file",
+                "description": "Read a file.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                },
+            }
+        tools = [{"type": "function", "function": declared}]
+        asked = [{"role": "user", "content": "Read it."}]
+        first = await inspect_completions_api_request(
+            {"model": "inspect", "messages": asked, "tools": tools}, None, bridge
+        )
+        message = first.choices[0].message
+        [proposed] = message.tool_calls or []
+        assert proposed.type == "function"
+        if isinstance(bridge, SandboxAgentBridge):
+            await call_tool(bridge)(
+                "host", "read_file", json.loads(proposed.function.arguments)
+            )
+
+        async def request(*contents: str) -> None:
+            await inspect_completions_api_request(
+                {
+                    "model": "inspect",
+                    "messages": [
+                        *asked,
+                        message.model_dump(exclude_none=True),
+                        *(
+                            {
+                                "role": "tool",
+                                "tool_call_id": proposed.id,
+                                "content": content,
+                            }
+                            for content in contents
+                        ),
+                    ],
+                    "tools": tools,
+                },
+                None,
+                bridge,
+            )
+
+        if overlapping:
+            await tg_collect(
+                [partial(request, SAFE, SAFE), partial(request, UNREVIEWED)]
+            )
+        else:
+            await request(SAFE, SAFE)
+        await request(UNREVIEWED)
+        return bridge.state
+
+    return execute
+
+
+def p_records(step: Step) -> list[tuple[str, str, str | None, str, bool]]:
+    return [
+        (r.execution_id, r.decision.stage, r.result.id, r.result.text, r.observed)
+        for r in step.reviewed_results or []
+    ]
+
+
+def p_inputs_live_and_replayed(
+    log: EvalLog, seen: dict[str, Step]
+) -> tuple[dict[str, Step], dict[str, Step]]:
+    """The `model_input` steps by step id, live and replayed, after asserting each has the same records, which cover the same messages."""
+    live = {
+        event.step_id: seen[event.explanation or ""]
+        for event in logged_sample(log).events
+        if isinstance(event, SentinelEvent)
+        and event.path == "r7_probe"
+        and event.stage == "model_input"
+    }
+    replay = {s.id: s.step for s in replayed(log) if s.stage == "model_input"}
+    assert live.keys() == replay.keys()
+    for key in live:
+        assert p_records(replay[key]) == p_records(live[key]), key
+        assert p_covered(replay[key]) == p_covered(live[key]), key
+        assert p_covered(replay[key], "history") == p_covered(live[key], "history")
+    return live, replay
+
+
+@pytest.mark.parametrize("overlapping", [False, True])
+@pytest.mark.parametrize("host", [False, True])
+def test_a_bridged_review_covers_only_the_result_the_person_judged(
+    monkeypatch: pytest.MonkeyPatch, host: bool, overlapping: bool
+) -> None:
+    """A person reviews a result the scaffold reports twice in one request; another result for the same handout, reported in a later or an overlapping request, is not covered, live or in replay: for a tool the scaffold ran (not observed) and for a host tool (observed)."""
+    panel = Panel("approve", "fine")
+    panel.install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(p_reports_another_result(host, overlapping)),
+        outputs(bridge_calls_output(READ), done(), done(), done()),
+        sentinel=[
+            r7_probe(seen, copies=True),
+            h_ask("tool_result", ["approve", "reject"], times=1),
+        ],
+    )
+    [decision] = [
+        e
+        for e in logged_sample(log).events
+        if isinstance(e, SentinelEvent)
+        and e.kind == "decision"
+        and e.status == "reported"
+    ]
+    assert decision.stage == "tool_result"
+    live, replay = p_inputs_live_and_replayed(log, seen)
+    # the result the person was shown, which the decision records
+    [result] = {
+        m.id: m
+        for step in live.values()
+        for _, m in p_results(step)
+        if result_digest(m) == decision.result_digest
+    }.values()
+    [shown] = panel.views
+    assert result.text in shown.model_dump_json()
+    covered = 0
+    for step in [*live.values(), *replay.values()]:
+        for record in step.reviewed_results or []:
+            assert (record.result.id, record.result.text) == (result.id, result.text)
+            assert record.decision.stage == "tool_result"
+            assert record.observed is host
+        # only copies of the judged result, by id and content
+        for position, _ in p_covered(step):
+            message = step.input[position]
+            assert (message.id, message.text) == (result.id, result.text)
+            covered += 1
+    assert covered > 0
+    if not overlapping:
+        assert result.text == SAFE
+    # the last request carries only the other result
+    last = list(replay.values())[-1]
+    [(_, other)] = p_results(last)
+    assert other.text == UNREVIEWED
+    if result.text == SAFE:
+        assert p_covered(last) == []
+        assert p_covered(list(live.values())[-1]) == []
+
+
 def p_decision(stage: str) -> "HumanDecision":
     return HumanDecision(
         stage=cast(Any, stage),
@@ -16645,7 +16873,9 @@ def test_a_bridged_decision_is_published_only_for_the_call_the_host_ran(
     decided = p_add("c", 1, 1)
     reviews = BridgedReviews()
     record = Reviews()
-    reviews.hold("e1", p_decision("tool_call"), call_digest(decided), "conv", False)
+    reviews.hold(
+        "e1", p_decision("tool_call"), call_digest(decided), None, "conv", False
+    )
     if run in ("decided", "both"):
         reviews.ran(p_host_run(decided, "e1"))
     if run in ("other", "both"):
@@ -16676,18 +16906,117 @@ def test_a_bridged_approval_a_peer_modified_is_not_held() -> None:
     reviews = BridgedReviews()
     record = Reviews()
     digest = call_digest(p_add("c", 1, 1))
-    reviews.hold("e1", p_decision("tool_call"), digest, "conv", True)
-    reviews.hold("e2", p_decision("tool_result"), digest, "conv", True)
+    shown = ChatMessageTool(content="2", tool_call_id="d", execution_id="e2")
+    reviews.hold("e1", p_decision("tool_call"), digest, None, "conv", True)
+    reviews.hold(
+        "e2", p_decision("tool_result"), digest, result_digest(shown), "conv", True
+    )
     reviews.place(
         [
             ChatMessageTool(content="2", tool_call_id="c", execution_id="e1"),
-            ChatMessageTool(content="2", tool_call_id="d", execution_id="e2"),
+            shown,
         ],
         lambda _: record,
     )
     # a decision after the call ran is about the result shown, whatever was
     # handed over
     assert [r.execution_id for r in record.published] == ["e2"]
+
+
+def test_a_bridged_review_is_published_only_for_the_result_the_person_judged() -> None:
+    """A bridged `tool_result` decision binds to the message it judged, by id and content, wherever a request holds it: never to another result of its execution, in that request or a later one."""
+    digest = call_digest(p_add("c", 1, 1))
+    judged = ChatMessageTool(content="safe", tool_call_id="c", execution_id="e1")
+    copy = judged.model_copy(update={"id": "other"})
+    reviews = BridgedReviews()
+    record = Reviews()
+    reviews.hold(
+        "e1", p_decision("tool_result"), digest, result_digest(judged), "conv", False
+    )
+    # another result of the execution, by content and by id
+    unreviewed = judged.model_copy(update={"content": "unreviewed"})
+    reviews.place([unreviewed], lambda _: record)
+    reviews.place([copy], lambda _: record)
+    assert record.published == []
+    # the judged result beside other results of the execution
+    reviews.place([copy, unreviewed, judged, copy], lambda _: record)
+    [published] = record.published
+    assert published.result == judged
+    assert published.result is not judged
+    assert covers(published, judged)
+    assert not covers(published, copy)
+    assert not covers(published, unreviewed)
+    # published once
+    reviews.place([judged], lambda _: record)
+    assert len(record.published) == 1
+    # without the judged result's digest, a decision after the result is not held
+    reviews.hold("e2", p_decision("tool_result"), digest, None, "conv", False)
+    reviews.place([judged.model_copy(update={"execution_id": "e2"})], lambda _: record)
+    assert len(record.published) == 1
+
+
+def test_a_native_review_is_published_only_for_the_result_it_judged() -> None:
+    digest = call_digest(p_add("c", 1, 1))
+    result = ChatMessageTool(content="2", tool_call_id="c", execution_id="e1")
+    for judged in [
+        None,
+        result_digest(result.model_copy(update={"content": "3"})),
+        result_digest(result.model_copy(update={"id": "other"})),
+    ]:
+        reviews = Reviews()
+        reviews.keep(
+            p_decision("tool_result"),
+            execution_id="e1",
+            digest=digest,
+            result=result,
+            judged=judged,
+        )
+        assert reviews.published == []
+    reviews = Reviews()
+    reviews.keep(
+        p_decision("tool_result"),
+        execution_id="e1",
+        digest=digest,
+        result=result,
+        judged=result_digest(result),
+    )
+    assert [r.result for r in reviews.published] == [result]
+
+
+def test_a_result_digest_is_of_the_id_and_what_the_result_shows() -> None:
+    result = ChatMessageTool(content="2", tool_call_id="c", execution_id="e1")
+    same = [
+        result.model_copy(update={"execution_id": "e2"}),
+        result.model_copy(update={"metadata": {"k": "v"}}),
+        result.model_copy(update={"content": [ContentText(text="2")]}),
+    ]
+    other = [
+        result.model_copy(update={"id": "other"}),
+        result.model_copy(update={"content": "3"}),
+        result.model_copy(update={"tool_call_id": "d"}),
+        result.model_copy(update={"error": ToolCallError("unknown", "no")}),
+    ]
+    assert result_digest(result).startswith("sha256:")
+    assert all(result_digest(m) == result_digest(result) for m in same)
+    assert all(result_digest(m) != result_digest(result) for m in other)
+
+
+@pytest.mark.parametrize(
+    "error,completed",
+    [
+        (None, True),
+        (ToolCallError("unknown", "not found"), True),
+        (ToolCallError("file_not_found", "no"), True),
+        (ToolCallError("parsing", "bad"), False),
+        (ToolCallError("approval", "no"), False),
+        (ToolCallError("cancelled", "skipped"), False),
+        (ToolCallError("timeout", "Command timed out before completing."), False),
+    ],
+)
+def test_an_execution_completes_only_where_its_tool_ran_and_returned(
+    error: ToolCallError | None, completed: bool
+) -> None:
+    assert completes(error) is completed
 
 
 def test_a_native_turn_approval_covers_the_first_run_of_each_call() -> None:
@@ -16709,6 +17038,145 @@ def test_a_native_turn_approval_covers_the_first_run_of_each_call() -> None:
     assert [(r.execution_id, r.decision) for r in reviews.published] == [
         ("e1", decision)
     ]
+
+
+# ---- only an execution that ran and returned completes
+
+
+@tool(parallel=True)
+def p_runs_until_cancelled(started: Any) -> Tool:
+    async def execute() -> str:
+        """Run until cancelled."""
+        started.set()
+        await anyio.sleep_forever()
+        return "never"
+
+    return execute
+
+
+@tool(parallel=True)
+def p_raises_once_started(started: Any) -> Tool:
+    async def execute() -> str:
+        """Fail in a way no tool error describes, once the other call runs."""
+        await started.wait()
+        raise RuntimeError("boom")
+
+    return execute
+
+
+@protocol
+def p_holds_each_result(reviewing: Any) -> ProtocolGroup:
+    """Hold each result's review until it is cancelled, once `reviewing` is set."""
+
+    async def tool_result(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        reviewing.set()
+        await anyio.sleep_forever()
+        return None
+
+    return ProtocolGroup(tool_result)
+
+
+@solver
+def p_carries_on(*tools: Tool, interrupt: Any = None) -> Solver:
+    """A tool loop that carries on when a turn's tools raise, or, once `interrupt` is set, are cancelled as an agent interrupt cancels them."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        while True:
+            output = await model.generate(state.messages, list(tools))
+            state.messages.append(output.message)
+            state.output = output
+            if not output.message.tool_calls:
+                return state
+            executed: list[ChatMessage] = []
+            try:
+                with anyio.CancelScope() as scope:
+                    async with anyio.create_task_group() as tg:
+                        if interrupt is not None:
+
+                            async def cancel() -> None:
+                                await interrupt.wait()
+                                scope.cancel()
+
+                            tg.start_soon(cancel)
+                        result = await execute_tools(state.messages, list(tools))
+                        executed = result.messages
+                        tg.cancel_scope.cancel()
+            except Exception:
+                pass
+            state.messages.extend(executed)
+
+    return solve
+
+
+@pytest.mark.parametrize(
+    "case", ["fail_fast", "operator_cancel", "sibling_cancel", "interrupted_review"]
+)
+def test_only_an_execution_that_ran_and_returned_completes_live_and_in_replay(
+    monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    """A person's turn approval covers a call's result once its execution completes: not a call a fail-fast turn did not run, one an operator cancelled, one cancelled with a sibling that raised, or one whose result review was interrupted. Replay builds the records live does, covering the same messages."""
+    Panel("approve").install(monkeypatch)
+    extra: list[Any] = []
+    if case == "fail_fast":
+        halting = calls(("not_found", {}), ("not_found", {}))
+        halting.message.metadata = {TOOL_CALLS_FAIL_FAST: ["not_found"]}
+        solver: Any = tool_loop(not_found())
+        model = outputs(halting, done())
+    elif case == "operator_cancel":
+        solver = tool_loop(cancelled_by_its_operator())
+        model = outputs(call("cancelled_by_its_operator"), done())
+    elif case == "sibling_cancel":
+        started = anyio.Event()
+        solver = p_carries_on(
+            p_runs_until_cancelled(started), p_raises_once_started(started)
+        )
+        model = outputs(
+            calls(("p_runs_until_cancelled", {}), ("p_raises_once_started", {})),
+            done(),
+        )
+    else:
+        reviewing = anyio.Event()
+        solver = p_carries_on(addition(), interrupt=reviewing)
+        model = outputs(call("addition", x=1, y=1), done())
+        extra = [p_holds_each_result(reviewing)]
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        solver,
+        model,
+        sentinel=[
+            r7_probe(seen, copies=True),
+            h_ask("model_output", ["approve", "terminate"]),
+            *extra,
+        ],
+    )
+    events = p_tool_events(log)
+    _, replay = p_inputs_live_and_replayed(log, seen)
+    last = list(replay.values())[-1]
+    [approval] = last.human_decisions or []
+    assert approval.stage == "model_output"
+    if case == "fail_fast":
+        ran, skipped = events
+        assert skipped.error is not None and skipped.error.type == "cancelled"
+        assert [r.execution_id for r in last.reviewed_results] == [ran.execution_id]
+        (position, result), (_, unrun) = p_results(last)
+        assert result.execution_id == ran.execution_id
+        assert unrun.execution_id == skipped.execution_id
+        assert p_covered(last) == [(position, ran.execution_id)]
+        return
+    if case == "operator_cancel":
+        [cancelled] = events
+        assert cancelled.error is not None and cancelled.error.type == "timeout"
+    elif case == "sibling_cancel":
+        cancelled = next(e for e in events if e.function == "p_runs_until_cancelled")
+        assert cancelled.error is not None and "sibling" in cancelled.error.message
+        assert cancelled.failed
+    else:
+        [ran] = events
+        assert ran.error is None and ran.result == "2"
+    assert last.reviewed_results == []
 
 
 def test_a_result_on_an_error_path_names_its_execution() -> None:
