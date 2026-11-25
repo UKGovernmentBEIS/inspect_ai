@@ -29,7 +29,7 @@ import boto3
 import pytest
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai import Task, eval, eval_async
+from inspect_ai import Task, eval, eval_async, score_async
 from inspect_ai._control.events import decode_cursor
 from inspect_ai._control.log_dir import consistency
 from inspect_ai._control.log_dir.cache import (
@@ -436,9 +436,10 @@ async def test_a_log_without_recorded_ids_counts_its_summaries(
     assert row["samples"]["total_final"] is False
 
 
-async def test_finished_log_without_results_is_a_lower_bound(
+async def test_finished_log_without_results_counts_its_header_total(
     tmp_path: Path, finished_log: EvalLog
 ) -> None:
+    assert finished_log.total_samples == 3
     await _attempt(
         finished_log,
         tmp_path,
@@ -448,8 +449,45 @@ async def test_finished_log_without_results_is_a_lower_bound(
     )
     _, rows = await _index(tmp_path)
     [row] = rows
+    assert row["samples"]["total"] == 3
+    assert row["samples"]["total_final"] is True
+
+
+async def test_older_finished_log_without_results_or_header_total_is_a_lower_bound(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    await _attempt(
+        finished_log,
+        tmp_path,
+        "2026-01-01T00-00-00+00-00",
+        status="error",
+        results=None,
+        total_samples=None,
+    )
+    _, rows = await _index(tmp_path)
+    [row] = rows
     assert row["samples"]["total_final"] is False
     assert row["samples"]["pending_unlisted"] is None
+
+
+async def test_a_rescored_log_keeps_its_admitted_total(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    # 20 samples admitted (19 by a SampleSource, unrecorded), only one logged
+    log = finished_log.model_copy(deep=True)
+    log.eval.dataset.sample_ids = [1]
+    log.samples = [s for s in log.samples or [] if s.id == 1]
+    log.total_samples = 20
+    rescored = await score_async(log, match(), action="overwrite")
+    assert rescored.results is not None and rescored.results.total_samples == 1
+    assert rescored.total_samples == 20
+    await _attempt(rescored, tmp_path, "2026-01-01T00-00-00+00-00")
+    _, rows = await _index(tmp_path)
+    [row] = rows
+    samples = row["samples"]
+    assert samples["total"] == 20 and samples["total_final"] is True
+    assert samples["completed"] == 1
+    assert samples["pending_unlisted"] == 19 and samples["unfinished"] == 19
 
 
 def test_totals_rules() -> None:
