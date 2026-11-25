@@ -159,6 +159,16 @@ async def _probed(model: Model) -> Sidecar | NoSidecar:
     return await probe(client)
 
 
+async def test_a_sidecar_speaks_the_highest_version_both_know() -> None:
+    # true is no version, though Python counts it as 1
+    info = {"service": "inspect_sentinel", "versions": [True, 1]}
+
+    found = await _probed(_model(StandInSidecar(info=info)))
+
+    assert isinstance(found, Sidecar)
+    assert type(found.version) is int
+
+
 @pytest.mark.parametrize(
     ("provider", "base_url"),
     [("anthropic", "http://proxy.test"), ("openai", "http://proxy.test/v1")],
@@ -247,6 +257,14 @@ async def test_a_sidecar_behind_the_models_base_url_is_found(
             "http://proxy.test",
             ["c2VjcmV0IQ", "caf\xe9-token"],
         ),
+        # a password that isn't ASCII, on a page labelled Windows-1252
+        (
+            "anthropic",
+            "http://agent:p%E2%82%ACss@proxy.test",
+            "http://agent:p%E2%82%ACss@proxy.test",
+            "http://proxy.test",
+            ["p\u20acss", "p\xe2\u201a\xacss"],
+        ),
         # a name alone
         (
             "anthropic",
@@ -323,7 +341,11 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
             f"{request.url} {base_url} {authorization} {request.url.username} {items}"
         )
         lowered = re.sub("%[0-9A-F]{2}", lambda escape: escape[0].lower(), repeated)
-        page = f"upstream failed for {repeated} ({unquote(repeated)}) ({unquote_plus(repeated)}) ({unquote(repeated, encoding='latin-1')}) ({lowered})"
+        decoded = [
+            unquote(repeated, encoding=encoding, errors="replace")
+            for encoding in ("utf-8", "latin-1", "cp1252")
+        ]
+        page = f"upstream failed for {repeated} ({') ('.join(decoded)}) ({unquote_plus(repeated)}) ({lowered})"
         # the openai SDK's errors show a JSON error's body, and not a page
         if provider == "openai":
             return httpx2.Response(500, json={"error": {"message": page}})
@@ -393,8 +415,10 @@ class _Answer:
             "denied <- ValueError: for http://proxy.test?<>",
         ),
         ("error answer", "demo-token", "demo-token", "denied"),
-        # trimmed, as the anthropic SDK trims an error page
+        # trimmed, as the anthropic SDK trims an error page, of a space that
+        # is encoded, or form-encoded
         ("trimmed", "demo-token%20", "demo-token ", "for http://proxy.test?<>"),
+        ("trimmed", "demo-token+", "demo-token ", "for http://proxy.test?<>"),
         # raised from an error that is false
         (
             "false cause",

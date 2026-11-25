@@ -438,14 +438,20 @@ def _credentials(url: str) -> list[tuple[str, str]]:
     def add(text: str, shown: str) -> None:
         # decoded keeping each byte that isn't UTF-8, decoded as Python does
         # by default, which writes one U+FFFD for a cut-off sequence, and
-        # decoded as Latin-1, as some servers decode a query; each trimmed
-        # too, as the anthropic SDK trims an error page that ends in it
+        # decoded as Latin-1 or Windows-1252, as a server may decode a query
+        # or label its page; each trimmed too, form-decoded first, as the
+        # anthropic SDK trims an error page that ends in it
         decoded = [
             unquote(text, errors=errors) for errors in ("surrogateescape", "replace")
         ]
-        decoded.append(unquote(text, encoding="latin-1"))
+        decoded += [
+            unquote(text, encoding=encoding, errors="replace")
+            for encoding in ("latin-1", "cp1252")
+        ]
         secrets.extend(
-            (secret, shown) for each in decoded for secret in (each, each.strip())
+            (secret, shown)
+            for each in decoded
+            for secret in (each, each.strip(), each.replace("+", " ").strip())
         )
 
     userinfo = httpx2.URL(url).userinfo.decode("ascii")
