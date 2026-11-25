@@ -284,9 +284,17 @@ class RescoreRecordWriter:
     def _key(self, last: str) -> str:
         return f"{RESCORES}/{self.ref.eval_id}/{self.ref.rescore_id}/{last}"
 
-    def marker(self, built_on: RescoreRef | None) -> InfoEvent:
-        """The info event that names this rescore in a sample's new scorer events."""
-        return RescoreMarker(rescore=self.ref, built_on=built_on).event()
+    def marker(self, latest: RescoreMarker | None) -> InfoEvent:
+        """The info event that names this rescore in a sample's new scorer events.
+
+        Args:
+            latest: The marker of the sample's latest rescore before this one.
+        """
+        return RescoreMarker(
+            rescore=self.ref,
+            built_on=latest.rescore if latest else None,
+            chain_length=(latest.chain_length if latest else 0) + 1,
+        ).event()
 
     async def write_sample(
         self,

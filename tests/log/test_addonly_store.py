@@ -20,6 +20,7 @@ import zipfile
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import replace
 from datetime import datetime, timezone
+from functools import reduce
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -120,6 +121,7 @@ from inspect_ai.model._stream import (
     report_model_stream_start,
 )
 from inspect_ai.scorer import Score, Scorer, Target, includes, mean, scorer
+from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool import Tool, ToolChoice, ToolInfo, tool
 
@@ -1750,7 +1752,14 @@ def rescored_lines(result: CliResult) -> list[str]:
 
 @pytest.mark.parametrize(
     "actions",
-    [["overwrite"], ["append"], ["append", "append"], ["append", "overwrite"]],
+    [
+        ["overwrite"],
+        ["append"],
+        ["append", "append"],
+        ["append", "overwrite"],
+        ["append", "overwrite", "overwrite"],
+        ["append", "overwrite", "overwrite", "append"],
+    ],
 )
 @pytest.mark.parametrize("stream", [False, True])
 def test_rescore_validates(
@@ -1759,9 +1768,11 @@ def test_rescore_validates(
     actions: list[str],
     stream: bool,
 ) -> None:
-    """`inspect score --tamper-evident-store`, once or twice: no findings.
+    """`inspect score --tamper-evident-store`, one or more times: no findings.
 
-    Each pass lists each rescore and the original results.
+    Each pass lists each rescore and the original results. After append,
+    overwrite, overwrite, the append's marker is left and the first
+    overwrite's is not, so nothing names the append's.
     """
     for action in actions:
         rescore(
@@ -1772,12 +1783,14 @@ def test_rescore_validates(
         )
     log = read_eval_log(clean_run.location)
     assert log.samples and log.samples[0].scores
-    expected_scores = (
-        {"match"}
-        if actions[-1] == "overwrite"
-        else {"includes", "match", "match1"}
-        if len(actions) == 2
-        else {"includes", "match"}
+    expected_scores = reduce(
+        lambda names, action: (
+            {"match"}
+            if action == "overwrite"
+            else names | {unique_scorer_name("match", list(names))}
+        ),
+        actions,
+        {"includes"},
     )
     assert set(log.samples[0].scores) == expected_scores
 
@@ -1930,7 +1943,9 @@ def test_rescore_record_without_scorers_span(
     edit_sample(
         clean_run,
         lambda sample: sample.events.append(
-            RescoreMarker(rescore=RescoreRef(eval_id=eval_id, rescore_id="r1")).event()
+            RescoreMarker(
+                rescore=RescoreRef(eval_id=eval_id, rescore_id="r1"), chain_length=1
+            ).event()
         ),
     )
     nonce = StartRecord.model_validate_json(clean_run.read(f"{eval_id}/{START}")).nonce

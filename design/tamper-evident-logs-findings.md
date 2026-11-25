@@ -700,10 +700,12 @@ protected logs is a common feature. let's do #2 now"). Built on
 - The marker: the rescore adds an info event
   (`source="tamper_evident_rescore"`) to each sample's new scorers span,
   before the scorers run. Its data names the rescore (eval id and rescore
-  id) and `built_on`. It is in the sample's events, so it reaches the
-  .eval without a change to the log schema, with append and overwrite,
-  and with `--stream`. The rescorer reads the sample's latest marker
-  from its input to fill in `built_on`.
+  id), `built_on`, and the number of rescores in the sample's chain, this
+  one included (`chain_length`). It is in the sample's events, so it
+  reaches the .eval without a change to the log schema, with append and
+  overwrite, and with `--stream`. The rescorer reads the sample's latest
+  marker (the one with the longest chain) from its input to fill in
+  `built_on` and `chain_length`.
 - Validator:
   - A sample's expected scores and events are those of the original run
     (rebuilt from the records as before), with each rescore of the chain
@@ -758,10 +760,11 @@ Agreed with the coordinator before the build:
    `built_on`. `eval_retry` copies samples from a rescored prior .eval,
    so a reused sample's marker names the prior eval's rescore (an honest
    case; test `test_eval_retry_of_rescored_log_validates`). The latest
-   marker is the one no other marker names as `built_on`, not the last
-   one in the events: an append moves the new events under the old
-   scorers span but leaves their span ids pointing at the dropped new
-   span, so a later append reorders them.
+   marker is not the last one in the events: an append moves the new
+   events under the old scorers span but leaves their span ids pointing
+   at the dropped new span, so a later append reorders them. It was the
+   one no other marker names as `built_on`; review round 12 replaced
+   that with the longest chain.
 3. The rescore sample record holds the new events as JSON with
    attachments resolved, not buffer rows (the rescorer has no sample
    buffer, and the validator compares with full resolution). The closing
@@ -797,6 +800,33 @@ Review of 53c971c8a (Claude Opus 5.5, fresh context).
    naming the rescore to the sample, so the chain is applied. It gives
    `malformed_record` and `missing_rescore`; without the scorers span
    check the validator would crash in `_get_updated_events`.
+
+### Review round 12: fixes
+
+Review of 49678616e (Claude Opus 5.5, fresh context).
+
+1. **Append, overwrite, overwrite failed.** An overwrite replaces the
+   scorers span, but an append's events sit outside it after a re-read,
+   so a later overwrite keeps the append's marker. After append r1,
+   overwrite r2, overwrite r3 the markers were r3 (built on r2) and r1;
+   r2's was gone, so nothing named r1, and the rule "the marker no other
+   marker names" picked r1. The validator then applied only r1 and
+   reported `score_mismatch`, `event_mismatch` and `eval_mismatch`; a
+   fourth rescore stored `built_on` r1. Now each marker holds its chain
+   length (`chain_length`), and the latest marker is the one with the
+   longest chain. A new rescore's length is one more than the longest in
+   its input, so in an honest sample it is longer than every marker left.
+   An edited length changes the marker, which the event comparison
+   reports. Test: `test_rescore_validates` with append, overwrite,
+   overwrite, and the same with an append on top. They failed at
+   49678616e; the same chain through three retried evals (review probe
+   p8) now passes too.
+2. **Docs.** "What Is Not Protected" now says that a retry that was not
+   rescored can hold, for a reused sample, its earlier eval's copy from
+   before or after a rescore of that eval, and the validator passes it.
+   The validator checks `rescore_mismatch` only among the file's own
+   eval's rescores; checking more would need to know which rescores the
+   retry's copy came with, which the store does not record.
 
 ### Guarantees
 
@@ -1338,6 +1368,9 @@ prior_without_file MBjNiQ...: No .eval file; EMhV3K... names it as its prior eva
   eval. See [Rescore support](#rescore-support).
 - A nonce holder's scorers span whose parent is not in the events crashes
   the validator in `_get_updated_events` on an overwrite rescore.
+- A retry that was not rescored can hold, for a reused sample, the
+  earlier eval's copy from before or after a rescore of that eval; it
+  passes (review round 12, fix 2).
 - A retry's `prior_eval_id` is a claim by the retry's eval host. The
   earlier eval's records are protected, so a reused sample is still
   checked against them; a wrong id gives a finding for each reused sample.

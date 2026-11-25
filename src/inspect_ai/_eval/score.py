@@ -61,7 +61,7 @@ from inspect_ai.log import (
     EvalLog,
 )
 from inspect_ai.log._addonly import RescoreRecordWriter, StoreLocation
-from inspect_ai.log._addonly._records import latest_rescore
+from inspect_ai.log._addonly._records import latest_marker
 from inspect_ai.log._addonly._writer import rescore_nonce
 from inspect_ai.log._condense import (
     attachment_refs_from_object,
@@ -620,10 +620,10 @@ async def _run_score_task(
                 unique_scorer_name(scorer, list({*existing_score_names, *scorer_names}))
             )
 
-    built_on = latest_rescore(sample.events)
+    latest = latest_marker(sample.events)
     async with span(name=SCORERS_SPAN_NAME):
         if addonly is not None:
-            transcript()._event(addonly.marker(built_on))
+            transcript()._event(addonly.marker(latest))
         if not_scored is not None:
             # said in the scorers' span, where the scores would be, which an
             # overwrite replaces and an append adds to; the warning is recorded
@@ -691,7 +691,7 @@ async def _run_score_task(
         await addonly.write_sample(
             sample.id,
             sample.epoch,
-            built_on,
+            latest.rescore if latest else None,
             results,
             resolve_event_calls(scored_events, scoring_transcript.attachments),
         )

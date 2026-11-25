@@ -102,18 +102,21 @@ class RescoreMarker(BaseModel):
     rescore: RescoreRef
     built_on: RescoreRef | None = None
     """The sample's latest rescore before this one (None: the original run)."""
+    chain_length: int
+    """The number of rescores in the sample's chain, this one included."""
 
     def event(self) -> InfoEvent:
         return InfoEvent(source=RESCORE_MARKER_SOURCE, data=self.model_dump())
 
 
-def latest_rescore(events: Sequence[Event]) -> RescoreRef | None:
-    """The sample's latest rescore, if any, from the markers in its events.
+def latest_marker(events: Sequence[Event]) -> RescoreMarker | None:
+    """The marker of the sample's latest rescore, if any.
 
-    The one no other marker names as ``built_on``: an append moves the new
-    events under the old scorers span with the span ids of the dropped new
-    one, so a later append can reorder them. A marker that is not valid is
-    skipped; the event comparison reports it.
+    The one with the longest chain: event order does not say, as an append
+    moves its events under the old scorers span with the span ids of the
+    dropped new one, and an overwrite can remove the marker that an earlier
+    append's marker builds on. A marker that is not valid is skipped; the
+    event comparison reports it.
     """
 
     def marker(event: Event) -> RescoreMarker | None:
@@ -124,9 +127,11 @@ def latest_rescore(events: Sequence[Event]) -> RescoreRef | None:
         except ValidationError:
             return None
 
-    markers = [m for m in map(marker, events) if m is not None]
-    named = {m.built_on for m in markers}
-    return next((m.rescore for m in reversed(markers) if m.rescore not in named), None)
+    return max(
+        filter(None, map(marker, events)),
+        key=lambda m: m.chain_length,
+        default=None,
+    )
 
 
 class RescoreStartRecord(BaseModel):

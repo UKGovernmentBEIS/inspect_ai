@@ -63,7 +63,7 @@ from ._records import (
     SampleRecord,
     StartRecord,
     StoreRecord,
-    latest_rescore,
+    latest_marker,
 )
 from ._store import StoreLocation, s3_client, sample_key_part
 
@@ -717,7 +717,8 @@ def _compare_eval_file(
                 key,
             )
             continue
-        latest = latest_rescore(logged.events)
+        marker = latest_marker(logged.events)
+        latest = marker.rescore if marker else None
         file_rescores.add(latest if latest and latest.eval_id == eval_id else None)
         chain = _rescore_chain(
             rescores,

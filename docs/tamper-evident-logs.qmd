@@ -47,6 +47,8 @@ There are also a number of things that tamper-evident logs do not protect agains
 
 -   **Rescores by a holder of the eval's nonce.** Anyone who has the eval's nonce and can add to the store can write a rescore with any scores. A nonce that you hand out works for every later rescore of that eval, and a process that was compromised during the run already knows it. The validator lists each rescore, but does not vouch for it.
 
+-   **A reused sample from before a rescore.** If a retry was not rescored, a sample that it reused from an earlier eval can be replaced with that eval's copy from before or after one of the eval's rescores, and the validator passes it.
+
 -   **A deleted `.eval` file of an eval that a later eval names.** This shows up as a `prior_without_file` line rather than a finding. Note that eval-host keys can forge such a later eval.
 
 -   **Fields that are not stored.** The validator checks each sample's events and scores, which samples the `.eval` file has, and the eval's status, stats and results. It does not check other fields (for example the eval spec and plan, each sample's messages, output and error, or the sample summaries).
