@@ -180,12 +180,13 @@ async def test_a_sidecar_behind_the_models_base_url_is_found(
 @pytest.mark.parametrize(
     ("provider", "base_url", "origin", "proxy_url", "secrets"),
     [
+        # each part of the user info, and the Basic authorization httpx sends
         (
             "anthropic",
             "http://user:secret@proxy.test/v1",
             "http://user:secret@proxy.test",
             "http://proxy.test",
-            ["secret"],
+            ["secret", "user", "dXNlcjpzZWNyZXQ="],
         ),
         # a token alone, as the user
         (
@@ -226,13 +227,32 @@ async def test_a_sidecar_behind_the_models_base_url_is_found(
             "http://proxy.test",
             ["se%40cret", "se@cret"],
         ),
-        # a short value inside a longer one, which is repeated form-decoded too
+        # a short value inside a longer one, which is repeated form-decoded
+        # too, after a `;`, and a name with an empty value
         (
             "anthropic",
-            "http://proxy.test?v=9&key=pass9word+two",
+            "http://proxy.test?v=9;key=pass9word+two&sk-abc=",
             "http://proxy.test",
             "http://proxy.test",
-            ["pass", "word", "two"],
+            ["pass", "word", "two", "sk-abc"],
+        ),
+        # a bare query, after which the anthropic SDK puts its slash, has no
+        # secret, so nothing else is redacted
+        (
+            "anthropic",
+            "http://proxy.test/v1?",
+            "http://proxy.test",
+            "http://proxy.test",
+            [],
+        ),
+        # an escape that isn't UTF-8, repeated as given, in lower case, or
+        # decoded as U+FFFD
+        (
+            "anthropic",
+            "http://proxy.test?key=abc%FFdef",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["abc%FFdef", "abc%ffdef", "abc�def"],
         ),
         # a value that matches one character before another, and an escape
         # repeated in lower case
@@ -264,8 +284,9 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
     provider: str, base_url: str, origin: str, proxy_url: str, secrets: list[str]
 ) -> None:
     # a proxy's error page may repeat the URL Inspect asked for, credentials
-    # and all, or the base URL as configured, with its query and fragment, as
-    # given or decoded; the anthropic SDK's errors show the page. The proxy
+    # and all, and its authorization, or the base URL as configured, with its
+    # query and fragment, as given or decoded; the anthropic SDK's errors show
+    # the page. The proxy
     # fails the first probe, answers the second as a sidecar, and fails the
     # call to the sidecar that probe found.
     asked: list[httpx2.URL] = []
@@ -276,7 +297,8 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
             return httpx2.Response(
                 200, json={"service": "inspect_sentinel", "versions": [1]}
             )
-        repeated = f"{request.url} {base_url}"
+        authorization = request.headers.get("authorization", "")
+        repeated = f"{request.url} {base_url} {authorization}"
         lowered = re.sub("%[0-9A-F]{2}", lambda escape: escape[0].lower(), repeated)
         return httpx2.Response(
             500,
@@ -321,7 +343,8 @@ async def test_a_failed_call_to_a_sidecar_keeps_no_error_whose_traceback_shows_a
     where: str,
 ) -> None:
     # a traceback prints an error's notes, and the errors of a group, which
-    # the error's message leaves out
+    # the error's message leaves out; the log's tracebacks print every error
+    # of a group, past the 15 Python's own formatting shows
     class Failing:
         async def post(self, *args: Any, **kwargs: Any) -> Any:
             repeated = "for http://proxy.test?key=demo-token"
@@ -329,7 +352,8 @@ async def test_a_failed_call_to_a_sidecar_keeps_no_error_whose_traceback_shows_a
                 failure = ValueError("upstream failed")
                 failure.add_note(repeated)
                 raise failure
-            raise ExceptionGroup("upstream failed", [ValueError(repeated)])
+            others = [ValueError("upstream failed") for _ in range(15)]
+            raise ExceptionGroup("upstream failed", [*others, ValueError(repeated)])
 
     sidecar = Sidecar(
         "http://proxy.test",
@@ -341,7 +365,10 @@ async def test_a_failed_call_to_a_sidecar_keeps_no_error_whose_traceback_shows_a
     with pytest.raises(SidecarCallError) as raised:
         await sidecar.call("end_sample", {})
 
-    assert "demo-token" not in "".join(traceback.format_exception(raised.value))
+    shown = traceback.TracebackException.from_exception(
+        raised.value, max_group_width=100
+    )
+    assert "demo-token" not in "".join(shown.format())
 
 
 async def test_a_sidecar_behind_an_openai_compatible_models_base_url_is_found() -> None:

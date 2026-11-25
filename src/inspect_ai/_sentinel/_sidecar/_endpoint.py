@@ -1,7 +1,9 @@
 """Finding a sentinel sidecar behind a model's proxy, and calling its endpoint for evals."""
 
+import base64
 import re
 import secrets
+import sys
 import traceback
 from dataclasses import dataclass, field
 from itertools import count
@@ -225,9 +227,12 @@ class Sidecar:
 
     def _holds_secret(self, error: BaseException) -> bool:
         # whether a traceback of the error would show a secret: in its
-        # message, its notes, the errors it is chained to, or a group's errors
-        shown = "".join(traceback.format_exception(error))
-        return bool(_found(shown, self._secrets()))
+        # message, its notes, the errors it is chained to, or a group's
+        # errors, every one of them, as the log's tracebacks show them
+        shown = traceback.TracebackException.from_exception(
+            error, max_group_width=sys.maxsize, max_group_depth=sys.maxsize
+        )
+        return bool(_found("".join(shown.format()), self._secrets()))
 
 
 class _Client(NamedTuple):
@@ -365,38 +370,45 @@ def without_credentials(origin: str) -> str:
 
 def _credentials(url: str) -> list[tuple[str, str]]:
     # each secret the URL holds, decoded, with what stands in its place: the
-    # whole user info goes, and its secret part alone is redacted, which is
-    # the password, or for a URL with only a token, the user. So is each
-    # query value, or an item with no value, and the fragment, each with and
-    # without the slash the anthropic SDK puts on the end of its base URL.
+    # whole user info goes, and each of its parts is redacted, as is the
+    # Basic authorization httpx sends for it. So is each query value, or the
+    # name of an item with none, and the fragment. The slash the anthropic
+    # SDK puts on the end of its base URL is left off, as redacting a value
+    # covers it with the slash.
     import httpx2
 
     secrets: list[tuple[str, str]] = []
     userinfo = httpx2.URL(url).userinfo.decode("ascii")
     if userinfo:
         user, _, password = userinfo.partition(":")
+        basic = f"{unquote(user)}:{unquote(password)}".encode()
         secrets += [
-            (unquote(f"{userinfo}@"), ""),
-            (unquote(password or user), REDACTED),
+            (_decoded(f"{userinfo}@"), ""),
+            (_decoded(user), REDACTED),
+            (_decoded(password), REDACTED),
+            (base64.b64encode(basic).decode("ascii"), REDACTED),
         ]
     parts = urlsplit(url)
-    values = [
-        value if equals else name
-        for name, equals, value in (
-            item.partition("=") for item in parts.query.split("&")
-        )
-    ]
-    for value in [*values, parts.fragment]:
-        for form in (value, value.removesuffix("/")):
-            secrets.append((unquote(form), REDACTED))
+    for item in re.split("[&;]", parts.query.removesuffix("/")):
+        name, _, value = item.partition("=")
+        secrets.append((_decoded(value or name), REDACTED))
+    secrets.append((_decoded(parts.fragment.removesuffix("/")), REDACTED))
     return [(secret, shown) for secret, shown in secrets if secret]
+
+
+def _decoded(text: str) -> str:
+    # percent-decoded, keeping each byte that isn't UTF-8 as a surrogate
+    return unquote(text, errors="surrogateescape")
 
 
 def _spellings(secret: str) -> str:
     # a pattern for the secret however an error spells it: each character as
     # itself or percent-encoded, in either case, and a space and a plus as
-    # either, as form encoding writes them
+    # either, as form encoding writes them. A byte that isn't UTF-8 is
+    # percent-encoded, or decoded as U+FFFD.
     def spelled(char: str) -> list[str]:
+        if "\udc80" <= char <= "\udcff":
+            return [f"%(?i:{ord(char) - 0xDC00:02x})", *spelled("�")]
         encoded = "".join(f"%(?i:{byte:02x})" for byte in char.encode())
         return [re.escape(char), encoded]
 
