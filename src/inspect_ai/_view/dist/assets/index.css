@@ -13387,7 +13387,7 @@ a._turnButton_loteg_100 {
   background: var(--bs-secondary-bg-subtle);
   color: var(--bs-secondary);
 }
-._root_rr9mf_1 {
+._root_9lq06_1 {
   background: var(--bs-light);
   color: var(--bs-body-color);
   border-bottom: 1px solid var(--bs-border-color);
@@ -13398,29 +13398,29 @@ a._turnButton_loteg_100 {
  * roughly 2–3 chips per row regardless of chip set. The body fields
  * (1fr) keep the rest. The 1-2 score case uses `noRight` instead and
  * inlines the score cells into the field grid. */
-._layout_rr9mf_12 {
+._layout_9lq06_12 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(160px, 220px);
 }
 
-._layout_rr9mf_12._wideRight_rr9mf_17 {
+._layout_9lq06_12._wideRight_9lq06_17 {
   grid-template-columns: minmax(0, 1fr) minmax(220px, 440px);
 }
 
-._layout_rr9mf_12._noRight_rr9mf_21 {
+._layout_9lq06_12._noRight_9lq06_21 {
   grid-template-columns: minmax(0, 1fr);
 }
 
-._left_rr9mf_25 {
+._left_9lq06_25 {
   padding: 8px 0.5rem;
   min-width: 0;
 }
 
-._layout_rr9mf_12._noRight_rr9mf_21 ._left_rr9mf_25 {
+._layout_9lq06_12._noRight_9lq06_21 ._left_9lq06_25 {
   border-right: none;
 }
 
-._right_rr9mf_34 {
+._right_9lq06_34 {
   padding: 0;
   background: var(--bs-light);
   min-width: 0;
@@ -13428,7 +13428,7 @@ a._turnButton_loteg_100 {
   flex-direction: column;
 }
 
-._metaLine_rr9mf_42 {
+._metaLine_9lq06_42 {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -13438,11 +13438,11 @@ a._turnButton_loteg_100 {
   color: var(--bs-secondary);
 }
 
-._metaSep_rr9mf_52 {
+._metaSep_9lq06_52 {
   color: var(--bs-tertiary-color, var(--bs-secondary));
 }
 
-._metaId_rr9mf_56 {
+._metaId_9lq06_56 {
   font-family: var(--bs-font-monospace);
   color: var(--bs-body-color);
   font-size: var(--inspect-font-size-base);
@@ -13451,21 +13451,21 @@ a._turnButton_loteg_100 {
 
 /* Field row: Input | Target | Answer in a single row. Target gets a
  * fixed-ish middle slot, Input and Answer flex. */
-._fields_rr9mf_65 {
+._fields_9lq06_65 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(60px, auto) minmax(0, 1fr);
   gap: 8px 24px;
 }
 
-._field_rr9mf_65 {
+._field_9lq06_65 {
   min-width: 0;
 }
 
-._fieldTarget_rr9mf_75 {
+._fieldTarget_9lq06_75 {
   max-width: 200px;
 }
 
-._fieldLabel_rr9mf_79 {
+._fieldLabel_9lq06_79 {
   font-size: var(--inspect-font-size-smallest, 0.7rem);
   font-weight: 400;
   color: var(--bs-secondary);
@@ -13473,14 +13473,14 @@ a._turnButton_loteg_100 {
   text-transform: uppercase;
 }
 
-._fieldValue_rr9mf_87 {
+._fieldValue_9lq06_87 {
   font-size: var(--inspect-font-size-smaller, 0.9rem);
   color: var(--bs-body-color);
   line-height: 1.5;
   margin-top: 4px;
 }
 
-._clamp_rr9mf_94 {
+._clamp_9lq06_94 {
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -13492,18 +13492,18 @@ a._turnButton_loteg_100 {
  * are inlined into the same fields grid as Input/Target/Answer. The
  * label gets the same FieldLabel chrome; the value sits directly
  * beneath it, vertically aligned with the body field values. */
-._scoreField_rr9mf_106 {
+._scoreField_9lq06_106 {
   max-width: 140px;
 }
 
-._scoreFieldValue_rr9mf_110 {
+._scoreFieldValue_9lq06_110 {
   margin-top: 4px;
   display: flex;
   align-items: center;
   min-width: 0;
 }
 
-._errorBlock_rr9mf_117 {
+._errorBlock_9lq06_117 {
   padding: 10px 18px;
   border-top: 1px dashed var(--bs-border-color);
 }
@@ -13513,7 +13513,7 @@ a._turnButton_loteg_100 {
  * sticky overlay rendered by `SampleDisplay` when the user has
  * scrolled past the full header. Positioning lives at the call-site
  * because the parent owns the scroll context. */
-._collapsedMeta_rr9mf_127 {
+._collapsedMeta_9lq06_127 {
   padding: 2px 0.5rem;
   display: flex;
   align-items: center;
@@ -13521,49 +13521,8 @@ a._turnButton_loteg_100 {
 
 /* In the collapsed band there's no fields row beneath the meta line,
  * so suppress the bottom margin that the expanded layout uses. */
-._collapsedMeta_rr9mf_127 ._metaLine_rr9mf_42 {
+._collapsedMeta_9lq06_127 ._metaLine_9lq06_42 {
   margin-bottom: 0;
-}
-
-/* Invalidation banner styles */
-._invalidationBanner_rr9mf_140 {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75em;
-  padding: 0.75em 1em;
-  background-color: var(--bs-warning-bg-subtle);
-  border-bottom: 1px solid var(--bs-warning-border-subtle);
-  color: var(--bs-warning-text-emphasis);
-}
-
-._invalidationIcon_rr9mf_150 {
-  font-size: 1.25em;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-._invalidationContent_rr9mf_156 {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25em;
-  min-width: 0;
-}
-
-._invalidationTitle_rr9mf_163 {
-  font-weight: 600;
-  font-size: 0.9em;
-}
-
-._invalidationDetails_rr9mf_168 {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5em 1.5em;
-  font-size: 0.85em;
-  opacity: 0.9;
-}
-
-._invalidationReason_rr9mf_176 {
-  flex-basis: 100%;
 }
 ._entry_a2fxh_1 {
   margin-bottom: 1rem;

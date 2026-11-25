@@ -401,7 +401,7 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                 except SidecarCallError as ex:
                     if ex.code == UNAUTHORIZED:
                         raise SentinelProxyError(
-                            f"The sentinel sidecar at {sidecar.origin} won't take the eval's calls, so it won't say what it decided of them: {ex}"
+                            f"The sentinel sidecar at {sidecar.proxy_url} won't take the eval's calls, so it won't say what it decided of them: {ex}"
                         ) from ex
                     if (
                         ex.code is None

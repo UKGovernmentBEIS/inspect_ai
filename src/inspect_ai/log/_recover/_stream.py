@@ -352,6 +352,9 @@ def _write_sample_streaming(
             write_json_field(
                 stream, "model_fallbacks", summary.model_fallbacks, comma=True
             )
+            write_json_field(
+                stream, "sentinel_stats", summary.sentinel_stats, comma=True
+            )
             write_json_field(stream, "turn_count", summary.turn_count, comma=True)
             write_json_field(stream, "token_limit", summary.token_limit, comma=True)
             write_json_field(

@@ -3187,6 +3187,22 @@
               }
             ]
           },
+          "sentinel_proxy": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "required",
+                  "off"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentinel Proxy"
+          },
           "time_limit": {
             "anyOf": [
               {
@@ -4274,6 +4290,20 @@
             ],
             "title": "Scores"
           },
+          "sentinel_stats": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SentinelStats"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentinel Stats"
+          },
           "setup": {
             "anyOf": [
               {
@@ -4854,6 +4884,20 @@
               }
             ],
             "title": "Scores"
+          },
+          "sentinel_stats": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SentinelStats"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentinel Stats"
           },
           "started_at": {
             "anyOf": [
@@ -5770,6 +5814,20 @@
             },
             "title": "Role Usage",
             "type": "object"
+          },
+          "sentinel_stats": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SentinelEvalStats"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentinel Stats"
           },
           "started_at": {
             "anyOf": [
@@ -10619,6 +10677,94 @@
         "title": "SentinelEntry",
         "type": "object"
       },
+      "SentinelEvalStats": {
+        "description": "A sentinel's stats added up over an eval's samples whose stats are complete: only the fields that add up.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "actions": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "proceed",
+                    "modify",
+                    "reject",
+                    "terminate",
+                    "escalate"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actions"
+          },
+          "human_reviews": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentinelHumanReviewCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "incomplete_samples": {
+            "default": 0,
+            "title": "Incomplete Samples",
+            "type": "integer"
+          },
+          "model_calls": {
+            "default": 0,
+            "title": "Model Calls",
+            "type": "integer"
+          },
+          "samples": {
+            "default": 0,
+            "title": "Samples",
+            "type": "integer"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SentinelStepCounts"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "model_input",
+                    "model_output",
+                    "tool_call",
+                    "tool_result"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          },
+          "unrecorded_calls": {
+            "default": 0,
+            "title": "Unrecorded Calls",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "model_calls",
+          "unrecorded_calls",
+          "samples",
+          "incomplete_samples"
+        ],
+        "title": "SentinelEvalStats",
+        "type": "object"
+      },
       "SentinelEvent": {
         "description": "Report from a sentinel monitor or protocol about one step.\n\nA report's metadata is recorded in the event's `metadata` field.\n\nExperimental: not yet a stable API; may change without notice.",
         "properties": {
@@ -10644,6 +10790,17 @@
             "default": false,
             "title": "Audit",
             "type": "boolean"
+          },
+          "completed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed"
           },
           "conversation": {
             "title": "Conversation",
@@ -10759,12 +10916,33 @@
             ],
             "title": "Pending"
           },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "references": {
             "items": {
               "$ref": "#/components/schemas/Reference"
             },
             "title": "References",
             "type": "array"
+          },
+          "remote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentinelRemote"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "span_id": {
             "anyOf": [
@@ -10788,15 +10966,23 @@
             "type": "string"
           },
           "status": {
-            "enum": [
-              "reported",
-              "cancelled",
-              "bypassed",
-              "superseded",
-              "error"
+            "anyOf": [
+              {
+                "enum": [
+                  "reported",
+                  "cancelled",
+                  "bypassed",
+                  "superseded",
+                  "error",
+                  "unjudged"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
             ],
-            "title": "Status",
-            "type": "string"
+            "title": "Status"
           },
           "step_id": {
             "title": "Step Id",
@@ -10838,6 +11024,17 @@
           "working_start": {
             "title": "Working Start",
             "type": "number"
+          },
+          "working_time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Working Time"
           }
         },
         "required": [
@@ -10855,6 +11052,400 @@
           "references"
         ],
         "title": "SentinelEvent",
+        "type": "object"
+      },
+      "SentinelHumanReviewCounts": {
+        "description": "Questions a sentinel's `human()` asked a person, and how they ended.\n\nOnly reviews a sentinel's `human()` asked for. Approvals by `inspect_ai.approval` approvers and reviews by `inspect_ai.review` reviewers are not counted here.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "answered": {
+            "default": 0,
+            "title": "Answered",
+            "type": "integer"
+          },
+          "cancelled": {
+            "default": 0,
+            "title": "Cancelled",
+            "type": "integer"
+          },
+          "timed_out": {
+            "default": 0,
+            "title": "Timed Out",
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "answered",
+          "timed_out",
+          "cancelled"
+        ],
+        "title": "SentinelHumanReviewCounts",
+        "type": "object"
+      },
+      "SentinelRemote": {
+        "description": "Where a report from a sentinel running outside the eval came from: the model's proxy Inspect reached it through, and the agent's model call it judged.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "human_reviews": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SentinelRemoteHumanReview"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Human Reviews"
+          },
+          "models": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SentinelRemoteModel"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Models"
+          },
+          "proxy_url": {
+            "title": "Proxy Url",
+            "type": "string"
+          },
+          "reply_received": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply Received"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "request_received": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Received"
+          },
+          "trimmed": {
+            "default": false,
+            "title": "Trimmed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "proxy_url",
+          "trimmed"
+        ],
+        "title": "SentinelRemote",
+        "type": "object"
+      },
+      "SentinelRemoteHumanReview": {
+        "description": "A question a remote sentinel's `human()` asked a person about a step, and how it ended.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "answered": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered"
+          },
+          "asked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asked"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "enum": [
+                  "answered",
+                  "timed_out",
+                  "cancelled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "SentinelRemoteHumanReview",
+        "type": "object"
+      },
+      "SentinelRemoteModel": {
+        "description": "A model a remote sentinel's monitors and protocols called while judging a step.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "title": "SentinelRemoteModel",
+        "type": "object"
+      },
+      "SentinelRemoteStats": {
+        "description": "What only a remote sentinel's stats have: how Inspect reached it, and the model calls Inspect sent through it.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "model_calls": {
+            "default": 0,
+            "title": "Model Calls",
+            "type": "integer"
+          },
+          "proxy_url": {
+            "title": "Proxy Url",
+            "type": "string"
+          },
+          "release": {
+            "anyOf": [
+              {
+                "enum": [
+                  "whole",
+                  "early"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Release"
+          },
+          "results_withheld": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Results Withheld"
+          },
+          "unrecorded_calls": {
+            "default": 0,
+            "title": "Unrecorded Calls",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "proxy_url",
+          "version",
+          "release",
+          "model_calls",
+          "unrecorded_calls"
+        ],
+        "title": "SentinelRemoteStats",
+        "type": "object"
+      },
+      "SentinelStats": {
+        "description": "What a sentinel did over a sample, filled the same way whether it ran inside Inspect or outside the eval.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "actions": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "proceed",
+                    "modify",
+                    "reject",
+                    "terminate",
+                    "escalate"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actions"
+          },
+          "complete": {
+            "default": true,
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "human_reviews": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentinelHumanReviewCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "incomplete_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incomplete Reason"
+          },
+          "remote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentinelRemoteStats"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SentinelStepCounts"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "model_input",
+                    "model_output",
+                    "tool_call",
+                    "tool_result"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          }
+        },
+        "required": [
+          "complete"
+        ],
+        "title": "SentinelStats",
+        "type": "object"
+      },
+      "SentinelStepCounts": {
+        "description": "Steps a sentinel saw at one stage, and whether each was judged.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "judged": {
+            "default": 0,
+            "title": "Judged",
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "unjudged": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Unjudged",
+            "type": "object"
+          }
+        },
+        "required": [
+          "total",
+          "judged",
+          "unjudged"
+        ],
+        "title": "SentinelStepCounts",
         "type": "object"
       },
       "SnapshotDetails": {

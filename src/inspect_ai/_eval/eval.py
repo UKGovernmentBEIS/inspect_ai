@@ -981,6 +981,7 @@ async def _eval_async_inner(
             sentinel=sentinel_config(eval_sentinel)
             if eval_sentinel is not None
             else None,
+            sentinel_proxy=sentinel_proxy,
             notification=notification,
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
@@ -1451,7 +1452,7 @@ def eval_retry(
             re-run). A finalized log lives at
             `<name>-recovered.eval` alongside the crashed log rather than in
             `log_dir`, so read its location from `EvalLog.location`.
-        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. Defaults to what the log records. Experimental: not yet a stable API; may change without notice.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
@@ -1685,7 +1686,7 @@ async def eval_retry_async(
             re-run). A finalized log lives at
             `<name>-recovered.eval` alongside the crashed log rather than in
             `log_dir`, so read its location from `EvalLog.location`.
-        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. Defaults to what the log records. Experimental: not yet a stable API; may change without notice.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
@@ -1857,6 +1858,11 @@ async def eval_retry_async(
         approval = eval_log.eval.config.approval
         review = eval_log.eval.config.review
         sentinel = eval_log.eval.config.sentinel
+        retry_sentinel_proxy = (
+            sentinel_proxy
+            if sentinel_proxy is not None
+            else eval_log.eval.config.sentinel_proxy
+        )
         notification: bool | str | None = eval_log.eval.config.notification
         message_limit = eval_log.eval.config.message_limit
         config_token_limit = eval_log.eval.config.token_limit
@@ -2007,7 +2013,7 @@ async def eval_retry_async(
                 approval=approval,
                 review=review,
                 sentinel=sentinel,
-                sentinel_proxy=sentinel_proxy,
+                sentinel_proxy=retry_sentinel_proxy,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,

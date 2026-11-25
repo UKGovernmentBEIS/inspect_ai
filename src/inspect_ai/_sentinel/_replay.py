@@ -1150,7 +1150,13 @@ class _Driver:
             return
         events = self.span_events.setdefault(span, [])
         events.append(event)
-        if event.path == "" and event.status in ("error", "cancelled"):
+        # any other root status, `unjudged` or one added later, is a step
+        # whose judging didn't finish
+        if event.path == "" and event.status not in (
+            "reported",
+            "bypassed",
+            "superseded",
+        ):
             self.failed.add(span)
         if len(events) > 1:
             return
