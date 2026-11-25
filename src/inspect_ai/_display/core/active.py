@@ -3,7 +3,7 @@ from contextvars import ContextVar
 
 import rich
 
-from inspect_ai.util._display import display_type
+from inspect_ai.util._display import DisplayType, display_type
 
 from ..log.display import LogDisplay
 from ..plain.display import PlainDisplay
@@ -13,6 +13,7 @@ from .display import Display, TaskScreen
 from .rich import rich_display_type_changed, rich_record_settings
 
 _active_display: Display | None = None
+_active_display_type: DisplayType | None = None
 
 
 def active_display() -> Display | None:
@@ -28,8 +29,13 @@ def clear_active_display() -> None:
 
 
 def display() -> Display:
-    global _active_display
+    global _active_display, _active_display_type
+    # an eval call restores the display type when it returns, which leaves
+    # the display it built for its own type
+    if _active_display is not None and _active_display_type != display_type():
+        clear_active_display()
     if _active_display is None:
+        _active_display_type = display_type()
         # for displays that don't set the console up (e.g. log, or full showing
         # only progress), so a display type change can detect settings again
         rich_record_settings()

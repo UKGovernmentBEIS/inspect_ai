@@ -111,7 +111,6 @@ from inspect_ai.util._display import (
     display_type,
     display_type_initialized,
     display_type_scope,
-    display_type_scope_active,
     init_display_type,
 )
 from inspect_ai.util._limit import TokenLimit, token_limit_fields
@@ -656,15 +655,11 @@ async def eval_async(
 
     result: list[EvalLog] | None = None
 
-    # not called from eval(), eval_retry() or eval_set()
-    direct = not display_type_scope_active()
-
     async def run(tg: TaskGroup) -> None:
         try:
             nonlocal result
             result = await _eval_async_inner(
                 tg=tg,
-                direct=direct,
                 tasks=tasks,
                 model=model,
                 model_base_url=model_base_url,
@@ -749,7 +744,6 @@ async def eval_async(
 
 async def _eval_async_inner(
     tg: TaskGroup,
-    direct: bool,
     tasks: Tasks,
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
@@ -824,11 +818,11 @@ async def _eval_async_inner(
     if _eval_async_running:
         raise RuntimeError("Multiple concurrent calls to eval_async are not allowed.")
 
-    # before the running flag, which blocks display type changes
-    if direct:
-        init_eval_async_display()
-
     _eval_async_running = True
+
+    # if we are called outside of eval() then set display type to "plain"
+    if not display_type_initialized():
+        init_display_type("plain")
 
     # resolve model and task args
     model_args = resolve_args(model_args)
@@ -2186,31 +2180,6 @@ def eval_resolve_tasks(
 
     # return tasks, approval, and review
     return resolved_tasks, approval, review
-
-
-def init_eval_async_display() -> None:
-    """Initialize the display for eval_async() called outside eval().
-
-    Uses "plain" when no display type is set. The "full" display needs the
-    task app that eval() runs, so "rich" is used in its place. If that change
-    is refused because other Rich output uses a textual display, raises
-    PrerequisiteError rather than run without the task app.
-    """
-    from inspect_ai._display.core.active import active_display
-    from inspect_ai._display.textual.display import TextualDisplay
-
-    if not display_type_initialized():
-        init_display_type("plain")
-    elif display_type() == "full":
-        if init_display_type("rich") == "full" and isinstance(
-            active_display(), TextualDisplay
-        ):
-            raise PrerequisiteError(
-                "eval_async() can't use the 'full' display outside eval(), and "
-                "can't change to the 'rich' display while other Rich output is "
-                "open. Set INSPECT_DISPLAY to 'rich' or 'plain', or call "
-                "eval_async() after that output closes."
-            )
 
 
 def init_eval_display(

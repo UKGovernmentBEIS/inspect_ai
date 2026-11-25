@@ -222,21 +222,20 @@ def sync_rich_eval_first(
 ) -> None:
     """Run a sync `eval()` with the rich display before the test's event loop.
 
-    With the rich display set for the process (as `inspect --display rich`
-    does), the sync run leaves its display in place for later runs, so the
-    test's `eval_async()` uses the rich display. The display created by
-    earlier tests is cleared first and the display state is restored
+    The sync run leaves its display in place for later runs in the process,
+    so the test's `eval_async()` uses the rich display. The display created
+    by earlier tests is cleared first and the display state is restored
     afterwards.
     """
     monkeypatch.setattr(
         display_type_module, "_display_type", display_type_module._display_type
     )
     monkeypatch.setattr(active_display_module, "_active_display", None)
-    display_type_module.init_display_type("rich")
     eval(
         Task(dataset=[Sample(input="x", target="y")]),
         model="mockllm/model",
         log_dir=str(tmp_path_factory.mktemp("sync_eval")),
+        display="rich",
     )
 
 

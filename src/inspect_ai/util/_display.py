@@ -3,11 +3,8 @@ from contextlib import contextmanager
 from logging import getLogger
 from typing import Iterator, Literal
 
-from rich import get_console
-
 from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.constants import DEFAULT_DISPLAY
-from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.thread import is_main_thread
 
 logger = getLogger(__name__)
@@ -17,10 +14,6 @@ DisplayType = Literal["full", "conversation", "rich", "plain", "log", "none"]
 
 
 _display_type: DisplayType | None = None
-
-# eval calls in progress (eval() runs eval_async(), eval_set() runs eval()), so
-# that only the outermost one restores the display type
-_display_scope_depth = 0
 
 
 def init_display_type(display: str | None = None) -> DisplayType:
@@ -88,45 +81,19 @@ def init_display_type(display: str | None = None) -> DisplayType:
 
 @contextmanager
 def display_type_scope() -> Iterator[None]:
-    """Restore the display type when an eval call returns.
+    """Restore the display type (or its absence) when an eval call returns.
 
-    eval(), eval_async(), eval_retry() and eval_set() set the display type
-    from `display`, `trace` or (eval_async()) "plain". When the outermost of
-    these calls returns, after its display has shut down, the display type it
-    found is applied again. When none was set, the configured default
-    (`INSPECT_DISPLAY`, from the environment or the project .env) is applied,
-    so a first direct eval_async() uses "plain" and later ones the configured
-    type. While live Rich output (e.g. a caller's status) still uses the
-    call's display, the type is kept and a warning is logged.
-
-    Only calls made on the main thread restore the display type. A call on a
-    worker thread leaves the display type it set.
+    The display type that eval(), eval_async(), eval_retry() or eval_set()
+    sets from `display`, `trace` or (eval_async()) "plain" then applies only
+    to that call, not to later calls in the process. The display built for
+    the call's type is replaced when a display is next needed.
     """
-    global _display_scope_depth
-    restore = _display_scope_depth == 0 and is_main_thread()
+    global _display_type
     previous = _display_type
-    if restore and previous is None:
-        # the project .env (which the call loads anyway) can set
-        # INSPECT_DISPLAY, which the call's own display may use
-        from inspect_ai._util.dotenv import init_dotenv
-
-        init_dotenv()
-    _display_scope_depth += 1
     try:
         yield
-    except PrerequisiteError as ex:
-        if restore and ex.quiet is None:
-            ex.quiet = get_console().quiet
-        raise
     finally:
-        _display_scope_depth -= 1
-        if restore:
-            init_display_type(previous)
-
-
-def display_type_scope_active() -> bool:
-    """Is an eval call (eval(), eval_async(), ...) in progress?"""
-    return _display_scope_depth > 0
+        _display_type = previous
 
 
 def display_type() -> DisplayType:

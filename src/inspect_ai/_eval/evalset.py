@@ -123,7 +123,7 @@ from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
 from inspect_ai.util._checkpoint import CheckpointConfig
 from inspect_ai.util._display import (
-    display_type,
+    display_type_initialized,
     display_type_plain,
     display_type_scope,
     init_display_type,
@@ -881,7 +881,8 @@ def eval_set(
             )
 
     # initialise display (otherwise eval_init will set it to full)
-    display = init_display_type(display or display_type())
+    if not display_type_initialized():
+        display = init_display_type(display)
     if display == "conversation":
         raise RuntimeError("eval_set cannot be used with conversation display.")
 
@@ -1300,9 +1301,6 @@ def eval_set(
             _register_reused_logs(success_logs)
 
             if not tasks_to_run:
-                # no eval() builds the display, so build it here to apply its
-                # console settings (e.g. quiet for "none") to the summary
-                display_manager()
                 return [log.header for log in success_logs]
 
         # run the tasks
@@ -1398,9 +1396,6 @@ def eval_set(
         # return status + results
         return success, results
     finally:
-        # an interrupted retry wait leaves its status running
-        if status is not None:
-            status.stop()
         reset_run_registries()
 
 

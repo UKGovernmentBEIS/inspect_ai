@@ -447,11 +447,10 @@ def test_eval_display_change_keeps_console_contexts(
     assert ("captured before the change" in capture.get()) == shown
     assert "recorded before the change" in console.export_text()
 
-    # the capture no longer holds output back, and the "none" display's
-    # quiet console ends with its eval
+    # the capture no longer holds output back
     capsys.readouterr()
     console.print("after the change")
-    assert "after the change" in capsys.readouterr().out
+    assert ("after the change" in capsys.readouterr().out) == shown
 
 
 def test_eval_display_change_keeps_console_settings_made_between_evals(
@@ -535,7 +534,6 @@ def test_eval_display_change_shows_input_screen_inside_capture(
 
     import inspect_ai._display.core.rich as display_rich
     from inspect_ai.util import input_screen
-    from inspect_ai.util._display import init_display_type
 
     monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
 
@@ -549,8 +547,6 @@ def test_eval_display_change_shows_input_screen_inside_capture(
         return solve
 
     task = Task(dataset=[Sample(input="hi", target="hi")], solver=ask())
-    # the process display type, so its display stays built between the evals
-    init_display_type(first)
     eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
     capsys.readouterr()
 
@@ -768,7 +764,6 @@ def test_eval_display_change_keeps_recording_through_input_screen(
 
     import inspect_ai._display.core.rich as display_rich
     from inspect_ai.util import input_screen
-    from inspect_ai.util._display import init_display_type
 
     monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
 
@@ -782,8 +777,6 @@ def test_eval_display_change_keeps_recording_through_input_screen(
         return solve
 
     task = Task(dataset=[Sample(input="hi", target="hi")], solver=ask())
-    # the process display type, so its display stays built between the evals
-    init_display_type(first)
     eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
 
     console = rich.get_console()
@@ -956,6 +949,7 @@ def test_eval_display_does_not_carry_to_later_evals(
     fresh_display: None,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
     first: str,
 ) -> None:
     monkeypatch.setenv("INSPECT_DISPLAY", "rich")
@@ -975,9 +969,12 @@ def test_eval_display_does_not_carry_to_later_evals(
             functools.partial(eval_async, task, model="mockllm/model", log_dir=log_dir)
         )
 
+    capsys.readouterr()
     [log] = eval(task, model="mockllm/model", log_dir=log_dir)
     assert types[1] == "rich"
     assert log.eval.config.max_samples is None
+    # shown by the rich display, not the display built for the first call
+    assert "Log:" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("first", ["trace", "process_type"])
@@ -999,7 +996,8 @@ def test_eval_display_does_not_carry_to_later_eval_async(
 
     if first == "trace":
         eval(task, model="mockllm/model", trace=True, log_dir=log_dir)
-        expected: DisplayType = "rich"
+        # no display type is set again, so eval_async() uses its default
+        expected: DisplayType = "plain"
     else:
         # as `inspect --display none` sets it
         init_display_type("none")
@@ -1012,335 +1010,6 @@ def test_eval_display_does_not_carry_to_later_eval_async(
     )
     assert types[1] == expected
     assert log.eval.config.max_samples is None
-
-
-@pytest.mark.parametrize("first", ["query", "restore"])
-def test_eval_async_outside_eval_runs_full_display_as_rich(
-    fresh_display: None,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    first: str,
-) -> None:
-    import io
-    import sys
-
-    from inspect_ai.util._display import display_type
-
-    class TerminalOutput(io.StringIO):
-        def isatty(self) -> bool:
-            return True
-
-    # a terminal, where "full" would select the textual display
-    monkeypatch.setenv("INSPECT_DISPLAY", "full")
-    monkeypatch.setattr(sys, "stdout", TerminalOutput())
-    types: list[DisplayType] = []
-    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
-    log_dir = str(tmp_path)
-
-    # as get_model().generate() does outside an eval
-    display_type()
-    if first == "restore":
-        eval(task, model="mockllm/model", display="rich", log_dir=log_dir)
-
-    [log] = anyio.run(
-        functools.partial(eval_async, task, model="mockllm/model", log_dir=log_dir)
-    )
-    assert log.status == "success"
-    assert types[-1] == "rich"
-
-
-@pytest.mark.parametrize("second", ["eval", "eval_async", "eval_set"])
-def test_eval_inside_status_after_trace_is_not_conversation(
-    fresh_display: None,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    second: str,
-) -> None:
-    import rich
-
-    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
-    types: list[DisplayType] = []
-    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
-    eval(task, model="mockllm/model", trace=True, log_dir=str(tmp_path / "trace"))
-
-    # a caller's spinner around the next eval
-    with rich.get_console().status("working"):
-        log_dir = str(tmp_path / "second")
-        if second == "eval":
-            [log] = eval(task, model="mockllm/model", log_dir=log_dir)
-        elif second == "eval_async":
-            [log] = anyio.run(
-                functools.partial(
-                    eval_async, task, model="mockllm/model", log_dir=log_dir
-                )
-            )
-        else:
-            success, [log] = eval_set(task, model="mockllm/model", log_dir=log_dir)
-            assert success
-
-    assert types == ["conversation", "rich"]
-    assert log.eval.config.max_samples is None
-
-
-def test_eval_set_interrupted_retry_wait_stops_status_and_restores_display(
-    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    from types import SimpleNamespace
-
-    from inspect_ai._display.core.rich import rich_console_in_use
-
-    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
-
-    def interrupt(seconds: float) -> None:
-        raise KeyboardInterrupt()
-
-    # Ctrl-C during the wait between retries
-    monkeypatch.setattr("tenacity.nap.time", SimpleNamespace(sleep=interrupt))
-
-    @solver
-    def fail() -> Solver:
-        async def solve(state: TaskState, generate: Generate) -> TaskState:
-            raise ValueError("fail")
-
-        return solve
-
-    with pytest.raises(KeyboardInterrupt):
-        eval_set(
-            Task(dataset=[Sample(input="hi")], solver=fail()),
-            model="mockllm/model",
-            display="none",
-            retry_immediate=False,
-            retry_attempts=2,
-            retry_wait=1,
-            log_dir=str(tmp_path / "set"),
-        )
-    # the "waiting" status is stopped
-    assert not rich_console_in_use()
-
-    types: list[DisplayType] = []
-    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
-    eval(task, model="mockllm/model", log_dir=str(tmp_path / "eval"))
-    assert types == ["rich"]
-
-
-def test_eval_async_outside_eval_refuses_full_display_it_cannot_change(
-    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    import io
-    import sys
-
-    import rich
-
-    from inspect_ai._display.core.active import display
-    from inspect_ai._display.textual.display import TextualDisplay
-
-    class TerminalOutput(io.StringIO):
-        def isatty(self) -> bool:
-            return True
-
-    monkeypatch.setenv("INSPECT_DISPLAY", "full")
-    monkeypatch.setattr(sys, "stdout", TerminalOutput())
-
-    # as a log utility's progress does on a terminal: a textual display
-    # without the task app that eval() runs
-    assert isinstance(display(), TextualDisplay)
-
-    task = Task(dataset=[Sample(input="hi")])
-    with rich.get_console().status("working"):
-        with pytest.raises(PrerequisiteError, match="INSPECT_DISPLAY"):
-            anyio.run(
-                functools.partial(
-                    eval_async, task, model="mockllm/model", log_dir=str(tmp_path)
-                )
-            )
-
-
-def test_eval_on_worker_thread_keeps_its_display(
-    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    from concurrent.futures import ThreadPoolExecutor
-
-    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
-    types: list[DisplayType] = []
-    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
-
-    def run_on_worker() -> None:
-        for _ in range(2):
-            anyio.run(
-                functools.partial(
-                    eval_async, task, model="mockllm/model", log_dir=str(tmp_path)
-                )
-            )
-
-    with ThreadPoolExecutor() as executor:
-        executor.submit(run_on_worker).result()
-
-    # a worker thread's eval calls don't restore the display type, so its
-    # "plain" stays set, as before
-    eval(task, model="mockllm/model", log_dir=str(tmp_path))
-    assert types == ["plain", "plain", "plain"]
-
-
-def test_failed_eval_reports_error_under_its_display_and_restores(
-    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
-    types: list[DisplayType] = []
-    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
-
-    # no cost data for the model
-    with pytest.raises(PrerequisiteError) as excinfo:
-        eval(
-            task,
-            model="mockllm/model",
-            cost_limit=1,
-            display="none",
-            log_dir=str(tmp_path),
-        )
-    # reported as the "none" display would (to stderr), though the call has
-    # restored the display type
-    assert excinfo.value.quiet is True
-
-    eval(task, model="mockllm/model", log_dir=str(tmp_path))
-    assert types == ["rich"]
-
-
-@pytest.mark.parametrize("between", ["score_async", "worker_thread_generate"])
-def test_eval_keeps_configured_display_after_implicit_display_choice(
-    fresh_display: None,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    between: str,
-) -> None:
-    from concurrent.futures import ThreadPoolExecutor
-
-    from inspect_ai import score_async
-    from inspect_ai.model import get_model
-
-    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
-    types: list[DisplayType] = []
-    task = Task(
-        dataset=[Sample(input="hi", target="hi")], solver=_record_display(types)
-    )
-    [log] = eval(task, model="mockllm/model", log_dir=str(tmp_path))
-
-    # each chooses "plain" when no display type is set
-    if between == "score_async":
-        anyio.run(score_async, log, [match()])
-    else:
-        model = get_model("mockllm/model")
-
-        def generate() -> None:
-            anyio.run(model.generate, "hi")
-
-        with ThreadPoolExecutor() as executor:
-            executor.submit(generate).result()
-
-    eval(task, model="mockllm/model", log_dir=str(tmp_path))
-    assert types == ["rich", "rich"]
-
-
-def test_repeated_direct_eval_async_uses_plain_then_configured_display(
-    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setenv("INSPECT_DISPLAY", "full")
-    types: list[DisplayType] = []
-    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
-    for _ in range(2):
-        anyio.run(
-            functools.partial(
-                eval_async, task, model="mockllm/model", log_dir=str(tmp_path)
-            )
-        )
-
-    # the first call finds no display type set and uses "plain"; it then
-    # leaves the configured type set, which later calls use ("full" runs as
-    # "rich" outside eval())
-    assert types == ["plain", "rich"]
-
-
-_DOTENV_DISPLAY_SCRIPT = """
-import sys
-
-import anyio
-
-from inspect_ai import Task, eval, eval_async, eval_set
-from inspect_ai.dataset import Sample
-from inspect_ai.solver import solver
-from inspect_ai.util._display import display_type
-
-types = []
-
-
-@solver
-def record():
-    async def solve(state, generate):
-        types.append(display_type())
-        return state
-
-    return solve
-
-
-task = Task(dataset=[Sample(input="hi")], solver=record())
-first = sys.argv[1]
-if first == "eval_set":
-    eval_set(task, model="mockllm/model", log_dir="set")
-elif first == "eval":
-    eval(task, model="mockllm/model", log_dir="first")
-else:
-    anyio.run(lambda: eval_async(task, model="mockllm/model", log_dir="first"))
-eval(task, model="mockllm/model", log_dir="second")
-print("TYPES", ",".join(types))
-"""
-
-
-@pytest.mark.parametrize(
-    "first,expected",
-    [("eval_set", "none,none"), ("eval", "none,none"), ("eval_async", "plain,none")],
-)
-def test_eval_display_from_project_dotenv_in_fresh_process(
-    tmp_path: Path, first: str, expected: str
-) -> None:
-    import subprocess
-
-    (tmp_path / ".env").write_text("INSPECT_DISPLAY=none\n")
-    script = tmp_path / "run.py"
-    script.write_text(_DOTENV_DISPLAY_SCRIPT)
-    env = {k: v for k, v in os.environ.items() if k != "INSPECT_DISPLAY"}
-    result = subprocess.run(
-        [sys.executable, str(script), first],
-        cwd=tmp_path,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=300,
-    )
-    assert result.returncode == 0, result.stderr
-    assert f"TYPES {expected}" in result.stdout
-
-
-def test_eval_set_none_display_stays_quiet_when_resume_reuses_all_logs(
-    fresh_display: None,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    from inspect_ai.model import get_model
-
-    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
-    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
-    log_dir = str(tmp_path)
-    success, _ = eval_set(task, model="mockllm/model", display="none", log_dir=log_dir)
-    assert success
-
-    # applies the restored "rich" type, dropping the quiet console
-    anyio.run(get_model("mockllm/model").generate, "hi")
-    capsys.readouterr()
-
-    # every log is reused, so no eval() builds the display
-    success, _ = eval_set(task, model="mockllm/model", display="none", log_dir=log_dir)
-    assert success
-    assert capsys.readouterr().out == ""
 
 
 def test_eval_retry_display_does_not_carry_to_later_evals(
@@ -1386,31 +1055,42 @@ def test_eval_restores_process_display_type(
     assert isinstance(display(), PlainDisplay)
 
 
-def test_eval_set_display_applies_after_earlier_eval(
+def test_eval_display_on_worker_thread_does_not_carry_to_later_evals(
     fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from inspect_ai._eval import evalset
-    from inspect_ai._eval.eval import eval_init
-    from inspect_ai.util._display import display_type
+    from concurrent.futures import ThreadPoolExecutor
 
     monkeypatch.setenv("INSPECT_DISPLAY", "rich")
     types: list[DisplayType] = []
-
-    # the eval set's own setup, before its inner eval()
-    def record_eval_init(*args: Any, **kwargs: Any) -> Any:
-        types.append(display_type())
-        return eval_init(*args, **kwargs)
-
-    monkeypatch.setattr(evalset, "eval_init", record_eval_init)
     task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
-    eval(task, model="mockllm/model", log_dir=str(tmp_path / "eval"))
+
+    def run_on_worker() -> None:
+        for _ in range(2):
+            anyio.run(
+                functools.partial(
+                    eval_async, task, model="mockllm/model", log_dir=str(tmp_path)
+                )
+            )
+
+    with ThreadPoolExecutor() as executor:
+        executor.submit(run_on_worker).result()
+
+    eval(task, model="mockllm/model", log_dir=str(tmp_path))
+    assert types == ["plain", "plain", "rich"]
+
+
+def test_eval_set_display_does_not_carry_to_later_evals(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("INSPECT_DISPLAY", "rich")
+    types: list[DisplayType] = []
+    task = Task(dataset=[Sample(input="hi")], solver=_record_display(types))
     success, _ = eval_set(
         task, model="mockllm/model", display="none", log_dir=str(tmp_path / "set")
     )
     assert success
     eval(task, model="mockllm/model", log_dir=str(tmp_path / "eval"))
-
-    assert types == ["rich", "none", "none", "rich"]
+    assert types == ["none", "rich"]
 
 
 def test_score_without_display_keeps_display_type(

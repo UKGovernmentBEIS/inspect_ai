@@ -68,13 +68,6 @@ def exception_message(ex: BaseException) -> str:
 class PrerequisiteError(Exception):
     def __init__(self, message: RenderableType) -> None:
         self.message = message
-        self.quiet: bool | None = None
-        """Whether the console was quiet when the error left the eval call.
-
-        The call restores the display type it found as the error leaves it, so
-        the error is reported as the call's own display would have reported it.
-        `None` uses the console as it is.
-        """
 
 
 class SilentException(Exception):
@@ -99,8 +92,7 @@ def exception_hook() -> Callable[..., None]:
         traceback: TracebackType,
     ) -> None:
         if isinstance(exception, PrerequisiteError):
-            quiet = exception.quiet
-            if quiet if quiet is not None else get_console().quiet:
+            if get_console().quiet:
                 sys.stderr.write(f"\n{exception.message}\n\n")
             else:
                 print(f"\n{exception.message}\n")

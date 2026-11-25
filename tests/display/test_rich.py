@@ -193,44 +193,6 @@ def test_restore_keeps_explicit_settings_for_redirected_output(
     assert console.is_interactive
 
 
-def test_next_display_detects_settings_for_output_redirected_after_restore(
-    fresh_display: None, terminal_env: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import io
-    import sys
-
-    # a plain display set up on a terminal and restored when its eval returns,
-    # then stdout redirected before the next display is set up
-    monkeypatch.setattr(sys, "stdout", _TerminalOutput())
-    rich.reconfigure()
-    rich_initialise("plain", plain=True)
-    display_rich.rich_display_type_changed(display_built=True)
-    monkeypatch.setattr(sys, "stdout", io.StringIO())
-
-    display_rich.rich_record_settings()
-    console = rich.get_console()
-    assert console.color_system is None
-    assert not console.is_interactive
-
-
-def test_next_display_keeps_explicit_settings_after_restore(
-    fresh_display: None, terminal_env: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import io
-    import sys
-
-    monkeypatch.setattr(sys, "stdout", io.StringIO())
-    rich.reconfigure(color_system="truecolor", force_interactive=True)
-    rich_initialise("plain", plain=True)
-    display_rich.rich_display_type_changed(display_built=True)
-    monkeypatch.setattr(sys, "stdout", io.StringIO())
-
-    display_rich.rich_record_settings()
-    console = rich.get_console()
-    assert console.color_system == "truecolor"
-    assert console.is_interactive
-
-
 def test_rich_initialise_keeps_a_render_hook_the_caller_registered(monkeypatch):
     """A host that registered a render hook can still pop it after the eval."""
     import rich
