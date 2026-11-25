@@ -218,12 +218,19 @@ class Totals(NamedTuple):
 
 
 def authoritative_total(plan: LogPlan) -> int | None:
-    """A finished log's ``results.total_samples``, which counts admitted samples.
+    """A finished log's count of admitted samples.
 
-    ``None`` for a running log and for a finished one without ``results`` (an
-    eval that failed before any sample was scored).
+    The header's ``total_samples``, which rescoring leaves unchanged; for a
+    log that lacks it (older versions, recovered logs), ``results.total_samples``.
+    ``None`` for a log without ``header.json`` and for one with neither. A
+    preview (``run_samples=False``) has ``header.json`` and a total while its
+    status stays ``started``.
     """
-    if not plan.finished or plan.header.results is None:
+    if not plan.finished:
+        return None
+    if plan.header.total_samples is not None:
+        return plan.header.total_samples
+    if plan.header.results is None:
         return None
     return plan.header.results.total_samples
 

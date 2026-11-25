@@ -865,8 +865,8 @@
   },
   "src/inspect_ai/scorer/_reducer/reducer.py": {
     "type: ignore": {
-      "count": 14,
-      "undescribed": 14
+      "count": 7,
+      "undescribed": 7
     },
     "type: ignore[redundant-cast]": {
       "count": 1,

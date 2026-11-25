@@ -423,8 +423,12 @@ def value_to_float(
     "I", "P", and "N") are mapped to 1, 0, 0.5, and 0. Note that
     those are the default literal values, but they can be
     customized. Strings with only numbers are converted, and
-    numeric values are cast to float. Arrays and dictionaries
-    give a warning and return 0.
+    numeric values are cast to float. Arrays, dictionaries, and
+    `None` give a warning and return 0.
+
+    Inspect does not pass a `None` dictionary value to the metrics
+    applied to that key: it is counted as unscored, like NaN. To
+    count a missing value as 0, use `aggregate(on_missing="zero")`.
 
     The mapping uses ``==``, so a numeric or boolean input that
     compares equal to a sentinel is mapped even when its type

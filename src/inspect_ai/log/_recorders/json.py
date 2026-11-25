@@ -351,7 +351,10 @@ class JSONRecorder(FileRecorder):
     async def read_log_bytes(
         cls, log_bytes: IO[bytes], header_only: bool = False
     ) -> EvalLog:
-        return _parse_json_log(from_json(log_bytes.read()), header_only)
+        log = _parse_json_log(from_json(log_bytes.read()), header_only)
+        # a stream has no location; don't keep one parsed from its content
+        log.location = ""
+        return log
 
     @override
     @classmethod

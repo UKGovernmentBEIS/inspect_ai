@@ -5316,14 +5316,6 @@
             "title": "Samples",
             "type": "integer"
           },
-          "selected": {
-            "title": "Selected",
-            "type": "integer"
-          },
-          "selection_digest": {
-            "title": "Selection Digest",
-            "type": "string"
-          },
           "shard": {
             "title": "Shard",
             "type": "string"
@@ -5360,8 +5352,6 @@
           "log",
           "status",
           "samples",
-          "selected",
-          "selection_digest",
           "started_at",
           "completed_at",
           "model_usage",

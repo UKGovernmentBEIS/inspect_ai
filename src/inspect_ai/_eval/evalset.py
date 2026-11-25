@@ -1,4 +1,5 @@
 import contextlib
+import functools
 import hashlib
 import logging
 import os
@@ -6,9 +7,19 @@ import re
 import threading
 from collections.abc import Callable, Iterator, Sequence
 from collections.abc import Set as AbstractSet
+from contextvars import copy_context
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, TypeVar, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    NamedTuple,
+    ParamSpec,
+    Set,
+    TypeVar,
+    cast,
+)
 
 import rich
 from pydantic import BaseModel
@@ -154,6 +165,7 @@ from .eval_set_selection import (
 from .loader import resolve_task_args, solver_from_spec
 from .task import Epochs
 from .task.resolved import ResolvedTask, resolved_task_names
+from .task.sample_source import HANDLE_DATASET_NAME
 from .task.scan import scan_context
 from .task.task import PreviousTask, resolve_epochs, resolve_task_epochs
 from .task.task_source import TaskSource
@@ -166,6 +178,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _T = TypeVar("_T")
+_P = ParamSpec("_P")
 
 
 class Log(NamedTuple):
@@ -237,10 +250,10 @@ def _shard_companion(name: str) -> str | None:
     the directory above it ends in `.shards`, or when its parent directory
     ends in `.shards` (a stray file the merge refuses). Only the name's last
     path components are read, split on slashes and backslashes, so the rule
-    does not depend on how a provider lists the log directory. It is broader
-    than the layout helper's `is_shard_path`: it also matches when the log
-    directory is a companion or a shard directory, and a companion nested
-    in a shard's ancillary directory (decision: Ransom, 2026-11-18).
+    does not depend on how a provider lists the log directory. It also
+    matches when the log directory is a companion or a shard directory, and
+    a companion nested in a shard's ancillary directory (decision: Ransom,
+    2026-11-18).
     """
     parts = re.split(r"[/\\]", name)
     if len(parts) >= 2 and parts[-2].endswith(_SHARDS_SUFFIX):
@@ -302,6 +315,24 @@ def _overridden_epochs(
     return epochs
 
 
+def _in_copied_context(fn: Callable[_P, _T]) -> Callable[_P, _T]:
+    """Run `fn` in a copy of the caller's context.
+
+    `eval_set()` sets up the eval (`eval_init`, `eval_resolve_tasks`)
+    synchronously in its caller's context, which sets the active model,
+    generate config, model roles and other context variables. Running in a
+    copy keeps those settings from staying in the caller's context after it
+    returns, as `eval()` does by running on its own event loop.
+    """
+
+    @functools.wraps(fn)
+    def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _T:
+        return copy_context().run(fn, *args, **kwargs)
+
+    return wrapper
+
+
+@_in_copied_context
 def eval_set(
     tasks: Tasks,
     log_dir: str | None = None,
@@ -513,9 +544,10 @@ def eval_set(
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to the greater of 10 and the number of models being
-            evaluated). A task cancelled before it starts is started outside
-            this limit and ends at once with an error log reporting the
-            cancellation, so it never takes a slot.
+            evaluated). A task cancelled before it starts (`inspect ctl task
+            cancel` or `drain`) is started outside this limit and ends at once
+            with an error log reporting the cancellation, so it never takes a
+            slot.
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -1879,7 +1911,17 @@ def _resumed_task(task: ResolvedTask, identifier: str, resume: str) -> PreviousT
 
 
 def all_evals_succeeded(logs: list[EvalLog]) -> bool:
-    return all([log.status == "success" and not log.invalidated for log in logs])
+    """Whether every log succeeded, leaving out tasks fed through a handle.
+
+    Every fed log is skipped, however deeply nested, so only logs that are
+    not fed decide the result. A fed task's failure counts only if it makes
+    a task that is not fed fail.
+    """
+    return all(
+        log.status == "success" and not log.invalidated
+        for log in logs
+        if log.eval.dataset.name != HANDLE_DATASET_NAME
+    )
 
 
 # filter for determining when we are done
@@ -2321,6 +2363,11 @@ def validate_eval_set_prerequisites(
         else:
             task_identifiers.add(identifier)
 
+    # logs of tasks fed through a handle belong to the tasks that added them
+    all_logs = [
+        log for log in all_logs if log.header.eval.dataset.name != HANDLE_DATASET_NAME
+    ]
+
     # do all logs in the log directory correspond to task identifiers?
     if log_dir_allow_dirty:
         return [log for log in all_logs if log.task_identifier in task_identifiers]
@@ -2389,6 +2436,10 @@ def task_identifier(
     task version, and execution limits), excluding runtime/transport options
     that don't affect model output (e.g. `max_retries`, `max_connections`).
 
+    A task fed through its handle (its dataset is named
+    `samples_from_handle`) is identified by its task id instead:
+    `{task_file}@{task_name}#samples_from_handle/{model}/{task_id}`.
+
     The same identifier is computed from a `ResolvedTask` (before running) and
     from the `EvalLog` that running it produces — `eval_set()` uses this to
     pair tasks with their existing log files across retries, and external
@@ -2430,6 +2481,18 @@ def task_identifier(
         if tokens is not None and type is not None and type != "all":
             return f"{type}:{tokens}"
         return tokens
+
+    # a fed task's settings resolve before the run's, so they are left out:
+    # its task id alone makes the identifier unique and the same on both sides
+    if isinstance(task, ResolvedTask):
+        if task.task.dataset.name == HANDLE_DATASET_NAME:
+            return _fed_task_identifier(
+                task.task_file, task.task.name, str(task.model), task.id
+            )
+    elif task.eval.dataset.name == HANDLE_DATASET_NAME:
+        return _fed_task_identifier(
+            task.eval.task_file, task.eval.task, str(task.eval.model), task.eval.task_id
+        )
 
     if isinstance(task, ResolvedTask):
         assert eval_set_args is not None, (
@@ -2548,6 +2611,14 @@ def task_identifier(
         return f"{task_file}@{task_name}#{args_hash}/{model}/{additional_hash}"
     else:
         return f"{task_name}#{args_hash}/{model}/{additional_hash}"
+
+
+def _fed_task_identifier(
+    task_file: str | None, task_name: str, model: str, task_id: str
+) -> str:
+    """The identifier of a task fed through its handle, built from its task id."""
+    prefix = f"{task_file}@" if task_file else ""
+    return f"{prefix}{task_name}#{HANDLE_DATASET_NAME}/{model}/{task_id}"
 
 
 class ModelList:

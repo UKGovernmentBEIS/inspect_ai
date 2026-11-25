@@ -1,7 +1,10 @@
 import gc
+import io
+import json
 import tempfile
 import weakref
 from pathlib import Path
+from typing import Any, Callable
 
 import pandas as pd
 import pytest
@@ -610,6 +613,20 @@ def test_samples_df_eval_log():
     log = read_eval_log(str(SECURITY_GUIDE_LOG))
     df = samples_df(log)
     assert len(df) == 3
+
+
+@pytest.mark.parametrize("reader", [samples_df, messages_df, events_df])
+def test_sample_readers_do_not_reread_location_from_stream_content(
+    reader: Callable[..., Any],
+) -> None:
+    """A header read from a stream has no location for a reader to re-read."""
+    with open(SECURITY_GUIDE_LOG, "rb") as f:
+        content = {**json.load(f), "location": str(SECURITY_GUIDE_LOG)}
+    log = read_eval_log(io.BytesIO(json.dumps(content).encode()), header_only=True)
+
+    assert log.location == ""
+    with pytest.raises(ValueError, match="No recorder for location"):
+        reader(log)
 
 
 def test_samples_df_multiple_eval_logs():
