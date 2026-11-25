@@ -42,10 +42,9 @@ _JSON_LOG = "json log in a shard directory; shards must be eval logs"
 def check_s3_location(location: str, error: type[Exception] = ValueError) -> None:
     """Refuse an S3 URL that the S3 helpers would read as another key.
 
-    They take the bucket and key with `urlparse`, which drops a `#` or `?`
-    and the text after it, removes tab, CR and LF characters, and strips
-    leading slashes from the key: `s3://bucket/logs/run#tag.eval` would
-    read, write and delete `logs/run`. Other locations are not checked.
+    They strip leading slashes from the key: `s3://bucket//logs/run.eval`
+    would read, write and delete `logs/run.eval`. Other locations are not
+    checked.
 
     Raises:
         Exception: `error`, when `location` is such an S3 URL.
@@ -56,8 +55,7 @@ def check_s3_location(location: str, error: type[Exception] = ValueError) -> Non
     if f"s3://{bucket}/{key}" != location:
         raise error(
             f"{location} cannot be used: S3 would read it as s3://{bucket}/{key}. "
-            "A '#' or '?' (and the text after it), a tab or line break, or a "
-            "leading '/' in the key is lost. Rename it."
+            "A leading '/' in the key is lost. Rename it."
         )
 
 

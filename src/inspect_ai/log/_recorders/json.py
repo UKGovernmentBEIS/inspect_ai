@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from pydantic_core import from_json
 from typing_extensions import override
 
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem, s3_bucket_and_key
 from inspect_ai._util.atomic_write import atomic_write_bytes
 from inspect_ai._util.constants import (
     LOG_SCHEMA_VERSION,
@@ -41,7 +41,7 @@ from .._log import (
     sort_samples,
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
-from .eval import _s3_bucket_and_key, _write_s3
+from .eval import _write_s3
 from .file import FileRecorder, write_local_snapshot
 from .recorder import SampleRecordKey, exclude_sample_fields
 
@@ -414,7 +414,7 @@ class JSONRecorder(FileRecorder):
         log_bytes = eval_log_json(log)
 
         if fs.is_s3():
-            bucket, key = _s3_bucket_and_key(location)
+            bucket, key = s3_bucket_and_key(location)
             async with AsyncFilesystem() as async_fs:
                 if if_match_etag is not None:
                     return await _write_s3(
@@ -506,7 +506,7 @@ async def _s3_read_with_etag(
     Returns:
         (content, etag) - etag is guaranteed to match content
     """
-    bucket, key = _s3_bucket_and_key(location)
+    bucket, key = s3_bucket_and_key(location)
 
     async with AsyncFilesystem() as async_fs:
         s3_client = await async_fs.s3_client_async()

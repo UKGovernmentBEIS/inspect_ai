@@ -970,17 +970,17 @@ def _ctl(log_dir: Path | str, *args: str) -> Any:
     return cli_runner().invoke(ctl_command, [*args, "--log-dir", str(log_dir)])
 
 
-def test_cli_a_shard_name_s3_would_read_as_another_key_is_a_storage_error(
+def test_cli_a_shard_name_s3_lists_as_another_is_a_storage_error(
     mock_s3: None, finished_log: EvalLog
 ) -> None:
     import json
 
     prefix = "log-dir-unreadable-key"
-    _upload(finished_log.location, f"{prefix}/run.shards/1#tag/worker.eval")
+    _upload(finished_log.location, f"{prefix}/run.shards//worker.eval")
     root = f"s3://test-bucket/{prefix}"
     message = (
-        f"{root}/run.shards/1#tag cannot be used: S3 would read it as "
-        f"{root}/run.shards/1."
+        f"{root}/run.shards lists {root}/run.shards, which is not a file or "
+        "directory directly in it"
     )
     listed = _ctl(root, "task", "list", "--json")
     assert listed.exit_code == 1

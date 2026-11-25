@@ -482,6 +482,58 @@ async def test_delete_sample_checkpoints_dir(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "case,sample_id,neighbours",
+    [
+        ("hash-first", "#12", ["1", "2"]),
+        ("hash", "issue#12", ["issue#13"]),
+        ("question-mark", "q?1", ["q"]),
+    ],
+)
+async def test_s3_checkpoint_dirs_keep_the_whole_sample_id(
+    mock_s3: None, case: str, sample_id: str, neighbours: list[str]
+) -> None:
+    """Each sample's checkpoints stay apart, and deleting one leaves the others.
+
+    A key cut at the `#` or `?` would put two samples' files under one key, or
+    delete the eval checkpoints dir's other samples.
+    """
+    import boto3
+
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+
+    eval_dir = f"s3://test-bucket/checkpoint-ids/{case}"
+    client = boto3.client("s3")
+
+    def stored() -> list[str]:
+        prefix = eval_dir.removeprefix("s3://test-bucket/") + "/"
+        listing = client.list_objects_v2(Bucket="test-bucket", Prefix=prefix)
+        return sorted(
+            f"s3://test-bucket/{o['Key']}" for o in listing.get("Contents", [])
+        )
+
+    async with AsyncFilesystem():
+        written = {}
+        for sid in [sample_id, *neighbours]:
+            sample_dir = await ensure_sample_checkpoints_dir(eval_dir, sid, 1)
+            written[sid] = await write_checkpoint_file(
+                sample_checkpoints_dir=sample_dir,
+                checkpoint=_checkpoint(
+                    checkpoint_id=1, trigger="turn", turn=1, host=_info(sid)
+                ),
+            )
+        assert stored() == sorted(written.values())
+        for sid, path in written.items():
+            checkpoint = await scan_latest_committed_checkpoint(path.rsplit("/", 1)[0])
+            assert checkpoint is not None and checkpoint.host == _info(sid)
+
+        await delete_sample_checkpoints_dir(
+            eval_dir, sample_id, 1, log_location=f"{eval_dir}.eval"
+        )
+
+    assert stored() == sorted(written[sid] for sid in neighbours)
+
+
 async def test_scan_torn_only_checkpoint_file_is_uncommitted(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

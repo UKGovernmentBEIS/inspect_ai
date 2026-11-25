@@ -52,6 +52,7 @@ from inspect_ai._util.asyncfiles import (
     ComposeSource,
     ComposeSourceChangedError,
     is_s3_filename,
+    s3_bucket_and_key,
 )
 from inspect_ai._util.atomic_write import atomic_write
 from inspect_ai._util.constants import (
@@ -578,7 +579,7 @@ class EvalRecorder(FileRecorder):
         header_only: bool = False,
     ) -> str:
         """Write an .eval log to S3 and return the upload response ETag."""
-        bucket, key = _s3_bucket_and_key(location)
+        bucket, key = s3_bucket_and_key(location)
 
         async with AsyncFilesystem() as async_fs:
             if header_only:
@@ -789,16 +790,6 @@ async def _write_eval_log_with_recorder(
     return result.etag
 
 
-def _s3_bucket_and_key(location: str) -> tuple[str, str]:
-    """Extract S3 bucket and key from an S3 URL."""
-    from urllib.parse import urlparse
-
-    parsed = urlparse(location)
-    bucket = parsed.netloc
-    key = parsed.path.lstrip("/")
-    return bucket, key
-
-
 async def _s3_put_object(
     async_fs: AsyncFilesystem,
     bucket: str,
@@ -859,7 +850,7 @@ async def _s3_download_with_etag(
     Returns:
         ETag of the downloaded file (guaranteed to match the downloaded content)
     """
-    bucket, key = _s3_bucket_and_key(location)
+    bucket, key = s3_bucket_and_key(location)
 
     s3_client = await async_fs.s3_client_async()
     response = await s3_client.get_object(Bucket=bucket, Key=key)
