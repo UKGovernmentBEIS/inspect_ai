@@ -4,8 +4,6 @@ Pure functions over what a merge pass has read: the merged log's header and
 sample members, the shard listing, and the attempts read in the pass.
 """
 
-import hashlib
-import json
 from collections.abc import Collection, Iterable, Sequence
 from datetime import datetime
 from typing import Literal, NamedTuple
@@ -75,14 +73,6 @@ def merged_records(cd: CentralDirectory, location: str) -> set[SampleRecordKey]:
                 )
             records.add(key)
     return records
-
-
-def selection_digest(ids: Iterable[str | int]) -> str:
-    """SHA-256 (hex) of a selection, independent of order and of ``1`` vs ``"1"``."""
-    canonical = json.dumps(
-        sorted({str(i) for i in ids}), ensure_ascii=False, separators=(",", ":")
-    )
-    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 class Selection(NamedTuple):
@@ -224,7 +214,6 @@ def is_unchanged(entry: EvalShardEntry | None, current: FileInfo) -> bool:
 def ledger_entry(read: AttemptRead) -> EvalShardEntry:
     """The ledger entry for an attempt read in this pass."""
     header = read.header
-    ids = header.eval.dataset.sample_ids or []
     return EvalShardEntry(
         shard=read.shard,
         log=_name(read.file.name),
@@ -232,8 +221,6 @@ def ledger_entry(read: AttemptRead) -> EvalShardEntry:
         status=header.status,
         error=header.error if header.status in ("error", "cancelled") else None,
         samples=len(read.summaries),
-        selected=len({str(i) for i in ids}),
-        selection_digest=selection_digest(ids),
         started_at=header.stats.started_at,
         completed_at=header.stats.completed_at,
         model_usage=header.stats.model_usage,
@@ -280,30 +267,6 @@ def check_resolved(
             f"{attempt} holds {held} samples but resolved only {logged}: the "
             "others were cancelled by a drain or cancel and have not run. Run "
             f"shard {shard} again so it finishes them, then merge again."
-        )
-
-
-def attempt_regressed(shard: ShardDir, entry: EvalShardEntry) -> bool:
-    """Whether a shard's current attempt sorts before the recorded one."""
-    current = shard.current
-    assert current is not None
-    if _name(current.name) == entry.log:
-        return False
-    recorded = FileInfo(name=entry.log, type="file", size=entry.size, mtime=entry.mtime)
-    return attempt_sort_key(current) < attempt_sort_key(recorded)
-
-
-def check_attempt_order(shard: ShardDir, entry: EvalShardEntry) -> None:
-    """Refuse a shard whose current attempt sorts before the recorded one."""
-    if attempt_regressed(shard, entry):
-        current = shard.current
-        assert current is not None
-        raise ShardSetError(
-            f"Shard {shard.dir}: its current attempt {_name(current.name)} is older "
-            f"than the attempt last merged ({entry.log}), which was deleted. "
-            "Restore the deleted attempt; or delete the shards directory to keep "
-            "the merged log as it is; or delete the merged log to rebuild it from "
-            "the attempts now present."
         )
 
 
@@ -366,28 +329,21 @@ def _dump(value: object) -> object:
     return to_jsonable_python(value)
 
 
-def check_reads(
-    reads: list[AttemptRead],
-    ledger: dict[str, EvalShardEntry],
-    records: set[SampleRecordKey],
-    merged_location: str | None,
-) -> None:
-    """Refuse attempts whose records cannot be attributed by selection.
+def check_selections(reads: list[AttemptRead]) -> None:
+    """Refuse attempts whose selections are missing, exceeded or overlapping.
 
-    Every read attempt records a selection that covers what it holds; a
-    changed shard's selection is the one merged before; the read selections
-    are pairwise disjoint; and the merged records with ids in each read
-    selection number exactly that shard's ledger count (zero for a new
-    shard). See "The sample set" in the sharding design.
+    Every attempt records a selection (`eval.dataset.sample_ids`) that covers
+    what it holds, and no two attempts select the same id, so each merged
+    record comes from the one shard that selected it.
     """
     for read in reads:
         selection = read.selection
         if selection is None:
             raise ShardSetError(
                 f"{read.file.name} records no sample selection "
-                "(eval.dataset.sample_ids), so its samples cannot be attributed to "
-                "it. Shards must be logs written by an Inspect version that "
-                "records the selection."
+                "(eval.dataset.sample_ids), so it cannot be checked against the "
+                "other shards. Shards must be logs written by an Inspect version "
+                "that records the selection."
             )
         outside = sorted(
             k.sample_id for k in read.summaries if k.sample_id not in selection
@@ -398,55 +354,15 @@ def check_reads(
                 f"({_ids_text(outside)}). Shards of tasks that add samples while "
                 "they run cannot be merged."
             )
-        entry = ledger.get(read.shard)
-        if entry is not None and selection_digest(selection) != entry.selection_digest:
-            raise ShardSetError(
-                f"{read.file.name} selects different samples than {entry.log}, the "
-                f"attempt last merged from shard {read.shard}. Move the new attempt "
-                f"to its own shard directory, or delete {merged_location} so the "
-                "next merge rebuilds it from the current attempts."
-            )
     owner: dict[str, str] = {}
     for read in reads:
-        for id in read.selection or ():
+        for id in sorted(read.selection or ()):
             other = owner.setdefault(id, read.shard)
             if other != read.shard:
                 raise ShardSetError(
                     f"Shards {other} and {read.shard} both select sample {id!r}; "
                     "shard selections must not overlap."
                 )
-    for read in reads:
-        selection = read.selection or frozenset()
-        merged = sum(1 for key in records if key.sample_id in selection)
-        entry = ledger.get(read.shard)
-        expected = entry.samples if entry is not None else 0
-        if merged != expected:
-            if entry is None:
-                raise ShardSetError(
-                    f"New shard {read.shard} ({read.file.name}) selects samples "
-                    f"already merged into {merged_location} from another shard; "
-                    "shard selections must not overlap."
-                )
-            raise ShardSetError(
-                f"{merged_location} holds {merged} records selected by shard "
-                f"{read.shard}, but its ledger records {expected}: either the merged "
-                "log was changed outside the merge or another shard's selection "
-                f"overlaps shard {read.shard}'s. Delete {merged_location} so the "
-                "next merge rebuilds it from the shards."
-            )
-
-
-def check_ledger_count(
-    records: set[SampleRecordKey], ledger: Iterable[EvalShardEntry], location: str
-) -> None:
-    """Refuse a merged log whose records do not number its ledger's counts."""
-    expected = sum(entry.samples for entry in ledger)
-    if len(records) != expected:
-        raise ShardSetError(
-            f"{location} holds {len(records)} sample records but its ledger "
-            f"records {expected}: its samples were changed outside the merge. "
-            f"Delete {location} so the next merge rebuilds it from the shards."
-        )
 
 
 def check_vanished(vanished: list[str], merged_location: str, shards_dir: str) -> None:
@@ -594,11 +510,10 @@ def build_header(
 ) -> EvalLog:
     """The merged log's header.
 
-    `base` is the template shard's header (or the merged header, when that
-    was built from the same attempt); every field the sharding design does
-    not list is taken from it. `merged` is the existing merged header, from
-    which the ids minted at the first merge and the merged-log edits are
-    carried. `invalidated` is whether any merged sample is invalidated.
+    `base` is the template shard's header; every field the sharding design
+    does not list is taken from it. `merged` is the existing merged header,
+    from which the ids minted at the first merge and the merged-log edits
+    are carried. `invalidated` is whether any merged sample is invalidated.
     """
     typed = {str(s.id): s.id for s in summaries}
     if selection.form == "ids":

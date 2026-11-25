@@ -1,9 +1,7 @@
 """Merge the shard logs of a sharded run into one eval log."""
 
 import functools
-import json
 import tempfile
-import zipfile
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, NamedTuple
@@ -17,14 +15,11 @@ from inspect_ai._util.file import FileInfo, basename, to_uri
 from inspect_ai._util.log_layout import (
     eval_log_for_shards_dir,
     eval_shards_dir,
-    log_basename,
+    merged_log_name,
 )
-from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai.log._log import EvalLog, EvalSampleSummary, EvalShardEntry
 from inspect_ai.log._recorders.chunked.format import classify_sample_shape
 from inspect_ai.log._recorders.eval import (
-    SUMMARIES_JSON,
-    _parse_summaries,
     _read_all_summaries_async,
     _read_header_async,
     _sample_filename,
@@ -33,20 +28,17 @@ from inspect_ai.log._recorders.recorder import SampleRecordKey
 
 from ._delete import Companion, delete_companion, list_companion
 from ._errors import ShardSetError, ShardSetIncomplete
-from ._owned import run_owned
 from ._plan import (
     AttemptRead,
     Selection,
     Status,
     build_header,
     check_attempt_names,
-    check_attempt_order,
     check_current_unambiguous,
     check_headers,
-    check_ledger_count,
-    check_reads,
     check_resolved,
     check_selection_covers,
+    check_selections,
     check_vanished,
     given_selection,
     is_unchanged,
@@ -56,12 +48,7 @@ from ._plan import (
     recorded_selection,
     selected_total,
 )
-from ._publish import (
-    merge_guard,
-    merged_log_copy,
-    publish,
-    supported_location,
-)
+from ._publish import merge_guard, publish, supported_location
 from ._walk import ShardDir, check_s3_location, list_shard_set
 from ._write import SampleMember, check_task_matches, write_merged_zip
 
@@ -95,8 +82,9 @@ def merge_eval_log_shards(
 
     Writes `<dir>/<name>.eval` from the newest `.eval` log in each
     `<dir>/<name>.shards/<k>/`, with results and epoch reductions computed
-    over all the merged samples. A later call reads only the shards that
-    changed and writes nothing when none did.
+    over all the merged samples. A later call writes nothing when no shard
+    changed and the selection is the same; otherwise it reads every shard
+    and writes the merged log anew, keeping tags and metadata edited on it.
 
     Pass the task the shards ran: its scorers, metrics and epoch reducer
     compute the results, in the caller's model context. The merge refuses a
@@ -104,8 +92,8 @@ def merge_eval_log_shards(
     names differ from what the shards recorded, but does not compare their
     options.
 
-    Sample members are copied in the compression the shard (or an earlier
-    merged log) already used, without recompressing them. Shards Inspect
+    Sample members are copied in the compression the shard already used,
+    without recompressing them. Shards Inspect
     writes use zstd; a shard written with deflate stays deflate in the
     merged log. Readers of merged logs, including the viewer, accept both.
     The merge does not rewrite zstd frame settings. A frame the viewer
@@ -123,8 +111,7 @@ def merge_eval_log_shards(
     Args:
         log: The merged log `<dir>/<name>.eval`, or its shards directory
             `<dir>/<name>.shards`, as a local path, `file://` URI or `s3://`
-            URL. Other storage is refused, as is a `<name>-recovered.eval`
-            path. A local path does not expand `~`.
+            URL. Other storage is refused. A local path does not expand `~`.
         task: The task the shards ran, built as it was passed to `eval()`,
             with any `epochs` override the workers were given.
         sample_ids: Intended selection as sample ids. Replaces the selection
@@ -172,8 +159,8 @@ def merge_eval_log_shards(
             `sample_count` below 1, or both `allow_incomplete` and
             `delete_shards`; or `log` is not a local path, `file://`
             URI or `s3://` URL, is not named `<name>.eval` or
-            `<name>.shards`, names a recovered log, or is an S3 location
-            that S3 would read as another key.
+            `<name>.shards`, or is an S3 location that S3 would read as
+            another key.
     """
     return run_coroutine(
         merge_eval_log_shards_async(
@@ -260,7 +247,6 @@ class _Merged(NamedTuple):
     """The existing merged log, as read at the start of a merge."""
 
     header: EvalLog
-    records: set[SampleRecordKey]
     etag: str | None
     members: CentralDirectory
 
@@ -294,8 +280,7 @@ def merge_paths(log: str) -> MergePaths:
     decoded form fails, and every read, the lock and publication use it.
 
     Raises:
-        ValueError: `log` is not in a supported form, or is named after a
-            recovered log.
+        ValueError: `log` is not in a supported form.
     """
     target = supported_location(log)
     merged, shards_dir = _derive_paths(target)
@@ -324,7 +309,7 @@ def check_merge_arguments(
     """Check the arguments of a merge before any I/O.
 
     Raises:
-        ValueError: An unsupported or recovered-log location, an invalid
+        ValueError: An unsupported location, an invalid
             selection, an S3 location that S3 would read as another key, or
             both `allow_incomplete` and `delete_shards`.
     """
@@ -345,24 +330,9 @@ def _derive_paths(log: str) -> tuple[str, str]:
     location = log.rstrip("/\\")
     name = basename(location)
     if name.endswith(".shards") and name != ".shards":
-        merged = eval_log_for_shards_dir(location)
-        if eval_shards_dir(merged) != location:
-            raise ValueError(
-                f"{log} is named after a recovered log, which a merge does not "
-                f"write: the shards directory of {merged} is "
-                f"{eval_shards_dir(merged)}. Rename the directory to drop "
-                "'-recovered'."
-            )
-        return merged, location
-    if name.endswith(".eval"):
-        shards_dir = eval_shards_dir(location)
-        merged = eval_log_for_shards_dir(shards_dir)
-        if f"{log_basename(location)}.eval" != name:
-            raise ValueError(
-                f"{log} is a recovered log name, which a merge does not write. "
-                f"Merge into {merged} or pass {shards_dir}."
-            )
-        return location, shards_dir
+        return eval_log_for_shards_dir(location), location
+    if name.endswith(".eval") and name != ".eval":
+        return location, eval_shards_dir(location)
     raise ValueError(
         f"Expected a merged log (<name>.eval) or its shards directory "
         f"(<name>.shards): {log}"
@@ -398,7 +368,7 @@ async def _read_merged(fs: AsyncFilesystem, merged_path: str) -> _Merged | None:
                 f"records: it was changed outside the merge. Delete {merged_path} "
                 "so the next merge rebuilds it from the shards."
             )
-    return _Merged(header, merged_records(cd, merged_path), reader.etag, cd)
+    return _Merged(header, reader.etag, cd)
 
 
 async def _merge_pass(
@@ -412,6 +382,14 @@ async def _merge_pass(
     allow_incomplete: bool,
     deleting: bool,
 ) -> _Pass:
+    """Keep the merged log when nothing changed; otherwise rebuild it.
+
+    The merged log is kept when every shard's current attempt is the one its
+    ledger entry records and the selection is the same. Any other pass reads
+    every shard's current attempt and writes the merged log anew, as a first
+    merge does, carrying only the ids minted at the first merge and the
+    header edits from the existing merged log.
+    """
     listing = await list_shard_set(fs, shards_dir)
     check_attempt_names(listing.shards)
     check_current_unambiguous(listing.shards)
@@ -432,56 +410,29 @@ async def _merge_pass(
     ledger = (
         {e.shard: e for e in _ledger(existing.header)} if existing is not None else {}
     )
-    changed = [s for s in shards if not is_unchanged(ledger.get(s.name), _current(s))]
-    for shard in changed:
-        if shard.name in ledger:
-            check_attempt_order(shard, ledger[shard.name])
     present = {s.name for s in shards}
     vanished = [name for name in ledger if name not in present]
-    if deleting and vanished and not changed:
-        # a deletion that stopped part way: the rest of the shards match
-        assert existing is not None
-        check_task_matches(task, existing.header, merged_path)
-        return _recorded_pass(existing, given, allow_incomplete, deleting)
+    if existing is not None and all(
+        is_unchanged(ledger.get(s.name), _current(s)) for s in shards
+    ):
+        same_selection = given is None or given.same_as(
+            recorded_selection(existing.header)
+        )
+        # with vanished shards: a deletion that stopped part way
+        if (not vanished and same_selection) or (vanished and deleting):
+            check_task_matches(task, existing.header, merged_path)
+            return _recorded_pass(existing, given, allow_incomplete, deleting)
     check_vanished(vanished, merged_path, shards_dir)
 
-    reads, readers = await _read_attempts(fs, changed)
-    by_shard = {read.shard: read for read in reads}
-    template = shards[0]
-    headers = [(read.file.name, read.header) for read in reads]
-    if template.name in by_shard:
-        base, base_source = (
-            by_shard[template.name].header,
-            by_shard[template.name].file.name,
-        )
-    else:
-        assert existing is not None
-        if _ledger(existing.header)[0].shard == template.name:
-            base, base_source = existing.header, merged_path
-        else:
-            base = await _read_attempt_header(fs, template)
-            base_source = _current(template).name
-            headers.append((base_source, base))
-    if existing is not None and len(changed) < len(shards):
-        headers.append((merged_path, existing.header))
-    check_headers(headers)
-    check_task_matches(task, base, base_source)
+    reads, readers = await _read_attempts(fs, shards)
+    check_headers([(read.file.name, read.header) for read in reads])
+    base = reads[0].header
+    check_task_matches(task, base, reads[0].file.name)
+    check_selections(reads)
 
-    records = existing.records if existing is not None else set()
-    if existing is not None:
-        check_ledger_count(records, ledger.values(), merged_path)
-    check_reads(reads, ledger, records, merged_path)
-
-    read_ids: set[str] = set()
-    for read in reads:
-        read_ids |= read.selection or frozenset()
-    carried = {key for key in records if key.sample_id not in read_ids}
     taken = {key: read for read in reads for key in read.summaries}
-    keys = sorted(carried | taken.keys())
-    entries = [
-        ledger_entry(by_shard[s.name]) if s.name in by_shard else ledger[s.name]
-        for s in shards
-    ]
+    keys = sorted(taken)
+    entries = [ledger_entry(read) for read in reads]
     recorded = (
         recorded_selection(existing.header)
         if existing is not None
@@ -495,84 +446,41 @@ async def _merge_pass(
     if status.status != "success" and not allow_incomplete:
         raise _incomplete(merged_path, status, deleting)
 
-    if existing is not None and not changed and selection.same_as(recorded):
-        return _Pass(existing.header, False)
+    summaries = [taken[key].summaries[key] for key in keys]
 
-    kept = _kept_members(existing.members, taken) if existing is not None else set()
-    with tempfile.TemporaryDirectory() as temp_dir:
-        carried_zip: zipfile.ZipFile | None = None
-        carried_reader: AsyncZipReader | None = None
-        try:
-            carried_summaries: dict[SampleRecordKey, EvalSampleSummary] = {}
-            if carried or kept:
-                assert existing is not None
-                copy = await merged_log_copy(fs, merged_path, existing.etag, temp_dir)
-                carried_zip = zipfile.ZipFile(copy)
-                carried_reader = AsyncZipReader(fs, copy, verify_crc=True)
-                kept = _kept_members(await carried_reader.entries(), taken)
-                carried_summaries = await run_owned(
-                    functools.partial(_read_carried_summaries, carried_zip, merged_path)
-                )
-            summaries = []
-            for key in keys:
-                if key in taken:
-                    summaries.append(taken[key].summaries[key])
-                elif key in carried_summaries:
-                    summaries.append(carried_summaries[key])
-                else:
-                    raise ShardSetError(
-                        f"{merged_path} has no summary for sample {key.sample_id!r}, epoch "
-                        f"{key.epoch}: it was changed outside the merge. Delete "
-                        f"{merged_path} so the next merge rebuilds it from the shards."
-                    )
+    async def read_member(key: SampleRecordKey) -> SampleMember:
+        read = taken[key]
+        return SampleMember(readers[read.shard], read.members[key], read.file.name)
 
-            async def read_member(key: SampleRecordKey) -> SampleMember:
-                read = taken.get(key)
-                if read is not None and key not in kept:
-                    return SampleMember(
-                        readers[read.shard], read.members[key], read.file.name
-                    )
-                assert carried_reader is not None
-                entry = await carried_reader.get_member_entry(
-                    _sample_filename(key.sample_id, key.epoch)
-                )
-                return SampleMember(carried_reader, entry, merged_path)
-
-            name = log_basename(merged_path)
-            total = selected_total(selection, held_ids) * epochs
-            with tempfile.TemporaryFile(dir=temp_dir) as out:
-                header = await write_merged_zip(
-                    out,
-                    keys=keys,
-                    read_member=read_member,
-                    summaries=summaries,
-                    task=task,
-                    total_samples=total,
-                    make_header=lambda scoring: build_header(
-                        base=base,
-                        merged=existing.header if existing is not None else None,
-                        name=name,
-                        status=status,
-                        ledger=entries,
-                        selection=selection,
-                        summaries=summaries,
-                        results=scoring.results,
-                        invalidated=scoring.invalidated,
-                    ),
-                )
-                if carried_zip is not None:
-                    carried_zip.close()
-                    carried_zip = None
-                await publish(
-                    fs,
-                    merged_path,
-                    out,
-                    etag=existing.etag if existing is not None else None,
-                    exists=existing is not None,
-                )
-        finally:
-            if carried_zip is not None:
-                carried_zip.close()
+    name = merged_log_name(merged_path)
+    total = selected_total(selection, held_ids) * epochs
+    with tempfile.TemporaryFile() as out:
+        header = await write_merged_zip(
+            out,
+            keys=keys,
+            read_member=read_member,
+            summaries=summaries,
+            task=task,
+            total_samples=total,
+            make_header=lambda scoring: build_header(
+                base=base,
+                merged=existing.header if existing is not None else None,
+                name=name,
+                status=status,
+                ledger=entries,
+                selection=selection,
+                summaries=summaries,
+                results=scoring.results,
+                invalidated=scoring.invalidated,
+            ),
+        )
+        await publish(
+            fs,
+            merged_path,
+            out,
+            etag=existing.etag if existing is not None else None,
+            exists=existing is not None,
+        )
 
     return _Pass(header=header, written=True)
 
@@ -583,7 +491,7 @@ def _recorded_pass(
     allow_incomplete: bool,
     deleting: bool,
 ) -> _Pass:
-    """A pass that keeps the merged log as recorded (its shards deleted)."""
+    """A pass that keeps the merged log as recorded."""
     header = existing.header
     recorded = recorded_selection(header)
     if given is not None and not given.same_as(recorded):
@@ -591,14 +499,14 @@ def _recorded_pass(
             f"The shards of {header.location} were deleted; its selection can no "
             "longer change."
         )
-    status = plan_status(
-        _ledger(header),
-        existing.records,
-        recorded,
-        header.eval.config.epochs or 1,
-        header.eval.dataset.samples,
-    )
     if header.status != "success" and not allow_incomplete:
+        status = plan_status(
+            _ledger(header),
+            merged_records(existing.members, header.location),
+            recorded,
+            header.eval.config.epochs or 1,
+            header.eval.dataset.samples,
+        )
         raise _incomplete(header.location, status, deleting)
     return _Pass(header, False)
 
@@ -691,47 +599,3 @@ async def _read_attempt(
         etag=reader.etag,
     )
     return read, reader
-
-
-async def _read_attempt_header(fs: AsyncFilesystem, shard: ShardDir) -> EvalLog:
-    info = _current(shard)
-    reader = AsyncZipReader(fs, info.name, verify_crc=True)
-    cd = await reader.entries()
-    return await _read_header_async(reader, {e.filename for e in cd.entries}, info.name)
-
-
-def _kept_members(
-    merged: CentralDirectory, taken: dict[SampleRecordKey, AttemptRead]
-) -> set[SampleRecordKey]:
-    """The keys read from shards that the merged log already holds unchanged.
-
-    A member counts as unchanged when its CRC-32 and uncompressed size equal
-    the shard member's. The merge copies these from the merged log, not the
-    shard: they are then read from a local copy, which on S3 it downloads
-    once for all of them.
-    """
-    kept = set()
-    for key, read in taken.items():
-        entry = merged.entry(_sample_filename(key.sample_id, key.epoch))
-        if entry is not None and _same_data(entry, read.members[key]):
-            kept.add(key)
-    return kept
-
-
-def _same_data(a: ZipEntry, b: ZipEntry) -> bool:
-    return (
-        a.crc32 is not None
-        and a.crc32 == b.crc32
-        and a.uncompressed_size == b.uncompressed_size
-    )
-
-
-def _read_carried_summaries(
-    carried_zip: zipfile.ZipFile, location: str
-) -> dict[SampleRecordKey, EvalSampleSummary]:
-    if SUMMARIES_JSON not in carried_zip.namelist():
-        return {}
-    summaries = _parse_summaries(
-        json.loads(carried_zip.read(SUMMARIES_JSON)), f"{location}/{SUMMARIES_JSON}"
-    )
-    return {SampleRecordKey(str(s.id), s.epoch): s for s in summaries}

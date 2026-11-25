@@ -9,12 +9,13 @@ ends up as. A trusted merge, run through a Python API or the `inspect log
 merge-shards` command, validates the shards, combines the newest log of each
 shard directory into the canonical `<name>.eval`, computes whole-task
 results with the task the caller passes, and records in the merged log which
-shard logs it holds. The merge is incremental: a later call reads only the
-shards that changed and writes nothing when none did. Overlapping merges are
-refused rather than allowed to regress the log. On request the merge deletes
-the companion once the merged log is complete. The viewer hides shards that
-a finished merged log covers, and `eval_set()` refuses a log directory that
-holds shards.
+shard logs it holds. A later call writes nothing when no shard changed and
+the selection is the same; otherwise it rebuilds the merged log from every
+shard, as a first merge does. Overlapping merges are refused rather than
+allowed to regress the log. On request the merge deletes the companion
+once the merged log is complete. The viewer hides shards that a finished
+merged log covers, and `eval_set()` refuses a log directory that holds
+shards.
 
 ## Why
 
@@ -51,10 +52,18 @@ Ransom, 2026-09-21). It mirrors sandbox checkpointing's
 
 - **The name is the identity.** `<name>.eval` and `<name>.shards/` derive
   each other by a string rule on the basename. `src/inspect_ai/_util/log_layout.py`
-  owns the rule for both companions (`log_basename`, `eval_shards_dir`,
-  `eval_log_for_shards_dir`, `eval_checkpoints_dir`,
-  `merged_log_candidates_for_shard`); a `<name>-recovered.eval` maps to the
-  same companion as `<name>.eval`. Tests: `tests/log/test_log_filename.py`.
+  owns the rule for both companions (`merged_log_name`, `eval_shards_dir`,
+  `eval_log_for_shards_dir` and `merged_log_for_shard` for shards;
+  `log_basename` and `eval_checkpoints_dir` for checkpoints). Only
+  `<name>.eval` is the merged log of `<name>.shards/`: a
+  `<name>-recovered.eval` beside it is an ordinary log, although
+  checkpoints map it to `<name>.checkpoints/` (decision: Ransom,
+  2026-11-23). A recovered merged log is reached only through
+  `allow_incomplete`, a local rewrite and a Python-only recovery without a
+  buffer, so a second merged-log name was not worth its rules. On that
+  path the viewer lists `<name>-recovered.eval` and ctl log-dir mode reads
+  it as a newer attempt of the task, and merging it names the companion
+  `<name>-recovered.shards/`. Tests: `tests/log/test_log_filename.py`.
 - **The launcher mints `<name>`** before any worker starts, since the
   workers' log directory depends on it, in the same `{created}_{task}_{id}`
   shape as a log file name, so the merged log lists and sorts like any other
@@ -82,7 +91,7 @@ Ransom, 2026-09-21). It mirrors sandbox checkpointing's
   refuses a directory that holds shards). To see such a log, point
   `--log-dir` at the directory that holds it. The viewer's shard hiding
   uses its own, name-based rule ("Viewer listing",
-  `merged_log_candidates_for_shard`): it treats any log in a directory
+  `merged_log_for_shard`): it treats any log in a directory
   directly under a `*.shards` directory as a shard of that companion, so
   it can also hide a log in a companion nested inside a shard's ancillary
   directory, which the merge does not list.
@@ -126,8 +135,8 @@ paths whose first component holds a colon, as text before any I/O
 version objects, and each needs its own support. A `file://` URI is decoded
 once, and a local location becomes one absolute path that every read, the
 lock and publication use (decision: Ransom, 2026-11-04). A
-`<name>-recovered.eval` argument is refused, so one companion never gets
-two merged logs.
+`<name>-recovered.eval` argument is an ordinary merged-log name, whose
+companion is `<name>-recovered.shards/` ("Layout").
 
 ### One pass
 
@@ -136,25 +145,32 @@ Every call runs one pass, under the overlap guard ("Overlapping merges"):
 1. Read the merged log's header and central directory, if it exists. A
    `<name>.eval` without the ledger field is an ordinary log, and the merge
    refuses to overwrite it: a merge never replaces a log it did not write.
-2. List the companion with `list_shard_set` and classify each shard by its
-   current attempt against its ledger entry: *unchanged* (same file name and
-   ETag, or same size and mtime where either side has no ETag), *changed*,
-   *new*, or *vanished* (a ledger entry whose `<k>/` has no attempt left). A
+2. List the companion with `list_shard_set` and compare each shard's
+   current attempt with its ledger entry: *unchanged* is the same file name
+   and ETag, or the same size and mtime where either side has no ETag. A
    `<k>/` holding only ancillary entries is not a shard.
-3. Read only changed and new shards (central directory, header and
-   summaries; a running attempt's header and summaries come from its
-   journal, as every Python reader takes them), and validate ("Validation").
-4. Plan the sample set, the status and the header from the ledger, the
-   merged log's own members and the attempts read.
-5. Write only when there is no merged log, a shard is changed or new, or the
-   intended selection differs from the recorded one. Otherwise return the
-   existing header with `written=False`.
-6. When writing, build the merged zip in a local temporary file, computing
-   the results over every merged sample, and publish it.
+3. *Keep*: when every current attempt is unchanged, no ledger entry has
+   vanished (its `<k>/` has no attempt left) and the intended selection is
+   the recorded one, return the existing header with `written=False`, after
+   matching the task against it and checking its stored status.
+4. *Refuse* when a ledger entry has vanished ("Validation"), unless the call
+   is finishing an interrupted deletion: with `delete_shards`, every
+   remaining attempt unchanged and the recorded selection, the pass keeps
+   the merged log as in step 3 ("Finishable").
+5. *Rebuild* otherwise: read every current attempt (central directory,
+   header and summaries; a running attempt's header and summaries come from
+   its journal, as every Python reader takes them), validate ("Validation"),
+   plan the sample set, the status and the header from the attempts read,
+   build the merged zip in a local temporary file, computing the results over
+   every merged sample, and publish it.
 
-A steady-state pass over unchanged shards therefore costs one listing of
-the companion and one of each directory in it, plus the merged log's header
-and central directory, and reads no shard log.
+The choice is all or nothing (decision: Ransom, 2026-11-23): a pass either
+keeps the merged log as it is or rebuilds it as a fresh merge would, never
+part of it. A pass that keeps it costs one listing of the companion and one
+of each directory in it, plus the merged log's header and central directory,
+and reads no shard log; so merging, checking the merged log, then merging
+again with `delete_shards` stays cheap. A pass that rebuilds reads every
+shard, however few changed.
 
 When the user has removed the whole companion, the pass finds no attempt
 and returns the merged log as recorded, after matching the task against
@@ -166,8 +182,8 @@ shard attempt, the call raises `FileNotFoundError`.
 
 Membership is by location, so a stray or hostile file in the companion is a
 candidate member; the merge refuses rather than skips (decision: Ransom,
-2026-09-21). Across the current attempts (and, for unchanged shards, the
-merged header built from them), `check_headers` in `_plan.py` requires:
+2026-09-21). Across the current attempts, `check_headers` in `_plan.py`
+requires:
 
 - equal `task_identifier`, computed with the running Inspect's identifier
   version. It covers task file, name, arguments, model, solver plan,
@@ -195,74 +211,48 @@ written:
   keeps a cancelled sample's transcript but leaves it out of
   `results.logged_samples`, so counting it would complete the set
   falsely; `check_resolved`);
-- no attempt regression (a current attempt older than the one the ledger
-  records, which happens only when the recorded attempt was deleted) and no
-  vanished shard while other attempts remain. Both mean shard files were
-  deleted by hand, and merging the remainder would drop or replace merged
-  samples with obsolete ones;
-- every read attempt records its selection (`eval.dataset.sample_ids`) and
-  holds only ids within it; a changed shard's selection is the one merged
-  before (by digest); the read selections are pairwise disjoint; and the
-  merged records each read shard owned number exactly its ledger count
-  (`check_reads`);
-- a pass that plans from the shards refuses a merged log whose number of
-  records no longer matches its ledger counts (records added or removed
-  outside the merge), with the advice to delete it and rebuild from the
-  shards (`test_merge_refuses_a_merged_log_changed_outside_the_merge`). A
-  change that keeps the count, such as an edited score or a record
-  replaced by one with another id, can go undetected and be carried ("The
-  sample set"); a replacement id outside an id selection is still refused
-  by the selection check below, and a writing pass refuses a carried record
-  with no summary. A pass that returns the merged log as recorded (no
-  attempt left, or a resumed deletion) trusts it;
+- no vanished shard while other attempts remain. It means shard files were
+  deleted by hand, and merging the remainder would drop merged samples. A
+  shard whose current attempt was deleted by hand is merged from the
+  attempt now newest in its directory;
+- every attempt records its selection (`eval.dataset.sample_ids`) and holds
+  only ids within it, and no two attempts select the same id
+  (`check_selections`). Every rebuild reads every selection, so an overlap
+  is refused by the first pass that writes after it appears;
 - the selection, given or recorded, covers every held id
   (`ShardSelectionError` names the ids outside it).
 
 Messages name the offending files and the field that differs.
 
+A pass that keeps the merged log trusts it. A rebuild reads only its
+header, for the minted ids and the header edits, so a merged log whose
+samples were changed outside the merge is rebuilt from the shards.
+
 ### The sample set
 
 The merged log holds, for each shard, exactly the records (`(id, epoch)`
-keys) its current attempt holds. When a shard's current attempt changes (it
-grew, or a newer attempt appeared in `<k>/`), all of that shard's records
-are taken from the new attempt and any it lacks are dropped; this is
-"newest wins" applied per shard (decision: Ransom, 2026-09-21), and the
+keys) its current attempt holds. A rebuild takes every record from the
+current attempts and none from the merged log, so when a shard's current
+attempt changes (it grew, or a newer attempt appeared in `<k>/`), all of
+that shard's records come from the new attempt, whatever it selects. This
+is "newest wins" applied per shard (decision: Ransom, 2026-09-21), and the
 same rule ctl log-dir mode uses, so the two never disagree about what a
-shard contributes.
+shard contributes. A rebuild therefore plans the same records, status and
+results as a fresh merge of the same companion (decision: Ransom,
+2026-11-23, superseding the per-shard attribution by selection count and
+digest of 2026-09-29; see "Alternatives considered"), except that
+stochastic metrics and epoch reducers run again without resetting random
+state, so their results can differ ("Results").
 
-The ledger lists no keys. A pass attributes records by id: the merged
-records whose ids fall in the selection of a shard read in this pass are
-*dropped*, the rest are *carried* from the merged log, and every record each
-read attempt holds is *taken*. This is exact because a shard selects whole
-samples, so each id belongs to the one shard that selected it; the digest
-check keeps a changed shard's selection fixed, and the count checks make
-the dropped records exactly that shard's previous ones, as long as the
-merged log's records are the ones the merge wrote. So an incremental pass
-plans the same record keys as a fresh merge of the same companion,
-whenever the fresh merge accepts the set (see the overlap rule below) and
-no record in the merged log was replaced outside the merge. A record
-replaced there by one with another id, keeping the count, is carried as if
-its shard owned it: an incremental pass then holds the replacement, where a
-fresh merge holds the shard's own record ("Validation").
-
-All of this assumes the launcher's contract that shard selections are
-disjoint. A fresh merge reads every selection and refuses any overlap. An
-incremental pass compares only the selections of the shards it reads, and
-an unchanged shard is represented by a digest and a count, which cannot
-reveal its selection. So an overlap with an unchanged shard is caught only
-when a record it already contributed falls in a read shard's selection, or
-when that shard is next read. The merged records are still each held
-once.
+Shard selections must be disjoint, as the launcher's contract says. Every
+rebuild reads every selection and refuses any overlap.
 
 Consequences, stated in the docs: deleting one `<k>/` by hand makes later
 merges refuse until the rest of the companion is deleted or the files are
-restored; a new attempt in an existing `<k>/` that selects different
-samples is refused until it moves to its own `<k>/` or the merged log is
-deleted and rebuilt. Header edits to the merged log (tags, metadata) are
-carried to every later pass. A sample edited in the merged log (with
-`edit_score()`, say) is carried as edited until its shard changes, and the
-results of every writing pass are computed over the carried copy.
-`invalidated` follows the merged samples.
+restored. Header edits to the merged log (tags, metadata) are carried to
+every later pass. A sample edited in the merged log (with `edit_score()`,
+say) is kept until the next rebuild, which replaces it with the shard's
+record. `invalidated` follows the merged samples.
 
 ### Status
 
@@ -312,7 +302,7 @@ shard order), with these `eval` fields replaced, and computes or carries
 the rest as listed:
 
 - `eval_id`, `run_id` and `created`, minted at the first merge and carried
-  after, so incremental passes present as one log;
+  after, so later passes present as one log;
 - `task_id`, from `merged_log_task_id` in `log_layout.py`: the id in
   `<name>`'s `{id}` slot when the file name pattern lets it be read back,
   else a name-based UUID of `<name>`. It is stable across passes and when a
@@ -344,30 +334,27 @@ for anything not listed here.
 2026-09-21). It records the form of the selection (`ids`, `count` or
 `none`, with the count; the ids are `dataset.sample_ids`) and one entry per
 shard with an attempt, in shard order: the current attempt's file name,
-status and error, the records it held, the size and digest of its
-selection, its `eval_set_id`, statistics and usage, and its size, ETag and
-mtime as read. That is everything a later pass needs from a shard it does
-not reopen, so stats and errors are recomputed from entries and replacing
-one shard's attempt replaces exactly its contribution. The ledger is a
-fixed set of fields per shard and nothing per sample, and it records no
-companion location and no shard `eval_id` (decisions: Ransom, 2026-09-29):
-the companion is derived from the name, and a recorded location goes stale
-when the log moves. Its presence is how the merge and `eval_retry`
+status and error, the records it held, its `eval_set_id`, statistics and
+usage, and its size, ETag and mtime as read. A pass compares the listing
+with the file name, ETag, size and mtime to decide whether to keep the
+merged log, and a rebuild writes every entry anew from the attempts it
+reads. The ledger is a fixed set of fields per shard and nothing per
+sample, and it records no companion location and no shard `eval_id`
+(decisions: Ransom, 2026-09-29): the companion is derived from the name,
+and a recorded location goes stale when the log moves. Its presence is how the merge and `eval_retry`
 recognise a merged log. It is absent on shards and unsharded logs. Tests:
 `tests/log/test_eval_log.py`.
 
-**Members.** Sample members are copied in the compression the shard (or the
-previous merged log) used, raw, under names rebuilt from each key rather
-than copied from a source directory, so a crafted member name cannot place
-data under another key (`RawMemberWriter` in `src/inspect_ai/_util/zipfile.py`).
-A changed shard's member whose CRC and size equal the merged log's copy is
-taken from the merged log. The member bytes stream through: each sample is decompressed as it is
-copied and parsed include-only (`_SampleParse` in `_write.py`), building
+**Members.** Sample members are copied in the compression the shard used,
+raw, under names rebuilt from each key rather than copied from a source
+directory, so a crafted member name cannot place data under another key
+(`RawMemberWriter` in `src/inspect_ai/_util/zipfile.py`). The member bytes
+stream through: each sample is decompressed as it is copied and parsed
+include-only (`_SampleParse` in `_write.py`), building
 only its id, epoch, scores, error, invalidation and its `sample_init`
 event's metadata. The merge keeps every sample's scores and initial
 metadata in memory until the results are computed, and every merged
-record's summary (from the attempts read and the merged log) until the
-log is written, because metrics take
+record's summary until the log is written, because metrics take
 all of them at once and recomputing from less is the lossy input it rules
 out (decision: Ransom and JJ Allaire, 2026-09-18: recompute from full
 samples, not summaries, which truncate score answers, explanations and
@@ -456,9 +443,8 @@ remote storage. `_publish.py` holds the guards:
   lock would sit beside the link while publication replaced its target.
   Publication is an atomic replace. The lock does not exclude a viewer edit
   of the merged log during a merge.
-- **S3.** No lock. The merged log is downloaded only when a pass writes,
-  in ranges pinned to the ETag read at the start (`get_file_if_match`), and
-  published with `IfMatch` on that ETag, or `IfNoneMatch: *` for a first
+- **S3.** No lock. The merged log is published with `IfMatch` on the ETag
+  of the header read at the start, or `IfNoneMatch: *` for a first
   merge, on a single or multipart upload (`write_file_conditional` in
   `src/inspect_ai/_util/asyncfiles.py`), with `head_object` pre-checks for
   backends that ignore the conditions. A refused or pre-check-failed
@@ -614,10 +600,8 @@ and `/log-files`, the `listing.json` `write_log_listing` writes, and
 bundle. The rule (`filter_merged_shards` in
 `src/inspect_ai/log/_shard_listing.py`) hides a shard when its merged log
 is in the same listing, has status `success`, and is strictly newer than
-the shard by mtime. When both `<name>.eval` and `<name>-recovered.eval`
-are listed, both must be `success` and the older of the two decides, since
-either may be stale (`test_api_logs_older_of_merged_and_recovered_decides`
-in `tests/_view/test_view_server.py`). A shard written after the merge, a
+the shard by mtime. A `<name>-recovered.eval` is not a merged log
+("Layout"), so it hides nothing and is listed. A shard written after the merge, a
 tie (S3 mtimes have one-second resolution), and every shard of a
 `started`, `error` or `cancelled` merged log stay visible. The rule keys
 on the layout, the merged log's status and the mtimes only, not the ledger
@@ -672,13 +656,10 @@ their own sections.
 - A merge of shards run with sample ids holds every selected sample and
   epoch. For the task in
   `test_merge_of_sample_id_shards_matches_an_unsharded_run`, the merge's
-  results equal an unsharded run's; for the task in
-  `test_incremental_merges_equal_fresh_merges`, an incremental pass's
-  samples and header (results included, identity fields aside) equal a
-  fresh merge's.
-- Merged results can differ from an unsharded run's, or an incremental
-  pass's from a fresh merge's, in these known ways. The list is of the
-  known differences, not a guarantee that nothing else differs:
+  results equal an unsharded run's.
+- Merged results can differ from an unsharded run's in these known ways.
+  The list is of the known differences, not a guarantee that nothing else
+  differs:
   - **Randomness.** Random metrics (`bootstrap_stderr`, bootstrap `ci`,
     clustered too) and random epoch reducers are rerun without setting or
     resetting random state ("Results").
@@ -699,21 +680,21 @@ their own sections.
   - **Model context.** A metric that calls `get_model()` sees the merging
     caller's model, not the shards' (decision: Ransom, 2026-11-04;
     `test_a_metric_that_needs_a_model_uses_the_callers`).
-  - **Edits.** Header edits to the merged log are carried by incremental
-    passes, which a fresh merge does not have
-    (`test_merged_log_edits_are_kept`); a sample edit (`edit_score()`) is
-    carried the same way until its shard changes ("The sample set"), which
-    no repository test checks.
-  - **Overlap.** An overlap with an unchanged shard is detected only once a
-    record it holds falls in a read shard's selection or that shard is read
-    again, so until then an incremental pass can accept a set a fresh merge
-    refuses
-    (`test_overlap_without_shared_records_is_refused_once_a_shard_is_read_again`).
-  - **Identity.** `eval_id`, `run_id` and `created` are kept by incremental
-    passes and minted anew by a fresh merge.
-- A pass reads only changed and new shards
-  (`test_incremental_merge_reads_only_changed_shards`), and an incomplete
-  set raises and writes nothing without `allow_incomplete`
+- A rebuild's samples and header equal a fresh merge's of the same
+  companion (`test_incremental_merges_equal_fresh_merges`), except for
+  `eval_id`, `run_id` and `created`, which it keeps from the first merge,
+  and header edits to the merged log, which it carries. Stochastic metrics
+  and epoch reducers run again without resetting random state, so their
+  results can differ between a rebuild and a fresh merge. A sample edited
+  in the merged log is replaced
+  (`test_a_writing_merge_keeps_header_edits_and_replaces_sample_edits`).
+- Every rebuild refuses overlapping selections
+  (`test_every_writing_merge_refuses_overlapping_selections`).
+- A pass over an unchanged set reads no shard and writes nothing
+  (`test_an_unchanged_set_is_kept_without_reading_a_shard`); any other pass
+  reads every shard
+  (`test_a_changed_shard_rebuilds_the_merged_log_from_every_shard`). An
+  incomplete set raises and writes nothing without `allow_incomplete`
   (`test_merge_of_an_incomplete_set_raises_and_writes_nothing`).
 - An overlapping merge is refused rather than regressing the log: locally
   by the lock (`test_a_local_merge_overlapping_another_is_refused`), on S3
@@ -770,9 +751,16 @@ Limits users meet are listed in [Sharding,
 - **Provenance in `eval.metadata`, or a separate ledger file.** The first
   sits in the user's namespace; the second is a second source of truth that
   drifts from the merged log.
-- **Exact keys, or each shard's ids, in the ledger.** Per-sample data in a
-  header every listing parses; attribution by id needs a count and a digest
-  (decision: Ransom, 2026-09-29).
+- **Per-shard incremental merges**, which read only the changed shards and
+  carried the others' records from the merged log, attributing them by each
+  shard's selection count and digest (decision: Ransom, 2026-09-29) or by
+  exact keys in the ledger. They made repeated merges cheap at every
+  `eval_set()` startup and during a run, and the merge runs at neither:
+  `eval_set()` refuses shards, and merges run after the workers exit. They needed count,
+  member and attempt-order checks, accepted an overlap with an unchanged
+  shard until that shard was read again, and could differ from a fresh merge
+  after a sample edit. Replaced by keep or rebuild (decision: Ransom,
+  2026-11-23), whose cost is a read of every shard on each rebuild.
 - **Recomputing from summaries.** Wrong for metrics that read answers,
   explanations or metadata.
 - **Rebuilding the task, metrics or model from the logs**, in the API or
@@ -810,11 +798,17 @@ Limits users meet are listed in [Sharding,
   directory holding shard logs.
 - **Stored format.** `EvalSpec.shards` is optional and absent on every log
   but a merged log; shard headers are unchanged. It is in the JSON schema
-  and the viewer's generated types, which the viewer does not read. Older
-  Inspect versions drop the field on read and treat a merged log as an
-  ordinary log; an old version that rewrites a merged log makes an ordinary
-  log, which the merge then refuses to overwrite, and an old `eval_retry`
-  retries any merged log over the whole dataset.
+  and the viewer's generated types, which the viewer does not read.
+  Inspect versions before sharding drop the field on read and treat a
+  merged log as an ordinary log; such a version that rewrites a merged log
+  makes an ordinary log, which the merge then refuses to overwrite, and its
+  `eval_retry` retries any merged log over the whole dataset. Ledger
+  entries written by the earlier shard-aware versions (0.3.278 to 0.3.292)
+  also hold `selected` and `selection_digest`; readers ignore them, and the
+  next rebuild writes the ledger without them. Those versions require both
+  fields, so they cannot read a merged log first written or rebuilt by a
+  later version: upgrade shard-aware readers before opening such logs.
+  Existing logs need no conversion.
 - **Enumerators other than the viewer** list shards beside the merged log.
   `evals_df` gives an extra row per shard; `samples_df` dedupes by sample
   `uuid`, but a directory read also returns superseded attempts' samples.
@@ -862,9 +856,9 @@ Limits users meet are listed in [Sharding,
 ## Not this design
 
 - **Live whole-task metrics during a run.** Either a periodic rollup of
-  shard summaries (cheap, value-only, labelled as an approximation) or the
-  incremental merge on a timer (exact, a merged-zip rewrite per tick). Not
-  decided whether to build either before live-view work.
+  shard summaries (cheap, value-only, labelled as an approximation) or a
+  merge on a timer (exact, reading every shard and rewriting the merged zip
+  per tick). Not decided whether to build either before live-view work.
 - **Live-view support for shards:** collapsing a merged log's shards into
   one viewer row, per-shard metrics in the viewer, and the running-sample
   viewer.
@@ -872,10 +866,6 @@ Limits users meet are listed in [Sharding,
   per-member authorization.
 - **S3 server-side composition** (`UploadPartCopy`) of the merged log,
   for very large logs.
-- **A lossless metric-input cache** in the merged log, to avoid reading
-  carried samples on every writing pass. Such a cache would be an extra
-  zip member, and `seed_from_prior_log` keeps unknown zip members, so it
-  would be copied into seeded retries.
 - **A stale-lock check** for local merges (a same-host dead process).
 - **Other storage backends** for the merge (GCS, Azure).
 - **Chunked-shape samples** in shards, once the recorder writes them.

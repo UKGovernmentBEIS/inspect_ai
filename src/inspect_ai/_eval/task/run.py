@@ -1559,6 +1559,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # the run's terminal count -- a task that read finished
                 # there could not be cancelled while the callback blocks
                 dynamic=sample_feed is not None or options.task_source is not None,
+                unregistered_attempts=(
+                    options.record.unregistered_attempts
+                    if options.record is not None
+                    else 0
+                ),
             )
             if options.record is not None:
                 options.record.on_registered()

@@ -314,9 +314,9 @@ def eval(
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated). A task cancelled
-            before it starts is started outside this limit and ends at once
-            with an error log reporting the cancellation, so it never takes a
-            slot.
+            before it starts (`inspect ctl task cancel` or `drain`) is started
+            outside this limit and ends at once with an error log reporting
+            the cancellation, so it never takes a slot.
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -602,9 +602,9 @@ async def eval_async(
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated). A task cancelled
-            before it starts is started outside this limit and ends at once
-            with an error log reporting the cancellation, so it never takes a
-            slot.
+            before it starts (`inspect ctl task cancel` or `drain`) is started
+            outside this limit and ends at once with an error log reporting
+            the cancellation, so it never takes a slot.
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
         log_samples: Log detailed samples and scores (defaults to True)
@@ -1361,9 +1361,9 @@ def eval_retry(
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated). A task cancelled
-            before it starts is started outside this limit and ends at once
-            with an error log reporting the cancellation, so it never takes a
-            slot.
+            before it starts (`inspect ctl task cancel` or `drain`) is started
+            outside this limit and ends at once with an error log reporting
+            the cancellation, so it never takes a slot.
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -1617,9 +1617,9 @@ async def eval_retry_async(
         max_samples: Maximum number of samples to run in parallel within each task
            (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel (default is 1).
-            A task cancelled before it starts is started outside this limit and
-            ends at once with an error log reporting the cancellation, so it
-            never takes a slot.
+            A task cancelled before it starts (`inspect ctl task cancel` or
+            `drain`) is started outside this limit and ends at once with an
+            error log reporting the cancellation, so it never takes a slot.
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
         sandbox_cleanup: Cleanup sandbox environments after task completes

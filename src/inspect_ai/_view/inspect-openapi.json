@@ -3907,7 +3907,7 @@
         "type": "object"
       },
       "EvalSample": {
-        "description": "Sample from evaluation task.",
+        "description": "Sample from evaluation task.\n\nA sample remembers whether its attachment references have been resolved:\n`resolve_sample_attachments()` (and reading a log with\n`resolve_attachments`) marks the sample it returns, and writing a log\nuses the mark to tell literal text that begins with `attachment://` or\n`tc://` from a reference. The mark is not serialized. A sample without\nit (built by hand, or passed through `model_dump()` and\n`model_validate()`) is taken to hold references, as read from a log\nwithout resolving attachments.",
         "properties": {
           "attachments": {
             "additionalProperties": {
@@ -5305,14 +5305,6 @@
             "title": "Samples",
             "type": "integer"
           },
-          "selected": {
-            "title": "Selected",
-            "type": "integer"
-          },
-          "selection_digest": {
-            "title": "Selection Digest",
-            "type": "string"
-          },
           "shard": {
             "title": "Shard",
             "type": "string"
@@ -5349,8 +5341,6 @@
           "log",
           "status",
           "samples",
-          "selected",
-          "selection_digest",
           "started_at",
           "completed_at",
           "model_usage",
@@ -12618,7 +12608,7 @@
         "type": "object"
       },
       "ToolInfo": {
-        "description": "Specification of a tool (JSON Schema compatible)\n\nIf you are implementing a ModelAPI, most LLM libraries can\nbe passed this object (dumped to a dict) directly as a function\nspecification. For example, in the OpenAI provider:\n\n```python\nChatCompletionToolParam(\n    type=\"function\",\n    function=tool.model_dump(exclude_none=True),\n)\n```\n\nIn some cases the field names don't match up exactly. In that case\ncall `model_dump()` on the `parameters` field. For example, in the\nAnthropic provider:\n\n```python\nToolParam(\n    name=tool.name,\n    description=tool.description,\n    input_schema=tool.parameters.model_dump(exclude_none=True),\n)\n```",
+        "description": "Specification of a tool (JSON Schema compatible)\n\nIf you are implementing a ModelAPI, most LLM libraries can\nbe passed this object (dumped to a dict) directly as a function\nspecification. For example, in the OpenAI provider:\n\n```python\nChatCompletionToolParam(\n    type=\"function\",\n    function=tool.model_dump(mode=\"json\", exclude_none=True),\n)\n```\n\nIn some cases the field names don't match up exactly. In that case\ncall `model_dump()` on the `parameters` field. For example, in the\nAnthropic provider:\n\n```python\nToolParam(\n    name=tool.name,\n    description=tool.description,\n    input_schema=tool.parameters.model_dump(mode=\"json\", exclude_none=True),\n)\n```\n\nDump in JSON mode, as shown, so parameter defaults such as an `Enum`\nmember are converted to JSON values.",
         "properties": {
           "description": {
             "title": "Description",

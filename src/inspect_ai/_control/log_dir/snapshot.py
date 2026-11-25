@@ -180,8 +180,7 @@ class LogicalTask:
 
     stray: list[Unreadable] = field(default_factory=list)
     """Its other logs that are not read: the shard set's unreadable merged
-    log, older merged logs and stray logs, and any second shard set for its
-    task id."""
+    log and stray logs, and any second shard set for its task id."""
 
     newest_unreadable: Unreadable | None = None
     """The newest unreadable unsharded attempt when it would be current, so
@@ -354,15 +353,13 @@ async def _add_shard_sets(
     """Add each shard set to its task as the oldest attempt.
 
     A shard set's task id is its merged log's ``task_id``, so the merged
-    log, the newest by attempt order, of every shard set is read first;
-    without a readable one it is the id parsed from ``<name>``
-    (:func:`_set_key`). Older merged logs are not read and are listed in
-    the task's ``stray``. A task id has at most one shard
+    log of every shard set is read first; without a readable one it is the
+    id parsed from ``<name>`` (:func:`_set_key`). A task id has at most one shard
     set, the first by path; a second is listed in the task's ``stray``.
     A shard set's members are read only when it is current: an unsharded
     attempt with its task id is current over it whatever the order.
     """
-    merged_files = [s.merged[0] for s in shard_sets if s.merged]
+    merged_files = [s.merged for s in shard_sets if s.merged is not None]
     merged = dict(
         zip(
             (f.location for f in merged_files),
@@ -373,7 +370,9 @@ async def _add_shard_sets(
     )
 
     def run_of(shard_set: ShardSetFiles) -> LogPlan | Unreadable | None:
-        return merged[shard_set.merged[0].location] if shard_set.merged else None
+        return (
+            merged[shard_set.merged.location] if shard_set.merged is not None else None
+        )
 
     def merged_task_id(shard_set: ShardSetFiles) -> str | None:
         run = run_of(shard_set)
@@ -432,29 +431,19 @@ async def _add_shard_sets(
             task.stray.append(_stray(StrayFile(shard_set.location, reason)))
             continue
         task.stray.extend(_stray(s) for s in shard_set.stray)
-        task.stray.extend(_older_merged(shard_set))
         if key not in current:
             task.attempts.insert(0, Attempt([], shard_set.location, None, shard_set))
             continue
         task.attempts.append(
             Attempt(
                 members=[_member(f, results[f.location]) for f in shard_set.members],
-                location=shard_set.merged[0].location
-                if shard_set.merged
+                location=shard_set.merged.location
+                if shard_set.merged is not None
                 else shard_set.location,
                 run=run,
                 shard_set=shard_set,
             )
         )
-
-
-def _older_merged(shard_set: ShardSetFiles) -> list[Unreadable]:
-    """The shard set's merged logs other than the newest, which are not read."""
-    if not shard_set.merged:
-        return []
-    newest = local_path(shard_set.merged[0].location)
-    reason = f"an older merged log; the shard set's merged log is {newest}"
-    return [_stray(StrayFile(f.location, reason)) for f in shard_set.merged[1:]]
 
 
 def _log_attempt(plan: LogPlan) -> Attempt:

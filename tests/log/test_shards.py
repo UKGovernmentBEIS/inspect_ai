@@ -43,7 +43,6 @@ from inspect_ai.log._shards._plan import (
     Selection,
     parse_sample_member,
     plan_status,
-    selection_digest,
 )
 from inspect_ai.log._shards._walk import (
     ShardDir,
@@ -600,20 +599,55 @@ def failing() -> Any:
     _FAILING.clear()
 
 
-def test_merge_refuses_a_recovered_log_name(tmp_path: Path) -> None:
-    merged, shards = _paths(tmp_path)
-    _run(shards, "0", sample_id=[1, 2])
-    recovered = f"{tmp_path}/{NAME}-recovered.eval"
-    with pytest.raises(ValueError, match=f"{NAME}.eval.*{NAME}.shards"):
-        merge_eval_log_shards(recovered, _task())
-    assert not os.path.exists(recovered) and not os.path.exists(merged)
+def test_a_recovered_merged_log_does_not_merge_the_shards_beside_it(
+    tmp_path: Path,
+) -> None:
+    import shutil
 
-    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    before = Path(merged).read_bytes()
-    with pytest.raises(ValueError, match="recovered"):
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0")
+    merge_eval_log_shards(merged, _task())
+    # a copy of the merged log under the recovered name: its shards
+    # directory is <name>-recovered.shards/, which does not exist
+    recovered = f"{tmp_path}/{NAME}-recovered.eval"
+    shutil.copyfile(merged, recovered)
+    before = _files(str(tmp_path))
+    result = merge_eval_log_shards(recovered, _task())
+    assert not result.written and result.log.status == "success"
+    assert _files(str(tmp_path)) == before
+
+    log = read_eval_log(recovered)
+    log.status = "started"
+    write_eval_log(log, recovered)
+    before = _files(str(tmp_path))
+    with pytest.raises(ShardSetIncomplete):
         merge_eval_log_shards(recovered, _task())
-    assert not os.path.exists(recovered)
-    assert Path(merged).read_bytes() == before
+    result = merge_eval_log_shards(recovered, _task(), allow_incomplete=True)
+    assert not result.written and result.log.status == "started"
+    assert _files(str(tmp_path)) == before
+
+
+def test_merge_refuses_a_log_with_an_empty_name(tmp_path: Path) -> None:
+    _run(f"{tmp_path}/.shards", "0", sample_id=[1, 2])
+    before = _files(str(tmp_path))
+    with pytest.raises(ValueError, match="Expected a merged log"):
+        merge_eval_log_shards(f"{tmp_path}/.eval", _task())
+    assert _files(str(tmp_path)) == before
+
+
+def test_a_recovered_name_merges_its_own_shards_directory(tmp_path: Path) -> None:
+    import shutil
+
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0")
+    recovered_shards = f"{tmp_path}/{NAME}-recovered.shards"
+    shutil.copytree(shards, recovered_shards)
+    before = _files(shards)
+    result = merge_eval_log_shards(recovered_shards, _task())
+    assert result.written and result.log.status == "success"
+    assert result.log.location == f"{tmp_path}/{NAME}-recovered.eval"
+    assert not os.path.exists(merged)
+    assert _files(shards) == before
 
 
 @pytest.mark.parametrize(
@@ -1588,7 +1622,7 @@ def test_merge_keeps_exactly_the_records_a_running_shard_holds(tmp_path: Path) -
     assert header.eval.shards.ledger[0].samples == 1
     assert _keys(merged) == {("1", 1), ("2", 1), ("2", 2)}
 
-    # another shard changes; the running one is carried as it was
+    # another shard changes; the running one is read again as it is
     _rewrite(other, lambda log: None)
     header = merge_eval_log_shards(merged, task, allow_incomplete=True).log
     assert header.status == "started"
@@ -1769,12 +1803,6 @@ def test_merge_records_and_reads_back_each_selection_form(tmp_path: Path) -> Non
         merge_eval_log_shards(merged, _task(), sample_count=3)
 
 
-def test_selection_digest_ignores_order_and_id_type() -> None:
-    assert selection_digest([1, 2, "3"]) == selection_digest(["3", "2", 1, 1])
-    assert selection_digest([1, 2]) != selection_digest([1, 2, 3])
-    assert len(selection_digest([])) == 64
-
-
 class _ScannedKeys(list[SampleRecordKey]):
     """Planned records that count the elements read and refuse a list scan."""
 
@@ -1805,8 +1833,6 @@ def test_status_planning_reads_the_records_a_bounded_number_of_times(
         log="worker.eval",
         status="success",
         samples=len(keys),
-        selected=ids,
-        selection_digest=selection_digest(list(range(1, ids + 1))),
         size=1,
     )
     selection = Selection("ids", ids=list(range(1, ids + 1)))
@@ -2056,81 +2082,95 @@ def test_merge_refuses_a_shard_holding_samples_outside_its_selection(
         merge_eval_log_shards(merged, _task(), allow_incomplete=True)
 
 
-def test_merge_refuses_a_new_attempt_with_a_different_selection(
+def test_a_merged_log_recording_the_removed_ledger_fields_merges(
     tmp_path: Path,
 ) -> None:
     merged, shards = _paths(tmp_path)
-    first = _run(shards, "0", sample_id=[1, 2])
-    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    second = _run(shards, "0", sample_id=[1, 2, 3])
-    with pytest.raises(ShardSetError) as raised:
-        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    message = str(raised.value)
-    assert Path(first.location).name in message
-    assert Path(second.location).name in message
-    assert "own shard directory" in message
+    _run(shards, "0", sample_id=[1, 2, 3])
+    other = _run(shards, "1", sample_id=[4, 5, 6])
+    merge_eval_log_shards(merged, _task())
 
-    os.remove(merged)
+    # what the merge wrote before it stopped recording each selection
+    def old_fields(header: dict[str, Any]) -> None:
+        for entry in header["eval"]["shards"]["ledger"]:
+            entry["selected"] = 3
+            entry["selection_digest"] = "0" * 64
+
+    _edit_header(merged, old_fields)
+    assert read_eval_log(merged).eval.shards is not None
+    assert not merge_eval_log_shards(merged, _task()).written
+    _rewrite(other, lambda log: None)
+    assert merge_eval_log_shards(merged, _task()).written
+    with zipfile.ZipFile(merged) as zf:
+        ledger = json.loads(zf.read("header.json"))["eval"]["shards"]["ledger"]
+    assert all("selected" not in e and "selection_digest" not in e for e in ledger)
+
+
+def test_a_new_attempt_with_another_selection_replaces_its_shard(
+    tmp_path: Path,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2])
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
+    second = _run(shards, "0", sample_id=[2, 3])
     result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    assert _keys(merged) == {("1", 1), ("2", 1), ("3", 1)}
+    assert result.written
+    assert _keys(merged) == {("2", 1), ("3", 1)}
     assert result.log.eval.shards is not None
     assert result.log.eval.shards.ledger[0].log == Path(second.location).name
 
 
-def test_merge_refuses_a_new_shard_whose_selection_meets_a_carried_record(
-    tmp_path: Path,
-) -> None:
+def test_every_writing_merge_refuses_overlapping_selections(tmp_path: Path) -> None:
     merged, shards = _paths(tmp_path)
-    _run(shards, "0", sample_id=[1, 2])
-    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    _run(shards, "1", sample_id=[2, 3])
-    with pytest.raises(ShardSetError, match="already merged"):
-        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-
-
-def test_merge_refuses_a_merged_log_changed_outside_the_merge(
-    tmp_path: Path,
-) -> None:
-    merged, shards = _paths(tmp_path)
-    _run(shards, "0", sample_id=[1, 2])
-    other = _run(shards, "1", sample_id=[3, 4])
-    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    _remove_member(merged, "samples/1_epoch_1.json")
-    # a pass over unchanged shards
-    with pytest.raises(ShardSetError, match="changed outside the merge"):
-        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    # and one where another shard changed
-    _rewrite(other, lambda log: None)
-    with pytest.raises(ShardSetError, match="changed outside the merge"):
-        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-
-
-def test_overlap_without_shared_records_is_refused_once_a_shard_is_read_again(
-    tmp_path: Path,
-) -> None:
-    merged, shards = _paths(tmp_path)
-    task = _task(epochs=1)
-    first = _run(shards, "0", task, sample_id=[1, 2, 3])
+    first = _run(shards, "0", sample_id=[1, 2, 3])
     _as_running(first, keep={(1, 1)})
-    merge_eval_log_shards(merged, task, allow_incomplete=True)
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
+    before = Path(merged).read_bytes()
     # a new shard selecting 3, which shard 0 selects but does not hold yet
-    _run(shards, "1", task, sample_id=[3, 4])
-    merge_eval_log_shards(merged, task, allow_incomplete=True)
-    # a fresh merge of the same shards refuses at once
-    fresh = tmp_path / "fresh"
-    fresh.mkdir()
-    import shutil
-
-    shutil.copytree(shards, _paths(fresh)[1], copy_function=shutil.copy2)
-    with pytest.raises(ShardSetError, match="both select"):
-        merge_eval_log_shards(_paths(fresh)[0], task, allow_incomplete=True)
-    # and the incremental one does when shard 0 is read again
-    _rewrite(first, lambda log: None)
-    with pytest.raises(ShardSetError, match="selected by shard 0|both select"):
-        merge_eval_log_shards(merged, task, allow_incomplete=True)
+    _run(shards, "1", sample_id=[3, 4])
+    with pytest.raises(ShardSetError, match="Shards 0 and 1 both select sample '3'"):
+        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
+    assert Path(merged).read_bytes() == before
 
 
-def test_incremental_merge_reads_only_changed_shards(
+def _opened_readers(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """The files of the `AsyncZipReader`s created from now on."""
+    opened: list[str] = []
+    init = AsyncZipReader.__init__
+
+    def spy_init(
+        self: AsyncZipReader, fs: Any, filename: str, *a: Any, **k: Any
+    ) -> None:
+        opened.append(filename)
+        init(self, fs, filename, *a, **k)
+
+    monkeypatch.setattr(AsyncZipReader, "__init__", spy_init)
+    return opened
+
+
+def test_an_unchanged_set_is_kept_without_reading_a_shard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    _run(shards, "1", sample_id=[4, 5])
+    merge_eval_log_shards(merged, _task(), allow_incomplete=True)
+    before = Path(merged).read_bytes()
+    opened = _opened_readers(monkeypatch)
+
+    result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
+    assert not result.written and result.log.status == "started"
+    assert opened == [merged]
+    assert Path(merged).read_bytes() == before
+
+    # another selection is a change: every shard is read again
+    opened.clear()
+    result = merge_eval_log_shards(merged, _task(), sample_ids=[1, 2, 3, 4, 5])
+    assert result.written and result.log.status == "success"
+    assert len(opened) == 3 and opened[0] == merged
+
+
+def test_a_changed_shard_rebuilds_the_merged_log_from_every_shard(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     merged, shards = _paths(tmp_path)
@@ -2141,70 +2181,25 @@ def test_incremental_merge_reads_only_changed_shards(
     first = merge_eval_log_shards(merged, _task(), allow_incomplete=True).log
     assert _keys(merged) == {(str(i), 1) for i in (1, 2, 4, 5, 6)}
 
-    opened: list[str] = []
-    member_reads: list[tuple[str, str]] = []
-    init = AsyncZipReader.__init__
-    read_member = AsyncZipReader.read_member_fully
-
-    def spy_init(
-        self: AsyncZipReader, fs: Any, filename: str, *a: Any, **k: Any
-    ) -> None:
-        opened.append(filename)
-        init(self, fs, filename, *a, **k)
-
-    open_member = AsyncZipReader.open_member_raw
-
-    async def spy_read(self: AsyncZipReader, member: Any) -> bytes:
-        name = member if isinstance(member, str) else member.filename
-        member_reads.append((self._filename, name))
-        return await read_member(self, member)
-
-    async def spy_open(self: AsyncZipReader, member: Any) -> Any:
-        name = member if isinstance(member, str) else member.filename
-        member_reads.append((self._filename, name))
-        return await open_member(self, member)
-
-    monkeypatch.setattr(AsyncZipReader, "__init__", spy_init)
-    monkeypatch.setattr(AsyncZipReader, "read_member_fully", spy_read)
-    monkeypatch.setattr(AsyncZipReader, "open_member_raw", spy_open)
-
-    # nothing changed: nothing written, no shard opened
-    result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    assert not result.written
-    assert opened == [merged]
-
-    # the growing shard gains a sample and edits one it already held
-    def grow(log: EvalLog) -> None:
-        assert log.samples is not None
-        log.status = "started"
-        log.samples = [s for s in log.samples if s.id in (1, 2, 3)]
-        scores = log.samples[0].scores
-        assert scores is not None
-        scores["match"].explanation = "edited in the shard"
-
-    grow(full)
+    # the growing shard finishes, with a sample it already held edited
+    assert full.samples is not None and full.samples[0].scores is not None
+    full.samples[0].scores["match"].explanation = "edited in the shard"
     write_eval_log(full, growing.location)
-    opened.clear()
-    result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
-    assert result.written
-    assert growing.location in opened and steady.location not in opened
-    sample_reads = [name for file, name in member_reads if file == growing.location]
-    # sample 2 is unchanged in the shard (the same CRC-32 and size), so it is
-    # copied from the merged log instead
-    assert {n for n in sample_reads if n.startswith("samples/")} == {
-        f"samples/{i}_epoch_1.json" for i in (1, 3)
-    }
-    assert (merged, "samples/2_epoch_1.json") in member_reads
+    opened = _opened_readers(monkeypatch)
+    result = merge_eval_log_shards(merged, _task())
+    assert result.written and result.log.status == "success"
+    assert sorted(opened) == sorted([merged, growing.location, steady.location])
     assert _keys(merged) == {(str(i), 1) for i in range(1, 7)}
     samples = read_eval_log(merged).samples
     assert samples is not None and samples[0].scores is not None
     assert samples[0].scores["match"].explanation == "edited in the shard"
     header = result.log
-    assert (header.eval.eval_id, header.eval.run_id, header.eval.task_id) == (
-        first.eval.eval_id,
-        first.eval.run_id,
-        first.eval.task_id,
-    )
+    assert (
+        header.eval.eval_id,
+        header.eval.run_id,
+        header.eval.created,
+        header.eval.task_id,
+    ) == (first.eval.eval_id, first.eval.run_id, first.eval.created, first.eval.task_id)
 
 
 def test_a_new_attempt_replaces_its_shards_records(tmp_path: Path) -> None:
@@ -2267,14 +2262,17 @@ def test_an_added_shard_returns_a_success_log_to_started(tmp_path: Path) -> None
     assert raised.value.outside is None
 
 
-def test_merge_refuses_a_hand_deleted_current_attempt(tmp_path: Path) -> None:
+def test_a_hand_deleted_current_attempt_merges_the_attempt_now_current(
+    tmp_path: Path,
+) -> None:
     merged, shards = _paths(tmp_path)
-    _run(shards, "0", sample_id=[1, 2])
+    older = _run(shards, "0", sample_id=[1, 2])
     current = _run(shards, "0", sample_id=[1, 2])
     merge_eval_log_shards(merged, _task(), allow_incomplete=True)
     os.remove(current.location)
-    with pytest.raises(ShardSetError, match="older than the attempt last merged"):
-        merge_eval_log_shards(merged, _task(), allow_incomplete=True)
+    result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
+    assert result.written and result.log.eval.shards is not None
+    assert result.log.eval.shards.ledger[0].log == Path(older.location).name
 
 
 def _fresh_merge(tmp_path: Path, shards: str, **kwargs: Any) -> tuple[EvalLog, str]:
@@ -2403,8 +2401,16 @@ def test_merged_task_id_follows_the_file_name_pattern(
     )
 
 
-def test_merged_log_edits_are_kept(tmp_path: Path) -> None:
-    from inspect_ai.log import ProvenanceData, TagsEdit, edit_eval_log
+def _sample_members(log: str) -> dict[str, bytes]:
+    with zipfile.ZipFile(local_path(log)) as zf:
+        return {n: zf.read(n) for n in zf.namelist() if n.startswith("samples/")}
+
+
+def test_a_writing_merge_keeps_header_edits_and_replaces_sample_edits(
+    tmp_path: Path,
+) -> None:
+    from inspect_ai.log import ProvenanceData, TagsEdit, edit_eval_log, edit_score
+    from inspect_ai.scorer import ScoreEdit
 
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2])
@@ -2414,10 +2420,16 @@ def test_merged_log_edits_are_kept(tmp_path: Path) -> None:
     edited = edit_eval_log(
         log, [TagsEdit(tags_add=["kept"])], ProvenanceData(author="test")
     )
+    # sample 1 matched; the edit marks it incorrect
+    edit_score(edited, 1, "match", ScoreEdit(value="I"))
     write_eval_log(edited, merged)
     _rewrite(other, lambda log: None)
+
     header = merge_eval_log_shards(merged, _task(), allow_incomplete=True).log
     assert header.tags == ["kept"]
+    fresh, fresh_merged = _fresh_merge(tmp_path, shards, allow_incomplete=True)
+    assert header.results == fresh.results
+    assert _sample_members(merged) == _sample_members(fresh_merged)
 
 
 def test_eval_retry_refuses_an_id_or_count_selected_merged_log(tmp_path: Path) -> None:
@@ -3190,7 +3202,7 @@ def test_merge_on_s3(s3_shards: tuple[str, str], s3_root: str) -> None:
             sample.metadata["changed"] = True
         write_eval_log(log, f"s3://test-bucket/{key}")
 
-    # a changed shard is merged again, carrying the other
+    # a changed shard rebuilds the merged log from both shards
     change("1")
     second = merge_eval_log_shards(merged, _task())
     assert second.written and second.log.eval.eval_id == first.log.eval.eval_id
@@ -3199,48 +3211,6 @@ def test_merge_on_s3(s3_shards: tuple[str, str], s3_root: str) -> None:
 
     # nothing changed since: nothing is written
     assert not merge_eval_log_shards(merged, _task()).written
-
-
-def test_merge_on_s3_copies_unchanged_members_of_changed_shards_from_the_merged_log(
-    s3_shards: tuple[str, str], s3_root: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    merged, shards = s3_shards
-    assert merge_eval_log_shards(merged, _task()).written
-
-    # rewrite both shards, each with one sample edited: no record is carried,
-    # but the other samples' members match the merged log's
-    for k, edited in (("0", 1), ("1", 4)):
-        [key] = [
-            key
-            for key in _s3_keys(f"{s3_root}/{NAME}.shards/{k}/")
-            if key.endswith(".eval")
-        ]
-        log = read_eval_log(f"s3://test-bucket/{key}")
-        assert log.samples is not None
-        for sample in log.samples:
-            if sample.id == edited:
-                sample.metadata["changed"] = True
-        write_eval_log(log, f"s3://test-bucket/{key}")
-
-    sample_reads: list[tuple[str, str]] = []
-    open_member = AsyncZipReader.open_member_raw
-
-    async def spy_open(self: AsyncZipReader, member: Any) -> Any:
-        if member.filename.startswith("samples/"):
-            sample_reads.append((self._filename, member.filename))
-        return await open_member(self, member)
-
-    monkeypatch.setattr(AsyncZipReader, "open_member_raw", spy_open)
-    assert merge_eval_log_shards(merged, _task()).written
-
-    from_shards = {name for file, name in sample_reads if file.startswith(shards)}
-    assert from_shards == {"samples/1_epoch_1.json", "samples/4_epoch_1.json"}
-    # the rest come from the merged log's local copy
-    from_copy = {name for file, name in sample_reads if not file.startswith("s3://")}
-    assert from_copy == {f"samples/{i}_epoch_1.json" for i in (2, 3, 5, 6)}
-    log = read_eval_log(merged)
-    assert log.samples is not None
-    assert {s.id for s in log.samples if s.metadata.get("changed")} == {1, 4}
 
 
 async def test_concurrent_first_merges_on_s3_publish_once(
@@ -3329,20 +3299,6 @@ async def test_a_merge_whose_log_was_removed_meanwhile_is_refused_on_s3(
             release.set()
     assert len(failures) == 1
     assert f"{s3_root}/{NAME}.eval" not in _s3_keys(f"{s3_root}/")
-
-
-def test_merge_refuses_a_recovered_shards_directory_name(tmp_path: Path) -> None:
-    import shutil
-
-    _, shards = _paths(tmp_path)
-    neighbour = _run(shards, "0", sample_id=[1, 2, 3])
-    recovered = f"{tmp_path}/{NAME}-recovered.shards"
-    shutil.copytree(shards, recovered)
-    before = _files(str(tmp_path))
-    with pytest.raises(ValueError, match=f"{NAME}.shards"):
-        merge_eval_log_shards(recovered, _task())
-    assert _files(str(tmp_path)) == before
-    assert os.path.exists(neighbour.location)
 
 
 # characters a file:// URI encodes or a URL parser reads specially
@@ -3715,24 +3671,6 @@ def test_score_names_from_the_log_never_load_files(tmp_path: Path) -> None:
     assert not marker.exists()
 
 
-@pytest.mark.parametrize("suffix", [".shards", ".eval"])
-def test_merge_refuses_an_encoded_recovered_name(tmp_path: Path, suffix: str) -> None:
-    import shutil
-
-    from inspect_ai._util.file import to_uri
-
-    _, shards = _paths(tmp_path)
-    neighbour = _run(shards, "0", sample_id=[1, 2, 3])
-    recovered = f"{tmp_path}/{NAME}-recovered.shards"
-    shutil.copytree(shards, recovered)
-    before = _files(str(tmp_path))
-    encoded = to_uri(f"{tmp_path}/{NAME}") + "%2Drecovered" + suffix
-    with pytest.raises(ValueError, match="recovered"):
-        merge_eval_log_shards(encoded, _task())
-    assert _files(str(tmp_path)) == before
-    assert os.path.exists(neighbour.location)
-
-
 def test_merge_paths_keep_literal_percent_signs() -> None:
     from inspect_ai.log._shards._api import merge_paths
 
@@ -3741,8 +3679,6 @@ def test_merge_paths_keep_literal_percent_signs() -> None:
     assert paths.shards_dir == "/logs/run%2Drecovered.shards"
     s3 = merge_paths("s3://bucket/run%2Drecovered.shards/")
     assert s3.location == "s3://bucket/run%2Drecovered.eval"
-    with pytest.raises(ValueError, match="recovered"):
-        merge_paths("file:///logs/run%2Drecovered.eval")
 
 
 _LOCAL_FORMS = ["tilde", "relative", "dot", "absolute", "file-uri"]
@@ -4802,9 +4738,6 @@ def test_merge_shards_command_merge_errors(task_file: Path) -> None:
     merged, _ = _cli_workers(task_file, "plain", [[1, 2, 3, 4]])
     spec = f"{task_file}@plain"
 
-    recovered = merged.replace(".eval", "-recovered.eval")
-    _failed(_merge_cli(recovered, "--task", spec, "--json"), "invalid_arguments")
-    assert not _imported(task_file)
     error = _failed(
         _merge_cli(merged, "--task", spec, "--log-dir", "logs", "--json"),
         "invalid_arguments",
