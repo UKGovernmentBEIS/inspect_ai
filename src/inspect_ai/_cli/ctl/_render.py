@@ -745,6 +745,26 @@ def _sanitize_line(text: str) -> str:
     return _sanitize_control(text).replace("\n", " ")
 
 
+def _command_hint(args: Sequence[str], *, fallback: str) -> str:
+    """A command to suggest in a message, in backticks, POSIX shell-quoted.
+
+    ``_echo`` sanitizes the finished line, and removing an escape sequence
+    can remove the quote characters around an argument. So the command is
+    given only when every argument is printable text and sanitizing leaves
+    the quoted command as it is. Otherwise ``fallback`` (the command with
+    placeholders for its arguments) is given with the reason: a changed
+    argument would name something else.
+    """
+    # imported here so that nothing else in the package quotes a command
+    # (test_no_shell_quoting_outside_command_hint)
+    import shlex
+
+    command = shlex.join(args)
+    if all(arg.isprintable() for arg in args) and _sanitize_line(command) == command:
+        return f"`{command}`"
+    return f"`{fallback}` (arguments not shown: one holds non-printable characters)"
+
+
 # SGR (color/style) sequences — the one escape class rich's own tracebacks
 # legitimately contain, and inert on their own (they can restyle, never
 # rewrite or exfiltrate).
@@ -1038,7 +1058,7 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
 
 
 def _print_errored_samples_footer(
-    summaries: list[dict[str, Any]], command: str = "inspect ctl sample errors"
+    summaries: list[dict[str, Any]], hint: str = "`inspect ctl sample errors`"
 ) -> None:
     """Print a one-line errored-samples footer below the tasks table.
 
@@ -1048,13 +1068,13 @@ def _print_errored_samples_footer(
     errors only, while `sample errors` also lists retried samples — so the
     view may show more rows than the count here, never fewer, and the
     count must not be "fixed" to match the view's row count (see
-    design/ctl/agent-discoverability.md §3b). ``command`` is the triage
+    design/ctl/agent-discoverability.md §3b). ``hint`` names the triage
     command to point at (``--log-dir`` mode names its directory).
     """
     errored = sum((s.get("samples") or {}).get("errored", 0) for s in summaries)
     if errored > 0:
         noun = "sample" if errored == 1 else "samples"
-        _echo(f"{errored} {noun} errored — see `{command}`")
+        _echo(f"{errored} {noun} errored — see {hint}")
 
 
 def _task_header(target: dict[str, Any]) -> str:

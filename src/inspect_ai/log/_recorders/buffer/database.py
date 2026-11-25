@@ -80,7 +80,9 @@ from .filestore import (
     SampleSegment,
     Segment,
     SegmentFile,
+    SharedBufferUnavailable,
     sample_segment_cursor,
+    uses_pinned_buffer_directory,
 )
 from .types import (
     AttachmentData,
@@ -150,7 +152,7 @@ class SyncPhase(Enum):
     DRAINING = "draining"
     """close() stopped syncing with an upload requested; the worker runs it now, then stops."""
     STOPPED = "stopped"
-    """close() or cleanup() stopped syncing; no further uploads."""
+    """Shutdown or loss of the shared buffer stopped further uploads."""
 
     def accepts_requests(self) -> bool:
         """Whether a write may request an upload."""
@@ -244,6 +246,7 @@ class SampleBufferDatabase(SampleBuffer):
         read_only: bool = False,
         log_images: bool = True,
         log_shared: int | None = None,
+        wait_for_log: bool = False,
         update_interval: int = 2,
         db_dir: Path | None = None,
     ):
@@ -260,13 +263,15 @@ class SampleBufferDatabase(SampleBuffer):
                 Incompatible with ``create``.
             log_images: Log image attachments.
             log_shared: Sync interval for shared log directories.
+            wait_for_log: Defer local POSIX uploads until the recorder publishes its header.
             update_interval: Version update interval.
             db_dir: Override the database directory (defaults to the
                 inspect data dir).
         """
         if create and read_only:
             raise ValueError("read_only is incompatible with create")
-        self.location = filesystem(location).path_as_uri(location)
+        fs = filesystem(location)
+        self.location = fs.path_as_uri(location)
         self._read_only = read_only
         self.log_images = log_images
         self.log_shared = log_shared
@@ -359,6 +364,11 @@ class SampleBufferDatabase(SampleBuffer):
             SampleBufferFilestore(location, update_interval=log_shared)
             if log_shared
             else None
+        )
+        self.waiting_for_log = (
+            wait_for_log
+            and self._sync_filestore is not None
+            and uses_pinned_buffer_directory(fs)
         )
         self._sync_time = time.monotonic()
         self._sync_lock = threading.Lock()
@@ -735,6 +745,7 @@ class SampleBufferDatabase(SampleBuffer):
             self._sync_phase = (
                 SyncPhase.DRAINING
                 if drain
+                and not self.waiting_for_log
                 and self._sync_phase in (SyncPhase.REQUESTED, SyncPhase.DRAINING)
                 else SyncPhase.STOPPED
             )
@@ -1531,14 +1542,22 @@ class SampleBufferDatabase(SampleBuffer):
             True if the interval was updated, False if this buffer has no
             shared-log sync configured (nothing to retune).
         """
-        if self.log_shared is None or self._sync_filestore is None:
-            return False
         with self._sync_lock:
+            if self.log_shared is None or self._sync_filestore is None:
+                return False
             self.log_shared = max(1, seconds)
             self._sync_filestore.update_interval = self.log_shared
             # wake the worker so it recomputes its wait against the new interval
             self._sync_wakeup.notify_all()
         return True
+
+    def log_written(self) -> None:
+        """Allow the first shared upload, including writes queued before the header."""
+        with self._sync_lock:
+            self.waiting_for_log = False
+            pending = self._sync_phase is SyncPhase.REQUESTED
+        if pending:
+            self._sync()
 
     def _sync(self) -> None:
         sync_filestore = self._sync_filestore
@@ -1550,6 +1569,8 @@ class SampleBufferDatabase(SampleBuffer):
                 return
 
             self._sync_phase = SyncPhase.REQUESTED
+            if self.waiting_for_log:
+                return
 
             if self._sync_thread is None or not self._sync_thread.is_alive():
                 self._sync_thread = threading.Thread(
@@ -1588,6 +1609,19 @@ class SampleBufferDatabase(SampleBuffer):
             try:
                 with trace_action(logger, "Log Sync", self.location):
                     sync_to_filestore(self, sync_filestore)
+            except SharedBufferUnavailable as ex:
+                logger.warning(
+                    "%s. Shared updates stopped for this run. The local evaluation continues.",
+                    ex,
+                )
+                with self._sync_lock:
+                    self._sync_phase = SyncPhase.STOPPED
+                    self._sync_thread = None
+                    self.log_shared = None
+                with self._removed_since_sync_lock:
+                    self._track_removals = False
+                    self._removed_since_sync.clear()
+                return
             except Exception:
                 logger.exception("Log Sync failed for %s", self.location)
             except BaseException:
@@ -2094,6 +2128,7 @@ def sync_to_filestore(
     # recorded for the next sync
     removed = db.take_removed_since_sync()
     try:
+        filestore.verify_sync_directory()
         _sync_samples_to_filestore(db, filestore, removed)
     except BaseException:
         db.restore_removed_since_sync(removed)

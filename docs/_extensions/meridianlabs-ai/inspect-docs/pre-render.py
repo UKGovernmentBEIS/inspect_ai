@@ -133,7 +133,9 @@ def main() -> None:
     # generate derived website metadata
     repo: str | None = opts.get("repo")
     if repo is not None:
-        generated = generate_website_metadata(opts, repo, user_navbar, opts_navbar)
+        generated = generate_website_metadata(
+            opts, repo, user_navbar, opts_navbar, user_website
+        )
 
     # build sidebar: user navigation + reference sidebar
     sidebars: list[YamlDict] = []
@@ -300,6 +302,24 @@ def ensure_excalidraw_deps() -> None:
     )
 
 
+def _git_repo_subdir() -> str | None:
+    """Path of the docs project (cwd) relative to its git repo root.
+
+    Returns None when not in a git checkout or when the project is at the
+    repo root (Quarto's default `repo-subdir`).
+    """
+    try:
+        prefix = subprocess.run(
+            ["git", "rev-parse", "--show-prefix"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return prefix.rstrip("/") or None
+
+
 def _build_footer(
     opts: YamlDict,
     repo: str,
@@ -385,7 +405,11 @@ def _build_navbar(
 
 
 def generate_website_metadata(
-    opts: YamlDict, repo: str, user_navbar: YamlDict, opts_navbar: YamlDict
+    opts: YamlDict,
+    repo: str,
+    user_navbar: YamlDict,
+    opts_navbar: YamlDict,
+    user_website: YamlDict,
 ) -> YamlDict:
     """Generate derived website metadata from inspect-docs config.
 
@@ -412,6 +436,25 @@ def generate_website_metadata(
             "page-footer": _build_footer(opts, repo, repo_url, title, org_name),
         }
     }
+
+    # per-page "View source" / "Report an issue" links (rendered by Quarto
+    # beneath the page TOC). `inspect-docs.repo-actions` overrides the
+    # default actions (false disables them); `inspect-docs.branch` sets the
+    # branch links resolve against (default "main"). `_include.yml` takes
+    # precedence over `_quarto.yml`, so defer to any `website.repo-*` keys
+    # the user set directly.
+    repo_actions = user_website.get(
+        "repo-actions", opts.get("repo-actions", ["source", "issue"])
+    )
+    if repo_actions:
+        website = generated["website"]
+        website["repo-actions"] = repo_actions
+        website["repo-branch"] = user_website.get(
+            "repo-branch", opts.get("branch", "main")
+        )
+        repo_subdir = user_website.get("repo-subdir", _git_repo_subdir())
+        if repo_subdir:
+            website["repo-subdir"] = repo_subdir
 
     site_image: str = opts.get("image", "")
     if title or description or site_image:

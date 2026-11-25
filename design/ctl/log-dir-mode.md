@@ -228,10 +228,12 @@ inventory" below.
 - **Recovered logs.** `inspect log recover` writes `<stem>-recovered.eval`
   beside the original, keeping the original's timestamp prefix and task id
   (`default_output_path`, `src/inspect_ai/log/_recover/_write.py:371-375`).
-  `log_basename` strips both `.eval` and `-recovered` when deriving a
-  companion directory (`src/inspect_ai/_util/log_layout.py`, shared by the
-  checkpoint and shard layouts), so `<name>-recovered.eval` maps to
-  `<name>.shards/`.
+  Checkpoints map it to `<name>.checkpoints/` (`log_basename` strips both
+  `.eval` and `-recovered`), but the shard layout strips only `.eval`
+  (`merged_log_name`, `src/inspect_ai/_util/log_layout.py`), so
+  `<name>-recovered.eval` is not a merged log of `<name>.shards/`
+  (decision: Ransom, 2026-11-23; [`eval-sharding.md`](../eval-sharding.md),
+  "Layout").
 
 ### Existing readers and their request patterns
 
@@ -300,7 +302,7 @@ an `eval_retry` of a merged log merged with no selection is an ordinary
 unsharded log that reuses the merged log's `task_id` and can be written
 beside the companion. The merged log carries a
 provenance field and ledger (per shard: file name, samples merged, status,
-ETag or mtime, its selection's size and digest; no per-sample keys),
+ETag or mtime; no per-sample keys),
 whose exact shape is in the sharding design
 ([`eval-sharding.md`](../eval-sharding.md), "The merged log").
 
@@ -458,48 +460,30 @@ The walk produces a listing of logical tasks without paging through
   so a symlink loop cannot hang the walk; other fsspec backends use
   `_ls(detail=True)` per directory.
 - Recursion rules, by directory name:
-  - `.buffer/`: never listed, with one exception below. Its presence as a
-    prefix in the parent's listing is recorded; a member's manifest path is
-    derived as `.buffer/<stem>/manifest.json` and fetched directly (below).
-    The exception: a `.buffer/` directly in a companion (the buffer of a
-    stray log there) is a dot-directory of the companion, which the shared
-    `list_shard_set` lists once, without descending, to report stray logs
-    directly in it. None of its directories enters `unlisted_dirs`, so its
-    `<stem>/` and segment objects are never listed.
+  - `.buffer/`: never listed. Its presence as a prefix in the parent's
+    listing is recorded; a member's manifest path is derived as
+    `.buffer/<stem>/manifest.json` and fetched directly (below).
   - `*.checkpoints/`: skip.
   - `<name>.shards/`, when no directory between it and the root is a
     companion: a companion. The shared `list_shard_set` lists it and each
     directory directly under it ([`eval-sharding.md`](../eval-sharding.md),
     "Code shared with ctl log-dir mode"): each `<k>/`'s `.eval` files and whether it
-    has a `.buffer/` prefix. Its stray files (a log directly in the
-    companion or in a directory under it whose name starts with `.`, a
-    `.json` log in a `<k>/`) are reported in `unreadable`, never as rows
-    or attempts. The walk then descends each directory in the listing's
-    `unlisted_dirs` (every directory in a `<k>/` other than `.buffer/`,
-    such as `scans/`, and the directories inside a dot-directory of the
-    companion) by these same rules, so `*.checkpoints/` is skipped and no
-    `.buffer/` is listed there either. A directory in `unlisted_dirs` is
-    skipped when any directory between it and the companion is one these
-    rules skip: the shared walk lists a `*.checkpoints/` directly in the
-    companion as a would-be shard, and its sample directories are not
-    descended.
-  - `<name>.shards/` below a companion (in a shard's ancillary directory):
-    an ordinary subdirectory, descended like any other; its logs are
-    ordinary logs.
+    has a `.buffer/` prefix. A `<k>/` is a directory named with digits
+    only. Its stray entries (a log directly in the companion, a `.json` log
+    in a `<k>/`, and any other directory directly in the companion, which is
+    not listed) are reported in `unreadable`, never as rows or attempts.
+    Nothing below a `<k>/` is listed: its `scans/`, its `*.checkpoints/`
+    and any companion nested there are not walked, so a log nested below a
+    `<k>/` is not shown from a root above the companion; point `--log-dir`
+    at the directory that holds it (decision: Ransom, 2026-11-23,
+    superseding 2026-10-05).
   - With `task list --shards`, every `<name>.shards/` is an ordinary
     subdirectory (decision: Ransom, 2026-10-13; "CLI surface").
   - Any other subdirectory: descend, as `list_eval_logs` recurses today, so
     an eval-set directory or a directory of runs works.
 
-  The companion rules are `is_shard_path`, shared with the merge: a file is a shard path only when it is
-  directly in the first `<name>.shards/` below the root or in a directory
-  directly under it. Every log nested deeper is an ordinary log, so a
-  nested companion is a companion from a root that is the outer companion
-  or a directory inside it, and ordinary from a root above the outer
-  companion. Given the same root, ctl and the merge agree on which files
-  are shard attempts, which are stray and which are ordinary logs
-  (decision: Ransom, 2026-10-05); the `.buffer/` and `*.checkpoints/`
-  directories ctl does not list hold no logs.
+  The companion rules are the shared walk's, so ctl and the merge agree on
+  which files are shard attempts and which entries are stray.
 - `.eval` files only. `.json` logs are listed as unsupported rows: the
   format is deprecated and its reads are whole-file parses
   (`endpoint-cost-audit.md`, finding 2); the sharding design is
@@ -509,14 +493,8 @@ The walk produces a listing of logical tasks without paging through
   Logs on other backends are not cached ("Cache").
 - A delimited listing of a directory costs one LIST per 1,000 entries, so a
   walk over one sharded run costs `N + 2` LISTs for `N` shards (root,
-  `<name>.shards/`, each `<k>/`), whatever the buffers and checkpoints
-  hold, plus one LIST per directory descended below a `<k>/`. A shard
-  whose `<k>/` holds only attempts, `.buffer/` and `<shard>.checkpoints/`
-  adds nothing. A worker that ran a scanner adds `<k>/scans/` and one
-  `scans/scan_id=<id>/` per scan (Scout writes each scan directory flat):
-  two LISTs per shard for one scan, so `3N + 2` for the run. That is the
-  price of agreeing with the merge's `is_shard_path` about which logs
-  below a `<k>/` are shard attempts and which are ordinary logs.
+  `<name>.shards/`, each `<k>/`), whatever the workers wrote in their
+  `<k>/` (buffers, checkpoints, scan results).
 
 ### Logical tasks
 
@@ -535,8 +513,8 @@ listing mtime. Names with no timestamp prefix sort by mtime alone.
 **Sharded runs.** Every directory `X.shards/` the walk treats as a
 companion (one with no companion between it and the root; "Walking the
 directory") is a companion, and `X` is the
-basename the sharding design derives with `log_basename` (which strips
-`.eval` and `-recovered`; `src/inspect_ai/_util/log_layout.py`, which this
+basename the sharding design derives with `merged_log_name` (which strips
+`.eval`; `src/inspect_ai/_util/log_layout.py`, which this
 mode calls rather than re-implementing the rule).
 
 A companion whose listing has no attempt in any `<k>/` holds no shard set,
@@ -546,9 +524,7 @@ returns such `<k>/` directories, each a `ShardDir` with no attempts (it
 leaves out only an empty `<k>/`). Before pairing or aggregation, ctl drops such a companion: it gets no row
 and no attempt, its merged log, when present, is an ordinary unsharded
 attempt (below), and with no merged log nothing is shown for it. Its stray
-files, if any, are still reported in `unreadable`, and the walk still
-descends its `unlisted_dirs`, so an ordinary log nested there is listed as
-before. This matches the merge, which counts a companion with no attempt
+entries, if any, are still reported in `unreadable`. This matches the merge, which counts a companion with no attempt
 and no stray file as gone and returns the merged log as it is (and refuses
 one with stray files). Every rule below applies only to a companion with at least
 one attempt.
@@ -563,15 +539,13 @@ one attempt.
   in the same `<k>/` (a retry, or an original beside its `-recovered`
   copy) are superseded and not read, matching the merge's newest-wins
   rule.
-- Its merged log is the `.eval` in the companion's parent directory whose
-  `log_basename` is `X`: `X.eval` or `X-recovered.eval`, the newest by
-  attempt order when both exist. The other is not read and is listed in
-  the task row's `unreadable` as an older merged log, so the row is
-  `incomplete`. It does not get a row of its own.
+- Its merged log is `X.eval` in the companion's parent directory, when
+  present. It does not get a row of its own. An `X-recovered.eval` beside
+  it is an unsharded log (below): it records the set's task id, so it is
+  read as a newer attempt of the task.
 - The shard set is one attempt of the logical task identified by the
-  newest merged log's `eval.task_id` when that log can be read. Otherwise
-  (no merged log, or the newest one unreadable, even when an older one is
-  readable) the set is keyed by `merged_log_task_id(X, task=, model=)`
+  merged log's `eval.task_id` when that log can be read. Otherwise
+  (no merged log, or an unreadable one) the set is keyed by `merged_log_task_id(X, task=, model=)`
   with the `task` and `model` of the first shard in shard order (the
   first `<k>/` with an attempt), the merge's template shard
   (`src/inspect_ai/_util/log_layout.py`, shared with the merge, which
@@ -605,8 +579,9 @@ them, as live `/tasks` folds attempts by `task_id`
 
 **A sharded run and an ordinary retry of it.** An unsharded log whose
 `task_id` equals a shard set's task id is an `eval_retry` of the merged log
-(only that path gives an unsharded log the merged log's `task_id`; shards
-keep their own). Both fold into one logical task, and the retry is current
+or a recovered copy of it (`X-recovered.eval`, "Sharded runs"); only those
+give an unsharded log the merged log's `task_id`, and shards keep their
+own. Both fold into one logical task, and the unsharded log is current
 whatever the file names say: the shard set is placed as the oldest attempt
 (`snapshot.py`). File names need not agree: the launcher mints the merged
 log's name, while a retry's `{created}` stamp follows the merged header's
@@ -1332,11 +1307,11 @@ below per-prefix limits, and the mode never touches a worker.
   tool; opening a live writer's WAL database from a second process adds
   locking concerns for no gain in the case this mode serves. Rejected; the
   mode reads the shared filestore only.
-- **Skip known ancillary directories below a `<k>/`** (`scans/`, or
-  everything below a `<k>/`, as earlier revisions did). Saves the LISTs
-  for scan output. Rejected (Ransom, 2026-10-05): the merge's
-  `is_shard_path` treats the logs there as ordinary logs, and ctl must
-  agree with it on the same root.
+- **Descend below a `<k>/`** (`scans/` and other ancillary directories),
+  listing nested logs as ordinary logs. Done from 2026-10-05 to agree with
+  `eval_set()` on the same root, at two LISTs per shard for one scan.
+  Dropped (Ransom, 2026-11-23): `eval_set()` now refuses a directory that
+  holds shards, so there is nothing to agree with.
 - **Recursive listing, which is cheaper early in a run.** With few segment
   objects a recursive listing of `<name>.shards/` is one or two pages
   instead of 301 LISTs. Rejected for predictability: its cost grows with
@@ -1440,9 +1415,9 @@ real moto server on an ephemeral port). New tests go in a new
 - **Fixtures.** Finished logs from mock-model evals (unsharded, a retried
   task with two attempt files, a sharded layout `<name>.shards/{0,1,2}/`
   with and without `<name>.eval`, a `<k>/` holding an old attempt and its
-  retry, a `<k>/scans/scan_id=<id>/` holding an ordinary `.eval`, a
-  companion nested in a `<k>/scans/`, and a dot-directory in a companion
-  with a log directly in it and one a level deeper). Running logs built with the recorder APIs (`log_init`,
+  retry, a `<k>/scans/scan_id=<id>/` holding a `.eval` that is not
+  listed, and a non-numbered directory in a companion holding a log).
+  Running logs built with the recorder APIs (`log_init`,
   `log_start`, journaled summaries, no `header.json`) plus a buffer written
   through `SampleBufferFilestore.write_manifest`/`write_segment`, including
   a running sample, a completed-but-unflushed one, and a pre-#4207 manifest.
@@ -1480,15 +1455,9 @@ real moto server on an ephemeral port). New tests go in a new
   shards, the cold `task list` row equals the full row, and cold and warm
   `sample list`, `sample show` and `sample events` return the same source
   (the shard), score and events.
-- **Shard paths agree with the merge's `is_shard_path`.** For the root, the outer
-  companion and one `<k>/` of the fixture above, local and on `mock_s3`:
-  the files ctl uses as shard attempts, reports as stray and lists as
-  ordinary logs are exactly the files `list_eval_logs` finds, split by
-  `is_shard_path` and the shared walk's attempts and stray files. From the
-  root, the log in `scans/` is an ordinary row, the nested companion's
-  logs are ordinary rows, the log directly in the dot-directory is in
-  `unreadable` and the deeper one is an ordinary row; from the outer
-  companion, the nested companion is a sharded row.
+- **Nothing below a `<k>/`.** A log in a `<k>/scans/` is not listed, and a
+  non-numbered directory in a companion is in `unreadable` and not
+  listed.
 - **Sample key set.** A static selection; a `SampleSource` that adds a
   sample mid-run (the added key appears in `total`, is locatable by every
   per-sample read, and `unfinished` never goes negative); an empty seed
@@ -1496,7 +1465,8 @@ real moto server on an ephemeral port). New tests go in a new
 - **Attempt folding.** Retries of an unsharded task; an original and its
   `-recovered` copy (recovered is current), inside a `<k>/` and as
   ordinary logs; a recovered merged log `X-recovered.eval` beside
-  `X.shards/` (one row, no extra); an `eval_retry` log sharing a shard
+  `X.shards/` (an unsharded log, a newer attempt of the set's task); an
+  `eval_retry` log sharing a shard
   set's `task_id` beside the merged log and companion (one row, the retry
   current, a full task id resolves without ambiguity).
 - **Source selection.** For a seeded retry re-running an inherited key and
@@ -1570,10 +1540,8 @@ real moto server on an ephemeral port). New tests go in a new
   supported command, cold and warm, with running and finished shards: a
   walk of 50 shards issues 52 LISTs regardless of how many
   `segment.<n>.zip` objects exist (the fixture adds hundreds) and never
-  lists a `.buffer/` or a `*.checkpoints/`; a `.buffer/<stem>/` with
-  segments directly in the companion adds exactly one LIST (the buffer
-  itself, never its stem); and with one
-  `scans/scan_id=<id>/` in every `<k>/` issues 152; a cold `task list` over 50 finished shards issues 150
+  lists a `.buffer/` or a `*.checkpoints/`, with scan results and a nested
+  companion in every `<k>/` too; a cold `task list` over 50 finished shards issues 150
   GETs and a warm one none; 50 running shards between flushes cost 50
   CD reads, 50 manifest GETs and 50 freshness checks warm, and no member
   reads; a warm poll after all 50 finish costs 150 GETs (CD,
@@ -1627,8 +1595,7 @@ Each step is one PR; steps 1–5 are the MVP.
    `unlisted_dirs` field added to the shared walk and the descent into
    those directories with nested companions ordinary; stray files in
    `unreadable`; companions with no attempt dropped before pairing; logical sharded
-   rows, newest-attempt selection per `<k>/`, the recovered-merged-log
-   mapping, folding an ordinary retry with its shard set, one shard set per
+   rows, newest-attempt selection per `<k>/`, folding an ordinary retry with its shard set, one shard set per
    task id, the `shards` block, conflicts (counts, rows, `ambiguous`
    per-sample reads) and mismatch counts, `--shards` (the walk without
    shard aggregation). Depends only on the layout convention, so it

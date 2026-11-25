@@ -407,7 +407,7 @@ def _run_task_list(as_json: bool, *, shards: bool = False) -> None:
         # --shards rows overlap (a merged log holds its shards' samples), so a
         # sum over them would count an errored sample more than once
         if not shards:
-            _print_errored_samples_footer(summaries, _log_dir._errors_command())
+            _print_errored_samples_footer(summaries, _log_dir._errors_hint())
     else:
         _print_keep_alive_footer(summaries)
         _print_errored_samples_footer(summaries)
