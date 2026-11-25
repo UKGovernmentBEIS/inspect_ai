@@ -20,9 +20,9 @@ failure. Setup never changes the process's working directory or
 environment: Inspect makes relative config paths absolute against the task
 directory before a provider sees them, and every provider call runs in the
 launch directory. The `ContextVar` state a provider binds in `task_init` is
-captured per configuration, so each sample and each `task_cleanup` sees
-the state its own configuration's `task_init` produced, whichever task's
-attempt ran the setup.
+captured per setup, so each `task_cleanup` sees the state its own
+`task_init` produced and each sample the state its configuration's
+`task_init` produced, whichever task's attempt ran the setup.
 
 [task-handles.md](task-handles.md) builds on this queue: handles that let a
 running task cancel the tasks it adds, send samples to a task fed through
@@ -230,9 +230,13 @@ by the control channel and by a handle's `cancel()`):
   its next pass, outside `max_tasks` and through any pause, and that aborts
   before its log starts; it ends with an unwritten "Task cancelled by user
   (abort)" error log with an empty `location`
-  (`test_cancel_of_queued_task_aborts_it_before_it_starts`). An abort that
-  lands while a failed attempt prepares its retry stops the retry, and the
-  record ends with that attempt's log.
+  (`test_cancel_of_queued_task_aborts_it_before_it_starts`). A handle's
+  `cancel()` that lands while a failed attempt prepares its retry stops the
+  retry, and the record ends with that attempt's log. The control
+  channel's cancel defers its abort instead ("Control channel"): the retry
+  is queued and aborts before it starts, so the task ends with the abort's
+  error log and its source hears of both attempts
+  (`test_ctl_cancel_while_unregistered_attempt_prepares_retry_ends_it`).
 - A fed task still queued ends at once with no log and no attempt
   ([task-handles.md](task-handles.md#closing-and-cancelling)).
 
@@ -507,6 +511,15 @@ provider release:
   `src/inspect_ai/_eval/task/sandbox.py`); a failed `task_init` records
   nothing.
 
+Sample bindings are kept per spec and task directory, not per setup:
+setups that differ only in their `task_init_environment` values (Docker
+and its subclasses, the only providers that return any) share one entry,
+which the latest successful setup replaces. So a sample can see another
+such setup's bindings, while each `task_cleanup` keeps its own context.
+Within a run, Docker keeps its setup state on the run's sandbox
+lifecycle scope rather than in a `ContextVar` binding, so only a Docker
+subclass that binds its own `ContextVar` in `task_init` is affected.
+
 Tests: `test_setup_bindings_per_configuration`,
 `test_setup_bindings_sample_starts_during_other_task_setup`,
 `test_setup_bindings_sample_keeps_own_binding` and
@@ -544,7 +557,9 @@ Tests: `test_setup_bindings_per_configuration`,
 - **No `os.chdir` or `os.environ` write across an `await`**, and every
   provider call runs in the launch directory.
 - **Each `task_cleanup` sees what its own `task_init` bound**, and a sample
-  sees its configuration's bindings unless it bound its own.
+  sees its configuration's bindings unless it bound its own, with the
+  limit for setups that differ only in `task_init_environment` values
+  ("Provider state per setup").
 - **Each attempt is reported to the run's `TaskSource` once**, with the
   exceptions under "Reporting to the source".
 - **Limits.**
