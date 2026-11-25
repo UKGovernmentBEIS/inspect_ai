@@ -31,6 +31,7 @@ from inspect_ai._sentinel._sidecar._endpoint import (
     SentinelProxyError,
     Sidecar,
     SidecarCallError,
+    _Client,
     _origin,
     probe,
     proxy_client,
@@ -322,10 +323,11 @@ async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_s
             f"{request.url} {base_url} {authorization} {request.url.username} {items}"
         )
         lowered = re.sub("%[0-9A-F]{2}", lambda escape: escape[0].lower(), repeated)
-        return httpx2.Response(
-            500,
-            text=f"upstream failed for {repeated} ({unquote(repeated)}) ({unquote_plus(repeated)}) ({unquote(repeated, encoding='latin-1')}) ({lowered})",
-        )
+        page = f"upstream failed for {repeated} ({unquote(repeated)}) ({unquote_plus(repeated)}) ({unquote(repeated, encoding='latin-1')}) ({lowered})"
+        # the openai SDK's errors show a JSON error's body, and not a page
+        if provider == "openai":
+            return httpx2.Response(500, json={"error": {"message": page}})
+        return httpx2.Response(500, text=page)
 
     model = get_model(
         _MODELS[provider],
@@ -391,6 +393,8 @@ class _Answer:
             "denied <- ValueError: for http://proxy.test?<>",
         ),
         ("error answer", "demo-token", "demo-token", "denied"),
+        # trimmed, as the anthropic SDK trims an error page
+        ("trimmed", "demo-token%20", "demo-token ", "for http://proxy.test?<>"),
         # raised from an error that is false
         (
             "false cause",
@@ -433,6 +437,8 @@ async def test_a_failed_call_to_a_sidecar_names_its_causes_without_a_secret(
                 raise ValueError(repeated)
             if where == "cause":
                 raise RuntimeError("denied") from ValueError(repeated)
+            if where == "trimmed":
+                raise ValueError(repeated.strip())
             if where == "false cause":
                 raise RuntimeError("denied") from _FalseError(repeated)
             if where == "error answer":
@@ -855,12 +861,14 @@ async def test_a_first_registration_sent_again_sends_the_same_token() -> None:
             {"service": "inspect_sentinel", "versions": [2, "demo-token"]},
             r"serves versions \[2\] ",
         ),
+        # true isn't version 1
+        ({"service": "inspect_sentinel", "versions": [True]}, r"serves versions \[\] "),
         (
-            {"service": "inspect_sentinel", "versions": [1], "release": "demo-token"},
+            {"service": "inspect_sentinel", "versions": [1], "release": "prior-token"},
             "releases replies early",
         ),
     ],
-    ids=["an unknown version", "early release"],
+    ids=["an unknown version", "true", "early release"],
 )
 async def test_a_sidecar_inspect_cant_work_with_is_an_error(
     info: dict[str, Any], says: str
@@ -874,8 +882,25 @@ async def test_a_sidecar_inspect_cant_work_with_is_an_error(
             raise ValueError(base_url)
         except ValueError:
             await _probed(model)
-    assert "demo-token" not in str(raised.value)
+    assert not {"demo-token", "prior-token"} & set(str(raised.value).split())
+    assert "token" not in str(raised.value)
     assert raised.value.__context__ is None
+
+
+async def test_an_answer_too_deep_to_parse_is_no_sidecar() -> None:
+    class TooDeep:
+        base_url = "http://proxy.test"
+
+        async def get(self, *args: Any, **kwargs: Any) -> Any:
+            return self
+
+        def json(self) -> Any:
+            raise RecursionError("maximum recursion depth exceeded")
+
+    found = await probe(_Client(TooDeep(), "http://proxy.test"))
+
+    assert isinstance(found, NoSidecar)
+    assert "not as a sidecar" in found.reason
 
 
 async def test_a_task_that_requires_a_sidecar_fails_without_one() -> None:

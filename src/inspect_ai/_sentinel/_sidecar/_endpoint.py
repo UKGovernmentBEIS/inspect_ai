@@ -202,10 +202,10 @@ class Sidecar:
         except Exception as ex:
             failed = ex
         if failed is not None:
-            # described and raised outside the handler, so that neither this
-            # error nor one in describing it is chained to the failure
-            # each part redacted before it is trimmed, which could cut a
-            # secret short
+            # Described and raised outside the handler, so that neither this
+            # error nor one in describing it is chained to the failure. Each
+            # part is redacted before it is trimmed, which could cut a secret
+            # short.
             described = " <- ".join(
                 self._without_secrets(part).strip()
                 for part in _described(failed, handling)
@@ -352,24 +352,25 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
 
     try:
         info = response.json()
-    except ValueError:
+    except Exception:
+        # not JSON, or nested past what Python's parser takes
         info = None
     if not isinstance(info, dict) or info.get("service") != "inspect_sentinel":
         return NoSidecar(
             f"{shown} answered the probe, but not as a sidecar", definite=True
         )
 
-    # The errors repeat no text the sidecar answered, which may hold a
-    # secret: of the base URL, or the eval's token, which this probe doesn't
-    # know. Raised while the caller handles an error, such as a failed model
-    # call through the proxy, they keep none.
+    # The errors repeat nothing the sidecar answered but its integer
+    # versions, as text may hold a secret: of the base URL, or the eval's
+    # token, which this probe doesn't know. Raised while the caller handles an
+    # error, such as a failed model call through the proxy, they keep none.
     versions = info.get("versions")
-    if not isinstance(versions, list) or not any(v in VERSIONS for v in versions):
-        served = [
-            v
-            for v in (versions if isinstance(versions, list) else [])
-            if isinstance(v, int) and not isinstance(v, bool)
-        ]
+    served = [
+        v
+        for v in (versions if isinstance(versions, list) else [])
+        if isinstance(v, int) and not isinstance(v, bool)
+    ]
+    if not any(v in VERSIONS for v in served):
         shown_served = _replaced(str(served), _credentials(base_url))
         _raise_unchained(
             SentinelProxyError(
@@ -383,7 +384,7 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
                 f"The sentinel sidecar at {shown} releases replies early, which Inspect doesn't support yet. Run the sidecar with `--release whole`."
             )
         )
-    version = max(v for v in versions if v in VERSIONS)
+    version = max(v for v in served if v in VERSIONS)
     # A sidecar that doesn't report `review`, such as one from before sidecars
     # could ask a person through an eval, asks no questions through the eval.
     review = info.get("review") is True
@@ -437,10 +438,15 @@ def _credentials(url: str) -> list[tuple[str, str]]:
     def add(text: str, shown: str) -> None:
         # decoded keeping each byte that isn't UTF-8, decoded as Python does
         # by default, which writes one U+FFFD for a cut-off sequence, and
-        # decoded as Latin-1, as some servers decode a query
-        for errors in ("surrogateescape", "replace"):
-            secrets.append((unquote(text, errors=errors), shown))
-        secrets.append((unquote(text, encoding="latin-1"), shown))
+        # decoded as Latin-1, as some servers decode a query; each trimmed
+        # too, as the anthropic SDK trims an error page that ends in it
+        decoded = [
+            unquote(text, errors=errors) for errors in ("surrogateescape", "replace")
+        ]
+        decoded.append(unquote(text, encoding="latin-1"))
+        secrets.extend(
+            (secret, shown) for each in decoded for secret in (each, each.strip())
+        )
 
     userinfo = httpx2.URL(url).userinfo.decode("ascii")
     if userinfo:
@@ -485,7 +491,7 @@ def _spellings(secret: str) -> str:
 def _found(text: str, secrets: list[tuple[str, str]]) -> list[tuple[int, int, str]]:
     # where the secrets are in the text, however spelled, with what stands in
     # each place. Matches that overlap are merged, so that no part of a secret
-    # is left beside another that starts before it; a span that holds the
+    # is left beside another that starts before it; a span that overlaps the
     # whole user info goes, and any other is redacted.
     matches = [
         (found.start(), found.end(1), shown)
