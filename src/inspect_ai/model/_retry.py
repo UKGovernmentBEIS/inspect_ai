@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Awaitable, Callable
 
+import anyio
 from tenacity import (
     RetryCallState,
     retry_if_exception,
@@ -8,8 +9,15 @@ from tenacity import (
 from tenacity.retry import RetryBaseT
 from tenacity.stop import StopBaseT
 from tenacity.wait import WaitBaseT
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict
 
+from inspect_ai._util.retry import backoff_multiplier
+from inspect_ai._util.working import (
+    ModelAttempts,
+    add_sample_wait,
+    sample_clock,
+    sample_wait,
+)
 from inspect_ai.model._generate_overrides import generate_config_override
 
 if TYPE_CHECKING:
@@ -22,6 +30,19 @@ class ModelRetryConfig(TypedDict):
     retry: RetryBaseT
     before_sleep: Callable[[RetryCallState], (Awaitable[None] | None)]
     stop: StopBaseT
+    before: NotRequired[Callable[[RetryCallState], None]]
+    after: NotRequired[Callable[[RetryCallState], None]]
+    sleep: NotRequired[Callable[[float], Awaitable[None]]]
+
+
+async def _sleep(seconds: float) -> None:
+    await anyio.sleep(seconds)
+
+
+async def _sample_wait_sleep(seconds: float) -> None:
+    """Retry backoff sleep, open as a known wait of the sample."""
+    with sample_wait():
+        await _sleep(seconds)
 
 
 def model_retry_config(
@@ -31,11 +52,12 @@ def model_retry_config(
     should_retry: "Callable[[BaseException], bool | RetryDecision]",
     before_retry: Callable[[BaseException], (Awaitable[None] | None)],
     log_model_retry: Callable[[str, RetryCallState], Awaitable[None] | None],
-    report_waiting_time: Callable[[float], None] | None = None,
+    sample_waits: bool = False,
     wait: WaitBaseT | None = None,
     live_overrides: bool = True,
     report_retry_wait: bool = True,
     qualified_model_name: str | None = None,
+    attempts: ModelAttempts | None = None,
 ) -> ModelRetryConfig:
     # `model_name` is the bare provider model name and is display-oriented
     # (trace retry lines, the ctl retry_wait activity view keep showing it);
@@ -59,13 +81,16 @@ def model_retry_config(
     # convert one transient poll error into a whole-batch failure. The
     # incident lever still reaches batch-mode generates: each request's
     # retries run in `Model._generate`'s own (live) retry loop.
+    #
+    # `sample_waits` records the backoff sleep and each retried attempt as
+    # known waits of the active sample (see design/working-time-concurrency.md).
+    # Batchers leave it off: their admin-op loops run on a worker task that
+    # inherits an arbitrary sample's context. A config with it on serves a
+    # single retry loop, since the attempt start is kept here. `attempts`
+    # holds the loop's attempts in flight as known work; a retried attempt
+    # stops being work when it becomes a wait.
 
     async def on_before_sleep(rs: RetryCallState) -> None:
-        # report the upcoming sleep as waiting time (that way the working time can't
-        # expire while we are waiting b/c we've already offset it)
-        if report_waiting_time is not None:
-            report_waiting_time(rs.upcoming_sleep)
-
         # `report_retry_wait` gates the per-sample record rather than relying
         # on sample_active() alone: a batcher's admin-op retry loop runs on a
         # worker task that inherits the context of whichever sample first
@@ -107,7 +132,7 @@ def model_retry_config(
     wait = (
         wait
         if wait is not None
-        else wait_exponential_jitter(initial=3, max=(30 * 60), jitter=3)
+        else wait_exponential_jitter(**backoff_multiplier(3), max=(30 * 60), jitter=3)
     )
 
     # tenacity's retry_if_exception expects a bool predicate; coerce
@@ -160,17 +185,53 @@ def model_retry_config(
         if (
             effective_timeout is not None
             and retry_state.seconds_since_start is not None
-            and retry_state.seconds_since_start >= effective_timeout
+            and retry_state.seconds_since_start - _time_apart_from_the_call()
+            >= effective_timeout
         ):
             return True
         return False
 
-    return {
+    def _time_apart_from_the_call() -> float:
+        # The time a person took to answer a sentinel sidecar's question
+        # about the call, and the time its requests took to register the
+        # sample with the sidecar. It is not the model call's own time, so
+        # it doesn't count toward the timeout. It is zero outside an agent
+        # call through a sidecar. Only `Model._generate`'s loop, which sets
+        # `sample_waits`, runs inside such a call.
+        if not sample_waits:
+            return 0.0
+        from inspect_ai._sentinel._sidecar._received import time_apart_from_the_call
+
+        return time_apart_from_the_call()
+
+    config: ModelRetryConfig = {
         "wait": wait,
         "retry": retry_if_exception(_retry_predicate),
         "before_sleep": on_before_sleep,
         "stop": stop,
     }
+
+    if sample_waits:
+        attempt_start = sample_clock()
+
+        def before_attempt(rs: RetryCallState) -> None:
+            nonlocal attempt_start
+            attempt_start = sample_clock()
+
+        # tenacity calls `after` only for an outcome the retry policy
+        # classified as retryable (before the stop check), so this credits
+        # every retried attempt, including the last one of a call that runs
+        # out of retries
+        def after_retryable_attempt(rs: RetryCallState) -> None:
+            add_sample_wait(attempt_start, sample_clock(), completed=False)
+            if attempts is not None:
+                attempts.retried()
+
+        config["before"] = before_attempt
+        config["after"] = after_retryable_attempt
+        config["sleep"] = _sample_wait_sleep
+
+    return config
 
 
 def batch_admin_retry_config(

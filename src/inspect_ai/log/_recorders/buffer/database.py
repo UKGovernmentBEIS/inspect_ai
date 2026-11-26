@@ -1,4 +1,5 @@
 import datetime
+import glob
 import hashlib
 import json
 import os
@@ -6,6 +7,7 @@ import sqlite3
 import threading
 import time
 from contextlib import contextmanager
+from enum import Enum
 from logging import getLogger
 from pathlib import Path
 from sqlite3 import Connection, OperationalError
@@ -16,9 +18,11 @@ from typing import (
     Iterable,
     Iterator,
     Literal,
+    Mapping,
     TypeAlias,
     TypeVar,
 )
+from weakref import WeakSet
 
 import anyio
 import anyio.to_thread
@@ -35,7 +39,7 @@ from inspect_ai._util.file import (
     dirname,
     filesystem,
 )
-from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.json import to_json_safe, to_json_str_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._pool import (
@@ -57,7 +61,8 @@ from ..._condense import (
     ATTACHMENT_PROTOCOL,
     WalkContext,
     attachment_refs_from_value,
-    attachments_content_fn,
+    events_attachment_fn,
+    existing_attachments_content_fn,
     walk_chat_message,
     walk_events,
     walk_input,
@@ -68,13 +73,16 @@ from ..._log import EvalSampleSummary
 from ..types import SampleEvent
 from .filestore import (
     SAMPLE_METADATA_IN_SUMMARY,
+    SAMPLE_STORE_EMPTY,
     Manifest,
     SampleBufferFilestore,
     SampleManifest,
     SampleSegment,
     Segment,
     SegmentFile,
+    SharedBufferUnavailable,
     sample_segment_cursor,
+    uses_pinned_buffer_directory,
 )
 from .types import (
     AttachmentData,
@@ -98,6 +106,67 @@ if TYPE_CHECKING:
     from .types import TranscriptEventSink
 
 
+class DbPhase(Enum):
+    """Lifecycle of a :class:`SampleBufferDatabase`'s connections and files.
+
+    Written under ``_lease_lock``. A close or cleanup waits while a sample
+    reader holds a lease; once none does it enters ``CLOSING``, which refuses
+    new readers while the connections are closed (possibly on a worker thread).
+    """
+
+    OPEN = "open"
+    CLOSE_DEFERRED = "close_deferred"
+    """close() waits for the last sample reader."""
+    CLEANUP_DEFERRED = "cleanup_deferred"
+    """cleanup() waits for the last sample reader (supersedes a deferred close)."""
+    CLOSING = "closing"
+    """Closing the connections; new sample readers are refused."""
+    CLOSED = "closed"
+    """Connections closed; the database can no longer be used."""
+
+    def admits_readers(self) -> bool:
+        """Whether a sample reader may take a lease."""
+        return self in (
+            DbPhase.OPEN,
+            DbPhase.CLOSE_DEFERRED,
+            DbPhase.CLEANUP_DEFERRED,
+        )
+
+    def accepts_connections(self) -> bool:
+        """Whether a thread may use (or open) its connection.
+
+        Still true while ``CLOSING``: writes reach the buffer only through
+        ``TaskLogger``, which drops its reference before tearing down, so only
+        sample readers need refusing during the close.
+        """
+        return self is not DbPhase.CLOSED
+
+
+class SyncPhase(Enum):
+    """State of the shared filestore sync worker. Written under ``_sync_lock``."""
+
+    IDLE = "idle"
+    """No upload requested."""
+    REQUESTED = "requested"
+    """A write requested an upload; the worker runs it once the interval is due."""
+    DRAINING = "draining"
+    """close() stopped syncing with an upload requested; the worker runs it now, then stops."""
+    STOPPED = "stopped"
+    """Shutdown or loss of the shared buffer stopped further uploads."""
+
+    def accepts_requests(self) -> bool:
+        """Whether a write may request an upload."""
+        return self in (SyncPhase.IDLE, SyncPhase.REQUESTED)
+
+    def request_taken(self) -> "SyncPhase":
+        """This phase once the worker has taken (or abandoned) the requested upload."""
+        if self is SyncPhase.REQUESTED:
+            return SyncPhase.IDLE
+        if self is SyncPhase.DRAINING:
+            return SyncPhase.STOPPED
+        return self
+
+
 class TaskData(BaseModel):
     version: int
     metrics: list[TaskDisplayMetric]
@@ -118,6 +187,8 @@ class SampleBufferDatabase(SampleBuffer):
         data TEXT, -- JSON containing all other sample fields
         sample_metadata TEXT, -- full sample metadata (summaries are intentionally thinned)
         sample_metadata_hash TEXT, -- sidecar lookup key or exact-summary marker
+        sample_store TEXT, -- final sample store (written when the sample completes)
+        sample_store_hash TEXT, -- sidecar lookup key
         PRIMARY KEY (id, epoch)
     );
 
@@ -175,6 +246,7 @@ class SampleBufferDatabase(SampleBuffer):
         read_only: bool = False,
         log_images: bool = True,
         log_shared: int | None = None,
+        wait_for_log: bool = False,
         update_interval: int = 2,
         db_dir: Path | None = None,
     ):
@@ -191,13 +263,15 @@ class SampleBufferDatabase(SampleBuffer):
                 Incompatible with ``create``.
             log_images: Log image attachments.
             log_shared: Sync interval for shared log directories.
+            wait_for_log: Defer local POSIX uploads until the recorder publishes its header.
             update_interval: Version update interval.
             db_dir: Override the database directory (defaults to the
                 inspect data dir).
         """
         if create and read_only:
             raise ValueError("read_only is incompatible with create")
-        self.location = filesystem(location).path_as_uri(location)
+        fs = filesystem(location)
+        self.location = fs.path_as_uri(location)
         self._read_only = read_only
         self.log_images = log_images
         self.log_shared = log_shared
@@ -220,10 +294,14 @@ class SampleBufferDatabase(SampleBuffer):
         # task can interleave a statement onto the shared connection mid-txn.
         # check_same_thread=False is set purely so cleanup can close a (dead)
         # thread's handle, not to enable concurrent use.
+        #
+        # Lifecycle (see DbPhase). Set before _connections: __del__ closes
+        # connections under _lease_lock even after a partial __init__.
+        self._lease_lock = threading.Lock()
+        self._db_phase = DbPhase.OPEN
         self._local = threading.local()
         self._connections: list[Connection] = []
         self._connections_lock = threading.Lock()
-        self._closed = False
 
         # location subdir and file
         dir, file = location_dir_and_file(self.location)
@@ -232,10 +310,9 @@ class SampleBufferDatabase(SampleBuffer):
         db_dir = resolve_db_dir(db_dir)
         log_subdir = db_dir / dir
 
-        # if we are creating then create dirs, use filename w/pid,
-        # and create the database as required
+        # if we are creating then use filename w/pid, and create the
+        # database (and its dirs) as required
         if create:
-            log_subdir.mkdir(parents=True, exist_ok=True)
             self.db_path = log_subdir / f"{file}.{os.getpid()}.db"
 
             # initialize the database schema
@@ -273,15 +350,14 @@ class SampleBufferDatabase(SampleBuffer):
 
         self._sample_read_leases: dict[tuple[str, int], int] = {}
         self._pending_sample_removals: set[tuple[str, int]] = set()
-        self._cleanup_pending = False
-        self._close_pending = False
-        # set under _lease_lock the moment a close or cleanup decides to
-        # proceed (no reader holds a lease): from then on lease admission is
-        # refused, so no read can start between that decision and the
-        # connections closing — which may now happen on a worker thread
-        # (aclose/acleanup) while the event loop keeps serving readers
-        self._closing = False
-        self._lease_lock = threading.Lock()
+
+        # Samples removed since the last filestore sync (see
+        # take_removed_since_sync), recorded only once a sync has run so the
+        # set stays empty when nothing syncs. The lock is needed because the
+        # sync worker thread takes the set while the event loop adds to it.
+        self._removed_since_sync: set[SampleKey] = set()
+        self._track_removals = False
+        self._removed_since_sync_lock = threading.Lock()
 
         # create sync filestore if log_shared
         self._sync_filestore = (
@@ -289,17 +365,16 @@ class SampleBufferDatabase(SampleBuffer):
             if log_shared
             else None
         )
+        self.waiting_for_log = (
+            wait_for_log
+            and self._sync_filestore is not None
+            and uses_pinned_buffer_directory(fs)
+        )
         self._sync_time = time.monotonic()
         self._sync_lock = threading.Lock()
         self._sync_wakeup = threading.Condition(self._sync_lock)
         self._sync_thread: threading.Thread | None = None
-        self._sync_pending = False
-        self._sync_closed = False
-        self._sync_requested = False
-        # whether the sync worker performs a requested-but-not-yet-due upload
-        # before it stops (close preserves recovery data, so it drains;
-        # cleanup deletes it, so it does not)
-        self._sync_drain = False
+        self._sync_phase = SyncPhase.IDLE
 
     def start_sample(self, sample: EvalSampleSummary) -> None:
         with self._get_connection(write=True) as conn:
@@ -312,7 +387,25 @@ class SampleBufferDatabase(SampleBuffer):
                 (str(sample.id), sample.epoch, to_json_str_safe(sample)),
             )
 
-    def log_events(self, events: list[SampleEvent]) -> None:
+    def log_events(
+        self,
+        events: list[SampleEvent],
+        call_attachments: Mapping[str, str] | None = None,
+    ) -> None:
+        """Buffer sample events.
+
+        The events hold raw values, except `ModelEvent.call`, which is
+        condensed as a transcript gives it to subscribers that keep their
+        own attachment store (see `Transcript._subscribe_store`). Literal
+        text that begins with `attachment://` or `tc://` in the raw values is
+        stored as an attachment of its own, so it reads back as written.
+
+        Args:
+            events: Events to buffer.
+            call_attachments: The attachments the events' model calls
+                reference. A reference missing from it is kept as it is: it
+                names an attachment an earlier notification gave.
+        """
         # `None` mark = the index didn't exist before this batch (pop on restore)
         index_snapshots: dict[tuple[str, int], tuple[int | None, int | None]] = {}
 
@@ -349,7 +442,7 @@ class SampleBufferDatabase(SampleBuffer):
                                 None if call_index is None else call_index.mark(),
                             )
 
-                    event = self._condense_event(conn, event)
+                    event = self._condense_event(conn, event, call_attachments or {})
                     values.extend(
                         (
                             event.event.uuid or uuid(),
@@ -393,10 +486,21 @@ class SampleBufferDatabase(SampleBuffer):
         summary: EvalSampleSummary,
         *,
         sample_metadata: dict[str, Any] | None,
+        sample_store: dict[str, Any] | None = None,
     ) -> None:
         metadata_json = (
             to_json_str_safe(sample_metadata) if sample_metadata is not None else None
         )
+        store_json: str | None = None
+        store_hash: str | None = None
+        if sample_store is not None:
+            store_json = to_json_safe(sample_store, indent=None).decode("utf-8")
+            # an empty store (most samples) needs no sidecar file
+            store_hash = (
+                hashlib.sha256(store_json.encode("utf-8")).hexdigest()
+                if sample_store
+                else SAMPLE_STORE_EMPTY
+            )
         metadata_hash = (
             SAMPLE_METADATA_IN_SUMMARY
             if sample_metadata is not None and sample_metadata == summary.metadata
@@ -413,13 +517,17 @@ class SampleBufferDatabase(SampleBuffer):
                 UPDATE samples
                 SET data = ?,
                     sample_metadata = COALESCE(?, sample_metadata),
-                    sample_metadata_hash = COALESCE(?, sample_metadata_hash)
+                    sample_metadata_hash = COALESCE(?, sample_metadata_hash),
+                    sample_store = COALESCE(?, sample_store),
+                    sample_store_hash = COALESCE(?, sample_store_hash)
                 WHERE id = ? and epoch = ?
             """,
                 (
                     to_json_str_safe(summary),
                     metadata_json,
                     metadata_hash,
+                    store_json,
+                    store_hash,
                     str(summary.id),
                     summary.epoch,
                 ),
@@ -507,6 +615,39 @@ class SampleBufferDatabase(SampleBuffer):
             finally:
                 cursor.close()
 
+        # after the delete commits, so a sync that takes the set sees no row
+        with self._removed_since_sync_lock:
+            if self._track_removals:
+                self._removed_since_sync.update(samples)
+
+    def take_removed_since_sync(self) -> set[SampleKey]:
+        """Take the samples removed from the buffer since the last call.
+
+        ``sync_to_filestore`` drops these samples' manifest entries so that a
+        sample removed and restarted between two syncs (a retry or a requeue)
+        starts with no segments instead of inheriting the previous attempt's.
+        Keys are ``(str(id), epoch)``.
+
+        Removals are recorded only after the first call: before any sync there
+        is no manifest entry to drop, and a buffer that never syncs keeps no
+        record of its removals.
+        """
+        with self._removed_since_sync_lock:
+            self._track_removals = True
+            removed = self._removed_since_sync
+            self._removed_since_sync = set()
+            return removed
+
+    def restore_removed_since_sync(self, removed: set[SampleKey]) -> None:
+        """Return keys from ``take_removed_since_sync`` after a failed sync."""
+        with self._removed_since_sync_lock:
+            self._removed_since_sync.update(removed)
+
+    def removed_since_sync(self) -> set[SampleKey]:
+        """Samples removed since the last ``take_removed_since_sync``, left recorded."""
+        with self._removed_since_sync_lock:
+            return set(self._removed_since_sync)
+
     async def aclose(self) -> None:
         """:meth:`close` off the event loop.
 
@@ -533,22 +674,18 @@ class SampleBufferDatabase(SampleBuffer):
         """Stop syncing and close connections while preserving recovery files.
 
         A requested shared-buffer upload that is not yet due is performed
-        before the worker stops: the buffer may hold completed samples that
-        never reached the destination, and the shared copy is how another
-        host recovers them. Active sample readers retain their connections
-        until their leases end. SQLite data and shared buffer files remain
-        available for recovery.
+        before the worker stops (unless an earlier cleanup dropped it): the
+        buffer may hold completed samples that never reached the destination,
+        and the shared copy is how another host recovers them. Active sample
+        readers retain their connections until their leases end. SQLite data
+        and shared buffer files remain available for recovery.
         """
+        _unfinished_shutdowns.add(self)
         if not self._close_sync_worker_for_cleanup(drain=True):
             return
 
-        with self._lease_lock:
-            if self._sample_read_leases:
-                self._close_pending = True
-                return
-            self._closing = True
-
-        self._close_all_connections()
+        if self._begin_closing(DbPhase.CLOSE_DEFERRED):
+            self._close_all_connections()
 
     @override
     def cleanup(self) -> None:
@@ -562,17 +699,36 @@ class SampleBufferDatabase(SampleBuffer):
         stop in time) or deferred until the last sample reader's lease ends —
         the lease release then runs :meth:`_cleanup_now`, filestore included.
         """
+        _unfinished_shutdowns.add(self)
         if not self._close_sync_worker_for_cleanup():
             return False
 
-        with self._lease_lock:
-            if self._sample_read_leases:
-                self._cleanup_pending = True
-                return False
-            self._closing = True
+        if not self._begin_closing(DbPhase.CLEANUP_DEFERRED):
+            return False
 
         self._delete_local_files()
         return True
+
+    def _begin_closing(self, deferred: DbPhase) -> bool:
+        """Enter ``CLOSING``, or ``deferred`` while a sample reader holds a lease.
+
+        Atomic with lease admission, so no reader starts between this decision
+        and the connections closing. A deferred cleanup is never downgraded to
+        a deferred close, and a closed database never reopens.
+
+        Returns:
+            True when the caller should close now; False when the last lease's
+            release will.
+        """
+        with self._lease_lock:
+            if self._db_phase is DbPhase.CLOSED:
+                return True
+            if self._sample_read_leases:
+                if self._db_phase is not DbPhase.CLEANUP_DEFERRED:
+                    self._db_phase = deferred
+                return False
+            self._db_phase = DbPhase.CLOSING
+            return True
 
     def _close_sync_worker_for_cleanup(self, *, drain: bool = False) -> bool:
         """Stop the sync worker before closing or cleaning up.
@@ -586,8 +742,13 @@ class SampleBufferDatabase(SampleBuffer):
         """
         sync_thread: threading.Thread | None = None
         with self._sync_lock:
-            self._sync_drain = drain
-            self._sync_closed = True
+            self._sync_phase = (
+                SyncPhase.DRAINING
+                if drain
+                and not self.waiting_for_log
+                and self._sync_phase in (SyncPhase.REQUESTED, SyncPhase.DRAINING)
+                else SyncPhase.STOPPED
+            )
             self._sync_wakeup.notify_all()
             sync_thread = self._sync_thread
 
@@ -690,6 +851,11 @@ class SampleBufferDatabase(SampleBuffer):
 
         try:
             with self._get_connection() as conn:
+                # One snapshot for all the queries below: the eval process removes
+                # flushed samples concurrently, which could otherwise pair events
+                # with an already emptied message pool.
+                conn.execute("BEGIN")
+
                 # This should be checking whether the sample data actually
                 # exists in the database, otherwise once the sample is deleted
                 # this will just return no events and no attachments until the
@@ -724,16 +890,34 @@ class SampleBufferDatabase(SampleBuffer):
         return parse_sample_metadata(metadata_json, id=id, epoch=epoch)
 
     def _get_sample_metadata_json(self, id: str | int, epoch: int) -> str | None:
-        return self._get_sample_metadata_value(id, epoch, "sample_metadata")
+        return self._get_sample_column(id, epoch, "sample_metadata")
 
     def _get_sample_metadata_hash(self, id: str | int, epoch: int) -> str | None:
-        return self._get_sample_metadata_value(id, epoch, "sample_metadata_hash")
+        return self._get_sample_column(id, epoch, "sample_metadata_hash")
 
-    def _get_sample_metadata_value(
+    @override
+    def get_sample_store(self, id: str | int, epoch: int) -> dict[str, Any] | None:
+        store_json = self._get_sample_store_json(id, epoch)
+        if store_json is None:
+            return None
+        return parse_sample_metadata(store_json, id=id, epoch=epoch, field="store")
+
+    def _get_sample_store_json(self, id: str | int, epoch: int) -> str | None:
+        return self._get_sample_column(id, epoch, "sample_store")
+
+    def _get_sample_store_hash(self, id: str | int, epoch: int) -> str | None:
+        return self._get_sample_column(id, epoch, "sample_store_hash")
+
+    def _get_sample_column(
         self,
         id: str | int,
         epoch: int,
-        column: Literal["sample_metadata", "sample_metadata_hash"],
+        column: Literal[
+            "sample_metadata",
+            "sample_metadata_hash",
+            "sample_store",
+            "sample_store_hash",
+        ],
     ) -> str | None:
         if not self.db_path.exists():
             return None
@@ -746,8 +930,9 @@ class SampleBufferDatabase(SampleBuffer):
                         (str(id), epoch),
                     ).fetchone()
                 except OperationalError as ex:
-                    # Older buffers may lack either metadata column. Recovery
-                    # can fall back to sample_init; sync can derive the hash.
+                    # Older buffers may lack the metadata or store columns.
+                    # Recovery falls back to sample_init and the StoreEvents;
+                    # sync can derive the metadata hash.
                     if "no such column" in str(ex).lower():
                         return None
                     raise
@@ -1056,19 +1241,18 @@ class SampleBufferDatabase(SampleBuffer):
     ) -> Iterator[None]:
         key = (str(id), epoch)
         with self._lease_lock:
-            # atomic with a close's no-leases decision (see _closing): a read
-            # is admitted before that decision, deferring the close until it
-            # ends, or refused after it — never started against connections
+            # atomic with a close's no-leases decision (see _begin_closing): a
+            # read is admitted before that decision, deferring the close until
+            # it ends, or refused after it — never started against connections
             # that a worker thread is about to close
-            if self._closing or self._closed:
+            if not self._db_phase.admits_readers():
                 raise RuntimeError("SampleBufferDatabase used after cleanup")
             self._sample_read_leases[key] = self._sample_read_leases.get(key, 0) + 1
         try:
             yield
         finally:
             ready_remove = False
-            cleanup_ready = False
-            close_ready = False
+            deferred: DbPhase | None = None
             with self._lease_lock:
                 lease_count = self._sample_read_leases[key] - 1
                 if lease_count > 0:
@@ -1078,19 +1262,17 @@ class SampleBufferDatabase(SampleBuffer):
                     if key in self._pending_sample_removals:
                         self._pending_sample_removals.remove(key)
                         ready_remove = True
-                    if self._cleanup_pending and not self._sample_read_leases:
-                        self._cleanup_pending = False
-                        cleanup_ready = True
-                    if self._close_pending and not self._sample_read_leases:
-                        self._close_pending = False
-                        close_ready = True
-                    if cleanup_ready or close_ready:
-                        self._closing = True
+                    if not self._sample_read_leases and self._db_phase in (
+                        DbPhase.CLOSE_DEFERRED,
+                        DbPhase.CLEANUP_DEFERRED,
+                    ):
+                        deferred = self._db_phase
+                        self._db_phase = DbPhase.CLOSING
             if ready_remove:
                 self._remove_samples_now([key])
-            if cleanup_ready:
+            if deferred is DbPhase.CLEANUP_DEFERRED:
                 self._cleanup_now()
-            elif close_ready:
+            elif deferred is DbPhase.CLOSE_DEFERRED:
                 self._close_all_connections()
 
     def _open_connection(self) -> Connection:
@@ -1197,6 +1379,13 @@ class SampleBufferDatabase(SampleBuffer):
                     time.sleep(retry_delay * (2**attempt))
                     continue
                 raise
+            except FileExistsError:
+                # mkdir(exist_ok=True) raises this when a sibling rmdir's the
+                # directory between mkdir's EEXIST and its is_dir() check;
+                # the next mkdir re-creates it, so retry without backoff
+                if attempt < max_retries - 1:
+                    continue
+                raise
             except BaseException:
                 # close any half-open connection before propagating a
                 # non-retryable error raised during connect/PRAGMA setup
@@ -1210,7 +1399,7 @@ class SampleBufferDatabase(SampleBuffer):
 
     def _thread_connection(self) -> Connection:
         """Return this thread's persistent connection, opening one if needed."""
-        if self._closed:
+        if not self._db_phase.accepts_connections():
             raise RuntimeError("SampleBufferDatabase used after cleanup")
         conn: Connection | None = getattr(self._local, "conn", None)
         if conn is None:
@@ -1219,7 +1408,7 @@ class SampleBufferDatabase(SampleBuffer):
                 # re-check under the lock: if cleanup() won the race while we
                 # were opening, discard this connection rather than tracking and
                 # using a handle to an already-unlinked database
-                if self._closed:
+                if not self._db_phase.accepts_connections():
                     conn.close()
                     raise RuntimeError("SampleBufferDatabase used after cleanup")
                 self._local.conn = conn
@@ -1248,17 +1437,18 @@ class SampleBufferDatabase(SampleBuffer):
         thread is undefined even with check_same_thread=False). This holds
         because callers (a) join the filestore sync worker first
         (_close_sync_worker_for_cleanup, which aborts if the join times out)
-        and (b) decide to proceed only when no reader holds a lease, setting
-        _closing under _lease_lock in the same step so no leased read is
+        and (b) decide to proceed only when no reader holds a lease, entering
+        CLOSING in the same step (_begin_closing) so no leased read is
         admitted afterwards — which matters now that aclose/acleanup run
         this on a worker thread while the event loop keeps serving readers.
         Non-leased operations reach the buffer only through TaskLogger, which
-        drops its reference before tearing down. The _closed flag (set here,
-        re-checked under the lock in _thread_connection) closes the remaining
-        "open racing with close" window.
+        drops its reference before tearing down. Entering CLOSED here, under
+        _connections_lock as well as _lease_lock (re-checked under the former
+        in _thread_connection), closes the remaining "open racing with close"
+        window.
         """
-        with self._connections_lock:
-            self._closed = True
+        with self._lease_lock, self._connections_lock:
+            self._db_phase = DbPhase.CLOSED
             conns, self._connections = self._connections, []
         for conn in conns:
             try:
@@ -1267,6 +1457,7 @@ class SampleBufferDatabase(SampleBuffer):
                 pass
         # clear the calling thread's handle (other threads are no longer running)
         self._local.conn = None
+        _unfinished_shutdowns.discard(self)
 
     @contextmanager
     def _get_connection(
@@ -1351,14 +1542,22 @@ class SampleBufferDatabase(SampleBuffer):
             True if the interval was updated, False if this buffer has no
             shared-log sync configured (nothing to retune).
         """
-        if self.log_shared is None or self._sync_filestore is None:
-            return False
         with self._sync_lock:
+            if self.log_shared is None or self._sync_filestore is None:
+                return False
             self.log_shared = max(1, seconds)
             self._sync_filestore.update_interval = self.log_shared
             # wake the worker so it recomputes its wait against the new interval
             self._sync_wakeup.notify_all()
         return True
+
+    def log_written(self) -> None:
+        """Allow the first shared upload, including writes queued before the header."""
+        with self._sync_lock:
+            self.waiting_for_log = False
+            pending = self._sync_phase is SyncPhase.REQUESTED
+        if pending:
+            self._sync()
 
     def _sync(self) -> None:
         sync_filestore = self._sync_filestore
@@ -1366,11 +1565,12 @@ class SampleBufferDatabase(SampleBuffer):
             return
 
         with self._sync_lock:
-            if self._sync_closed:
+            if not self._sync_phase.accepts_requests():
                 return
 
-            self._sync_requested = True
-            self._sync_pending = True
+            self._sync_phase = SyncPhase.REQUESTED
+            if self.waiting_for_log:
+                return
 
             if self._sync_thread is None or not self._sync_thread.is_alive():
                 self._sync_thread = threading.Thread(
@@ -1387,34 +1587,46 @@ class SampleBufferDatabase(SampleBuffer):
         while True:
             with self._sync_lock:
                 while True:
-                    # a draining close runs a requested upload at once instead
-                    # of waiting out the interval, then stops
-                    drain = (
-                        self._sync_closed and self._sync_drain and self._sync_requested
-                    )
-                    if self._sync_closed and not drain:
+                    phase = self._sync_phase
+                    if phase is SyncPhase.STOPPED:
                         self._sync_thread = None
                         return
                     assert self.log_shared is not None
                     remaining = self.log_shared - (time.monotonic() - self._sync_time)
-                    if self._sync_requested and (remaining <= 0 or drain):
-                        self._sync_requested = False
-                        self._sync_pending = False
+                    # a draining close runs its upload at once instead of
+                    # waiting out the interval, then stops
+                    if phase is SyncPhase.DRAINING or (
+                        phase is SyncPhase.REQUESTED and remaining <= 0
+                    ):
+                        self._sync_phase = phase.request_taken()
                         self._sync_time = time.monotonic()
                         break
 
-                    timeout = max(remaining, 0) if self._sync_requested else None
+                    requested = phase is SyncPhase.REQUESTED
+                    timeout = max(remaining, 0) if requested else None
                     self._sync_wakeup.wait(timeout=timeout)
 
             try:
                 with trace_action(logger, "Log Sync", self.location):
                     sync_to_filestore(self, sync_filestore)
+            except SharedBufferUnavailable as ex:
+                logger.warning(
+                    "%s. Shared updates stopped for this run. The local evaluation continues.",
+                    ex,
+                )
+                with self._sync_lock:
+                    self._sync_phase = SyncPhase.STOPPED
+                    self._sync_thread = None
+                    self.log_shared = None
+                with self._removed_since_sync_lock:
+                    self._track_removals = False
+                    self._removed_since_sync.clear()
+                return
             except Exception:
                 logger.exception("Log Sync failed for %s", self.location)
             except BaseException:
                 with self._sync_lock:
-                    self._sync_requested = False
-                    self._sync_pending = False
+                    self._sync_phase = self._sync_phase.request_taken()
                     self._sync_thread = None
                 raise
 
@@ -1694,9 +1906,16 @@ class SampleBufferDatabase(SampleBuffer):
             }
         )
 
-    def _condense_event(self, conn: Connection, event: SampleEvent) -> SampleEvent:
+    def _condense_event(
+        self,
+        conn: Connection,
+        event: SampleEvent,
+        call_attachments: Mapping[str, str],
+    ) -> SampleEvent:
         if isinstance(event.event, ModelEvent):
-            return self._condense_model_event(conn, event, event.event)
+            return self._condense_model_event(
+                conn, event, event.event, call_attachments
+            )
 
         # alias attachments
         attachments: dict[str, str] = {}
@@ -1711,7 +1930,11 @@ class SampleBufferDatabase(SampleBuffer):
         return event
 
     def _condense_model_event(
-        self, conn: Connection, event: SampleEvent, model_event: ModelEvent
+        self,
+        conn: Connection,
+        event: SampleEvent,
+        model_event: ModelEvent,
+        call_attachments: Mapping[str, str],
     ) -> SampleEvent:
         key = (str(event.id), event.epoch)
         if key in self._completed_samples:
@@ -1730,7 +1953,13 @@ class SampleBufferDatabase(SampleBuffer):
 
         attachments: dict[str, str] = {}
         content_fn = self._create_attachments_content_fn(attachments)
-        context = WalkContext(message_cache={}, only_core=False)
+        # the call holds references, which take the buffer's policy as the
+        # attachments they name (one missing from `call_attachments` is held
+        # already)
+        call_fn = existing_attachments_content_fn(
+            call_attachments.get, set(), content_fn, keep_missing=True
+        )
+        context = WalkContext(message_cache={}, only_core=False, call_fn=call_fn)
 
         # positions derive from index size: valid only because the condense
         # helper registers each add_message/add_call result in the index
@@ -1755,7 +1984,7 @@ class SampleBufferDatabase(SampleBuffer):
             messages=msg_index,
             calls=call_index,
             walk_message=lambda m: walk_chat_message(m, content_fn, context),
-            walk_call_message=lambda v: walk_json_value(v, content_fn, context),
+            walk_call_message=lambda v: walk_json_value(v, call_fn, context),
             add_message=add_message,
             add_call=add_call,
         )
@@ -1780,7 +2009,8 @@ class SampleBufferDatabase(SampleBuffer):
     def _create_attachments_content_fn(
         self, attachments: dict[str, str]
     ) -> Callable[[str], str]:
-        return attachments_content_fn(self.log_images, 100, attachments)
+        """Content function for raw values: pools long text and stores literal reference text as attachments."""
+        return events_attachment_fn(attachments, self.log_images, escape_refs=True)
 
     def _resolve_attachments_content_fn(self, conn: Connection) -> Callable[[str], str]:
         def content_fn(text: str) -> str:
@@ -1894,12 +2124,29 @@ class SampleBufferDatabase(SampleBuffer):
 def sync_to_filestore(
     db: SampleBufferDatabase, filestore: SampleBufferFilestore
 ) -> None:
+    # taken before the db samples are read: a removal after this point stays
+    # recorded for the next sync
+    removed = db.take_removed_since_sync()
+    try:
+        filestore.verify_sync_directory()
+        _sync_samples_to_filestore(db, filestore, removed)
+    except BaseException:
+        db.restore_removed_since_sync(removed)
+        raise
+
+
+def _sync_samples_to_filestore(
+    db: SampleBufferDatabase,
+    filestore: SampleBufferFilestore,
+    removed: set[SampleKey],
+) -> None:
     # read existing manifest (create an empty one if there is none)
     manifest = filestore.read_manifest() or Manifest()
 
     # prepare a list of buffered samples from the db
     samples = db.get_samples()
     if samples is None:
+        db.restore_removed_since_sync(removed)
         return
     assert isinstance(samples, Samples)
 
@@ -1908,13 +2155,16 @@ def sync_to_filestore(
     # segment lists from the existing sample manifests
     sample_manifests: list[SampleManifest] = []
     for sample in samples.samples:
-        # lookup sample segments in the existing manifest
+        # lookup sample segments in the existing manifest (none for a sample
+        # removed since the last sync: a restarted attempt starts empty)
         # Copy before appending the next segment below.
         existing = next(
             (
                 s
                 for s in manifest.samples
-                if s.summary.id == sample.id and s.summary.epoch == sample.epoch
+                if s.summary.id == sample.id
+                and s.summary.epoch == sample.epoch
+                and (str(s.summary.id), s.summary.epoch) not in removed
             ),
             None,
         )
@@ -1924,6 +2174,7 @@ def sync_to_filestore(
                 summary=sample,
                 segments=list(existing.segments) if existing is not None else [],
                 metadata_hash=existing.metadata_hash if existing is not None else None,
+                store_hash=existing.store_hash if existing is not None else None,
             )
         )
 
@@ -1972,6 +2223,24 @@ def sync_to_filestore(
                     metadata_json.encode("utf-8"),
                 )
                 manifest_sample.metadata_hash = metadata_hash
+
+        store_hash = db._get_sample_store_hash(
+            manifest_sample.summary.id, manifest_sample.summary.epoch
+        )
+        if store_hash == SAMPLE_STORE_EMPTY:
+            manifest_sample.store_hash = SAMPLE_STORE_EMPTY
+        elif store_hash is not None and store_hash != manifest_sample.store_hash:
+            store_json = db._get_sample_store_json(
+                manifest_sample.summary.id, manifest_sample.summary.epoch
+            )
+            if store_json is not None:
+                filestore.write_sample_store(
+                    manifest_sample.summary.id,
+                    manifest_sample.summary.epoch,
+                    store_hash,
+                    store_json.encode("utf-8"),
+                )
+                manifest_sample.store_hash = store_hash
 
         # take the max of last_*_id across all of this sample's segments, not
         # just the latest: each segment's last_*_id is 0 if no items of that
@@ -2043,6 +2312,20 @@ def sync_to_filestore(
                 last_message_pool_id, segment_last_message_pool_id
             )
             last_call_pool_id = max(last_call_pool_id, segment_last_call_pool_id)
+
+    # A sample removed while this sync was reading may have been restarted, so
+    # its row could pair the previous attempt's segments or summary with the
+    # new attempt's data. Leave it out; the next sync takes the removal and
+    # rebuilds the row from the start. (The segment's maxima may still count
+    # its data, which only makes them over-inclusive.)
+    raced = db.removed_since_sync()
+    if raced:
+        manifest.samples = [
+            s
+            for s in manifest.samples
+            if (str(s.summary.id), s.summary.epoch) not in raced
+        ]
+        segment_files = [f for f in segment_files if (str(f.id), f.epoch) not in raced]
 
     # write the segment file and update the manifest
     if len(segment_files) > 0:
@@ -2125,6 +2408,47 @@ def cleanup_sample_buffer_db(path: Path) -> None:
             pass
     except Exception as ex:
         logger.warning(f"Error cleaning up sample buffer database at {path}: {ex}")
+
+
+def sample_buffer_dbs(location: str, db_dir: Path | None = None) -> list[Path]:
+    """Buffer databases opened for the log at ``location``, one per process.
+
+    Args:
+        location: Eval log location the buffers belong to.
+        db_dir: Override the database directory (defaults to the inspect
+            data dir).
+
+    Returns:
+        Paths of the ``<log file>.<pid>.db`` files, in no particular order.
+    """
+    dir, file = location_dir_and_file(filesystem(location).path_as_uri(location))
+    # the log file name is a literal, not a pattern (it may contain brackets)
+    return list((resolve_db_dir(db_dir) / dir).glob(f"{glob.escape(file)}.*.db"))
+
+
+# Buffers whose close or cleanup started in this process but has not finished:
+# the sync worker outlived its join, or a sample reader's lease deferred it. A
+# buffer leaves once its connections close. Weak, so that a buffer whose owner
+# let go after a timed-out join is still finalized (by __del__) once its worker
+# and readers, which hold it while they run, are done. No lock: add/discard are
+# atomic under the GIL, and sample_buffer_shutdown_pending iterates a copy.
+_unfinished_shutdowns: WeakSet[SampleBufferDatabase] = WeakSet()
+
+
+def sample_buffer_shutdown_pending(location: str) -> bool:
+    """Whether a buffer this process opened for ``location`` is still shutting down.
+
+    Such a buffer's files are still in use (by its sync worker or a sample
+    reader), so they must not be removed by path.
+
+    Args:
+        location: Eval log location the buffer belongs to.
+
+    Returns:
+        True when a close or cleanup of the log's buffer has not finished.
+    """
+    location = filesystem(location).path_as_uri(location)
+    return any(db.location == location for db in tuple(_unfinished_shutdowns))
 
 
 def resolve_db_dir(db_dir: Path | None = None) -> Path:

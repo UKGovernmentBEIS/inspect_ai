@@ -68,6 +68,23 @@ def test_buckets_window_sums() -> None:
     assert sums.retries == 2
 
 
+def test_buckets_window_sums_input_and_cache_tokens() -> None:
+    buckets = TokenBuckets()
+    buckets.add(1000.0, input_tokens=100, cache_read_tokens=400, cache_write_tokens=50)
+    buckets.add(1030.0, input_tokens=20, cache_read_tokens=80)
+    sums = buckets.window_sums(1040.0, window=60)
+    assert sums.input_tokens == 120
+    assert sums.cache_read_tokens == 480
+    assert sums.cache_write_tokens == 50
+    # a reused slot resets the new counters too
+    later = 1000.0 + HORIZON_SECONDS
+    buckets.add(later, input_tokens=1)
+    sums = buckets.window_sums(later, window=BUCKET_SECONDS)
+    assert sums.input_tokens == 1
+    assert sums.cache_read_tokens == 0
+    assert sums.cache_write_tokens == 0
+
+
 def test_buckets_gap_does_not_leak_previous_lap() -> None:
     # a slot reused after a full lap of the ring must not leak the old lap's
     # counts into a window sum (the ring is epoch-tagged, not zeroed on a
@@ -171,6 +188,37 @@ def test_snapshot_rates_and_cumulative() -> None:
     assert view.first_activity is not None and view.last_activity is not None
 
 
+def test_snapshot_input_and_cache_rates() -> None:
+    record_generate(
+        "test/m",
+        ModelUsage(
+            input_tokens=300,
+            output_tokens=60,
+            total_tokens=1260,
+            input_tokens_cache_read=800,
+            input_tokens_cache_write=100,
+        ),
+        now=1000.0,
+    )
+    # a provider that reports no cache usage adds only uncached input
+    record_generate(
+        "test/m",
+        ModelUsage(input_tokens=60, output_tokens=60, total_tokens=120),
+        now=1030.0,
+    )
+
+    view = throughput_snapshot(window=120, now=1120.0)["test/m"]
+    assert view.window_seconds == 120.0
+    assert view.input_tokens_per_minute == pytest.approx(360 / 2)
+    assert view.cache_read_tokens_per_minute == pytest.approx(800 / 2)
+    assert view.cache_write_tokens_per_minute == pytest.approx(100 / 2)
+    # existing rate is unchanged by the new counters
+    assert view.output_tokens_per_second == pytest.approx(120 / 120)
+    assert view.input_tokens == 360
+    assert view.input_tokens_cache_read == 800
+    assert view.input_tokens_cache_write == 100
+
+
 def test_snapshot_clamps_fresh_run_window() -> None:
     # 10 seconds after first activity, a 60s window must not dilute the rate
     record_generate("test/m", _usage(output_tokens=100), now=1000.0)
@@ -212,6 +260,44 @@ def test_throughput_report_envelope() -> None:
     assert row["cumulative"]["first_activity_at"]
 
 
+def test_throughput_report_input_and_cache_fields() -> None:
+    record_generate(
+        "test/m",
+        ModelUsage(
+            input_tokens=30,
+            output_tokens=60,
+            total_tokens=140,
+            input_tokens_cache_read=40,
+            input_tokens_cache_write=10,
+        ),
+    )
+    (row,) = throughput_report(window=60)["models"]
+    # existing fields keep their names alongside the new ones
+    for key in (
+        "output_tokens_per_second",
+        "requests_per_minute",
+        "retries_per_minute",
+        "backoff_ratio",
+        "retry_waits_active",
+    ):
+        assert key in row
+    window = row["window_seconds"]
+    assert row["output_tokens_per_minute"] == pytest.approx(60 * 60 / window, rel=0.1)
+    assert row["input_tokens_per_minute"] == pytest.approx(30 * 60 / window, rel=0.1)
+    assert row["cache_read_tokens_per_minute"] == pytest.approx(
+        40 * 60 / window, rel=0.1
+    )
+    assert row["cache_write_tokens_per_minute"] == pytest.approx(
+        10 * 60 / window, rel=0.1
+    )
+    cumulative = row["cumulative"]
+    assert cumulative["output_tokens"] == 60
+    assert cumulative["total_tokens"] == 140
+    assert cumulative["input_tokens"] == 30
+    assert cumulative["input_tokens_cache_read"] == 40
+    assert cumulative["input_tokens_cache_write"] == 10
+
+
 def test_footer_rate_gated_on_retries() -> None:
     # tokens alone leave the footer quiet
     record_generate("test/m", _usage(output_tokens=60))
@@ -220,6 +306,28 @@ def test_footer_rate_gated_on_retries() -> None:
     record_retry("test/m", "rate_limit")
     rate = throughput_footer_rate()
     assert rate is not None and rate > 0
+
+
+def test_footer_rate_counts_only_output_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.model import _throughput
+
+    monkeypatch.setattr(_throughput, "time", SimpleNamespace(monotonic=lambda: 1060.0))
+    record_generate(
+        "test/m",
+        ModelUsage(
+            input_tokens=5000,
+            output_tokens=60,
+            total_tokens=9060,
+            input_tokens_cache_read=3000,
+            input_tokens_cache_write=1000,
+        ),
+        now=1000.0,
+    )
+    record_retry("test/m", "rate_limit", now=1000.0)
+    # 60 output tokens over the 60s window; input and cache tokens excluded
+    assert throughput_footer_rate() == pytest.approx(1.0)
 
 
 # ---------------------------------------------------------------------------

@@ -137,6 +137,17 @@ def normalize_stream_arg(value: Any, arg_name: str = "stream") -> bool | None:
     )
 
 
+# the -4-0 alias, dated IDs (-4-20250514, -4@20250514), and the undated base
+# names in the model database (claude-sonnet-4), but not a minor (-4-5, -4.5)
+# or another suffix (-4-latest)
+_CLAUDE_4_0 = re.compile(r"claude-[a-zA-Z]+-4(?:-0|[-@]20\d{6}|(?![-.\w]))")
+
+
+def is_claude_4_0_model(model_name: str) -> bool:
+    """Claude Opus 4 or Sonnet 4 (the 4.0 release)."""
+    return _CLAUDE_4_0.search(model_name) is not None
+
+
 # point releases match (5-1, 5.1, 5-2, ...) but not the base release (-5 or
 # -5-0), 1M-context style suffixes (-5-1m), or date suffixes (-5-20260901)
 _CLAUDE_FABLE_5_POINT_RELEASE = re.compile(
@@ -147,12 +158,33 @@ _CLAUDE_FABLE_5_POINT_RELEASE = re.compile(
 def is_claude_fable_5_1_model(model_name: str) -> bool:
     """Fable/Mythos 5.1 or a later point release of those codenames.
 
-    Both models reject forced tool choice; only Fable 5.1 additionally binds
-    thinking blocks to their originating conversation prefix ("Claude Mythos
-    5.1 doesn't run this check"). The 5.1 behaviors are assumed to persist in
-    later point releases.
+    Both models reject forced tool choice. Fable 5.1 and Mythos 5.2 also bind
+    thinking blocks to their originating conversation prefix; Mythos 5.1 does
+    not ("Claude Mythos 5.1 doesn't run this check") but accepts the
+    drop_block opt-in. The 5.1 behaviors are assumed to persist in later
+    point releases (see `is_claude_fable_5_2_model` for 5.2's changes).
     """
     return _CLAUDE_FABLE_5_POINT_RELEASE.search(model_name) is not None
+
+
+# Fable 5.2 and later point releases, with the same exclusions as
+# _CLAUDE_FABLE_5_POINT_RELEASE (base release, 1M-context and date suffixes).
+# Mythos 5.2 is documented alike but is not matched until verified live; for
+# these behaviors it keeps the Mythos 5.1 handling.
+_CLAUDE_FABLE_5_2_OR_LATER = re.compile(
+    r"claude-fable-5[-.](?:[2-9]|[1-9]\d)(?![0-9A-Za-z])"
+)
+
+
+def is_claude_fable_5_2_model(model_name: str) -> bool:
+    """Fable 5.2 or a later Fable 5 point release.
+
+    On top of the 5.1 behaviors, Fable 5.2 rejects the `computer_20251124`
+    tool on every platform except Bedrock. This is assumed to persist in
+    later point releases.
+    https://platform.claude.com/docs/en/models/fable-5-2/whats-new-fable-5-2
+    """
+    return _CLAUDE_FABLE_5_2_OR_LATER.search(model_name) is not None
 
 
 # Opus 5.5 and later point releases (5-5, 5.5, 5-6, ..., 5-99) but not the base
@@ -175,9 +207,49 @@ def is_claude_opus_5_5_model(model_name: str) -> bool:
     return _CLAUDE_OPUS_5_5_OR_LATER.search(model_name) is not None
 
 
+# Sonnet 5.5 and later point releases, with the same exclusions as Opus above
+_CLAUDE_SONNET_5_5_OR_LATER = re.compile(
+    r"claude-sonnet-5[-.](?:[5-9]|[1-9]\d)(?![0-9A-Za-z])"
+)
+
+
+def is_claude_sonnet_5_5_model(model_name: str) -> bool:
+    """Sonnet 5.5 or a later Sonnet 5 point release.
+
+    Sonnet 5.5 shares Opus 5.5's breaking changes (forced tool choice is
+    rejected, thinking blocks are bound to the conversation prefix, and
+    `computer_20251124` is rejected on the Claude API and Vertex), except
+    that thinking can still be turned down: `disabled` is rejected in favor
+    of `between_tools`. These behaviors are assumed to persist in later
+    point releases.
+    """
+    return _CLAUDE_SONNET_5_5_OR_LATER.search(model_name) is not None
+
+
+# Haiku 5.5 and later point releases, with the same exclusions as Opus above
+_CLAUDE_HAIKU_5_5_OR_LATER = re.compile(
+    r"claude-haiku-5[-.](?:[5-9]|[1-9]\d)(?![0-9A-Za-z])"
+)
+
+
+def is_claude_haiku_5_5_model(model_name: str) -> bool:
+    """Haiku 5.5 or a later Haiku 5 point release.
+
+    Haiku 5.5 binds thinking blocks to the conversation prefix and rejects
+    `computer_20251124` on the Claude API and Vertex, as Sonnet 5.5 does, but
+    accepts forced tool choice and `disabled` thinking (at effort `high` or
+    below). These behaviors are assumed to persist in later point releases.
+    """
+    return _CLAUDE_HAIKU_5_5_OR_LATER.search(model_name) is not None
+
+
 def rejects_forced_tool_choice(model_name: str) -> bool:
     """Whether the model returns a 400 for `tool_choice` `any` / a specific tool."""
-    return is_claude_fable_5_1_model(model_name) or is_claude_opus_5_5_model(model_name)
+    return (
+        is_claude_fable_5_1_model(model_name)
+        or is_claude_opus_5_5_model(model_name)
+        or is_claude_sonnet_5_5_model(model_name)
+    )
 
 
 def is_forced_tool_choice(tool_choice: ToolChoice) -> bool:

@@ -98,6 +98,7 @@ from pydantic import (
     field_validator,
 )
 
+from inspect_ai._sentinel._config import SentinelConfig
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import file
 from inspect_ai.approval._policy import ApprovalPolicyConfig
@@ -387,6 +388,14 @@ class EvalSetOverrides(BaseModel):
     As for `approval`, the `list[ReviewPolicy]` arm is absent because its reviewers are callables.
     """
 
+    sentinel: str | SentinelConfig | None = None
+    """Sentinel config file path, registered protocol name, or parsed configuration, overriding the definition's.
+
+    Constructed monitors and protocols are absent for the same reason as approvers.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
     # --- what happens when something goes wrong -------------------------------
 
     retry_on_error: StrictInt | None = None
@@ -452,6 +461,7 @@ NOT_OVERRIDABLE: dict[str, str] = {
     "bundle_overwrite": "eval-set bundling, which a worker skips",
     "embed_viewer": "eval-set bundling, which a worker skips",
     "log_dir_allow_dirty": "eval-set log directory bookkeeping, which a worker skips",
+    "sentinel_proxy": "experimental, and not yet part of the runner protocol",
 }
 """Every `eval_set()` parameter that is deliberately not overridable, and why.
 
@@ -573,12 +583,10 @@ def merge_eval_set_overrides(
         value = getattr(worker, name)
         if value is None:
             continue
-        if name == "generate_config" and isinstance(value, BaseModel):
+        if name == "generate_config" and isinstance(value, GenerateConfig):
             existing = getattr(run, name)
-            if isinstance(existing, BaseModel):
-                value = existing.model_copy(
-                    update=value.model_dump(exclude_unset=True, exclude_none=True)
-                )
+            if isinstance(existing, GenerateConfig):
+                value = existing.merge(value)
         setattr(merged, name, value)
     return merged
 

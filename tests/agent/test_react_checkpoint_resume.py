@@ -80,10 +80,17 @@ class _ProbeContext:
 class _FakeAgentChannel:
     def __init__(self, events: list[str]) -> None:
         self._events = events
+        # no turn gate, so after_answer() lets the loop return
+        self._gate = None
 
-    async def before_turn(self, _messages: object) -> list[object]:
+    async def before_turn(
+        self, _messages: object, state: object = None
+    ) -> list[object]:
         self._events.append("before_turn")
         return []
+
+    def _take_rewritten(self) -> bool:
+        return False
 
     @contextmanager
     def turn_scope(self) -> Iterator[None]:
@@ -181,6 +188,7 @@ async def test_initial_attempt_enters_mcp_and_agent_channel(
         _tools: object,
         _retry_refusals: object,
         _compact: object,
+        _approval: object,
     ) -> AgentState:
         output = output_factory()
         state.output = output

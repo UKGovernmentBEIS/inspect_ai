@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import inspect
 import logging
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -35,6 +36,16 @@ from .exec_remote import (
 logger = logging.getLogger(__name__)
 
 
+class SandboxUserUnsupportedError(RuntimeError):
+    """The sandbox configuration does not support the requested user.
+
+    Raise this **only** when the sandbox configuration makes execution as that
+    user impossible. Potentially transient failures, such as timeouts or
+    connection errors, and failures of the command itself must **not** raise
+    this exception.
+    """
+
+
 class SandboxUnavailableError(RuntimeError):
     """Raised when a provider cannot initiate a sandbox exec request.
 
@@ -48,6 +59,54 @@ class SandboxUnavailableError(RuntimeError):
     leaving the sample running. Other callers (scorers, solvers, setup code)
     receive it as an ordinary exception.
     """
+
+
+SandboxTimeoutReason = Literal["command", "no_response", "unknown"]
+"""A provider's classification of a sandbox timeout.
+
+`"command"`: The provider classifies the timeout as expiration of the
+command's execution deadline. This is the provider's assessment and may
+rely on implementation-specific heuristics.
+
+`"no_response"`: The command's execution deadline is enforced separately,
+and the provider's own, later wait for a response to the request expired.
+This does not establish whether the command started, completed, or remains
+running, and partial output may still have been received.
+
+`"unknown"`: The provider supports this field and declares that it cannot
+classify the timeout as either of the above. Providers should report this
+rather than guess, for example when a single timer covers both the
+command's running time and communication with the sandbox.
+"""
+
+
+class SandboxTimeoutError(TimeoutError):
+    """Raised when a sandbox operation times out.
+
+    Providers may raise this directly, supplying `reason` where they can
+    classify the timeout. A plain `TimeoutError` raised by a provider is
+    wrapped in this class, with `reason` left as `None`, when the sandbox is
+    used through `sandbox()`.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        truncated_output: str | None = None,
+        *,
+        reason: SandboxTimeoutReason | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.truncated_output = truncated_output
+        """Partial command output captured before the timeout, if available."""
+        self.reason = reason
+        """The provider's classification of the timeout.
+
+        `None` means unset: no classification was supplied, because the
+        provider does not know about this field or raised a plain
+        `TimeoutError`. This is distinct from `"unknown"`, where the provider
+        supports the field and declares that it cannot classify the timeout.
+        """
 
 
 ST = TypeVar("ST", bound="SandboxEnvironment")
@@ -126,13 +185,45 @@ class SandboxConnection(BaseModel):
 
 
 class SandboxDefaultUser(NamedTuple):
-    """Identity of the user `exec()` runs as when no `user` is given."""
+    """The sandbox's default user: who `exec()` runs as when no `user` is given."""
 
     uid: int
     gid: int
     groups: list[int]
     home: str | None
     """HOME as exec() sees it; None when unset (the passwd home applies)."""
+
+
+RootAccessState = Literal["usable", "unusable", "ambiguous", "failed"]
+
+
+@dataclass(frozen=True)
+class RootAccess:
+    """Whether the injected sandbox tools may run as root in a sandbox.
+
+    Decided once per sandbox at sample init, or on first use outside that
+    lifecycle, from a probe of the identity and capabilities a ``user="root"``
+    exec actually gets:
+
+    - ``usable``: uid 0 with CAP_SETUID and CAP_SETGID and ``setgroups`` allowed.
+    - ``unusable``: the provider raised ``SandboxUserUnsupportedError``, or the
+      probe reported insufficient privileges (``cap_drop: [ALL]``, a provider
+      that runs ``user="root"`` as another uid).
+    - ``ambiguous``: no verdict. The provider raised an unexpected exception, or
+      the output lacked valid probe fields. Some providers report "cannot exec as
+      root" only this way, so the tools still fall back to the sandbox's default
+      user (see ``SandboxDefaultUser``), but warn.
+    - ``failed``: the probe could not run (``SandboxUnavailableError``) or timed
+      out. That says nothing about root, so the tools surface the error instead.
+    """
+
+    state: RootAccessState
+    reason: str
+    """Why the probe reached ``state``, for traces and error messages."""
+    error: Exception | None = None
+    """The exception of a ``failed`` probe, which the tools raise as their cause.
+
+    Other outcomes keep only ``reason``."""
 
 
 class SandboxEnvironment(abc.ABC):
@@ -142,14 +233,21 @@ class SandboxEnvironment(abc.ABC):
     filesystem context to copy samples files into and resolve relative paths to.
     """
 
+    # Whether the injected sandbox tools may run as root here; recorded once at
+    # sample init (or on first use outside an eval) by `resolve_root_access` in
+    # `inspect_ai.tool._sandbox_tools_utils.sandbox`. A class-level default rather
+    # than an `__init__` assignment because several providers do not call
+    # `SandboxEnvironment.__init__`.
+    _root_access: RootAccess | None = None
+
     def __init__(self) -> None:
         self._inject_lock = anyio.Lock()
         self._tools_injected: bool = False
         self._tools_user: str | None = None
-        # True once the sandbox-tools user has been decided for this object (root
-        # or, for a rootless sandbox, the default user), so the detector stops
-        # probing root on every tool call. `_tools_user is None` alone cannot say
-        # this because None also means "default user".
+        # True once the sandbox-tools user has been recorded for this object (root
+        # or, for a rootless sandbox, the default user), so the detector checks as
+        # that user without re-deriving it on every tool call. `_tools_user is
+        # None` alone cannot say this because None also means "default user".
         self._tools_user_resolved: bool = False
         self._tools_default_user: SandboxDefaultUser | None = None
 
@@ -203,9 +301,10 @@ class SandboxEnvironment(abc.ABC):
           env: Environment variables for execution.
           user: Optional username or UID to run the command as.
           timeout: Optional execution timeout (seconds).
-          timeout_retry: Retry the command in the case that it times out.
-            Commands will be retried up to twice, with a timeout of no greater
-            than 60 seconds for the first retry and 30 for the second.
+          timeout_retry: Allow provider-specific retries for sandbox operation
+            timeouts. Docker does not retry a known command timeout; host
+            operations may be retried up to twice, with timeouts of at most
+            60 seconds for the first retry and 30 for the second.
           concurrency: For sandboxes that run locally, request that the `concurrency()`
             function be used to throttle concurrent subprocesses.
 
@@ -213,12 +312,20 @@ class SandboxEnvironment(abc.ABC):
           Execution result (status code, stderr/stdout, etc.)
 
         Raises:
+          SandboxUserUnsupportedError: If the sandbox configuration does not
+            support execution as the requested user.
           SandboxUnavailableError: If the provider cannot initiate the exec
             request because the sandbox is not running or provider-injected
             execution machinery is unavailable. A missing caller-specified
             executable is returned as an ordinary failed `ExecResult`.
-          TimeoutError: If the specified `timeout` expires
-            (and `timeout_retry` attempts also timeout).
+          SandboxTimeoutError: If the command or the sandbox operation times
+            out. `reason` carries the provider's classification where it
+            has one: `"command"` for the command's own deadline,
+            `"no_response"` when the provider's later wait for a response
+            expired, `"unknown"` when it cannot tell, and `None` when the
+            provider does not classify timeouts. A plain `TimeoutError`
+            raised by a provider is wrapped as `SandboxTimeoutError` with
+            `reason=None` when called through `sandbox()`.
           UnicodeDecodeError: May be raised if the sandbox provider
             cannot decode the command output to UTF-8 and does not
             support using the UTF-8 replacement character for
@@ -231,7 +338,9 @@ class SandboxEnvironment(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         """Write a file into the sandbox environment.
 
         If the parent directories of the file path do not exist they
@@ -241,6 +350,9 @@ class SandboxEnvironment(abc.ABC):
           file: Path to file (relative file paths will resolve to the
             per-sample working directory).
           contents: Text or binary file contents.
+          user: User whose permissions to enforce. Defaults to the sandbox's
+            default execution user. Providers must enforce an explicit user
+            or raise SandboxUserUnsupportedError.
 
         Raises:
           TimeoutError: If the operation times out.
@@ -248,17 +360,24 @@ class SandboxEnvironment(abc.ABC):
             write to the specified path.
           IsADirectoryError: If the file exists already and
             is a directory.
+          SandboxUserUnsupportedError: If the requested user is not supported.
         """
         ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+    async def read_file(
+        self, file: str, text: Literal[True] = True, *, user: str | None = None
+    ) -> str: ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+    async def read_file(
+        self, file: str, text: Literal[False], *, user: str | None = None
+    ) -> bytes: ...
 
     @abc.abstractmethod
-    async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
+    async def read_file(
+        self, file: str, text: bool = True, *, user: str | None = None
+    ) -> Union[str | bytes]:
         """Read a file from the sandbox environment.
 
         By default, file size is limited to 100 MiB. You may change this by setting the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable (specified in bytes). If exceeded, an `OutputLimitExceededError` will be raised.
@@ -271,6 +390,9 @@ class SandboxEnvironment(abc.ABC):
           file: Path to file (relative file paths will resolve to the
             per-sample working directory).
           text: Read as a utf-8 encoded text file.
+          user: User whose permissions to enforce. Defaults to the sandbox's
+            default execution user. Providers must enforce an explicit user
+            or raise SandboxUserUnsupportedError.
 
         Returns:
           Contents of file (as str or bytes for binary files)
@@ -278,6 +400,8 @@ class SandboxEnvironment(abc.ABC):
         Raises:
           TimeoutError: If the operation times out.
           FileNotFoundError: If the file does not exist.
+          SandboxUnavailableError: If provider-required file-reading tools
+            cannot be executed.
           UnicodeDecodeError: If an encoding error occurs
             while reading the file.
             (only applicable when `text = True`)
@@ -286,8 +410,23 @@ class SandboxEnvironment(abc.ABC):
           IsADirectoryError: If the file is a directory.
           OutputLimitExceededError: If the file size
             exceeds the limit.
+          SandboxUserUnsupportedError: If the requested user is not supported.
         """
         ...
+
+    def _supports_file_user(
+        self, operation: Literal["read_file", "write_file"]
+    ) -> bool:
+        """Whether the provider declares a keyword-capable ``user`` parameter.
+
+        ``**kwargs`` alone is not a declaration of permission enforcement:
+        older providers may accept and ignore unknown keywords.
+        """
+        parameter = inspect.signature(getattr(self, operation)).parameters.get("user")
+        return parameter is not None and parameter.kind in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        )
 
     async def connection(self, *, user: str | None = None) -> SandboxConnection:
         """Information required to connect to sandbox environment.
@@ -435,6 +574,18 @@ class SandboxEnvironment(abc.ABC):
     ) -> None:
         """Called at task startup initialize resources.
 
+        Called once for each sandbox configuration in a run, when the first
+        task that needs it starts, while other tasks may be running. Runs in
+        the directory the eval was launched from, with the process's own
+        environment, as `sample_init` does. A relative config path that
+        exists under the task's directory (a string config, or a build
+        context in a `ComposeConfig`) arrives as an absolute path.
+
+        If a call raises, it gets no `task_cleanup`, so release whatever it
+        allocated before raising. `task_init` can then be called again for
+        the same configuration in the same run (the task's retry, or another
+        task that needs it), and that call either sets it up or raises again.
+
         Args:
           task_name: Name of task using the sandbox environment.
           config: Implementation defined configuration (optional).
@@ -456,12 +607,21 @@ class SandboxEnvironment(abc.ABC):
         sample metadata variable interpolation) and end up yielding different images
         that need their own init (e.g. 'docker pull').
 
+        The variables are not set in the process environment. Inspect passes them
+        only to the Docker provider's `task_init` (and its subclasses'). Any other
+        provider that returns variables fails setup with a `PrerequisiteError`:
+        put what `task_init` needs in the sandbox config instead, and pass
+        environment variables to the subprocesses it starts with
+        `subprocess(env=...)`.
+
+        Runs in the directory the eval was launched from.
+
         Args:
             config: Implementation defined configuration (optional).
             metadata: metadata: Sample `metadata` field
 
         Returns:
-            Environment variables to set for call to task_init.
+            Environment variables for the call to task_init.
         """
         return {}
 
@@ -510,6 +670,9 @@ class SandboxEnvironment(abc.ABC):
         cls, task_name: str, config: SandboxEnvironmentConfigType | None, cleanup: bool
     ) -> None:
         """Called at task exit as a last chance to cleanup resources.
+
+        Runs in the directory the eval was launched from, with the process's
+        own environment.
 
         Args:
           task_name: Name of task using the sandbox environment.
@@ -610,17 +773,29 @@ A tuple, e.g. ("docker", "compose.yaml"), is equivalent to SandboxEnvironmentSpe
 
 
 def resolve_sandbox_environment(
-    sandbox: SandboxEnvironmentType | None,
+    sandbox: SandboxEnvironmentType | list[Any] | dict[str, Any] | None,
 ) -> SandboxEnvironmentSpec | None:
-    # do the resolution
-    if isinstance(sandbox, str):
+    """Resolve a sandbox and its shorthands to a `SandboxEnvironmentSpec`.
+
+    Also reads the serialized forms found in logs: the dict a
+    `SandboxEnvironmentSpec` serializes to, and the list that logs written
+    while it was a `NamedTuple` contain.
+
+    Raises:
+        ValueError: If `sandbox` is not one of these forms.
+    """
+    if sandbox is None:
+        return None
+    elif isinstance(sandbox, str):
         return SandboxEnvironmentSpec(type=sandbox)
     elif isinstance(sandbox, SandboxEnvironmentSpec):
         return sandbox
-    elif isinstance(sandbox, tuple):
+    elif isinstance(sandbox, (tuple, list)) and len(sandbox) == 2:
         return SandboxEnvironmentSpec(sandbox[0], sandbox[1])
+    elif isinstance(sandbox, dict):
+        return SandboxEnvironmentSpec.model_validate(sandbox)
     else:
-        return None
+        raise ValueError(f"Invalid sandbox specification: {sandbox!r}")
 
 
 def deserialize_sandbox_specific_config(

@@ -1,12 +1,16 @@
 import contextvars
 import dataclasses
+import gc
 import json
-from typing import Any, NoReturn, Sequence
+import tracemalloc
+import weakref
+from typing import Any, NoReturn, Sequence, TypeGuard, cast
 from unittest.mock import patch
 
 import numpy as np
 import pytest
 from test_helpers.transcript import FakeTranscriptHistoryProvider, make_model_event
+from typing_extensions import assert_type
 
 from inspect_ai._util.constants import DEFAULT_LOG_MODEL_API_CALLS
 from inspect_ai.dataset._dataset import Sample
@@ -14,6 +18,7 @@ from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.event._span import SpanBeginEvent
 from inspect_ai.log._condense import (
     WalkContext,
     attachment_refs_from_object,
@@ -22,6 +27,7 @@ from inspect_ai.log._condense import (
 )
 from inspect_ai.log._transcript import (
     Transcript,
+    TranscriptHistoryUnavailableError,
     transcript,
     transcript_bounded_enabled,
 )
@@ -648,6 +654,38 @@ def test_extend_restored_events_notifies_subscribers() -> None:
     assert subscriber_events == [restored]
 
 
+def test_extend_restored_events_resolves_attachments() -> None:
+    condensed_message = ChatMessageUser(content="attachment://text-ref")
+    call = ModelCall.create(
+        {"messages": [{"role": "user", "content": "attachment://call-ref"}]}, None
+    )
+    restored = make_model_event([condensed_message], uuid="restored-1", call=call)
+    attachments = {"text-ref": "restored text", "call-ref": "restored call"}
+    transcript = Transcript(bounded=True, resident_tail=1, log_model_api=True)
+    delivered: list[dict[str, Any]] = []
+    transcript._subscribe(lambda event: delivered.append(event.model_dump(mode="json")))
+
+    transcript._extend_restored_events([restored], attachments, notify_subscribers=True)
+
+    # subscribers see the event resolved except its model call
+    assert delivered[0]["input"][0]["content"] == "restored text"
+    assert delivered[0]["call"]["request"]["messages"][0]["content"] == (
+        "attachment://call-ref"
+    )
+    resident = transcript.history.resident_events[0]
+    assert isinstance(resident, ModelEvent)
+    assert resident.input[0].content == "restored text"
+    assert resident.call is call
+    # the caller's event is not mutated
+    assert restored.input == [condensed_message]
+    assert condensed_message.content == "attachment://text-ref"
+    # restored attachments are released when the event is evicted
+    assert transcript.attachments == attachments
+    transcript._event(InfoEvent(uuid="filler-1", data="x"))
+    assert transcript.history.resident_events_truncated is True
+    assert transcript.attachments == {}
+
+
 def test_transcript_subscriber_exception_does_not_skip_processing(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -809,6 +847,37 @@ def test_restored_events_update_bounded_bookkeeping_and_evict() -> None:
     assert transcript.history.resident_events_truncated is True
     assert _data(transcript.history.resident_events) == [3, 4]
     assert _data(transcript.history.recent_events(2)) == [3, 4]
+
+
+@pytest.mark.parametrize("resident_tail", [3, 100])
+def test_restored_events_evict_like_appended_events(resident_tail: int) -> None:
+    def events() -> list[Event]:
+        return [
+            SampleInitEvent(
+                sample=Sample(input="input", id="sample"), state={}, uuid="init"
+            ),
+            InfoEvent(data="a", uuid="a"),
+            InfoEvent(data="pending-a", uuid="pending-a", pending=True),
+            InfoEvent(data="b", uuid="b"),
+            *[InfoEvent(data=i, uuid=f"r{i}") for i in range(4)],
+            InfoEvent(data="pending-r", uuid="pending-r", pending=True),
+            *[InfoEvent(data=i, uuid=f"r{i}") for i in range(4, 8)],
+        ]
+
+    appended = Transcript(bounded=True, resident_tail=resident_tail)
+    for event in events():
+        appended._event(event)
+
+    restored = Transcript(bounded=True, resident_tail=resident_tail)
+    restored_events = events()
+    for event in restored_events[:4]:
+        restored._event(event)
+    restored._extend_restored_events(restored_events[4:], {})
+
+    assert [event.uuid for event in restored.history.resident_events] == [
+        event.uuid for event in appended.history.resident_events
+    ]
+    assert list(restored._evictable_event_ids) == list(appended._evictable_event_ids)
 
 
 def test_restored_events_reject_duplicate_uuid() -> None:
@@ -1174,11 +1243,11 @@ def test_condense_model_call_empty_messages_does_not_poison_cache() -> None:
             {"model": "m", "messages": [{"role": "user", "content": payload}]}, None
         )
     )
-    assert len(tr._call_walk_cache._slots) == 1
+    assert len(tr._call_walk_cache._lineages) == 1
     for _ in range(10):
         tr._condense_model_call(ModelCall.create({"model": "m", "messages": []}, None))
     # empty requests must not occupy (or evict) lineage slots
-    assert len(tr._call_walk_cache._slots) == 1
+    assert len(tr._call_walk_cache._lineages) == 1
 
 
 def _call_with_message_ids(ids: list[int]) -> ModelCall:
@@ -1204,8 +1273,8 @@ def test_condense_model_call_repeated_prefix_request_reuses_its_slot() -> None:
         tr._condense_model_call(call(short))
 
     # the short stream keeps one slot; both long lineages survive
-    slots = tr._call_walk_cache._slots
-    assert sorted(len(s.messages) for s in slots) == [2, 4, 4]
+    slots = list(tr._call_walk_cache._lineages)
+    assert sorted(len(s.entries) for s in slots) == [2, 4, 4]
 
 
 def test_condense_model_call_extending_request_replaces_the_lineage_it_consumes() -> (
@@ -1225,8 +1294,8 @@ def test_condense_model_call_extending_request_replaces_the_lineage_it_consumes(
     tr._condense_model_call(call([0, 1]))  # newer: consumed fully below
     tr._condense_model_call(call([0, 1, 9]))
 
-    slots = tr._call_walk_cache._slots
-    assert sorted(len(s.messages) for s in slots) == [3, 4]
+    slots = list(tr._call_walk_cache._lineages)
+    assert sorted(len(s.entries) for s in slots) == [3, 4]
 
 
 def test_condense_model_call_abandoned_lineage_bytes_are_released() -> None:
@@ -1252,7 +1321,7 @@ def test_condense_model_call_abandoned_lineage_bytes_are_released() -> None:
         tr._condense_model_call(payload_call(live))
 
     retained = json.dumps(
-        [dataclasses.asdict(slot) for slot in tr._call_walk_cache._slots]
+        [dataclasses.asdict(slot) for slot in tr._call_walk_cache._lineages]
     )
     assert sentinel not in retained
     assert live in retained
@@ -1290,10 +1359,10 @@ def test_condense_model_call_matches_fresh_walk() -> None:
         ("c", 4, False),
     ]
     for stream, n, resp in seq:
-        cached = cached_tr._condense_model_call(make_call(stream, n, resp))
+        cached = cached_tr._condense_model_call(make_call(stream, n, resp)).call
         fresh = walk_model_call(
             make_call(stream, n, resp),
-            events_attachment_fn(fresh_attachments),
+            events_attachment_fn(fresh_attachments, escape_refs=True),
             WalkContext(message_cache={}, only_core=False),
         )
         assert cached.model_dump() == fresh.model_dump()
@@ -1313,7 +1382,7 @@ def test_condense_model_call_prefix_breaks_on_json_distinct_values() -> None:
         ModelCall.create(
             {"model": "m", "messages": [{"content": payload, "n": False}]}, None
         )
-    )
+    ).call
     messages = walked.request["messages"]
     assert isinstance(messages, list) and isinstance(messages[0], dict)
     assert messages[0]["n"] is False
@@ -1343,10 +1412,10 @@ def test_condense_model_call_reasserts_pruned_attachments() -> None:
 def test_condense_model_call_no_message_key_falls_back() -> None:
     tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
     call = ModelCall.create({"model": "m", "prompt": ATTACHABLE}, None)
-    walked = tr._condense_model_call(call)
+    walked = tr._condense_model_call(call).call
     prompt = walked.request["prompt"]
     assert isinstance(prompt, str) and prompt.startswith("attachment://")
-    assert tr._call_walk_cache._slots == []  # fallback never populates the cache
+    assert len(tr._call_walk_cache._lineages) == 0  # fallback never populates the cache
 
 
 def test_condense_model_call_distinct_message_keys_use_distinct_lineages() -> None:
@@ -1363,7 +1432,10 @@ def test_condense_model_call_distinct_message_keys_use_distinct_lineages() -> No
     tr._condense_model_call(
         ModelCall.create({"model": "g", "contents": [dict(msg)]}, None)
     )
-    assert sorted(s.key for s in tr._call_walk_cache._slots) == ["contents", "messages"]
+    assert sorted(s.key for s in tr._call_walk_cache._lineages) == [
+        "contents",
+        "messages",
+    ]
 
 
 def test_condense_model_call_snapshots_immune_to_mutation() -> None:
@@ -1372,7 +1444,7 @@ def test_condense_model_call_snapshots_immune_to_mutation() -> None:
     call = ModelCall.create(
         {"model": "m", "messages": [{"role": "user", "content": payload}]}, None
     )
-    walked = tr._condense_model_call(call)
+    walked = tr._condense_model_call(call).call
 
     # mutate BOTH the caller's request and the emitted walked structure
     # (playback shaping mutates already-logged requests in place)
@@ -1388,7 +1460,7 @@ def test_condense_model_call_snapshots_immune_to_mutation() -> None:
     resend = ModelCall.create(
         {"model": "m", "messages": [{"role": "user", "content": payload}]}, None
     )
-    walked2 = tr._condense_model_call(resend)
+    walked2 = tr._condense_model_call(resend).call
     messages2 = walked2.request["messages"]
     assert isinstance(messages2, list) and isinstance(messages2[0], dict)
     content2 = messages2[0]["content"]
@@ -1409,6 +1481,259 @@ def test_call_walk_cache_only_core_passthrough() -> None:
     walked = tr._call_walk_cache.condense(
         call, tr.attachments, WalkContext(message_cache={}, only_core=True)
     )
-    assert walked is call  # untouched, by identity
+    assert walked.call is call  # untouched, by identity
+    assert walked.unescaped is call
     assert tr.attachments == {}  # no attachments created
-    assert tr._call_walk_cache._slots == []
+    assert len(tr._call_walk_cache._lineages) == 0
+
+
+class _CountingProvider(FakeTranscriptHistoryProvider):
+    def __init__(self, events: Sequence[Event]) -> None:
+        super().__init__(events)
+        self.read = 0
+
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        events = super().events_from(start, limit)
+        self.read += len(events)
+        return events
+
+
+def _history_transcript(
+    events: list[Event], provider: FakeTranscriptHistoryProvider | None
+) -> Transcript:
+    transcript = Transcript(bounded=True, resident_tail=3, history_provider=provider)
+    for event in events:
+        transcript._event(event)
+    return transcript
+
+
+def _is_data(value: object) -> Any:
+    return lambda event: isinstance(event, InfoEvent) and event.data == value
+
+
+def test_find_last_narrows_to_a_type_guard_predicates_type() -> None:
+    transcript = Transcript()
+    transcript._event(InfoEvent(data=1))
+
+    def is_info(event: Event) -> TypeGuard[InfoEvent]:
+        return isinstance(event, InfoEvent)
+
+    found = transcript.history.find_last(is_info)
+    assert_type(found, InfoEvent | None)
+    assert found is not None and found.data == 1
+    assert_type(transcript.history.find_last(lambda event: True), Event | None)
+
+
+def test_find_last_unbounded_returns_the_newest_match() -> None:
+    transcript = Transcript()
+    for value in [1, 2, 1, 3]:
+        transcript._event(InfoEvent(data=value))
+    found = transcript.history.find_last(_is_data(1))
+    assert found is transcript.history.resident_events[2]
+    assert transcript.history.find_last(_is_data(9)) is None
+
+
+@pytest.mark.parametrize(
+    "value,max_read",
+    [(499, 0), (495, 16), (10, 500), (-1, 500)],
+    ids=["resident", "just_evicted", "far_back", "absent"],
+)
+def test_find_last_with_a_provider_reads_back_only_as_far_as_the_match(
+    value: int, max_read: int
+) -> None:
+    events: list[Event] = [InfoEvent(data=i) for i in range(500)]
+    provider = _CountingProvider(events)
+    transcript = _history_transcript(events, provider)
+    found = transcript.history.find_last(_is_data(value))
+    if value < 0:
+        assert found is None
+        assert provider.read == 497
+    else:
+        assert isinstance(found, InfoEvent) and found.data == value
+    assert provider.read <= max_read
+
+
+def test_find_last_visits_every_event_once_newest_first() -> None:
+    events: list[Event] = [InfoEvent(data=i) for i in range(300)]
+    transcript = _history_transcript(events, FakeTranscriptHistoryProvider(events))
+    visited: list[Any] = []
+
+    def record(event: Event) -> bool:
+        visited.append(cast(InfoEvent, event).data)
+        return False
+
+    assert transcript.history.find_last(record) is None
+    assert visited == list(reversed(range(300)))
+
+
+def test_find_last_without_a_provider_finds_resident_events_kept_out_of_order() -> None:
+    sample_init = SampleInitEvent(sample=Sample(input="input", id="sample"), state={})
+    pending = InfoEvent(data="pending", pending=True)
+    events: list[Event] = [
+        sample_init,
+        pending,
+        *[InfoEvent(data=i) for i in range(10)],
+    ]
+    transcript = _history_transcript(events, None)
+    assert transcript.history.resident_events_truncated
+    assert (
+        transcript.history.find_last(lambda event: isinstance(event, SampleInitEvent))
+        is sample_init
+    )
+    assert transcript.history.find_last(_is_data("pending")) is pending
+    assert transcript.history.find_last(_is_data(9)) is events[-1]
+
+
+def test_find_last_without_a_provider_raises_when_evicted_events_are_needed() -> None:
+    events: list[Event] = [InfoEvent(data=i) for i in range(10)]
+    transcript = _history_transcript(events, None)
+    with pytest.raises(TranscriptHistoryUnavailableError):
+        transcript.history.find_last(_is_data(0))
+
+
+def test_find_last_prefers_a_newer_evicted_match_to_an_older_resident_one() -> None:
+    events: list[Event] = [
+        InfoEvent(data=0, pending=True),
+        *[InfoEvent(data=i) for i in range(1, 10)],
+    ]
+    transcript = _history_transcript(events, FakeTranscriptHistoryProvider(events))
+    assert events[0] in transcript.history.resident_events
+    found = transcript.history.find_last(
+        lambda event: isinstance(event, InfoEvent) and event.data in (0, 5)
+    )
+    assert isinstance(found, InfoEvent) and found.data == 5
+
+
+class _PageRecordingProvider(FakeTranscriptHistoryProvider):
+    def __init__(self, events: Sequence[Event]) -> None:
+        super().__init__(events)
+        self.pages: list[tuple[int, int | None]] = []
+
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        self.pages.append((start, limit))
+        return super().events_from(start, limit)
+
+
+def test_find_last_pages_grow_to_256_and_cover_the_evicted_history() -> None:
+    events: list[Event] = [InfoEvent(data=i) for i in range(1000)]
+    provider = _PageRecordingProvider(events)
+    transcript = _history_transcript(events, provider)
+    assert transcript.history.find_last(lambda event: False) is None
+    assert [limit for _, limit in provider.pages] == [16, 32, 64, 128, 256, 256, 245]
+    end = 997
+    for start, limit in provider.pages:
+        assert limit is not None and start + limit == end
+        end = start
+    assert end == 0
+
+
+def test_find_last_searches_the_history_as_it_was_when_called() -> None:
+    events: list[Event] = [InfoEvent(data=i) for i in range(10)]
+    provider = FakeTranscriptHistoryProvider(events)
+    transcript = _history_transcript(events, provider)
+    visited: list[Any] = []
+
+    def append_then_match_new(event: Event) -> bool:
+        visited.append(cast(InfoEvent, event).data)
+        if len(visited) == 1:
+            for i in range(10, 15):
+                new = InfoEvent(data=i)
+                transcript._event(new)
+                provider._events.append(new)
+        data = cast(InfoEvent, event).data
+        return isinstance(data, int) and data >= 10
+
+    assert transcript.history.find_last(append_then_match_new) is None
+    assert visited == list(reversed(range(10)))
+
+
+class _AppendingProvider(FakeTranscriptHistoryProvider):
+    transcript: Transcript | None = None
+    appended = False
+
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        if not self.appended and self.transcript is not None:
+            self.appended = True
+            for i in range(100, 105):
+                new = InfoEvent(data=i)
+                self.transcript._event(new)
+                self._events.append(new)
+        return super().events_from(start, limit)
+
+
+def test_find_last_ignores_events_added_while_reading_the_provider() -> None:
+    events: list[Event] = [InfoEvent(data=i) for i in range(30)]
+    provider = _AppendingProvider(events)
+    transcript = _history_transcript(events, provider)
+    provider.transcript = transcript
+    visited: list[Any] = []
+
+    def record(event: Event) -> bool:
+        visited.append(cast(InfoEvent, event).data)
+        return False
+
+    assert transcript.history.find_last(record) is None
+    assert provider.appended
+    assert visited == list(reversed(range(30)))
+
+
+def test_find_last_is_not_unavailable_when_eviction_starts_during_the_search() -> None:
+    transcript = Transcript(bounded=True, resident_tail=3)
+    for i in range(3):
+        transcript._event(InfoEvent(data=i))
+    visited: list[Any] = []
+
+    def append_until_evicting(event: Event) -> bool:
+        visited.append(cast(InfoEvent, event).data)
+        if len(visited) == 1:
+            for i in range(3, 8):
+                transcript._event(InfoEvent(data=i))
+        return False
+
+    assert transcript.history.find_last(append_until_evicting) is None
+    assert transcript.history.resident_events_truncated
+    assert visited == [2, 1, 0]
+
+
+def test_an_evicted_span_begin_is_released_and_its_agent_span_still_known() -> None:
+    tracemalloc.start()
+    try:
+        bounded = Transcript(bounded=True, resident_tail=1)
+        begin = SpanBeginEvent(
+            id="large",
+            type="agent",
+            name="agent",
+            metadata={"description": "x" * 10_000_000},
+        )
+        released = weakref.ref(begin)
+        bounded._event(begin)
+        bounded._event(InfoEvent(data="tail"))
+        del begin
+        gc.collect()
+        retained, _ = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert [event.event for event in bounded._events] == ["info"]
+    assert released() is None
+    assert retained < 1_000_000
+    assert bounded._agent_span("large") == "large"
+
+
+def test_bounded_transcript_releases_calls_of_evicted_events_nobody_holds() -> None:
+    """Eviction keeps no condensed call for an event that is freed."""
+    resident_tail = 4
+    transcript = Transcript(
+        log_model_api=True, bounded=True, resident_tail=resident_tail
+    )
+
+    def generate(n: int) -> None:
+        transcript._event(_model_event_with_call())
+        transcript._event(InfoEvent(data=n))
+
+    for n in range(100):
+        generate(n)
+    gc.collect()
+    generate(100)
+
+    assert len(transcript._condensed_calls) <= resident_tail
+    assert all(ref() is not None for ref in transcript._evicted_call_events.values())

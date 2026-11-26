@@ -1,3 +1,5 @@
+from logging import getLogger
+
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.util._notify import notify
@@ -8,6 +10,8 @@ from .._registry import approver
 from .console import console_approval
 from .panel import panel_approval
 
+logger = getLogger(__name__)
+
 
 @approver(name="human")
 def human_approver(
@@ -16,11 +20,36 @@ def human_approver(
     """Interactive human approver.
 
     Args:
-       choices: Choices to present to human.
+       choices: Choices to present to human. "modify" is not supported, since a
+          human cannot supply a modified tool call; it is dropped with a warning.
 
     Returns:
        Approver: Interactive human approver.
+
+    Raises:
+       ValueError: If there are no choices other than "modify", or a choice
+          appears more than once.
     """
+    if not choices:
+        raise ValueError("The human approver needs at least one choice.")
+    for choice in choices:
+        if choices.count(choice) > 1:
+            raise ValueError(
+                f"The human approver got duplicate choice {choice!r}; "
+                "list each choice once."
+            )
+    if "modify" in choices:
+        choices = [choice for choice in choices if choice != "modify"]
+        if not choices:
+            raise ValueError(
+                "The human approver does not support the 'modify' choice (a human "
+                "cannot supply a modified tool call). Choose at least one of "
+                "'approve', 'reject', 'terminate' or 'escalate'."
+            )
+        logger.warning(
+            "The human approver does not support the 'modify' choice (a human "
+            "cannot supply a modified tool call), so it will not be offered."
+        )
 
     async def approve(
         message: str,
@@ -55,10 +84,10 @@ def human_approver(
             # the Phase 15 TUI, etc.) are attached to this sample, route
             # the prompt through ACP `session/request_permission` so the
             # operator can respond in the editor they're working in.
-            # Returns None when no clients are attached or when every
-            # attached client failed (disconnect, transport error) —
-            # both cases fall through to the existing in-proc panel /
-            # console flow unchanged.
+            # Returns None when the sample isn't reachable over ACP (no
+            # ACP server accepting clients) or the shim hit an internal
+            # error, and we fall through to the in-proc panel / console
+            # below. Otherwise it waits until an attached client answers.
             acp_result = await request_human_approval_via_acp(
                 message=message, call=call, view=view, choices=choices
             )
@@ -71,6 +100,6 @@ def human_approver(
 
             # fallback to plain console approval (available in all displays)
             except NotImplementedError:
-                return console_approval(message, view, choices, call.arguments)
+                return console_approval(message, view, choices, call)
 
     return approve

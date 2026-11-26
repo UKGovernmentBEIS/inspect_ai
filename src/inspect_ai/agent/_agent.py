@@ -1,6 +1,6 @@
 from copy import copy, deepcopy
 from functools import wraps
-from inspect import signature
+from inspect import isfunction, signature
 from typing import (
     Any,
     Callable,
@@ -161,6 +161,7 @@ def agent(
     """
 
     def create_agent_wrapper(agent_type: Callable[P, Agent]) -> Callable[P, Agent]:
+        from inspect_ai._sentinel._agent_state import running
         from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 
         # determine the name (explicit or implicit from object)
@@ -173,6 +174,8 @@ def agent(
         def agent_wrapper(*args: P.args, **kwargs: P.kwargs) -> Agent:
             # create agent
             agent = agent_type(*args, **kwargs)
+            if isfunction(agent):
+                agent = running(agent)
 
             # capture any display name and description the agent may carry
             # (e.g. set via agent_with() inside the factory body)

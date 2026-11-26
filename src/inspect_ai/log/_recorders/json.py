@@ -1,3 +1,4 @@
+from decimal import Decimal
 from functools import partial
 from logging import getLogger
 from typing import IO, Any, get_args
@@ -17,9 +18,14 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import absolute_file_path, file, filesystem, local_path
-from inspect_ai._util.json import is_ijson_nan_inf_error
+from inspect_ai._util.json import (
+    is_ijson_float_overflow_error,
+    is_ijson_int_overflow_error,
+    is_ijson_nan_inf_error,
+)
 from inspect_ai._util.trace import trace_action
 
+from .._condense import condensed_sample_summary, escape_literal_refs
 from .._config_update import ConfigUpdate
 from .._edit import LogUpdate
 from .._log import (
@@ -157,7 +163,7 @@ class JSONRecorder(FileRecorder):
             ]
         log.samples_by_key[key] = sample
         log.data.samples.append(sample)
-        log.summaries.append(sample.summary())
+        log.summaries.append(condensed_sample_summary(sample))
 
     @override
     async def sample_summaries(self, eval: EvalSpec) -> list[EvalSampleSummary] | None:
@@ -217,6 +223,7 @@ class JSONRecorder(FileRecorder):
         invalidated: bool = False,
         log_updates: list[LogUpdate] | None = None,
         config_updates: list[ConfigUpdate] | None = None,
+        total_samples: int | None = None,
     ) -> EvalLog:
         await self.close_seed_source(eval)
         log = self.data[self._log_file_key(eval)]
@@ -228,6 +235,9 @@ class JSONRecorder(FileRecorder):
         # None means "not supplied" — keep the updates accumulated mid-run
         if config_updates is not None:
             log.data.config_updates = config_updates
+        # same "not supplied" convention as config_updates
+        if total_samples is not None:
+            log.data.total_samples = total_samples
         log.data.recompute_tags_and_metadata()
         if error:
             log.data.error = error
@@ -341,7 +351,10 @@ class JSONRecorder(FileRecorder):
     async def read_log_bytes(
         cls, log_bytes: IO[bytes], header_only: bool = False
     ) -> EvalLog:
-        return _parse_json_log(from_json(log_bytes.read()), header_only)
+        log = _parse_json_log(from_json(log_bytes.read()), header_only)
+        # a stream has no location; don't keep one parsed from its content
+        log.location = ""
+        return log
 
     @override
     @classmethod
@@ -387,6 +400,11 @@ class JSONRecorder(FileRecorder):
         # sort samples before writing as they can come in out of order
         if log.samples:
             sort_samples(log.samples)
+            # samples are written as they are, so a resolved sample's literal
+            # reference text must become attachments
+            samples = [escape_literal_refs(sample) for sample in log.samples]
+            if any(a is not b for a, b in zip(samples, log.samples)):
+                log = log.model_copy(update={"samples": samples})
 
         fs = filesystem(location)
         # Standard write
@@ -527,6 +545,28 @@ def _scan_header_keys(f: IO[bytes]) -> tuple[int | None, str]:
     return version, last_header_field
 
 
+def _read_header_values(
+    f: IO[bytes], last_header_field: str, use_float: bool
+) -> dict[str, Any]:
+    """Parse top-level fields up to ``last_header_field``, stopping before samples."""
+    values: dict[str, Any] = {}
+    for k, v in ijson.kvitems(f, "", use_float=use_float):
+        values[k] = v
+        if k == last_header_field:
+            break
+    return values
+
+
+def _decimals_to_float(value: Any) -> Any:
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, dict):
+        return {k: _decimals_to_float(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_decimals_to_float(v) for v in value]
+    return value
+
+
 def _read_header_streaming(log_file: str) -> EvalLog:
     with file(log_file, "rb") as f:
         # Do low-level parsing to get the version number and also
@@ -541,8 +581,21 @@ def _read_header_streaming(log_file: str) -> EvalLog:
 
         # Rewind the file to the beginning to re-parse the contents of fields
         f.seek(0)
+        try:
+            values = _read_header_values(f, last_header_field, use_float=True)
+        except (ValueError, IncompleteJSONError) as ex:
+            # ijson's C backend rejects numbers beyond int64 or a double when
+            # use_float=True. Without it, integers of any size parse exactly
+            # and other numbers parse as Decimal.
+            if not (
+                is_ijson_int_overflow_error(ex) or is_ijson_float_overflow_error(ex)
+            ):
+                raise
+            f.seek(0)
+            values = _decimals_to_float(
+                _read_header_values(f, last_header_field, use_float=False)
+            )
 
-        # Parse all header fields, stopping before samples
         invalidated = False
         status: EvalStatus | None = None
         eval: EvalSpec | None = None
@@ -552,7 +605,8 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         error: EvalError | None = None
         log_updates: list[LogUpdate] | None = None
         config_updates: list[ConfigUpdate] | None = None
-        for k, v in ijson.kvitems(f, ""):
+        total_samples: int | None = None
+        for k, v in values.items():
             if k == "status":
                 assert v in get_args(EvalStatus)
                 status = v
@@ -572,8 +626,10 @@ def _read_header_streaming(log_file: str) -> EvalLog:
                 log_updates = [LogUpdate.model_validate(u) for u in v]
             elif k == "config_updates":
                 config_updates = [ConfigUpdate.model_validate(u) for u in v]
-            if k == last_header_field:
-                break
+            elif k == "total_samples":
+                if v is not None:
+                    assert isinstance(v, int), "'total_samples' must be an int or null"
+                total_samples = v
 
     assert status, "Must encounter a 'status'"
     assert eval, "Must encounter a 'eval'"
@@ -591,5 +647,6 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         config_updates=config_updates,
         version=version,
         error=error,
+        total_samples=total_samples,
         location=log_file,
     )

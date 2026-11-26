@@ -12,10 +12,8 @@ Inspect grants non-inline media authority only at explicit host-side boundaries:
 - selected samples from the fixed dataset may be materialized before sample
   execution;
 - the in-process agent bridge may materialize client media because the client
-  already shares the evaluator's filesystem and network;
-- trusted runtime code may call `materialize_media()` explicitly; and
-- selected provider output, such as Mistral-generated images, may use a separate
-  restricted public-network fetcher.
+  already shares the evaluator's filesystem and network; and
+- trusted runtime code may call `materialize_media()` explicitly.
 
 The supported `Model` entry points enforce the invariant centrally. `generate()`
 validates after request-shaping and again after before-generate hooks;
@@ -33,7 +31,7 @@ serializers also accept inline media only as defense in depth.
 | Solver, tool, hook, replayed history, or direct model call | Inline only | Runtime-controlled strings must not grant host I/O. |
 | In-process `agent_bridge()` | Explicit materialization | The bridged code already runs with host authority. |
 | Direct `AgentBridge(...)` or sandbox bridge | Inline only | New or sandboxed bridge code must opt in to host I/O. |
-| Mistral-generated image URL | Restricted public-network fetch | Provider output is untrusted but must remain replayable. |
+| Mistral image reference in model output | Data URIs validated; other references recorded as text | Model output does not grant host network authority. |
 
 ## Fixed-dataset capture
 
@@ -52,9 +50,8 @@ identity or media authority.
 "Fixed dataset" means Inspect treats the dataset as evaluator-authorized; it
 does not mean Inspect proved the dataset safe. `materialize_media()` can read
 local and remote files, use configured filesystem backends, and fetch HTTP URLs.
-Trusted HTTP fetching follows redirects and does not currently apply the
-private-address, port, or response-size restrictions used for untrusted provider
-output.
+Trusted HTTP fetching follows redirects and does not restrict destination
+addresses, ports, or response sizes.
 
 Selecting a third-party dataset that contains URLs can therefore cause requests
 to destinations reached through those URLs or redirects. Operators should review

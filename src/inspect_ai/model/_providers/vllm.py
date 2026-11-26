@@ -7,7 +7,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import anyio
-from openai import APIConnectionError, APIStatusError
+from openai import APIConnectionError, APIStatusError, AsyncOpenAI
 from tenacity.wait import WaitBaseT, wait_fixed
 from typing_extensions import override
 
@@ -178,6 +178,7 @@ class VLLMAPI(OpenAICompatibleAPI):
             raise ValueError("base_url and port cannot both be provided.")
 
         self.api_key = api_key or os.environ.get("VLLM_API_KEY", "inspectai")
+        self.api_key_vars = ["VLLM_API_KEY"]
         self.model_name = model_name
         self.base_url: str | None = None
 
@@ -187,6 +188,7 @@ class VLLMAPI(OpenAICompatibleAPI):
         self._resolved_epoch = -1
         self._context_window_registered = False
         self._context_window_attempts = 0
+        self._context_window_generation = 0
         self._context_window_lock = anyio.Lock()
 
         self.is_mistral = is_mistral
@@ -229,6 +231,8 @@ class VLLMAPI(OpenAICompatibleAPI):
 
         if server.base_url is None:
             external_url = self._init_base_url or os.environ.get("VLLM_BASE_URL")
+            if not external_url:
+                self._apply_api_key_overrides()
             server.api_key = self.api_key
             if external_url:
                 server.base_url = external_url
@@ -255,17 +259,73 @@ class VLLMAPI(OpenAICompatibleAPI):
             service_base_url=server.base_url,
             client_timeout=self._client_timeout,
         )
-        self._resolved_epoch = self._server._epoch
-
         if self.adapter:
             ensure_adapter_loaded(self._server, self.adapter)
 
+        # resolved only once the adapter is loaded: a caller that finds the
+        # epoch current skips the lock and uses the server at once
+        self._resolved_epoch = self._server._epoch
+
+    @override
+    def _apply_api_key_overrides(self) -> None:
+        # Managed servers accept the fixed key passed at launch. Reuse it
+        # across clients and refreshes until that server is restarted.
+        if self._server.process is not None:
+            assert self._server.api_key is not None
+            self.api_key = self._server.api_key
+        else:
+            super()._apply_api_key_overrides()
+            self._server.api_key = self.api_key
+
+    @override
+    async def refresh_credentials(self) -> None:
+        """Refresh credentials and allow context-window discovery to run again.
+
+        A ``/v1/models`` request that failed authentication latches discovery
+        like any other HTTP response, so the next ``generate()`` after a
+        refresh fetches the served window again. The reset runs even if the
+        refresh is cancelled, since other samples share the new credentials.
+        """
+        try:
+            await super().refresh_credentials()
+        finally:
+            self._reset_context_window_discovery()
+
+    def _reset_context_window_discovery(self) -> None:
+        """Let the next ``generate()`` fetch the served context window again.
+
+        Bumping the generation stops a ``/v1/models`` request that is already
+        in flight from latching discovery when its response arrives.
+        """
+        self._context_window_registered = False
+        self._context_window_attempts = 0
+        self._context_window_generation += 1
+
     async def _ensure_server_started(self) -> None:
         """Lazy version of ``_resolve_server`` — thread-safe for concurrent ``generate()`` calls."""
+        await self._resolve_server_off_loop()
+        await self._register_context_window()
+
+    async def _resolve_server_off_loop(self) -> None:
+        """Resolve the server in a worker thread, under the server's lock.
+
+        Resolving may load a LoRA adapter with blocking requests, and two
+        models sharing a server must not resolve it at once.
+        """
         if self._resolved_epoch != self._server._epoch:
             async with self._server._init_lock:
                 await anyio.to_thread.run_sync(self._resolve_server)
-        await self._register_context_window()
+
+    @override
+    async def proxy_endpoint(self) -> tuple[AsyncOpenAI, str] | None:
+        # An existing server someone named may sit behind a proxy; a server this
+        # process starts never does. Resolving with a named server builds the
+        # client and starts nothing, and runs as it does before a generate.
+        url = self._init_base_url or os.environ.get("VLLM_BASE_URL")
+        if not url:
+            return None
+        await self._resolve_server_off_loop()
+        return self.client, url
 
     def _server_root(self) -> str:
         """Base URL with any trailing ``/v1`` removed.
@@ -291,6 +351,7 @@ class VLLMAPI(OpenAICompatibleAPI):
             if self._context_window_registered:
                 return
             self._context_window_attempts += 1
+            generation = self._context_window_generation
 
             headers: dict[str, str] = {}
             if self.api_key:
@@ -302,6 +363,8 @@ class VLLMAPI(OpenAICompatibleAPI):
                     timeout=CONTEXT_WINDOW_TIMEOUT,
                 )
             except Exception as ex:
+                if generation != self._context_window_generation:
+                    return
                 # No response at all: the server may be briefly unreachable,
                 # which generate() itself retries through. Latching here would
                 # revert to the catalog for the rest of the run, so leave the
@@ -313,6 +376,9 @@ class VLLMAPI(OpenAICompatibleAPI):
                 logger.debug(f"Could not reach vLLM /v1/models: {ex}")
                 return
 
+            if generation != self._context_window_generation:
+                # sent before a credential refresh or server restart
+                return
             # A response settles the question for this server, whatever it says.
             self._context_window_registered = True
             try:
@@ -480,8 +546,7 @@ class VLLMAPI(OpenAICompatibleAPI):
         self._server.loaded_adapters.clear()
         self._server._epoch += 1
         # a restarted server may be serving a different max_model_len
-        self._context_window_registered = False
-        self._context_window_attempts = 0
+        self._reset_context_window_discovery()
 
     # -- ModelAPI overrides --------------------------------------------------
 
@@ -538,6 +603,13 @@ class VLLMAPI(OpenAICompatibleAPI):
         if tokens is None:
             raise ValueError(f"vLLM /tokenize response missing 'tokens' key: {data}")
         return list(tokens)
+
+    @override
+    def _client_endpoint(self) -> str | None:
+        # a lazy instance has no client until a call resolves its server
+        if self._resolved_epoch < 0:
+            return self.base_url
+        return super()._client_endpoint()
 
     @override
     def connection_key(self) -> str:

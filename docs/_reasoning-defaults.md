@@ -2,8 +2,11 @@
 |---|---|
 | anthropic/claude-fable-5 | high |
 | anthropic/claude-fable-5-1 | high |
+| anthropic/claude-fable-5-2 | high |
+| anthropic/claude-haiku-5-5 | medium |
 | anthropic/claude-mythos-5 | high |
 | anthropic/claude-mythos-5-1 | high |
+| anthropic/claude-mythos-5-2 | high |
 | anthropic/claude-opus-4-6 | adaptive |
 | anthropic/claude-opus-4-7 | adaptive |
 | anthropic/claude-opus-4-8 | high |
@@ -11,6 +14,7 @@
 | anthropic/claude-opus-5-5 | medium |
 | anthropic/claude-sonnet-4-6 | adaptive |
 | anthropic/claude-sonnet-5 | high |
+| anthropic/claude-sonnet-5-5 | high |
 | deepseek/deepseek-flash | high |
 | deepseek/deepseek-reasoner | no effort scale |
 | deepseek/deepseek-v4-flash | high |
@@ -26,17 +30,28 @@
 | google/gemini-3.6-flash | medium |
 | google/gemini-3.7-flash | medium |
 | google/gemini-3.8-flash | medium |
+| google/gemini-4-argon | medium |
+| google/gemini-4-carbon | medium |
+| google/gemini-4-hydrogen | high |
+| google/gemini-4-neon | high |
 | grok/grok-3-mini | low |
 | grok/grok-4 | no effort scale |
 | grok/grok-4.3 | low |
 | grok/grok-4.5 | high |
 | grok/grok-4.6 | high |
 | grok/grok-4.7 | high |
+| meta/muse-ember-1.0 | max |
+| meta/muse-spark-1.1 | high |
+| meta/muse-spark-1.2 | high |
+| meta/muse-spark-1.3 | high |
+| meta/muse-wonder-1.0 | max |
 | mistral/magistral-medium-2506 | no effort scale |
 | mistral/magistral-small-2506 | no effort scale |
 | mistral/mistral-medium-2604 | none |
 | mistral/mistral-small-2603 | none |
 | moonshotai/kimi-k3 | max |
+| moonshotai/kimi-k3.1-pro | max |
+| moonshotai/kimi-k3.1-pro-highspeed | max |
 | openai/gpt-5 | medium |
 | openai/gpt-5-mini | medium |
 | openai/gpt-5-nano | medium |
@@ -59,6 +74,8 @@
 | openai/gpt-6-astra | medium |
 | openai/gpt-6-luna | medium |
 | openai/gpt-6-sol | medium |
+| openai/gpt-6.1-sol | medium |
+| openai/gpt-6.1-terra | medium |
 | z-ai/glm-5.3 | max |
 | z-ai/glm-5.3-flash | max |
 | zai-org/GLM-5.3-FP8 | max |

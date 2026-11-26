@@ -1,8 +1,12 @@
+import fnmatch
+import ntpath
 from pathlib import Path
+from types import SimpleNamespace
 from typing import NamedTuple
 
 import anyio
 import pytest
+from test_helpers.limits import find_limit_event, priced_models, with_usage
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
@@ -21,7 +25,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
-from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._call_tools import execute_tools, parse_tool_call
 from inspect_ai.review import (
     Review,
     ReviewDecision,
@@ -34,6 +38,8 @@ from inspect_ai.review import (
 from inspect_ai.review._policy import (
     ReviewerPolicyConfig,
     ReviewPolicyConfig,
+    config_from_review_policies,
+    policy_reviewer,
     review_policies_from_config,
 )
 from inspect_ai.scorer import match
@@ -47,6 +53,8 @@ from inspect_ai.tool._tool import (
 )
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
 
 @tool
@@ -344,6 +352,89 @@ async def test_a_result_no_policy_covers_continues_without_review() -> None:
     assert review_events() == []
 
 
+async def reviewed(call: ToolCall, tools: str, **arguments: str) -> bool:
+    """Whether a policy for `tools` and `arguments` reviews `call`."""
+    init_transcript(Transcript())
+    result = ChatMessageTool(content="", tool_call_id=call.id, function=call.function)
+    review_policy = (
+        ReviewPolicy(fixed_reviewer("terminate"), tools, arguments=arguments)
+        if arguments
+        else ReviewPolicy(fixed_reviewer("terminate"), tools)
+    )
+    review_ = policy_reviewer([review_policy])
+    decision = await review_("", call, result, "", ToolCallView(), [])
+    return decision.decision == "terminate"
+
+
+async def test_review_policy_tools_and_arguments_match_as_for_approval() -> None:
+    def call(function: str, **arguments: object) -> ToolCall:
+        return ToolCall(id="1", function=function, arguments=arguments)
+
+    assert await reviewed(call("left_click"), "*_click")
+    assert not await reviewed(call("type", text="left_click"), "*_click")
+
+    injected = call("computer", action="type', mode='safe")
+    assert not await reviewed(injected, "computer(action='type'")
+    key = call("computer", text="Return", action="key")
+    assert await reviewed(key, "computer(action='key'")
+
+    assert not await reviewed(injected, "computer", action="type", mode="safe")
+    assert await reviewed(key, "computer", action="key")
+    assert await reviewed(key, "bash, computer", action="key")
+
+    # quoted values matched strings only
+    assert not await reviewed(call("computer", action=10), "computer(action='*'")
+
+    # JSON values Pydantic rejects (a lone surrogate in an object key)
+    assert await reviewed(call("f", value={"\ud800": "x"}), "f", value="*")
+
+    # parsed keys that convert to another key raise rather than lose an entry
+    tools = [
+        ToolInfo(
+            name="f",
+            description="f",
+            parameters=ToolParams(properties={"value": ToolParam(type="object")}),
+        )
+    ]
+    collision = parse_tool_call("1", "f", '2024-01-01: a\n"2024-01-01": b', tools)
+    with pytest.raises(ValueError, match="two object keys"):
+        await reviewed(collision, "f", value="*")
+
+    with pytest.raises(ValueError, match="'arguments'"):
+        ReviewPolicy(fixed_reviewer(), "bash(cmd='ls', timeout=10)")
+
+
+async def test_review_policy_case_rules_on_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # fnmatch ignores case through the platform's normcase; use Windows' here
+    monkeypatch.setattr(fnmatch, "os", SimpleNamespace(path=ntpath))
+
+    def call(function: str) -> ToolCall:
+        return ToolCall(id="1", function=function, arguments={"action": "key"})
+
+    assert await reviewed(call("computer"), "Computer")
+    assert not await reviewed(call("computer"), "Computer(action='key'")
+    assert not await reviewed(call("Computer"), "computer(action='key')")
+    assert await reviewed(call("computer"), "computer(action='key')")
+
+
+@pytest.mark.parametrize(
+    "tools",
+    [
+        "computer*(action='key'",
+        "computer*(action='key')",
+        "comput?r(action='key'",
+        "comput?r(action='key')",
+        "[c]omputer(action='key'",
+        "computer[s](action='key')",
+    ],
+)
+def test_review_policy_refuses_glob_names_in_the_legacy_form(tools: str) -> None:
+    with pytest.raises(ValueError, match="'arguments'"):
+        ReviewPolicy(fixed_reviewer(), tools)
+
+
 # --- what the reviewer sees ----------------------------------------------------
 
 
@@ -533,7 +624,7 @@ async def test_approval_rejections_are_not_reviewed() -> None:
     assert error.type == "approval"
 
 
-async def test_handoffs_are_not_reviewed() -> None:
+async def execute_handoff(policies: list[ReviewPolicy]) -> list[ChatMessage]:
     from inspect_ai.agent import Agent, AgentState, agent, handoff
 
     @agent
@@ -544,7 +635,6 @@ async def test_handoffs_are_not_reviewed() -> None:
 
         return execute
 
-    seen: list[Seen] = []
     init_transcript(Transcript())
     messages, _ = await execute_tools(
         [
@@ -556,10 +646,33 @@ async def test_handoffs_are_not_reviewed() -> None:
             )
         ],
         [handoff(helper(), description="A helper agent.")],
-        review=[ReviewPolicy(recording_reviewer(seen), "*")],
+        review=policies,
     )
+    return messages
 
-    assert seen == []
+
+async def test_handoffs_are_reviewed() -> None:
+    seen: list[Seen] = []
+    messages = await execute_handoff([ReviewPolicy(recording_reviewer(seen), "*")])
+
+    assert len(seen) == 1
+    assert seen[0].call.function == "transfer_to_helper"
+    assert seen[0].result == tool_message(messages)
+    assert "transferred to helper" in seen[0].result.text
+    assert any("helper says hi" in m.text for m in messages)
+
+
+async def test_terminate_after_a_handoff_ends_the_sample() -> None:
+    with pytest.raises(TerminateSampleError, match="reviewer requested termination"):
+        await execute_handoff([policy("terminate", tools="transfer_to_helper")])
+
+    assert review_events()[-1].decision == "terminate"
+
+
+async def test_a_policy_for_other_tools_does_not_review_a_handoff() -> None:
+    messages = await execute_handoff([policy("terminate", tools="addition")])
+
+    assert review_events() == []
     assert any("helper says hi" in m.text for m in messages)
 
 
@@ -572,6 +685,80 @@ async def test_reviewer_inference_is_exempt_from_limits() -> None:
     assert tool_message(messages).error is None
     assert tokens.usage == 0
     assert turns.usage == 0
+
+
+@reviewer
+def judging_reviewer() -> Reviewer:
+    """Reviewer which consults the `judge` model role before continuing."""
+
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        await get_model(role="judge").generate("Should this result stand?")
+        return Review(decision="continue")
+
+    return review_
+
+
+@pytest.mark.parametrize(
+    "answer_tokens,limit_value",
+    [(100, None), (1_500, "$1.6000")],
+    ids=["agent_under_budget", "agent_over_budget"],
+)
+def test_reviewer_inference_is_not_charged_to_the_cost_limit(
+    answer_tokens: int, limit_value: str | None
+) -> None:
+    """A $100 reviewer call under a $1 limit; the agent's own calls stay metered."""
+    agent_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            with_usage(
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="addition",
+                    tool_arguments={"x": 1, "y": 1},
+                ),
+                100,
+            ),
+            with_usage(
+                ModelOutput.from_content("mockllm/model", content="2"), answer_tokens
+            ),
+        ],
+        memoize=False,
+    )
+    judge = get_model(
+        "mockllm/judge",
+        custom_outputs=[
+            with_usage(ModelOutput.from_content("mockllm/judge", "yes"), 100_000)
+        ],
+        memoize=False,
+    )
+    with priced_models({"model": 1000.0, "judge": 1000.0}):
+        [log] = eval(
+            review_task([ReviewPolicy(judging_reviewer(), "*")]),
+            model=agent_model,
+            model_roles={"judge": judge},
+            cost_limit=1.0,
+        )
+
+    assert log.status == "success", log.error
+    assert len(log_review_events(log)) == 1
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.model_usage["mockllm/judge"].total_cost == pytest.approx(100.0)
+    assert sample.role_usage["judge"].total_cost == pytest.approx(100.0)
+    if limit_value is None:
+        assert sample.limit is None
+    else:
+        # the agent's answer after review is metered: $0.10 + $1.50, no judge spend
+        event = find_limit_event(log)
+        assert event is not None and event.type == "cost"
+        assert f"value: {limit_value};" in event.message
 
 
 # --- configuration -----------------------------------------------------------
@@ -672,3 +859,30 @@ def test_review_policies_from_config_object() -> None:
 
     assert only.tools == "*"
     assert callable(only.reviewer)
+
+
+def test_saved_review_config_with_refused_pattern_raises() -> None:
+    # a log's saved config still parses, but eval_retry() rebuilds the policies
+    config = ReviewPolicyConfig.model_validate(
+        {"reviewers": [{"name": "fixed", "tools": "bash(cmd='rm"}]}
+    )
+
+    with pytest.raises(ValueError, match="'arguments'"):
+        review_policies_from_config(config)
+
+
+def test_review_policy_arguments_from_config() -> None:
+    config = ReviewPolicyConfig.model_validate(
+        {
+            "reviewers": [
+                {"name": "fixed", "tools": "computer", "arguments": {"action": "key"}}
+            ]
+        }
+    )
+
+    [only] = review_policies_from_config(config)
+
+    assert only.arguments == {"action": "key"}
+    [round_trip] = config_from_review_policies([only]).reviewers
+    assert round_trip.arguments == {"action": "key"}
+    assert round_trip.params == {}

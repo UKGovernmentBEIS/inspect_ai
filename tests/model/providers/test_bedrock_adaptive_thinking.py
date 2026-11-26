@@ -13,6 +13,8 @@ ignored. These tests pin the corrected shape and the adaptive-thinking /
 
 from __future__ import annotations
 
+from typing import Literal
+
 import pytest
 from test_helpers.utils import skip_if_trio
 
@@ -39,7 +41,7 @@ CLAUDE_46 = "anthropic.claude-sonnet-4-6-20260101-v1:0"
 CLAUDE_45 = "anthropic.claude-sonnet-4-5-20250929-v1:0"
 CLAUDE_37 = "anthropic.claude-3-7-sonnet-20250219-v1:0"
 CLAUDE_3_SONNET = "anthropic.claude-3-sonnet-20240229-v1:0"
-NOVA_LITE = "amazon.nova-lite-v1:0"
+NOVA_2_LITE = "amazon.nova-2-lite-v1:0"
 GPT_OSS = "openai.gpt-oss-120b-1:0"
 
 
@@ -154,7 +156,7 @@ def test_claude_3_sonnet_no_thinking_for_non_thinking_model():
 
 
 def test_nova_unaffected():
-    api = _make_api(NOVA_LITE)
+    api = _make_api(NOVA_2_LITE)
     config = GenerateConfig(reasoning_effort="medium")
     fields = api.reasoning_config(config)
     assert fields == {
@@ -167,6 +169,26 @@ def test_gpt_oss_unaffected():
     config = GenerateConfig(reasoning_effort="low")
     fields = api.reasoning_config(config)
     assert fields == {"reasoning_effort": "low"}
+
+
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("none", {}),
+        ("minimal", {"reasoning_effort": "low"}),
+        ("medium", {"reasoning_effort": "medium"}),
+        ("high", {"reasoning_effort": "high"}),
+        ("xhigh", {"reasoning_effort": "high"}),
+        ("max", {"reasoning_effort": "high"}),
+    ],
+)
+def test_gpt_oss_reasoning_effort_clamped_to_low_medium_high(
+    effort: Literal["none", "minimal", "medium", "high", "xhigh", "max"],
+    expected: dict[str, str],
+):
+    """gpt-oss accepts only low/medium/high; 'none' sends nothing (#5933)."""
+    api = _make_api(GPT_OSS)
+    assert api.reasoning_config(GenerateConfig(reasoning_effort=effort)) == expected
 
 
 # --- reasoning_effort + reasoning_tokens precedence -----------------------
@@ -206,7 +228,7 @@ def test_is_claude_4_6_or_later():
     assert _make_api(CLAUDE_46).is_claude_4_6_or_later() is True
     assert _make_api(CLAUDE_45).is_claude_4_6_or_later() is False
     assert _make_api(CLAUDE_3_SONNET).is_claude_4_6_or_later() is False
-    assert _make_api(NOVA_LITE).is_claude_4_6_or_later() is False
+    assert _make_api(NOVA_2_LITE).is_claude_4_6_or_later() is False
 
 
 # --- review-finding regressions (both fixed) -------------------------------
@@ -298,6 +320,55 @@ def test_claude_40_reasoning_tokens_not_promoted_to_adaptive():
     assert fields == {"thinking": {"type": "enabled", "budget_tokens": 4096}}
 
 
+# --- claude 5 (regression for #5931) ---------------------------------------
+
+CLAUDE_5_IDS = [
+    "anthropic.claude-opus-5-v1:0",
+    "us.anthropic.claude-opus-5-v1:0",
+    "anthropic.claude-sonnet-5-v1:0",
+    "eu.anthropic.claude-sonnet-5-v1:0",
+    "anthropic.claude-fable-5-1-v1:0",
+    "global.anthropic.claude-fable-5-1-v1:0",
+]
+
+
+@pytest.mark.parametrize("model", CLAUDE_5_IDS)
+def test_claude_5_is_claude_4_6_or_later(model: str):
+    assert _make_api(model).is_claude_4_6_or_later() is True
+
+
+@pytest.mark.parametrize("model", CLAUDE_5_IDS)
+def test_claude_5_reasoning_effort_emits_adaptive(model: str):
+    fields = _make_api(model).reasoning_config(GenerateConfig(reasoning_effort="high"))
+    assert fields == {
+        "thinking": {"type": "adaptive"},
+        "output_config": {"effort": "high"},
+    }
+
+
+@pytest.mark.parametrize("model", CLAUDE_5_IDS)
+def test_claude_5_reasoning_effort_max_preserved(model: str):
+    fields = _make_api(model).reasoning_config(GenerateConfig(reasoning_effort="max"))
+    assert fields == {
+        "thinking": {"type": "adaptive"},
+        "output_config": {"effort": "max"},
+    }
+
+
+@pytest.mark.parametrize("model", CLAUDE_5_IDS)
+def test_claude_5_effort_max_preserved(model: str):
+    fields = _make_api(model).reasoning_config(GenerateConfig(effort="max"))
+    assert fields == {"output_config": {"effort": "max"}}
+
+
+def test_claude_haiku_4_5_not_classified_as_4_6_or_later():
+    api = _make_api("anthropic.claude-haiku-4-5-20251001-v1:0")
+    assert api.is_claude_4_6_or_later() is False
+    assert api.reasoning_config(GenerateConfig(effort="max")) == {
+        "output_config": {"effort": "high"}
+    }
+
+
 # --- Fable/Mythos 5.1 forced tool choice ----------------------------------
 
 
@@ -342,6 +413,26 @@ def test_opus_5_5_degrades_forced_tool_choice():
     assert api.resolved_tool_choice("none") == "none"
 
 
+def test_sonnet_5_5_degrades_forced_tool_choice():
+    """Sonnet 5.5 rejects forced tool choice with a 400; degrade to auto."""
+    from inspect_ai.tool._tool_choice import ToolFunction
+
+    for model_name in (
+        "anthropic.claude-sonnet-5-5",
+        "us.anthropic.claude-sonnet-5-5-20260928-v1:0",
+    ):
+        api = _make_api(model_name)
+        assert api.is_claude_4_7_or_later() is True
+        assert api.resolved_tool_choice("any") == "auto"
+        assert api.resolved_tool_choice(ToolFunction(name="get_weather")) == "auto"
+        assert api.resolved_tool_choice("auto") == "auto"
+        assert api.resolved_tool_choice("none") == "none"
+
+    # the base Sonnet 5 keeps forced tool choice as requested
+    base = _make_api("anthropic.claude-sonnet-5")
+    assert base.resolved_tool_choice("any") == "any"
+
+
 def test_opus_5_base_keeps_forced_tool_choice():
     """The base Opus 5 model keeps forced tool choice as requested."""
     from inspect_ai.tool._tool_choice import ToolFunction
@@ -362,6 +453,8 @@ def test_opus_5_base_keeps_forced_tool_choice():
         ("anthropic.claude-fable-5", {"tool": {"name": "addition"}}, False),
         ("anthropic.claude-opus-5-5", {"auto": {}}, True),
         ("anthropic.claude-opus-5", {"tool": {"name": "addition"}}, False),
+        ("anthropic.claude-sonnet-5-5", {"auto": {}}, True),
+        ("anthropic.claude-haiku-5-5", {"tool": {"name": "addition"}}, False),
     ],
 )
 async def test_bedrock_fable_5_1_forced_tool_choice_wiring(
@@ -443,7 +536,7 @@ async def test_bedrock_fable_5_1_forced_tool_choice_wiring(
 from test_helpers.utils import skip_if_no_bedrock  # noqa: E402
 
 from inspect_ai.model import ChatMessageTool, ChatMessageUser, get_model  # noqa: E402
-from inspect_ai.tool import ToolInfo  # noqa: E402
+from inspect_ai.tool import ToolChoice, ToolInfo  # noqa: E402
 from inspect_ai.tool._tool_params import ToolParam, ToolParams  # noqa: E402
 
 
@@ -458,13 +551,15 @@ def _weather_tool() -> ToolInfo:
     )
 
 
-async def _tool_round_trip(model_name: str, config: GenerateConfig) -> str:
+async def _tool_round_trip(
+    model_name: str, config: GenerateConfig, tool_choice: ToolChoice | None = None
+) -> str:
     model = get_model(model_name, config=config)
     tool = _weather_tool()
     user = ChatMessageUser(
         content="What's the weather in Paris? Use the get_weather tool."
     )
-    first = await model.generate(input=[user], tools=[tool])
+    first = await model.generate(input=[user], tools=[tool], tool_choice=tool_choice)
     assistant = first.message
     assert assistant.tool_calls, "model did not call the tool"
     call = assistant.tool_calls[0]
@@ -495,6 +590,18 @@ async def test_bedrock_adaptive_thinking_tool_round_trip():
     completion = await _tool_round_trip(
         "bedrock/us.anthropic.claude-sonnet-4-6",
         GenerateConfig(reasoning_effort="high", max_tokens=4096),
+    )
+    assert completion
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_bedrock_sonnet_5_5_forced_tool_choice_tool_round_trip():
+    """Sonnet 5.5: forced tool choice degrades to auto across a tool call."""
+    completion = await _tool_round_trip(
+        "bedrock/global.anthropic.claude-sonnet-5-5",
+        GenerateConfig(reasoning_effort="high", max_tokens=4096),
+        tool_choice="any",
     )
     assert completion
 

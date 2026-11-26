@@ -11,7 +11,7 @@ Inspect View provides a convenient way to visualize evaluation logs, including d
 
 Below we'll describe how to get the most out of using Inspect View.
 
-Note that this section covers *interactively* exploring log files. You can also use the `EvalLog` API to compute on log files (e.g. to compare across runs or to more systematically traverse results). See the sections on [Eval Logs](#sec-eval-logs) and [Data Frames](dataframe.qmd) to learn more about how to process log files with code.
+Note that this section covers *interactively* exploring log files. You can also use the `EvalLog` API to compute on log files (e.g. to compare across runs or to more systematically traverse results). See the sections on [Eval Logs](eval-logs.qmd) and [Data Frames](dataframe.qmd) to learn more about how to process log files with code.
 
 ## VS Code Extension
 
@@ -42,6 +42,8 @@ $ inspect view --log-dir ./experiment-logs --port 6565
 ```
 
 You only need to run `inspect view` once at the beginning of a session (as it will automatically update to show new evaluations when they are run).
+
+If the logs contain output you don't trust (for example, from a model without safeguards), `inspect view --no-trust-content` shows log content as literal text and replaces media with placeholders. See [Untrusted Content](task-views.qmd#untrusted-content).
 
 ### Remote Access
 
@@ -101,7 +103,9 @@ If you are running VS Code, you can click the **View Log** link within the task 
 
 If you are running with the `inspect view` command-line then you can access logs for in-progress tasks using the [Log History](#log-history) as described above.
 
-### S3 Logs
+[]{#s3-logs}
+
+### Sharing Live Logs
 
 Multiple users can view live logs located on Amazon S3 (or any shared filesystem) by specifying an additional `--log-shared` option indicating that live log information should be written to the shared filesystem:
 
@@ -114,6 +118,10 @@ This is required because the live log viewing feature relies on a local database
 ``` bash
  inspect eval ctf.py --log-shared 30
 ```
+
+On a local or mounted disk on Linux or macOS, Inspect keeps a `.buffer` folder in the log directory between runs. Use ordinary directories for `.buffer` and its run folders. If Inspect detects that a run folder has moved or been replaced, it warns and stops sharing updates for that run. The eval continues recording locally.
+
+If several accounts run evals in the same log directory, give each account permission to create folders in `.buffer`. Inspect replaces files as it publishes updates, so configure any extra viewer permissions to apply to new files.
 
 ## Sample Details
 
@@ -268,7 +276,7 @@ The **Info** panel of the log viewer provides additional meta-information about 
 
 ## Publishing {#sec-publishing}
 
-You can use the command `inspect view bundle` (or the `bundle_log_dir()` function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the viewer. For example, to bundle the `logs` directory to a directory named `logs-www`:
+You can use the command `inspect view bundle` (or the `bundle_log_dir()` function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed to any static web server that supports [HTTP range requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Range_requests) ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the viewer. For example, to bundle the `logs` directory to a directory named `logs-www`:
 
 ``` bash
 $ inspect view bundle --log-dir logs --output-dir logs-www

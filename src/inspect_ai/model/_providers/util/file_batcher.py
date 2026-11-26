@@ -11,7 +11,8 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
 
-from .batch import Batch, Batcher, BatchRequest
+from .batch import Batch, Batcher, BatchRequest, pop_batch_headers
+from .batch_log import log_batch
 
 ResponseT = TypeVar("ResponseT")
 CompletedBatchInfoT = TypeVar("CompletedBatchInfoT")
@@ -52,19 +53,14 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
     @override
     async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
         """Create a batch by generating JSONL file and submitting to provider."""
-        extra_headers: dict[str, str] = {}
+        extra_headers = pop_batch_headers(batch)
 
         with tempfile.NamedTemporaryFile(
             delete=True, suffix=".jsonl", mode="w+b"
         ) as temp_file:
             for request in batch:
-                # Extract common metadata (headers, request IDs)
-                extra_headers, custom_id = self._process_request_metadata(
-                    request, extra_headers
-                )
-
                 # Format as provider-specific JSONL entry
-                jsonl_entry = self._jsonl_line_for_request(request, custom_id)
+                jsonl_entry = self._jsonl_line_for_request(request, request.custom_id)
 
                 # Write to file
                 temp_file.write(json.dumps(jsonl_entry).encode() + b"\n")
@@ -98,7 +94,16 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
         for file_result in results:
             combined_results.update(file_result)
 
+        for request_id in batch.requests.keys() - combined_results.keys():
+            combined_results[request_id] = self._missing_result_error(
+                batch, completion_info
+            )
         return combined_results
+
+    def _missing_result_error(
+        self, batch: Batch[ResponseT], completion_info: CompletedBatchInfoT
+    ) -> Exception:
+        return RuntimeError(f"Batch {batch.id} ended without a result for this request")
 
     # Abstract methods for provider-specific behavior
 
@@ -189,22 +194,6 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
 
     # Private gunk
 
-    def _process_request_metadata(
-        self, request: BatchRequest[ResponseT], existing_headers: dict[str, str]
-    ) -> tuple[dict[str, str], str]:
-        """Extract headers and custom_id from request, updating existing headers."""
-        from .hooks import HttpxHooks
-
-        extra_headers = request.request.pop("extra_headers", {})
-        # Merge with any existing headers
-        merged_headers = existing_headers | extra_headers
-
-        request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
-        if request_id is not None:
-            request.custom_id = request_id
-
-        return merged_headers, request.custom_id
-
     async def _parse_result_file(
         self, file_uri: str
     ) -> dict[str, ResponseT | Exception]:
@@ -216,14 +205,37 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
         Returns:
             Dictionary mapping request IDs to their responses or exceptions
         """
-        return {
-            request_id: response_or_exception
-            for line in (await self._download_result_file(file_uri))
-            .decode()
-            .splitlines()
-            if line.strip()
-            for request_id, response_or_exception in [
-                self._parse_jsonl_line(json.loads(line))
-            ]
-            if request_id
-        }
+        results: dict[str, ResponseT | Exception] = {}
+        for line in (await self._download_result_file(file_uri)).split(b"\n"):
+            if not line.strip():
+                continue
+            line_data: dict[str, pydantic.JsonValue] | None = None
+            try:
+                parsed = json.loads(line)
+                if not isinstance(parsed, dict):
+                    raise ValueError("Batch result is not a JSON object")
+                line_data = parsed
+                request_id, response_or_exception = self._parse_jsonl_line(line_data)
+            except Exception as exc:
+                request_id = (
+                    self._request_id_from_jsonl_line(line_data)
+                    if line_data is not None
+                    else ""
+                )
+                if not request_id:
+                    log_batch(f"Unable to identify a batch result in {file_uri}: {exc}")
+                    continue
+                response_or_exception = exc
+            if request_id:
+                results[request_id] = response_or_exception
+        return results
+
+    def _request_id_from_jsonl_line(
+        self, line_data: dict[str, pydantic.JsonValue]
+    ) -> str:
+        """Recover a request ID when parsing a result line fails."""
+        for key in ("custom_id", "key"):
+            value = line_data.get(key)
+            if isinstance(value, str):
+                return value
+        return ""

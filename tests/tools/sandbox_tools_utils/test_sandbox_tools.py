@@ -1,7 +1,10 @@
+import json
 import textwrap
 import uuid
 from pathlib import Path
+from typing import Iterator
 
+import anyio
 import pytest
 from test_helpers.tool_call_utils import (
     get_tool_call,
@@ -11,11 +14,14 @@ from test_helpers.tool_call_utils import (
 from test_helpers.utils import flaky_retry
 
 from inspect_ai import Task, eval, eval_async
+from inspect_ai._util import logger as inspect_logger
 from inspect_ai.dataset import Sample
 from inspect_ai.model import (
     ContentText,
     get_model,
 )
+from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import match
 from inspect_ai.solver import (
@@ -26,9 +32,27 @@ from inspect_ai.solver import (
     solver,
     use_tools,
 )
-from inspect_ai.tool import ToolCallError, bash_session, mcp_server_sandbox, text_editor
-from inspect_ai.util import ExecRemoteAwaitableOptions, sandbox, store
+from inspect_ai.tool import (
+    ToolCall,
+    ToolCallError,
+    ToolError,
+    bash,
+    bash_session,
+    mcp_server_sandbox,
+    python,
+    text_editor,
+)
+from inspect_ai.tool._sandbox_tools_utils.sandbox import (
+    _AMBIGUOUS_ROOT_ACCESS_WARNING,
+)
+from inspect_ai.util import (
+    ExecRemoteAwaitableOptions,
+    sandbox,
+    store,
+    tool_state_scope,
+)
 from inspect_ai.util._sandbox._cli import SANDBOX_TOOLS_DIR
+from inspect_ai.util._sandbox.identity import sandbox_identity
 from inspect_ai.util._sandbox.limits import override_max_exec_output_size
 
 NONROOT_COMPOSE = str(Path(__file__).parent / ".." / "test_sandbox_compose.yaml")
@@ -36,6 +60,116 @@ ROOTLESS_COMPOSE = str(
     Path(__file__).parent / ".." / "test_sandbox_compose_rootless.yaml"
 )
 SERVER_DIR = f"{SANDBOX_TOOLS_DIR}/.server"
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("victim", ["root", "nobody"])
+async def test_text_editor_history_is_private_to_effective_user(victim: str) -> None:
+    @solver
+    def check_history() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            sb = sandbox()
+            uid = (await sb.exec(["id", "-u"], user=victim)).stdout.strip()
+            attacker_uid = (await sb.exec(["id", "-u"])).stdout.strip()
+            assert uid != attacker_uid and attacker_uid != "0"
+            directory = f"/tmp/inspect-editor-{uid}"
+            history = f"{directory}/history.json"
+            target = f"/tmp/editor-{uuid.uuid4().hex}"
+            editor = text_editor(user=victim)
+
+            # A different non-root account wins the predictable-name race.
+            assert (await sb.exec(["mkdir", "-m", "777", directory])).success
+            await sb.write_file(history, json.dumps({target: ["forged"]}))
+            with pytest.raises(ToolError, match="Cannot access text_editor history"):
+                await editor(command="create", path=target, file_text="original")
+            assert not (await sb.exec(["test", "-e", target])).success
+            assert json.loads(await sb.read_file(history)) == {target: ["forged"]}
+            assert (await sb.exec(["rm", "-r", directory])).success
+
+            assert (await sb.exec(["ln", "-s", "/tmp", directory])).success
+            with pytest.raises(ToolError, match="Cannot access text_editor history"):
+                await editor(command="create", path=target, file_text="original")
+            assert (await sb.exec(["rm", directory])).success
+
+            # The legacy shared pickle must never be read, even by root.
+            marker = f"{target}.executed"
+            payload = f"cos\nsystem\n(S'touch {marker}'\ntR."
+            await sb.write_file("/tmp/inspect_editor_history.pkl", payload)
+            await editor(command="create", path=target, file_text="original")
+            await editor(
+                command="str_replace",
+                path=target,
+                old_str="original",
+                new_str="replaced",
+            )
+            await editor(
+                command="insert", path=target, insert_line=0, new_str="inserted"
+            )
+            assert not (await sb.exec(["test", "-e", marker])).success
+            assert await sb.read_file("/tmp/inspect_editor_history.pkl") == payload
+            ownership = await sb.exec(
+                ["stat", "-c", "%u:%a", directory, history], user=victim
+            )
+            assert ownership.stdout.splitlines() == [f"{uid}:700", f"{uid}:600"]
+
+            # Sticky permissions are insufficient when another user owns /tmp;
+            # without the sticky bit, any user could replace our directory.
+            for change, restore in [
+                (["chown", attacker_uid, "/tmp"], ["chown", "0", "/tmp"]),
+                (["chmod", "777", "/tmp"], ["chmod", "1777", "/tmp"]),
+            ]:
+                assert (await sb.exec(change, user="root")).success
+                try:
+                    with pytest.raises(
+                        ToolError, match="History parent.*cannot be trusted"
+                    ):
+                        await editor(command="undo_edit", path=target)
+                finally:
+                    assert (await sb.exec(restore, user="root")).success
+
+            for command in [
+                ["sh", "-c", f"echo '{{}}' > {history}"],
+                ["rm", history],
+                ["ln", "-s", "/tmp/inspect_editor_history.pkl", f"{directory}/planted"],
+                ["mv", directory, f"{directory}.stolen"],
+            ]:
+                result = await sb.exec(command)
+                assert not result.success, command
+
+            await editor(command="undo_edit", path=target)
+            assert await sb.read_file(target) == "replaced"
+            await editor(command="undo_edit", path=target)
+            assert await sb.read_file(target) == "original"
+            # Root plants a foreign-owned file to exercise the file-owner check
+            # inside a correctly owned private directory.
+            assert (
+                await sb.exec(["chown", attacker_uid, history], user="root")
+            ).success
+            with pytest.raises(ToolError, match="Cannot read text_editor history"):
+                await editor(command="undo_edit", path=target)
+            assert await sb.read_file(target) == "original"
+            assert (await sb.exec(["chown", uid, history], user="root")).success
+            await editor(command="undo_edit", path=target)
+            assert not (await sb.exec(["test", "-e", target])).success
+
+            # The default account gets its own history after the same CLI imports.
+            await text_editor()(command="create", path=target, file_text="default")
+            own_history = f"/tmp/inspect-editor-{attacker_uid}/history.json"
+            assert json.loads(await sb.read_file(own_history)) == {target: [-1]}
+            await text_editor()(command="undo_edit", path=target)
+            return state
+
+        return solve
+
+    [log] = await eval_async(
+        Task(
+            dataset=[Sample(input="Check private undo history")],
+            solver=check_history(),
+            sandbox=("docker", NONROOT_COMPOSE),
+        ),
+        model="mockllm/model",
+    )
+    assert log.status == "success", log.error
 
 
 # The Alpine variant exercises the musl injectable: detection routes musl sandboxes
@@ -135,6 +269,36 @@ async def test_text_editor_directory_path_is_literal(
             dataset=[Sample(input="View a directory containing shell syntax")],
             solver=check_directory_view(),
             sandbox=sandbox_config,
+        ),
+        model="mockllm/model",
+    )
+    assert log.status == "success", log.error
+
+
+@pytest.mark.slow
+async def test_exec_remote_delivers_output_written_after_leader_exits() -> None:
+    """A background child that writes after the leader exits is not lost.
+
+    Fails on main when the first poll sees the exit before the child writes.
+    """
+
+    @solver
+    def check_late_output() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            result = await sandbox().exec_remote(
+                ["sh", "-c", "(sleep 0.5; echo late) & echo early"], stream=False
+            )
+            assert result.success, result.stderr
+            assert result.stdout == "early\nlate\n", result.stdout
+            return state
+
+        return solve
+
+    [log] = await eval_async(
+        Task(
+            dataset=[Sample(input="Run a command with late background output")],
+            solver=check_late_output(),
+            sandbox="docker",
         ),
         model="mockllm/model",
     )
@@ -451,6 +615,71 @@ def test_tools_match_default_exec_identity_without_setuid_caps(tmp_path: Path) -
     assert log.status == "success", log.error
 
 
+@pytest.fixture
+def _warn_once_messages() -> Iterator[list[str]]:
+    # warn_once dedupes via a module-level list; clear it and yield it so the test
+    # can assert on what was emitted.
+    inspect_logger._warned.clear()
+    yield inspect_logger._warned
+    inspect_logger._warned.clear()
+
+
+@solver
+def _record_root_access() -> Solver:
+    """Store the root-access decision as the solver first sees it, before any tool runs."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        access = sandbox()._root_access
+        store().set("root_access", None if access is None else access.state)
+        return state
+
+    return solve
+
+
+# The root-access decision is made at sample init, before the solver runs. On Docker
+# it is definitive except when `root` cannot be resolved at all (no passwd entry:
+# the rootless fixture), which gives no verdict; the tools then still install as
+# the default user, but with a warning.
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "fixture, expected, warned",
+    [
+        pytest.param("nonroot", "usable", False, id="root-can-switch-users"),
+        pytest.param("cap_drop", "unusable", False, id="root-without-setuid-caps"),
+        pytest.param("rootless", "ambiguous", True, id="root-not-in-passwd"),
+    ],
+)
+def test_root_access_is_decided_before_the_solver_runs(
+    tmp_path: Path,
+    _warn_once_messages: list[str],
+    fixture: str,
+    expected: str,
+    warned: bool,
+) -> None:
+    sandbox_spec = {
+        "nonroot": ("docker", NONROOT_COMPOSE),
+        "cap_drop": _compose(tmp_path, "nonroot", None, cap_drop=True),
+        "rootless": ("docker", ROOTLESS_COMPOSE),
+    }[fixture]
+    task = Task(
+        dataset=[Sample(input="whoami")],
+        solver=[_record_root_access(), use_tools([bash_session()]), generate()],
+        scorer=match(),
+        sandbox=sandbox_spec,
+    )
+
+    log = eval(task, model=_whoami_model())[0]
+
+    assert log.status == "success", log.error
+    assert log.samples
+    assert log.samples[0].store["root_access"] == expected
+    tool_call = get_tool_call(log.samples[0].messages, "bash_session")
+    assert tool_call
+    response = get_tool_response(log.samples[0].messages, tool_call)
+    assert response and "start nonroot end" in response.content, response
+    assert (_AMBIGUOUS_ROOT_ACCESS_WARNING in _warn_once_messages) is warned
+
+
 @solver
 def _create_denied(path: str) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -471,6 +700,392 @@ def test_text_editor_default_user_denied_root_path_alpine() -> None:
         dataset=[Sample(input="x")],
         solver=_create_denied("/etc/x.txt"),
         sandbox=("docker", _ALPINE_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+_KILL_TOOLS_SERVER = (
+    "kill -9 \"$(python3 -c 'import json, sys; "
+    f'print(json.load(open(sys.argv[1]))["pid"])\' {SERVER_DIR}/server.pid)"'
+)
+
+
+@solver
+def _scoped_shell_across_a_server_restart() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        assert (await sb.exec(["useradd", "-m", "w1"], user="root")).success
+        team = bash_session(instance="team")
+        with sandbox_identity("w1"):
+            out = str(await team(action="type_submit", input="id -un"))
+        assert "w1" in out, out
+        out = str(await team(action="type_submit", input="id -un"))
+        assert "w1" in out, out
+
+        kill = await sb.exec(["sh", "-c", _KILL_TOOLS_SERVER], user="root")
+        assert kill.success, kill.stderr
+        # the next request starts a new server; its first shell is the default user's
+        setup = bash_session(instance="setup")
+        out = str(await setup(action="type_submit", input="id -un"))
+        assert "nonroot" in out, out
+
+        async def call(**arguments: str) -> ChatMessageTool:
+            tool_call = ToolCall(id="1", function="bash_session", arguments=arguments)
+            messages, _ = await execute_tools(
+                [ChatMessageAssistant(content=[], tool_calls=[tool_call])], [team]
+            )
+            assert isinstance(messages[-1], ChatMessageTool)
+            return messages[-1]
+
+        # the model is told the shell is gone, outside its scope and in it
+        stale = await call(action="type_submit", input="touch /tmp/stale")
+        assert stale.error and "only inside the sandbox identity scope" in (
+            stale.error.message
+        ), stale
+        with sandbox_identity("w1"):
+            stale = await call(action="type_submit", input="touch /tmp/stale")
+            assert stale.error and "Use the 'restart' action" in stale.error.message
+            assert not (await sb.exec(["test", "-e", "/tmp/stale"])).success
+            # and recovers with restart, in the same scoped flow
+            restarted = await call(action="restart")
+            assert restarted.error is None, restarted
+            out = (await call(action="type_submit", input="id -un")).text
+        assert "w1" in out, out
+        out = str(await setup(action="type_submit", input="id -un"))
+        assert "nonroot" in out and "w1" not in out, out
+        return state
+
+    return solve
+
+
+# Trees an older release left in a reused container: one from before per-version
+# directories and one from an older version, each with a launcher that fails.
+_OLD_TOOLS_TREES = ["/var/tmp/.da7be258e003d428", "/var/tmp/.da7be258e003d428-v1"]
+_FAILING_LAUNCHER = "#!/bin/sh\nexit 99\n"
+
+
+@solver
+def _tools_from_other_releases_are_left_alone() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        for tree in _OLD_TOOLS_TREES:
+            planted = await sb.exec(
+                [
+                    "sh",
+                    "-c",
+                    'mkdir -m 700 "$1" "$1/.server" && printf "$2" > "$1/$3" && '
+                    'chmod 700 "$1/$3"',
+                    "sh",
+                    tree,
+                    _FAILING_LAUNCHER,
+                    "inspect-sandbox-tools",
+                ],
+                user="root",
+            )
+            assert planted.success, planted.stderr
+
+        out = str(await bash_session()(action="type_submit", input="id -un"))
+        assert "nonroot" in out, out
+
+        for tree in _OLD_TOOLS_TREES:
+            listing = await sb.exec(["ls", "-A", tree], user="root")
+            assert listing.stdout.split() == [".server", "inspect-sandbox-tools"]
+            launcher = await sb.exec(
+                ["cat", f"{tree}/inspect-sandbox-tools"], user="root"
+            )
+            assert launcher.stdout == "#!/bin/sh\nexit 99\n"
+        return state
+
+    return solve
+
+
+# A reused container may hold trees other releases installed. This release installs
+# and uses its own version's tree and leaves theirs alone.
+@pytest.mark.slow
+def test_tools_from_other_releases_are_left_alone() -> None:
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_tools_from_other_releases_are_left_alone(),
+        sandbox=("docker", NONROOT_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+# A scoped shell is bound to its tools server: after the server is replaced
+# mid-sample, the shell is refused (never reaching the new server's first shell)
+# and `restart` opens a new one.
+@pytest.mark.slow
+def test_scoped_bash_session_across_a_tools_server_restart() -> None:
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_scoped_shell_across_a_server_restart(),
+        sandbox=("docker", NONROOT_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+@solver
+def _two_scoped_users_share_one_bash_session() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        for user in ("w1", "w2"):
+            created = await sb.exec(
+                ["sh", "-c", f"useradd -m {user} && chmod 700 /home/{user}"],
+                user="root",
+            )
+            assert created.success, created.stderr
+        shared = bash_session()
+        opened = {"w1": anyio.Event(), "w2": anyio.Event()}
+
+        async def worker(user: str, other: str) -> None:
+            # $M keeps the echoed input from matching the output
+            home = f"/home/{user}"
+            with tool_state_scope(user), sandbox_identity(user, cwd=home):
+                out = str(
+                    await shared(
+                        action="type_submit",
+                        input=f'M=ok MARK={user}-shell; echo "user-$M=$(id -un) '
+                        'cwd-$M=$(pwd)"',
+                    )
+                )
+                assert f"user-ok={user} cwd-ok={home}" in out, out
+                await text_editor()(command="create", path="notes", file_text=user)
+                opened[user].set()
+                await opened[other].wait()
+                out = str(
+                    await shared(
+                        action="type_submit",
+                        input=f"touch /home/{user}/mine; "
+                        f'ls /home/{other} >/dev/null 2>&1 || echo "denied-$M"',
+                    )
+                )
+                assert "denied-ok" in out, out
+                out = str(
+                    await shared(
+                        action="type_submit",
+                        input='echo "mark-$M=$MARK user-$M=$(id -un)"',
+                    )
+                )
+                assert f"mark-ok={user}-shell user-ok={user}" in out, out
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(worker, "w1", "w2")
+            tg.start_soon(worker, "w2", "w1")
+        for user in ("w1", "w2"):
+            for name in ("mine", "notes"):
+                owner = await sb.exec(
+                    ["stat", "-c", "%U", f"/home/{user}/{name}"], user="root"
+                )
+                assert owner.stdout.strip() == user, owner
+        # a shell cannot start in a directory its user cannot enter, including
+        # one reached through a symlink into another user's private home
+        linked = await sb.exec(
+            [
+                "sh",
+                "-c",
+                "mkdir -m 755 /home/w2/pub && ln -s /home/w2/pub /home/w1/link",
+            ],
+            user="root",
+        )
+        assert linked.success, linked.stderr
+        for cwd in ("/home/w2", "/home/w1/link"):
+            with sandbox_identity("w1", cwd=cwd):
+                with pytest.raises(ToolError, match=f"cannot start in '{cwd}'"):
+                    await bash_session(instance=f"w1-in-{cwd}")(action="read")
+        return state
+
+    return solve
+
+
+# The swarm shape: two users in one sample, each in its own tool state scope and
+# sandbox identity, share one bash_session() at the default instance and each
+# gets its own shell, starting in its home; text_editor() resolves a relative
+# path against the home.
+@pytest.mark.slow
+def test_two_scoped_users_share_one_bash_session() -> None:
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_two_scoped_users_share_one_bash_session(),
+        sandbox=("docker", NONROOT_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+@solver
+def _custom_tools_run_as_the_scope_user() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        default_uid = (await sb.exec(["id", "-u"])).stdout.strip()
+        for user in ("w1", "w2"):
+            created = await sb.exec(
+                [
+                    "sh",
+                    "-c",
+                    f"useradd -m {user} && chmod 700 /home/{user} && "
+                    f"echo {user} > /home/{user}/secret && "
+                    f"chown {user} /home/{user}/secret",
+                ],
+                user="root",
+            )
+            assert created.success, created.stderr
+
+        # what a custom tool does: sandbox operations with no user
+        async def custom_tool(user: str, other: str) -> None:
+            assert (await sandbox().exec(["id", "-un"])).stdout.strip() == user
+            await sandbox().write_file(f"/home/{user}/note", user)
+            assert await sandbox().read_file(f"/home/{user}/secret") == f"{user}\n"
+            with pytest.raises(PermissionError):
+                await sandbox().read_file(f"/home/{other}/secret")
+
+        for user, other in (("w1", "w2"), ("w2", "w1")):
+            with sandbox_identity(user):
+                await custom_tool(user, other)
+                # injects the sandbox tools inside the first scope
+                result = await sandbox().exec_remote(["id", "-un"], stream=False)
+                assert result.stdout.strip() == user, result
+        for user in ("w1", "w2"):
+            owner = await sb.exec(
+                ["stat", "-c", "%U", f"/home/{user}/note"], user="root"
+            )
+            assert owner.stdout.strip() == user, owner
+        assert sb._tools_default_user is not None
+        assert str(sb._tools_default_user.uid) == default_uid
+        assert (await sb.exec(["id", "-u"])).stdout.strip() == default_uid
+        return state
+
+    return solve
+
+
+# A custom tool's exec(), read_file() and write_file() with no user run as the
+# scope's user; injection first triggered inside a scope still records the
+# sandbox's default identity.
+@pytest.mark.slow
+def test_custom_tools_run_as_the_scope_user() -> None:
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_custom_tools_run_as_the_scope_user(),
+        sandbox=("docker", NONROOT_COMPOSE),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+@solver
+def _custom_tools_use_the_scope_cwd() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        created = await sb.exec(
+            [
+                "sh",
+                "-c",
+                "useradd -m w1 && chmod 700 /home/w1 && "
+                "mkdir -p /scratch/w1 && chown w1 /scratch/w1",
+            ],
+            user="root",
+        )
+        assert created.success, created.stderr
+        assert (await sb.exec(["pwd"])).stdout.strip() == "/root"
+
+        with sandbox_identity("w1", cwd="/home/w1"):
+            listed = await sandbox().exec(["sh", "-c", "pwd && ls ."])
+            assert listed.success, listed.stderr
+            assert listed.stdout.splitlines()[0] == "/home/w1"
+            here = await sandbox().exec(["pwd"], cwd="/tmp")
+            assert here.stdout.strip() == "/tmp"
+            # a relative path names the same file in exec() and the file calls
+            await sandbox().write_file("notes/a.txt", "relative")
+            read = await sandbox().exec(["cat", "notes/a.txt"])
+            assert read.stdout == "relative", read
+            assert await sandbox().read_file("/home/w1/notes/a.txt") == "relative"
+            # an absolute path outside the scope's cwd, as inspect_swe writes
+            config = "/scratch/w1/.codex/config.toml"
+            await sandbox().write_file(config, "model = 'x'")
+            assert await sandbox().read_file(config) == "model = 'x'"
+
+        # the user cannot enter the default working directory (/root), but the
+        # Docker file calls do not run there; checked from "/" because some
+        # runtimes refuse to start a command in /root
+        with sandbox_identity("w1"):
+            entered = await sandbox().exec(["test", "-x", "/root"], cwd="/")
+            assert not entered.success, entered
+            await sandbox().write_file("/home/w1/b.txt", "absolute")
+            assert await sandbox().read_file("/home/w1/b.txt") == "absolute"
+
+        owner = await sb.exec(
+            ["stat", "-c", "%U", "/home/w1/notes/a.txt", "/scratch/w1/.codex"]
+        )
+        assert owner.stdout.split() == ["w1", "w1"], owner
+        return state
+
+    return solve
+
+
+# Inside a scope with a cwd, a custom tool's exec() runs there and its relative
+# file paths resolve there, although the image's working directory (/root) is
+# closed to the scope's user.
+@pytest.mark.slow
+def test_custom_tools_use_the_scope_cwd(tmp_path: Path) -> None:
+    compose = tmp_path / "compose.yaml"
+    compose.write_text(
+        f"services:\n  default:\n    build: {_CONTEXT}\n"
+        "    command: tail -f /dev/null\n    working_dir: /root\n"
+        "    init: true\n    network_mode: none\n    stop_grace_period: 1s\n"
+    )
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_custom_tools_use_the_scope_cwd(),
+        sandbox=("docker", str(compose)),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+@solver
+def _scoped_tools_report_the_user_home() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        assert (await sb.exec(["useradd", "-m", "w1"], user="root")).success
+        # outside a scope, a tool's own user keeps the container's HOME (and
+        # its login shell fails to read root's profile)
+        out = str(await bash(user="w1")(command="echo home=$HOME"))
+        assert out.endswith("home=/root\n"), out
+        with sandbox_identity("w1"):
+            out = str(await bash()(command="echo home=$HOME"))
+            assert out == "home=/home/w1\n", out
+            code = "import os; print('home=' + os.environ['HOME'])"
+            out = str(await python()(code=code))
+            assert out == "home=/home/w1\n", out
+            out = str(
+                await bash_session()(
+                    action="type_submit", input='echo "h-$((1))=$HOME"'
+                )
+            )
+            assert "h-1=/home/w1" in out, out
+            result = await sb.exec_remote(["sh", "-c", "echo $HOME"], stream=False)
+            assert result.stdout == "/home/w1\n", result
+        return state
+
+    return solve
+
+
+# The container sets HOME for its default user (root); inside a scope for w1,
+# bash() and python() see w1's home, as bash_session() and exec_remote() do.
+@pytest.mark.slow
+def test_scoped_tools_get_the_user_home_over_a_preset_home(tmp_path: Path) -> None:
+    compose = tmp_path / "compose.yaml"
+    compose.write_text(
+        f"services:\n  default:\n    build: {_CONTEXT}\n"
+        "    command: tail -f /dev/null\n    environment:\n      HOME: /root\n"
+        "    init: true\n    network_mode: none\n    stop_grace_period: 1s\n"
+    )
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_scoped_tools_report_the_user_home(),
+        sandbox=("docker", str(compose)),
     )
     log = eval(task, model=get_model("mockllm/model"))[0]
     assert log.status == "success", log.error

@@ -1,12 +1,18 @@
+import errno
 import hashlib
 import os
+import re
+import secrets
+import stat
+import sys
 import tempfile
-from collections.abc import Iterator
-from contextlib import AbstractContextManager
+import weakref
+from collections.abc import Iterable, Iterator
+from contextlib import AbstractContextManager, contextmanager, suppress
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeAlias
+from typing import IO, TYPE_CHECKING, Annotated, Any, Literal, TypeAlias
 from urllib.parse import urlparse
 from zipfile import ZipFile
 
@@ -68,6 +74,8 @@ class SampleManifest(BaseModel):
     summary: EvalSampleSummary
     segments: list[SampleSegmentEntry] = Field(default_factory=list)
     metadata_hash: str | None = None
+    store_hash: str | None = None
+    """The final store's hash, once the sample completed (written by newer versions)."""
 
 
 class Manifest(BaseModel):
@@ -181,6 +189,7 @@ class PendingSampleSegments:
 
 MANIFEST = "manifest.json"
 SAMPLE_METADATA_IN_SUMMARY = "summary"
+SAMPLE_STORE_EMPTY = "empty"
 
 
 def _is_s3_tagging_denied(ex: Exception) -> bool:
@@ -205,6 +214,11 @@ def _is_s3_tagging_denied(ex: Exception) -> bool:
     return False
 
 
+def uses_pinned_buffer_directory(fs: FileSystem) -> bool:
+    """Whether shared uploads write relative to an open run directory."""
+    return os.name == "posix" and fs.is_local()
+
+
 class SampleBufferFilestore(SampleBuffer):
     def __init__(
         self,
@@ -214,7 +228,10 @@ class SampleBufferFilestore(SampleBuffer):
         update_interval: int = DEFAULT_LOG_SHARED,
     ) -> None:
         self._fs = filesystem(location)
-        self._dir = f"{sample_buffer_dir(dirname(location), self._fs)}{self._fs.sep}{os.path.splitext(basename(location))[0]}{self._fs.sep}"
+        self._dir = f"{sample_buffer_filestore_dir(location, self._fs)}{self._fs.sep}"
+        self._posix = uses_pinned_buffer_directory(self._fs)
+        self._create = create
+        self._local: _PosixBufferDirectory | None = None
         self.update_interval = update_interval
 
         # Tag the ephemeral buffer objects synced to S3 (see _write_bytes for the
@@ -225,11 +242,34 @@ class SampleBufferFilestore(SampleBuffer):
             else {}
         )
 
-        if create:
+        if create and not self._posix:
             self._fs.mkdir(self._dir, exist_ok=True)
 
             # place a file in the dir to force it to be created
             self._write_bytes(f"{self._dir}.keep", b"")
+
+    def _local_directory(self) -> "_PosixBufferDirectory":
+        if self._local is None:
+            try:
+                self._local = _PosixBufferDirectory(
+                    Path(self._dir), create=self._create
+                )
+            except OSError as ex:
+                if ex.errno in (errno.ENOTDIR, errno.ELOOP):
+                    raise SharedBufferUnavailable(
+                        f"Shared buffer requires real directories at {self._dir}: {ex}"
+                    ) from ex
+                if ex.errno in (errno.EACCES, errno.EPERM, errno.EROFS):
+                    raise SharedBufferUnavailable(
+                        f"Cannot access shared buffer directory {self._dir}: {ex}"
+                    ) from ex
+                raise
+        return self._local
+
+    def verify_sync_directory(self) -> None:
+        """Check that the pinned POSIX run directory is in place before an upload."""
+        if self._posix:
+            self._local_directory().verify()
 
     def _write_bytes(self, path: str, data: bytes) -> None:
         """Write bytes to the filestore, tagging S3 objects as ephemeral.
@@ -241,6 +281,9 @@ class SampleBufferFilestore(SampleBuffer):
         of this session and retry untagged so shared-log sync keeps working (the
         objects simply won't be lifecycle-expirable by tag).
         """
+        if self._posix:
+            self._local_directory().write(path.removeprefix(self._dir), data)
+            return
         try:
             with open_file(path, "wb", fs_options=self._write_fs_options) as f:
                 f.write(data)
@@ -286,10 +329,19 @@ class SampleBufferFilestore(SampleBuffer):
         self, id: str | int, epoch: int, metadata_hash: str, metadata: bytes
     ) -> None:
         self._write_bytes(
-            self._sample_metadata_file(id, epoch, metadata_hash), metadata
+            self._sample_sidecar_file("metadata", id, epoch, metadata_hash), metadata
+        )
+
+    def write_sample_store(
+        self, id: str | int, epoch: int, store_hash: str, store: bytes
+    ) -> None:
+        self._write_bytes(
+            self._sample_sidecar_file("store", id, epoch, store_hash), store
         )
 
     def read_manifest(self) -> Manifest | None:
+        if self._local is not None:
+            return self._local.read_manifest()
         try:
             with open_file(self._manifest_file(), "r") as f:
                 contents = f.read()
@@ -302,9 +354,7 @@ class SampleBufferFilestore(SampleBuffer):
     ) -> SampleData:
         segment_file = f"{self._dir}{segment_name(id)}"
         with open_file(segment_file, "rb") as f:
-            with ZipFile(f, mode="r") as zip:
-                with zip.open(segment_file_name(sample_id, epoch_id), "r") as sf:
-                    return SampleData.model_validate_json(sf.read())
+            return segment_sample_data(f, sample_id, epoch_id)
 
     def read_sample_metadata(
         self,
@@ -322,7 +372,8 @@ class SampleBufferFilestore(SampleBuffer):
             return sample.summary.metadata
         try:
             with open_file(
-                self._sample_metadata_file(id, epoch, sample.metadata_hash), "rb"
+                self._sample_sidecar_file("metadata", id, epoch, sample.metadata_hash),
+                "rb",
             ) as f:
                 contents = f.read()
             actual_hash = hashlib.sha256(contents).hexdigest()
@@ -337,6 +388,36 @@ class SampleBufferFilestore(SampleBuffer):
                 id,
                 epoch,
                 ex,
+            )
+            return None
+
+    def read_sample_store(
+        self,
+        id: str | int,
+        epoch: int,
+        manifest: Manifest | None = None,
+    ) -> dict[str, Any] | None:
+        manifest = manifest or self.read_manifest()
+        if manifest is None:
+            return None
+        sample = _find_sample(manifest, id, epoch)
+        if sample is None or sample.store_hash is None:
+            return None
+        if sample.store_hash == SAMPLE_STORE_EMPTY:
+            return {}
+        try:
+            with open_file(
+                self._sample_sidecar_file("store", id, epoch, sample.store_hash), "rb"
+            ) as f:
+                contents = f.read()
+            if hashlib.sha256(contents).hexdigest() != sample.store_hash:
+                raise ValueError(
+                    f"sample store hash mismatch for id={id} epoch={epoch}"
+                )
+            return parse_sample_metadata(contents, id=id, epoch=epoch, field="store")
+        except (FileNotFoundError, ValueError) as ex:
+            logger.warning(
+                "Unable to read sample store for id=%s epoch=%s: %s", id, epoch, ex
             )
             return None
 
@@ -377,7 +458,11 @@ class SampleBufferFilestore(SampleBuffer):
 
     @override
     def cleanup(self) -> None:
-        cleanup_sample_buffer_filestore(self._dir, self._fs)
+        directory = self._local
+        if self._posix and self._create and directory is None:
+            return  # A queued writer has never published anything.
+        if cleanup_sample_buffer_filestore(self._dir, self._fs, directory=directory):
+            self._local = None
 
     @classmethod
     @override
@@ -385,7 +470,7 @@ class SampleBufferFilestore(SampleBuffer):
         buffer_dir = Path(sample_buffer_dir(log_dir))
         if buffer_dir.exists():
             return [
-                f"{basename(path.name)}.{EVAL_LOG_FORMAT}"
+                f"{path.name}.{EVAL_LOG_FORMAT}"
                 for path in buffer_dir.iterdir()
                 if path.is_dir()
             ]
@@ -463,15 +548,9 @@ class SampleBufferFilestore(SampleBuffer):
 
         # collect data from the segments
         try:
-            sample_data = SampleData(
-                events=[], attachments=[], message_pool=[], call_pool=[]
+            sample_data = merge_sample_data(
+                self.read_segment_data(segment["id"], id, epoch) for segment in segments
             )
-            for segment in segments:
-                data = self.read_segment_data(segment["id"], id, epoch)
-                sample_data.events.extend(data.events)
-                sample_data.attachments.extend(data.attachments)
-                sample_data.message_pool.extend(data.message_pool)
-                sample_data.call_pool.extend(data.call_pool)
         except FileNotFoundError:
             # the sample might complete while this is running, in which case
             # we'll just return None
@@ -496,6 +575,10 @@ class SampleBufferFilestore(SampleBuffer):
     @override
     def get_sample_metadata(self, id: str | int, epoch: int) -> dict[str, Any] | None:
         return self.read_sample_metadata(id, epoch)
+
+    @override
+    def get_sample_store(self, id: str | int, epoch: int) -> dict[str, Any] | None:
+        return self.read_sample_store(id, epoch)
 
     @override
     def sample_event_count(self, id: str | int, epoch: int) -> int:
@@ -603,18 +686,26 @@ class SampleBufferFilestore(SampleBuffer):
     def _manifest_file(self) -> str:
         return f"{self._dir}{MANIFEST}"
 
-    def _sample_metadata_file(
-        self, id: str | int, epoch: int, metadata_hash: str
+    def _sample_sidecar_file(
+        self,
+        kind: Literal["metadata", "store"],
+        id: str | int,
+        epoch: int,
+        content_hash: str,
     ) -> str:
+        """Build a sidecar path only from the canonical digests used on disk."""
+        if not re.fullmatch(r"[0-9a-f]{64}", content_hash):
+            raise ValueError(f"Invalid SHA-256 digest for sample {kind}")
         key = to_json_str_safe([str(id), epoch]).encode("utf-8")
         digest = hashlib.sha256(key).hexdigest()
-        return f"{self._dir}metadata.{digest}.{metadata_hash}.json"
+        return f"{self._dir}{kind}.{digest}.{content_hash}.json"
 
 
 async def cleanup_sample_buffer_filestores(log_dir: str) -> None:
     # read log buffer dirs (bail if there is no buffer_dir)
     fs = filesystem(log_dir)
     buffer_dir = sample_buffer_dir(log_dir, fs)
+    local_posix = uses_pinned_buffer_directory(fs)
     try:
         log_buffers = [
             buffer for buffer in fs.ls(buffer_dir) if buffer.type == "directory"
@@ -626,13 +717,20 @@ async def cleanup_sample_buffer_filestores(log_dir: str) -> None:
     # (remove the buffer dir if there is no .eval or the eval is finished)
     for log_buffer in log_buffers:
         try:
-            log_file = f"{log_dir}{fs.sep}{basename(log_buffer.name)}.{EVAL_LOG_FORMAT}"
+            name = (
+                Path(log_buffer.name).name if local_posix else basename(log_buffer.name)
+            )
+            log_file = f"{log_dir}{fs.sep}{name}.{EVAL_LOG_FORMAT}"
             log_header = await read_eval_log_async(log_file, header_only=True)
             if log_header.status != "started":
                 cleanup_sample_buffer_filestore(log_buffer.name, fs)
 
         except FileNotFoundError:
             cleanup_sample_buffer_filestore(log_buffer.name, fs)
+
+    if local_posix:
+        # A writer may already have the empty parent open to create its run.
+        return
 
     # remove the .buffer dir if it's empty
     try:
@@ -642,13 +740,48 @@ async def cleanup_sample_buffer_filestores(log_dir: str) -> None:
         pass
 
 
-def cleanup_sample_buffer_filestore(buffer_dir: str, fs: FileSystem) -> None:
+def cleanup_sample_buffer_filestore(
+    buffer_dir: str, fs: FileSystem, *, directory: "_PosixBufferDirectory | None" = None
+) -> bool:
     try:
-        fs.rm(buffer_dir, recursive=True)
+        if uses_pinned_buffer_directory(fs):
+            with suppress(FileNotFoundError, SharedBufferUnavailable):
+                if directory is None:
+                    directory = _PosixBufferDirectory(
+                        Path(fs.fs._strip_protocol(buffer_dir)), create=False
+                    )
+                directory.cleanup()
+        else:
+            fs.rm(buffer_dir, recursive=True)
     except Exception as ex:
-        logger.warning(
-            f"Error cleaning up sample buffer database at {buffer_dir}: {ex}"
-        )
+        logger.warning("Error cleaning up shared buffer at %s: %s", buffer_dir, ex)
+        return False
+    return True
+
+
+def segment_sample_data(
+    segment: IO[bytes], sample_id: str | int, epoch: int
+) -> SampleData:
+    """One sample's rows from a segment zip (its ``<id>_<epoch>.json`` member).
+
+    Pure parsing; callers own the I/O and the error policy. Raises
+    ``KeyError`` when the segment holds no member for the sample, and the
+    zip, decompression and validation errors of malformed data.
+    """
+    with ZipFile(segment, mode="r") as zip:
+        with zip.open(segment_file_name(sample_id, epoch), "r") as sf:
+            return SampleData.model_validate_json(sf.read())
+
+
+def merge_sample_data(parts: Iterable[SampleData]) -> SampleData:
+    """Concatenate one sample's per-segment rows, in the order given."""
+    merged = SampleData(events=[], attachments=[], message_pool=[], call_pool=[])
+    for part in parts:
+        merged.events.extend(part.events)
+        merged.attachments.extend(part.attachments)
+        merged.message_pool.extend(part.message_pool)
+        merged.call_pool.extend(part.call_pool)
+    return merged
 
 
 def segment_name(id: int) -> str:
@@ -660,6 +793,150 @@ def segment_file_name(id: str | int, epoch: int) -> str:
 
 
 def sample_buffer_dir(log_dir: str, fs: FileSystem | None = None) -> str:
-    log_dir = log_dir.rstrip("/\\")
     fs = fs or filesystem(log_dir)
+    if uses_pinned_buffer_directory(fs):
+        return str(Path(fs.fs._strip_protocol(log_dir)) / ".buffer")
+    log_dir = log_dir.rstrip("/\\")
     return f"{log_dir}{fs.sep}.buffer"
+
+
+def sample_buffer_filestore_dir(location: str, fs: FileSystem) -> str:
+    """Filestore directory for the log at ``location`` (under the log dir's `.buffer`)."""
+    if uses_pinned_buffer_directory(fs):
+        log = Path(fs.fs._strip_protocol(location))
+        stem = os.path.splitext(log.name)[0]
+        if stem in ("", ".", ".."):
+            raise ValueError(f"Invalid log name for a shared buffer: {location!r}")
+        return str(log.parent / ".buffer" / stem)
+    return f"{sample_buffer_dir(dirname(location), fs)}{fs.sep}{os.path.splitext(basename(location))[0]}"
+
+
+class SharedBufferUnavailable(OSError):
+    """The local writer cannot safely use its shared buffer."""
+
+
+@contextmanager
+def _buffer_parent(path: Path, *, create: bool = False) -> Iterator[int]:
+    # Allow symlinks in the configured log path, then open .buffer without following one.
+    log_dir = path.parent.parent
+    if create:
+        log_dir.mkdir(parents=True, exist_ok=True)
+    root = _open_dir(log_dir)
+    try:
+        if create:
+            with suppress(FileExistsError):
+                os.mkdir(".buffer", dir_fd=root)
+        parent = _open_dir(".buffer", parent=root)
+        try:
+            yield parent
+        finally:
+            os.close(parent)
+    finally:
+        os.close(root)
+
+
+def _open_dir(name: str | Path, *, parent: int | None = None) -> int:
+    flags = os.O_DIRECTORY | (os.O_NOFOLLOW if parent is not None else 0)
+    # Darwin's fcntl.h defines O_SEARCH as O_EXEC | O_DIRECTORY.
+    search = getattr(
+        os,
+        "O_SEARCH",
+        getattr(os, "O_PATH", 0x40000000 if sys.platform == "darwin" else 0),
+    )
+    if search:
+        try:
+            return os.open(name, flags | search, dir_fd=parent)
+        except OSError as ex:
+            if ex.errno not in (errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP):
+                raise
+    return os.open(name, flags | os.O_RDONLY, dir_fd=parent)
+
+
+class _PosixBufferDirectory:
+    def __init__(self, path: Path, *, create: bool) -> None:
+        self.path = path
+        with _buffer_parent(path, create=create) as parent:
+            if create:
+                with suppress(FileExistsError):
+                    os.mkdir(path.name, dir_fd=parent)
+            self.fd = _open_dir(path.name, parent=parent)
+        # close() on a database preserves recovery files for later cleanup. A
+        # retained writer therefore owns its directory until cleanup or collection.
+        weakref.finalize(self, os.close, self.fd)
+
+    def verify(self) -> None:
+        try:
+            with _buffer_parent(self.path) as parent:
+                if self._matches(parent):
+                    return
+        except OSError as ex:
+            if ex.errno not in (errno.ENOENT, errno.ENOTDIR, errno.ELOOP, errno.ESTALE):
+                raise
+        raise SharedBufferUnavailable(
+            f"Shared buffer directory was removed or replaced: {self.path}"
+        )
+
+    def _matches(self, parent: int) -> bool:
+        pinned = os.fstat(self.fd)
+        current = os.stat(self.path.name, dir_fd=parent, follow_symlinks=False)
+        return os.path.samestat(current, pinned)
+
+    def read_manifest(self) -> Manifest | None:
+        def opener(name: str, flags: int) -> int:
+            return os.open(name, flags | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=self.fd)
+
+        try:
+            with open(MANIFEST, "rb", opener=opener) as stream:
+                if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                    raise SharedBufferUnavailable(
+                        f"Expected a regular manifest at {self.path / MANIFEST}"
+                    )
+                return Manifest.model_validate_json(stream.read())
+        except FileNotFoundError:
+            return None
+        except OSError as ex:
+            if ex.errno in (errno.ELOOP, errno.EISDIR):
+                raise SharedBufferUnavailable(
+                    f"Expected a regular manifest at {self.path / MANIFEST}"
+                ) from ex
+            raise
+
+    def write(self, name: str, data: bytes) -> None:
+        if name in ("", ".", "..") or "/" in name:
+            raise ValueError(f"Invalid shared buffer filename: {name!r}")
+        mode = 0o666
+        with suppress(FileNotFoundError):
+            entry = os.stat(name, dir_fd=self.fd, follow_symlinks=False)
+            if stat.S_ISREG(entry.st_mode) and entry.st_uid == os.geteuid():
+                mode &= entry.st_mode
+        temp = f".inspect-{secrets.token_hex(16)}.tmp"
+        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode, dir_fd=self.fd)
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(data)
+            os.replace(temp, name, src_dir_fd=self.fd, dst_dir_fd=self.fd)
+        except BaseException:
+            with suppress(FileNotFoundError):
+                os.unlink(temp, dir_fd=self.fd)
+            raise
+
+    def cleanup(self) -> None:
+        self.verify()
+        # Buffer files are flat. A replacement of the public path must never
+        # redirect unlink into another directory.
+        readable = os.open(".", os.O_RDONLY | os.O_DIRECTORY, dir_fd=self.fd)
+        try:
+            with os.scandir(readable) as entries:
+                names = [
+                    entry.name
+                    for entry in entries
+                    if not entry.is_dir(follow_symlinks=False)
+                ]
+            for name in names:
+                with suppress(FileNotFoundError):
+                    os.unlink(name, dir_fd=readable)
+        finally:
+            os.close(readable)
+        with _buffer_parent(self.path) as parent:
+            if self._matches(parent):
+                os.rmdir(self.path.name, dir_fd=parent)

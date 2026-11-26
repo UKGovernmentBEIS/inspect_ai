@@ -14,6 +14,7 @@ from inspect_ai.model._openai import (
     is_gpt_5_plus_model,
     is_gpt_6_model,
     is_latest_model,
+    openai_gpt_version,
 )
 from inspect_ai.model._providers.openai import OpenAIAPI
 
@@ -111,7 +112,8 @@ def test_is_latest_model_helper_handles_bedrock_prefix() -> None:
     assert is_latest_model("openai.gpt-5.5") is False
 
 
-# -- GPT-6 (gpt-6-astra, gpt-6-sol, gpt-6-luna) --
+# -- GPT-6 (gpt-6-astra, gpt-6-sol, gpt-6-luna, gpt-6.1-sol, gpt-6.1-terra,
+# gpt-6.2-astra, gpt-6.2-sol) --
 #
 # Family detection is version-based ("gpt-5 or greater"), so a new major version
 # inherits frontier behavior without a code change per release.
@@ -121,6 +123,10 @@ GPT_6_MODELS = [
     "gpt-6-astra",
     "gpt-6-sol",
     "gpt-6-luna",
+    "gpt-6.1-sol",
+    "gpt-6.1-terra",
+    "gpt-6.2-astra",
+    "gpt-6.2-sol",
     "gpt-6",
     "GPT-6-Astra",
     "gpt-7",
@@ -177,10 +183,20 @@ def test_gpt_5_helpers_are_version_based() -> None:
     assert is_gpt_6_model("gpt-6-astra") is True
     assert is_gpt_6_model("gpt-6-sol") is True
     assert is_gpt_6_model("gpt-6-luna") is True
+    assert is_gpt_6_model("gpt-6.1-sol") is True
+    assert openai_gpt_version("gpt-6.1-sol") == (6, 1)
+    assert openai_gpt_version("openai.gpt-6.1-sol") == (6, 1)
+    assert is_gpt_6_model("gpt-6.1-terra") is True
+    assert openai_gpt_version("gpt-6.1-terra") == (6, 1)
+    assert is_gpt_6_model("gpt-6.2-astra") is True
+    assert openai_gpt_version("gpt-6.2-astra") == (6, 2)
+    assert is_gpt_6_model("gpt-6.2-sol") is True
+    assert openai_gpt_version("gpt-6.2-sol") == (6, 2)
 
 
-# -- always_reasons_model: o-series, gpt-5.0, and GPT-6 Astra can't turn
-# reasoning off with `none`; Sol and Luna can. OpenAIAPI / ModelInfo
+# -- always_reasons_model: o-series, gpt-5.0, GPT-6 Astra, GPT-6.1 Sol, GPT-6.2
+# Astra, and GPT-6.2 Sol can't turn reasoning off with `none`; GPT-6 Sol, Luna,
+# and GPT-6.1 Terra can. OpenAIAPI / ModelInfo
 # .always_reasons() delegate to it (covered in tests/model/test_reasoning_effort.py) --
 
 
@@ -203,6 +219,20 @@ def test_gpt_5_helpers_are_version_based() -> None:
         ("GPT-6-Sol", False),
         ("openai.gpt-6-luna", False),
         ("my-gpt-6-sol-deployment", False),
+        ("gpt-6.1-sol", True),
+        ("GPT-6.1-Sol", True),
+        ("openai.gpt-6.1-sol", True),  # bedrock api_model_name prefix
+        ("my-gpt-6.1-sol-deployment", True),  # azure deployment name
+        ("gpt-6.1-terra", False),
+        ("openai.gpt-6.1-terra", False),
+        ("my-gpt-6.1-terra-deployment", False),
+        ("gpt-6.2-astra", True),
+        ("GPT-6.2-Astra", True),
+        ("openai.gpt-6.2-astra", True),  # bedrock api_model_name prefix
+        ("my-gpt-6.2-astra-deployment", True),  # azure deployment name
+        ("gpt-6.2-sol", True),
+        ("openai.gpt-6.2-sol", True),
+        ("my-gpt-6.2-sol-deployment", True),
         ("gpt-6", False),
         ("gpt-7", False),
         ("gpt-5.6-sol", False),

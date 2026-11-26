@@ -64,13 +64,16 @@ from checkpoint.resume_kill_harness import (
     B_SAMPLE_ID,
     CANCEL_FILE_ENV,
     LAYER1_CONTENT,
+    LITERAL_ENV,
     SIBLING_CKPT_GLOB_ENV,
     SIGNAL_ENV,
     STRATEGY_ENV,
     TARGET_ENV,
     TURN_LIMIT_ENV,
     TWO_SAMPLE_ENV,
+    WRITE_CMD,
     generates,
+    literal_reply,
     reset_generates,
 )
 from checkpoint.resume_kill_thinking_harness import (
@@ -79,9 +82,10 @@ from checkpoint.resume_kill_thinking_harness import (
 )
 from inspect_ai import eval_retry
 from inspect_ai._util.file import local_path
-from inspect_ai.event import Event, SpanBeginEvent, SpanEndEvent, ToolEvent
+from inspect_ai.event import Event, ModelEvent, SpanBeginEvent, SpanEndEvent, ToolEvent
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.log import list_eval_logs, read_eval_log
+from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.scorer import CORRECT
 from inspect_ai.util._checkpoint._layout.eval_checkpoints_dir import (
     eval_checkpoints_dir,
@@ -474,6 +478,103 @@ def test_checkpoint_resume_carries_budget_usage(
 
     resumed_tokens = sum(usage.total_tokens for usage in sample.model_usage.values())
     assert resumed_tokens > spent.tokens
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_checkpoint_resume_keeps_literal_reference_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Text that names one of the sample's attachments reads back as written after a resume.
+
+    The remember turn's assistant text and tool result name the attachment
+    turn 0's bash command is pooled in. The killed attempt checkpoints that
+    turn, and the resumed sample takes it from the checkpoint.
+    """
+    cancel_file = tmp_path / "cancels.txt"
+    monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
+    monkeypatch.setenv(TARGET_ENV, "1")
+    monkeypatch.setenv(LITERAL_ENV, "1")
+    cancel_file.unlink(missing_ok=True)
+    literal = literal_reply()
+    assert literal is not None
+
+    log_dir = str(tmp_path / "logs")
+    tests_dir = Path(__file__).parent.parent
+
+    with checkpoint_docker_projects(tmp_path):
+        _run_interrupted_attempt(log_dir, None, tests_dir)
+        killed_log = _latest_log(log_dir)
+        reset_generates()
+        resume = eval_retry(read_eval_log(killed_log), log_dir=log_dir)[0]
+
+    assert resume.status == "success"
+    assert resume.location
+    for resolve in (True, "core"):
+        log = read_eval_log(resume.location, resolve_attachments=resolve)
+        assert log.samples is not None
+        [sample] = log.samples
+        assert any(
+            isinstance(event, SpanBeginEvent) and event.type == "prior_run"
+            for event in sample.events
+        )
+
+        remember_calls = [
+            message
+            for message in sample.messages
+            if isinstance(message, ChatMessageAssistant)
+            and message.tool_calls
+            and message.tool_calls[0].function == "remember"
+        ]
+        assert [message.text for message in remember_calls] == [literal]
+        remember_results = [
+            message
+            for message in sample.messages
+            if isinstance(message, ChatMessageTool) and message.function == "remember"
+        ]
+        assert [message.text for message in remember_results] == [literal]
+        tool_events = [event for event in sample.events if isinstance(event, ToolEvent)]
+        assert [
+            event.result for event in tool_events if event.function == "remember"
+        ] == [literal]
+        # the restored model event of the remember turn
+        [remember_turn] = [
+            event
+            for event in sample.events
+            if isinstance(event, ModelEvent)
+            and event.output.message.tool_calls
+            and event.output.message.tool_calls[0].function == "remember"
+        ]
+        assert remember_turn.output.message.text == literal
+        if resolve is True:
+            assert remember_turn.call is not None
+            assert remember_turn.call.response == {"content": literal}
+        # the genuine reference to the pooled command still resolves
+        assert tool_events[0].function == "bash"
+        assert tool_events[0].arguments == {"command": WRITE_CMD}
+
+        later_model_events = [
+            event
+            for event in sample.events
+            if isinstance(event, ModelEvent)
+            and any(
+                isinstance(message, ChatMessageTool) and message.function == "remember"
+                for message in event.input
+            )
+        ]
+        assert later_model_events
+        for event in later_model_events:
+            [result] = [
+                message
+                for message in event.input
+                if isinstance(message, ChatMessageTool)
+                and message.function == "remember"
+            ]
+            assert result.text == literal
+            if resolve is True:
+                assert event.call is not None
+                request = json.dumps(event.call.request)
+                assert json.dumps(literal) in request
 
 
 @skip_if_no_docker

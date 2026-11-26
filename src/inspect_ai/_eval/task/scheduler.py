@@ -26,7 +26,6 @@ directive's accept path requires.
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
@@ -40,10 +39,7 @@ from typing import (
 
 import anyio
 
-from inspect_ai._util._async import Wake
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
+from inspect_ai._util._async import Wake, unwrap_exception_group
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.error import SampleErrorHandler
@@ -281,7 +277,7 @@ class SampleScheduler:
         if feeder is not None:
             self._holds += 1
         try:
-            async with anyio.create_task_group() as tg:
+            async with unwrap_exception_group("first"), anyio.create_task_group() as tg:
 
                 async def run_feeder(feeder: Callable[[], Awaitable[None]]) -> None:
                     try:
@@ -329,8 +325,6 @@ class SampleScheduler:
                         tg.start_soon(run_one, entry.sample_index, entry.epoch, entry)
                         continue
                     await self._wake.wait()
-        except ExceptionGroup as ex:
-            raise ex.exceptions[0] from None
         finally:
             self._running = False
             # A teardown (fail_on_error threshold, task cancel) can leave
@@ -436,11 +430,16 @@ class SampleRequeue:
         checkpoints_dir: str | None,
         on_accept: RequeueAccept,
         on_withdraw: RequeueWithdraw,
+        epoch_sample_indexes: dict[SampleKey, int] | None = None,
     ) -> None:
         self._eval_id = eval_id
         self._scheduler = scheduler
         self._sample_error = sample_error
+        # samples added with an explicit epoch have their own index per (id, epoch)
         self._sample_indexes = sample_indexes
+        self._epoch_sample_indexes = (
+            epoch_sample_indexes if epoch_sample_indexes is not None else {}
+        )
         self._checkpoints_dir = checkpoints_dir
         self._on_accept = on_accept
         self._on_withdraw = on_withdraw
@@ -575,7 +574,9 @@ class SampleRequeue:
             return "already_pending"
         if prior.uuid is not None and prior.uuid in self._accepted_uuids:
             return "stale"
-        sample_index = self._sample_indexes.get(str(prior.id))
+        sample_index = self._epoch_sample_indexes.get(
+            key, self._sample_indexes.get(str(prior.id))
+        )
         if sample_index is None:
             return "unknown"
 

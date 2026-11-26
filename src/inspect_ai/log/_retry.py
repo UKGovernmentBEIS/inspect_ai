@@ -1,5 +1,6 @@
 from logging import getLogger
 
+from inspect_ai._eval.task.sample_source import HANDLE_DATASET_NAME
 from inspect_ai._util.logger import warn_once
 
 from ._file import EvalLogInfo, read_eval_log_headers
@@ -12,7 +13,8 @@ def retryable_eval_logs(logs: list[EvalLogInfo]) -> list[EvalLogInfo]:
 
     Retryable logs are logs with status "error" or "cancelled" that
     do not have a corresponding log with status "success" (indicating
-    they were subsequently retried and completed)
+    they were subsequently retried and completed). Logs of tasks fed through
+    a handle are left out: they are retried with the task that added them.
 
     Args:
       logs (list[EvalLogInfo]): List of logs to examine.
@@ -41,6 +43,8 @@ def retryable_eval_logs(logs: list[EvalLogInfo]) -> list[EvalLogInfo]:
     # the most recent one)
     retryable_logs: dict[str, EvalLogInfo] = {}
     for log, log_header in zip(logs, log_headers):
+        if log_header.eval.dataset.name == HANDLE_DATASET_NAME:
+            continue
         if (
             log_header.status == "cancelled"
             or log_header.status == "error"

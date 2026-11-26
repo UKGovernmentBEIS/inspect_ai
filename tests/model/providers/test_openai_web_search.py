@@ -95,7 +95,17 @@ class TestOpenAIWebSearch:
 
 
 @pytest.mark.parametrize(
-    "model_name", ["gpt-5", "gpt-5.6-sol", "gpt-6-astra", "my-gpt-6-deployment"]
+    "model_name",
+    [
+        "gpt-5",
+        "gpt-5.6-sol",
+        "gpt-6-astra",
+        "gpt-6.1-sol",
+        "gpt-6.1-terra",
+        "gpt-6.2-astra",
+        "gpt-6.2-sol",
+        "my-gpt-6-deployment",
+    ],
 )
 def test_maybe_web_search_tool_frontier_models(model_name):
     tool = ToolInfo(

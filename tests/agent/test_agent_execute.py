@@ -9,6 +9,7 @@ from inspect_ai._util.registry import registry_create
 from inspect_ai.agent import Agent, AgentState, agent, as_solver, as_tool
 from inspect_ai.agent._handoff import handoff
 from inspect_ai.agent._run import run
+from inspect_ai.dataset import Sample
 from inspect_ai.event._span import SpanBeginEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._call_tools import execute_tools
@@ -236,6 +237,35 @@ def test_agent_as_tool_respects_limits() -> None:
     check_limit_event(log, "message")
 
 
+def test_agent_as_tool_does_not_reuse_limits() -> None:
+    agent_tool = as_tool(looping_agent(), limits=[message_limit(10)])
+
+    log = eval(
+        Task(
+            solver=[
+                use_tools(agent_tool),
+                call_looping_agent(),
+                call_looping_agent(),
+            ]
+        )
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples
+    tool_messages = [
+        m for m in log.samples[0].messages if isinstance(m, ChatMessageTool)
+    ]
+    assert len(tool_messages) == 2
+    # each invocation gets a fresh limit, so both hit the message limit
+    # (rather than the second failing because the limit was already used)
+    for tool_message in tool_messages:
+        assert tool_message.error is not None
+        assert (
+            "The tool exceeded its message limit of 10." in tool_message.error.message
+        )
+    check_limit_event(log, "message")
+
+
 def test_agent_as_tool_respects_sample_limits() -> None:
     agent_tool = as_tool(looping_agent())
 
@@ -373,6 +403,27 @@ def test_agent_as_solver_respects_limits() -> None:
     check_limit_event(log, "message")
 
 
+def test_agent_as_solver_does_not_reuse_limits() -> None:
+    agent_solver = as_solver(looping_agent(), limits=[message_limit(10)])
+
+    log = eval(
+        Task(
+            dataset=[Sample(id=1, input="a"), Sample(id=2, input="b")],
+            solver=agent_solver,
+        )
+    )[0]
+
+    # each sample gets a fresh limit, so every sample hits the message limit
+    # (rather than later samples erroring because the limit was already used)
+    assert log.status == "success"
+    assert log.samples
+    assert len(log.samples) == 2
+    for sample in log.samples:
+        assert sample.error is None
+        assert len(sample.messages) == 10
+    check_limit_event(log, "message")
+
+
 def test_agent_as_solver_respects_sample_limits() -> None:
     agent_solver = as_solver(looping_agent())
 
@@ -447,7 +498,7 @@ async def test_agent_run_parent_limit_hit() -> None:
             await run(looping_agent(), "This is the input", limits=[token_limit(100)])
 
     assert exc_info.value.type == "token"
-    assert exc_info.value.value == 11
+    assert exc_info.value.value == 10
     assert exc_info.value.limit == 10
 
 

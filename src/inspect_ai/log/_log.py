@@ -15,6 +15,7 @@ from pydantic import (
 from shortuuid import uuid
 from typing_extensions import TypedDict
 
+from inspect_ai._sentinel._config import SentinelConfig, SentinelProxy
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError, exception_message
@@ -22,6 +23,7 @@ from inspect_ai._util.hash import base57_id_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
+from inspect_ai._util.model_validator import model_wrap_validator
 from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.event._timeline import Timeline
@@ -45,6 +47,7 @@ from inspect_ai.util._store_model import SMT
 from inspect_ai.viewer import ViewerConfig
 
 from ..event._event import DiscriminatedEvent
+from ._sentinel_stats import SentinelEvalStats, SentinelStats
 from ._util import thin_input, thin_metadata, thin_target, thin_text
 
 logger = getLogger(__name__)
@@ -117,6 +120,20 @@ class EvalConfig(BaseModel):
     review: ReviewPolicyConfig | None = Field(default=None)
     """Review policy for tool results."""
 
+    sentinel: SentinelConfig | None = Field(default=None)
+    """Sentinel monitors and protocols, as the configuration that rebuilds them.
+
+    One entry (a lone monitor or protocol, which is the root itself), a list of entries, or a mapping of instance names to entries. Logs load without `inspect_sentinel` installed.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
+    sentinel_proxy: SentinelProxy | None = Field(default=None)
+    """Whether to look for a sentinel sidecar behind each model's proxy: `off` (the default when not set) never looks, `auto` uses one it finds, and `required` fails a task unless one is found.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
     notification: bool | str | None = Field(default=None)
     """Notification routing for human-in-the-loop interactions.
 
@@ -171,7 +188,12 @@ class EvalConfig(BaseModel):
     """Maximum clock time per sample."""
 
     working_limit: int | None = Field(default=None)
-    """Meximum working time per sample."""
+    """Maximum working time per sample.
+
+    While a wait is open, only model calls, sandbox commands and tool calls
+    are charged, so working time can undercount; set `time_limit` as well to
+    bound clock time.
+    """
 
     cost_limit: float | None = Field(default=None)
     """Maximum cost (in dollars) per sample."""
@@ -301,6 +323,9 @@ class EvalSampleSummary(BaseModel):
     target: str | list[str]
     """Sample target value(s)"""
 
+    description: str | None = Field(default=None)
+    """Short statement of what the sample asks of the agent."""
+
     metadata: dict[str, Any] = Field(default_factory=dict)
     """Sample metadata (only fields < 1k; strings truncated to 1k)."""
 
@@ -316,6 +341,12 @@ class EvalSampleSummary(BaseModel):
     model_fallbacks: list[ModelFallback] | None = Field(default=None)
     """Model fallbacks that occurred during the sample (None if no fallbacks)."""
 
+    sentinel_stats: dict[str, SentinelStats] | None = Field(default=None)
+    """What each sentinel did over the sample, keyed by the sentinel's name.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
 
@@ -326,7 +357,15 @@ class EvalSampleSummary(BaseModel):
     """Total time that the sample was running."""
 
     working_time: float | None = Field(default=None)
-    """Time spent working (model generation, sandbox calls, etc.)"""
+    """Time spent working (model generation, sandbox calls, etc.)
+
+    Clock time minus the time when a wait (retries, rate limits, shared
+    resources, approval, human input) was open in the sample and no model
+    call, sandbox command or tool call was running (not counting commands run
+    with `exec_remote()` or inside `sandbox_agent_bridge()`). Other work done
+    during a wait is not counted, so set `time_limit` alongside `working_limit` to
+    bound clock time.
+    """
 
     uuid: str | None = Field(default=None)
     """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
@@ -421,7 +460,17 @@ class EvalRetryError(BaseModel):
 
 
 class EvalSample(BaseModel):
-    """Sample from evaluation task."""
+    """Sample from evaluation task.
+
+    A sample remembers whether its attachment references have been resolved:
+    `resolve_sample_attachments()` (and reading a log with
+    `resolve_attachments`) marks the sample it returns, and writing a log
+    uses the mark to tell literal text that begins with `attachment://` or
+    `tc://` from a reference. The mark is not serialized. A sample without
+    it (built by hand, or passed through `model_dump()` and
+    `model_validate()`) is taken to hold references, as read from a log
+    without resolving attachments.
+    """
 
     id: int | str
     """Unique id for sample."""
@@ -437,6 +486,9 @@ class EvalSample(BaseModel):
 
     target: str | list[str]
     """Sample target value(s)"""
+
+    description: str | None = Field(default=None)
+    """Short statement of what the sample asks of the agent."""
 
     sandbox: SandboxEnvironmentSpec | None = Field(default=None)
     """Sandbox environment type and optional config file."""
@@ -518,6 +570,12 @@ class EvalSample(BaseModel):
     subagents, and scorers alike), aggregated by (model, fallback_model).
     """
 
+    sentinel_stats: dict[str, SentinelStats] | None = Field(default=None)
+    """What each sentinel did over the sample, keyed by the sentinel's name.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
 
@@ -528,7 +586,15 @@ class EvalSample(BaseModel):
     """Total time that the sample was running."""
 
     working_time: float | None = Field(default=None)
-    """Time spent working (model generation, sandbox calls, etc.)"""
+    """Time spent working (model generation, sandbox calls, etc.)
+
+    Clock time minus the time when a wait (retries, rate limits, shared
+    resources, approval, human input) was open in the sample and no model
+    call, sandbox command or tool call was running (not counting commands run
+    with `exec_remote()` or inside `sandbox_agent_bridge()`). Other work done
+    during a wait is not counted, so set `time_limit` alongside `working_limit` to
+    bound clock time.
+    """
 
     uuid: str | None = Field(default=None)
     """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
@@ -573,6 +639,13 @@ class EvalSample(BaseModel):
     time_limit: int | None = Field(default=None)
     """Time limit ceiling in seconds the sample ran under (None when no limit); reflects mid-run (`inspect ctl config`) retunes."""
 
+    _attachment_state: Literal["condensed", "core", "full"] = PrivateAttr(
+        default="condensed"
+    )
+    """How far attachment references have been resolved: "condensed" (not
+    at all), "core" (all but `ModelEvent.call` and the call pool) or "full".
+    Set by `resolve_sample_attachments()`; read when condensing."""
+
     def summary(self) -> EvalSampleSummary:
         """Summary of sample.
 
@@ -591,11 +664,13 @@ class EvalSample(BaseModel):
             input=self.input,
             choices=self.choices,
             target=self.target,
+            description=self.description,
             metadata=self.metadata,
             scores=self.scores,
             model_usage=self.model_usage,
             role_usage=self.role_usage,
             model_fallbacks=self.model_fallbacks,
+            sentinel_stats=self.sentinel_stats,
             started_at=self.started_at,
             completed_at=self.completed_at,
             total_time=self.total_time,
@@ -656,10 +731,11 @@ class EvalSample(BaseModel):
             del values["score"]
 
         if "transcript" in values:
-            # promote 'transcript' up to 'events' and 'attachments'
-            eval_events = EvalEvents(**values["transcript"])
-            values["events"] = eval_events.events
-            values["attachments"] = eval_events.content
+            # promote 'transcript' up to 'events' and 'attachments' (left
+            # unvalidated so they are validated with this read's context)
+            transcript = values["transcript"]
+            values["events"] = transcript.get("events", [])
+            values["attachments"] = transcript.get("content", {})
 
             # get rid of transcript (property accessor w/ deprecation
             # warning will handle this)
@@ -667,7 +743,7 @@ class EvalSample(BaseModel):
 
         return migrate_values(values)
 
-    @model_validator(mode="wrap")
+    @model_wrap_validator
     @classmethod
     def _resolve_timelines(
         cls, data: Any, handler: Any, info: ValidationInfo
@@ -1013,6 +1089,62 @@ class EvalRevision(BaseModel):
     """Working tree has uncommitted changes or untracked files."""
 
 
+class EvalShardEntry(BaseModel):
+    """Ledger entry for one shard, as of the merge that last read it."""
+
+    shard: str
+    """Name of the shard's directory (`<k>`) in the companion."""
+
+    log: str
+    """File name of the shard's current attempt (the newest `.eval` in `<k>/`)."""
+
+    eval_set_id: str | None = Field(default=None)
+    """`eval_set_id` of the current attempt."""
+
+    status: EvalStatus
+    """Status of the current attempt when it was read."""
+
+    error: EvalError | None = Field(default=None)
+    """Error of the current attempt when its status is `error` or `cancelled`."""
+
+    samples: int
+    """Number of `(id, epoch)` records the current attempt held when read (all merged)."""
+
+    started_at: UtcDatetimeStr | Literal[""] = Field(default_factory=str)
+    """`stats.started_at` of the current attempt."""
+
+    completed_at: UtcDatetimeStr | Literal[""] = Field(default_factory=str)
+    """`stats.completed_at` of the current attempt (empty while it runs)."""
+
+    model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """`stats.model_usage` of the current attempt."""
+
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """`stats.role_usage` of the current attempt."""
+
+    size: int
+    """Size in bytes of the current attempt when it was read."""
+
+    etag: str | None = Field(default=None)
+    """ETag of the bytes read (object stores that report one)."""
+
+    mtime: float | None = Field(default=None)
+    """Modification time of the current attempt when it was read."""
+
+
+class EvalShards(BaseModel):
+    """Provenance of a merged log: its shards and the ledger of the last merge."""
+
+    selection: Literal["ids", "count", "none"]
+    """Form of the intended selection the last merge had; the ids are `eval.dataset.sample_ids`."""
+
+    sample_count: int | None = Field(default=None)
+    """Intended selection as a count, when `selection` is `"count"`."""
+
+    ledger: list[EvalShardEntry]
+    """One entry per shard with a current attempt, in shard order."""
+
+
 class EvalSpec(BaseModel):
     """Eval target and configuration."""
 
@@ -1042,6 +1174,9 @@ class EvalSpec(BaseModel):
 
     task_display_name: str | None = Field(default=None)
     """Task display name."""
+
+    task_description: str | None = Field(default=None)
+    """Short statement of what the task asks of the agent."""
 
     task_registry_name: str | None = Field(default=None)
     """Task registry name."""
@@ -1118,6 +1253,9 @@ class EvalSpec(BaseModel):
     """Headline metric declared by the task — which score/metric best summarises
     this eval. Authored via `Task(headline_metric=...)`. When unset, readers fall
     back to the first metric of the first score."""
+
+    shards: EvalShards | None = Field(default=None)
+    """Shards merged into this log (merged logs only)."""
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())
@@ -1214,6 +1352,12 @@ class EvalStats(BaseModel):
     connection_limit_history: list[ConnectionLimitChange] = Field(default_factory=list)
     """History of adaptive-connections controller scale changes (empty unless `adaptive_connections` was enabled)."""
 
+    sentinel_stats: dict[str, SentinelEvalStats] | None = Field(default=None)
+    """What each sentinel did over the eval, keyed by the sentinel's name: its samples' stats added up, where they are complete.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
 
@@ -1254,6 +1398,15 @@ class EvalLog(BaseModel):
 
     config_updates: list[ConfigUpdate] | None = Field(default=None)
     """Mid-run configuration changes applied via the control channel (`inspect ctl config`)."""
+
+    total_samples: int | None = Field(default=None)
+    """Sample/epoch runs accepted for this attempt, saved when the eval finishes.
+
+    Includes the selected seed runs and runs accepted later, even when they
+    never start. Equals ``results.total_samples`` when evaluation results are
+    written; later rescoring can change the results count. Does not predict
+    what a source adds later. ``None`` means unknown, including logs from
+    older versions and running, crashed and recovered logs."""
 
     tags: list[str] = Field(default_factory=list)
     """Current tags (eval-time + edits). Do not set directly; use edit_eval_log()."""

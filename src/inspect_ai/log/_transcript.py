@@ -1,6 +1,7 @@
 import contextlib
 import os
-from collections import deque
+import weakref
+from collections import ChainMap, deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -11,6 +12,7 @@ from typing import (
     Literal,
     NamedTuple,
     Protocol,
+    TypeGuard,
     TypeVar,
     overload,
 )
@@ -29,16 +31,27 @@ from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._interrupt import InterruptEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.event._span import SpanBeginEvent
 from inspect_ai.event._store import StoreEvent
 from inspect_ai.event._timeline import Timeline
 from inspect_ai.log._condense import (
     CallWalkCache,
+    CondensedCall,
+    CondensedJson,
     WalkContext,
     attachment_refs_from_object,
+    condense_call_response,
+    resolve_events_attachments,
 )
 from inspect_ai.model._chat_message import ChatMessageBase
-from inspect_ai.model._model_call import ModelCall
-from inspect_ai.util._store import store, store_changes, store_jsonable
+from inspect_ai.model._model_call import ModelCall, init_call_interner
+from inspect_ai.util._span import AgentSpans
+from inspect_ai.util._store import (
+    store,
+    store_changes,
+    store_events_suspended,
+    store_jsonable,
+)
 
 if TYPE_CHECKING:
     from inspect_ai.log._recorders.buffer.types import TranscriptEventSink
@@ -46,13 +59,28 @@ if TYPE_CHECKING:
 logger = getLogger(__name__)
 
 
-ET = TypeVar("ET", bound=BaseEvent)
+ET = TypeVar("ET", bound=Event)
 
 
 @dataclass(frozen=True)
 class _TranscriptSubscription:
     id: int
-    callback: Callable[[Event], None]
+    callback: Callable[[Event, Mapping[str, str]], None]
+    stores_attachments: bool
+    """The subscriber keeps its own attachment store (see `Transcript._subscribe_store`)."""
+
+
+class _NotifiedCall(NamedTuple):
+    """The forms of a model event's call that subscribers take."""
+
+    raw: ModelCall
+    """For subscribers without an attachment store of their own."""
+
+    stored: ModelCall
+    """For subscribers that keep their own attachment store: condensed, literals stored as attachments."""
+
+    attachments: Mapping[str, str]
+    """Holds every attachment ``stored`` references, except ones released since an earlier notification gave them."""
 
 
 class _EventRefs(NamedTuple):
@@ -443,6 +471,98 @@ class TranscriptHistory:
             return events[index:]
         return events
 
+    @overload
+    def find_last(self, predicate: Callable[[Event], TypeGuard[ET]]) -> ET | None: ...
+
+    @overload
+    def find_last(self, predicate: Callable[[Event], bool]) -> Event | None: ...
+
+    def find_last(self, predicate: Callable[[Event], bool]) -> Event | None:
+        """Return the most recent event, by logical position, that matches `predicate`.
+
+        Searches newest first and stops at the first match, so finding a
+        recent event reads only recent history. The search covers the history
+        as it was when `find_last` was called: events that `predicate` itself
+        adds (eg. by logging) are not searched.
+
+        With a history provider, the trailing resident window is searched
+        first, then evicted events are read back from the provider in pages
+        that grow from 16 to 256 events, strictly newest first, so older
+        events kept in memory (pinned or pending) are found in their logical
+        place. Without a provider, the resident events are searched newest
+        first. No events are retained.
+
+        Args:
+            predicate: Called with each event until it returns `True`.
+
+        Returns:
+            The most recent matching event, or `None` if no event matches.
+
+        Raises:
+            TranscriptHistoryUnavailableError: If the search requires history
+                that is unavailable; without a provider, this occurs after no
+                resident event matches and events have been evicted.
+        """
+        transcript = self._transcript
+        events = transcript._events  # appended to, or replaced on eviction
+        resident = len(events)
+        count = transcript._event_count
+        truncated = transcript._events_truncated
+        provider = transcript._history_provider
+        trailing = max(0, min(transcript._resident_tail, resident))
+
+        if not truncated or provider is None:
+            for index in range(resident - 1, -1, -1):
+                if predicate(events[index]):
+                    return events[index]
+            if truncated:
+                raise TranscriptHistoryUnavailableError(
+                    "Full transcript history is not available from this Transcript"
+                )
+            return None
+
+        for index in range(resident - 1, resident - trailing - 1, -1):
+            if predicate(events[index]):
+                return events[index]
+        end = count - trailing
+        window = 16
+        while end > 0:
+            start = max(0, end - window)
+            for event in reversed(provider.events_from(start, end - start)):
+                if predicate(event):
+                    return event
+            end = start
+            window = min(window * 2, 256)
+        return None
+
+
+class _CondensedModelCall(NamedTuple):
+    """A model call this transcript condensed (see `CondensedCall`)."""
+
+    call: ModelCall
+    """The condensed call the event holds."""
+
+    response: dict[str, JsonValue] | None
+    """``call.response`` when it was condensed, to tell a response set in place since."""
+
+    unescaped_request: dict[str, JsonValue]
+    """``call.request`` with its literal reference text put back."""
+
+    unescaped_response: dict[str, JsonValue] | None
+    """``response`` with its literal reference text put back."""
+
+    def subscriber_call(self) -> ModelCall:
+        """The call as subscribers without an attachment store see it: the current call, with literals inline."""
+        call = self.call
+        response = (
+            self.unescaped_response if call.response is self.response else call.response
+        )
+        if self.unescaped_request is call.request and response is call.response:
+            return call
+        return call.model_copy(
+            update={"request": self.unescaped_request, "response": response}
+        )
+
 
 class Transcript:
     """Transcript of events."""
@@ -486,6 +606,10 @@ class Transcript:
         self._log_model_api = log_model_api
         self._context = WalkContext(message_cache={}, only_core=False)
         self._call_walk_cache = CallWalkCache()
+        # the calls this transcript condensed, by event key
+        self._condensed_calls: dict[str, _CondensedModelCall] = {}
+        # evicted events whose condensed calls are kept while they are alive
+        self._evicted_call_events: dict[str, weakref.ref[Event]] = {}
         self._events: list[Event] = self._normalize_seeded_events(events or [])
         self._history_provider = history_provider
         self._events_view = _TranscriptEventsView(self)
@@ -507,6 +631,9 @@ class Transcript:
             on_release=self._release_message_refs
         )
         self._timelines: list[Timeline] = []
+        self._agent_spans = AgentSpans()
+        for event in self._events:
+            self._add_span(event)
         self._model_call_counts: dict[str, int] = {}
         self._kept_event_ids: set[str] = set()
         self._bounded = bounded
@@ -633,6 +760,7 @@ class Transcript:
             raise ValueError(f"Duplicate event uuid: {event_key}")
         self._process_event(event)
         self._events.append(event)
+        self._add_span(event)
         self._resident_event_ids.add(event_key)
         self._set_attachment_refs(event)
         self._event_count += 1
@@ -649,28 +777,69 @@ class Transcript:
         *,
         notify_subscribers: bool = False,
     ) -> None:
-        events = self._normalize_seeded_events(events)
+        """Append condensed events restored from a checkpoint.
+
+        The events are stored and delivered to subscribers with their
+        ``attachment://`` references resolved from ``attachments``, except
+        ``ModelEvent.call``, which stays condensed (resolving every restored
+        call payload is costly and only the raw API-call view reads it).
+        ``attachments`` is retained and each event's references are counted
+        from its condensed form, so the checkpointer can seed its transcript
+        store from the condensed events and bounded eviction releases them as
+        before. The caller's events are not mutated.
+        """
+        condensed_events = self._normalize_seeded_events(events)
         event_keys: list[str] = []
         new_event_keys: set[str] = set()
-        for event in events:
+        for event in condensed_events:
             event_key = self._ensure_event_key(event)
             if event_key in self._resident_event_ids or event_key in new_event_keys:
                 raise ValueError(f"Duplicate event uuid: {event_key}")
             event_keys.append(event_key)
             new_event_keys.add(event_key)
 
+        resolved_events = resolve_events_attachments(
+            condensed_events, attachments, "core"
+        )
         self._attachments.update(attachments)
-        for event, event_key in zip(events, event_keys):
+        for condensed, event, event_key in zip(
+            condensed_events, resolved_events, event_keys
+        ):
             self._events.append(event)
+            self._add_span(event)
             self._resident_event_ids.add(event_key)
-            self._set_attachment_refs(event)
+            if isinstance(event, ModelEvent) and event.call is not None:
+                self._condensed_calls[event_key] = _CondensedModelCall(
+                    call=event.call,
+                    response=event.call.response,
+                    unescaped_request=event.call.request,
+                    unescaped_response=event.call.response,
+                )
+            self._set_attachment_refs(condensed)
             self._event_count += 1
             self._update_pin_state(event)
             self._update_pending(event)
-            self._update_evictable_state(event)
+            if self._bounded and self._is_evictable_event_key(event_key):
+                self._evictable_event_ids.append(event_key)
             if notify_subscribers:
                 self._notify_subscribers(event)
         self._evict_events()
+
+    def _add_span(self, event: Event) -> None:
+        if isinstance(event, SpanBeginEvent):
+            self._agent_spans.add(event)
+
+    def _agent_span(self, span_id: str) -> str | None:
+        """The innermost agent span at or above the span `span_id`, from the spans begun in this transcript (see `AgentSpans`).
+
+        Raises:
+            ValueError: No span `span_id` was begun in this transcript, or the span tree has a `parent_id` cycle.
+        """
+        if span_id not in self._agent_spans:
+            raise ValueError(
+                f"The span {span_id!r} was not begun in this transcript: its SpanBeginEvent must be recorded before the span is named."
+            )
+        return self._agent_spans.agent_span(span_id)
 
     def _event_updated(self, event: Event) -> None:
         if self._is_resident(event):
@@ -717,40 +886,178 @@ class Transcript:
                         else:
                             event.call = None
 
-        self._notify_subscribers(event)
+        if not isinstance(event, ModelEvent) or event.call is None:
+            self._notify_subscribers(event)
+            return
 
-        # Condense model event calls after notifying subscribers so raw
-        # transcript consumers can observe the original inline payload.
-        if (
-            isinstance(event, ModelEvent)
-            and retain_attachments
-            and event.call is not None
-        ):
-            event.call = self._condense_model_call(event.call)
+        condensed = self._condensed_call(event)
+        if condensed is not None:
+            self._renotify_condensed_call(
+                event, condensed, retain_attachments=retain_attachments
+            )
+            return
 
-    def _condense_model_call(self, call: ModelCall) -> ModelCall:
+        # Raw transcript consumers observe the original inline payload;
+        # subscribers that keep their own attachment store take the call
+        # condensed, as the event holds it.
+        raw_call = event.call
+        if retain_attachments:
+            condensed_call = self._condense_model_call(raw_call)
+            self._condensed_calls[self._event_key(event)] = _CondensedModelCall(
+                call=condensed_call.call,
+                response=condensed_call.call.response,
+                unescaped_request=condensed_call.unescaped.request,
+                unescaped_response=condensed_call.unescaped.response,
+            )
+            self._notify_subscribers(
+                event,
+                _NotifiedCall(raw_call, condensed_call.call, self._attachments),
+            )
+            event.call = condensed_call.call
+        else:
+            # the event is not resident, so its call stays raw and the
+            # attachments condensing makes are not retained
+            call_attachments: dict[str, str] = {}
+            condensed_call = self._call_walk_cache.condense(
+                raw_call, call_attachments, self._context
+            )
+            self._notify_subscribers(
+                event,
+                _NotifiedCall(
+                    raw_call,
+                    condensed_call.call,
+                    ChainMap(call_attachments, self._attachments),
+                ),
+            )
+
+    def _renotify_condensed_call(
+        self,
+        event: ModelEvent,
+        condensed: "_CondensedModelCall",
+        *,
+        retain_attachments: bool,
+    ) -> None:
+        """Notify subscribers of an event whose call this transcript condensed.
+
+        Subscribers without an attachment store of their own get the call
+        with its literals inline (see `CondensedCall.unescaped`). A response
+        set on the call in place (see `_condense_replaced_response`) is raw:
+        they take it as it is, and it is condensed for the others.
+        """
+        call = condensed.call
+        raw_call = condensed.subscriber_call()
+        stored_call = call
+        attachments: Mapping[str, str] = self._attachments
+        replaced = call.response is not condensed.response
+        response: CondensedJson | None = None
+        response_attachments: dict[str, str] = {}
+        if replaced and call.response is not None:
+            response = condense_call_response(call.response, response_attachments)
+            stored_call = call.model_copy(update={"response": response.condensed})
+            attachments = ChainMap(response_attachments, self._attachments)
+        self._notify_subscribers(
+            event, _NotifiedCall(raw_call, stored_call, attachments)
+        )
+        if retain_attachments and replaced:
+            self._attachments.update(response_attachments)
+            self._condense_replaced_response(event, condensed, response)
+
+    def _condense_model_call(self, call: ModelCall) -> CondensedCall:
         return self._call_walk_cache.condense(call, self.attachments, self._context)
 
-    def _notify_subscribers(self, event: Event) -> None:
-        for event_logger in list(self._event_loggers):
-            subscriber_id = event_logger.id
-            if subscriber_id in self._notifying_subscribers:
-                continue
-            self._notifying_subscribers.add(subscriber_id)
-            try:
-                try:
-                    event_logger.callback(event)
-                except Exception:
-                    # Tag this record so the eval LogHandler does NOT re-inject
-                    # it as a LoggerEvent — that would re-enter this loop and
-                    # fan out combinatorially across other failing subscribers.
-                    logger.warning(
-                        "Transcript subscriber failed",
-                        exc_info=True,
-                        extra={SKIP_TRANSCRIPT_DISPATCH: True},
+    def _condensed_call(self, event: Event) -> "_CondensedModelCall | None":
+        """The condensation of the event's call, if this transcript produced the call.
+
+        A call is condensed once: condensing it again would store its
+        references as literal text.
+        """
+        if (
+            not isinstance(event, ModelEvent)
+            or event.call is None
+            or event.uuid is None
+        ):
+            return None
+        condensed = self._condensed_calls.get(event.uuid)
+        return (
+            condensed
+            if condensed is not None and condensed.call is event.call
+            else None
+        )
+
+    def _condense_replaced_response(
+        self,
+        event: ModelEvent,
+        condensed: "_CondensedModelCall",
+        response: CondensedJson | None,
+    ) -> None:
+        """Hold the condensed form of a raw response set on a condensed call in place.
+
+        Completing a call with an error sets its error response in place
+        (see `Model._record_model_interaction`). Subscribers are notified
+        before this, so those without an attachment store of their own take
+        the response raw.
+
+        Args:
+            event: The event.
+            condensed: The event's condensed call.
+            response: The response condensed into this transcript's
+                attachments (None when the response was cleared).
+        """
+        call = condensed.call
+        call.response = response.condensed if response is not None else None
+        self._condensed_calls[self._event_key(event)] = condensed._replace(
+            response=call.response,
+            unescaped_response=response.unescaped if response is not None else None,
+        )
+
+    def _notify_subscribers(
+        self, event: Event, call: "_NotifiedCall | None" = None
+    ) -> None:
+        """Notify subscribers of an event.
+
+        Args:
+            event: The event.
+            call: For a model event, the forms of its call each kind of
+                subscriber takes. Without it, every subscriber takes the
+                event's call as it is.
+        """
+        attachments = call.attachments if call is not None else self._attachments
+        held_call = event.call if isinstance(event, ModelEvent) else None
+        try:
+            for event_logger in list(self._event_loggers):
+                if call is not None and isinstance(event, ModelEvent):
+                    event.call = (
+                        call.stored if event_logger.stores_attachments else call.raw
                     )
-            finally:
-                self._notifying_subscribers.remove(subscriber_id)
+                self._notify_subscriber(event_logger, event, attachments)
+        finally:
+            if call is not None and isinstance(event, ModelEvent):
+                event.call = held_call
+
+    def _notify_subscriber(
+        self,
+        event_logger: _TranscriptSubscription,
+        event: Event,
+        attachments: Mapping[str, str],
+    ) -> None:
+        subscriber_id = event_logger.id
+        if subscriber_id in self._notifying_subscribers:
+            return
+        self._notifying_subscribers.add(subscriber_id)
+        try:
+            try:
+                event_logger.callback(event, attachments)
+            except Exception:
+                # Tag this record so the eval LogHandler does NOT re-inject
+                # it as a LoggerEvent — that would re-enter this loop and
+                # fan out combinatorially across other failing subscribers.
+                logger.warning(
+                    "Transcript subscriber failed",
+                    exc_info=True,
+                    extra={SKIP_TRANSCRIPT_DISPATCH: True},
+                )
+        finally:
+            self._notifying_subscribers.remove(subscriber_id)
 
     def _set_attachment_refs(self, event: Event) -> None:
         if not self._bounded:
@@ -859,6 +1166,7 @@ class Transcript:
             evicted_event_ids.add(event_key)
 
         if evicted_event_ids:
+            self._keep_evicted_calls(evicted_event_ids)
             self._events = [
                 event
                 for event in self._events
@@ -867,6 +1175,20 @@ class Transcript:
             self._resident_event_ids.difference_update(evicted_event_ids)
             self._events_truncated = True
             self._prune_pin_state()
+
+    def _keep_evicted_calls(self, evicted_event_ids: set[str]) -> None:
+        """Keep the condensed calls of evicted events while the events are alive.
+
+        Whoever holds an evicted event can still re-notify it (`Model.generate`
+        does after completing it, with its timings). Subscribers without an
+        attachment store then need the call with its literals put back, which
+        the condensed call alone cannot give once the event's attachments are
+        released. Pruning drops a call once its event is freed.
+        """
+        for event in self._events:
+            event_key = self._event_key(event)
+            if event_key in evicted_event_ids and event_key in self._condensed_calls:
+                self._evicted_call_events[event_key] = weakref.ref(event)
 
     def _prune_pin_state(self) -> None:
         resident_event_keys = self._resident_event_ids
@@ -879,6 +1201,17 @@ class Transcript:
         )
         if self._bounded:
             self._kept_event_ids.intersection_update(resident_event_keys)
+            self._evicted_call_events = {
+                event_key: ref
+                for event_key, ref in self._evicted_call_events.items()
+                if ref() is not None
+            }
+            self._condensed_calls = {
+                event_key: condensed
+                for event_key, condensed in self._condensed_calls.items()
+                if event_key in resident_event_keys
+                or event_key in self._evicted_call_events
+            }
             self._prune_model_call_counts()
             self._prune_attachment_refs(resident_event_keys)
 
@@ -958,7 +1291,32 @@ class Transcript:
         return copied_events
 
     def _subscribe(self, event_logger: Callable[[Event], None]) -> Callable[[], None]:
-        subscription = self._create_subscription(event_logger)
+        return self._add_subscription(
+            self._create_subscription(
+                lambda event, _attachments: event_logger(event),
+                stores_attachments=False,
+            )
+        )
+
+    def _subscribe_store(
+        self, event_logger: Callable[[Event, Mapping[str, str]], None]
+    ) -> Callable[[], None]:
+        """Subscribe a consumer that keeps its own attachment store.
+
+        Such a subscriber (the sample buffer, the checkpoint transcript
+        store) is given each model event's call condensed, as this
+        transcript holds it, with literal reference text stored as
+        attachments. Every other field is raw. With each event it is given
+        the attachments the call references, except ones released since an
+        earlier notification of the same call gave them.
+        """
+        return self._add_subscription(
+            self._create_subscription(event_logger, stores_attachments=True)
+        )
+
+    def _add_subscription(
+        self, subscription: _TranscriptSubscription
+    ) -> Callable[[], None]:
         self._event_loggers.append(subscription)
         unsubscribed = False
 
@@ -971,10 +1329,17 @@ class Transcript:
         return unsubscribe
 
     def _create_subscription(
-        self, callback: Callable[[Event], None]
+        self,
+        callback: Callable[[Event, Mapping[str, str]], None],
+        *,
+        stores_attachments: bool,
     ) -> _TranscriptSubscription:
         self._next_event_logger_id += 1
-        return _TranscriptSubscription(id=self._next_event_logger_id, callback=callback)
+        return _TranscriptSubscription(
+            id=self._next_event_logger_id,
+            callback=callback,
+            stores_attachments=stores_attachments,
+        )
 
 
 def transcript() -> Transcript:
@@ -1020,17 +1385,52 @@ def record_interrupt_event(
 
 @contextlib.contextmanager
 def track_store_changes() -> Iterator[None]:
-    before = store_jsonable(store())
-    yield
-    after = store_jsonable(store())
+    """Log a `StoreEvent` with the store changes made in the block.
 
-    changes = store_changes(before, after)
-    if changes:
-        transcript()._event(StoreEvent(changes=changes))
+    The changes are logged on every exit, including when the block raises or
+    is cancelled. On that path any failure to log them, including a
+    `BaseException`, is logged as a warning rather than raised (and a failure
+    of the warning is ignored), so it cannot replace the block's exception.
+    `KeyboardInterrupt` and `SystemExit` are the exception: they propagate.
+    Nothing is logged on `GeneratorExit` (an abandoned span being finalized).
+    """
+    if store_events_suspended():
+        yield
+        return
+
+    before = store_jsonable(store())
+
+    def log_changes() -> None:
+        after = store_jsonable(store())
+        changes = store_changes(before, after)
+        if changes:
+            transcript()._event(StoreEvent(changes=changes))
+
+    try:
+        yield
+    except GeneratorExit:
+        # an abandoned span may be finalized in another context, where
+        # store() and transcript() are not the span's
+        raise
+    except BaseException:
+        try:
+            log_changes()
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except BaseException:
+            try:
+                logger.warning("Unable to log store changes for span", exc_info=True)
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except BaseException:
+                pass
+        raise
+    log_changes()
 
 
 def init_transcript(transcript: Transcript) -> None:
     _transcript.set(transcript)
+    init_call_interner(transcript._log_model_api is True)
 
 
 _transcript: ContextVar[Transcript | None] = ContextVar(

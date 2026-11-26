@@ -1,0 +1,13 @@
+._container_1unjd_1:hover ._toggle_1unjd_1 {
+  opacity: 1;
+}
+
+._toggle_1unjd_1 {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  z-index: 10;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+  padding: 0 0.2rem;
+}

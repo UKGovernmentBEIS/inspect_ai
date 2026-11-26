@@ -1,3 +1,9 @@
+<!-- Title: a Conventional Commits type and the user-facing outcome, e.g.
+"fix: eval hang when resuming with S3 logs" or "feat(anthropic): ...". The
+title is the changelog line; don't edit CHANGELOG.md. For a breaking change,
+use "feat!:" and add a paragraph starting "BREAKING CHANGE:" to this
+description. See CONTRIBUTING.md. -->
+
 ### Problem or current behavior
 <!-- What does a user encounter or need? Link the relevant issue or give a reproduction when applicable. -->
 
@@ -16,10 +22,13 @@ unrelated project sequencing elsewhere. -->
 <!-- Lead with evidence CI cannot provide: a before/after reproduction, another
 SDK or platform, or live tests. Give commands and results for non-gated local
 runs. Omit routine green CI, which is visible on the PR; report failures,
-discrepancies, and gaps. If you add
+discrepancies, and gaps. If you fill in
 "Slow tests," use one bullet per run with command, environment, and counts,
 plus a "Not run" bullet; give only the conclusion here. Do not repeat job
 lists or test-case inventories. -->
+
+### Slow tests
+<!-- Required for changes to model providers, sandbox or tool code, agents, or async plumbing. See "Gated tests" in AGENTS.md. Give one bullet per run with the test class or provider, version when relevant, command, and passed, failed, and skipped counts, then a "Not run" bullet with the reason for anything relevant you did not run. Delete this section for other changes. -->
 
 ### Agent review
 <!-- If an agent worked on this PR, give the authoring tool, reviewer model/tool,

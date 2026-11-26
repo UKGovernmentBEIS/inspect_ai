@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import TypeVar
 
 import pytest
@@ -404,6 +405,36 @@ async def test_cache_lookup_uses_post_hook_tool_state() -> None:
 
 
 @pytest.mark.anyio
+async def test_cache_lookup_uses_post_hook_model_args(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    extra_body = {"system": "3"}
+
+    def out(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        return ModelOutput.from_content(model="mockllm", content=extra_body["system"])
+
+    class ModelArgsMutatingHooks(Hooks):
+        async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
+            extra_body["system"] = "4"
+
+    model = get_model(
+        "mockllm/model", memoize=False, custom_outputs=out, extra_body=extra_body
+    )
+    with _register_hook("tool_lifecycle_model_args_state", ModelArgsMutatingHooks):
+        first = await model.generate("hello", cache=True)
+    extra_body["system"] = "3"
+    second = await model.generate("hello", cache=True)
+
+    assert [first.completion, second.completion] == ["4", "3"]
+
+
+@pytest.mark.anyio
 async def test_cache_key_is_frozen_when_provider_mutates_input() -> None:
     calls = 0
 
@@ -450,8 +481,9 @@ async def test_cache_policy_store_uses_explicit_cache_policy() -> None:
     input: list[ChatMessage] = [ChatMessageUser(content="hello")]
 
     try:
-        await model._generate(input, [], None, config)
-        await model._generate(input, [], None, config)
+        prepared = await model._prepare_input(input, [], None, config)
+        await model._generate(prepared, config)
+        await model._generate(prepared, config)
     finally:
         cache_clear("mockllm/model")
 

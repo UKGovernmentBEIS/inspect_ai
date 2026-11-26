@@ -5,9 +5,11 @@ from pathlib import Path
 from typing import Awaitable, Callable
 
 import anyio
-from rich import box, print
+from rich import box, get_console, print
+from rich.cells import cell_len
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from inspect_ai._util._async import coro_print_exceptions
 from inspect_ai._util.trace import trace_message
@@ -34,7 +36,12 @@ class DockerCleanupState:
     """Projects brought up by ``sample_init`` and not yet brought down."""
 
     auto_compose_files: set[str] = field(default_factory=set)
-    """Generated compose files (startup and per-sample) to remove at shutdown."""
+    """Generated compose files (startup and per-sample) to remove at shutdown.
+
+    A reported project's config is released instead and kept for
+    ``inspect sandbox cleanup docker <project>``; see
+    ``project_cleanup_shutdown``.
+    """
 
     closed: bool = False
     """``project_cleanup_shutdown`` has run: this lifecycle is finished."""
@@ -124,6 +131,9 @@ def project_startup(project: ComposeProject) -> None:
 def project_record_auto_compose(project: ComposeProject) -> bool:
     """Register a project's generated compose file for removal at shutdown.
 
+    A reported project's file is released at shutdown and kept instead; see
+    ``project_cleanup_shutdown``.
+
     Returns whether this call registered it: ``False`` for an explicit compose
     file, and for a generated file already registered by an earlier
     initialization or a live sample (a legacy ``.compose.yaml``, or a path
@@ -171,6 +181,11 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
     The batch's ``SandboxManager`` calls this once per Docker config it
     started, at the end of the batch. Every entry processed is released, so
     the repeat calls do nothing and no entry carries into a later batch.
+
+    Without ``cleanup``, a reported project's generated compose file is
+    released but kept on disk: ``inspect sandbox cleanup docker <project>``
+    needs that exact config, which may declare networks the generic fallback
+    cannot remove.
     """
     state = cleanup_state()
 
@@ -194,19 +209,56 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
             table.add_column("Sample ID")
             table.add_column("Epoch")
             table.add_column("Container(s)", no_wrap=True)
+            rows: list[tuple[str, str, str]] = []
+            column_widths = [cell_len(str(column.header)) for column in table.columns]
             for project in shutdown_projects:
                 containers = await compose_ps(project, all=True)
-                table.add_row(
+                row = (
                     str(project.sample_id) if project.sample_id is not None else "",
                     str(project.epoch if project.epoch is not None else ""),
                     "\n".join(container["Name"] for container in containers),
                 )
-            print(table)
+                rows.append(row)
+                cells = [Text(value) for value in row]
+                for cell in cells:
+                    cell.expand_tabs()
+                table.add_row(*cells)
+                column_widths = [
+                    max(
+                        width, *(line.cell_len for line in cell.split(allow_blank=True))
+                    )
+                    for width, cell in zip(column_widths, cells)
+                ]
+
+            console = get_console()
+            # Each column has two padding cells; borders add one per column plus one.
+            table_width = sum(column_widths) + 3 * len(table.columns) + 1
+            if table_width <= console.width:
+                print(table)
+            else:
+                console.print(table.title, style="bold")
+                for sample_id, epoch, container_names in rows:
+                    console.print()
+                    console.print(
+                        Text(
+                            f"Sample ID: {sample_id}\nEpoch: {epoch}\n{container_names}"
+                        ),
+                        soft_wrap=True,
+                    )
             print(
                 "\n"
-                "Cleanup all containers  : [blue]inspect sandbox cleanup docker[/blue]\n"
-                "Cleanup single container: [blue]inspect sandbox cleanup docker <container-id>[/blue]",
+                "Cleanup all environments: [blue]inspect sandbox cleanup docker[/blue]\n"
+                "Cleanup each environment:\n"
+                + "\n".join(
+                    f"  [blue]inspect sandbox cleanup docker {project.name}[/blue]"
+                    for project in shutdown_projects
+                ),
                 "\n",
+            )
+
+            # handed to the user with the projects (see docstring)
+            state.auto_compose_files.difference_update(
+                project.config for project in shutdown_projects
             )
 
     # release the processed projects (brought down, or handed to the user)

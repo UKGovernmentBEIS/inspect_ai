@@ -8,7 +8,7 @@ When a `max_sandboxes` is applied, an indicator at the bottom of the task status
 
 ![](images/task-max-sandboxes.png)
 
-Note that when `max_sandboxes` is applied this effectively creates a global `max_samples` limit that is equal to the `max_sandboxes`.
+The `max_sandboxes` limit is shared across all tasks using the same sandbox provider type. Each provider type has its own independent limit.
 
 ### Max Subprocesses
 

@@ -59,6 +59,7 @@ _COMPUTER_TOOL_PARAMETERS: frozenset[str] = frozenset(
         "text",
         "repeat",
         "press_enter",
+        "clear_before_typing",
         "actions",
     ]
 )
@@ -106,6 +107,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         text: str | None = None,
         repeat: int | None = None,
         press_enter: bool | None = None,
+        clear_before_typing: bool | None = None,
         actions: list[dict[str, object]] | None = None,
     ) -> ToolResult:
         """
@@ -150,7 +152,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
               - `open_web_browser`: Open the web browser in full screen view.
               - `navigate`: Navigate to a URL in the browser.
                   - Example: execute(action="navigate", text="https://example.com")
-          coordinate (tuple[int, int] | None): The (x, y) pixel coordinate on the screen to which to move or drag. Required only by `action=mouse_move` and `action=left_click_drag`.
+          coordinate (tuple[int, int] | None): The (x, y) pixel coordinate on the screen to move to, drag to, or click at. Required by `action=mouse_move` and `action=left_click_drag`. Optional for `action=left_click`, `action=right_click`, `action=middle_click`, `action=back_click`, `action=forward_click`, `action=double_click` and `action=triple_click`, which click at the current cursor position when it is omitted; also optional for `action=scroll` (scrolls at the coordinate) and `action=type` (clicks at the coordinate before typing).
           duration (int | None): The duration to wait or hold the key down for. Required only by `action=hold_key` and `action=wait`.
           region (list[int] | None): The region to zoom into as [x0, y0, x1, y1] coordinates. Required only by `action=zoom`.
           scroll_amount (int | None): The number of 'clicks' to scroll. Required only by `action=scroll`.
@@ -159,6 +161,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
           text (str | None): The text to type or the key to press. Required when action is "key" or "type".
           repeat (int | None): The number of times to press the key (1-100). Used only by `action=key`. Defaults to 1.
           press_enter (bool): If True and action is "type", press Return after typing. Defaults to False.
+          clear_before_typing (bool): If True and action is "type", triple-click at `coordinate` to select the existing text so the typed text replaces it. If `text` is empty, the selected text is deleted. Requires `coordinate`. In multi-line text only the clicked line, sentence or paragraph is selected, depending on the application. Defaults to False.
           actions (list[dict] | None): A list of action dicts to execute sequentially (OpenAI multi-action format).
 
         Returns:
@@ -179,6 +182,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                     text,
                     repeat,
                     press_enter,
+                    clear_before_typing,
                 )
             ]
             if action is not None
@@ -221,7 +225,19 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                     timeout=timeout,
                 )
             case "type":
-                if coordinate is not None:
+                # Triple-click selects the field's text so typing replaces it.
+                # ctrl+a + BackSpace is avoided: when the click selects an
+                # object rather than a text field, it deletes beyond the field.
+                if bool(args.get("clear_before_typing")):
+                    if coordinate is None:
+                        raise ToolParsingError(
+                            "coordinate must be provided when clear_before_typing is True"
+                        )
+                    await common.triple_click(coordinate, timeout=timeout)
+                    # typing "" sends no keystrokes, so delete the selection
+                    if text == "":
+                        await common.press_key("BackSpace", timeout=timeout)
+                elif coordinate is not None:
                     await common.left_click(coordinate, timeout=timeout)
                 result = await common.type(not_none(text, "text"), timeout=timeout)
                 if bool(args.get("press_enter")):
@@ -238,9 +254,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
             case "left_mouse_up":
                 return await common.left_mouse_up(timeout=timeout)
             case "left_click":
-                return await common.left_click(
-                    not_none(coordinate, "coordinate"), timeout=timeout
-                )
+                return await common.left_click(coordinate, timeout=timeout)
             case "left_click_drag":
                 return await common.left_click_drag(
                     not_none(start_coordinate, "start_coordinate"),
@@ -248,29 +262,17 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                     timeout=timeout,
                 )
             case "right_click":
-                return await common.right_click(
-                    not_none(coordinate, "coordinate"), timeout=timeout
-                )
+                return await common.right_click(coordinate, timeout=timeout)
             case "middle_click":
-                return await common.middle_click(
-                    not_none(coordinate, "coordinate"), timeout=timeout
-                )
+                return await common.middle_click(coordinate, timeout=timeout)
             case "back_click":
-                return await common.back_click(
-                    not_none(coordinate, "coordinate"), timeout=timeout
-                )
+                return await common.back_click(coordinate, timeout=timeout)
             case "forward_click":
-                return await common.forward_click(
-                    not_none(coordinate, "coordinate"), timeout=timeout
-                )
+                return await common.forward_click(coordinate, timeout=timeout)
             case "double_click":
-                return await common.double_click(
-                    not_none(coordinate, "coordinate"), timeout=timeout
-                )
+                return await common.double_click(coordinate, timeout=timeout)
             case "triple_click":
-                return await common.triple_click(
-                    not_none(coordinate, "coordinate"), timeout=timeout
-                )
+                return await common.triple_click(coordinate, timeout=timeout)
             case "scroll":
                 return await common.scroll(
                     not_none(scroll_amount, "scroll_amount"),
@@ -304,6 +306,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         text: str | None,
         repeat: int | None,
         press_enter: bool | None,
+        clear_before_typing: bool | None,
     ) -> dict[str, object]:
         return {
             k: v
@@ -318,6 +321,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                 text=text,
                 repeat=repeat,
                 press_enter=press_enter,
+                clear_before_typing=clear_before_typing,
             ).items()
             if v is not None
         }

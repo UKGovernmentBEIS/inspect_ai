@@ -1,13 +1,20 @@
+import errno
 import hashlib
+import json
 import math
+import os
+import stat
 import tempfile
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
+from unittest.mock import patch
 
 import pytest
 
+from inspect_ai._util.file import filesystem
 from inspect_ai.event import ScoreEvent
 from inspect_ai.event._info import InfoEvent
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._validate import validate_events
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer import filestore as filestore_module
@@ -23,10 +30,15 @@ from inspect_ai.log._recorders.buffer.filestore import (
     SampleManifest,
     SampleSegment,
     Segment,
+    SegmentFile,
+    SharedBufferUnavailable,
     sample_segment_id,
 )
 from inspect_ai.log._recorders.buffer.types import SampleData, Samples
 from inspect_ai.log._recorders.types import SampleEvent
+from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import Score
 
 
@@ -115,6 +127,159 @@ def test_sync_one_sample(
     assert len(sample_data.events) == 2
     msgs = [ev.event["data"] for ev in sample_data.events]
     assert msgs == ["first event", "second event"]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")
+def test_shared_buffer_replaces_hardlinked_segment(tmp_path: Path) -> None:
+    log = tmp_path / "shared logs #1 %20" / "run.eval"
+    run_dir = log.parent / ".buffer" / log.stem
+    run_dir.mkdir(parents=True)
+    reference = tmp_path / "reference"
+    reference.write_bytes(b"reference data")
+    (run_dir / "segment.1.zip").hardlink_to(reference)
+    writer = SampleBufferFilestore(filesystem(str(log)).path_as_uri(str(log)))
+    data = SampleData(events=[], attachments=[])
+    writer.write_segment(1, [SegmentFile(id=1, epoch=1, data=data)])
+    assert reference.read_bytes() == b"reference data"
+    reader = SampleBufferFilestore(str(log), create=False)
+    assert reader.read_segment_data(1, 1, 1) == data
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")
+@pytest.mark.parametrize("component", [".buffer", "run"])
+def test_shared_buffer_refuses_linked_directories(
+    tmp_path: Path, component: str
+) -> None:
+    logs = tmp_path / "logs"
+    other = tmp_path / "other"
+    logs.mkdir()
+    other.mkdir()
+    link = logs / ".buffer"
+    if component == "run":
+        link.mkdir()
+        link = link / component
+    link.symlink_to(other, target_is_directory=True)
+    with pytest.raises(SharedBufferUnavailable):
+        SampleBufferFilestore(str(logs / "run.eval")).write_manifest(Manifest())
+    assert list(other.iterdir()) == []
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")
+def test_shared_buffer_replaces_linked_sidecars(tmp_path: Path) -> None:
+    writer = SampleBufferFilestore(str(tmp_path / "run.eval"))
+    reference = tmp_path / "reference"
+    reference.write_bytes(b"reference data")
+    data = b'{"value":1}'
+    digest = hashlib.sha256(data).hexdigest()
+    metadata = Path(writer._sample_sidecar_file("metadata", "sample", 1, digest))
+    store = Path(writer._sample_sidecar_file("store", "sample", 1, digest))
+    writer.write_manifest(Manifest())
+    for sidecar in (metadata, store):
+        sidecar.symlink_to(reference)
+    writer.write_sample_metadata("sample", 1, digest, data)
+    writer.write_sample_store("sample", 1, digest, data)
+    assert metadata.read_bytes() == store.read_bytes() == data
+    assert reference.read_bytes() == b"reference data"
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")
+def test_live_sync_keeps_segment_and_manifest_together(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log = str(tmp_path / "run.eval")
+    db = SampleBufferDatabase(log, db_dir=tmp_path / "db")
+    writer = SampleBufferFilestore(log)
+    run = tmp_path / ".buffer" / "run"
+    archived = run.with_name("archived")
+    write_segment = writer.write_segment
+
+    def archive_after_segment(segment: int, files: list[SegmentFile]) -> None:
+        write_segment(segment, files)
+        run.rename(archived)
+        run.mkdir()
+
+    try:
+        db.start_sample(EvalSampleSummary(id=1, epoch=1, input="in", target="out"))
+        db.log_events([SampleEvent(id=1, epoch=1, event=InfoEvent(data="first"))])
+        sync_to_filestore(db, writer)
+        db.log_events([SampleEvent(id=1, epoch=1, event=InfoEvent(data="second"))])
+        with monkeypatch.context() as during_upload:
+            during_upload.setattr(writer, "write_segment", archive_after_segment)
+            sync_to_filestore(db, writer)
+        reader = SampleBufferFilestore(str(tmp_path / "archived.eval"), create=False)
+        data = reader.get_sample_data(1, 1)
+        assert data is not None
+        assert [event.event["data"] for event in data.events] == ["first", "second"]
+
+        db.log_events([SampleEvent(id=1, epoch=1, event=InfoEvent(data="third"))])
+        with pytest.raises(SharedBufferUnavailable, match="removed or replaced"):
+            sync_to_filestore(db, writer)
+        assert list(run.iterdir()) == []
+        writer.cleanup()
+        assert run.is_dir()
+    finally:
+        db.cleanup()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")
+@pytest.mark.parametrize("lookup", ["os.open", "os.fstat", "os.stat"])
+def test_shared_sync_stops_on_stale_directory_lookup(
+    tmp_path: Path, lookup: str
+) -> None:
+    writer = SampleBufferFilestore(str(tmp_path / "run.eval"))
+    writer.write_manifest(Manifest())
+    with patch(lookup, side_effect=OSError(errno.ESTALE, "Stale file handle")):
+        with pytest.raises(SharedBufferUnavailable, match="removed or replaced"):
+            writer.verify_sync_directory()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")
+def test_shared_buffer_honors_group_umask(tmp_path: Path) -> None:
+    logs = tmp_path / "logs"
+    logs.symlink_to(tmp_path, target_is_directory=True)
+    mask = os.umask(0o002)
+    try:
+        writer = SampleBufferFilestore(str(logs / "run.eval"))
+        writer.write_manifest(Manifest())
+        run = tmp_path / ".buffer" / "run"
+        assert stat.S_IMODE(run.stat().st_mode) & 0o770 == 0o770
+        manifest = run / "manifest.json"
+        assert stat.S_IMODE(manifest.stat().st_mode) == 0o664
+        manifest.chmod(0o640)
+        writer.write_manifest(Manifest())
+        assert stat.S_IMODE(manifest.stat().st_mode) == 0o640
+        os.umask(0o077)
+        writer.write_manifest(Manifest())
+        assert stat.S_IMODE(manifest.stat().st_mode) == 0o600
+    finally:
+        os.umask(mask)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")
+def test_shared_buffer_cleans_up_failed_publication(tmp_path: Path) -> None:
+    writer = SampleBufferFilestore(str(tmp_path / "run.eval"))
+    run = tmp_path / ".buffer" / "run"
+    manifest = run / "manifest.json"
+    manifest.mkdir(parents=True)
+    with pytest.raises(OSError):
+        writer.write_manifest(Manifest())
+    assert {p.name for p in run.iterdir()} == {"manifest.json"}
+    manifest.rmdir()
+    writer.write_manifest(Manifest())
+    assert writer.read_manifest() == Manifest()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX shared directory semantics")
+def test_first_sync_refuses_linked_manifest(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    db, writer = db_and_filestore
+    manifest = Path(writer._manifest_file())
+    manifest.parent.mkdir(exist_ok=True, parents=True)
+    manifest.symlink_to(manifest.with_name("absent"))
+    with pytest.raises(SharedBufferUnavailable):
+        sync_to_filestore(db, writer)
+    assert manifest.is_symlink()
 
 
 def test_sync_sample_metadata_outside_manifest_summary(
@@ -249,16 +414,6 @@ def test_sync_hashes_metadata_json_that_is_written(
     assert filestore.read_sample_metadata("s1", 1, manifest) == {"version": "new"}
 
 
-def test_sample_metadata_file_normalizes_sample_id(
-    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
-) -> None:
-    _, filestore = db_and_filestore
-
-    assert filestore._sample_metadata_file(1, 1, "digest") == (
-        filestore._sample_metadata_file("1", 1, "digest")
-    )
-
-
 @pytest.mark.parametrize("failure", ["hash_mismatch", "invalid_json"])
 def test_read_sample_metadata_falls_back_on_invalid_sidecar(
     db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
@@ -287,7 +442,9 @@ def test_read_sample_metadata_falls_back_on_invalid_sidecar(
     metadata_hash = manifest.samples[0].metadata_hash
     assert metadata_hash is not None
     if failure == "hash_mismatch":
-        metadata_path = filestore._sample_metadata_file("s1", 1, metadata_hash)
+        metadata_path = filestore._sample_sidecar_file(
+            "metadata", "s1", 1, metadata_hash
+        )
         Path(metadata_path).write_bytes(b"{}")
     else:
         invalid_json = b"{"
@@ -463,6 +620,204 @@ def test_sync_removed_sample(
     assert m2 and len(m2.samples) == 1
     # Only 'keep' remains
     assert m2.samples[0].summary.id == "keep"
+
+
+def _log_attempt(db: SampleBufferDatabase, uuid: str, label: str) -> None:
+    """Start sample ("s1", 1) and log an info event and a pooled model event."""
+    db.start_sample(
+        EvalSampleSummary(id="s1", epoch=1, input="x", target="y", uuid=uuid)
+    )
+    db.log_events(
+        [
+            SampleEvent(id="s1", epoch=1, event=InfoEvent(data=label)),
+            SampleEvent(
+                id="s1",
+                epoch=1,
+                event=ModelEvent(
+                    model="test-model",
+                    input=[ChatMessageUser(content=label)],
+                    tools=[],
+                    tool_choice="auto",
+                    config=GenerateConfig(),
+                    output=ModelOutput.from_content("test-model", "response"),
+                ),
+            ),
+        ]
+    )
+
+
+def _synced_attempt(filestore: SampleBufferFilestore) -> tuple[list[str], list[str]]:
+    """Info event data and the resolved model input contents a reader sees for ("s1", 1)."""
+    sample_data = filestore.get_sample_data("s1", 1)
+    assert sample_data is not None
+    pool = [json.loads(entry.data) for entry in sample_data.message_pool]
+    infos: list[str] = []
+    inputs: list[str] = []
+    for sample_event in sample_data.events:
+        event = sample_event.event
+        assert isinstance(event, dict)
+        if event["event"] == "info":
+            infos.append(cast(str, event["data"]))
+        elif event["event"] == "model":
+            for start, end in cast(list[list[int]], event["input_refs"]):
+                inputs.extend(message["content"] for message in pool[start:end])
+    return infos, inputs
+
+
+@pytest.mark.parametrize(
+    "restart_uuid",
+    [
+        pytest.param("uuid-1", id="retry-same-uuid"),
+        pytest.param("uuid-2", id="requeue-new-uuid"),
+    ],
+)
+def test_sync_restarted_sample_drops_previous_attempt_segments(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+    restart_uuid: str,
+) -> None:
+    """A sample removed and restarted with no sync in between keeps only the new attempt's segments."""
+    db, filestore = db_and_filestore
+
+    _log_attempt(db, "uuid-1", "attempt-1")
+    sync_to_filestore(db, filestore)
+    m1 = filestore.read_manifest()
+    assert m1 is not None
+    assert [sample_segment_id(s) for s in m1.samples[0].segments] == [1]
+
+    # removal and restart with no sync in between
+    db.remove_samples([("s1", 1)])
+    _log_attempt(db, restart_uuid, "attempt-2")
+    sync_to_filestore(db, filestore)
+
+    m2 = filestore.read_manifest()
+    assert m2 is not None
+    assert len(m2.samples) == 1
+    assert m2.samples[0].summary.uuid == restart_uuid
+    assert [sample_segment_id(s) for s in m2.samples[0].segments] == [2]
+    assert _synced_attempt(filestore) == (["attempt-2"], ["attempt-2"])
+
+    # later syncs continue from the new attempt's segment
+    db.log_events([SampleEvent(id="s1", epoch=1, event=InfoEvent(data="more"))])
+    sync_to_filestore(db, filestore)
+    m3 = filestore.read_manifest()
+    assert m3 is not None
+    assert [sample_segment_id(s) for s in m3.samples[0].segments] == [2, 3]
+    assert _synced_attempt(filestore) == (["attempt-2", "more"], ["attempt-2"])
+
+
+def test_sync_failure_keeps_removal_for_next_sync(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed sync does not lose a removal: the next sync still drops the previous attempt's segments."""
+    db, filestore = db_and_filestore
+
+    _log_attempt(db, "uuid-1", "attempt-1")
+    sync_to_filestore(db, filestore)
+
+    db.remove_samples([("s1", 1)])
+    _log_attempt(db, "uuid-1", "attempt-2")
+
+    def fail_write_manifest(manifest: Manifest) -> None:
+        raise OSError("upload failed")
+
+    with monkeypatch.context() as m:
+        m.setattr(filestore, "write_manifest", fail_write_manifest)
+        with pytest.raises(OSError, match="upload failed"):
+            sync_to_filestore(db, filestore)
+
+    sync_to_filestore(db, filestore)
+    manifest = filestore.read_manifest()
+    assert manifest is not None
+    assert len(manifest.samples) == 1
+    assert _synced_attempt(filestore) == (["attempt-2"], ["attempt-2"])
+
+
+@pytest.mark.parametrize(
+    "boundary", ["reading_manifest", "before_sample_data", "after_sample_data"]
+)
+@pytest.mark.parametrize(
+    "restart_uuid",
+    [
+        pytest.param("uuid-1", id="retry-same-uuid"),
+        pytest.param("uuid-2", id="requeue-new-uuid"),
+    ],
+)
+def test_sync_overlapping_restart_publishes_no_mixed_attempt(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+    monkeypatch: pytest.MonkeyPatch,
+    restart_uuid: str,
+    boundary: str,
+) -> None:
+    """A removal and restart while a sync is reading never publishes a row mixing both attempts."""
+    db, filestore = db_and_filestore
+
+    _log_attempt(db, "uuid-1", "attempt-1")
+    sync_to_filestore(db, filestore)
+
+    def restart() -> None:
+        db.remove_samples([("s1", 1)])
+        _log_attempt(db, restart_uuid, "attempt-2")
+
+    # the removal lands after the sync took the removal set: while it reads
+    # the manifest, after it read the summaries, or after it read the data
+    with monkeypatch.context() as m:
+        if boundary == "reading_manifest":
+            read_manifest = filestore.read_manifest
+
+            def racing_read_manifest() -> Manifest | None:
+                manifest = read_manifest()
+                restart()
+                return manifest
+
+            m.setattr(filestore, "read_manifest", racing_read_manifest)
+        else:
+            get_sample_data = db.get_sample_data
+
+            def racing_get_sample_data(**kwargs: Any) -> SampleData | None:
+                if boundary == "before_sample_data":
+                    restart()
+                    return get_sample_data(**kwargs)
+                data = get_sample_data(**kwargs)
+                restart()
+                return data
+
+            m.setattr(db, "get_sample_data", racing_get_sample_data)
+
+        sync_to_filestore(db, filestore)
+
+    raced = filestore.read_manifest()
+    assert raced is not None
+    assert raced.samples == []
+    assert filestore.get_sample_data("s1", 1) is None
+
+    sync_to_filestore(db, filestore)
+    manifest = filestore.read_manifest()
+    assert manifest is not None
+    assert len(manifest.samples) == 1
+    assert manifest.samples[0].summary.uuid == restart_uuid
+    assert _synced_attempt(filestore) == (["attempt-2"], ["attempt-2"])
+
+
+@pytest.mark.parametrize("log_shared", [None, 0])
+def test_removals_not_recorded_without_sync(
+    tmp_path: Path, log_shared: int | None
+) -> None:
+    """A buffer with shared sync off keeps no record of the samples it removes."""
+    db = SampleBufferDatabase(
+        location=str(tmp_path / "test.eval"),
+        db_dir=tmp_path / "db",
+        log_shared=log_shared,
+    )
+    try:
+        for i in range(3):
+            db.start_sample(
+                EvalSampleSummary(id=f"s{i}", epoch=1, input="x", target="y")
+            )
+        db.remove_samples([(f"s{i}", 1) for i in range(3)])
+        assert db.take_removed_since_sync() == set()
+    finally:
+        db.cleanup()
 
 
 def test_sync_incremental(

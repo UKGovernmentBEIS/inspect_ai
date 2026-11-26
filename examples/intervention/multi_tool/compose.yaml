@@ -1,5 +1,6 @@
 services:
   default:
-    image: aisiuk/inspect-tool-support
+    image: python:3.12-bookworm
+    command: tail -f /dev/null
     init: true
-    # network_mode is omitted because this agent uses web browser tools.
+    # network_mode is omitted so the agent can install packages and access the internet.

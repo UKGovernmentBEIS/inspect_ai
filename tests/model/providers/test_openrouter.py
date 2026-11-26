@@ -43,8 +43,21 @@ def _make_output(
     )
 
 
-def test_add_cache_markers_system_tool_and_penultimate_block() -> None:
-    """System + tools + multi-block last user message: 3 markers placed."""
+def _count_markers(request: dict[str, Any]) -> int:
+    """Total cache_control markers on messages, blocks and tools."""
+    count = 0
+    for msg in request.get("messages", []):
+        if _has_cache_control(msg):
+            count += 1
+        content = msg.get("content")
+        if isinstance(content, list):
+            count += sum(1 for block in content if _has_cache_control(block))
+    count += sum(1 for tool in request.get("tools", []) if _has_cache_control(tool))
+    return count
+
+
+def test_add_cache_markers_system_tool_and_last_two_blocks() -> None:
+    """System + tools + multi-block last user message: 4 markers placed."""
     request: dict[str, Any] = {
         "messages": [
             {
@@ -74,18 +87,22 @@ def test_add_cache_markers_system_tool_and_penultimate_block() -> None:
     # last system block marked
     assert _has_cache_control(request["messages"][0]["content"][-1])
     assert "cache_control" not in request["messages"][0]["content"][0]
-    # penultimate block of last (user) message marked
+    # last two blocks of the last (user) message marked: this provider does
+    # not send Anthropic's top-level (automatic) cache_control, so the last
+    # block needs an explicit marker
     user_blocks = request["messages"][1]["content"]
-    assert _has_cache_control(user_blocks[-2])  # block 1 (penultimate)
-    assert "cache_control" not in user_blocks[-1]  # auto-cache covers the last
+    assert _has_cache_control(user_blocks[-1])
+    assert _has_cache_control(user_blocks[-2])
     assert "cache_control" not in user_blocks[0]
     # last tool marked at top level (alongside "type": "function")
     assert request["tools"][1]["cache_control"] == EPHEMERAL
     assert "cache_control" not in request["tools"][0]
+    # never more than Anthropic's limit of 4 breakpoints
+    assert _count_markers(request) == 4
 
 
-def test_add_cache_markers_fallback_to_previous_message() -> None:
-    """Single-block last message → mark the last block of the previous message."""
+def test_add_cache_markers_lookback_spans_previous_message() -> None:
+    """Single-block last message → second marker on the previous message's last block."""
     request: dict[str, Any] = {
         "messages": [
             {"role": "user", "content": "earlier context"},
@@ -102,10 +119,17 @@ def test_add_cache_markers_fallback_to_previous_message() -> None:
 
     _add_anthropic_cache_markers(request)
 
+    # the string-content last message is converted so it can carry the marker
+    assert request["messages"][2]["content"] == [
+        {"type": "text", "text": "follow-up", "cache_control": EPHEMERAL}
+    ]
     # last block of the previous (assistant) message marked
     assistant_blocks = request["messages"][1]["content"]
     assert _has_cache_control(assistant_blocks[-1])
     assert "cache_control" not in assistant_blocks[0]
+    # nothing earlier is touched (and not converted)
+    assert request["messages"][0]["content"] == "earlier context"
+    assert _count_markers(request) == 2
 
 
 def test_add_cache_markers_string_content_converted_to_list() -> None:
@@ -132,45 +156,211 @@ def test_add_cache_markers_string_content_converted_to_list() -> None:
     assert sys_content[0]["cache_control"] == EPHEMERAL
 
 
-def test_add_cache_markers_fallback_does_not_convert_string_content() -> None:
-    """Fallback branch must NOT convert string content on the previous message.
+def test_add_cache_markers_tool_result_string_content_marked() -> None:
+    """The agent-loop shape: string tool result last, string assistant before it.
 
-    Mirrors `anthropic.py:1208-1211`: when the last message has fewer than 2
-    blocks and we fall back to marking the previous message, the previous
-    message's string content must stay a string (it may be a `role:"tool"`
-    message whose content shape matters for upstream tool_result translation).
+    Inspect emits bare strings for text-only tool/assistant messages. The
+    history breakpoint must still land there, otherwise only the system
+    prompt and tools are ever cached and every turn re-sends the whole
+    conversation at full input price.
     """
     request: dict[str, Any] = {
         "messages": [
+            {"role": "system", "content": "sys"},
             {"role": "user", "content": "do the thing"},
             {
                 "role": "assistant",
-                "content": [{"type": "text", "text": "calling tool"}],
+                "content": "calling tool",
                 "tool_calls": [{"id": "call_1"}],
             },
             {"role": "tool", "tool_call_id": "call_1", "content": "tool result"},
-            {"role": "user", "content": "thanks"},
+        ],
+        "tools": [{"type": "function", "function": {"name": "a"}}],
+    }
+
+    _add_anthropic_cache_markers(request)
+
+    tool_msg = request["messages"][3]
+    assert tool_msg["content"] == [
+        {"type": "text", "text": "tool result", "cache_control": EPHEMERAL}
+    ]
+    assert tool_msg["tool_call_id"] == "call_1"
+    assistant_msg = request["messages"][2]
+    assert assistant_msg["content"] == [
+        {"type": "text", "text": "calling tool", "cache_control": EPHEMERAL}
+    ]
+    assert assistant_msg["tool_calls"] == [{"id": "call_1"}]
+    assert request["messages"][1]["content"] == "do the thing"
+    assert _count_markers(request) == 4
+
+
+def test_add_cache_markers_skips_empty_content() -> None:
+    """Empty assistant content (tool calls only) cannot carry a marker; walk past it."""
+    request: dict[str, Any] = {
+        "messages": [
+            {"role": "user", "content": "do the thing"},
+            {"role": "assistant", "content": "", "tool_calls": [{"id": "call_1"}]},
+            {"role": "tool", "tool_call_id": "call_1", "content": "tool result"},
         ]
     }
 
     _add_anthropic_cache_markers(request)
 
-    # the previous (tool) message's string content must remain a string
-    assert request["messages"][2]["content"] == "tool result"
-    # and no marker is placed on it (fallback only marks list content)
-    assert "cache_control" not in request["messages"][2]
+    assert _has_cache_control(request["messages"][2]["content"][0])
+    assert request["messages"][1]["content"] == ""
+    assert "cache_control" not in request["messages"][1]
+    assert _has_cache_control(request["messages"][0]["content"][0])
+    assert _count_markers(request) == 2
 
 
-def test_add_cache_markers_single_message_no_marker() -> None:
-    """Single message with single block (no previous message) → no marker placed."""
+def test_add_cache_markers_history_skips_system_messages() -> None:
+    """The system marker is placed once; the history walk does not re-tag it."""
+    request: dict[str, Any] = {
+        "messages": [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "only turn"},
+        ]
+    }
+
+    _add_anthropic_cache_markers(request)
+
+    assert _has_cache_control(request["messages"][0]["content"][0])
+    assert _has_cache_control(request["messages"][1]["content"][0])
+    assert _count_markers(request) == 2
+
+
+def test_add_cache_markers_single_message_marked() -> None:
+    """A lone user message is the whole history; it still gets a marker."""
     request: dict[str, Any] = {
         "messages": [{"role": "user", "content": "lone message"}]
     }
 
     _add_anthropic_cache_markers(request)
 
-    # content stays as a string (no list conversion since nothing to mark)
-    assert request["messages"][0]["content"] == "lone message"
+    assert request["messages"][0]["content"] == [
+        {"type": "text", "text": "lone message", "cache_control": EPHEMERAL}
+    ]
+
+
+def test_add_cache_markers_skips_blank_assistant_text_with_reasoning() -> None:
+    """Reasoning tool-call turns replay as whitespace text; never tag that."""
+    request: dict[str, Any] = {
+        "messages": [
+            {"role": "user", "content": "do the thing"},
+            {
+                "role": "assistant",
+                "content": "\n",
+                "tool_calls": [{"id": "call_1"}],
+                "reasoning_details": [{"type": "reasoning.text", "text": "hmm"}],
+            },
+            {"role": "tool", "tool_call_id": "call_1", "content": "tool result"},
+        ]
+    }
+
+    _add_anthropic_cache_markers(request)
+
+    assistant_msg = request["messages"][1]
+    assert assistant_msg["content"] == "\n"
+    assert "cache_control" not in assistant_msg
+    assert assistant_msg["reasoning_details"] == [
+        {"type": "reasoning.text", "text": "hmm"}
+    ]
+    assert _has_cache_control(request["messages"][2]["content"][0])
+    assert _has_cache_control(request["messages"][0]["content"][0])
+    assert _count_markers(request) == 2
+
+
+def test_add_cache_markers_skips_non_text_parts() -> None:
+    """Only text parts are tagged; images and blank text are walked past."""
+    request: dict[str, Any] = {
+        "messages": [
+            {"role": "user", "content": "earlier"},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "look at this"},
+                    {"type": "text", "text": "   "},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "data:image/png;base64,AA=="},
+                    },
+                ],
+            },
+        ]
+    }
+
+    _add_anthropic_cache_markers(request)
+
+    blocks = request["messages"][1]["content"]
+    assert "cache_control" not in blocks[2]
+    assert "cache_control" not in blocks[1]
+    assert _has_cache_control(blocks[0])
+    assert _has_cache_control(request["messages"][0]["content"][0])
+    assert _count_markers(request) == 2
+
+
+def test_add_cache_markers_parallel_tool_results() -> None:
+    """Several tool results at the end: both markers land on the newest two."""
+    request: dict[str, Any] = {
+        "messages": [
+            {"role": "user", "content": "do two things"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{"id": "call_1"}, {"id": "call_2"}],
+            },
+            {"role": "tool", "tool_call_id": "call_1", "content": "result 1"},
+            {"role": "tool", "tool_call_id": "call_2", "content": "result 2"},
+        ]
+    }
+
+    _add_anthropic_cache_markers(request)
+
+    assert _has_cache_control(request["messages"][3]["content"][0])
+    assert _has_cache_control(request["messages"][2]["content"][0])
+    assert request["messages"][0]["content"] == "do two things"
+    assert _count_markers(request) == 2
+
+
+def test_add_cache_markers_mid_conversation_system_message() -> None:
+    """A trailing system message takes the system marker; the history walk skips it."""
+    request: dict[str, Any] = {
+        "messages": [
+            {"role": "system", "content": "sys 1"},
+            {"role": "user", "content": "turn 1"},
+            {"role": "assistant", "content": "reply 1"},
+            {"role": "system", "content": "sys 2"},
+        ],
+        "tools": [{"type": "function", "function": {"name": "a"}}],
+    }
+
+    _add_anthropic_cache_markers(request)
+
+    assert request["messages"][0]["content"] == "sys 1"
+    assert _has_cache_control(request["messages"][3]["content"][0])
+    assert _has_cache_control(request["messages"][2]["content"][0])
+    assert _has_cache_control(request["messages"][1]["content"][0])
+    assert _count_markers(request) == 4
+
+
+def test_add_cache_markers_idempotent() -> None:
+    """Applying the markers twice yields the same request."""
+    request: dict[str, Any] = {
+        "messages": [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "turn 1"},
+            {"role": "assistant", "content": "reply 1"},
+            {"role": "user", "content": "turn 2"},
+        ],
+        "tools": [{"type": "function", "function": {"name": "a"}}],
+    }
+
+    _add_anthropic_cache_markers(request)
+    once = json.loads(json.dumps(request))
+    _add_anthropic_cache_markers(request)
+
+    assert request == once
+    assert _count_markers(request) == 4
 
 
 def test_add_cache_markers_no_tools_no_messages() -> None:
@@ -675,3 +865,100 @@ def test_openrouter_session_id_omitted_without_active_sample(
     api = _make_api("anthropic/claude-sonnet-4-5")
 
     assert api.request_headers(GenerateConfig()) == {}
+
+
+@pytest.mark.anyio
+async def test_openrouter_responses_api_does_not_send_explicit_cache_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Assert no explicit-cache fields leak through OpenRouter's shared Responses path.
+
+    OpenRouter (and other OpenAI-compatible providers) must not send
+    OpenAI's `prompt_cache_options`/`prompt_cache_breakpoint` fields even
+    when routed through generate_responses with responses_api=True and a
+    model name matching OpenAI's gpt-5.6+ naming pattern.
+
+    generate_responses is shared with the direct OpenAI provider; only that
+    provider has verified support for these fields (live-tested against
+    the real API). OpenRouter's actual acceptance of them is unverified,
+    so ContentText.cache_breakpoint marks must stay unsupported here and
+    fall back to whatever implicit caching the model/provider already does
+    — see the `supports_explicit_prompt_cache` gate in
+    `_providers/openai_responses.py::generate_responses`.
+    """
+    from unittest.mock import AsyncMock
+
+    from openai.types.responses import (
+        Response,
+        ResponseOutputMessage,
+        ResponseOutputText,
+    )
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai._util.content import ContentText
+    from inspect_ai.model._chat_message import ChatMessageUser
+
+    mock_response = Response.model_construct(
+        id="resp-test",
+        created_at=0,
+        model="gpt-5.6",
+        object="response",
+        output=[
+            ResponseOutputMessage.model_construct(
+                id="msg-1",
+                type="message",
+                role="assistant",
+                status="completed",
+                content=[
+                    ResponseOutputText.model_construct(
+                        type="output_text", text="ok", annotations=[]
+                    )
+                ],
+            )
+        ],
+        parallel_tool_calls=True,
+        tool_choice="auto",
+        tools=[],
+        usage=ResponseUsage.model_construct(
+            input_tokens=10,
+            output_tokens=5,
+            total_tokens=15,
+            input_tokens_details=InputTokensDetails.model_construct(cached_tokens=0),
+            output_tokens_details=OutputTokensDetails.model_construct(
+                reasoning_tokens=0
+            ),
+        ),
+        error=None,
+    )
+
+    # a model name that matches OpenAI's gpt-5.6+ pattern, routed through
+    # the Responses API — exactly the scenario the gate must cover
+    api = _make_api("openai/gpt-5.6", responses_api=True)
+    mock_create = AsyncMock(return_value=mock_response)
+    monkeypatch.setattr(api.client.responses, "create", mock_create)
+
+    await api.generate(
+        input=[
+            ChatMessageUser(
+                content=[
+                    ContentText(text="rubric", cache_breakpoint=True),
+                    ContentText(text="item"),
+                ]
+            )
+        ],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+    )
+
+    request = dict(mock_create.call_args.kwargs)
+    assert "prompt_cache_options" not in request
+    for item in request["input"]:
+        content = item.get("content")
+        if isinstance(content, list):
+            for block in content:
+                assert "prompt_cache_breakpoint" not in block

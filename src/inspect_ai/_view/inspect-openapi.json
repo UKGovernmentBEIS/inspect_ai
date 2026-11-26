@@ -150,6 +150,17 @@
               }
             ],
             "title": "Scout Version"
+          },
+          "trust_content": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Content"
           }
         },
         "required": [
@@ -184,6 +195,17 @@
             "default": "approval",
             "title": "Event",
             "type": "string"
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
           },
           "explanation": {
             "anyOf": [
@@ -304,8 +326,22 @@
       },
       "ApproverPolicyConfig": {
         "additionalProperties": true,
-        "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: web_browser*, bash, pyhton\n    choices: [approve, reject]\n\n  - name: auto\n    tools: *\n    decision: approve\n```",
+        "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: bash*, python, text_editor\n    choices: [approve, reject]\n\n  - name: human\n    tools: computer\n    arguments: {action: key}\n\n  - name: auto\n    tools: *\n    decision: approve\n```",
         "properties": {
+          "arguments": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arguments"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -1383,6 +1419,359 @@
         ],
         "title": "Citation"
       },
+      "CommunicationDelivery": {
+        "description": "For `delivered`, whom a record reached and in what order.",
+        "properties": {
+          "recipients": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recipients",
+            "type": "array"
+          },
+          "seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seq"
+          }
+        },
+        "required": [
+          "recipients"
+        ],
+        "title": "CommunicationDelivery",
+        "type": "object"
+      },
+      "CommunicationEvent": {
+        "description": "Communication between agents: a record sent or delivered, a read of what others communicated, or a wait for others.\n\nExperimental: not yet a stable API.",
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "agent_span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Span Id"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "data": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Data",
+            "type": "object"
+          },
+          "delivery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommunicationDelivery"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "event": {
+            "const": "communication",
+            "default": "communication",
+            "title": "Event",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "sent",
+              "delivered",
+              "read",
+              "waited"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "loop_span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loop Span Id"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "nested": {
+            "default": false,
+            "title": "Nested",
+            "type": "boolean"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "record_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Record Ids",
+            "type": "array"
+          },
+          "send": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommunicationSend"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Id"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "wait": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommunicationWait"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "working_start": {
+            "title": "Working Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "working_start",
+          "event",
+          "kind",
+          "source",
+          "agent",
+          "nested",
+          "record_ids",
+          "data"
+        ],
+        "title": "CommunicationEvent",
+        "type": "object"
+      },
+      "CommunicationRecord": {
+        "description": "For `sent`, what one agent communicated: a message, or a change to state other agents read.",
+        "properties": {
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "recipients": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recipients",
+            "type": "array"
+          },
+          "reply_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply To"
+          },
+          "sender": {
+            "title": "Sender",
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "type": "string"
+            },
+            "title": "To",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "sender",
+          "to",
+          "recipients"
+        ],
+        "title": "CommunicationRecord",
+        "type": "object"
+      },
+      "CommunicationRejection": {
+        "description": "For `sent`, why a record that was sent was not delivered.",
+        "properties": {
+          "control": {
+            "title": "Control",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "control",
+          "reason"
+        ],
+        "title": "CommunicationRejection",
+        "type": "object"
+      },
+      "CommunicationSend": {
+        "description": "For `sent`, the record an agent sent, and why it was refused if it was.",
+        "properties": {
+          "record": {
+            "$ref": "#/components/schemas/CommunicationRecord"
+          },
+          "rejected": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommunicationRejection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "record"
+        ],
+        "title": "CommunicationSend",
+        "type": "object"
+      },
+      "CommunicationWait": {
+        "description": "For `waited`, an agent waiting for other agents.",
+        "properties": {
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "duration": {
+            "title": "Duration",
+            "type": "number"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channels",
+          "outcome",
+          "duration"
+        ],
+        "title": "CommunicationWait",
+        "type": "object"
+      },
       "CompactionEvent": {
         "description": "Compaction of conversation history.",
         "properties": {
@@ -1878,7 +2267,7 @@
         "type": "object"
       },
       "ContentReasoning": {
-        "description": "Reasoning content.\n\nSee the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.",
+        "description": "Reasoning content.\n\nSee the specification for [thinking blocks](https://platform.claude.com/docs/en/build-with-claude/extended-thinking) for Claude models.",
         "properties": {
           "internal": {
             "anyOf": [
@@ -1939,6 +2328,17 @@
       "ContentText": {
         "description": "Text content.",
         "properties": {
+          "cache_breakpoint": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Breakpoint"
+          },
           "citations": {
             "anyOf": [
               {
@@ -2777,6 +3177,32 @@
             ],
             "title": "Score On Error"
           },
+          "sentinel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentinelConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sentinel_proxy": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "required",
+                  "off"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentinel Proxy"
+          },
           "time_limit": {
             "anyOf": [
               {
@@ -3071,6 +3497,17 @@
             "title": "Tags",
             "type": "array"
           },
+          "total_samples": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Samples"
+          },
           "version": {
             "default": 2,
             "title": "Version",
@@ -3321,6 +3758,7 @@
                       "approval": "#/components/schemas/ApprovalEvent",
                       "branch": "#/components/schemas/BranchEvent",
                       "checkpoint": "#/components/schemas/CheckpointEvent",
+                      "communication": "#/components/schemas/CommunicationEvent",
                       "compaction": "#/components/schemas/CompactionEvent",
                       "error": "#/components/schemas/ErrorEvent",
                       "info": "#/components/schemas/InfoEvent",
@@ -3334,12 +3772,14 @@
                       "sandbox": "#/components/schemas/SandboxEvent",
                       "score": "#/components/schemas/ScoreEvent",
                       "score_edit": "#/components/schemas/ScoreEditEvent",
+                      "sentinel": "#/components/schemas/SentinelEvent",
                       "span_begin": "#/components/schemas/SpanBeginEvent",
                       "span_end": "#/components/schemas/SpanEndEvent",
                       "state": "#/components/schemas/StateEvent",
                       "step": "#/components/schemas/StepEvent",
                       "store": "#/components/schemas/StoreEvent",
                       "subtask": "#/components/schemas/SubtaskEvent",
+                      "swarm": "#/components/schemas/SwarmEvent",
                       "tool": "#/components/schemas/ToolEvent"
                     },
                     "propertyName": "event"
@@ -3374,6 +3814,15 @@
                     },
                     {
                       "$ref": "#/components/schemas/ReviewEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SentinelEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommunicationEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SwarmEvent"
                     },
                     {
                       "$ref": "#/components/schemas/BranchEvent"
@@ -3485,7 +3934,7 @@
         "type": "object"
       },
       "EvalSample": {
-        "description": "Sample from evaluation task.",
+        "description": "Sample from evaluation task.\n\nA sample remembers whether its attachment references have been resolved:\n`resolve_sample_attachments()` (and reading a log with\n`resolve_attachments`) marks the sample it returns, and writing a log\nuses the mark to tell literal text that begins with `attachment://` or\n`tc://` from a reference. The mark is not serialized. A sample without\nit (built by hand, or passed through `model_dump()` and\n`model_validate()`) is taken to hold references, as read from a log\nwithout resolving attachments.",
         "properties": {
           "attachments": {
             "additionalProperties": {
@@ -3518,6 +3967,17 @@
               }
             ],
             "title": "Completed At"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
           },
           "epoch": {
             "title": "Epoch",
@@ -3555,6 +4015,7 @@
                   "approval": "#/components/schemas/ApprovalEvent",
                   "branch": "#/components/schemas/BranchEvent",
                   "checkpoint": "#/components/schemas/CheckpointEvent",
+                  "communication": "#/components/schemas/CommunicationEvent",
                   "compaction": "#/components/schemas/CompactionEvent",
                   "error": "#/components/schemas/ErrorEvent",
                   "info": "#/components/schemas/InfoEvent",
@@ -3568,12 +4029,14 @@
                   "sandbox": "#/components/schemas/SandboxEvent",
                   "score": "#/components/schemas/ScoreEvent",
                   "score_edit": "#/components/schemas/ScoreEditEvent",
+                  "sentinel": "#/components/schemas/SentinelEvent",
                   "span_begin": "#/components/schemas/SpanBeginEvent",
                   "span_end": "#/components/schemas/SpanEndEvent",
                   "state": "#/components/schemas/StateEvent",
                   "step": "#/components/schemas/StepEvent",
                   "store": "#/components/schemas/StoreEvent",
                   "subtask": "#/components/schemas/SubtaskEvent",
+                  "swarm": "#/components/schemas/SwarmEvent",
                   "tool": "#/components/schemas/ToolEvent"
                 },
                 "propertyName": "event"
@@ -3608,6 +4071,15 @@
                 },
                 {
                   "$ref": "#/components/schemas/ReviewEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/SentinelEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/CommunicationEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/SwarmEvent"
                 },
                 {
                   "$ref": "#/components/schemas/BranchEvent"
@@ -3828,6 +4300,20 @@
               }
             ],
             "title": "Scores"
+          },
+          "sentinel_stats": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SentinelStats"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentinel Stats"
           },
           "setup": {
             "anyOf": [
@@ -4116,7 +4602,9 @@
                   "refusal",
                   "no_response",
                   "grader_failed",
-                  "scoring_failed"
+                  "scoring_failed",
+                  "excluded",
+                  "zeroed"
                 ],
                 "type": "string"
               },
@@ -4241,6 +4729,17 @@
               }
             ],
             "title": "Completed At"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
           },
           "epoch": {
             "title": "Epoch",
@@ -4396,6 +4895,20 @@
               }
             ],
             "title": "Scores"
+          },
+          "sentinel_stats": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SentinelStats"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentinel Stats"
           },
           "started_at": {
             "anyOf": [
@@ -4767,6 +5280,169 @@
         "title": "EvalSetTask",
         "type": "object"
       },
+      "EvalShardEntry": {
+        "description": "Ledger entry for one shard, as of the merge that last read it.",
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "const": "",
+                "type": "string"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvalError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "etag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Etag"
+          },
+          "eval_set_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eval Set Id"
+          },
+          "log": {
+            "title": "Log",
+            "type": "string"
+          },
+          "model_usage": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelUsage"
+            },
+            "title": "Model Usage",
+            "type": "object"
+          },
+          "mtime": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mtime"
+          },
+          "role_usage": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelUsage"
+            },
+            "title": "Role Usage",
+            "type": "object"
+          },
+          "samples": {
+            "title": "Samples",
+            "type": "integer"
+          },
+          "shard": {
+            "title": "Shard",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "const": "",
+                "type": "string"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "started",
+              "success",
+              "cancelled",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "shard",
+          "log",
+          "status",
+          "samples",
+          "started_at",
+          "completed_at",
+          "model_usage",
+          "role_usage",
+          "size"
+        ],
+        "title": "EvalShardEntry",
+        "type": "object"
+      },
+      "EvalShards": {
+        "description": "Provenance of a merged log: its shards and the ledger of the last merge.",
+        "properties": {
+          "ledger": {
+            "items": {
+              "$ref": "#/components/schemas/EvalShardEntry"
+            },
+            "title": "Ledger",
+            "type": "array"
+          },
+          "sample_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Count"
+          },
+          "selection": {
+            "enum": [
+              "ids",
+              "count",
+              "none"
+            ],
+            "title": "Selection",
+            "type": "string"
+          }
+        },
+        "required": [
+          "selection",
+          "ledger"
+        ],
+        "title": "EvalShards",
+        "type": "object"
+      },
       "EvalSpec": {
         "description": "Eval target and configuration.",
         "properties": {
@@ -4945,6 +5621,16 @@
             ],
             "title": "Scorers"
           },
+          "shards": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvalShards"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "solver": {
             "anyOf": [
               {
@@ -5012,6 +5698,17 @@
             "additionalProperties": true,
             "title": "Task Attribs",
             "type": "object"
+          },
+          "task_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Description"
           },
           "task_display_name": {
             "anyOf": [
@@ -5129,6 +5826,20 @@
             "title": "Role Usage",
             "type": "object"
           },
+          "sentinel_stats": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SentinelEvalStats"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentinel Stats"
+          },
           "started_at": {
             "anyOf": [
               {
@@ -5183,6 +5894,15 @@
           },
           {
             "$ref": "#/components/schemas/ReviewEvent"
+          },
+          {
+            "$ref": "#/components/schemas/SentinelEvent"
+          },
+          {
+            "$ref": "#/components/schemas/CommunicationEvent"
+          },
+          {
+            "$ref": "#/components/schemas/SwarmEvent"
           },
           {
             "$ref": "#/components/schemas/BranchEvent"
@@ -5896,6 +6616,7 @@
                         "compaction",
                         "branch",
                         "approval",
+                        "sentinel",
                         "sandbox",
                         "info",
                         "store",
@@ -6769,6 +7490,7 @@
                         "compaction",
                         "branch",
                         "approval",
+                        "sentinel",
                         "sandbox",
                         "info",
                         "store",
@@ -7466,6 +8188,20 @@
       "ModelEvent": {
         "description": "Call to a language model.",
         "properties": {
+          "agent_tool_call_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Tool Call Ids"
+          },
           "cache": {
             "anyOf": [
               {
@@ -7582,6 +8318,17 @@
             "title": "Model",
             "type": "string"
           },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          },
           "output": {
             "$ref": "#/components/schemas/ModelOutput"
           },
@@ -7595,6 +8342,31 @@
               }
             ],
             "title": "Pending"
+          },
+          "request_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModelRequestId"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Ids"
+          },
+          "requested_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Model"
           },
           "retries": {
             "anyOf": [
@@ -7793,6 +8565,17 @@
               }
             ]
           },
+          "input_context_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Context Tokens"
+          },
           "metadata": {
             "anyOf": [
               {
@@ -7808,6 +8591,17 @@
           "model": {
             "title": "Model",
             "type": "string"
+          },
+          "response_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Id"
           },
           "time": {
             "anyOf": [
@@ -7837,6 +8631,30 @@
           "completion"
         ],
         "title": "ModelOutput",
+        "type": "object"
+      },
+      "ModelRequestId": {
+        "description": "Provider request id from an HTTP response.",
+        "properties": {
+          "header": {
+            "title": "Header",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "header",
+          "status"
+        ],
+        "title": "ModelRequestId",
         "type": "object"
       },
       "ModelUsage": {
@@ -8014,7 +8832,7 @@
         "type": "object"
       },
       "Reference": {
-        "description": "Reference to scanned content.",
+        "description": "Reference from a score to content in the scored transcript.\n\nReferences are stored as a list of dicts under a score's\n`metadata[\"scanner_references\"]` key. Inspect View identifies scanner\nscores by the presence of that key and renders cites in the score's\nexplanation (e.g. `[M22]`) as links to the referenced content.",
         "properties": {
           "cite": {
             "anyOf": [
@@ -8315,8 +9133,22 @@
       },
       "ReviewerPolicyConfig": {
         "additionalProperties": true,
-        "description": "Configuration format for reviewer policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\nreviewers:\n  - name: mypackage/output_monitor\n    tools: bash, python\n\n  - name: human\n    tools: \"*\"\n```",
+        "description": "Configuration format for reviewer policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\nreviewers:\n  - name: mypackage/output_monitor\n    tools: bash, python\n\n  - name: mypackage/click_monitor\n    tools: computer\n    arguments: {action: \"*_click\"}\n\n  - name: human\n    tools: \"*\"\n```",
         "properties": {
+          "arguments": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arguments"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -8375,6 +9207,17 @@
               }
             ],
             "title": "Choices"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
           },
           "files": {
             "anyOf": [
@@ -9183,7 +10026,9 @@
                   "refusal",
                   "no_response",
                   "grader_failed",
-                  "scoring_failed"
+                  "scoring_failed",
+                  "excluded",
+                  "zeroed"
                 ],
                 "type": "string"
               },
@@ -9371,7 +10216,9 @@
                   "refusal",
                   "no_response",
                   "grader_failed",
-                  "scoring_failed"
+                  "scoring_failed",
+                  "excluded",
+                  "zeroed"
                 ],
                 "type": "string"
               },
@@ -9768,6 +10615,848 @@
           "member_name"
         ],
         "title": "SegmentRef",
+        "type": "object"
+      },
+      "SentinelConfig": {
+        "description": "A sentinel configuration: one entry, a list of entries, or a mapping of instance names to entries.\n\nThe value of the `sentinel:` key in a configuration file, and what the eval log records. A mapping is one entry when its `name` is a string, and a mapping of instance names when every value is an entry, so an instance named `name` still configures a mapping.\n\nExperimental: not yet a stable API; may change without notice.",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SentinelEntry"
+          },
+          {
+            "items": {
+              "$ref": "#/components/schemas/SentinelEntry"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SentinelEntry"
+            },
+            "minProperties": 1,
+            "type": "object"
+          }
+        ],
+        "title": "SentinelConfig"
+      },
+      "SentinelEntry": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/SentinelConfig"
+        },
+        "description": "One configured monitor or protocol.\n\nAny key besides `name`, `params`, `version` and `meta` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds an entry, a list of entries, or a mapping of instance names to entries, and `nested` returns them.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "title": "Params",
+            "type": "object"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "name",
+          "params"
+        ],
+        "title": "SentinelEntry",
+        "type": "object"
+      },
+      "SentinelEvalStats": {
+        "description": "A sentinel's stats added up over an eval's samples whose stats are complete: only the fields that add up.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "actions": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "proceed",
+                    "modify",
+                    "reject",
+                    "terminate",
+                    "escalate"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actions"
+          },
+          "human_reviews": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentinelHumanReviewCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "incomplete_samples": {
+            "default": 0,
+            "title": "Incomplete Samples",
+            "type": "integer"
+          },
+          "model_calls": {
+            "default": 0,
+            "title": "Model Calls",
+            "type": "integer"
+          },
+          "samples": {
+            "default": 0,
+            "title": "Samples",
+            "type": "integer"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SentinelStepCounts"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "model_input",
+                    "model_output",
+                    "tool_call",
+                    "tool_result"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          },
+          "unrecorded_calls": {
+            "default": 0,
+            "title": "Unrecorded Calls",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "model_calls",
+          "unrecorded_calls",
+          "samples",
+          "incomplete_samples"
+        ],
+        "title": "SentinelEvalStats",
+        "type": "object"
+      },
+      "SentinelEvent": {
+        "description": "Report from a sentinel monitor or protocol about one step.\n\nA report's metadata is recorded in the event's `metadata` field.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "enum": [
+                  "proceed",
+                  "modify",
+                  "reject",
+                  "terminate",
+                  "escalate"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "audit": {
+            "default": false,
+            "title": "Audit",
+            "type": "boolean"
+          },
+          "completed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed"
+          },
+          "conversation": {
+            "title": "Conversation",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "event": {
+            "const": "sentinel",
+            "default": "sentinel",
+            "title": "Event",
+            "type": "string"
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "factory": {
+            "title": "Factory",
+            "type": "string"
+          },
+          "function": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Function"
+          },
+          "kind": {
+            "enum": [
+              "observation",
+              "decision"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "modified": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolCall"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            },
+            "title": "References",
+            "type": "array"
+          },
+          "remote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentinelRemote"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Id"
+          },
+          "stage": {
+            "enum": [
+              "model_input",
+              "model_output",
+              "tool_call",
+              "tool_result"
+            ],
+            "title": "Stage",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "reported",
+                  "cancelled",
+                  "bypassed",
+                  "superseded",
+                  "error",
+                  "unjudged"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Status"
+          },
+          "step_id": {
+            "title": "Step Id",
+            "type": "string"
+          },
+          "suspicion": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "minProperties": 1,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suspicion"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "working_start": {
+            "title": "Working Start",
+            "type": "number"
+          },
+          "working_time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Working Time"
+          }
+        },
+        "required": [
+          "timestamp",
+          "working_start",
+          "event",
+          "factory",
+          "path",
+          "step_id",
+          "conversation",
+          "stage",
+          "kind",
+          "status",
+          "audit",
+          "references"
+        ],
+        "title": "SentinelEvent",
+        "type": "object"
+      },
+      "SentinelHumanReviewCounts": {
+        "description": "Questions a sentinel's `human()` asked a person, and how they ended.\n\nOnly reviews a sentinel's `human()` asked for. Approvals by `inspect_ai.approval` approvers and reviews by `inspect_ai.review` reviewers are not counted here.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "answered": {
+            "default": 0,
+            "title": "Answered",
+            "type": "integer"
+          },
+          "cancelled": {
+            "default": 0,
+            "title": "Cancelled",
+            "type": "integer"
+          },
+          "timed_out": {
+            "default": 0,
+            "title": "Timed Out",
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "answered",
+          "timed_out",
+          "cancelled"
+        ],
+        "title": "SentinelHumanReviewCounts",
+        "type": "object"
+      },
+      "SentinelRemote": {
+        "description": "Where a report from a sentinel running outside the eval came from: the model's proxy Inspect reached it through, and the agent's model call it judged.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "human_reviews": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SentinelRemoteHumanReview"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Human Reviews"
+          },
+          "models": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SentinelRemoteModel"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Models"
+          },
+          "proxy_url": {
+            "title": "Proxy Url",
+            "type": "string"
+          },
+          "reply_received": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply Received"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "request_received": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Received"
+          },
+          "trimmed": {
+            "default": false,
+            "title": "Trimmed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "proxy_url",
+          "trimmed"
+        ],
+        "title": "SentinelRemote",
+        "type": "object"
+      },
+      "SentinelRemoteHumanReview": {
+        "description": "A question a remote sentinel's `human()` asked a person about a step, and how it ended.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "answered": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered"
+          },
+          "asked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asked"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "enum": [
+                  "answered",
+                  "timed_out",
+                  "cancelled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "SentinelRemoteHumanReview",
+        "type": "object"
+      },
+      "SentinelRemoteModel": {
+        "description": "A model a remote sentinel's monitors and protocols called while judging a step.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "title": "SentinelRemoteModel",
+        "type": "object"
+      },
+      "SentinelRemoteStats": {
+        "description": "What only a remote sentinel's stats have: how Inspect reached it, and the model calls Inspect sent through it.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "model_calls": {
+            "default": 0,
+            "title": "Model Calls",
+            "type": "integer"
+          },
+          "proxy_url": {
+            "title": "Proxy Url",
+            "type": "string"
+          },
+          "release": {
+            "anyOf": [
+              {
+                "enum": [
+                  "whole",
+                  "early"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Release"
+          },
+          "results_withheld": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Results Withheld"
+          },
+          "unrecorded_calls": {
+            "default": 0,
+            "title": "Unrecorded Calls",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "proxy_url",
+          "version",
+          "release",
+          "model_calls",
+          "unrecorded_calls"
+        ],
+        "title": "SentinelRemoteStats",
+        "type": "object"
+      },
+      "SentinelStats": {
+        "description": "What a sentinel did over a sample, filled the same way whether it ran inside Inspect or outside the eval.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "actions": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "proceed",
+                    "modify",
+                    "reject",
+                    "terminate",
+                    "escalate"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actions"
+          },
+          "complete": {
+            "default": true,
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "human_reviews": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentinelHumanReviewCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "incomplete_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incomplete Reason"
+          },
+          "remote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentinelRemoteStats"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/SentinelStepCounts"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "model_input",
+                    "model_output",
+                    "tool_call",
+                    "tool_result"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          }
+        },
+        "required": [
+          "complete"
+        ],
+        "title": "SentinelStats",
+        "type": "object"
+      },
+      "SentinelStepCounts": {
+        "description": "Steps a sentinel saw at one stage, and whether each was judged.\n\nExperimental: not yet a stable API; may change without notice.",
+        "properties": {
+          "judged": {
+            "default": 0,
+            "title": "Judged",
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "unjudged": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Unjudged",
+            "type": "object"
+          }
+        },
+        "required": [
+          "total",
+          "judged",
+          "unjudged"
+        ],
+        "title": "SentinelStepCounts",
         "type": "object"
       },
       "SnapshotDetails": {
@@ -10453,6 +12142,101 @@
         "title": "SubtaskEvent",
         "type": "object"
       },
+      "SwarmEvent": {
+        "description": "Evidence from an agent swarm (inspect_swarm) other than communication: a member's result, the final answer's selection, the swarm's ledger or its metrics.\n\nThe swarm defines `kind` and the format of `data`. Experimental: not yet a stable API.",
+        "properties": {
+          "data": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Data",
+            "type": "object"
+          },
+          "event": {
+            "const": "swarm",
+            "default": "swarm",
+            "title": "Event",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "member": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Id"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "working_start": {
+            "title": "Working Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "working_start",
+          "event",
+          "kind",
+          "data"
+        ],
+        "title": "SwarmEvent",
+        "type": "object"
+      },
       "TagsEdit": {
         "description": "Edit action for tags.",
         "properties": {
@@ -11126,7 +12910,7 @@
         "title": "ToolChoice"
       },
       "ToolEvent": {
-        "description": "Call to a tool.",
+        "description": "Call to a tool.\n\nA host tool that `sandbox_agent_bridge(bridged_tools=...)` runs for a\nsandboxed agent is recorded with `metadata[\"bridge\"]`: `server` and `tool`\n(the bridged server and the tool name within it, also the event's\n`function`), `function` (the name the model called it by, or `None`),\n`proposal_id` (the id of the model's proposing tool call, or `None`) and\n`grant` (`\"consumed\"` when a proposal matched, `\"denied\"` when the call\nwas refused for lack of one, `\"exempt\"` when a server registered with\n`require_proposal=False` ran it without one, or `None` when the request\nwas rejected before that check).",
         "properties": {
           "agent": {
             "anyOf": [
@@ -11156,6 +12940,17 @@
             },
             "title": "Arguments",
             "type": "object"
+          },
+          "call_message_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Message Id"
           },
           "completed": {
             "anyOf": [
@@ -11188,6 +12983,17 @@
             "items": {},
             "title": "Events",
             "type": "array"
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
           },
           "failed": {
             "anyOf": [
@@ -11404,7 +13210,7 @@
         "type": "object"
       },
       "ToolInfo": {
-        "description": "Specification of a tool (JSON Schema compatible)\n\nIf you are implementing a ModelAPI, most LLM libraries can\nbe passed this object (dumped to a dict) directly as a function\nspecification. For example, in the OpenAI provider:\n\n```python\nChatCompletionToolParam(\n    type=\"function\",\n    function=tool.model_dump(exclude_none=True),\n)\n```\n\nIn some cases the field names don't match up exactly. In that case\ncall `model_dump()` on the `parameters` field. For example, in the\nAnthropic provider:\n\n```python\nToolParam(\n    name=tool.name,\n    description=tool.description,\n    input_schema=tool.parameters.model_dump(exclude_none=True),\n)\n```",
+        "description": "Specification of a tool (JSON Schema compatible)\n\nIf you are implementing a ModelAPI, most LLM libraries can\nbe passed this object (dumped to a dict) directly as a function\nspecification. For example, in the OpenAI provider:\n\n```python\nChatCompletionToolParam(\n    type=\"function\",\n    function=tool.model_dump(mode=\"json\", exclude_none=True),\n)\n```\n\nIn some cases the field names don't match up exactly. In that case\ncall `model_dump()` on the `parameters` field. For example, in the\nAnthropic provider:\n\n```python\nToolParam(\n    name=tool.name,\n    description=tool.description,\n    input_schema=tool.parameters.model_dump(mode=\"json\", exclude_none=True),\n)\n```\n\nDump in JSON mode, as shown, so parameter defaults such as an `Enum`\nmember are converted to JSON values.",
         "properties": {
           "description": {
             "title": "Description",
@@ -11667,7 +13473,7 @@
         "type": "object"
       },
       "ViewerConfig": {
-        "description": "Top-level viewer configuration.\n\nThis allows per task customization of the\nTask's sample list and each sample's score and scanner result display.",
+        "description": "Top-level viewer configuration.\n\nThis allows per task customization of the\nTask's sample list, each sample's score and scanner result display,\nand whether log content is trusted enough to render richly.",
         "properties": {
           "sample_score_view": {
             "anyOf": [
@@ -11709,6 +13515,17 @@
               }
             ],
             "title": "Task Samples View"
+          },
+          "trust_content": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Content"
           }
         },
         "required": [

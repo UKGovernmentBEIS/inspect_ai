@@ -1,4 +1,3 @@
-import sys
 from datetime import date, datetime, time, timedelta, timezone
 from logging import getLogger
 from pathlib import Path
@@ -20,22 +19,11 @@ logger = getLogger(__name__)
 
 
 def _normalize_iso_z_suffix(input: str) -> str:
-    """Normalize Z suffix in ISO format strings for Python 3.10 compatibility.
+    """Replace a trailing Z/z UTC designator with +00:00.
 
-    Python 3.10's fromisoformat() doesn't support Z suffix for UTC.
-    Python 3.11+ handles Z natively.
-
-    Args:
-        input: ISO format string (may end with Z or z)
-
-    Returns:
-        ISO format string with Z/z replaced by +00:00 (if Python < 3.11)
+    fromisoformat() rejects Z on Python 3.10 and lowercase z on all versions.
     """
-    return (
-        input
-        if sys.version_info >= (3, 11) or not input.endswith(("Z", "z"))
-        else input[:-1] + "+00:00"
-    )
+    return input[:-1] + "+00:00" if input.endswith(("Z", "z")) else input
 
 
 def is_file_older_than(path: str | Path, delta: timedelta, *, default: bool) -> bool:

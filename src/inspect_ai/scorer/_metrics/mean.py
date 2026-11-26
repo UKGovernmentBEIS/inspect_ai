@@ -16,7 +16,7 @@ def mean(to_float: ValueToFloat = value_to_float()) -> Metric:
           metrics. The default `value_to_float()` maps CORRECT ("C") to 1.0,
           INCORRECT ("I") to 0, PARTIAL ("P") to 0.5, and NOANSWER ("N") to 0,
           casts numeric values to float directly, and prints a warning and returns
-          0 if the Value is a complex object (list or dict).
+          0 if the Value is a complex object (list or dict) or `None`.
 
     Returns:
        mean metric

@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from test_helpers.utils import skip_if_no_docker
@@ -8,10 +9,54 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, tool
-from inspect_ai.util import sandbox
-from inspect_ai.util._sandbox.context import sandbox_default
+from inspect_ai.util import SandboxEnvironment, sandbox
+from inspect_ai.util._sandbox.context import (
+    sandbox_default,
+    sandbox_environments_context_var,
+)
 
 CURRENT_DIRECTORY = Path(__file__).resolve().parent
+
+
+@pytest.mark.parametrize("environment_names", [["bar"], ["bar", "baz"]])
+@pytest.mark.parametrize("name", ["foo", ""])
+def test_sandbox_rejects_unknown_name(environment_names: list[str], name: str) -> None:
+    environments: dict[str, SandboxEnvironment] = {
+        name: MagicMock(spec=SandboxEnvironment) for name in environment_names
+    }
+    token = sandbox_environments_context_var.set(environments)
+    try:
+        with (
+            sandbox_default("bar"),
+            pytest.raises(
+                ValueError,
+                match=f"SandboxEnvironment '{name}' is not a recognized environment name",
+            ) as exc_info,
+        ):
+            sandbox(name)
+        for env_name in environment_names:
+            assert env_name in str(exc_info.value)
+    finally:
+        sandbox_environments_context_var.reset(token)
+
+
+@pytest.mark.parametrize(
+    "environment_names", [["bar"], ["foo", "bar"], ["default", "bar"]]
+)
+def test_sandbox_resolves_names_and_default(environment_names: list[str]) -> None:
+    environments: dict[str, SandboxEnvironment] = {
+        name: MagicMock(spec=SandboxEnvironment) for name in environment_names
+    }
+    token = sandbox_environments_context_var.set(environments)
+    try:
+        with sandbox_default("bar"):
+            assert sandbox() is environments["bar"]
+            assert sandbox("default") is environments["bar"]
+            for name, environment in environments.items():
+                if name != "default":
+                    assert sandbox(name) is environment
+    finally:
+        sandbox_environments_context_var.reset(token)
 
 
 @tool

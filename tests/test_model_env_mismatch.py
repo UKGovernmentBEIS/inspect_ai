@@ -174,7 +174,7 @@ class TestModelEnvironmentMismatch:
             f"Should not warn about case-only differences. Got: {mismatch_warnings}"
         )
 
-    def test_deployment_name_normalization(self, monkeypatch, caplog):
+    def test_deployment_name_normalization(self, monkeypatch, mocker, caplog):
         """
         Test that common naming variations are handled (e.g., gpt-35-turbo vs gpt-3.5-turbo).
 
@@ -187,22 +187,22 @@ class TestModelEnvironmentMismatch:
         )
         monkeypatch.setenv("AZUREAI_OPENAI_API_KEY", "test-key")
 
+        # Mock the Azure client creation (not the whole provider class, which
+        # would skip the constructor that performs the mismatch check)
+        mocker.patch("inspect_ai.model._providers.openai.AsyncAzureOpenAI")
+        mocker.patch("inspect_ai.model._providers.openai.DefaultAsyncHttpxClient")
+
         # Using the OpenAI-style name
-        with caplog.at_level(logging.WARNING):
-            try:
-                get_model("openai/azure/gpt-3.5-turbo")
-            except Exception:
-                pass
+        with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+            model = get_model("openai/azure/gpt-3.5-turbo", memoize=False)
+            assert model is not None
 
         # Should not warn about this known naming difference
-        any(
-            "mismatch" in record.message.lower()
-            for record in caplog.records
-            if record.levelname == "WARNING"
+        mismatch_warnings = _mismatch_warnings(caplog)
+        assert not mismatch_warnings, (
+            f"Should not warn about the gpt-35-turbo vs gpt-3.5-turbo naming "
+            f"difference. Got: {mismatch_warnings}"
         )
-
-        # This test documents expected behavior - adjust based on implementation
-        # If we want to warn here, change to assert mismatch_warning
 
     def test_other_providers_not_affected(self, monkeypatch, caplog):
         """

@@ -278,11 +278,8 @@ class AcpTransport(Protocol):
         post-bind setup have completed. The no-op transport always returns
         ``False``.
 
-        Scoped to the agent-loop lifetime (like :attr:`is_interactive`):
-        after the agent loop exits, the client registries are cleared while
-        scoring runs, so this returns ``False`` during the scoring window
-        even though a client may still be connected and receiving score
-        events. ``False`` there does not mean no client ever attached.
+        Returns ``False`` once the session has closed: closing clears the
+        client registries.
         """
         ...
 
@@ -372,21 +369,6 @@ class AcpTransport(Protocol):
         :meth:`submit_user_message`. Modal-prompt clients observe
         this via :meth:`subscribe_interrupted` /
         :meth:`subscribe_prompt_resolved`.
-        """
-        ...
-
-    @property
-    def agent_completed(self) -> bool:
-        """True after the agent's react loop has exited (split-phase park).
-
-        ``LiveAcpTransport.__aexit__`` parks the session for the scoring
-        window when bound to an ``ActiveSample`` — the router + pubsub
-        stay attached so scoring events still reach clients, but the
-        agent loop is gone. Connection handlers read this to reject
-        late ``session/prompt`` requests (no consumer to drain the
-        queue) and the TUI uses it to disable the composer during
-        scoring. False for unbound sessions; the NoOp session is
-        always False since it has no lifecycle.
         """
         ...
 
@@ -679,14 +661,14 @@ class AcpTransport(Protocol):
     def is_attachable(self) -> bool:
         """True iff a client may attach to this transport at all.
 
-        The broad gate: True from ``__aenter__`` until :meth:`finalize`,
+        The broad gate: True until the session closes (``__aexit__``),
         regardless of channel binding — so observe-only clients can
         attach to any running sample (custom solvers, pre-bind window,
         scoring window) and receive its event stream. Drivable
         (interactive) attach additionally requires :attr:`is_interactive`.
 
         Returns False for the no-op session and after the transport has
-        finalized (router detached, sample done).
+        closed (router detached, sample done).
         """
         ...
 

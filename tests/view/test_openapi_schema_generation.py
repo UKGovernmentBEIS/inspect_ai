@@ -17,6 +17,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Discriminator, RootModel, Tag
 
 from inspect_ai._view._openapi import build_openapi_schema
+from inspect_ai._view.schema import _merge_same_shape_models
+from inspect_ai.scorer._metric import ScoreEdit
 
 # ---------------------------------------------------------------------------
 # Test models — each has a single `field` with a specific pattern
@@ -427,3 +429,74 @@ def test_json_value_is_empty_schema() -> None:
 
     assert "JsonValue" in schemas
     assert schemas["JsonValue"] == {}
+
+
+def test_score_edit_openapi_schema_keeps_typed_fields() -> None:
+    app = FastAPI(title="test", version="0.1.0")
+
+    @app.post("/score-edit")
+    def _endpoint(edit: ScoreEdit) -> ScoreEdit:
+        return edit
+
+    schemas = build_openapi_schema(app)["components"]["schemas"]
+    schema = schemas["ScoreEdit"]
+
+    assert set(schema["properties"]) == {
+        "value",
+        "answer",
+        "explanation",
+        "reason",
+        "metadata",
+        "provenance",
+    }
+    assert not any(name.startswith("ScoreEdit-") for name in schemas)
+
+
+def _reference(description: str, extra: dict[str, Any] | None = None) -> Any:
+    properties: dict[str, Any] = {"id": {"title": "Id", "type": "string"}}
+    properties.update(extra or {})
+    return {
+        "title": "Reference",
+        "description": description,
+        "properties": properties,
+        "type": "object",
+    }
+
+
+def _schema_with_two_references(scout_extra: dict[str, Any] | None) -> Any:
+    return {
+        "components": {
+            "schemas": {
+                "inspect_scout__result__Reference": _reference("scout's", scout_extra),
+                "inspect_ai__scorer__Reference": _reference("inspect's"),
+                "Result": {
+                    "properties": {
+                        "references": {
+                            "items": {
+                                "$ref": "#/components/schemas/inspect_scout__result__Reference"
+                            }
+                        }
+                    }
+                },
+            }
+        }
+    }
+
+
+def test_same_shape_models_merge_under_their_class_name() -> None:
+    schemas = _merge_same_shape_models(_schema_with_two_references(None))["components"][
+        "schemas"
+    ]
+    assert set(schemas) == {"Reference", "Result"}
+    assert schemas["Reference"]["description"] == "inspect's"
+    assert (
+        schemas["Result"]["properties"]["references"]["items"]["$ref"]
+        == "#/components/schemas/Reference"
+    )
+
+
+def test_models_of_different_shape_keep_qualified_names() -> None:
+    schema = _schema_with_two_references({"cite": {"type": "string"}})
+    assert _merge_same_shape_models(schema) == _schema_with_two_references(
+        {"cite": {"type": "string"}}
+    )

@@ -10,6 +10,7 @@ from pydantic import JsonValue
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai.event import Event, Timeline, TimelineEvent, TimelineSpan
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._pool import (
@@ -44,6 +45,7 @@ from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
+    ChatMessageTool,
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
@@ -278,6 +280,53 @@ def test_write_read_round_trip(
             assert event.input_refs is None
 
 
+@pytest.mark.parametrize("format", ["eval", "json"])
+def test_write_read_keeps_message_ids(format: str) -> None:
+    """Messages with equal content but their own ids read back with those ids."""
+    first = ChatMessageUser(content="continue")
+    reply = ChatMessageAssistant(content="ok")
+    second = ChatMessageUser(content="continue")
+    inputs: list[list[ChatMessage]] = [
+        [first],
+        [first.model_copy(), reply, second],
+    ]
+    sample = EvalSample(
+        id="test",
+        epoch=1,
+        input="test",
+        target="test",
+        messages=[first, reply, second],
+        events=[
+            ModelEvent(
+                model="test-model",
+                input=input,
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(),
+            )
+            for input in inputs
+        ],
+    )
+    log = _make_eval_log_with_model_events()
+    log.samples = [condense_sample(sample)]
+    assert log.samples[0].events_data is not None
+    assert len(log.samples[0].events_data["messages"]) == 3
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, f"test.{format}")
+        write_eval_log(log, path)
+        read_log = read_eval_log(path)
+
+    assert read_log.samples is not None
+    read_sample = read_log.samples[0]
+    model_events = [e for e in read_sample.events if isinstance(e, ModelEvent)]
+    assert [[m.id for m in e.input] for e in model_events] == [
+        [m.id for m in input] for input in inputs
+    ]
+    assert [m.id for m in read_sample.messages] == [first.id, reply.id, second.id]
+
+
 def test_eval_sample_validation_preserves_condensed_timeline_events_data():
     """EvalSample validation hydrates timelines but does not resolve event pools."""
     sample = _make_sample_with_timeline()
@@ -301,6 +350,7 @@ def test_eval_sample_validation_preserves_condensed_timeline_events_data():
     "resolve_attachments",
     [
         pytest.param(False, id="no-attachments"),
+        pytest.param("core", id="core-attachments"),
         pytest.param("full", id="full-attachments"),
     ],
 )
@@ -490,6 +540,31 @@ def test_resolve_call_request_messages():
     assert model_events[0].call.call_refs is None
     assert model_events[1].call.call_refs is None
     assert resolved.events_data is None
+
+
+@pytest.mark.parametrize("mode", ["core", "full"])
+def test_resolve_pooled_matches_resolve_expanded(
+    mode: Literal["core", "full"],
+) -> None:
+    """Resolving pools directly matches resolving after pool expansion."""
+    long_text = "long-shared-content-" + ("x" * 200)
+    sample = _make_sample_with_call_messages()
+    for event in sample.events:
+        assert isinstance(event, ModelEvent) and event.call
+        event.input = [ChatMessageUser(content=long_text)]
+        messages = event.call.request["messages"]
+        assert isinstance(messages, list)
+        event.call.request["messages"] = [
+            {"role": "user", "content": long_text},
+            *messages,
+        ]
+    condensed = condense_sample(sample)
+    assert condensed.attachments and condensed.events_data
+
+    pooled = resolve_sample_attachments(condensed, mode)
+    expanded = resolve_sample_attachments(resolve_sample_events_data(condensed), mode)
+
+    assert pooled.model_dump(mode="json") == expanded.model_dump(mode="json")
 
 
 def test_call_pool_round_trip_content_preserved():
@@ -1070,11 +1145,12 @@ def test_msg_hash_stable_across_serialization_roundtrip() -> None:
         [reparsed] = validate_chat_messages([json.loads(msg.model_dump_json())])
         assert _msg_hash(reparsed) == _msg_hash(msg)
 
-    # the hash excludes .id: same content under different ids hashes equal
+    # the hash includes .id: copies hash equal, other ids do not
     a = ChatMessageUser(content="same content")
     b = ChatMessageUser(content="same content")
     assert a.id != b.id
-    assert _msg_hash(a) == _msg_hash(b)
+    assert _msg_hash(a) == _msg_hash(a.model_copy())
+    assert _msg_hash(a) != _msg_hash(b)
 
 
 def test_pool_json_helpers_roundtrip_to_own_hash() -> None:
@@ -1094,3 +1170,87 @@ def test_pool_json_helpers_roundtrip_to_own_hash() -> None:
     call_msg: JsonValue = {"role": "user", "b": 1, "a": 2}
     stored_call = _call_pool_json(call_msg)
     assert _call_hash(json.loads(stored_call)) == _call_hash(call_msg)
+
+
+def test_msg_hash_handles_lone_surrogates_across_pool_roundtrip() -> None:
+    """A surrogate-bearing message hashes safely and matches after a pool roundtrip."""
+    messages: list[ChatMessage] = [
+        ChatMessageSystem(content="system: \ud800"),
+        ChatMessageUser(
+            content="user: \udc00",
+            metadata={"key-\ud800": ["value-\udc00"]},
+        ),
+        ChatMessageAssistant(
+            content="assistant: \ud800",
+            tool_calls=[
+                ToolCall(
+                    id="call-surrogate",
+                    function="lookup",
+                    arguments={
+                        "query": "value: \udc00",
+                        "nested": {"items": ["value-\ud800", "value-\udc00"]},
+                    },
+                )
+            ],
+        ),
+        ChatMessageTool(
+            tool_call_id="call-1",
+            function="lookup",
+            content="tool: \udc00",
+        ),
+    ]
+
+    for message in messages:
+        stored = _msg_pool_json(_msg_pool_jsonable(message))
+        [reparsed] = validate_chat_messages([json.loads(stored)])
+        message_hash = _msg_hash(message)
+
+        assert len(message_hash) == 32
+        assert _msg_hash(reparsed) == message_hash
+        assert reparsed.id == message.id
+        assert (
+            _msg_hash(message.model_copy(update={"id": "different-id"})) != message_hash
+        )
+
+
+def test_msg_hash_matches_pydantic_json_for_valid_messages() -> None:
+    """Surrogate-safe serialization must not change hashes for valid messages."""
+    messages: list[ChatMessage] = [
+        ChatMessageSystem(content="system"),
+        ChatMessageUser(
+            content="中文 café 💡",
+            metadata={
+                "b": 1,
+                "a": [1, {"k": "v"}],
+                "nan": float("nan"),
+                "inf": float("inf"),
+                "small_exponent": 1e-7,
+                "small_decimal": 1e-5,
+            },
+        ),
+        ChatMessageAssistant(
+            content=[
+                ContentText(text="visible"),
+                ContentReasoning(reasoning="private reasoning"),
+            ],
+            tool_calls=[
+                ToolCall(
+                    id="call-1",
+                    function="lookup",
+                    arguments={
+                        "query": "café",
+                        "small_exponent": 1e-7,
+                        "small_decimal": 1e-5,
+                    },
+                )
+            ],
+        ),
+        ChatMessageTool(
+            tool_call_id="call-2",
+            function="lookup",
+            content="tool result",
+        ),
+    ]
+
+    for message in messages:
+        assert _msg_hash(message) == mm3_hash(message.model_dump_json())

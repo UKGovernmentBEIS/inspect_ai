@@ -35,7 +35,7 @@ from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
-from .._model_output import ModelOutput, ModelUsage
+from .._model_output import ModelOutput, ModelUsage, ServedModelUsage
 from .._openai import (
     always_reasons_model,
     is_gpt_5_model,
@@ -55,6 +55,7 @@ from .._openai_responses import (
     pad_tool_messages_for_token_counting,
 )
 from .._stream import model_stream_requested
+from ._first_party import FRONTIER_MODELS
 from ._openai_batch import OpenAIBatcher
 from .util import (
     check_azure_deployment_mismatch,
@@ -160,6 +161,17 @@ class OpenAIAPI(ModelAPI):
             env_safety_identifier = os.environ.get(OPENAI_SAFETY_IDENTIFIER, None)
             if env_safety_identifier:
                 self.safety_identifier = env_safety_identifier
+
+        # explicit prompt caching is only verified against the direct OpenAI
+        # endpoint by default (see `generate()`), so a configured base URL
+        # turns it off. This opt-in lets callers keep it for endpoints known
+        # to forward `prompt_cache_options` and per-part cache breakpoints
+        # (e.g. a proxy in front of api.openai.com). Azure and Bedrock remain
+        # excluded regardless of this flag.
+        explicit_prompt_cache = model_args.pop("explicit_prompt_cache", False)
+        if not isinstance(explicit_prompt_cache, bool):
+            raise ValueError("explicit_prompt_cache must be a bool")
+        self.explicit_prompt_cache: bool = explicit_prompt_cache
 
         # OpenAI recommends preserving `phase` on replayed Responses API
         # assistant messages:
@@ -356,6 +368,15 @@ class OpenAIAPI(ModelAPI):
         self._http_hooks = HttpxHooks(self.client._client, api=self)
 
     @override
+    async def refresh_credentials(self) -> None:
+        # In-flight requests and SDK retries share this client; closing it
+        # during credential refresh would also fail other samples. Token
+        # providers run per request and need no update.
+        super().initialize()
+        if self.api_key:
+            self.client.api_key = self.api_key
+
+    @override
     async def count_text_tokens(self, text: str) -> int:
         import tiktoken
 
@@ -454,6 +475,12 @@ class OpenAIAPI(ModelAPI):
     def reasoning_only_fallback(self) -> bool:
         return False
 
+    def replays_reasoning_text(self) -> bool:
+        return False
+
+    def omits_empty_tool_call_text(self) -> bool:
+        return False
+
     def is_o_series(self) -> bool:
         return is_o_series_model(self.model_family())
 
@@ -538,6 +565,20 @@ class OpenAIAPI(ModelAPI):
         # support image truncation.
         return True
 
+    def uses_responses_api(self, tools: list[ToolInfo], config: GenerateConfig) -> bool:
+        """Whether `generate()` sends a request with these tools to the Responses API.
+
+        Image output and native tools need the Responses API even when
+        `responses_api` is off.
+        """
+        return (
+            self.responses_api
+            or has_image_output(config.modalities)
+            or is_native_tool_configured(
+                tools, self.model_family(), config, is_latest=self.is_latest()
+            )
+        )
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -545,13 +586,7 @@ class OpenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        use_responses = (
-            self.responses_api
-            or has_image_output(config.modalities)
-            or is_native_tool_configured(
-                tools, self.model_family(), config, is_latest=self.is_latest()
-            )
-        )
+        use_responses = self.uses_responses_api(tools, config)
         self._resolve_batcher(config, use_responses)
 
         # if reasoning summaries are unset then try to auto-detect
@@ -560,6 +595,22 @@ class OpenAIAPI(ModelAPI):
                 config = config.model_copy(update={"reasoning_summary": "none"})
 
         streaming = self._resolve_streaming(use_responses)
+
+        # explicit prompt caching is only verified against the unconfigured,
+        # direct OpenAI endpoint; Azure, Bedrock, and any custom base URL
+        # (explicit base_url, OPENAI_BASE_URL, or INSPECT_EVAL_MODEL_BASE_URL)
+        # are unverified — a resolved base_url means the request is going
+        # somewhere other than api.openai.com. The `explicit_prompt_cache`
+        # model arg opts back in when that endpoint is known to forward the
+        # explicit fields; Azure and Bedrock can never opt in.
+        supports_explicit_prompt_cache = (
+            not self.is_azure()
+            and not self.is_bedrock()
+            and (
+                self.explicit_prompt_cache
+                or model_base_url(self.base_url, "OPENAI_BASE_URL") is None
+            )
+        )
 
         async def generate_once(
             streaming: bool,
@@ -584,6 +635,7 @@ class OpenAIAPI(ModelAPI):
                     model_info=self,
                     batcher=self._responses_batcher,
                     streaming=streaming,
+                    supports_explicit_prompt_cache=supports_explicit_prompt_cache,
                 )
                 if use_responses
                 else generate_completions(
@@ -600,6 +652,7 @@ class OpenAIAPI(ModelAPI):
                     openai_api=self,
                     batcher=self._completions_batcher,
                     streaming=streaming,
+                    supports_explicit_prompt_cache=supports_explicit_prompt_cache,
                 )
             )
 
@@ -667,13 +720,26 @@ class OpenAIAPI(ModelAPI):
         return f"openai/{self.service_model_name()}"
 
     @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        # an Azure model name is a deployment name, which need not name the
+        # model the deployment serves
+        if (
+            self.is_azure()
+            and output.usage is not None
+            and output.model
+            and output.model != self.service_model_name()
+        ):
+            return [ServedModelUsage(f"openai/{output.model}", output.usage)]
+        return None
+
+    @override
     def input_tokens_name(self) -> str:
         """Model name used for looking up model input tokens (context window)."""
         # codename/predeployment models alias to the current frontier so the
         # context window / token accounting match (bump when a newer frontier
         # ships). Mirrors Anthropic's is_claude_latest() aliasing.
         if self.is_latest():
-            return "openai/gpt-6-astra"
+            return FRONTIER_MODELS["openai"]
         return super().input_tokens_name()
 
     @override
@@ -694,6 +760,10 @@ class OpenAIAPI(ModelAPI):
         return False
 
     @override
+    def _client_endpoint(self) -> str | None:
+        return str(self.client.base_url)
+
+    @override
     def connection_key(self) -> str:
         """Scope adaptive concurrency per (key, model).
 
@@ -703,14 +773,6 @@ class OpenAIAPI(ModelAPI):
         when models actually share an upstream rate-limit budget.
         """
         return f"{self.initial_api_key}:{self.model_name}"
-
-    @override
-    def apply_redacted_reasoning_tokens_to_input(self) -> bool:
-        # Responses API with store=false + include=encrypted_content re-injects
-        # encrypted reasoning blocks on every turn but excludes them from
-        # usage.input_tokens. Compaction's threshold check needs the count
-        # added back. Chat Completions is unaffected.
-        return self.responses_api
 
     async def reasoning_summaries(self) -> bool:
         # validate that reasoning summaries are supported for this account

@@ -2,8 +2,10 @@ from http import HTTPStatus
 from unittest.mock import AsyncMock, patch
 
 import httpx
+import pytest
 
 from inspect_ai._util.citation import UrlCitation
+from inspect_ai._util.constants import HTTP
 from inspect_ai._util.content import ContentText
 from inspect_ai.tool._tools._web_search._google import google_search_provider
 
@@ -189,3 +191,57 @@ class TestGoogleSearchRendering:
                 assert "q=a%26b%3Dc%23d" in api_url, (
                     f"Expected encoded query param in URL, got: {api_url}"
                 )
+
+    async def test_api_key_not_logged_on_connection_retry(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The API key must not appear in retry log messages or request URLs."""
+        api_key = "dummy-secret-api-key"
+        requests: list[httpx.Request] = []
+        inner_transport = create_mock_transport()
+
+        async def failing_once_handler(request: httpx.Request) -> httpx.Response:
+            if "googleapis.com" in str(request.url):
+                requests.append(request)
+                if len(requests) == 1:
+                    raise httpx.ConnectError("connection refused", request=request)
+            return await inner_transport.handle_async_request(request)
+
+        mock_client = httpx.AsyncClient(
+            transport=httpx.MockTransport(failing_once_handler)
+        )
+
+        mock_model = AsyncMock()
+        mock_model.generate.return_value.message.text = "yes"
+
+        with (
+            caplog.at_level(HTTP),
+            patch("httpx.AsyncClient") as mock_async_client_cls,
+            patch("inspect_ai.model._model.get_model") as mock_get_model,
+            patch(
+                "inspect_ai.tool._tools._web_search._google.maybe_get_google_api_keys"
+            ) as mock_get_keys,
+        ):
+            mock_async_client_cls.return_value = mock_client
+            mock_get_model.return_value = mock_model
+            mock_get_keys.return_value = (api_key, "dummy-cse-id")
+
+            search = google_search_provider()
+            result = await search("test query")
+            assert result is not None
+
+        retry_messages = [
+            r.getMessage()
+            for r in caplog.records
+            if "connection retry" in r.getMessage()
+        ]
+        assert len(retry_messages) == 1
+        assert "googleapis.com/customsearch" in retry_messages[0]
+        for record in caplog.records:
+            assert api_key not in record.getMessage()
+
+        # the key is sent in a header rather than the URL
+        assert requests
+        for request in requests:
+            assert api_key not in str(request.url)
+            assert request.headers["X-Goog-Api-Key"] == api_key

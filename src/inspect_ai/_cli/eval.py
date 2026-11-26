@@ -23,6 +23,7 @@ from inspect_ai._eval.handoff import (
     set_ctl_pointer_armed,
     set_launch_handoff_listener,
 )
+from inspect_ai._sentinel._config import SentinelProxy, sentinel_with_args
 from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
@@ -51,6 +52,7 @@ from inspect_ai.log._log import EvalConfig, EvalLog
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model
 from inspect_ai.model._generate_config import (  # noqa: F811
     ResponseSchema,
+    generate_config_dict,
 )
 from inspect_ai.model._model_config import ModelConfig, model_config_to_model
 from inspect_ai.scorer._reducer import create_reducers
@@ -277,51 +279,72 @@ def scanner_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     return wrapper
 
 
-def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
-    @click.option(
-        "--model",
-        type=str,
-        help="Model used to evaluate tasks.",
-        envvar="INSPECT_EVAL_MODEL",
-    )
-    @click.option(
-        "--model-base-url",
-        type=str,
-        help="Base URL for for model API",
-    )
-    @click.option(
-        "-M",
-        multiple=True,
-        type=str,
-        envvar="INSPECT_EVAL_MODEL_ARGS",
-        help="One or more native model arguments (e.g. -M arg=value)",
-    )
-    @click.option(
-        "--model-config",
-        type=str,
-        envvar="INSPECT_EVAL_MODEL_CONFIG",
-        help="YAML or JSON config file with model arguments.",
-    )
-    @click.option(
-        "--model-spec",
-        multiple=True,
-        type=str,
-        envvar="INSPECT_EVAL_MODEL_SPEC",
-        help='Model to evaluate along with its own generate config, model args, and base url, as inline YAML or JSON, e.g. --model-spec "{model: openai/gpt-4o, temperature: 0}" (same fields as --model-role, plus base_url). Repeat the option to evaluate several models, each with its own options. Cannot be combined with --model, --model-base-url, --model-config, or -M.',
-    )
-    @click.option(
-        "--run-config",
-        type=str,
-        envvar="INSPECT_EVAL_RUN_CONFIG",
-        help="YAML or JSON file with full run configuration (task, model, model roles, generate config, solver, eval config). CLI flags override values from this file. Cannot be combined with --generate-config, --task-config, or --solver-config.",
-    )
+def model_options(
+    model_base_url_envvar: str | None = None,
+) -> Callable[[Callable[..., Any]], Callable[..., click.Context]]:
+    """`--model`, `--model-base-url`, `-M` and `--model-config`.
+
+    Args:
+        model_base_url_envvar: Environment variable that `--model-base-url`
+            names. `inspect eval` and `inspect eval-set` name none and read it
+            through click's automatic prefix.
+    """
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., click.Context]:
+        @click.option(
+            "--model",
+            type=str,
+            help="Model used to evaluate tasks.",
+            envvar="INSPECT_EVAL_MODEL",
+        )
+        @click.option(
+            "--model-base-url",
+            type=str,
+            help="Base URL for for model API",
+            envvar=model_base_url_envvar,
+        )
+        @click.option(
+            "-M",
+            multiple=True,
+            type=str,
+            envvar="INSPECT_EVAL_MODEL_ARGS",
+            help="One or more native model arguments (e.g. -M arg=value)",
+        )
+        @click.option(
+            "--model-config",
+            type=str,
+            envvar="INSPECT_EVAL_MODEL_CONFIG",
+            help="YAML or JSON config file with model arguments.",
+        )
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> click.Context:
+            return cast(click.Context, func(*args, **kwargs))
+
+        return wrapper
+
+    return decorator
+
+
+def model_role_option(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    """`--model-role`."""
+
     @click.option(
         "--model-role",
         multiple=True,
         type=str,
         envvar="INSPECT_EVAL_MODEL_ROLE",
-        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. --model-role grader=openai/gpt-4o,google/gemini-2.0-flash',
+        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-6-luna or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. --model-role grader=openai/gpt-6-luna,google/gemini-3.6-flash',
     )
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> click.Context:
+        return cast(click.Context, func(*args, **kwargs))
+
+    return wrapper
+
+
+def task_args_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    """`-T` and `--task-config`."""
+
     @click.option(
         "-T",
         multiple=True,
@@ -335,6 +358,61 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_TASK_CONFIG",
         help="YAML or JSON config file with task arguments.",
     )
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> click.Context:
+        return cast(click.Context, func(*args, **kwargs))
+
+    return wrapper
+
+
+def epochs_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    """`--epochs`, `--epochs-reducer` and `--no-epochs-reducer`."""
+
+    @click.option(
+        "--epochs",
+        type=int,
+        help=f"Number of times to repeat dataset (defaults to {DEFAULT_EPOCHS}) ",
+        envvar="INSPECT_EVAL_EPOCHS",
+    )
+    @click.option(
+        "--epochs-reducer",
+        type=str,
+        is_flag=False,
+        help="Method for reducing per-epoch sample scores into a single score. Built in reducers include 'mean', 'median', 'mode', 'max', and 'at_least_{n}'.",
+        envvar="INSPECT_EVAL_EPOCHS_REDUCER",
+    )
+    @click.option(
+        "--no-epochs-reducer",
+        type=bool,
+        is_flag=True,
+        default=False,
+        help="Do not reduce per-epoch sample scores.",
+        envvar="INSPECT_EVAL_NO_EPOCHS_REDUCER",
+    )
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> click.Context:
+        return cast(click.Context, func(*args, **kwargs))
+
+    return wrapper
+
+
+def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    @model_options()
+    @click.option(
+        "--model-spec",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_MODEL_SPEC",
+        help='Model to evaluate along with its own generate config, model args, and base url, as inline YAML or JSON, e.g. --model-spec "{model: openai/gpt-6-luna, reasoning_effort: low}" (same fields as --model-role, plus base_url). Repeat the option to evaluate several models, each with its own options. Cannot be combined with --model, --model-base-url, --model-config, or -M.',
+    )
+    @click.option(
+        "--run-config",
+        type=str,
+        envvar="INSPECT_EVAL_RUN_CONFIG",
+        help="YAML or JSON file with full run configuration (task, model, model roles, generate config, solver, eval config). CLI flags override values from this file. Cannot be combined with --generate-config, --task-config, or --solver-config.",
+    )
+    @model_role_option
+    @task_args_options
     @click.option(
         "--solver",
         type=str,
@@ -387,6 +465,29 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         envvar="INSPECT_EVAL_REVIEW",
         help="Config file for tool result review.",
+    )
+    @click.option(
+        "--sentinel",
+        type=str,
+        envvar="INSPECT_EVAL_SENTINEL",
+        hidden=True,
+        help="Config file or registered protocol name of the monitors and protocols that watch the agent's steps (requires inspect_sentinel).",
+    )
+    @click.option(
+        "--sentinel-arg",
+        "sentinel_arg",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_SENTINEL_ARGS",
+        hidden=True,
+        help="One or more arguments for the registered monitor or protocol named by --sentinel (e.g. --sentinel-arg key=value).",
+    )
+    @click.option(
+        "--sentinel-proxy",
+        type=click.Choice(["auto", "required", "off"]),
+        envvar="INSPECT_EVAL_SENTINEL_PROXY",
+        hidden=True,
+        help="Whether to look for a sentinel sidecar behind each model's proxy: off (the default) never looks, auto uses one it finds, and required fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed.",
     )
     @click.option(
         "--notification",
@@ -456,7 +557,8 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
             "clients (e.g. the `inspect acp` command). Bare flag enables a "
             "default AF_UNIX socket; pass an integer to bind a TCP loopback "
             "port (e.g. `--acp-server=4444`); pass `host:port` to bind on a "
-            "specific interface (e.g. `--acp-server=0.0.0.0:4444`); pass a "
+            "specific interface (e.g. `--acp-server=0.0.0.0:4444`; the server "
+            "has no authentication, so only do this on a trusted network); pass a "
             "filesystem path for a custom UNIX socket. When this flag is set, "
             "all human-in-the-loop interactions (`approver: human` and the "
             "`ask_user` tool) route exclusively through attached ACP clients; "
@@ -507,27 +609,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="Shuffle order of samples (pass a seed to make the order deterministic)",
         envvar=["INSPECT_EVAL_SAMPLE_SHUFFLE"],
     )
-    @click.option(
-        "--epochs",
-        type=int,
-        help=f"Number of times to repeat dataset (defaults to {DEFAULT_EPOCHS}) ",
-        envvar="INSPECT_EVAL_EPOCHS",
-    )
-    @click.option(
-        "--epochs-reducer",
-        type=str,
-        is_flag=False,
-        help="Method for reducing per-epoch sample scores into a single score. Built in reducers include 'mean', 'median', 'mode', 'max', and 'at_least_{n}'.",
-        envvar="INSPECT_EVAL_EPOCHS_REDUCER",
-    )
-    @click.option(
-        "--no-epochs-reducer",
-        type=bool,
-        is_flag=True,
-        default=False,
-        help="Do not reduce per-epoch sample scores.",
-        envvar="INSPECT_EVAL_NO_EPOCHS_REDUCER",
-    )
+    @epochs_options
     @click.option(
         "--max-connections",
         type=int,
@@ -631,7 +713,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--working-limit",
         type=int,
-        help="Limit on total working time (e.g. model generation, tool calls, etc.) for each sample.",
+        help="Limit on total working time (e.g. model generation, tool calls, etc.) for each sample. While a wait is open, only model calls, sandbox commands and tool calls are charged, so also set --time-limit to bound wall clock time.",
         envvar="INSPECT_EVAL_WORKING_LIMIT",
     )
     @click.option(
@@ -807,7 +889,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--top-k",
         type=int,
-        help="Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only.",
+        help="Randomly sample the next word from the top_k most likely next words. Google, HuggingFace, and vLLM only.",
         envvar="INSPECT_EVAL_TOP_K",
     )
     @click.option(
@@ -860,7 +942,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--cache-prompt",
         type=click.Choice(["auto", "true", "false"]),
-        help="Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only.",
+        help="Whether to cache the prompt prefix. Enabled by default. Set to False to disable: on OpenAI this only disables explicit ContentText.cache_breakpoint marks — the model's own implicit caching stays in effect.",
         envvar="INSPECT_EVAL_CACHE_PROMPT",
     )
     @click.option(
@@ -924,6 +1006,18 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         help="JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only.",
         envvar="INSPECT_EVAL_RESPONSE_SCHEMA",
+    )
+    @click.option(
+        "--extra-headers",
+        type=str,
+        help='Extra headers to send with requests, as a JSON or YAML mapping (e.g. \'{"X-Trace-Id": "abc"}\'). Not supported by all providers.',
+        envvar="INSPECT_EVAL_EXTRA_HEADERS",
+    )
+    @click.option(
+        "--extra-body",
+        type=str,
+        help='Extra fields to add to the request body, as a JSON or YAML mapping (e.g. \'{"chat_template_kwargs": {"enable_thinking": true}}\'). Not supported by all providers.',
+        envvar="INSPECT_EVAL_EXTRA_BODY",
     )
     @click.option(
         "--cache",
@@ -1028,6 +1122,7 @@ def eval_command(ctx: click.Context, /, **params: Any) -> None:
                 "no_sandbox_cleanup": "sandbox_cleanup",
                 "s": "solver",
                 "solver_config": "solver",
+                "sentinel_arg": "sentinel",
             }
 
             for param in ctx.command.params:
@@ -1129,6 +1224,9 @@ def _eval_command_impl(
     trace: bool | None,
     approval: str | None,
     review: str | None,
+    sentinel: str | None,
+    sentinel_arg: tuple[str, ...] | None,
+    sentinel_proxy: SentinelProxy | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
@@ -1178,6 +1276,8 @@ def _eval_command_impl(
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
+    extra_headers: str | None,
+    extra_body: str | None,
     cache: int | str | None,
     batch: int | str | None,
     modalities: str | None,
@@ -1264,6 +1364,9 @@ def _eval_command_impl(
         trace=trace,
         approval=approval,
         review=review,
+        sentinel=sentinel,
+        sentinel_arg=sentinel_arg,
+        sentinel_proxy=sentinel_proxy,
         notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
@@ -1424,6 +1527,9 @@ def eval_set_command(
     trace: bool | None,
     approval: str | None,
     review: str | None,
+    sentinel: str | None,
+    sentinel_arg: tuple[str, ...] | None,
+    sentinel_proxy: SentinelProxy | None,
     notification: bool | str | None,
     model: str | None,
     model_base_url: str | None,
@@ -1499,6 +1605,8 @@ def eval_set_command(
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
+    extra_headers: str | None,
+    extra_body: str | None,
     cache: int | str | None,
     batch: int | str | None,
     modalities: str | None,
@@ -1605,6 +1713,9 @@ def eval_set_command(
             trace=trace,
             approval=approval,
             review=review,
+            sentinel=sentinel,
+            sentinel_arg=sentinel_arg,
+            sentinel_proxy=sentinel_proxy,
             notification=notification,
             sandbox=sandbox,
             no_sandbox_cleanup=no_sandbox_cleanup,
@@ -1731,12 +1842,12 @@ class RunConfigInput(BaseModel):
                     params["model_base_url"] = self.model.base_url
                 if self.model.args:
                     params["model_args"] = self.model.args
-                model_gc = self.model.config.model_dump(exclude_none=True)
+                model_gc = generate_config_dict(self.model.config)
                 if model_gc:
                     params.update(model_gc)
 
         # Top-level generate_config overrides any model-level config
-        top_gc = self.generate_config.model_dump(exclude_none=True)
+        top_gc = generate_config_dict(self.generate_config)
         if top_gc:
             params.update(top_gc)
 
@@ -1766,6 +1877,18 @@ class RunConfigInput(BaseModel):
         epochs_reducer = ec.pop("epochs_reducer", None)
         if epochs is not None:
             ec["epochs"] = Epochs(epochs, create_reducers(epochs_reducer))
+        # token_limit_type is stored beside token_limit on EvalConfig, but
+        # eval() takes a single token_limit (int or TokenLimit). Leaving the
+        # type in the flattened kwargs makes GenerateConfig reject it.
+        token_limit = ec.pop("token_limit", None)
+        token_limit_type = ec.pop("token_limit_type", None)
+        if token_limit is not None:
+            if token_limit_type not in (None, "all"):
+                ec["token_limit"] = TokenLimit(
+                    tokens=token_limit, type=token_limit_type
+                )
+            else:
+                ec["token_limit"] = token_limit
         params.update(ec)
 
         # Tags and metadata
@@ -1894,6 +2017,25 @@ def resolve_model_spec(
     return parse_model_spec_cli_args(model_spec)
 
 
+def parse_epochs_options(
+    epochs: int | None, epochs_reducer: str | None, no_epochs_reducer: bool | None
+) -> Epochs | None:
+    """The `Epochs` that `--epochs`, `--epochs-reducer` and `--no-epochs-reducer` give.
+
+    `None` without `--epochs`, so `--epochs-reducer` alone is ignored.
+    """
+    return (
+        Epochs(
+            epochs,
+            []
+            if no_epochs_reducer
+            else create_reducers(parse_comma_separated(epochs_reducer)),
+        )
+        if epochs
+        else None
+    )
+
+
 def eval_exec(
     tasks: tuple[str, ...] | None,
     solver: str | None,
@@ -1930,6 +2072,9 @@ def eval_exec(
     trace: bool | None,
     approval: str | None,
     review: str | None,
+    sentinel: str | None,
+    sentinel_arg: tuple[str, ...] | None,
+    sentinel_proxy: SentinelProxy | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
@@ -1999,6 +2144,7 @@ def eval_exec(
     task_args = parse_cli_config(t, task_config)
     solver_args = parse_cli_config(s, solver_config)
     model_args = parse_cli_config(m, model_config)
+    eval_sentinel = sentinel_with_args(sentinel, sentinel_arg)
 
     eval_models = resolve_model_spec(model_spec, run_params)
 
@@ -2054,16 +2200,7 @@ def eval_exec(
     eval_metadata = parse_cli_args(metadata)
 
     # resolve epochs
-    eval_epochs = (
-        Epochs(
-            epochs,
-            []
-            if no_epochs_reducer
-            else create_reducers(parse_comma_separated(epochs_reducer)),
-        )
-        if epochs
-        else None
-    )
+    eval_epochs = parse_epochs_options(epochs, epochs_reducer, no_epochs_reducer)
 
     # resolve range and sample id
     eval_limit = parse_samples_limit(limit)
@@ -2113,6 +2250,8 @@ def eval_exec(
             trace=trace,
             approval=approval,
             review=review,
+            sentinel=eval_sentinel,
+            sentinel_proxy=sentinel_proxy,
             notification=notification,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
@@ -2525,7 +2664,8 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
         "Override the original eval's Agent Client Protocol server. "
         "Bare flag enables a default AF_UNIX socket; pass an integer "
         "to bind a TCP loopback port; pass `host:port` to bind on a "
-        "specific interface (e.g. `0.0.0.0:4444`); pass a filesystem "
+        "specific interface (e.g. `0.0.0.0:4444`; the server has no "
+        "authentication, so only do this on a trusted network); pass a filesystem "
         "path for a custom UNIX socket; pass `false` to disable. Omit "
         "to replay whatever transport the original log used."
     ),
@@ -2609,6 +2749,19 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     help=INCOMPLETE_MAX_HELP,
     envvar="INSPECT_EVAL_INCOMPLETE_MAX",
 )
+@click.option(
+    "--model-cost-config",
+    type=str,
+    help="YAML or JSON file with model prices for cost tracking.",
+    envvar="INSPECT_EVAL_MODEL_COST_CONFIG",
+)
+@click.option(
+    "--sentinel-proxy",
+    type=click.Choice(["auto", "required", "off"]),
+    envvar="INSPECT_EVAL_SENTINEL_PROXY",
+    hidden=True,
+    help="Whether to look for a sentinel sidecar behind each model's proxy, as for eval. Defaults to what the log records.",
+)
 @scanner_options
 @common_options
 def eval_retry_command(
@@ -2648,6 +2801,8 @@ def eval_retry_command(
     checkpoint: str | None,
     incomplete_action: IncompleteAction,
     incomplete_max: float | None,
+    model_cost_config: str | None,
+    sentinel_proxy: SentinelProxy | None,
     scanner: str | None,
     scanner_arg: tuple[str, ...] | None,
     scans: str | None,
@@ -2664,6 +2819,11 @@ def eval_retry_command(
     **common: Unpack[CommonOptions],
 ) -> None:
     """Retry failed evaluation(s).
+
+    This runs code named by the log (its task file, scorers and solver, or for
+    an `hf/` task the Hugging Face repo it names, whose `eval.yaml` chooses the
+    dataset and the solver and scorer arguments) and uses the model endpoint,
+    sandbox and other settings recorded in it. Only run it on logs you trust.
 
     Monitor a running eval from another shell with `inspect ctl`
     (see `inspect ctl --help`).
@@ -2798,6 +2958,8 @@ def eval_retry_command(
                 checkpoint=parse_checkpoint(checkpoint),
                 incomplete_action=incomplete_action,
                 incomplete_max=incomplete_max,
+                model_cost_config=model_cost_config,
+                sentinel_proxy=sentinel_proxy,
             )
 
         if json_output:

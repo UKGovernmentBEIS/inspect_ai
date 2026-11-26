@@ -108,12 +108,12 @@ def safe_cleanup_auto_compose(file: str | None) -> None:
 
 
 COMPOSE_COMMENT = """# inspect auto-generated docker compose file
-# (will be removed when task is complete)"""
+# (will be removed when its sandbox environment is cleaned up)"""
 
 COMPOSE_GENERIC_YAML = f"""{COMPOSE_COMMENT}
 services:
   default:
-    image: "aisiuk/inspect-tool-support"
+    image: "python:3.12-bookworm"
     command: "tail -f /dev/null"
     init: true
     network_mode: none

@@ -32,8 +32,17 @@ def sample_messages(sample: Sample) -> list[ChatMessage]:
         return messages
 
 
-def task_run_dir(task: Task) -> str:
-    return getattr(task, TASK_RUN_DIR_ATTR, os.getcwd())
+def task_run_dir(task: Task, default: str | None = None) -> str:
+    """The directory of the file the task was loaded from.
+
+    Args:
+       task: The task.
+       default: Directory for a task not loaded from a file (the current
+          working directory when omitted).
+    """
+    return getattr(
+        task, TASK_RUN_DIR_ATTR, default if default is not None else os.getcwd()
+    )
 
 
 def task_file(task: Task, relative: bool = False) -> str | None:
@@ -59,16 +68,25 @@ def sample_id_filter(
 ) -> SampleIdMatcher:
     """Predicate matching a sample id against `sample_id` patterns.
 
-    Ids are normalised (`normalise_sample_id`) and matched with `fnmatch`,
-    the same semantics `slice_dataset` applies to a dataset. The normalised
-    patterns ride along so callers reporting on the filter (warnings/errors)
-    use exactly what the predicate matches.
+    Globs match the visible string form of an id. Exact selectors retain
+    numeric normalisation, so 5, "5" and "05" match the same ids. An id equal to
+    a selector matches it literally before the selector is read as a glob, so
+    ids containing `[`/`?` stay selectable. Normalised patterns accompany the
+    predicate for diagnostics; callers should report the selector as typed.
     """
     sample_ids = sample_id if isinstance(sample_id, list) else [sample_id]
     patterns = [normalise_sample_id(id) for id in sample_ids]
 
     def matches(id: str | int | None) -> bool:
-        return any(fnmatch(normalise_sample_id(id), pat) for pat in patterns)
+        for pat in patterns:
+            if normalise_sample_id(id) == pat:
+                return True
+            if any(char in pat for char in "*?["):
+                if fnmatch(str(id), pat):
+                    return True
+            elif fnmatch(normalise_sample_id(id), pat):
+                return True
+        return False
 
     return SampleIdMatcher(matches, patterns)
 
@@ -170,13 +188,14 @@ def slice_dataset(
         matcher = sample_id_filter(sample_id)
 
         # validate all the sample ids and warn if they aren't in the dataset
+        selectors = sample_id if isinstance(sample_id, list) else [sample_id]
         if not dynamic:
-            all_sample_ids = [normalise_sample_id(sample.id) for sample in dataset]
-            for id in matcher.patterns:
-                if id not in all_sample_ids:
+            for selector in selectors:
+                selector_matcher = sample_id_filter(selector)
+                if not any(selector_matcher.matches(sample.id) for sample in dataset):
                     warn_once(
                         logger,
-                        f"sample id '{id}' not found in dataset '{dataset.name}'.",
+                        f"sample id '{selector}' not found in dataset '{dataset.name}'.",
                     )
 
         # filter the dataset
@@ -184,7 +203,7 @@ def slice_dataset(
 
         # raise error if we got no hits
         if len(filtered) == 0 and not dynamic:
-            filter = ",".join([str(id) for id in matcher.patterns])
+            filter = ",".join([str(selector) for selector in selectors])
             all_sample_ids_raw = [sample.id for sample in dataset]
             r = reprlib.Repr()
             r.maxlist = 8

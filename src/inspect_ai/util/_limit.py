@@ -26,6 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing_extensions import Self, override
 
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.working import SampleTiming, sample_timing, sample_wait
 
 if TYPE_CHECKING:
     # These imports are used as type hints only - prevent circular imports.
@@ -624,7 +625,7 @@ def record_model_usage(usage: ModelUsage) -> None:
     node.record(usage)
 
 
-def check_token_limit() -> None:
+def check_token_limit(raise_for_equal: bool = False) -> None:
     """Check if the current token usage exceeds _any_ of the token limits.
 
     Within the current execution context (e.g. async task) and its parent contexts only.
@@ -632,13 +633,17 @@ def check_token_limit() -> None:
     Note that all active token limits are checked, not just the most recent one.
 
     No-op when token limits are suspended (see `suspend_token_limit()`).
+
+    Args:
+      raise_for_equal: If True, also raise when usage equals a limit (used before a
+        model call, which is guaranteed to exceed a limit that has been reached).
     """
     if token_limit_tree.is_suspended():
         return
     node = token_limit_tree.get()
     if node is None:
         return
-    node.check()
+    node.check(raise_for_equal)
 
 
 def suspend_token_limit() -> AbstractContextManager[None]:
@@ -692,24 +697,64 @@ def record_model_cost(cost: float) -> None:
     """Record model cost against any active cost limits.
 
     Does not check if the limit has been exceeded.
+
+    No-op when cost limits are suspended (see `suspend_cost_limit()`).
     """
+    if cost_limit_tree.is_suspended():
+        return
     node = cost_limit_tree.get()
     if node is None:
         return
     node.record(cost)
 
 
-def check_cost_limit() -> None:
+def check_cost_limit(raise_for_equal: bool = False) -> None:
     """Check if the current cost exceeds _any_ of the cost limits.
 
     Within the current execution context (e.g. async task) and its parent contexts only.
 
     Note that all active cost limits are checked, not just the most recent one.
+
+    No-op when cost limits are suspended (see `suspend_cost_limit()`).
+
+    Args:
+      raise_for_equal: If True, also raise when cost equals a limit (used before a
+        model call, which is guaranteed to exceed a limit that has been reached).
     """
+    if cost_limit_tree.is_suspended():
+        return
     node = cost_limit_tree.get()
     if node is None:
         return
-    node.check()
+    node.check(raise_for_equal)
+
+
+def suspend_cost_limit() -> AbstractContextManager[None]:
+    """Suspend cost limit metering within a block of code.
+
+    While this context manager is open:
+
+    - Model cost is not recorded against any active `cost_limit()` scope
+      (including sample-level, agent-scoped, and arbitrary block limits).
+    - Calls to `check_cost_limit()` are no-ops.
+    - This applies to any `cost_limit()` contexts opened inside the block
+      as well — suspension wins over nested limits.
+
+    Cost is still recorded in model and role usage. Useful for running
+    code whose spend should not count against an agent's budget, e.g.
+    monitoring or auxiliary judge calls.
+
+    Example:
+        with cost_limit(5.0):
+            # cost counts against the $5 budget
+            await generate()
+            with suspend_cost_limit():
+                # cost here does not count
+                await judge()
+            # cost counts again
+            await generate()
+    """
+    return cost_limit_tree.suspended()
 
 
 def message_limit(limit: int | None) -> _MessageLimit:
@@ -866,7 +911,13 @@ def working_limit(limit: float | None) -> _WorkingLimit:
     """Limits the working time which can elapse.
 
     Working time is the wall clock time minus any waiting time e.g. waiting before
-    retrying in response to rate limits or waiting on a semaphore.
+    retrying in response to rate limits or waiting on a semaphore. The sample
+    counts as waiting while any known wait is open and no model call, sandbox
+    command or tool call is running (not counting commands run with
+    `exec_remote()` or inside `sandbox_agent_bridge()`), so other work done
+    during a wait (for example a sub-agent's own code or a background process)
+    is not charged and working time can undercount. Set a `time_limit()` as well to bound wall
+    clock time.
 
     The timer starts when the context manager is opened and stops when it is closed.
 
@@ -881,11 +932,55 @@ def working_limit(limit: float | None) -> _WorkingLimit:
     return _WorkingLimit(limit)
 
 
-def record_waiting_time(waiting_time: float) -> None:
-    node = working_limit_tree.get()
-    if node is None:
-        return
-    node.record_waiting_time(waiting_time)
+def suspend_working_limit() -> AbstractContextManager[None]:
+    """Count the time spent in a block of code as waiting time.
+
+    While this context manager is open, the sample counts as waiting, for
+    `working_limit()` and for the sample's logged working time, except while
+    another task in the sample runs a model call, a sandbox command or a tool
+    call (not counting commands run with `exec_remote()` or inside
+    `sandbox_agent_bridge()`). Model calls, sandbox commands and tool calls made inside the block
+    are not charged.
+
+    Useful for time the agent should not be charged for, such as waiting on a
+    person or running a monitor. Inspect already does this for tool approval
+    and review.
+
+    Only code in the eval process can call it (not agent code running in a
+    sandbox). Outside a running sample it has no effect.
+
+    Because work done during the block is not charged, a sample can run longer
+    than its working limit. Set a `time_limit()` as well to bound clock time.
+
+    Example:
+        with suspend_working_limit():
+            # time spent here is not charged as working time
+            await wait_for_operator()
+    """
+    return sample_wait()
+
+
+@contextmanager
+def suspend_limits() -> Iterator[None]:
+    """Suspend cost, token, turn and working limits within a block of code.
+
+    Combines `suspend_cost_limit()`, `suspend_token_limit()`,
+    `suspend_turn_limit()` and `suspend_working_limit()`. Useful for work
+    that should not be charged to the agent's budget, such as a monitor or
+    judge that makes its own model calls.
+
+    Example:
+        with suspend_limits():
+            # cost, tokens, turns and working time here are not charged
+            await run_monitor()
+    """
+    with (
+        suspend_cost_limit(),
+        suspend_token_limit(),
+        suspend_turn_limit(),
+        suspend_working_limit(),
+    ):
+        yield
 
 
 def check_working_limit() -> None:
@@ -902,7 +997,7 @@ def check_working_limit() -> None:
 
 
 def monitor_working_limit(interval: float = 1) -> None:
-    from inspect_ai.log._samples import has_active_model_event, sample_active
+    from inspect_ai.log._samples import sample_active
 
     # get the active sample
     sample = sample_active()
@@ -923,12 +1018,6 @@ def monitor_working_limit(interval: float = 1) -> None:
             # don't continue after the sample is completed
             if sample.completed:
                 return
-
-            # don't check if there is an active model event
-            # (need to wait until it completes for the working time
-            # computation to be done)
-            if has_active_model_event():
-                continue
 
             error = working_limit_exceeded()
             if error is not None:
@@ -1071,7 +1160,7 @@ class _TokenLimit(Limit, _Node):
             self.parent.record(usage)
         self._usage += usage
 
-    def check(self) -> None:
+    def check(self, raise_for_equal: bool = False) -> None:
         """Check if this token limit or any ancestor limits have been exceeded.
 
         The checks occur from root to leaf. This is so that if multiple limits are
@@ -1079,8 +1168,8 @@ class _TokenLimit(Limit, _Node):
         preventing certain sub-agent architectures from ending up in an infinite loop.
         """
         if self.parent is not None:
-            self.parent.check()
-        self._check_self()
+            self.parent.check(raise_for_equal)
+        self._check_self(raise_for_equal)
 
     def _validate_token_limit(self, value: int | None) -> None:
         if value is not None and value < 0:
@@ -1088,22 +1177,23 @@ class _TokenLimit(Limit, _Node):
                 f"Token limit value must be a non-negative integer or None: {value}"
             )
 
-    def _check_self(self) -> None:
+    def _check_self(self, raise_for_equal: bool = False) -> None:
         from inspect_ai.event._sample_limit import SampleLimitEvent
         from inspect_ai.log._transcript import transcript
 
         if self.limit is None:
             return
         total = self._metering.value(self._usage)
-        if total > self.limit:
+        if total > self.limit or (raise_for_equal and total == self.limit):
+            status = "reached" if total == self.limit else "exceeded"
             if self._type == "all":
                 message = (
-                    f"Token limit exceeded. value: {total:,}; limit: {self.limit:,}"
+                    f"Token limit {status}. value: {total:,}; limit: {self.limit:,}"
                 )
             elif self._type == "output":
-                message = f"Output token limit exceeded. value: {total:,}; limit: {self.limit:,}"
+                message = f"Output token limit {status}. value: {total:,}; limit: {self.limit:,}"
             else:
-                message = f"Token limit exceeded ({self._type}). value: {total:,}; limit: {self.limit:,}"
+                message = f"Token limit {status} ({self._type}). value: {total:,}; limit: {self.limit:,}"
             transcript()._event(
                 SampleLimitEvent(type="token", limit=self.limit, message=message)
             )
@@ -1241,7 +1331,7 @@ class _CostLimit(Limit, _Node):
             self.parent.record(cost)
         self._cost += cost
 
-    def check(self) -> None:
+    def check(self, raise_for_equal: bool = False) -> None:
         """Check if this cost limit or any ancestor limits have been exceeded.
 
         The checks occur from root to leaf. This is so that if multiple limits are
@@ -1249,8 +1339,8 @@ class _CostLimit(Limit, _Node):
         preventing certain sub-agent architectures from ending up in an infinite loop.
         """
         if self.parent is not None:
-            self.parent.check()
-        self._check_self()
+            self.parent.check(raise_for_equal)
+        self._check_self(raise_for_equal)
 
     def _validate_cost_limit(self, value: float | None) -> None:
         if value is not None and value < 0:
@@ -1258,14 +1348,15 @@ class _CostLimit(Limit, _Node):
                 f"Cost limit value must be a non-negative float or None: {value}"
             )
 
-    def _check_self(self) -> None:
+    def _check_self(self, raise_for_equal: bool = False) -> None:
         from inspect_ai.event._sample_limit import SampleLimitEvent
         from inspect_ai.log._transcript import transcript
 
         if self.limit is None:
             return
-        if self._cost > self.limit:
-            message = f"Cost limit exceeded. value: ${self._cost:,.4f}; limit: ${self.limit:,.4f}"
+        if self._cost > self.limit or (raise_for_equal and self._cost == self.limit):
+            status = "reached" if self._cost == self.limit else "exceeded"
+            message = f"Cost limit {status}. value: ${self._cost:,.4f}; limit: ${self.limit:,.4f}"
             transcript()._event(
                 SampleLimitEvent(type="cost", limit=self.limit, message=message)
             )
@@ -1476,11 +1567,16 @@ class _WorkingLimit(Limit, _Node):
         self.parent: _WorkingLimit | None = None
         self._start_time: float | None = None
         self._end_time: float | None = None
+        # the sample this node measures against (None outside a sample, where
+        # usage is wall clock time)
+        self._timing: SampleTiming | None = None
+        # working time of prior attempts, restored on a normal resume
+        self._prior_usage = 0.0
 
     def __enter__(self) -> Limit:
         super()._check_reuse()
-        self._start_time = anyio.current_time()
-        self._waiting_time = 0.0
+        self._timing = sample_timing()
+        self._start_time = self._now()
         working_limit_tree.push(self)
         return self
 
@@ -1490,7 +1586,7 @@ class _WorkingLimit(Limit, _Node):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        self._end_time = anyio.current_time()
+        self._end_time = self._now()
         self._pop_and_check_identity(working_limit_tree)
 
     @property
@@ -1499,17 +1595,20 @@ class _WorkingLimit(Limit, _Node):
 
     @property
     def usage(self) -> float:
+        # computed from the waits inside the node's own interval when read,
+        # so waits recorded after the fact (retried attempts) are included
         if self._start_time is None:
             return 0.0
-        if self._end_time is None:
-            return anyio.current_time() - self._start_time - self._waiting_time
-        return self._end_time - self._start_time - self._waiting_time
+        end = self._end_time if self._end_time is not None else self._now()
+        waiting = (
+            self._timing.waiting(self._start_time, end)
+            if self._timing is not None
+            else 0.0
+        )
+        return self._prior_usage + (end - self._start_time) - waiting
 
-    def record_waiting_time(self, waiting_time: float) -> None:
-        """Record waiting time for this node and its ancestor nodes."""
-        if self.parent is not None:
-            self.parent.record_waiting_time(waiting_time)
-        self._waiting_time += waiting_time
+    def _now(self) -> float:
+        return self._timing.now() if self._timing is not None else anyio.current_time()
 
     def check(self) -> LimitExceededError | None:
         """Check if this working time limit or any ancestor limits have been exceeded.

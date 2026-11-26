@@ -1,5 +1,10 @@
+import gc
+import io
+import json
 import tempfile
+import weakref
 from pathlib import Path
+from typing import Any, Callable
 
 import pandas as pd
 import pytest
@@ -8,22 +13,32 @@ from pydantic import JsonValue
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
 from inspect_ai.analysis import (
+    EvalColumn,
     EvalInfo,
     EvalModel,
     EvalResults,
     EventInfo,
     EventTiming,
     MessageColumns,
+    ModelEventColumns,
     SampleSummary,
     evals_df,
     events_df,
     messages_df,
     samples_df,
 )
+from inspect_ai.analysis._dataframe import extract
 from inspect_ai.analysis._dataframe.evals.columns import EvalTask
-from inspect_ai.analysis._dataframe.extract import score_details
+from inspect_ai.analysis._dataframe.extract import (
+    message_as_str,
+    message_render_cache,
+    messages_as_str,
+    score_details,
+)
 from inspect_ai.analysis._dataframe.samples.columns import SampleScores
 from inspect_ai.analysis._dataframe.util import resolve_logs
+from inspect_ai.dataset import Sample
+from inspect_ai.event import ModelEvent
 from inspect_ai.log import (
     EvalLog,
     MetadataEdit,
@@ -34,6 +49,11 @@ from inspect_ai.log import (
     read_eval_log,
     write_eval_log,
 )
+from inspect_ai.model import ChatMessage, ChatMessageUser, ModelOutput, get_model
+from inspect_ai.model._model import requested_model
+from inspect_ai.scorer import Score, Scorer, Target, scorer
+from inspect_ai.solver import Generate, TaskState, generate, solver, use_tools
+from inspect_ai.tool import Tool, tool
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
 SECURITY_GUIDE_LOG = LOGS_DIR / "2025-05-12T20-28-26-04-00_security-guide.json"
@@ -42,6 +62,15 @@ SECURITY_GUIDE_LOG = LOGS_DIR / "2025-05-12T20-28-26-04-00_security-guide.json"
 def test_evals_df():
     df = evals_df(LOGS_DIR)
     assert len(df) == 4
+
+
+def test_evals_df_total_samples_falls_back_to_header():
+    """total_samples survives a missing results block via the header count (#5814)."""
+    log = read_eval_log(str(SECURITY_GUIDE_LOG))
+    log.results = None
+    log.total_samples = 20
+    df = evals_df([log])
+    assert df.iloc[0]["total_samples"] == 20
 
 
 def test_evals_df_scores_with_reducers():
@@ -292,6 +321,27 @@ def test_evals_df_strict():
     assert len(errors) == 0
 
 
+@pytest.mark.parametrize(
+    "reader,columns",
+    [
+        (samples_df, SampleSummary),
+        (messages_df, MessageColumns),
+        (events_df, EventInfo),
+    ],
+)
+def test_sample_readers_strict_eval_column(reader, columns):
+    missing = EvalColumn("experiment", path="metadata.experiment", required=True)
+    columns = columns + [missing]
+
+    df, errors = reader(SECURITY_GUIDE_LOG, columns=columns, strict=False)
+    assert len(df) > 0
+    assert df["experiment"].isna().all()
+    assert [error.column for error in errors] == ["experiment"]
+
+    with pytest.raises(ValueError, match="experiment"):
+        reader(SECURITY_GUIDE_LOG, columns=columns, strict=True)
+
+
 def test_evals_df_filter():
     logs = list_eval_logs(
         LOGS_DIR.as_posix(), filter=lambda log: log.status == "success"
@@ -333,6 +383,34 @@ def test_evals_df_includes_token_limit_type_column():
     assert "token_limit_type" in df.columns
 
 
+def test_evals_df_sentinel_column(tmp_path: Path) -> None:
+    from inspect_ai.log import SentinelConfig
+
+    [plain] = eval(Task(), model="mockllm/model", log_dir=str(tmp_path / "plain"))
+    with_sentinel = plain.model_copy(deep=True)
+    with_sentinel.eval.config.sentinel = SentinelConfig.model_validate(
+        [{"name": "d4_rule", "params": {"reason": "no"}}]
+    )
+    write_eval_log(with_sentinel, str(tmp_path / "sentinel" / "log.eval"))
+
+    df = evals_df(tmp_path / "sentinel")
+    assert "d4_rule" in df["sentinel"].iloc[0]
+    df = evals_df(tmp_path / "plain")
+    assert "sentinel" in df.columns
+    assert df["sentinel"].isna().all()
+
+
+def test_evals_df_model_args_column(tmp_path: Path) -> None:
+    model = get_model(
+        "mockllm/model", base_url="http://example.invalid/v1", custom_arg=123
+    )
+    eval(Task(), model=model, log_dir=str(tmp_path))
+
+    df = evals_df(tmp_path)
+    assert df["model_base_url"].to_list() == ["http://example.invalid/v1"]
+    assert df["model_args"].to_list() == ['{"custom_arg": 123}']
+
+
 def test_messages_df():
     df = messages_df(LOGS_DIR)
     assert len(df) == 34
@@ -350,6 +428,16 @@ def test_messages_df_columns():
 def test_messages_df_filter():
     df = messages_df(LOGS_DIR, filter=lambda m: m.role == "assistant")
     assert len(df) == 14
+
+
+@pytest.mark.parametrize("parallel", [False, 2])
+def test_messages_df_keeps_shared_input_messages(
+    tmp_path: Path, parallel: bool | int
+) -> None:
+    task = Task(dataset=[Sample(input=[ChatMessageUser(content="Say hi.")])], epochs=2)
+    eval(task, model="mockllm/model", log_dir=str(tmp_path))
+    df = messages_df(str(tmp_path), parallel=parallel)
+    assert df.groupby("sample_id").size().tolist() == [2, 2]
 
 
 def test_events_df():
@@ -373,6 +461,39 @@ def test_events_df_filter():
     assert len(df) == 4
 
 
+def test_events_df_model_event_requested_model(tmp_path: Path):
+    @solver
+    def bridged_then_direct():
+        async def solve(state: TaskState, generate: Generate):
+            model = get_model()
+            with requested_model("gpt-4o-mini"):
+                await model.generate("bridged")
+            await model.generate("direct")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="Say hello.")], solver=bridged_then_direct())
+    log = eval(task, model="mockllm/model", log_dir=str(tmp_path))[0]
+
+    df = events_df(
+        log,
+        columns=EventInfo + ModelEventColumns,
+        filter=lambda e: e.event == "model",
+    )
+    assert df["model_event_model"].tolist() == ["mockllm/model", "mockllm/model"]
+    requested = df["model_event_requested_model"]
+    assert requested.iloc[0] == "gpt-4o-mini"
+    assert pd.isna(requested.iloc[1])
+
+    # logs written before the field have no value
+    old = events_df(
+        LOGS_DIR, columns=ModelEventColumns, filter=lambda e: e.event == "model"
+    )
+    assert len(old) > 0
+    assert old["model_event_requested_model"].isna().all()
+
+
 def test_eval_df_display_name():
     with tempfile.TemporaryDirectory() as log_dir:
         eval(Task(display_name="My Task"), model="mockllm/model", log_dir=log_dir)
@@ -381,6 +502,31 @@ def test_eval_df_display_name():
         eval(Task(name="my_task"), model="mockllm/model", log_dir=log_dir)
         df = evals_df(log_dir)
         assert df["task_display_name"].to_list().sort() == ["My Task", "my_task"].sort()
+
+
+def test_df_description_columns():
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval(
+            Task(
+                dataset=[
+                    Sample(id=1, input="x", description="Say x."),
+                    Sample(id=2, input="y"),
+                ],
+                description="Say the input.",
+            ),
+            model="mockllm/model",
+            log_dir=log_dir,
+        )
+        assert evals_df(log_dir)["task_description"].to_list() == ["Say the input."]
+        for full in [False, True]:
+            df = samples_df(log_dir, full=full).sort_values("id")
+            descriptions = df["description"].to_list()
+            assert descriptions[0] == "Say x."
+            assert pd.isna(descriptions[1])
+
+    # logs written before descriptions existed read as missing
+    assert evals_df(LOGS_DIR)["task_description"].isna().all()
+    assert samples_df(LOGS_DIR)["description"].isna().all()
 
 
 def test_samples_df_with_sample_scores():
@@ -406,10 +552,81 @@ def test_samples_df_message_count():
     assert any(df["message_count"] > 0)
 
 
+@pytest.mark.parametrize("strict", [True, False])
+def test_samples_df_int_beyond_int64(tmp_path: Path, strict: bool) -> None:
+    """A column holding an int beyond int64 becomes exact strings."""
+    # pyarrow overflows on "first"; the leading None makes pandas read "big" as float64
+    metadata: list[dict[str, JsonValue]] = [
+        {"big": None, "first": 2**70},
+        {"big": 2**70},
+        {"big": 2**64 - 1},
+        {"big": -(2**63) - 1},
+        {"big": 1},
+        {},
+    ]
+    eval(
+        Task(dataset=[Sample(input="hi", metadata=m) for m in metadata]),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+    )
+
+    if strict:
+        df = samples_df(tmp_path, strict=True)
+    else:
+        df, errors = samples_df(tmp_path, strict=False)
+        assert errors == []
+
+    df = df.sort_values("id")
+    assert df["metadata_first"].to_list()[0] == str(2**70)
+    values = df["metadata_big"].to_list()
+    assert pd.isna(values[0])
+    assert values[1:5] == [str(2**70), str(2**64 - 1), str(-(2**63) - 1), "1"]
+    assert pd.isna(values[5])
+
+
+def test_samples_df_unscored_nan_in_int_beyond_int64_column(tmp_path: Path) -> None:
+    """A NaN (unscored) value stays null when the column becomes strings."""
+    values: dict[str | int, float | int] = {1: float("nan"), 2: 2**63, 3: 1}
+
+    @scorer(metrics=[])
+    def big_score() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=values[state.sample_id])
+
+        return score
+
+    eval(
+        Task(dataset=[Sample(input="hi") for _ in values], scorer=big_score()),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+    )
+
+    scores = samples_df(tmp_path).sort_values("id")["score_big_score"]
+    assert pd.isna(scores.iloc[0])
+    assert scores.to_list()[1:] == [str(2**63), "1"]
+    assert scores.count() == 2
+
+
 def test_samples_df_eval_log():
     log = read_eval_log(str(SECURITY_GUIDE_LOG))
     df = samples_df(log)
     assert len(df) == 3
+
+
+@pytest.mark.parametrize("reader", [samples_df, messages_df, events_df])
+def test_sample_readers_do_not_reread_location_from_stream_content(
+    reader: Callable[..., Any],
+) -> None:
+    """A header read from a stream has no location for a reader to re-read."""
+    with open(SECURITY_GUIDE_LOG, "rb") as f:
+        content = {**json.load(f), "location": str(SECURITY_GUIDE_LOG)}
+    log = read_eval_log(io.BytesIO(json.dumps(content).encode()), header_only=True)
+
+    assert log.location == ""
+    with pytest.raises(ValueError, match="No recorder for location"):
+        reader(log)
 
 
 def test_samples_df_multiple_eval_logs():
@@ -508,8 +725,13 @@ def test_dataframe_functions_empty_list(
         model="mockllm/model",
         log_dir=log_dir,
     )
-    monkeypatch.setenv("INSPECT_LOG_DIR", log_dir)
-    assert len(list_eval_logs()) > 0
+    # list_eval_logs() reads INSPECT_LOG_DIR at import, so setting the env var
+    # here has no effect; point the default listing at log_dir directly
+    monkeypatch.setattr(
+        "inspect_ai.analysis._dataframe.util.list_eval_logs",
+        lambda: list_eval_logs(log_dir),
+    )
+    assert len(resolve_logs(None)) > 0
 
     assert resolve_logs([]) == []
     assert resolve_logs(()) == []
@@ -517,3 +739,102 @@ def test_dataframe_functions_empty_list(
     assert len(samples_df([])) == 0
     assert len(messages_df([])) == 0
     assert len(events_df([])) == 0
+
+
+def _tool_loop_log(log_dir: Path, turns: int) -> EvalLog:
+    @tool
+    def lookup() -> Tool:
+        async def execute(query: str) -> str:
+            """Look up a value.
+
+            Args:
+                query: Value to look up.
+            """
+            return f"result for {query}"
+
+        return execute
+
+    outputs = [
+        ModelOutput.for_tool_call("mockllm/model", "lookup", {"query": f"q{i}"})
+        for i in range(turns)
+    ] + [ModelOutput.from_content("mockllm/model", "done")]
+    task = Task(
+        dataset=[Sample(input="start")], solver=[use_tools(lookup()), generate()]
+    )
+    model = get_model("mockllm/model", custom_outputs=outputs)
+    return eval(task, model=model, log_dir=str(log_dir))[0]
+
+
+def _model_event_inputs(log: EvalLog) -> list[list[ChatMessage]]:
+    samples = read_eval_log(log.location).samples
+    assert samples is not None
+    return [e.input for e in samples[0].events if isinstance(e, ModelEvent)]
+
+
+def test_events_df_model_event_input_matches_per_message_render(tmp_path: Path):
+    log = _tool_loop_log(tmp_path, turns=5)
+    df = events_df(
+        log.location,
+        columns=EventInfo + ModelEventColumns,
+        filter=lambda e: e.event == "model",
+    )
+    expected = [
+        "\n\n".join(message_as_str(m) for m in messages)
+        for messages in _model_event_inputs(log)
+    ]
+    assert df["model_event_input"].tolist() == expected
+
+
+def test_events_df_renders_each_input_message_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    log = _tool_loop_log(tmp_path, turns=5)
+    distinct = {m.id for messages in _model_event_inputs(log) for m in messages}
+
+    renders = 0
+
+    def counting_message_as_str(message: ChatMessage) -> str:
+        nonlocal renders
+        renders += 1
+        return message_as_str(message)
+
+    monkeypatch.setattr(extract, "message_as_str", counting_message_as_str)
+    events_df(
+        log.location,
+        columns=EventInfo + ModelEventColumns,
+        filter=lambda e: e.event == "model",
+    )
+    assert renders == len(distinct), (
+        "expected one render per distinct message; reading the log should share "
+        "message objects across model event inputs"
+    )
+
+
+def test_message_render_cache_keeps_rendered_messages_alive():
+    # a freed message would let a new message reuse its object id
+    message = ChatMessageUser(content="first")
+    ref = weakref.ref(message)
+    with message_render_cache():
+        assert messages_as_str([message]) == "user:\nfirst\n"
+        del message
+        gc.collect()
+        assert ref() is not None
+    gc.collect()
+    assert ref() is None
+
+
+def test_message_render_cache_distinguishes_messages_sharing_an_id():
+    first = ChatMessageUser(id="shared", content="first")
+    second = ChatMessageUser(id="shared", content="second")
+    with message_render_cache():
+        assert messages_as_str([first]) == "user:\nfirst\n"
+        assert messages_as_str([second]) == "user:\nsecond\n"
+
+
+def test_message_render_cache_does_not_outlive_its_scope():
+    message = ChatMessageUser(content="before")
+    with message_render_cache():
+        assert messages_as_str([message]) == "user:\nbefore\n"
+    message.content = "after"
+    with message_render_cache():
+        assert messages_as_str([message]) == "user:\nafter\n"

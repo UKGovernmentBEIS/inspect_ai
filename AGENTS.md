@@ -5,8 +5,10 @@ This file provides guidance to AI coding agents when working with code in this r
 ## Contribution policy — required checks before opening a PR
 
 These rules are mandatory for AI coding agents (Claude Code, Codex, Cursor,
-Devin, and similar) preparing contributions. Human contributors: see
-[CONTRIBUTING.md](CONTRIBUTING.md). A deterministic gate enforces them.
+Devin, and similar) preparing contributions. Read and follow
+[CONTRIBUTING.md](CONTRIBUTING.md) first: its rules apply to agents and human
+contributors alike, and this section adds agent-specific rules on top. A
+deterministic gate enforces the checks below.
 
 1. **Accepted-issue check.** Is the account you are operating for on the
    qualified roster (recorded by account id in `.github/qualified.yml`)? If
@@ -28,7 +30,8 @@ Devin, and similar) preparing contributions. Human contributors: see
    existing PR and wait for a maintainer's direction; if invited to proceed,
    link the two PRs in your description.
 4. **Trivial-fix exception.** Documentation-only fixes (typo, broken link;
-   docs files only, under 25 changed lines) may be opened directly by anyone.
+   pages under `docs/` or the top-level README only, under 25 changed lines)
+   and additions to the extensions listing may be opened directly by anyone.
 5. **New functionality defaults to an extension, not core.** Do not open
    unrequested PRs adding functionality — providers, tools, scorers, metrics,
    solvers, storage backends, example evals. Some of these do belong in core,
@@ -41,6 +44,18 @@ Devin, and similar) preparing contributions. Human contributors: see
    does it fix a demonstrated problem, with evidence (a reproduction or a
    failing test)? If the need is speculative or the fix unverified, do not
    proceed. File an issue with your evidence instead.
+
+When commenting on someone else's issue or PR without an assignment
+or review request, including when posting a PR review, identify
+yourself as an AI agent. State that you are not a project maintainer
+and that your comment or review does not represent the maintainers'
+views or decisions. Do not imply that you can accept an issue,
+approve a PR, or speak for the project. Submit an unrequested review
+as a **Comment**, never **Approve** or **Request changes**: on this
+repository those are maintainer decisions, a non-maintainer's verdict
+doesn't count toward merging, and it misleads the author about where
+their PR stands. Put any confirmation or concern in the comment text.
+This does not apply to agents acting for project maintainers.
 
 If you do open a PR: reference the accepted issue (`Fixes #NNN`); run
 `make check` and `make test` and report results honestly; for non-trivial
@@ -80,6 +95,7 @@ Example:
 ```
 
 ## Build/Lint/Test Commands
+- Set up the environment: `uv sync --locked` (installs exactly `uv.lock`; don't `pip install` the project). After changing dependencies in `pyproject.toml`, run `uv lock` and commit `uv.lock`. Don't override the 7-day dependency cooldown. Every other dependency procedure is in [DEPENDENCIES.md](https://github.com/meridianlabs-ai/actions/blob/main/DEPENDENCIES.md) in meridianlabs-ai/actions
 - Run all tests: `pytest`
 - Run a single test: `pytest tests/path/to/test_file.py::test_function_name -v`
 - Format code: `ruff format`
@@ -124,11 +140,12 @@ limitations, and validation.
 
 ## Suppression gate
 
-- Do NOT suppress lint or type errors (`# noqa`, `# type: ignore`,
-  `# pyright: ignore`, or the file-wide `# ruff: noqa` /
-  `# mypy: ignore-errors`). Fix the code. A deterministic gate enforces
-  this (`make suppressions-check` against `suppressions.json`); maintainers
-  reject suppressions that just make an error go away.
+- Do NOT suppress lint or type errors (`# noqa`, `# ruff: ignore[...]`,
+  `# type: ignore`, `# pyright: ignore`, the range `# ruff: disable[...]`,
+  or the file-wide `# ruff: noqa` / `# mypy: ignore-errors`). Fix the
+  code. A deterministic gate enforces this (`make suppressions-check`
+  against `suppressions.json`); maintainers reject suppressions that just
+  make an error go away.
 - In the rare case a suppression is correct, it requires both: a reason in
   a trailing hash comment segment on the same line, the only style mypy
   accepts (e.g. `x = f()  # type: ignore[assignment]  # stub is wrong
@@ -184,6 +201,26 @@ tests that cover the change locally, and the PR description must report the
 run. The `slow-tests` skill (`.agents/skills/slow-tests/SKILL.md`) says which
 flags and directories go with which change and what each class needs.
 
+This table lists common cases. The skill has the full list and takes precedence.
+
+| You changed | Run | Needs |
+|---|---|---|
+| A model provider | `pytest --runapi --runslow tests/model/providers/test_<provider>*.py` | That provider's credentials |
+| Tool code (`src/inspect_ai/tool/`) | `pytest --runslow -m slow tests/tools/ -x` | Docker running |
+| Sandbox tools build inputs (`src/inspect_sandbox_tools/`, other paths in `injectable_paths.txt`) | Build the `-dev` binaries with `build_within_container.py --arch <arch>`, then again with `--musl`. Then run `pytest --runslow -m slow tests/tools/ -x` | Docker running |
+| Agent code | `pytest --runslow --runapi tests/agent/` | Some tests need Docker or an OpenAI or Anthropic key |
+
+`build_within_container.py` and `injectable_paths.txt` are in
+`src/inspect_ai/tool/_sandbox_tools_utils/`. Use the architecture of your
+Docker host for `<arch>`; CI uses `amd64`. The tests reuse the existing `-dev`
+binaries. Rebuild both after each change.
+
+A gated test that is not enabled shows as skipped, and pytest still exits
+successfully. `--runslow` alone does not run the live provider tests marked
+`api`; they also need `--runapi` and the provider's credentials. Check the
+skip summary at the end of the run to confirm the tests you meant to run
+actually ran.
+
 Report the run in a `### Slow tests` section after `### Validation`. Use one
 short bullet per run: test class/provider, version when relevant, exact
 command, and passed, failed, and skipped counts. End with a "Not run" bullet
@@ -203,6 +240,17 @@ keep their commands and counts here.
 Additional files provide context when working in specific areas:
 
 - [Sandbox tools: build process, container injection, RPC communication, design patterns](src/inspect_sandbox_tools/AGENTS.md)
+- When adding or changing code that creates, adopts or trusts a directory
+  inside a sandbox for Inspect's own use (tools, services, checkpoints,
+  agent installs), start from the
+  [sandbox trust model](design/sandbox-trust-model.md): its principals,
+  boundaries and guarantees, and the verified-directory and verify-before-use
+  contracts implemented by the
+  [host directory helper](src/inspect_ai/util/_sandbox/_framework_directory.py)
+  and the [injected `inspect_sandbox_tools` helper](src/inspect_sandbox_tools/src/inspect_sandbox_tools/_util/server_dir.py),
+  including their ownership, ancestor and verification-before-use requirements.
+  Update the document in the same PR when a change alters a principal,
+  boundary or contract it describes.
 
 ## Design Documentation
 
@@ -249,13 +297,19 @@ current. If an agent worked on the PR, fill in `### Agent review` as described
 above. Human-only PRs may omit that section. Keep the `### Slow tests` section
 for changes in gated-test areas, as described above.
 
-Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "Fix eval hang when resuming with S3 logs", not "Add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead. CHANGELOG entries follow the same outcome-not-mechanism rule; only product-functionality changes get one (see below), so the carve-out doesn't arise there.
+Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "fix: eval hang when resuming with S3 logs", not "fix: add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead; their types (`refactor`, `ci`, `docs`, ...) are left out of the changelog, so the carve-out doesn't reach it.
+
+The title starts with a Conventional Commits type (enforced by the PR Title Lint check), as in "fix: eval hang when resuming with S3 logs" or "feat(anthropic): support Claude Haiku 5.5". The squash-merged title is what Release Please reads to version the next release: `fix`, `feat`, `perf` and `revert` make a patch release; `!` after the type or scope (`feat!:`) marks a breaking change, which is listed in the changelog but still makes a patch release (Release Please is configured to always bump the patch version); `docs`, `refactor`, `test`, `build`, `ci`, `chore` and `style` make no release on their own. Pick the type from what users get, not from the files touched: a bug fix that also adds tests is `fix`.
 
 Before opening a non-trivial PR, run at least one code review pass in a fresh context — a reviewer that hasn't seen the authoring conversation (e.g. `/code-review` or a subagent) — using a strong (frontier-class) model; in our experience reviews from small fast-tier models rarely surface real issues. Fix or explicitly dismiss each finding before opening, and disclose the pass in the `### Agent review` section.
 
-When asked to open a PR, don't stop at creation — monitor it afterward: watch its CI checks (e.g. `gh pr checks <number> --repo <owner>/<repo> --watch`) until they complete, report the outcome, and investigate/fix any failures. If the branch has fallen behind its base (out of date), update it — merge or rebase the base branch in and push — so CI runs against current code.
+When asked to open a PR, don't stop at creation — monitor it afterward: watch its CI checks (e.g. `gh pr checks <number> --repo <owner>/<repo> --watch`) until they complete, report the outcome, and investigate/fix any failures. `main` does not require PR branches to be up to date before merging. Don't merge or rebase `main` into a branch only because it is behind: each push reruns CI and can dismiss an existing approval. Merge it in to resolve a conflict, or when the branch needs a change from `main` (for example a CI fix, or before regenerating the schema; see the land-ts-mono skill).
 
-For changes to product functionality (not test-only or build-only changes), add a CHANGELOG entry: a single-line, single-sentence item in the `## Unreleased` section at the top of `CHANGELOG.md` (create that section if it doesn't exist), grouped with similar existing items when there are any, otherwise appended to the list. Keep it short (~25 words): state only the user-visible behavior change — what a user can now do or observe — not the mechanism, internal names, or design rationale (those belong in the PR description and `design/` docs). For example: "Fixed sample buffer database growing unboundedly during long evals", not "Add periodic vacuum to buffer SQLite db". Don't reference issue numbers in the entry (e.g. `(#123)` or `(owner/repo#123)`) — the PR description carries the issue link. A merge from the base can silently relocate the entry under a released heading — the merge resolves cleanly (the entry rides along with neighboring lines that the release commit moved), so nothing flags it. Verify placement mechanically after updating a branch against its base, and again before merging any PR — even when someone else updated the branch (e.g. via GitHub's "Update branch" button): run `git diff "$(git merge-base origin/main HEAD)" HEAD -- CHANGELOG.md` and confirm every added entry line sits under `## Unreleased`; move back any that don't.
+Don't edit `CHANGELOG.md`; the Changelog Lint check (`no-changelog-edits`) fails any PR that does, except the release PR. Release Please writes the changelog and the GitHub Release notes at release time from the squash-merged PR titles: `feat`, `fix`, `perf` and `revert` titles become entries, and other types are left out. The PR title is therefore the changelog line, so keep it short (~25 words), state the user-visible behavior change, and leave out internal names and issue numbers (Release Please links the PR). The squash commit's message is the PR description, which Release Please also reads:
+
+- For a breaking change, use `feat!:` (or `fix!:`) and add a paragraph to the PR description starting with `BREAKING CHANGE:` that says what users must change, followed by a blank line (the note runs to the next blank line).
+- A description line that starts with a type and colon (e.g. `fix: ...`) right after a blank line adds its own changelog entry; to show one without adding an entry, indent it (a code fence does not prevent the entry when a blank line comes before the line inside it).
+- To reword a merged PR's entry before the release, put `BEGIN_COMMIT_OVERRIDE`, the corrected title with ` (#NNN)` (the PR number) appended, and `END_COMMIT_OVERRIDE`, each on its own line, at the top of the merged PR's description. Edits to `CHANGELOG.md` in the release PR do not last: Release Please rewrites that PR on every push to `main`.
 
 Never change a submodule gitlink (e.g. `src/inspect_ai/_view/ts-mono`) unless the task is about that submodule. After any merge/rebase, check `git status`; if it shows the submodule modified, reset the pointer to the base and commit: `git checkout origin/main -- src/inspect_ai/_view/ts-mono`. (`git submodule update` will NOT fix this — it syncs the working tree to the already-recorded pointer, not the reverse.) When a change legitimately requires a coordinated ts-mono update (e.g. regenerated types), follow `.agents/skills/land-ts-mono/SKILL.md`.
 
@@ -264,18 +318,16 @@ Never change a submodule gitlink (e.g. `src/inspect_ai/_view/ts-mono`) unless th
 Please open upstream PRs from a personal fork rather than an organization
 fork, and leave "Allow edits by maintainers" enabled when creating the PR
 (it's on by default in the GitHub UI and `gh pr create`). That setting gives
-upstream maintainers push access to the PR branch, and they need it: upstream
-`main` requires PR branches to be up to date before merging, so every push to
-`main` blocks open PRs until their branches are updated. With maintainer
-edits enabled, a maintainer can update the branch (or push small fixes) and
-merge on their own schedule. GitHub does not support maintainer edits on
-organization-owned forks, so a PR from an org fork can only be kept mergeable
-by its author — it will sit approved but unmergeable whenever `main` moves
-until the author syncs the branch again.
+upstream maintainers push access to the PR branch, so a maintainer can
+resolve a merge conflict (for example after `main` bumps the ts-mono gitlink)
+or push a small fix without waiting for the author. GitHub does not support
+maintainer edits on organization-owned forks, so only people with push access
+to the fork can change a PR from it. If it conflicts with `main`, it sits
+unmergeable until one of them resolves the conflict.
 
 If you must open from an org fork, the following applies.
 
-Before opening the PR, sync the branch with upstream `main` (`git fetch origin main && git merge origin/main`, resolving any conflicts) and push. Otherwise the PR can open with conflicts against its base, and CHANGELOG entries in particular almost always conflict.
+Before opening the PR, sync the branch with upstream `main` (`git fetch origin main && git merge origin/main`, resolving any conflicts) and push. Otherwise the PR can open with conflicts against its base.
 
 Opening a PR from an organization fork to its upstream via the GitHub API/CLI needs an explicit `head_repo` — without it GitHub can't resolve the org fork as the PR head and rejects it with `{"field":"head","code":"invalid"}` (an org fork requires `head_repo`; a personal fork resolves without it). `gh pr create` has no `--head-repo` flag ([cli/cli#6462](https://github.com/cli/cli/issues/6462)), so use `gh api` — e.g. from the `meridianlabs-ai/inspect_ai` fork to upstream `UKGovernmentBEIS/inspect_ai`:
 

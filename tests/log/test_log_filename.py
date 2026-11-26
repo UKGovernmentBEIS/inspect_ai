@@ -12,6 +12,8 @@ from inspect_ai._util.log_layout import (
     eval_log_name,
     eval_shards_dir,
     log_basename,
+    merged_log_for_shard,
+    merged_log_task_id,
 )
 from inspect_ai.log import EvalConfig, EvalDataset, EvalSpec
 from inspect_ai.log._recorders.eval import EvalRecorder
@@ -101,6 +103,7 @@ def test_eval_log_name_matches_eval_location() -> None:
         ("file:///run.eval", "file:///run.shards"),
         ("s3://bucket/logs/run.eval", "s3://bucket/logs/run.shards"),
         ("s3://bucket/run.eval", "s3://bucket/run.shards"),
+        ("/logs/run-recovered.eval", "/logs/run-recovered.shards"),
     ],
 )
 def test_eval_shards_dir_round_trip(log: str, shards: str) -> None:
@@ -126,33 +129,38 @@ def test_eval_shards_dir_round_trip_backslash_paths(log: str, shards: str) -> No
 
 
 @pytest.mark.parametrize(
-    "recovered,shards,log",
-    [
-        ("/logs/run-recovered.eval", "/logs/run.shards", "/logs/run.eval"),
-        ("run-recovered.eval", "run.shards", "run.eval"),
-        (
-            "file:///tmp/logs/run-recovered.eval",
-            "file:///tmp/logs/run.shards",
-            "file:///tmp/logs/run.eval",
-        ),
-        (
-            "s3://bucket/logs/run-recovered.eval",
-            "s3://bucket/logs/run.shards",
-            "s3://bucket/logs/run.eval",
-        ),
-    ],
-)
-def test_eval_shards_dir_recovered_log(recovered: str, shards: str, log: str) -> None:
-    assert eval_shards_dir(recovered) == shards
-    assert eval_log_for_shards_dir(shards) == log
-
-
-@pytest.mark.parametrize(
     "path", ["/logs/run", "/logs/run.checkpoints", "s3://bucket/logs/.shards"]
 )
 def test_eval_log_for_shards_dir_rejects_other_dirs(path: str) -> None:
     with pytest.raises(ValueError, match="Not a shards directory"):
         eval_log_for_shards_dir(path)
+
+
+@pytest.mark.parametrize(
+    "shard,merged",
+    [
+        ("/logs/run.shards/0/a.eval", "/logs/run"),
+        ("file:///tmp/logs/run.shards/12/a.eval", "file:///tmp/logs/run"),
+        ("s3://bucket/logs/run.shards/3/a-recovered.eval", "s3://bucket/logs/run"),
+        ("C:\\logs\\run.shards\\0\\a.eval", "C:\\logs\\run"),
+    ],
+)
+def test_merged_log_for_shard(shard: str, merged: str) -> None:
+    assert merged_log_for_shard(shard) == f"{merged}.eval"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/logs/a.eval",
+        "/logs/run.shards/a.eval",
+        "/logs/run.shards/0/1/a.eval",
+        "/logs/.shards/0/a.eval",
+        "/logs/shards/0/a.eval",
+    ],
+)
+def test_merged_log_for_non_shard(path: str) -> None:
+    assert merged_log_for_shard(path) is None
 
 
 @pytest.mark.parametrize(
@@ -168,3 +176,37 @@ def test_eval_checkpoints_dir_shares_suffix_rule(log: str, checkpoints: str) -> 
     assert eval_checkpoints_dir(log, None) == checkpoints
     assert checkpoint_layout.eval_checkpoints_dir(log, None) == checkpoints
     assert log_basename(log) == "run"
+
+
+@pytest.mark.parametrize(
+    "pattern,reads_id",
+    [
+        (None, True),
+        ("{task}_{model}_{id}", True),
+        ("{task}", False),
+        ("{id}_{task}", False),
+        ("{model}_{task}", False),
+    ],
+)
+def test_merged_log_task_id(pattern: str | None, reads_id: bool) -> None:
+    import shortuuid
+
+    with environ_var("INSPECT_EVAL_LOG_FILE_PATTERN", pattern or "{task}_{id}"):
+        name = eval_log_name(
+            task="pkg/my_task",
+            task_id="AbCd123",
+            created="2026-10-16T10:00:00+00:00",
+            model="openai/gpt-4o",
+        )
+        task_id = merged_log_task_id(name, task="pkg/my_task", model="openai/gpt-4o")
+        other = merged_log_task_id(
+            name.replace("AbCd123", "Other99").replace("10-00-00", "11-00-00"),
+            task="pkg/my_task",
+            model="openai/gpt-4o",
+        )
+    if reads_id:
+        assert task_id == "AbCd123"
+    else:
+        assert task_id == shortuuid.uuid(name=name)
+        assert task_id
+    assert other != task_id

@@ -2,12 +2,22 @@ import asyncio
 import contextlib
 import inspect
 import os
+import posixpath
 import re
 from collections.abc import Iterable
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import IO, Any, AsyncIterator, Callable, Generator, Literal, cast
+from typing import (
+    IO,
+    Any,
+    AsyncIterator,
+    Callable,
+    Generator,
+    Literal,
+    NamedTuple,
+    cast,
+)
 
 import anyio.to_thread
 import fsspec  # type: ignore
@@ -28,11 +38,15 @@ from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import (
     FileInfo,
+    FileSystem,
     default_fs_options,
     file,
     filesystem,
+    local_path,
+    url_protocol,
 )
 from inspect_ai._util.json import to_json_safe
+from inspect_ai._util.path import native_path
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._resolve import rebind_sample_timelines, resolve_sample_events_data
@@ -44,6 +58,8 @@ from ._recorders import (
     recorder_type_for_format,
     recorder_type_for_location,
 )
+from ._recorders.recorder import SampleRecordKey
+from ._shard_listing import filter_merged_shards, merged_logs_to_check
 
 logger = getLogger(__name__)
 
@@ -104,6 +120,14 @@ class LogOverview(BaseModel):
     primary_metric: EvalMetric | None = Field(default=None)
 
 
+def _list_log_files(fs: FileSystem, log_dir: str, recursive: bool) -> list[FileInfo]:
+    options: dict[str, Any] = {"on_error": "raise"} if recursive else {}
+    try:
+        return fs.ls(log_dir, recursive=recursive, **options)
+    except FileNotFoundError:
+        return []
+
+
 def list_eval_logs(
     log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
     formats: list[Literal["eval", "json"]] | None = None,
@@ -143,12 +167,9 @@ def list_eval_logs(
     # get the eval logs
     logger.debug(f"Listing eval logs for {log_dir}")
     fs = filesystem(log_dir, fs_options)
-    if fs.exists(log_dir):
-        eval_logs = log_files_from_ls(
-            fs.ls(log_dir, recursive=recursive), formats, descending
-        )
-    else:
-        eval_logs = []
+    eval_logs = log_files_from_ls(
+        _list_log_files(fs, log_dir, recursive), formats, descending
+    )
     logger.debug(f"Listing eval logs for {log_dir} completed")
 
     # apply filter if requested
@@ -242,8 +263,7 @@ async def _list_eval_logs_async(
                     )
                 ]
         except ClientError as ex:
-            # a missing bucket is an empty listing (as with the existence
-            # precheck the other branches perform), not an error
+            # A missing bucket is an empty listing, as in the other branches.
             if ex.response.get("Error", {}).get("Code") in (
                 "NoSuchBucket",
                 "404",
@@ -261,34 +281,18 @@ async def _list_eval_logs_async(
         # directly rather than via to_thread: remote-fsspec sync calls must
         # not run in our threadpool (see the fsspec warning in AGENTS.md).
         try:
-            exists = fs.exists(log_dir)
+            logs = _list_log_files(fs, log_dir, recursive)
         except Exception as ex:  # noqa: BLE001
             if is_azure_listing_auth_error(log_dir, ex):
                 # An auth failure is not an empty directory: surface it with
                 # remediation guidance instead of silently reporting no logs.
                 raise AzureAuthError(log_dir, ex) from ex
             raise
-        if not exists:
-            return []
-        logs = fs.ls(log_dir, recursive=recursive)
         return await log_files_from_ls_async(logs, formats, descending)
     elif fs.is_async():
         async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
             try:
-                exists = await async_fs._exists(log_dir)
-            except Exception as ex:  # noqa: BLE001
-                if is_azure_listing_auth_error(log_dir, ex):
-                    # An auth failure is not an empty directory: surface it with
-                    # remediation guidance instead of silently reporting no logs.
-                    raise AzureAuthError(log_dir, ex) from ex
-                # TODO: Add S3 login error catching, as well as any other remote file system of interest
-                # Re-raise non-auth related issues
-                raise
-
-            if exists:
-                # prevent caching of listings
                 async_fs.invalidate_cache(log_dir)
-                # list logs
                 if recursive:
                     if _walk_supports_detail(async_fs):
                         files = await _walk_with_detail(async_fs, log_dir)
@@ -299,20 +303,19 @@ async def _list_eval_logs_async(
                         list[dict[str, Any]],
                         await async_fs._ls(log_dir, detail=True),
                     )
-                logs = [fs._file_info(file) for file in files]
-                # resolve to eval logs (async fan-out so header reads on
-                # non-conforming filenames don't block the event loop)
-                return await log_files_from_ls_async(logs, formats, descending)
-            else:
+            except FileNotFoundError:
                 return []
+            except Exception as ex:  # noqa: BLE001
+                if is_azure_listing_auth_error(log_dir, ex):
+                    raise AzureAuthError(log_dir, ex) from ex
+                raise
+
+            logs = [fs._file_info(file) for file in files]
+            return await log_files_from_ls_async(logs, formats, descending)
     else:
-        # sync filesystem (e.g. local) — run the existence check and the
-        # (potentially large recursive) listing in a worker thread so they
-        # don't block the event loop
-        if not await anyio.to_thread.run_sync(fs.exists, log_dir):
-            return []
+        # Local recursive listings can be large; keep them off the event loop.
         logs = await anyio.to_thread.run_sync(
-            partial(fs.ls, log_dir, recursive=recursive)
+            partial(_list_log_files, fs, log_dir, recursive)
         )
         return await log_files_from_ls_async(logs, formats, descending)
 
@@ -340,7 +343,8 @@ async def async_filesystem(
         try:
             yield s3
         finally:
-            await session.close()
+            with anyio.CancelScope(shield=True):
+                await session.close()
     else:
         options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
         yield fsspec.filesystem(protocol, **options)
@@ -365,7 +369,7 @@ def _walk_supports_detail(fs: AsyncFileSystem) -> bool:
 
 async def _walk_with_detail(fs: AsyncFileSystem, log_dir: str) -> list[dict[str, Any]]:
     files: list[dict[str, Any]] = []
-    async for _, _, filenames in fs._walk(log_dir, detail=True):
+    async for _, _, filenames in fs._walk(log_dir, detail=True, on_error="raise"):
         files.extend(filenames.values())
     return files
 
@@ -381,9 +385,8 @@ async def _walk_without_detail(
         try:
             entries = await fs._ls(current, detail=True)
         except OSError:
-            # match fsspec walk's on_error="omit" (used by _walk_with_detail
-            # and the sync fs.ls path): skip unlistable directories, but let
-            # non-OSError failures (e.g. auth errors) propagate
+            if current == log_dir:
+                raise
             continue
         for entry in entries:
             name = entry.get("name") or entry.get("path")
@@ -516,13 +519,14 @@ def write_log_dir_manifest(
     """
     # resolve log dir to full path
     fs = filesystem(log_dir)
-    log_dir = fs.info(log_dir).name
+    log_dir_uri = fs.dir_as_uri(log_dir)
+    log_dir = fs.dir_location(log_dir)
 
     # list eval logs
     logs = list_eval_logs(log_dir)
 
     # resolve to manifest (make filenames relative to the log dir)
-    names = [manifest_eval_log_name(log, log_dir, fs.sep) for log in logs]
+    names = [manifest_eval_log_name(log, log_dir_uri, fs.sep) for log in logs]
     headers = read_eval_log_headers(logs)
 
     manifest_logs = dict(zip(names, headers))
@@ -677,6 +681,15 @@ async def read_eval_log_headers_async(
     log_files: list[str] | list[Path] | list[EvalLogInfo],
     progress: ReadEvalLogsProgress | None = None,
 ) -> list[EvalLog]:
+    """Read the headers of multiple evaluation logs.
+
+    Args:
+       log_files: Log files to read.
+       progress: Optional progress callbacks.
+
+    Returns:
+       EvalLog objects without the "samples" and "logging" fields.
+    """
     if progress:
         progress.before_reading_logs(len(log_files))
 
@@ -1085,22 +1098,46 @@ def read_eval_log_samples(
             + "Specify all_samples_required=False to read the samples that exist."
         )
 
+    # the header's sample_ids describe the seed dataset only, so add the
+    # samples a SampleSource / enqueue_sample added at runtime from the log.
+    # Keyed by string id like the recorders, since a retry can record "1" in
+    # the header for a reused sample stored as 1.
+    location = (
+        log_file
+        if isinstance(log_file, str)
+        else log_file.as_posix()
+        if isinstance(log_file, Path)
+        else log_file.name
+    )
+    recorder_type = (
+        recorder_type_for_location(location)
+        if format == "auto"
+        else recorder_type_for_format(format)
+    )
+    sample_keys = dict.fromkeys(
+        [
+            SampleRecordKey(str(sample_id), epoch_id)
+            for sample_id in log_header.eval.dataset.sample_ids
+            for epoch_id in range(1, (log_header.eval.config.epochs or 1) + 1)
+        ]
+        + run_coroutine(recorder_type.read_log_sample_keys(location))
+    )
+
     # loop over samples and epochs
-    for sample_id in log_header.eval.dataset.sample_ids:
-        for epoch_id in range(1, (log_header.eval.config.epochs or 1) + 1):
-            try:
-                sample = read_eval_log_sample(
-                    log_file=log_file,
-                    id=sample_id,
-                    epoch=epoch_id,
-                    resolve_attachments=resolve_attachments,
-                    format=format,
-                    exclude_fields=exclude_fields,
-                )
-                yield sample
-            except IndexError:
-                if all_samples_required:
-                    raise
+    for sample_id, epoch_id in sample_keys:
+        try:
+            sample = read_eval_log_sample(
+                log_file=log_file,
+                id=sample_id,
+                epoch=epoch_id,
+                resolve_attachments=resolve_attachments,
+                format=format,
+                exclude_fields=exclude_fields,
+            )
+            yield sample
+        except IndexError:
+            if all_samples_required:
+                raise
 
 
 def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
@@ -1155,6 +1192,95 @@ async def log_files_from_ls_async(
 ) -> list[EvalLogInfo]:
     files = _filter_log_files(ls, formats, descending, sort)
     return await tg_collect([partial(log_file_info_async, f) for f in files])
+
+
+class LogDestination(NamedTuple):
+    """A listed log directory entry and where it is written beneath a target."""
+
+    relative: str
+    """The entry's name relative to the log directory, with `/` separators."""
+
+    destination: str
+    """Where to write the entry (with `extension`, if given).
+
+    For a local target, the resolved native path that was checked; otherwise
+    `relative` joined beneath the target URL.
+    """
+
+
+def resolve_local_path(path: str) -> str:
+    """Resolve a path on the local filesystem to the native path writers use.
+
+    Applies to every form fsspec opens locally (a plain path, `file://` or
+    `local://`). The result is absolute, with `~` expanded, `file://`
+    escapes decoded and symlinks resolved, so a containment check and the
+    writer that follows it see the same file. Other URLs are returned
+    unchanged.
+    """
+    if not filesystem(path).is_local():
+        return path
+    if url_protocol(path) == "file":
+        path = local_path(path)
+    return os.path.realpath(native_path(path))
+
+
+def contained_log_destination(
+    name: str, log_dir: str, target_dir: str, extension: str | None = None
+) -> LogDestination:
+    """Place a listed log directory entry beneath a target directory.
+
+    Names listed from a remote store can contain `.` or `..` components,
+    an empty component (so the rest reads as absolute) or fsspec's `::`
+    URL-chain separator. Such a name is refused rather than normalized. The destination must stay beneath
+    `target_dir`. For a local target, both are resolved with
+    `resolve_local_path()` first and the resolved destination is returned.
+
+    Args:
+        name: Entry name as listed (e.g. `FileInfo.name`).
+        log_dir: Listed name of the log directory (e.g. `info(log_dir).name`).
+        target_dir: Local path or URL of the directory to write beneath.
+        extension: Replaces the entry's extension in the destination.
+
+    Raises:
+        ValueError: If `name` is not inside `log_dir`, or would be written
+            outside `target_dir`.
+    """
+    from inspect_ai.util._checkpoint._layout._paths import contained_relative
+
+    prefix = log_dir if log_dir.endswith("/") else f"{log_dir}/"
+    if not name.startswith(prefix):
+        raise ValueError(f"Log file '{name}' is not inside '{log_dir}'.")
+    relative = name[len(prefix) :]
+    try:
+        contained_relative(relative)
+    except ValueError as ex:
+        raise ValueError(f"Log file '{name}' has an invalid path: {ex}") from ex
+    # fsspec reads "::" as a URL chain, so a writer would open a different path
+    if "::" in relative:
+        raise ValueError(f"Log file '{name}' has an invalid path: it contains '::'.")
+
+    written = (
+        relative
+        if extension is None
+        else f"{posixpath.splitext(relative)[0]}.{extension}"
+    )
+    destination = posixpath.join(target_dir, written)
+    if filesystem(target_dir).is_local():
+        root = resolve_local_path(target_dir)
+        destination = resolve_local_path(destination)
+        try:
+            contained = (
+                destination != root and os.path.commonpath([root, destination]) == root
+            )
+        except ValueError:  # different drives on Windows
+            contained = False
+    else:
+        root = posixpath.normpath(target_dir)
+        dest = posixpath.normpath(destination)
+        contained = dest.startswith(root.rstrip("/") + "/")
+    if not contained:
+        raise ValueError(f"Log file '{name}' would be written outside '{target_dir}'.")
+    return LogDestination(relative=relative, destination=destination)
 
 
 log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
@@ -1275,6 +1401,36 @@ def eval_log_json_str(log: EvalLog) -> str:
     return eval_log_json(log).decode()
 
 
+def without_merged_shards(
+    logs: list[EvalLogInfo], fs_options: dict[str, Any] = {}
+) -> list[EvalLogInfo]:
+    """Leave out shard logs that a finished merged log already covers.
+
+    Reads the header of each merged log that could hide a shard; see
+    :func:`~inspect_ai.log._shard_listing.filter_merged_shards` for the rule.
+
+    Args:
+        logs: The listing.
+        fs_options: Options for the filesystem the logs were listed from
+            (e.g. credentials, anonymous access, or an endpoint), used to
+            read the merged logs' headers.
+    """
+    merged = merged_logs_to_check(logs)
+    if fs_options:
+        headers = [_read_header(log.name, fs_options) for log in merged]
+    else:
+        headers = read_eval_log_headers(merged)
+    finished = {
+        log.name for log, header in zip(merged, headers) if header.status == "success"
+    }
+    return filter_merged_shards(logs, finished).logs
+
+
+def _read_header(location: str, fs_options: dict[str, Any]) -> EvalLog:
+    with file(location, "rb", fs_options=fs_options) as f:
+        return read_eval_log(f, header_only=True)
+
+
 def write_log_listing(
     log_dir: str,
     *,
@@ -1282,6 +1438,7 @@ def write_log_listing(
     filename: str = "listing.json",
     output_dir: str | None = None,
     fs_options: dict[str, Any] = {},
+    hide_merged_shards: bool = True,
 ) -> None:
     """Write a listing file for a log directory.
 
@@ -1294,21 +1451,27 @@ def write_log_listing(
       output_dir (str | None): Output directory for manifest (defaults to log_dir)
       fs_options (dict[str,Any]): Optional. Additional arguments to pass through
         to the filesystem provider (e.g. `S3FileSystem`).
+      hide_merged_shards (bool): Leave out shard logs that a finished merged
+        log already covers, as the view server's listing does.
     """
     # resolve log dir to full path
     fs = filesystem(log_dir)
-    log_dir = fs.info(log_dir).name
+    log_dir_uri = fs.dir_as_uri(log_dir)
+    log_dir = fs.dir_location(log_dir)
 
     # list eval logs
     if logs is None:
         logs = list_eval_logs(log_dir)
 
-    # resolve to overview (make filenames relative to the log dir)
-    names = [manifest_eval_log_name(log, log_dir, fs.sep) for log in logs]
-    headers = read_eval_log_headers(logs)
-    overviews = [to_overview(header) for header in headers]
+    if hide_merged_shards:
+        logs = without_merged_shards(logs)
+    headers = dict(zip([log.name for log in logs], read_eval_log_headers(logs)))
 
-    file_overviews = dict(zip(names, overviews))
+    # resolve to overview (make filenames relative to the log dir)
+    file_overviews = {
+        manifest_eval_log_name(log, log_dir_uri, fs.sep): to_overview(headers[log.name])
+        for log in logs
+    }
 
     # form target path and write
     output_dir = output_dir or log_dir
@@ -1362,8 +1525,9 @@ def _normalize_excluded_fields(exclude_fields: set[str] | None) -> set[str] | No
             # events_data is needed to resolve refs in events
             exclude_fields = exclude_fields - {"events_data"}
         else:
-            # no events means events_data is useless
-            exclude_fields = exclude_fields | {"events_data"}
+            # no events means events_data is useless, and timelines cannot be
+            # resolved (their event references point back into the events)
+            exclude_fields = exclude_fields | {"events_data", "timelines"}
     return exclude_fields
 
 
@@ -1372,7 +1536,8 @@ def _resolve_sample_for_read(
     resolve_attachments: bool | Literal["full", "core"],
 ) -> "EvalSample":
     """Apply read-time event resolution and bind timelines to final events."""
-    sample = resolve_sample_events_data(sample)
     if resolve_attachments:
         sample = resolve_sample_attachments(sample, resolve_attachments)
+    else:
+        sample = resolve_sample_events_data(sample)
     return rebind_sample_timelines(sample)

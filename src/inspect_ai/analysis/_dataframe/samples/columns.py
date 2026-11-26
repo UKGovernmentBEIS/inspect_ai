@@ -1,4 +1,4 @@
-from typing import Any, Callable, Mapping, Type
+from typing import Any, Callable, Mapping, Type, TypeVar, cast
 
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
@@ -6,7 +6,7 @@ from typing_extensions import override
 
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 
-from ..columns import Column, ColumnType
+from ..columns import Column, ColumnType, JsonLike
 from ..extract import list_as_str, score_details, score_values
 from ..validate import resolved_schema
 from .extract import (
@@ -17,6 +17,8 @@ from .extract import (
     sample_total_tokens,
 )
 
+S = TypeVar("S", bound=EvalSampleSummary | EvalSample)
+
 
 class SampleColumn(Column):
     """Column which maps to `EvalSample` or `EvalSampleSummary`."""
@@ -25,10 +27,7 @@ class SampleColumn(Column):
         self,
         name: str,
         *,
-        path: str
-        | JSONPath
-        | Callable[[EvalSampleSummary], JsonValue]
-        | Callable[[EvalSample], JsonValue],
+        path: str | JSONPath | Callable[[S], JsonLike],
         required: bool = False,
         default: JsonValue | None = None,
         type: Type[ColumnType] | None = None,
@@ -43,7 +42,11 @@ class SampleColumn(Column):
             type=type,
             value=value,
         )
-        self._extract_sample = path if callable(path) else None
+        self._extract_sample = (
+            cast(Callable[[EvalSampleSummary | EvalSample], JsonValue], path)
+            if callable(path)
+            else None
+        )
         if full is None:
             self._full = sample_path_requires_full(path)
         else:
@@ -66,6 +69,7 @@ SampleSummary: list[Column] = [
     SampleColumn("input", path=sample_input_as_str, required=True),
     SampleColumn("choices", path="choices", full=False),
     SampleColumn("target", path="target", required=True, value=list_as_str),
+    SampleColumn("description", path="description"),
     SampleColumn("metadata_*", path="metadata"),
     SampleColumn("score_*", path="scores", value=score_values),
     SampleColumn("model_usage", path="model_usage"),

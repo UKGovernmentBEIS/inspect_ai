@@ -23,7 +23,14 @@ from ._group import (
 )
 from ._http import _resolve_target_server
 from ._mutate import _HELD_CAVEAT, _mutation_envelope, _pause_confirmation
-from ._render import _echo, _echo_raw, _format_rate, _render_table, _sanitize_line
+from ._render import (
+    _echo,
+    _echo_raw,
+    _format_rate,
+    _format_tokens,
+    _render_table,
+    _sanitize_line,
+)
 
 
 @ctl_command.group("model", cls=_NounGroup)
@@ -125,10 +132,10 @@ def model_throughput_command(pid: int | None, window: int, as_json: bool) -> Non
     """Show each model's effective throughput across the run.
 
     One row per model the process has called, aggregated across every
-    sample and task: recent output tokens/sec, requests/min and
-    retries/min over `--window`, how many samples currently have a
-    generate sleeping in a retry wait, and cumulative scheduled backoff.
-    The "wait vs. switch" view for a throttled run — rates come from
+    sample and task: recent output, input and cache read/write tokens/min,
+    requests/min and retries/min over `--window`, how many samples
+    currently have a generate sleeping in a retry wait, and cumulative
+    scheduled backoff. The "wait vs. switch" view for a throttled run — rates come from
     completed generates, so a model whose every call is stuck in backoff
     reads 0. PID is required when several processes run.
     """
@@ -186,12 +193,44 @@ def _format_backoff(seconds: Any) -> str:
     return f"{secs}s"
 
 
+def _format_token_rate(value: Any) -> str:
+    """A token-rate cell (``1.2k``), or blank when the server didn't report it."""
+    return "" if value is None else _format_tokens(round(float(value)))
+
+
+def _format_cache_rates(model: dict[str, Any]) -> str:
+    """Cache read/write tokens-per-minute cell (``1.2M/45.0k``).
+
+    Blank when the server didn't report them (an older inspect).
+    """
+    read = model.get("cache_read_tokens_per_minute")
+    write = model.get("cache_write_tokens_per_minute")
+    if read is None or write is None:
+        return ""
+    return f"{_format_token_rate(read)}/{_format_token_rate(write)}"
+
+
+def _output_tokens_per_minute(model: dict[str, Any]) -> Any:
+    """Output tokens/min, derived from the per-second rate for an older server."""
+    per_minute = model.get("output_tokens_per_minute")
+    if per_minute is not None:
+        return per_minute
+    per_second = model.get("output_tokens_per_second")
+    return None if per_second is None else float(per_second) * 60
+
+
+_THROUGHPUT_TABLE_WIDTH = 120
+"""Widest the throughput table renders; a longer model name gets its own line."""
+
+
 def _print_throughput_table(models: list[dict[str, Any]]) -> None:
     """Render the per-model throughput rows as an aligned table."""
     rows = [
         (
             str(m.get("model", "?") or "?"),
-            _format_rate(m.get("output_tokens_per_second")),
+            _format_token_rate(_output_tokens_per_minute(m)),
+            _format_token_rate(m.get("input_tokens_per_minute")),
+            _format_cache_rates(m),
             _format_rate(m.get("requests_per_minute")),
             _format_rate(m.get("retries_per_minute")),
             str(m.get("retry_waits_active", 0) or 0),
@@ -202,13 +241,16 @@ def _print_throughput_table(models: list[dict[str, Any]]) -> None:
     _render_table(
         (
             "model",
-            "out tok/s",
+            "out tok/min",
+            "in tok/min",
+            "cache rd/wr/min",
             "req/min",
             "retries/min",
             "in backoff",
             "backoff (cum)",
         ),
         rows,
+        max_width=_THROUGHPUT_TABLE_WIDTH,
     )
 
 

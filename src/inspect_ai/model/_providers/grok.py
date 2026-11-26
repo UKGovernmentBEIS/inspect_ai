@@ -71,8 +71,11 @@ from inspect_ai.model._stream import (
     report_model_stream_progress,
     report_model_stream_start,
 )
-from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
-from inspect_ai.tool._mcp._remote import is_mcp_server_tool
+from inspect_ai.tool._mcp._remote import (
+    is_mcp_server_tool,
+    mcp_server_config,
+    redact_grok_mcp_tools,
+)
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
@@ -88,18 +91,14 @@ from .._model_output import (
     StopReason,
     TopLogprob,
 )
+from ._first_party import FRONTIER_MODELS
 from ._grok_batch import GrokBatcher
+from ._grok_cache import GROK_CONV_ID_HEADER
 
 XAI_API_KEY = "XAI_API_KEY"
 XAI_BASE_URL = "XAI_BASE_URL"
 GROK_API_KEY = "GROK_API_KEY"
 GROK_BASE_URL = "GROK_BASE_URL"
-
-# xAI's prompt cache is per-server, and requests are otherwise load balanced
-# across servers. This header pins a conversation to one server so its turns
-# hit the cache the earlier turns populated.
-# https://docs.x.ai/developers/advanced-api-usage/prompt-caching/maximizing-cache-hits
-GROK_CONV_ID_HEADER = "x-grok-conv-id"
 
 # xAI model-name tokens for non-generative models (image/video generation,
 # embeddings) that must never be treated as a "latest" frontier chat model
@@ -241,6 +240,7 @@ class GrokAPI(ModelAPI):
         # initialize batcher
         self._batcher: GrokBatcher | None = None
         self._batch_client: AsyncClient | None = None
+        self._batch_api_key: str | None = None
 
         # create client
         self.initialize()
@@ -314,6 +314,17 @@ class GrokAPI(ModelAPI):
             return len(tokens)
 
     @override
+    async def refresh_credentials(self) -> None:
+        # Other requests build a client per call. The batcher shares one
+        # client that its in-flight batch operations are using, so it gets a
+        # new client rather than having this one closed under it.
+        self.initialize()
+        if self._batcher and self.api_key != self._batch_api_key:
+            self._batch_client = self.model_client()
+            self._batch_api_key = self.api_key
+            await self._batcher.replace_client(self._batch_client)
+
+    @override
     async def aclose(self) -> None:
         if self._batch_client:
             await self._batch_client.close()
@@ -366,7 +377,7 @@ class GrokAPI(ModelAPI):
             )
 
         model_call = set_active_model_event_call(
-            request=request,
+            request=redact_grok_mcp_tools(request),
             filter=_grok_media_filter,
         )
 
@@ -452,6 +463,7 @@ class GrokAPI(ModelAPI):
 
         if not self._batch_client:
             self._batch_client = self.model_client()
+            self._batch_api_key = self.api_key
 
         self._batcher = GrokBatcher(
             self._batch_client,
@@ -523,7 +535,7 @@ class GrokAPI(ModelAPI):
             self.is_at_least_grok_4()
             and _get_model_info_direct(self.canonical_name()) is None
         ):
-            return "grok/grok-4.7"
+            return FRONTIER_MODELS["grok"]
         return super().input_tokens_name()
 
     def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
@@ -583,7 +595,7 @@ class GrokAPI(ModelAPI):
         elif self._is_internal_code_execution_tool(tool_info):
             return code_execution()
         elif is_mcp_server_tool(tool_info):
-            mcp_config = MCPServerConfigHTTP.model_validate(tool_info.options)
+            mcp_config = mcp_server_config(tool_info)
             return mcp(
                 server_url=mcp_config.url,
                 server_label=mcp_config.name,
@@ -672,6 +684,7 @@ class GrokAPI(ModelAPI):
             choices=[self._completion_choice_from_response(response, tools)],
             completion=response.content,
             usage=_model_usage_from_sampling_usage(response.usage),
+            response_id=response.id or None,
         )
 
     def _completion_choice_from_response(
@@ -891,9 +904,20 @@ def _logprobs_from_grok_logprobs(grok_logprobs: chat_pb2.LogProbs) -> Logprobs |
 
 def _model_usage_from_sampling_usage(usage: usage_pb2.SamplingUsage) -> ModelUsage:
     cached = usage.cached_prompt_text_tokens or 0
+    # xAI has been observed to report reasoning outside completion_tokens
+    # (total = prompt + completion + reasoning). Fold it into output_tokens, as
+    # for Google, so output limits and cost count it; the total check leaves
+    # usage that already includes it (or reports no total) unchanged.
+    reasoning = usage.reasoning_tokens or 0
+    output_tokens = usage.completion_tokens
+    if (
+        reasoning > 0
+        and usage.total_tokens >= usage.prompt_tokens + output_tokens + reasoning
+    ):
+        output_tokens += reasoning
     return ModelUsage(
         input_tokens=usage.prompt_tokens - cached,
-        output_tokens=usage.completion_tokens,
+        output_tokens=output_tokens,
         total_tokens=usage.total_tokens,
         input_tokens_cache_read=usage.cached_prompt_text_tokens,
         reasoning_tokens=usage.reasoning_tokens,

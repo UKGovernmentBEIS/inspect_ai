@@ -29,3 +29,38 @@ def test_import_does_not_load_acp(module: str) -> None:
     assert result.stdout.strip() == "[]", (
         f"`import {module}` eagerly loaded the acp package: {result.stdout.strip()}"
     )
+
+
+@pytest.mark.parametrize("module", ["inspect_ai", "inspect_ai._cli.main"])
+def test_import_does_not_load_inspect_sentinel(module: str) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            f"import {module}, sys; "
+            "print(sorted(m for m in sys.modules if m.startswith('inspect_sentinel')))",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.strip() == "[]", result.stdout.strip()
+
+
+def test_import_inspect_ai_without_google_genai() -> None:
+    code = """
+import builtins
+original_import = builtins.__import__
+def without_google_genai(name, *args, **kwargs):
+    if name == 'google.genai' or name.startswith('google.genai.'):
+        raise ModuleNotFoundError("No module named 'google.genai'")
+    return original_import(name, *args, **kwargs)
+builtins.__import__ = without_google_genai
+import inspect_ai
+print('imported')
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "imported"

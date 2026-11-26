@@ -319,5 +319,24 @@ def test_basic_agent_defaults_to_50_message_limit():
     assert len(log.samples[0].messages) == 50
 
 
+def test_basic_agent_accepts_tuple_init():
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        solver=basic_agent(
+            init=(
+                system_message("You are a helpful assistant."),
+                system_message(AGENT_SYSTEM_MESSAGE),
+            )
+        ),
+        scorer=includes(),
+        message_limit=3,
+    )
+    model = get_model("mockllm/model")
+
+    log = eval(task, model)[0]
+
+    assert log.status == "success"
+
+
 if __name__ == "__main__":
     test_basic_agent_retries_with_custom_incorrect_message()

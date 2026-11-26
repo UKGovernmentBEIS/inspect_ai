@@ -291,6 +291,13 @@ class EvalState:
     """Epoch count, paired with :attr:`sample_ids` to enumerate the
     planned ``(sample_id, epoch)`` pairs."""
 
+    unregistered_attempts: int = 0
+    """Earlier attempts of the task that ended before registering, since its
+    previous registered attempt. Counted in the task's ``attempts``."""
+
+    sample_epochs: list[tuple[str | int, int]] = field(default_factory=list)
+    """Planned ``(sample_id, epoch)`` pairs added with an explicit epoch."""
+
     run_id: str | None = None
     """Process-level run id. Same rationale as :attr:`task`."""
 
@@ -456,6 +463,7 @@ def register_eval(
     will_retry: bool = False,
     task_cancel: "TaskCancel | None" = None,
     dynamic: bool = False,
+    unregistered_attempts: int = 0,
 ) -> EvalState:
     """Initialize tracking for a new eval.
 
@@ -485,6 +493,7 @@ def register_eval(
             will_retry=will_retry,
             task_cancel=task_cancel,
             dynamic=dynamic,
+            unregistered_attempts=unregistered_attempts,
         )
         _eval_states[eval_id] = state
         # A zero-sample eval (``total == 0``, eg. a limit past the dataset) is
@@ -513,6 +522,8 @@ def register_completed_eval(
     total_tokens: int = 0,
     total_messages: int = 0,
     deferred_sample_stats: DeferredStatsProvider | None = None,
+    epochs: int = 1,
+    unregistered_attempts: int = 0,
 ) -> EvalState:
     """Register an eval that has already finished.
 
@@ -521,7 +532,9 @@ def register_completed_eval(
     enter ``task_run.py``, so the per-sample counter path that would
     normally maintain the state never fires. This bulk-equivalent
     sets the terminal counters up-front so ``current_eval_summaries``
-    surfaces the eval as completed.
+    surfaces the eval as completed. The run queue also uses it, with no
+    samples, for a task that ends without registering (cancelled before it
+    started, or failed in startup), so the task stays listed as finished.
 
     ``completed`` / ``errored`` / ``total_messages`` may be provisional
     (header-derived) values refined later by ``deferred_sample_stats`` —
@@ -548,6 +561,8 @@ def register_completed_eval(
             total_tokens=total_tokens,
             total_messages=total_messages,
             deferred_sample_stats=deferred_sample_stats,
+            epochs=epochs,
+            unregistered_attempts=unregistered_attempts,
         )
         _eval_states[eval_id] = state
         return state
@@ -764,14 +779,19 @@ def set_task_scoring(eval_id: str, handle: "TaskScoring | None") -> None:
 
 
 def record_samples_added(
-    eval_id: str, total: int, *, sample_ids: list[str | int] | None = None
+    eval_id: str,
+    total: int,
+    *,
+    sample_ids: list[str | int] | None = None,
+    sample_epochs: list[tuple[str | int, int]] | None = None,
 ) -> None:
     """Grow a running eval's planned totals when samples are added dynamically.
 
     Called by ``task_run`` when a ``SampleSource`` injects samples mid-run:
-    ``total`` is the number of additional planned runs (samples × epochs) and
-    ``sample_ids`` the injected ids (so the per-sample listing can surface them
-    as pending). The eval is :attr:`EvalState.dynamic`, so no provisional
+    ``total`` is the number of additional planned runs, ``sample_ids`` the
+    injected ids that run every epoch and ``sample_epochs`` the ``(id, epoch)``
+    runs added with an explicit epoch (so the per-sample listing can surface
+    them as pending). The eval is :attr:`EvalState.dynamic`, so no provisional
     finish stamp needs clearing here — ``completed_at`` stays ``None`` until
     :func:`finalize_eval`. No-ops if unregistered.
     """
@@ -781,6 +801,8 @@ def record_samples_added(
             state.total += total
             if sample_ids:
                 state.sample_ids.extend(sample_ids)
+            if sample_epochs:
+                state.sample_epochs.extend(sample_epochs)
 
 
 def record_sample_event_counts(
@@ -1052,13 +1074,14 @@ def _maybe_mark_finished(state: EvalState) -> None:
     counters reaching ``total`` doesn't mean done (the source may add more
     samples, or still be hearing about the last one); ``finalize_eval``
     clears the flag at the task's true finish point. Also drops
-    ``sample_ids`` — a finished eval has no pending samples, so the
-    planned-id list is dead weight (it's retained on the state until the
-    run boundary clears it). Caller must hold the registry lock.
+    ``sample_ids`` and ``sample_epochs`` — a finished eval has no pending
+    samples, so the planned lists are dead weight (they're retained on the
+    state until the run boundary clears it). Caller must hold the registry lock.
     """
     if state.completed_at is None and not state.dynamic and state.is_finished:
         state.completed_at = time.time()
         state.sample_ids = []
+        state.sample_epochs = []
 
 
 def get_eval_state(eval_id: str) -> EvalState | None:
@@ -1117,6 +1140,7 @@ def reset_run_registries() -> None:
         reset_process_pause,
         reset_task_pause_gates,
     )
+    from inspect_ai._control.queued_tasks import reset_queued_tasks
     from inspect_ai._control.scoring import reset_score_passes
     from inspect_ai.model._generate_overrides import (
         reset_generate_config_overrides,
@@ -1125,6 +1149,7 @@ def reset_run_registries() -> None:
     from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
     clear_all_eval_states()
+    reset_queued_tasks()
     reset_retry_abandoned()
     reset_gracefully_resolved()
     reset_generate_config_overrides()

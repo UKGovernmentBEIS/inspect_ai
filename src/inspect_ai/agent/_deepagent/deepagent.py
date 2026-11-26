@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Literal, Sequence
 
 from inspect_ai.agent._agent import Agent, AgentState, agent
+from inspect_ai.agent._channel.gate import mark_turn_loop
 from inspect_ai.agent._react import react
 from inspect_ai.agent._types import (
     DEFAULT_SUBMIT_PROMPT,
@@ -242,11 +243,14 @@ def deepagent(
         # The background registry lives for the duration of inner(state) so
         # the agent tool and lifecycle tools can read it via the ContextVar.
         if background_enabled:
-            with background_registry(BackgroundRegistry(max_background=max_background)):
-                return await inner(state)
+            registry = BackgroundRegistry(max_background=max_background)
+            with background_registry(registry):
+                async with registry.owned_task_group():
+                    return await inner(state)
         else:
             return await inner(state)
 
+    mark_turn_loop(execute, background=background_enabled)
     return execute
 
 

@@ -184,16 +184,18 @@ async def test_backticks_in_the_result_cannot_close_its_code_fence(
     assert "````\n```\n# not a heading\n```\n````" in shown.call.content
 
 
+@pytest.mark.parametrize(
+    "result, shown_text",
+    [("echo {{cmd}}", "echo { {cmd}}"), ("echo {{{cmd}}}", "echo { { {cmd}}}")],
+)
 async def test_placeholders_in_the_result_are_not_substituted(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, result: str, shown_text: str
 ) -> None:
     from inspect_ai.tool._tool_call import substitute_tool_call_content
 
     surface = Surface("approve")
     surface.install(monkeypatch)
-    templated = ChatMessageTool(
-        content="echo {{cmd}}", tool_call_id="c1", function="bash"
-    )
+    templated = ChatMessageTool(content=result, tool_call_id="c1", function="bash")
     history: list[ChatMessage] = []
 
     await human_reviewer()("Fetching.", call(), templated, "", ToolCallView(), history)
@@ -202,7 +204,7 @@ async def test_placeholders_in_the_result_are_not_substituted(
     assert shown.call is not None
     rendered = substitute_tool_call_content(shown.call, call().arguments)
     assert "curl example.com" not in rendered.content
-    assert "echo { {cmd}}" in rendered.content
+    assert shown_text in rendered.content
 
 
 def test_the_human_reviewer_is_registered_by_name() -> None:

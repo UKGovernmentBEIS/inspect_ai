@@ -12,7 +12,6 @@ from openai.types.chat import ChatCompletionChunk
 from test_helpers.utils import (
     skip_if_no_openai,
     skip_if_no_together,
-    skip_if_no_together_base_url,
 )
 
 from inspect_ai._util.environ import environ_var
@@ -39,10 +38,10 @@ from inspect_ai.tool import ToolInfo
 
 
 @skip_if_no_together
-@skip_if_no_together_base_url
-async def test_openai_compatible() -> None:
+async def test_openai_compatible_together() -> None:
     model = get_model(
-        "openai-api/together/MiniMaxAI/MiniMax-M2.7",
+        "openai-api/together/Qwen/Qwen3.5-9B",
+        base_url="https://api.together.xyz/v1",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,
@@ -52,6 +51,8 @@ async def test_openai_compatible() -> None:
             seed=None,
             temperature=0.0,
             top_p=1.0,
+            # reasoning would otherwise consume the small max_tokens budget
+            extra_body={"reasoning": {"enabled": False}},
         ),
     )
 
@@ -355,7 +356,7 @@ def test_stream_model_arg_normalized() -> None:
 
 @skip_if_no_together
 async def test_together_stream_end_to_end() -> None:
-    # Use a generous max_tokens: reasoning models (e.g. gpt-oss) spend their
+    # Use a generous max_tokens: reasoning models (e.g. Qwen3.5) spend their
     # budget on the reasoning channel and emit no answer content if it is too
     # low, producing an empty completion (regardless of streaming).
     events: list[Any] = []
@@ -364,7 +365,7 @@ async def test_together_stream_end_to_end() -> None:
         events.append(event)
 
     model = get_model(
-        "together/openai/gpt-oss-20b",
+        "together/Qwen/Qwen3.5-9B",
         stream=True,
         config=GenerateConfig(max_tokens=1024, temperature=0.0),
     )
@@ -957,6 +958,108 @@ def test_together_resolve_stream_excludes_batching() -> None:
         assert _together_api(stream=True).resolve_stream(config) is False
 
 
+async def test_together_batch_sends_each_header_set_separately() -> None:
+    """Together batches are created with only their own headers, without the request id."""
+    import functools
+    import json
+    import time
+    from pathlib import Path
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    import anyio
+    from openai import AsyncOpenAI
+
+    from inspect_ai._util._async import tg_collect
+    from inspect_ai._util.background import set_background_task_group
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._together_batch import TogetherBatcher
+    from inspect_ai.model._providers.util.batch import BatchCheckResult
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+    from inspect_ai.model._retry import model_retry_config
+
+    class CompletingTogetherBatcher(TogetherBatcher):
+        """Completes each batch at once, answering each request with its id."""
+
+        async def _check_batch(self, batch):
+            return BatchCheckResult(
+                completed_count=len(batch.requests),
+                failed_count=0,
+                created_at=int(time.time()),
+                completion_info={"result_uris": []},
+            )
+
+        async def _handle_batch_result(self, batch, completion_info):
+            return {custom_id: custom_id for custom_id in batch.requests}
+
+    uploads: list[list[str]] = []
+
+    def upload(file, purpose):
+        lines = Path(file).read_text().splitlines()
+        uploads.append(sorted(json.loads(line)["custom_id"] for line in lines))
+        return MagicMock(id=f"file-{len(uploads)}")
+
+    # AsyncTogether is created per batch with that batch's headers as defaults
+    created: list[tuple[dict[str, str], str]] = []
+
+    def async_together(api_key, base_url, default_headers):
+        client = MagicMock()
+
+        async def create(endpoint, input_file_id):
+            created.append((default_headers, input_file_id))
+            return MagicMock(job=MagicMock(id=f"job-{len(created)}"))
+
+        client.batches.create = AsyncMock(side_effect=create)
+        return client
+
+    batcher = CompletingTogetherBatcher(
+        AsyncOpenAI(api_key="test", base_url="https://api.together.xyz/v1"),
+        BatchConfig(size=10, send_delay=0.02, tick=0.001),
+        model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+    )
+    batcher._together_sync_client = MagicMock()
+    batcher._together_sync_client.files.upload = MagicMock(side_effect=upload)
+
+    def request(name: str, org: str) -> dict[str, Any]:
+        return {
+            "model": "meta-llama/Llama-3.1-8B-Instruct-Turbo",
+            "messages": [{"role": "user", "content": name}],
+            "extra_headers": {
+                HttpxHooks.REQUEST_ID_HEADER: f"rid-{name}",
+                "x-org": org,
+            },
+        }
+
+    with patch("together.AsyncTogether", side_effect=async_together):
+        async with anyio.create_task_group() as tg:
+            set_background_task_group(tg)
+            try:
+                results = await tg_collect(
+                    [
+                        functools.partial(
+                            batcher.generate_for_request, request("a1", "a")
+                        ),
+                        functools.partial(
+                            batcher.generate_for_request, request("b1", "b")
+                        ),
+                        functools.partial(
+                            batcher.generate_for_request, request("a2", "a")
+                        ),
+                    ]
+                )
+            finally:
+                set_background_task_group(None)
+
+    assert [str(result) for result in results] == ["rid-a1", "rid-b1", "rid-a2"]
+    file_ids = {f"file-{i + 1}": custom_ids for i, custom_ids in enumerate(uploads)}
+    batches = sorted((file_ids[file_id], headers) for headers, file_id in created)
+    assert batches == [
+        (["rid-a1", "rid-a2"], {"x-org": "a"}),
+        (["rid-b1"], {"x-org": "b"}),
+    ]
+
+
 def test_together_resolve_stream_declines_logprobs() -> None:
     """Auto mode declines to stream when logprobs is requested.
 
@@ -974,11 +1077,11 @@ def test_together_resolve_stream_declines_logprobs() -> None:
         assert _together_api().resolve_stream(GenerateConfig()) is True
 
 
-def test_perplexity_resolve_stream_declines_auto() -> None:
-    """Perplexity never auto-streams from an on_stream callback alone.
+def test_perplexity_resolve_stream_auto() -> None:
+    """Perplexity auto-streams from an on_stream callback.
 
-    Its citations/usage extras arrive as top-level response fields that
-    the SDK stream accumulator drops (an explicit opt-in still streams).
+    Its search results arrive on the terminal Responses event, which
+    carries the whole response (an explicit opt-out still declines).
     """
     from inspect_ai.model._providers.perplexity import PerplexityAPI
 
@@ -993,8 +1096,8 @@ def test_perplexity_resolve_stream_declines_auto() -> None:
     config = GenerateConfig()
     collector = _StreamCollector()
     with model_stream_observer(ModelStreamObserver("test", collector)):
-        assert perplexity_api().resolve_stream(config) is False
-        assert perplexity_api(stream=True).resolve_stream(config) is True
+        assert perplexity_api().resolve_stream(config) is True
+        assert perplexity_api(stream=False).resolve_stream(config) is False
 
 
 def test_openrouter_resolve_stream_declines_reasoning() -> None:

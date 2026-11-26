@@ -71,6 +71,7 @@ def _make_completed_summary() -> EvalSampleSummary:
         epoch=1,
         input="What is 2+2?",
         target="4",
+        description="Add two numbers.",
         scores={"accuracy": Score(value="C", answer="4")},
         model_fallbacks=[
             ModelFallback(
@@ -115,6 +116,7 @@ def test_reconstruct_completed_sample() -> None:
     assert sample.epoch == 1
     assert sample.input == "What is 2+2?"
     assert sample.target == "4"
+    assert sample.description == "Add two numbers."
     assert sample.scores is not None
     assert "accuracy" in sample.scores
     assert sample.error is None

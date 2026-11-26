@@ -7,9 +7,10 @@ import tempfile
 import threading
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
-from typing import Any, Generator, Iterator, cast
+from typing import Any, Callable, Generator, Iterator, cast
 
 import pytest
+from test_helpers.buffer import db_phase
 from test_helpers.transcript import make_model_event
 
 from inspect_ai._util.json import to_json_str_safe
@@ -19,7 +20,12 @@ from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer import database as database_module
 from inspect_ai.log._recorders.buffer import types as buffer_types_module
-from inspect_ai.log._recorders.buffer.database import sync_to_filestore
+from inspect_ai.log._recorders.buffer.database import (
+    DbPhase,
+    sample_buffer_dbs,
+    sample_buffer_shutdown_pending,
+    sync_to_filestore,
+)
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import Samples
 from inspect_ai.log._recorders.types import SampleEvent
@@ -735,7 +741,7 @@ def test_cleanup_closes_all_connections(
     db.cleanup()
 
     assert db._connections == []
-    assert db._closed is True
+    assert db._db_phase is DbPhase.CLOSED
     for conn in tracked:
         with pytest.raises(sqlite3.ProgrammingError):
             conn.execute("SELECT 1")
@@ -755,13 +761,15 @@ def test_close_preserves_data_until_readers_finish(
         with db._acquire_sample_read_lease(sample.id, sample.epoch):
             with db._acquire_sample_read_lease(sample.id, sample.epoch):
                 db.close()
-                assert not db._closed
+                assert db_phase(db) is DbPhase.CLOSE_DEFERRED
+                assert sample_buffer_shutdown_pending(db.location)
                 assert get_samples(db).samples == [sample]
-            assert not db._closed
+            assert db_phase(db) is DbPhase.CLOSE_DEFERRED
             if reader_fails:
                 raise ValueError("reader failed")
 
-    assert db._closed and not db._connections
+    assert db_phase(db) is DbPhase.CLOSED and not db._connections
+    assert not sample_buffer_shutdown_pending(db.location)
     for conn in tracked:
         with pytest.raises(sqlite3.ProgrammingError):
             conn.execute("SELECT 1")
@@ -774,6 +782,185 @@ def test_close_preserves_data_until_readers_finish(
         assert get_samples(reopened).samples == [sample]
     finally:
         reopened.close()
+
+
+@pytest.mark.parametrize("close_first", [True, False])
+def test_deferred_cleanup_supersedes_deferred_close(
+    db: SampleBufferDatabase, sample: EvalSampleSummary, close_first: bool
+) -> None:
+    # a close and a cleanup both waiting on a reader: the cleanup runs once
+    # the reader is done, whichever was called first
+    db.start_sample(sample)
+    with db._acquire_sample_read_lease(sample.id, sample.epoch):
+        if close_first:
+            db.close()
+            assert db_phase(db) is DbPhase.CLOSE_DEFERRED
+            db.cleanup()
+        else:
+            db.cleanup()
+            db.close()
+        assert db_phase(db) is DbPhase.CLEANUP_DEFERRED
+        assert db.db_path.exists()
+
+    assert db_phase(db) is DbPhase.CLOSED
+    assert not db.db_path.exists()
+
+
+@pytest.mark.parametrize("again", ["close", "cleanup"])
+def test_shutting_down_a_closed_database_never_reopens_it(
+    db: SampleBufferDatabase,
+    sample: EvalSampleSummary,
+    monkeypatch: pytest.MonkeyPatch,
+    again: str,
+) -> None:
+    db.start_sample(sample)
+    db.close()
+    outcomes: list[str] = []
+    close_connections = db._close_all_connections
+
+    def write_then_close() -> None:
+        # the window in which a first shutdown would still serve connections
+        try:
+            db.update_metrics([])
+            outcomes.append("written")
+        except RuntimeError as ex:
+            outcomes.append(str(ex))
+        close_connections()
+
+    monkeypatch.setattr(db, "_close_all_connections", write_then_close)
+    getattr(db, again)()
+
+    assert outcomes == ["SampleBufferDatabase used after cleanup"]
+    assert db_phase(db) is DbPhase.CLOSED
+
+
+def test_writes_are_still_served_while_closing(
+    db: SampleBufferDatabase, sample: EvalSampleSummary, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # CLOSING refuses new sample readers but not connections: writes reach the
+    # buffer only through TaskLogger, which drops its reference before closing
+    db.start_sample(sample)
+    phases: list[DbPhase] = []
+    close_connections = db._close_all_connections
+
+    def write_then_close() -> None:
+        phases.append(db_phase(db))
+        db.update_metrics([])
+        close_connections()
+
+    monkeypatch.setattr(db, "_close_all_connections", write_then_close)
+    db.close()
+    monkeypatch.undo()
+
+    assert phases == [DbPhase.CLOSING]
+    assert db_phase(db) is DbPhase.CLOSED and not db._connections
+
+
+class _OrderRecordingLock:
+    """A lock that records, per thread, which named locks are held at each acquire."""
+
+    def __init__(
+        self, name: str, held: threading.local, nested: set[tuple[str, str]]
+    ) -> None:
+        self._name = name
+        self._held = held
+        self._nested = nested
+        self._lock = threading.Lock()
+
+    def _stack(self) -> list[str]:
+        if not hasattr(self._held, "stack"):
+            self._held.stack = []
+        return cast(list[str], self._held.stack)
+
+    def __enter__(self) -> None:
+        # record before blocking: the order is what can deadlock, not the wait
+        for outer in self._stack():
+            self._nested.add((outer, self._name))
+        self._lock.acquire()
+        self._stack().append(self._name)
+
+    def __exit__(self, *exc: object) -> None:
+        self._stack().remove(self._name)
+        self._lock.release()
+
+
+def _start_thread(fn: Callable[[], object]) -> Callable[[], None]:
+    """Run ``fn`` on a new thread; the returned join re-raises its error."""
+    errors: list[BaseException] = []
+
+    def target() -> None:
+        try:
+            fn()
+        except BaseException as ex:
+            errors.append(ex)
+
+    thread = threading.Thread(target=target)
+    thread.start()
+
+    def join() -> None:
+        thread.join()
+        if errors:
+            raise errors[0]
+
+    return join
+
+
+def _run_in_thread(fn: Callable[[], object]) -> None:
+    _start_thread(fn)()
+
+
+@pytest.mark.parametrize("shutdown", ["close", "cleanup"])
+def test_lease_lock_is_never_taken_while_holding_connections_lock(
+    db: SampleBufferDatabase,
+    sample: EvalSampleSummary,
+    monkeypatch: pytest.MonkeyPatch,
+    shutdown: str,
+) -> None:
+    # _close_all_connections nests _connections_lock inside _lease_lock; a path
+    # that took them the other way round could deadlock against it
+    held = threading.local()
+    nested: set[tuple[str, str]] = set()
+    monkeypatch.setattr(db, "_lease_lock", _OrderRecordingLock("lease", held, nested))
+    monkeypatch.setattr(
+        db, "_connections_lock", _OrderRecordingLock("connections", held, nested)
+    )
+    db.start_sample(sample)
+    event = SampleEvent(id=sample.id, epoch=sample.epoch, event=InfoEvent(data="x"))
+
+    # each step runs on a fresh thread, which opens its own connection
+    _run_in_thread(lambda: db.log_events([event]))
+    _run_in_thread(lambda: db.sample_event_count(sample.id, sample.epoch))
+
+    # a reader holds a lease while other threads write and shut down; the
+    # reader's lease release then runs the deferred shutdown on its thread
+    lease_held = threading.Event()
+    release_lease = threading.Event()
+
+    def reader() -> None:
+        with db.open_sample_history(sample.id, sample.epoch):
+            lease_held.set()
+            assert release_lease.wait(timeout=30)
+
+    join_reader = _start_thread(reader)
+    try:
+        assert lease_held.wait(timeout=30)
+        _run_in_thread(lambda: db.update_metrics([]))
+        _run_in_thread(lambda: db.remove_samples([(sample.id, sample.epoch)]))
+        _run_in_thread(getattr(db, shutdown))
+        assert db_phase(db) is (
+            DbPhase.CLOSE_DEFERRED if shutdown == "close" else DbPhase.CLEANUP_DEFERRED
+        )
+    finally:
+        release_lease.set()
+        join_reader()
+    assert db_phase(db) is DbPhase.CLOSED
+
+    # a second shutdown of the closed database, from yet another thread
+    _run_in_thread(db.close)
+    _run_in_thread(db.cleanup)
+
+    assert ("connections", "lease") not in nested
+    assert ("lease", "connections") in nested
 
 
 def test_use_after_cleanup_raises_and_does_not_resurrect_db(
@@ -832,7 +1019,7 @@ def test_thread_connection_discards_on_cleanup_race(
 ) -> None:
     """If cleanup wins the race during open, the new connection is discarded.
 
-    The used-after-cleanup guard re-checks ``_closed`` under the lock after
+    The used-after-cleanup guard re-checks the phase under the lock after
     opening, so a connection opened concurrently with cleanup is closed and not
     tracked (rather than left pointing at an unlinked database).
     """
@@ -842,7 +1029,8 @@ def test_thread_connection_discards_on_cleanup_race(
     def open_then_cleanup_wins() -> sqlite3.Connection:
         conn = real_open()
         opened.append(conn)
-        db._closed = True  # simulate cleanup completing while we were opening
+        # simulate cleanup completing while we were opening
+        db._db_phase = DbPhase.CLOSED
         return conn
 
     monkeypatch.setattr(db, "_open_connection", open_then_cleanup_wins)
@@ -1016,3 +1204,24 @@ def test_completed_samples_release_seen_hash_state(
     assert db._inserted_attachment_hashes
     db.complete_sample(sample, sample_metadata=None)
     assert (str(sample.id), 1) not in db._inserted_attachment_hashes
+
+
+def test_sample_buffer_dbs_matches_the_log_file_name_literally(tmp_path: Path) -> None:
+    """Glob characters in a log file name select only that log's databases.
+
+    `task[1].eval` read as a pattern would match `task1.eval`'s database and
+    miss its own.
+    """
+    db_dir = tmp_path / "db"
+    bracketed = SampleBufferDatabase(str(tmp_path / "task[1].eval"), db_dir=db_dir)
+    plain = SampleBufferDatabase(str(tmp_path / "task1.eval"), db_dir=db_dir)
+    try:
+        assert sample_buffer_dbs(str(tmp_path / "task[1].eval"), db_dir) == [
+            bracketed.db_path
+        ]
+        assert sample_buffer_dbs(str(tmp_path / "task1.eval"), db_dir) == [
+            plain.db_path
+        ]
+    finally:
+        bracketed.cleanup()
+        plain.cleanup()

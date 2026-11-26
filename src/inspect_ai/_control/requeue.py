@@ -404,6 +404,11 @@ def _is_planned(state: "EvalState", sample_id: str, epoch: int) -> bool:
     string, so integer ids match on ``str`` like the other per-sample
     surfaces.
     """
+    if any(
+        str(planned_id) == sample_id and planned_epoch == epoch
+        for planned_id, planned_epoch in state.sample_epochs
+    ):
+        return True
     if epoch < 1 or epoch > max(1, state.epochs):
         return False
     return any(str(planned) == sample_id for planned in state.sample_ids)

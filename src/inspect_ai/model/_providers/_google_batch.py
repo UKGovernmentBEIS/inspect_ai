@@ -44,6 +44,7 @@ _SDK_ONLY_FIELDS = {
     "automatic_function_calling",
     "should_return_http_response",
     "labels",
+    "automatic_continuation",
 }
 
 
@@ -83,12 +84,14 @@ def batch_request_dict(
 
     The SDK's GenerateContentConfig flattens everything, but the batch JSONL
     format expects the REST shape where generation params (temperature, thinking_config,
-    etc.) are nested under "generation_config".
+    etc.) are nested under "generation_config". Fields are dumped in JSON mode
+    so bytes (thought signatures, inline media) become base64 strings, as the
+    REST API expects.
     """
     # Route each field to its correct location in the REST schema. Unlisted fields
     # (thinking_config, temperature, etc.) go into generation_config
     # see _REQUEST_TOP_LEVEL_FIELDS.
-    params = config.model_dump(exclude_none=True)
+    params = config.model_dump(mode="json", exclude_none=True)
     top_level = {k: v for k, v in params.items() if k in _REQUEST_TOP_LEVEL_FIELDS}
     if "system_instruction" in top_level:
         top_level["system_instruction"] = _normalize_system_instruction_for_batch(
@@ -100,7 +103,7 @@ def batch_request_dict(
         if k not in _REQUEST_TOP_LEVEL_FIELDS and k not in _SDK_ONLY_FIELDS
     }
     return {
-        "contents": [c.model_dump(exclude_none=True) for c in contents],
+        "contents": [c.model_dump(mode="json", exclude_none=True) for c in contents],
         **top_level,
         **({"generation_config": generation_config} if generation_config else {}),
     }
@@ -243,6 +246,15 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
             JobState.JOB_STATE_CANCELLED,
             JobState.JOB_STATE_EXPIRED,
         ):
+            # the job has no results to fetch, so the batcher would keep polling
+            # it unless its requests are resolved here
+            message = f"Batch job {batch.id} ended in state {batch_job.state.name}"
+            if batch_job.error:
+                message = f"{message}: {batch_job.error.message} (code: {batch_job.error.code})"
+            error = RuntimeError(message)
+            await self._resolve_inflight_batch(
+                batch, {request_id: error for request_id in batch.requests}
+            )
             return BatchCheckResult(
                 completed_count=0,
                 failed_count=len(batch.requests),

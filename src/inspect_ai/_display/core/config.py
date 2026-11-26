@@ -40,6 +40,14 @@ def task_config_str(profile: TaskProfile, generate_config: bool = True) -> str:
             config_print.append(
                 f"{name}: {','.join([reviewer['name'] for reviewer in value['reviewers']])}"
             )
+        elif name == "sentinel" and isinstance(value, list | dict):
+            if isinstance(value, list):
+                names = [entry["name"] for entry in value]
+            elif isinstance(value.get("name"), str):
+                names = [value["name"]]
+            else:
+                names = list(value)
+            config_print.append(f"{name}: {','.join(names)}")
         elif name == "cache":
             value = (
                 profile.generate_config.cache.expiry

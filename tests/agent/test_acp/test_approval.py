@@ -18,13 +18,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
+import anyio
 import pytest
+from acp.exceptions import RequestError
 from acp.schema import (
     AllowedOutcome,
     DeniedOutcome,
@@ -190,23 +193,16 @@ def test_options_from_choices_three_includes_terminate_as_reject_always() -> Non
     assert options[2].kind == "reject_always"
 
 
-def test_options_from_choices_includes_escalate_and_modify_as_best_effort() -> None:
+def test_options_from_choices_includes_escalate_as_best_effort() -> None:
     """Unmappable Inspect choices still round-trip via optionId.
 
-    ACP has no first-class kind for modify/escalate — they map to
-    semantic neighbors (allow_once / reject_once). The optionId
-    round-trip is what actually preserves the decision; kind is
-    just a visual hint to the client.
+    ACP has no first-class kind for escalate — it maps to a semantic
+    neighbor (reject_once). The optionId round-trip is what actually
+    preserves the decision; kind is just a visual hint to the client.
     """
-    options = _options_from_choices(["approve", "modify", "reject", "escalate"])
-    assert [o.option_id for o in options] == [
-        "approve",
-        "modify",
-        "reject",
-        "escalate",
-    ]
-    assert options[1].kind == "allow_once"  # modify ≈ allow
-    assert options[3].kind == "reject_once"  # escalate ≈ reject
+    options = _options_from_choices(["approve", "reject", "escalate"])
+    assert [o.option_id for o in options] == ["approve", "reject", "escalate"]
+    assert options[2].kind == "reject_once"  # escalate ≈ reject
 
 
 # ---------------------------------------------------------------------------
@@ -375,6 +371,35 @@ async def test_driver_disconnect_falls_through_to_next_client() -> None:
     # Both clients were contacted — driver first, then fallback.
     assert len(broken_driver.received) == 1
     assert len(fallback.received) == 1
+
+
+@skip_if_trio
+@pytest.mark.parametrize(
+    ("exc", "level"),
+    [
+        (ConnectionError("disconnected"), logging.DEBUG),
+        (RequestError.invalid_params({"details": "no options"}), logging.WARNING),
+    ],
+)
+async def test_failed_request_log_level(
+    exc: Exception, level: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An error reply is logged at WARNING; a disconnect stays at DEBUG.
+
+    A client that answers with an error is still bound but is not asked
+    again, so the sample can park with that client attached. Without a
+    WARNING nothing at the default log level says why.
+    """
+    failing = _StubClient(exc=exc)
+    fallback = _StubClient(response=_selected("approve"))
+
+    with caplog.at_level(logging.DEBUG, logger="inspect_ai.approval._human.acp"):
+        await _request_from_driver_with_fallback(
+            _StubSession([failing, fallback]), _trivial_request(), ["approve"]
+        )
+
+    (record,) = [r for r in caplog.records if "request failed" in r.getMessage()]
+    assert record.levelno == level
 
 
 @skip_if_trio
@@ -695,6 +720,82 @@ async def test_request_permission_raises_when_connection_missing() -> None:
     # connection slot stays None — never attached.
     with pytest.raises(ConnectionError, match="not attached"):
         await h.request_permission(_permission_request_for("s"))
+
+
+@skip_if_trio
+async def test_request_permission_raises_when_connection_unbinds_while_waiting() -> (
+    None
+):
+    """Unbinding while the client holds the card → raise so the shim moves on.
+
+    The connection stays open (the client switched to another sample),
+    so without this the request would wait on a client that left the
+    session while another client could answer it.
+    """
+    h = _bound_handler(wire="sess-1", target="sess-1")
+    sent = anyio.Event()
+
+    async def unanswered(method: str, payload: Any) -> Any:
+        sent.set()
+        await anyio.Event().wait()
+
+    h.connection.send_request = unanswered
+    request_task = asyncio.create_task(
+        h.request_permission(_permission_request_for("sess-1"))
+    )
+    await sent.wait()
+
+    await h._stop_forwarders()
+
+    with pytest.raises(ConnectionError, match="unbound"):
+        await asyncio.wait_for(request_task, timeout=5.0)
+    assert h._bound_requests == set()
+
+
+@skip_if_trio
+async def test_request_permission_cancellation_is_not_turned_into_unbind() -> None:
+    """Cancelling the waiting task (sample cancel) propagates as cancellation."""
+    h = _bound_handler(wire="sess-1", target="sess-1")
+    sent = anyio.Event()
+
+    async def unanswered(method: str, payload: Any) -> Any:
+        sent.set()
+        await anyio.Event().wait()
+
+    h.connection.send_request = unanswered
+    request_task = asyncio.create_task(
+        h.request_permission(_permission_request_for("sess-1"))
+    )
+    await sent.wait()
+
+    request_task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await request_task
+    assert h._bound_requests == set()
+
+
+@skip_if_trio
+async def test_request_permission_cancellation_racing_unbind_still_cancels() -> None:
+    """A task cancel that lands with an unbind still propagates as cancellation."""
+    h = _bound_handler(wire="sess-1", target="sess-1")
+    sent = anyio.Event()
+
+    async def unanswered(method: str, payload: Any) -> Any:
+        sent.set()
+        await anyio.Event().wait()
+
+    h.connection.send_request = unanswered
+    request_task = asyncio.create_task(
+        h.request_permission(_permission_request_for("sess-1"))
+    )
+    await sent.wait()
+
+    await h._stop_forwarders()
+    request_task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await request_task
 
 
 @skip_if_trio
@@ -1027,6 +1128,37 @@ async def test_entry_routes_to_attached_client(
 
 
 @skip_if_trio
+async def test_human_approver_offers_no_modify_over_acp(
+    monkeypatch, acp_server_running, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A human can't supply a modified call, so Modify is never offered.
+
+    Configured ``modify`` is dropped with a warning, and a client that
+    answers ``modify`` anyway gets a rejection rather than a ``modify``
+    decision with no modified call.
+    """
+    with caplog.at_level(logging.WARNING):
+        approve = human_approver(["approve", "modify", "reject"])
+    assert "'modify' choice" in caplog.text
+
+    sample = _PendingSample()
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    sample.acp_transport = session
+    client = _StubClient(response=_selected("modify"))
+    session.attach_approver_client(client)
+    session.notify_approver_attach(client)
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+
+    result = await approve("please confirm", _make_call(), _make_view(), [])
+
+    (request,) = client.received
+    assert [o.option_id for o in request.options] == ["approve", "reject"]
+    assert result.decision == "reject"
+    assert result.modified is None
+
+
+@skip_if_trio
 async def test_entry_prepends_assistant_message_as_content_block(
     patch_sample_active,
     acp_server_running,
@@ -1275,6 +1407,154 @@ def test_format_view_content_fence_grows_for_longer_backtick_runs() -> None:
     assert "`````" in formatted.content
 
 
+def _markdown_token_types(text: str) -> set[str]:
+    from markdown_it import MarkdownIt
+
+    types: set[str] = set()
+    for token in MarkdownIt("commonmark").parse(text):
+        types.add(token.type)
+        types.update(child.type for child in token.children or [])
+    return types
+
+
+def test_format_view_content_escapes_the_title() -> None:
+    # a title is plain text, and can hold an argument (agent_status: <id>)
+    view_content = ToolCallContent(
+        title="agent_status: a <!-- b --> c", format="text", content="ok"
+    )
+    formatted = _format_view_content_as_markdown(view_content)
+    assert not {"html_block", "html_inline"} & _markdown_token_types(formatted.content)
+
+
+def test_build_request_shows_the_whole_command_beneath_the_bash_view() -> None:
+    from markdown_it import MarkdownIt
+
+    from inspect_ai.tool._tools._execute import code_viewer
+
+    command = "ls\n```\n<!--\nrm -rf /tmp/data\n-->"
+    call = _make_call(arguments={"command": command})
+    req = _build_request(
+        session_id="s1",
+        call=call,
+        view=code_viewer("bash", "command")(call),
+        choices=["approve", "reject"],
+    )
+    # the bash view can hide lines; the full tool call block shows the command whole
+    arguments = _texts(req.tool_call.content)[-1]
+    assert not {"html_block", "html_inline"} & _markdown_token_types(arguments)
+    fences = [t for t in MarkdownIt("commonmark").parse(arguments) if t.type == "fence"]
+    assert [fence.content for fence in fences] == [f"bash(command={command!r})\n"]
+
+
+def test_build_request_shows_arguments_beneath_an_edited_inspect_view() -> None:
+    # a custom viewer that cuts the bash view down to the command's first line
+    from inspect_ai.tool._tools._execute import code_viewer
+
+    call = _make_call(arguments={"command": "ls\nrm -rf /tmp/data"})
+    view = code_viewer("bash", "command")(call)
+    assert view.call is not None
+    view = ToolCallView(
+        call=view.call.model_copy(update={"content": "```bash\nls\n```"})
+    )
+    req = _build_request(
+        session_id="s1", call=call, view=view, choices=["approve", "reject"]
+    )
+    texts = _texts(req.tool_call.content)
+    assert texts[-1].startswith("**Full tool call**")
+    assert "rm -rf /tmp/data" in texts[-1]
+
+
+def test_build_request_shows_no_arguments_block_beneath_the_default_view() -> None:
+    from inspect_ai.tool._tool_call import default_tool_call_viewer
+
+    call = _make_call()
+    req = _build_request(
+        session_id="s1",
+        call=call,
+        view=default_tool_call_viewer(call),
+        choices=["approve", "reject"],
+    )
+    assert _texts(req.tool_call.content) == ["```python\nbash(command='ls -la')\n```\n"]
+
+
+def test_build_request_shows_arguments_beneath_a_custom_view() -> None:
+    # a tool's own Markdown view that a renderer shows only part of
+    notes = "ok\n\n<!--\nrm -rf /tmp/data\n-->"
+    call = _make_call(function="note", arguments={"notes": notes})
+    view = ToolCallView(
+        call=ToolCallContent(format="markdown", content="Notes: {{notes}}")
+    )
+    req = _build_request(
+        session_id="s1", call=call, view=view, choices=["approve", "reject"]
+    )
+    texts = _texts(req.tool_call.content)
+    # the custom view, a separator, then every argument in a block of its own
+    assert texts[0] == f"Notes: {notes}"
+    assert texts[1] == "---"
+    assert texts[2].startswith("**Full tool call**\n\n```python\n")
+    assert f"note(notes={notes!r})" in texts[2]
+
+
+def _client_rendered(call: ToolCall, view: ToolCallView) -> str:
+    """The approval card's text as the ACP TUI renders the request."""
+    import io
+
+    from rich.console import Console
+    from textual.widgets import Static
+
+    from inspect_ai.agent._acp.tui.widgets.tool_call import compose_content_item
+
+    req = _build_request(
+        session_id="s1", call=call, view=view, choices=["approve", "reject"]
+    )
+    buffer = io.StringIO()
+    console = Console(file=buffer, width=200, color_system=None)
+    for block in req.tool_call.content or []:
+        for item in compose_content_item(block):
+            for widget in item.compose():
+                assert isinstance(widget, Static)
+                console.print(widget.content)
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize(
+    "viewer,param",
+    [("bash", "command"), ("python", "code"), ("think", "thought")],
+)
+def test_client_shows_the_call_when_removed_characters_join_backticks(
+    viewer: str, param: str
+) -> None:
+    # the TUI removes control and format characters before rendering, which
+    # joins the backticks around a zero-width space into a longer run
+    from inspect_ai.tool._tools._execute import code_viewer
+    from inspect_ai.tool._tools._think import think_tool_viewer
+
+    value = "cat <<'EOF'\n``\u200b`\nEOF\n<!--\nrm -rf /tmp/data\n-->"
+    call = _make_call(function=viewer, arguments={param: value})
+    view = (think_tool_viewer() if viewer == "think" else code_viewer(viewer, param))(
+        call
+    )
+    rendered = _client_rendered(call, view)
+    for line in ["<!--", "rm -rf /tmp/data", "-->"]:
+        assert line in rendered
+
+
+def test_build_request_shows_placeholder_text_as_written() -> None:
+    from inspect_ai.tool._tools._execute import code_viewer
+
+    command = "echo {{command}} {{path}}"
+    call = _make_call(arguments={"command": command, "path": "/etc/passwd"})
+    req = _build_request(
+        session_id="s1",
+        call=call,
+        view=code_viewer("bash", "command")(call),
+        choices=["approve", "reject"],
+    )
+    # the bash view fills in the placeholders; the full tool call block does not
+    arguments = _texts(req.tool_call.content)[-1]
+    assert "command='echo {\\x7bcommand}} {\\x7bpath}}'" in arguments
+
+
 def test_separator_block_is_horizontal_rule_markdown() -> None:
     block = _separator_block()
     assert block.type == "content"
@@ -1324,11 +1604,13 @@ def test_build_request_inserts_separator_between_context_and_call() -> None:
         choices=["approve"],
     )
     texts = _texts(req.tool_call.content)
-    # Expect: [context, separator, call] in order.
-    assert len(texts) == 3
+    # Expect: [context, separator, call, separator, arguments] in order.
+    assert len(texts) == 5
     assert "context body" in texts[0]
     assert "---" in texts[1]
     assert "call body" in texts[2]
+    assert "---" in texts[3]
+    assert texts[4].startswith("**Full tool call**")
 
 
 def test_build_request_omits_separator_when_one_half_missing() -> None:
@@ -1343,10 +1625,12 @@ def test_build_request_omits_separator_when_one_half_missing() -> None:
         choices=["approve"],
     )
     texts = _texts(req.tool_call.content)
-    # Just the call block; no separator.
-    assert len(texts) == 1
+    # The call block, then the arguments; no separator before the call.
+    assert len(texts) == 3
     assert "call body" in texts[0]
     assert "---" not in texts[0]
+    assert texts[1] == "---"
+    assert texts[2].startswith("**Full tool call**")
 
 
 def test_build_request_fences_plain_text_view_content() -> None:
@@ -1363,7 +1647,7 @@ def test_build_request_fences_plain_text_view_content() -> None:
         choices=["approve"],
     )
     texts = _texts(req.tool_call.content)
-    assert len(texts) == 1
+    assert len(texts) == 3
     assert texts[0].startswith("```\n")
     assert "  preserve indent" in texts[0]
 
@@ -1380,24 +1664,24 @@ def test_build_request_markdown_snapshot_for_typical_bash_approval() -> None:
     so duplicating it here would mean the same text twice a few
     rows apart in inline-on-transcript clients. No ``_meta`` keys.
     """
-    view = ToolCallView(
-        call=ToolCallContent(
-            title="bash", format="markdown", content="```bash\nls -la\n```"
-        ),
-    )
+    from inspect_ai.tool._tools._execute import code_viewer
+
+    call = _make_call()
     req = _build_request(
         session_id="s1",
-        call=_make_call(),
-        view=view,
+        call=call,
+        view=code_viewer("bash", "command")(call),
         choices=["approve", "reject"],
     )
-    # One block — just the formatted view call. No assistant message.
+    # The formatted view call, then the call's arguments. No assistant message.
     texts = _texts(req.tool_call.content)
-    assert len(texts) == 1
-    assert "**Assistant**" not in texts[0]
-    assert "I want to list files." not in texts[0]
+    assert len(texts) == 3
+    assert "**Assistant**" not in "\n".join(texts)
+    assert "I want to list files." not in "\n".join(texts)
     assert texts[0].startswith("**bash**\n\n")
     assert "```bash\nls -la\n```" in texts[0]
+    assert texts[1] == "---"
+    assert texts[2] == "**Full tool call**\n\n```python\nbash(command='ls -la')\n```\n"
     # No protocol extension: no `_meta` keys on any block.
     for block in req.tool_call.content or []:
         assert block.field_meta is None, (
@@ -1454,14 +1738,15 @@ class _ClientRpcStub:
     ``session/request_permission`` call. The test runs both: drives
     one normal request (initialize / session/load) for handshake,
     then waits for the server's outbound permission request and
-    replies with a pre-set response.
+    replies with a pre-set response, or leaves it unanswered when
+    ``permission_response`` is ``None``.
     """
 
     def __init__(
         self,
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
-        permission_response: dict[str, Any],
+        permission_response: dict[str, Any] | None,
     ) -> None:
         self._reader = reader
         self._writer = writer
@@ -1469,6 +1754,7 @@ class _ClientRpcStub:
         self._next_id = 1
         self._pending: dict[int, asyncio.Future[dict[str, Any]]] = {}
         self.received_permission_request: dict[str, Any] | None = None
+        self.permission_requested = anyio.Event()
         self._read_task = asyncio.create_task(self._read_loop())
 
     async def _read_loop(self) -> None:
@@ -1488,6 +1774,9 @@ class _ClientRpcStub:
                 ):
                     # Server sent us an outbound request — answer it.
                     self.received_permission_request = msg
+                    self.permission_requested.set()
+                    if self._permission_response is None:
+                        continue
                     response = {
                         "jsonrpc": "2.0",
                         "id": msg["id"],
@@ -1679,3 +1968,79 @@ async def test_approval_e2e_attach_after_fire(
             assert client.received_permission_request is not None
         finally:
             await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_approval_e2e_moves_on_when_holder_switches_sample(
+    short_data_dir: Path, monkeypatch
+) -> None:
+    """The client holding the card loads another sample → the next client gets it.
+
+    One connection binds to one sample at a time, so loading another
+    sample (as an editor does when the operator opens a second thread)
+    unbinds the first. The connection stays open, so its pending
+    ``session/request_permission`` would otherwise keep the approval
+    waiting on a client that left the session.
+    """
+    samples = []
+    for sample_id in ("a", "b"):
+        session = LiveAcpTransport()
+        session._attachable_override = True
+        sample = MagicMock()
+        sample.acp_transport = session
+        sample.task = "t"
+        sample.sample.id = sample_id
+        sample.epoch = 0
+        samples.append(sample)
+    session_a, session_b = (s.acp_transport for s in samples)
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: samples)
+    monkeypatch.setattr("inspect_ai.agent._acp.picker.active_samples", lambda: samples)
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: samples[0])
+
+    async def bind(client: _ClientRpcStub, session_id: str) -> None:
+        response = await client.request(
+            "session/load", {"cwd": "/tmp", "mcpServers": [], "sessionId": session_id}
+        )
+        assert "error" not in response
+
+    async with acp_server(eval_id="evt-appr-switch", transport=True) as server:
+        assert server is not None and server.socket_path is not None
+        holder = _ClientRpcStub(
+            *await asyncio.open_unix_connection(str(server.socket_path)),
+            permission_response=None,
+        )
+        answerer = _ClientRpcStub(
+            *await asyncio.open_unix_connection(str(server.socket_path)),
+            permission_response={
+                "outcome": {"outcome": "selected", "optionId": "approve"}
+            },
+        )
+        try:
+            for client in (holder, answerer):
+                await client.request(
+                    "initialize",
+                    {"protocolVersion": 1, "clientInfo": {"name": "t", "version": "0"}},
+                )
+            await bind(holder, session_a.session_id)
+
+            shim_task = asyncio.create_task(
+                request_human_approval_via_acp(
+                    message="please confirm",
+                    call=_make_call(),
+                    view=_make_view(),
+                    choices=["approve", "reject"],
+                )
+            )
+            await asyncio.wait_for(holder.permission_requested.wait(), timeout=5.0)
+
+            await bind(holder, session_b.session_id)
+            await bind(answerer, session_a.session_id)
+
+            result = await asyncio.wait_for(shim_task, timeout=5.0)
+            assert result is not None
+            assert result.decision == "approve"
+            assert answerer.received_permission_request is not None
+        finally:
+            await holder.close()
+            await answerer.close()

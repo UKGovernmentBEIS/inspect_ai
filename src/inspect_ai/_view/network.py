@@ -12,6 +12,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 _DNS_LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 _VALIDATED_HOST_SCOPE_KEY = "inspect_ai.viewer_authority"
 _VIEW_DOCS_URL = "https://inspect.aisi.org.uk/log-viewer.html"
+_FRAME_ANCESTORS_NONE = "frame-ancestors 'none'"
 
 
 class ViewerNetworkPolicyError(ValueError):
@@ -221,18 +222,65 @@ class BrowserOriginMiddleware:
 
 
 class SecurityHeadersMiddleware:
-    def __init__(self, app: ASGIApp) -> None:
+    """Add framing and Content-Security-Policy headers to every HTTP response.
+
+    Every response gets `frame-ancestors 'none'`. The viewer's own policy is
+    added to every other response too, not just `index.html`: a worker script
+    takes its policy from its own response headers. Only the JSON API and
+    FastAPI's docs pages (which load scripts from a CDN and run inline scripts)
+    are exempt, and keep only `frame-ancestors`.
+
+    Exemptions are matched before routing, so they must cover only paths the
+    router sends to the exempt app. Docs endpoints match exactly, because a
+    path beneath one (`/docs%2f..%2findex.html`) reaches the static mount,
+    which resolves the `..`. A mounted app is exempt for every path under
+    `{mount}/`, which holds as long as it is mounted before the static mount.
+
+    Args:
+        app: The ASGI app to wrap.
+        content_security_policy: The policy of the viewer dist being served
+            (see `read_content_security_policy`), or `None` for a dist without
+            one.
+        viewer_policy_exempt_paths: Exact paths that don't get the viewer
+            policy.
+        viewer_policy_exempt_mounts: Mount paths (such as `/api`) whose
+            sub-paths don't get the viewer policy.
+    """
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        content_security_policy: str | None = None,
+        viewer_policy_exempt_paths: tuple[str, ...] = (),
+        viewer_policy_exempt_mounts: tuple[str, ...] = (),
+    ) -> None:
         self.app = app
+        self._viewer_policy = (
+            f"{content_security_policy}; {_FRAME_ANCESTORS_NONE}"
+            if content_security_policy is not None
+            else _FRAME_ANCESTORS_NONE
+        )
+        self._exempt_paths = frozenset(viewer_policy_exempt_paths)
+        self._exempt_prefixes = tuple(
+            f"{mount.rstrip('/')}/" for mount in viewer_policy_exempt_mounts
+        )
+
+    def _policy_for(self, path: str) -> str:
+        if path in self._exempt_paths or path.startswith(self._exempt_prefixes):
+            return _FRAME_ANCESTORS_NONE
+        return self._viewer_policy
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
+        policy = self._policy_for(str(scope.get("path", "")))
+
         async def send_with_security_headers(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = MutableHeaders(scope=message)
-                headers.append("Content-Security-Policy", "frame-ancestors 'none'")
+                headers.append("Content-Security-Policy", policy)
                 headers["X-Frame-Options"] = "DENY"
             await send(message)
 

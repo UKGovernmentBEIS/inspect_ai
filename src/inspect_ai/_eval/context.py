@@ -1,6 +1,10 @@
+from typing import Any
+
 from anyio.abc import TaskGroup
 
 from inspect_ai._control.pause import reset_task_pause_gates
+from inspect_ai._sentinel._config import SentinelRoot
+from inspect_ai._sentinel._context import init_sentinel
 from inspect_ai._util.background import set_background_task_group
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.logger import init_logger
@@ -67,9 +71,13 @@ def init_task_context(
     config: GenerateConfig = GenerateConfig(),
     approval: list[ApprovalPolicy] | None = None,
     review: list[ReviewPolicy] | None = None,
+    sentinel: "SentinelRoot | None" = None,
+    task_metadata: dict[str, Any] | None = None,
+    task_description: str | None = None,
 ) -> None:
     init_model_context(model, model_roles, config)
     if not have_tool_approval():
         init_tool_approval(approval)
     if not have_tool_review():
         init_tool_review(review)
+    init_sentinel(sentinel, task_metadata, task_description)

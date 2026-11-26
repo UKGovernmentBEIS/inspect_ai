@@ -18,6 +18,11 @@ description: Transcript events.
 ### SpanBeginEvent
 ### SpanEndEvent
 
+## Multi-Agent Events
+
+### CommunicationEvent
+### SwarmEvent
+
 ## Event Tree
 
 ### event_tree
@@ -54,4 +59,10 @@ description: Transcript events.
 
 ### LoggingLevel
 ### LoggingMessage
+### CommunicationKind
+### CommunicationRecord
+### CommunicationRejection
+### CommunicationSend
+### CommunicationDelivery
+### CommunicationWait
 

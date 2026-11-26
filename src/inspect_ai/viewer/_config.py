@@ -1,6 +1,6 @@
-from typing import Literal, Mapping, Sequence
+from typing import Any, Literal, Mapping, Sequence
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 
 class ScannerResultField(BaseModel):
@@ -271,8 +271,29 @@ class ViewerConfig(BaseModel):
     """Top-level viewer configuration.
 
     This allows per task customization of the
-    Task's sample list and each sample's score and scanner result display.
+    Task's sample list, each sample's score and scanner result display,
+    and whether log content is trusted enough to render richly.
     """
+
+    trust_content: bool | None = None
+    """Whether the viewer may render log content (model and tool output,
+    scores, metadata) richly: markdown, math, syntax highlighting, ANSI colors,
+    images/audio/video, and clickable links. Set to `False` when the content
+    can't be trusted (e.g. output from models without safeguards) to have the
+    viewer show it all as plain text, with media withheld and invisible or
+    bidirectional-override characters made visible. `None` (the default) is
+    treated as trusted."""
+
+    @field_validator("trust_content", mode="before")
+    @classmethod
+    def _untrusted_unless_bool(cls, value: Any) -> Any:
+        """Read any non-boolean value as untrusted, as the viewer does.
+
+        Lax bool parsing would read `"true"` or `1` as trusted, so a log
+        rewritten or served through Python could come out trusted when the
+        viewer would show it as untrusted.
+        """
+        return value if value is None or isinstance(value, bool) else False
 
     scanner_result_view: ScannerResultView | dict[str, ScannerResultView] = Field(
         default_factory=dict

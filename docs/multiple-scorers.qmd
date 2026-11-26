@@ -78,7 +78,7 @@ Task(
         generate()
     ],
     scorer=[
-        model_graded_qa(model="openai/gpt-4"),
+        model_graded_qa(model="openai/gpt-6-luna"),
         model_graded_qa(model="google/gemini-2.5-pro")
     ],
 )
@@ -121,6 +121,8 @@ task = Task(
 2.  The score value itself is a dictionary, with keys corresponding to the keys defined in the metrics on the `@scorer` decorator.
 
 The above example will produce two scores, `a_count` and `e_count`, each of which will have metrics for `mean` and `stderr`.
+
+Each key has its own `scored_samples` and `unscored_samples` counts. A key whose value is `NaN` or `None` is left out of that key's metrics and counted as unscored. To decide how a `None` (missing) value counts, for example as `0`, use [`aggregate()`](metrics.qmd#per-key-aggregation) instead. See [Missing and unscored values](scoring-policy.qmd#missing-and-unscored-values).
 
 When working with complex score values and metrics, you may use globs as keys for mapping metrics to scores. For example, a more succinct way to write the previous example:
 

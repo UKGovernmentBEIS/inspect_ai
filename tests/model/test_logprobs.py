@@ -42,7 +42,7 @@ async def generate_with_logprobs(
 
 @skip_if_no_openai
 async def test_openai_logprobs() -> None:
-    response = await generate_with_logprobs("openai/gpt-3.5-turbo")
+    response = await generate_with_logprobs("openai/gpt-4o-mini")
     assert response.choices[0].logprobs is not None
     assert response.choices[0].logprobs.content[0].top_logprobs is not None
     assert len(response.choices[0].logprobs.content[0].top_logprobs) == 2
@@ -90,10 +90,7 @@ def test_together_logprobs_params_passthrough() -> None:
 
 @skip_if_no_together
 async def test_together_logprobs() -> None:
-    # gemma rather than a thinking model (e.g. MiniMax-M3), whose reasoning
-    # would consume the small max_tokens budget before any completion tokens
-    # (and their logprobs) are emitted
-    response = await generate_with_logprobs("together/google/gemma-4-31B-it")
+    response = await generate_with_logprobs("together/zai-org/GLM-5.3-Flash")
     assert response.choices[0].logprobs is not None
     top_logprobs = response.choices[0].logprobs.content[0].top_logprobs
     assert top_logprobs is not None
@@ -102,7 +99,7 @@ async def test_together_logprobs() -> None:
 
 @skip_if_no_together
 async def test_together_logprobs_openai_format() -> None:
-    response = await generate_with_logprobs("together/openai/gpt-oss-20b")
+    response = await generate_with_logprobs("together/Qwen/Qwen3.5-9B")
     assert response.choices[0].logprobs is not None
     top_logprobs = response.choices[0].logprobs.content[0].top_logprobs
     assert top_logprobs is not None

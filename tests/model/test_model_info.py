@@ -1,6 +1,8 @@
 """Tests for model_info lookup functionality."""
 
+import re
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -12,10 +14,13 @@ from inspect_ai.model import (
     get_model_info,
     set_model_info,
 )
+from inspect_ai.model._compaction._compaction import DEFAULT_CONTEXT_WINDOW
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.model._model_info import (
     _get_model_info_direct,
     clear_model_info_cache,
+    get_model_input_budget,
     get_model_input_tokens,
     set_model_cost,
 )
@@ -94,6 +99,47 @@ class TestGetModelInfo:
         assert info.knowledge_cutoff_date == knowledge_cutoff
         assert info.release_date == date(2026, 9, 22)
 
+    @pytest.mark.parametrize(
+        "model_name,display_name,knowledge_cutoff,release_date",
+        [
+            ("gpt-6.1-sol", "GPT-6.1 Sol", date(2026, 4, 30), date(2026, 9, 29)),
+            ("gpt-6.1-terra", "GPT-6.1 Terra", date(2026, 6, 1), date(2026, 10, 26)),
+        ],
+    )
+    def test_gpt_6_1_model_info(
+        self, model_name, display_name, knowledge_cutoff, release_date
+    ):
+        info = get_model_info(f"openai/{model_name}")
+        assert info is not None
+        assert info.model == display_name
+        assert info.context_length == 1050000
+        assert info.output_tokens == 128000
+        assert info.input_tokens == 922000
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "medium"
+        assert info.knowledge_cutoff_date == knowledge_cutoff
+        assert info.release_date == release_date
+
+    @pytest.mark.parametrize(
+        "model_name,display_name,knowledge_cutoff",
+        [
+            ("gpt-6.2-astra", "GPT-6.2 Astra", date(2026, 5, 18)),
+            ("gpt-6.2-sol", "GPT-6.2 Sol", date(2026, 6, 1)),
+        ],
+    )
+    def test_gpt_6_2_model_info(self, model_name, display_name, knowledge_cutoff):
+        info = get_model_info(f"openai/{model_name}")
+        assert info is not None
+        assert info.model == display_name
+        assert info.context_length == 1050000
+        assert info.output_tokens == 128000
+        assert info.input_tokens == 922000
+        assert info.reasoning is True
+        # OpenAI doesn't document a default effort for GPT-6.2
+        assert info.reasoning_effort_default is None
+        assert info.knowledge_cutoff_date == knowledge_cutoff
+        assert info.release_date == date(2026, 11, 17)
+
     def test_known_kimi_model(self):
         """Test lookup of a known Moonshot AI Kimi model."""
         info = get_model_info("moonshotai/kimi-k3")
@@ -111,11 +157,38 @@ class TestGetModelInfo:
         assert info.organization == "Moonshot AI"
         assert info.context_length == 1048576
 
+    @pytest.mark.parametrize(
+        "model,display_name",
+        [
+            ("kimi-k3.1-pro", "Kimi K3.1 Pro"),
+            ("kimi-k3.1-pro-highspeed", "Kimi K3.1 Pro Highspeed"),
+        ],
+    )
+    def test_known_kimi_k3_1_pro_models(self, model, display_name):
+        """Test lookup of Kimi K3.1 Pro and its highspeed variant."""
+        info = get_model_info(f"moonshot/{model}")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.model == display_name
+        assert info.context_length == 1048576
+        assert info.output_tokens == 1048576
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "max"
+
     def test_kimi_org_detection_on_hosting_provider(self):
         """Test kimi-* org detection for hosting providers (e.g. azureai)."""
         info = get_model_info("azureai/kimi-k3")
         assert info is not None
         assert info.organization == "Moonshot AI"
+        assert info.context_length == 1048576
+
+    @pytest.mark.parametrize("model", ["mistral-large-4", "mistral-large-4-0"])
+    def test_known_mistral_large_4_model(self, model):
+        """Test lookup of Mistral Large 4 and its alias."""
+        info = get_model_info(f"mistral/{model}")
+        assert info is not None
+        assert info.organization == "Mistral"
+        assert info.model == "Mistral Large 4"
         assert info.context_length == 1048576
 
     def test_known_deepseek_v4_model(self):
@@ -619,6 +692,42 @@ class TestGetModelInputTokens:
         assert bedrock_info is not None
         assert bedrock_info.snapshot == "20260922"
 
+    def test_claude_sonnet_5_5(self):
+        """Test that Claude Sonnet 5.5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-sonnet-5-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        # distinguishes the explicit entry from a fuzzy match of sonnet-5
+        info = get_model_info("anthropic/claude-sonnet-5-5")
+        assert info is not None
+        assert info.snapshot == "20260928"
+        assert str(info.release_date) == "2026-09-28"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.output_tokens == 128_000
+        assert info.reasoning_effort_default == "high"
+        # the Bedrock id resolves to the same entry via its alias
+        bedrock_info = get_model_info("bedrock/anthropic.claude-sonnet-5-5")
+        assert bedrock_info is not None
+        assert bedrock_info.snapshot == "20260928"
+
+    def test_claude_haiku_5_5(self):
+        """Test that Claude Haiku 5.5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-haiku-5-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        # distinguishes the explicit entry from a fuzzy match of haiku-4-5
+        info = get_model_info("anthropic/claude-haiku-5-5")
+        assert info is not None
+        assert info.snapshot == "20261007"
+        assert str(info.release_date) == "2026-10-07"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.output_tokens == 128_000
+        assert info.reasoning_effort_default == "medium"
+        # the Bedrock id resolves to the same entry via its alias
+        bedrock_info = get_model_info("bedrock/anthropic.claude-haiku-5-5")
+        assert bedrock_info is not None
+        assert bedrock_info.snapshot == "20261007"
+
     def test_claude_fable_5(self):
         """Test that Claude Fable 5 reports 1MM input tokens."""
         model = get_model("anthropic/claude-fable-5")
@@ -654,6 +763,34 @@ class TestGetModelInputTokens:
         assert info.snapshot == "20260901"
         assert str(info.knowledge_cutoff_date) == "2026-06-01"
 
+    def test_claude_fable_5_2(self):
+        """Test that Claude Fable 5.2 resolves to its own registration."""
+        model = get_model("anthropic/claude-fable-5-2")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        info = get_model_info("anthropic/claude-fable-5-2")
+        assert info is not None
+        assert info.model == "Claude Fable 5.2"
+        assert info.snapshot == "20261109"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.reasoning_effort_default == "high"
+
+    def test_claude_mythos_5_2(self):
+        """Test that Claude Mythos 5.2 resolves to its own registration."""
+        model = get_model("anthropic/claude-mythos-5-2")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        info = get_model_info("anthropic/claude-mythos-5-2")
+        assert info is not None
+        # not a fuzzy match onto Mythos 5 (snapshot 20260609, cutoff 2026-01-01)
+        assert info.model == "Claude Mythos 5.2"
+        assert info.snapshot == "20261109"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.reasoning_effort_default == "high"
+        bedrock_info = get_model_info("anthropic/bedrock/anthropic.claude-mythos-5-2")
+        assert bedrock_info is not None
+        assert bedrock_info.model == "Claude Mythos 5.2"
+
     def test_claude_mythos_preview(self):
         """Test that Claude Mythos Preview reports 1MM input tokens."""
         model = get_model("anthropic/claude-mythos-preview")
@@ -682,6 +819,58 @@ class TestGetModelInputTokens:
         assert str(info.release_date) == release_date
         assert str(info.knowledge_cutoff_date) == "2026-03-01"
         assert info.reasoning_effort_default == "medium"
+
+    def test_gemini_4_argon(self) -> None:
+        """Gemini 4 Argon resolves to its own entry (1M context, 64K output)."""
+        model = get_model("google/gemini-4-argon", api_key="test-key")
+        assert get_model_input_tokens(model) == 1_048_576
+        info = get_model_info("google/gemini-4-argon")
+        assert info is not None
+        assert info.model == "Gemini 4 Argon"
+        assert str(info.release_date) == "2026-10-13"
+        assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.output_tokens == 65_536
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "medium"
+
+    def test_gemini_4_carbon(self) -> None:
+        """Gemini 4 Carbon resolves to its own entry (1M context, 64K output)."""
+        model = get_model("google/gemini-4-carbon", api_key="test-key")
+        assert get_model_input_tokens(model) == 1_048_576
+        info = get_model_info("google/gemini-4-carbon")
+        assert info is not None
+        assert info.model == "Gemini 4 Carbon"
+        assert str(info.release_date) == "2026-11-10"
+        assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.output_tokens == 65_536
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "medium"
+
+    def test_gemini_4_hydrogen(self) -> None:
+        """Gemini 4 Hydrogen resolves to its own entry (1M context, 64K output)."""
+        model = get_model("google/gemini-4-hydrogen", api_key="test-key")
+        assert get_model_input_tokens(model) == 1_048_576
+        info = get_model_info("google/gemini-4-hydrogen")
+        assert info is not None
+        assert info.model == "Gemini 4 Hydrogen"
+        assert str(info.release_date) == "2026-11-12"
+        assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.output_tokens == 65_536
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "high"
+
+    def test_gemini_4_neon(self) -> None:
+        """Gemini 4 Neon resolves to its own entry (1M context, 64K output)."""
+        model = get_model("google/gemini-4-neon", api_key="test-key")
+        assert get_model_input_tokens(model) == 1_048_576
+        info = get_model_info("google/gemini-4-neon")
+        assert info is not None
+        assert info.model == "Gemini 4 Neon"
+        assert str(info.release_date) == "2026-11-18"
+        assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.output_tokens == 65_536
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "high"
 
     def test_claude_latest_defaults_to_1m(self):
         """An unknown/future Claude model (is_claude_latest) assumes the 1M frontier."""
@@ -747,6 +936,80 @@ class TestGetModelInputTokens:
         tokens = get_model_input_tokens(frontier)
         assert tokens is not None
         assert tokens != 4242
+
+
+class TestGetModelInputBudget:
+    """Tests for get_model_input_budget function."""
+
+    def test_window_minus_reserve_for_a_known_model(self):
+        set_model_info("mockllm/model", ModelInfo(context_length=200_000))
+        model = get_model("mockllm/model")
+        # mockllm has no provider max_tokens default, so the reserve is
+        # inspect_ai's own default output reserve (4096)
+        assert get_model_input_budget(model) == 200_000 - 4096
+
+    def test_config_max_tokens_changes_the_reserve(self):
+        set_model_info("mockllm/model", ModelInfo(context_length=200_000))
+        model = get_model("mockllm/model")
+        assert (
+            get_model_input_budget(model, GenerateConfig(max_tokens=1000))
+            == 200_000 - 1000
+        )
+
+    def test_reserve_is_capped_at_half_the_window(self):
+        set_model_info("mockllm/model", ModelInfo(context_length=200_000))
+        model = get_model("mockllm/model")
+        assert (
+            get_model_input_budget(model, GenerateConfig(max_tokens=500_000))
+            == 200_000 // 2
+        )
+
+    def test_active_model_generate_config_follows_into_the_reserve(self):
+        """The reserve follows the active generate config, as generate does.
+
+        The monitor role falls back to active_model() and the eval's
+        --max-tokens reaches generate through _resolve_config, so the budget
+        must reserve that max_tokens even when no config is passed here.
+        """
+        from inspect_ai.model._generate_config import (
+            active_generate_config_context_var,
+        )
+        from inspect_ai.model._model import (
+            active_model_context_var,
+            init_active_model,
+        )
+
+        set_model_info("mockllm/model", ModelInfo(context_length=200_000))
+        model = get_model("mockllm/model")
+        model_token = active_model_context_var.set(active_model_context_var.get(None))
+        config_token = active_generate_config_context_var.set(
+            active_generate_config_context_var.get()
+        )
+        try:
+            init_active_model(model, GenerateConfig(max_tokens=20_000))
+            assert get_model_input_budget(model) == 200_000 - 20_000
+        finally:
+            active_model_context_var.reset(model_token)
+            active_generate_config_context_var.reset(config_token)
+
+    def test_unknown_window_falls_back_to_default_and_warns_once(
+        self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ):
+        import inspect_ai._util.logger as logger_module
+
+        monkeypatch.setattr(logger_module, "_warned", [])
+        model = get_model("noload/unknown-window")
+        assert get_model_input_tokens(model) is None
+        with caplog.at_level("WARNING"):
+            first = get_model_input_budget(model, GenerateConfig(max_tokens=4096))
+            second = get_model_input_budget(model, GenerateConfig(max_tokens=4096))
+        assert first == second == DEFAULT_CONTEXT_WINDOW - 4096
+        warnings = [
+            r.getMessage()
+            for r in caplog.records
+            if "Unable to determine context window" in r.getMessage()
+        ]
+        assert len(warnings) == 1
 
 
 class TestResultCaching:
@@ -942,3 +1205,198 @@ class TestDoesNotReinstantiateProvider:
         record_and_check_model_usage(model, usage)
         # (3 * 1000 + 4 * 1000) / 1_000_000 = 0.007
         assert usage.total_cost == pytest.approx(0.007)
+
+
+def test_bundled_model_data_yaml_io_has_explicit_encoding() -> None:
+    """Bundled model-data YAML must be read and written with an explicit encoding.
+
+    The YAML ships inside the package and is UTF-8, but a plain `open()`
+    decodes with the platform locale: on Windows with a CJK ANSI code page
+    (cp932/936/949/950) every model call died on the em dash in `zai.yml`
+    (#5433). CI cannot observe this — ubuntu coerces non-UTF-8 locales to
+    UTF-8 (PEP 538/540) — so the guard is a source scan, mirroring
+    `tests/_control/test_ctl.py::test_no_bare_click_exit_in_ctl_error_sites`.
+    """
+    import inspect_ai.model._model_data as model_data_package
+
+    package_dir = Path(model_data_package.__file__).parent
+    offenders = [
+        f"{path.name}:{lineno}"
+        for path in sorted(package_dir.glob("*.py"))
+        for lineno, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        )
+        if re.search(r"(?<![\w.])open\(", line)
+        and "encoding=" not in line
+        and not re.search(r"[\"'](rb|br|wb|bw)[\"']", line)
+    ]
+    assert not offenders, (
+        "open() without an explicit encoding in _model_data/ — bundled YAML "
+        f"is UTF-8 and must be read as such (#5433): {offenders}"
+    )
+
+
+@modelapi("servedtest")
+def servedtest() -> type[ModelAPI]:
+    """A provider that reports the models in `output.metadata["served"]`."""
+    # an extension implements the hook from the public API
+    from inspect_ai.model import ModelOutput, ModelUsage, ServedModelUsage
+
+    class ServedModelAPI(ModelAPI):
+        async def generate(self, *args: Any, **kwargs: Any) -> Any:
+            raise NotImplementedError
+
+        def served_model_usage(
+            self, output: ModelOutput
+        ) -> list[ServedModelUsage] | None:
+            served = (output.metadata or {}).get("served")
+            if served is None:
+                return None
+            return [ServedModelUsage(m, ModelUsage(**usage)) for m, usage in served]
+
+    return ServedModelAPI
+
+
+class TestServedModelPricing:
+    """Usage is priced by the model that served the call."""
+
+    @staticmethod
+    def _cost(rate: float) -> ModelCost:
+        return ModelCost(
+            input=rate, output=rate, input_cache_write=rate, input_cache_read=rate
+        )
+
+    @staticmethod
+    def _usage(input_tokens: int, output_tokens: int) -> dict[str, int]:
+        return dict(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
+        )
+
+    def _record(self, served: list[tuple[str, dict[str, int]]] | None) -> Any:
+        from inspect_ai.model._model import record_and_check_model_usage
+        from inspect_ai.model._model_output import ModelOutput, ModelUsage
+
+        model = get_model("servedtest/called")
+        output = ModelOutput(
+            model="served",
+            usage=ModelUsage(**self._usage(3, 4)),
+            metadata={"served": served} if served is not None else None,
+        )
+        assert output.usage is not None
+        record_and_check_model_usage(model, output.usage, output=output)
+        return output.usage
+
+    @staticmethod
+    def _warnings(monkeypatch: Any) -> list[str]:
+        from inspect_ai._util import logger as logger_mod
+        from inspect_ai.model import _model as model_mod
+
+        warnings: list[str] = []
+        monkeypatch.setattr(logger_mod, "_warned", [])
+        monkeypatch.setattr(
+            model_mod.logger, "warning", lambda msg: warnings.append(msg)
+        )
+        return warnings
+
+    def test_priced_by_served_model(self):
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        set_model_info("served/other", ModelInfo(cost=self._cost(100.0)))
+        usage = self._record([("served/other", self._usage(3, 4))])
+        # 7 tokens at $100/M, not at the called model's $1000/M
+        assert usage.total_cost == pytest.approx(0.0007)
+
+    def test_each_part_priced_by_its_model(self):
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        set_model_info("served/first", ModelInfo(cost=self._cost(10.0)))
+        set_model_info("served/second", ModelInfo(cost=self._cost(100.0)))
+        usage = self._record(
+            [("served/first", self._usage(5, 5)), ("served/second", self._usage(3, 4))]
+        )
+        # 10 tokens at $10/M + 7 tokens at $100/M
+        assert usage.total_cost == pytest.approx(0.0001 + 0.0007)
+
+    def test_not_served_by_another_model(self):
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        usage = self._record(None)
+        assert usage.total_cost == pytest.approx(0.007)
+
+    def test_unknown_served_cost_uses_called_rates_and_warns(self, monkeypatch):
+        warnings = self._warnings(monkeypatch)
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        set_model_info("served/first", ModelInfo(cost=self._cost(10.0)))
+        usage = self._record(
+            [
+                ("served/first", self._usage(5, 5)),
+                ("served/unpriced", self._usage(3, 4)),
+            ]
+        )
+        # the whole call is priced at the called model's rates (7 tokens)
+        assert usage.total_cost == pytest.approx(0.007)
+        assert warnings == [
+            "No cost data for model 'served/unpriced', which served a request to "
+            "'servedtest/called'. Pricing the request at the rates of "
+            "'servedtest/called'. It is not in the model database, so use "
+            "set_model_info() with a ModelInfo that includes cost to add pricing "
+            "for 'served/unpriced'."
+        ]
+
+        # warned once
+        self._record([("served/unpriced", self._usage(3, 4))])
+        assert len(warnings) == 1
+
+        # the advertised fix prices the served model
+        with pytest.raises(ValueError, match="not found"):
+            set_model_cost("served/unpriced", self._cost(100.0))
+        set_model_info("served/unpriced", ModelInfo(cost=self._cost(100.0)))
+        usage = self._record([("served/unpriced", self._usage(3, 4))])
+        assert usage.total_cost == pytest.approx(0.0007)
+
+    def test_unpriced_database_model_warns_to_set_cost(self, monkeypatch):
+        warnings = self._warnings(monkeypatch)
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        served = "openai/gpt-4o-mini-2024-07-18"
+        usage = self._record([(served, self._usage(3, 4))])
+        assert usage.total_cost == pytest.approx(0.007)
+        assert warnings == [
+            f"No cost data for model '{served}', which served a request to "
+            "'servedtest/called'. Pricing the request at the rates of "
+            "'servedtest/called'. Use set_model_cost() or --model-cost-config to "
+            f"add pricing for '{served}'."
+        ]
+
+        # the advertised fix prices the served model
+        set_model_cost(served, self._cost(100.0))
+        usage = self._record([(served, self._usage(3, 4))])
+        assert usage.total_cost == pytest.approx(0.0007)
+
+    def test_unknown_served_cost_without_called_cost_does_not_warn(self, monkeypatch):
+        warnings = self._warnings(monkeypatch)
+        usage = self._record([("served/unpriced", self._usage(3, 4))])
+        assert usage.total_cost is None
+        assert warnings == []
+
+    def test_snapshot_of_called_model_uses_called_rates(self, monkeypatch):
+        """A served name the database knows as the called model is not unpriced."""
+        warnings = self._warnings(monkeypatch)
+        gpt_4o = get_model_info("openai/gpt-4o")
+        assert gpt_4o is not None
+        set_model_info(
+            "servedtest/called", gpt_4o.model_copy(update={"cost": self._cost(1000.0)})
+        )
+        usage = self._record([("openai/gpt-4o-2024-08-06", self._usage(3, 4))])
+        assert usage.total_cost == pytest.approx(0.007)
+        assert warnings == []
+
+    def test_cost_limit_sees_served_model_cost(self):
+        from inspect_ai.util._limit import LimitExceededError, cost_limit
+
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        set_model_info("served/pricier", ModelInfo(cost=self._cost(2000.0)))
+        # the called model's price ($0.007) is under the limit; the served
+        # model's ($0.014) is over it
+        with cost_limit(0.01):
+            with pytest.raises(LimitExceededError) as exc_info:
+                self._record([("served/pricier", self._usage(3, 4))])
+        assert exc_info.value.value == pytest.approx(0.014)

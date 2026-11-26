@@ -21,7 +21,9 @@ def resolve_args(args: dict[str, Any] | str) -> dict[str, Any]:
 
 
 def parse_cli_args(
-    args: tuple[str, ...] | list[str] | None, force_str: bool = False
+    args: tuple[str, ...] | list[str] | None,
+    force_str: bool = False,
+    preserve_quoted_commas: bool = False,
 ) -> dict[str, Any]:
     params: dict[str, Any] = dict()
     if args:
@@ -29,10 +31,19 @@ def parse_cli_args(
             parts = arg.split("=")
             if len(parts) > 1:
                 key = parts[0].replace("-", "_")
-                value = yaml.safe_load("=".join(parts[1:]))
+                raw = "=".join(parts[1:])
+                value = yaml.safe_load(raw)
                 if isinstance(value, str):
-                    value = value.split(",")
-                    value = value if len(value) > 1 else value[0]
+                    if preserve_quoted_commas:
+                        node = yaml.compose(raw, Loader=yaml.SafeLoader)
+                        # Only plain unquoted scalars use the comma-separated list shorthand.
+                        # Quoted YAML/JSON strings and block scalars preserve commas literally.
+                        if isinstance(node, yaml.ScalarNode) and node.style is None:
+                            value = value.split(",")
+                            value = value if len(value) > 1 else value[0]
+                    else:
+                        value = value.split(",")
+                        value = value if len(value) > 1 else value[0]
                 params[key] = str(value) if force_str else value
     return params
 

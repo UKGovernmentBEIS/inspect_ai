@@ -1,3 +1,5 @@
+import asyncio
+import gc
 import os
 import shutil
 import sys
@@ -10,6 +12,7 @@ import anyio
 import psutil
 import pytest
 from anyio.abc import ByteReceiveStream
+from test_helpers.utils import skip_if_trio
 
 import inspect_ai.util._subprocess as _subprocess_mod
 from inspect_ai.util import subprocess
@@ -95,6 +98,40 @@ async def test_run_subprocess_reports_whether_stdin_was_written():
     no_input = await run_subprocess(["python3", "-c", "import sys; sys.exit(3)"])
     assert no_input.stdin_written is True
     assert no_input.result.returncode == 3
+
+
+@skip_if_trio
+@pytest.mark.parametrize("error", [BrokenPipeError, ConnectionResetError])
+async def test_run_subprocess_raw_pipe_error_from_drain(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, error: type[OSError]
+):
+    """A raw pipe error from asyncio's `drain()` reports stdin as unwritten.
+
+    anyio converts a broken pipe to `BrokenResourceError` only once the
+    transport is closing; if the pipe breaks first, `drain()`'s own
+    `BrokenPipeError` or `ConnectionResetError` reaches the caller. The child
+    cannot exit until `drain()` has raised (it waits for `release`, which the
+    patched `drain()` creates just before raising), so the transport is still
+    open and anyio passes the raw error through.
+    """
+    release = tmp_path / "release"
+
+    async def broken_drain(self: asyncio.StreamWriter) -> None:
+        assert not self.transport.is_closing()
+        release.touch()
+        raise error()
+
+    monkeypatch.setattr(asyncio.StreamWriter, "drain", broken_drain)
+    script = (
+        "import os, sys, time\n"
+        f"while not os.path.exists({str(release)!r}):\n"
+        "    time.sleep(0.01)\n"
+        "sys.exit(3)\n"
+    )
+    with anyio.fail_after(30):
+        run = await run_subprocess(["python3", "-c", script], input="unread")
+    assert run.stdin_written is False
+    assert run.result.returncode == 3
 
 
 @pytest.mark.anyio
@@ -356,6 +393,95 @@ async def test_subprocess_output_limit_no_limit():
     )
     assert result.success is True
     assert len(result.stdout.strip()) == 1000
+
+
+async def _read_all(stream: ByteReceiveStream) -> bytes:
+    return b"".join([chunk async for chunk in stream])
+
+
+@pytest.mark.anyio
+async def test_run_subprocess_stdout_reader():
+    """A `stdout_reader` supplies stdout; `output_limit` still bounds stderr."""
+    script = (
+        "import sys; sys.stdout.buffer.write('héllo'.encode()); "
+        "sys.stderr.write('e' * 1000)"
+    )
+    run = await run_subprocess(
+        ["python3", "-c", script], output_limit=100, stdout_reader=_read_all
+    )
+    assert run.result.stdout == "héllo"
+    assert run.result.stderr == "e" * 100
+
+
+class _StopReading(Exception):
+    pass
+
+
+_FLOOD_STDOUT = """
+import os, sys
+sys.stdout.buffer.write(f"{os.getpid()}\\n".encode())
+sys.stdout.flush()
+while True:
+    sys.stdout.buffer.write(b"x" * 65536)
+"""
+
+
+def _wait_gone(pid: int, timeout: float) -> bool:
+    try:
+        process = psutil.Process(pid)
+    except psutil.NoSuchProcess:
+        return True
+    _, alive = psutil.wait_procs([process], timeout=timeout)
+    for survivor in alive:
+        survivor.kill()
+    return not alive
+
+
+@pytest.mark.anyio
+@pytest.mark.skipif(sys.platform == "win32", reason="num_fds() is POSIX only")
+async def test_run_subprocess_stdout_reader_error_closes_pipes():
+    """When the reader raises, the pipes close even if a grandchild holds them.
+
+    The grandchild keeps writing after its parent is killed, like a Docker CLI
+    plugin that the CLI does not stop; closing the pipes ends it with a broken pipe.
+    """
+    parent = (
+        "import subprocess, sys; "
+        "subprocess.Popen([sys.executable, '-c', sys.argv[1]]).wait()"
+    )
+    pid = 0
+
+    async def read_until_flooded(stream: ByteReceiveStream) -> bytes:
+        nonlocal pid
+        output = bytearray()
+        async for chunk in stream:
+            output += chunk
+            if len(output) > 1_000_000:
+                pid = int(output.split(b"\n", 1)[0])
+                raise _StopReading()
+        return bytes(output)
+
+    process = psutil.Process()
+    gc.disable()
+    try:
+        fds_before = process.num_fds()
+        with pytest.raises(_StopReading):
+            await run_subprocess(
+                ["python3", "-c", parent, _FLOOD_STDOUT],
+                text=False,
+                timeout=30,
+                stdout_reader=read_until_flooded,
+            )
+        assert process.num_fds() == fds_before
+    finally:
+        gc.enable()
+    assert _wait_gone(pid, timeout=10)
+
+
+@pytest.mark.anyio
+async def test_run_subprocess_stdout_reader_requires_capture_output():
+    with pytest.raises(ValueError, match="capture_output"):
+        await run_subprocess(["true"], capture_output=False, stdout_reader=_read_all)
 
 
 @pytest.mark.anyio

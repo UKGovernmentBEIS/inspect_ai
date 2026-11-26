@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
 
+from inspect_ai._sentinel._config import SentinelSpec, resolve_sentinel_spec
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.registry import (
@@ -54,7 +55,7 @@ from inspect_ai.review._policy import (
 from inspect_ai.scorer import Metric, Scorer
 from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
-from inspect_ai.solver._chain import chain
+from inspect_ai.solver._chain import chain, is_solver_sequence
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._checkpoint.config import CheckpointConfig, normalize_checkpoint
 from inspect_ai.util._limit import TokenLimit, token_limit_fields
@@ -66,13 +67,13 @@ from inspect_ai.util._sandbox.environment import (
 from inspect_ai.viewer import ViewerConfig
 
 from .epochs import Epochs
-from .sample_source import SampleSource
+from .sample_source import HANDLE_DATASET_NAME, HandleChannel, SampleSource
 
 logger = getLogger(__name__)
 
 
 class TaskDeprecatedArgs(TypedDict, total=False):
-    plan: Plan | Solver | list[Solver]
+    plan: Plan | Solver | Sequence[Solver]
     tool_environment: str | SandboxEnvironmentSpec | None
     epochs_reducer: ScoreReducers | None
     max_messages: int | None
@@ -87,8 +88,8 @@ class Task:
     def __init__(
         self,
         dataset: Dataset | Sequence[Sample] | SampleSource | None = None,
-        setup: Solver | list[Solver] | None = None,
-        solver: Solver | Agent | list[Solver] = generate(),
+        setup: Solver | Sequence[Solver] | None = None,
+        solver: Solver | Agent | Sequence[Solver] = generate(),
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
         scorer: "Scorers" | None = None,
         metrics: list[Metric | dict[str, list[Metric]]]
@@ -121,6 +122,10 @@ class Task:
         tags: list[str] | None = None,
         viewer: ViewerConfig | None = None,
         headline_metric: HeadlineMetric | str | None = None,
+        sentinel: SentinelSpec | None = None,
+        *,
+        description: str | None = None,
+        max_samples: int | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
         """Create a task.
@@ -182,19 +187,29 @@ class Task:
             time_limit: Limit on clock time (in seconds) for samples.
             working_limit: Limit on working time (in seconds) for sample. Working
                 time includes model generation, tool calls, etc. but does not include
-                time spent waiting on retries or shared resources.
+                time spent waiting on retries or shared resources. While a wait is
+                open, only model calls, sandbox commands and tool calls are charged,
+                so working time can undercount; set `time_limit` as well to bound
+                wall clock time.
             cost_limit: Limit on total cost (in dollars) for each sample.
                 Requires model cost data via set_model_cost() or --model-cost-config.
             early_stopping: Early stopping callbacks.
             name: Task name. If not specified is automatically
                 determined based on the registered name of the task.
             display_name: Task display name (e.g. for plotting). If not specified then defaults to the registered task name.
+            description: Short statement of what the task asks of the agent
+                (recorded in the eval log).
+            max_samples: Maximum number of this task's samples to run in
+                parallel. A `max_samples` passed to `eval()`, `eval_set()` or
+                the CLI overrides it. If neither is set, the default comes
+                from the model's connection limit.
             version: Version of task (to distinguish evolutions
                 of the task spec or breaking changes to it)
             metadata:  Additional metadata to associate with the task.
             tags: Tags to associate with the task.
-            viewer: Log viewer configuration for this task (controls how
-                scanner results are rendered in the sidebar).
+            viewer: Log viewer configuration for this task (how the log's
+                samples, scores and scanner results are displayed, and whether
+                its content is trusted to render richly).
             headline_metric: Which score/metric best summarises this task (e.g.
                 for a leaderboard or log listing). A `str` names the scorer, as
                 `"<scorer>"` or `"<scorer>.<score>"` to address one value of a
@@ -203,6 +218,8 @@ class Task:
                 convention, so `HeadlineMetric(metric="accuracy")` takes that
                 metric from the first score reporting it; the default is the
                 first metric of the first score.
+            sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
+                A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting. Defaults to no sentinel.
             **kwargs: Deprecated arguments.
         """
         # handle deprecated args
@@ -246,6 +263,9 @@ class Task:
         self.checkpoint = normalize_checkpoint(checkpoint)
         self.approval = resolve_approval(approval)
         self.review = resolve_review(review)
+        self.sentinel = (
+            resolve_sentinel_spec(sentinel) if sentinel is not None else None
+        )
         epochs = resolve_epochs(epochs)
         self.epochs = epochs.epochs if epochs else None
         self.epochs_reducer = epochs.reducer if epochs else None
@@ -259,9 +279,11 @@ class Task:
         self.working_limit = working_limit
         self.cost_limit = cost_limit
         self.early_stopping = early_stopping
+        self.max_samples = validate_max_samples(max_samples)
         self.version = version
         self._display_name = display_name
         self._name = name
+        self.description = description
         self.metadata = metadata
         self.tags = tags
         self.viewer = viewer
@@ -306,8 +328,8 @@ def task_with(
     task: Task,
     *,
     dataset: Dataset | Sequence[Sample] | SampleSource | None | NotGiven = NOT_GIVEN,
-    setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
-    solver: Solver | Agent | list[Solver] | NotGiven = NOT_GIVEN,
+    setup: Solver | Sequence[Solver] | None | NotGiven = NOT_GIVEN,
+    solver: Solver | Agent | Sequence[Solver] | NotGiven = NOT_GIVEN,
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
     scorer: "Scorers" | None | NotGiven = NOT_GIVEN,
     metrics: list[Metric | dict[str, list[Metric]]]
@@ -327,6 +349,7 @@ def task_with(
     | None
     | NotGiven = NOT_GIVEN,
     review: str | ReviewPolicyConfig | list[ReviewPolicy] | None | NotGiven = NOT_GIVEN,
+    sentinel: SentinelSpec | None | NotGiven = NOT_GIVEN,
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
     fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
     continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
@@ -338,7 +361,9 @@ def task_with(
     working_limit: int | None | NotGiven = NOT_GIVEN,
     cost_limit: float | None | NotGiven = NOT_GIVEN,
     early_stopping: EarlyStopping | None | NotGiven = NOT_GIVEN,
+    max_samples: int | None | NotGiven = NOT_GIVEN,
     name: str | None | NotGiven = NOT_GIVEN,
+    description: str | None | NotGiven = NOT_GIVEN,
     version: int | str | NotGiven = NOT_GIVEN,
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
     tags: list[str] | None | NotGiven = NOT_GIVEN,
@@ -390,6 +415,8 @@ def task_with(
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
         review: Tool result review policies.
             Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies. Defaults to no review policy.
+        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
+            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting. Defaults to no sentinel.
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error: `True` to fail on first sample error
@@ -411,20 +438,30 @@ def task_with(
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
-            time spent waiting on retries or shared resources.
+            time spent waiting on retries or shared resources. While a wait is
+            open, only model calls, sandbox commands and tool calls are charged,
+            so working time can undercount; set `time_limit` as well to bound
+            wall clock time.
         cost_limit: Limit on total cost (in dollars) for each sample.
             Requires model cost data via set_model_cost() or --model-cost-config.
         early_stopping: Early stopping callbacks.
+        max_samples: Maximum number of this task's samples to run in
+            parallel. A `max_samples` passed to `eval()`, `eval_set()` or
+            the CLI overrides it. If neither is set, the default comes
+            from the model's connection limit.
         name: Task name. If not specified is automatically
             determined based on the name of the task directory (or "task")
             if its anonymous task (e.g. created in a notebook and passed to
             eval() directly)
+        description: Short statement of what the task asks of the agent
+            (recorded in the eval log).
         version: Version of task (to distinguish evolutions
             of the task spec or breaking changes to it)
         metadata:  Additional metadata to associate with the task.
         tags: Tags to associate with the task.
-        viewer: Log viewer configuration for this task (controls how
-            scanner results are rendered in the sidebar).
+        viewer: Log viewer configuration for this task (how the log's
+            samples, scores and scanner results are displayed, and whether
+            its content is trusted to render richly).
         headline_metric: Which score/metric best summarises this task (e.g. for a
             leaderboard or log listing).
 
@@ -463,6 +500,10 @@ def task_with(
         task.approval = resolve_approval(approval)
     if not isinstance(review, NotGiven):
         task.review = resolve_review(review)
+    if not isinstance(sentinel, NotGiven):
+        task.sentinel = (
+            resolve_sentinel_spec(sentinel) if sentinel is not None else None
+        )
     if not isinstance(epochs, NotGiven):
         epochs = resolve_epochs(epochs)
         task.epochs = epochs.epochs if epochs else None
@@ -487,10 +528,14 @@ def task_with(
         task.cost_limit = cost_limit
     if not isinstance(early_stopping, NotGiven):
         task.early_stopping = early_stopping
+    if not isinstance(max_samples, NotGiven):
+        task.max_samples = validate_max_samples(max_samples)
     if not isinstance(version, NotGiven):
         task.version = version
     if not isinstance(name, NotGiven):
         task._name = name
+    if not isinstance(description, NotGiven):
+        task.description = description
     if not isinstance(metadata, NotGiven):
         task.metadata = metadata
     if not isinstance(tags, NotGiven):
@@ -534,6 +579,9 @@ class PreviousTask:
     task_args: dict[str, Any]
     model: Model | None
     model_roles: dict[str, Model | list[Model]] | None
+    # the sandbox to resume in: eval-set's resolved task sandbox, never the
+    # log's; eval-retry's from the log, which records a --sandbox override
+    sandbox: SandboxEnvironmentSpec | None
     log: EvalLog
     log_info: EvalLogInfo | None
 
@@ -581,6 +629,12 @@ def resolve_epochs(epochs: int | Epochs | None) -> Epochs | None:
     return epochs
 
 
+def validate_max_samples(max_samples: int | None) -> int | None:
+    if max_samples is not None and max_samples < 1:
+        raise ValueError(f"max_samples must be a positive integer (got {max_samples}).")
+    return max_samples
+
+
 def resolve_task_epochs(task: Task, epochs: Epochs | None = None) -> Epochs:
     """Epochs a task effectively runs with, given an optional eval-level override.
 
@@ -613,7 +667,18 @@ def resolve_dataset_or_source(
     a dataset as the complete sample set (e.g. `slice_dataset` validating
     `--sample-id`) learn that more samples may be produced at runtime via
     their `dynamic` flag, passed by callers that hold the task.
+
+    A task fed through its handle (`samples_from_handle()`) gets an empty
+    dataset with the reserved name `samples_from_handle`, which its log
+    records; any other dataset with that name is refused.
     """
+    if isinstance(dataset, HandleChannel):
+        return ResolvedDataset(MemoryDataset([], name=HANDLE_DATASET_NAME), dataset)
+    if isinstance(dataset, Dataset) and dataset.name == HANDLE_DATASET_NAME:
+        raise ValueError(
+            f"The dataset name '{HANDLE_DATASET_NAME}' is reserved for tasks fed "
+            "through a handle."
+        )
     if isinstance(dataset, SampleSource):
         return ResolvedDataset(MemoryDataset(list(dataset.initial_samples())), dataset)
     else:
@@ -633,11 +698,13 @@ def resolve_dataset(dataset: Dataset | Sequence[Sample] | None) -> Dataset:
     return dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
 
 
-def resolve_solver(solver: Solver | Agent | list[Solver]) -> Solver:
-    if isinstance(solver, list):
-        return chain(solver)
-    elif is_agent(solver):
+def resolve_solver(
+    solver: Solver | Agent | Sequence[Solver],
+) -> Solver:
+    if is_agent(solver):
         return as_solver(solver)
+    elif is_solver_sequence(solver):
+        return chain(solver)
     else:
         return cast(Solver, solver)
 

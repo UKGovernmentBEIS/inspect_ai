@@ -13,12 +13,13 @@ import zlib
 from typing import Any, Iterable, Iterator
 
 import pytest
-from test_helpers.utils import skip_if_no_bedrock
+from test_helpers.utils import skip_if_no_bedrock, skip_if_trio
 
-from inspect_ai.model import ChatMessageUser, RetryDecision, get_model
+from inspect_ai.model import ChatMessageUser, ModelOutput, RetryDecision, get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._providers.bedrock import (
     BedrockAPI,
+    ConverseResponse,
     bedrock_error_code,
     converse_response_from_stream,
     model_output_from_response,
@@ -151,6 +152,7 @@ async def test_bedrock_converse_response_from_stream() -> None:
     assert response.metrics.latencyMs == 42
     content = response.output.message.content
     assert content[0].reasoningContent is not None
+    assert content[0].reasoningContent.reasoningText is not None
     assert content[0].reasoningContent.reasoningText.text == "hmm"
     assert content[1].text == "hel"
     assert content[2].toolUse is not None
@@ -177,6 +179,55 @@ async def test_bedrock_converse_response_from_stream() -> None:
     assert output.choices[0].message.tool_calls is not None
     assert output.choices[0].message.tool_calls[0].arguments == {"cmd": "ls"}
     assert output.usage is not None and output.usage.total_tokens == 10
+
+
+@pytest.mark.parametrize(
+    "cache_usage",
+    [
+        {"cacheReadInputTokens": 5000, "cacheWriteInputTokens": 0},
+        {"cacheReadInputTokens": 0, "cacheWriteInputTokens": 1200},
+        {},
+    ],
+)
+async def test_bedrock_stream_usage_matches_non_streamed(
+    cache_usage: dict[str, int],
+) -> None:
+    """Streamed usage carries cache reads/writes like the non-streamed path."""
+    usage: dict[str, int] = {
+        "inputTokens": 10,
+        "outputTokens": 5,
+        "totalTokens": 15 + sum(cache_usage.values()),
+        **cache_usage,
+    }
+    events: list[dict[str, Any]] = [
+        {"messageStart": {"role": "assistant"}},
+        {"contentBlockDelta": {"contentBlockIndex": 0, "delta": {"text": "hi"}}},
+        {"contentBlockStop": {"contentBlockIndex": 0}},
+        {"messageStop": {"stopReason": "end_turn"}},
+        {"metadata": {"usage": usage, "metrics": {"latencyMs": 1}}},
+    ]
+    streamed = await converse_response_from_stream(_events(events))
+    non_streamed = ConverseResponse.model_validate(
+        {
+            "output": {"message": {"role": "assistant", "content": [{"text": "hi"}]}},
+            "stopReason": "end_turn",
+            "usage": usage,
+            "metrics": {"latencyMs": 1},
+        }
+    )
+    assert streamed.usage == non_streamed.usage
+
+    streamed_usage = model_output_from_response("test-model", streamed, []).usage
+    expected_usage = model_output_from_response("test-model", non_streamed, []).usage
+    assert streamed_usage == expected_usage
+    assert streamed_usage is not None
+    assert streamed_usage.input_tokens_cache_read == cache_usage.get(
+        "cacheReadInputTokens"
+    )
+    assert streamed_usage.input_tokens_cache_write == cache_usage.get(
+        "cacheWriteInputTokens"
+    )
+    assert streamed_usage.total_tokens == usage["totalTokens"]
 
 
 async def test_bedrock_stream_gated_without_on_stream(
@@ -394,3 +445,73 @@ async def test_bedrock_stream_end_to_end() -> None:
     assert len(response.completion) >= 1
     streamed = "".join(e.text for e in events if isinstance(e, StreamTextEvent))
     assert streamed == response.completion
+
+
+@skip_if_trio
+async def test_bedrock_stream_access_denied_fallback_restarts_request() -> None:
+    """The non-streaming fallback is tracked as a new request, not a retry."""
+    from unittest.mock import patch
+
+    from botocore.exceptions import ClientError
+
+    api = BedrockAPI(
+        model_name="anthropic.claude-sonnet-4-6-20260101-v1:0", base_url=None
+    )
+
+    calls: list[str] = []
+
+    class _Client:
+        async def __aenter__(self) -> "_Client":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        async def converse_stream(self, **kwargs: Any) -> Any:
+            raise ClientError(
+                {"Error": {"Code": "AccessDeniedException", "Message": "denied"}},
+                "ConverseStream",
+            )
+
+        async def converse(self, **kwargs: Any) -> Any:
+            calls.append("converse")
+            return {
+                "output": {
+                    "message": {"role": "assistant", "content": [{"text": "hi"}]}
+                },
+                "stopReason": "end_turn",
+                "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2},
+                "metrics": {"latencyMs": 1},
+            }
+
+    hooks = api._http_hooks
+    start_request = hooks._start_request
+    restart_request = hooks.restart_request
+    request_ids: list[str] = []
+
+    def start(*args: Any) -> str:
+        request_ids.append(start_request(*args))
+        return request_ids[-1]
+
+    def restart(request_id: str) -> None:
+        calls.append(f"restart:{request_id}")
+        restart_request(request_id)
+
+    with (
+        patch.object(api.session, "create_client", return_value=_Client()),
+        patch.object(api, "resolve_streaming", return_value=True),
+        patch.object(hooks, "_start_request", side_effect=start),
+        patch.object(hooks, "restart_request", side_effect=restart),
+    ):
+        result = await api.generate(
+            input=[ChatMessageUser(content="hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(result, tuple)
+    output, _ = result
+    assert isinstance(output, ModelOutput)
+    assert output.completion == "hi"
+    assert calls == [f"restart:{request_ids[0]}", "converse"]

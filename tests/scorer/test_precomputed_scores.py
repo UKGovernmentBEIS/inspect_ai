@@ -1,5 +1,7 @@
 import json
+from io import StringIO
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -10,6 +12,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.log._log import EvalMetricDefinition
 from inspect_ai.scorer import Scorer, mean, precomputed_scores, scorer
+from inspect_ai.scorer._precomputed import _read_scores_file
 from inspect_ai.scorer._scorer import scorer_metrics
 
 
@@ -230,3 +233,61 @@ def test_precomputed_scores_invalid_records(tmp_path: Path) -> None:
     not_a_list.write_text(json.dumps({"s1": 1}))
     with pytest.raises(ValueError, match="list"):
         precomputed_scores(not_a_list.as_posix())
+
+
+@pytest.mark.parametrize(
+    ("path", "json_lines"),
+    [
+        ("scores.jsonl", True),
+        ("scores.jsonl?signature=abc%2Fdef%3D&download=1", True),
+        ("scores.jsonl#ratings", True),
+        ("scores.JSONL?download=1", True),
+        ("scores.json?download=scores.jsonl", False),
+        ("scores.json?download=1", False),
+    ],
+)
+def test_precomputed_scores_url_uses_path_extension(
+    path: str,
+    json_lines: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    url = f"https://example.test/{path}"
+    records = [{"id": "s1", "value": 1.0}, {"id": "s2", "value": 0.0}]
+    contents = (
+        "\n".join(json.dumps(record) for record in records)
+        if json_lines
+        else json.dumps(records)
+    )
+    mock_file = Mock(return_value=StringIO(contents))
+    monkeypatch.setattr("inspect_ai.scorer._precomputed.file", mock_file)
+
+    lookup = _read_scores_file(url)
+    assert len(lookup) == 2
+    assert lookup[("s1", None)].value == 1.0
+    assert lookup[("s2", None)].value == 0.0
+    mock_file.assert_called_once_with(url, "r")
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        r"C:\scores\#active\data.jsonl",
+        "C:/scores/#active/data.jsonl",
+        "scores:part#1.jsonl",
+        "scores:part?1.jsonl",
+        "s3://bucket/scores#active/data.jsonl",
+        "s3://bucket/scores?active/data.jsonl",
+    ],
+)
+def test_precomputed_scores_preserves_filesystem_path_characters(
+    path: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contents = '{"id":"s1","value":1.0}\n{"id":"s2","value":0.0}\n'
+    mock_file = Mock(return_value=StringIO(contents))
+    monkeypatch.setattr("inspect_ai.scorer._precomputed.file", mock_file)
+
+    lookup = _read_scores_file(path)
+    assert len(lookup) == 2
+    assert lookup[("s1", None)].value == 1.0
+    assert lookup[("s2", None)].value == 0.0
+    mock_file.assert_called_once_with(path, "r")

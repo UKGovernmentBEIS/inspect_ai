@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from logging import getLogger
 from time import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from shortuuid import uuid
 
@@ -24,8 +24,8 @@ from .util import (
     client_request_object,
     client_request_string,
     client_response_schema,
+    resolve_bridge_model,
     resolve_generate_config,
-    resolve_inspect_model,
     tool_choice_from_openai_string,
     validate_bridge_media,
     validate_client_config,
@@ -34,6 +34,7 @@ from .util import (
 if TYPE_CHECKING:
     from openai.types.chat import (
         ChatCompletion,
+        ChatCompletionMessageParam,
         ChatCompletionToolParam,
     )
 
@@ -50,7 +51,6 @@ async def inspect_completions_api_request(
 
     from openai.types.chat import (
         ChatCompletion,
-        ChatCompletionMessageParam,
     )
 
     from inspect_ai.model._openai import (
@@ -59,13 +59,15 @@ async def inspect_completions_api_request(
     )
 
     bridge_model_name = str(json_data["model"])
-    model = resolve_inspect_model(
+    routing = resolve_bridge_model(
         bridge_model_name,
-        bridge.model_aliases,
-        bridge.model,
+        model_aliases=bridge.model_aliases,
         model_resolver=bridge.model_resolver,
+        model=bridge.model,
+        allow_client_model_names=bridge.allow_client_model_names,
         provider="openai",
     )
+    model = routing.model
     model_name = model.api.model_name
 
     # convert openai messages to inspect messages
@@ -98,20 +100,41 @@ async def inspect_completions_api_request(
 
     # if there is a bridge filter give it a shot first
     output, c_message = await bridge_generate(
-        bridge, model, messages, tools, tool_choice, config
+        bridge,
+        model,
+        messages,
+        tools,
+        tool_choice,
+        config,
+        requested_model=bridge_model_name,
+        routing=routing,
     )
     if c_message is not None:
         messages.append(c_message)
 
-    # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
-
     # inspect completion to openai completion
+    choices = openai_chat_choices(output.choices)
+    transported = [
+        await messages_from_openai(
+            [
+                cast(
+                    "ChatCompletionMessageParam",
+                    wire.message.model_dump(mode="json", exclude_none=True),
+                )
+            ],
+            model_name,
+        )
+        for wire in choices
+    ]
+
+    # update state if we have more messages than the last generation
+    await bridge._track_state(messages, output, transported)
+
     return ChatCompletion(
         id=uuid(),
         created=int(time()),
         object="chat.completion",
-        choices=openai_chat_choices(output.choices),
+        choices=choices,
         model=model_name,
         usage=openai_completion_usage(output.usage) if output.usage else None,
     )

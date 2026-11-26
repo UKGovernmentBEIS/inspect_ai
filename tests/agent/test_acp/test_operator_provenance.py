@@ -241,6 +241,22 @@ def test_restore_carry_forward_does_not_touch_other_users() -> None:
     assert other.source is None
 
 
+def test_restore_carry_forward_tells_a_lone_surrogate_from_its_escaped_text() -> None:
+    # A user message holding the escaped text of an operator message's lone
+    # surrogate is a different message: carry-forward doesn't stamp it.
+    bridge = _bridge()
+    bridge.note_operator_message(ChatMessageUser(content="redirect \ud800"))
+    operator = ChatMessageUser(content="redirect \ud800")
+    _restore_operator_message_source(
+        bridge, [ChatMessageUser(content="task"), operator]
+    )
+    assert operator.source == "operator"
+
+    escaped = ChatMessageUser(content="redirect \\ud800")
+    _restore_operator_message_source(bridge, [ChatMessageUser(content="task"), escaped])
+    assert escaped.source is None
+
+
 # ---------------------------------------------------------------------------
 # Integration: bridge_generate + _track_state (the log path)
 # ---------------------------------------------------------------------------
@@ -274,9 +290,9 @@ async def test_bridge_generate_restores_into_state_messages() -> None:
             operator,
         ]
         output, _ = await bridge_generate(
-            bridge, model, messages, [], None, GenerateConfig()
+            bridge, model, messages, [], None, GenerateConfig(), requested_model=None
         )
-        await bridge._track_state(messages, output)  # mirrors completions.py:97
+        await bridge._track_state(messages, output, [])  # mirrors completions.py:97
 
         assert operator.source == "operator"
         assert task.source is None
@@ -319,8 +335,10 @@ async def test_bridge_generate_carry_forward_into_state_on_later_turn() -> None:
             ChatMessageAssistant(content="a"),
             ChatMessageUser(content="redirect"),
         ]
-        out1, _ = await bridge_generate(bridge, model, t1, [], None, GenerateConfig())
-        await bridge._track_state(t1, out1)
+        out1, _ = await bridge_generate(
+            bridge, model, t1, [], None, GenerateConfig(), requested_model=None
+        )
+        await bridge._track_state(t1, out1, [])
 
         # turn 2: larger, operator mid-history, source-less, NO pending
         operator_t2 = ChatMessageUser(content="redirect")
@@ -330,8 +348,10 @@ async def test_bridge_generate_carry_forward_into_state_on_later_turn() -> None:
             operator_t2,
             ChatMessageAssistant(content="b"),
         ]
-        out2, _ = await bridge_generate(bridge, model, t2, [], None, GenerateConfig())
-        await bridge._track_state(t2, out2)
+        out2, _ = await bridge_generate(
+            bridge, model, t2, [], None, GenerateConfig(), requested_model=None
+        )
+        await bridge._track_state(t2, out2, [])
 
         assert operator_t2.source == "operator"  # carry-forward
         # state.messages updated to the larger turn 2 and carries the operator

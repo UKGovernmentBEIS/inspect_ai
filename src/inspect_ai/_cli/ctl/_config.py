@@ -7,6 +7,7 @@ from typing import Any, Literal, NamedTuple, cast
 
 import click
 
+from inspect_ai._cli.util import default_provenance_author
 from inspect_ai._control.discovery import DiscoveredControlServer
 from inspect_ai._control.views import ProcessConfigView, TaskConfigView
 
@@ -804,8 +805,8 @@ def _process_scope_note(global_knobs: list[str], siblings: int) -> str | None:
     ``global_knobs`` is the set (``--max-connections`` / ``--max-sandboxes``
     / ``--max-subprocesses`` / the retry overrides) supplied on this
     invocation; ``siblings`` counts the tasks the retune can
-    reach (the process's active tasks, plus the named target when it is
-    completed). Returns ``None`` when there's nothing to flag — no such knob
+    reach (the process's running, pending and queued tasks, plus the named
+    target when it is completed). Returns ``None`` when there's nothing to flag — no such knob
     was set, or the target task is the only one the change can reach, so
     "process-wide" is invisible.
     """
@@ -857,42 +858,6 @@ def _gate_strict_floor(
     )
 
 
-def _default_provenance_author() -> str:
-    """Default provenance author: the git identity, else the OS username.
-
-    Follows the convention inspect_flow's tag/metadata steps use for
-    `log_updates` provenance — `git config user.name` + `user.email`
-    rendered `Name <email>` (the bare name when there is no email).
-    Resolved client-side: the server process has no view of who invoked
-    the CLI.
-    """
-    import getpass
-    import subprocess
-
-    def git_config(key: str) -> str:
-        try:
-            result = subprocess.run(
-                ["git", "config", key],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            return result.stdout.strip() if result.returncode == 0 else ""
-        except Exception:
-            return ""
-
-    name = git_config("user.name")
-    email = git_config("user.email")
-    if name and email:
-        return f"{name} <{email}>"
-    if name:
-        return name
-    try:
-        return getpass.getuser()
-    except Exception:
-        return "unknown"
-
-
 def _gate_provenance_support(
     servers: list[DiscoveredControlServer],
     socket_path: str,
@@ -913,7 +878,7 @@ def _gate_provenance_support(
     server = next((s for s in servers if str(s.socket_path) == socket_path), None)
     api_version = server.api_version if server is not None else 0
     if api_version >= _PROVENANCE_SINCE:
-        return (author or _default_provenance_author(), reason)
+        return (author or default_provenance_author(), reason)
     if author is not None or reason is not None:
         flags = ", ".join(
             flag

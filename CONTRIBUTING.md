@@ -17,8 +17,10 @@ There are two paths:
   PRs that aren't linked to an accepted issue are closed automatically, with
   a comment explaining the available paths; if a linked issue is later
   accepted, reopen the PR and it will pass.
-  **Exception:** trivial documentation fixes (typos, broken links — docs
-  files only, under 25 changed lines) are always welcome directly.
+  **Exception:** trivial documentation fixes (typos, broken links — pages
+  under `docs/` or the top-level README only, under 25 changed lines) and
+  additions to the extensions listing are always welcome directly. The gate checks a PR again whenever it is pushed to or
+  edited.
 
 Whatever your path, a non-draft PR inactive for 60 days is closed with an
 invitation to reopen. And whatever your path, check for an existing open PR
@@ -98,21 +100,23 @@ If there’s something you’d like to work on but no GitHub issue for it, start
 Note that `good first issue` implies `accepted` — you can open a PR for one directly.
 
 ## Working on your issue
-After you’ve claimed an issue, you can start working on it. If this is your first contribution, you’ll need to clone the repository and install the development dependencies:
+After you’ve claimed an issue, you can start working on it. If this is your first contribution, install [uv](https://docs.astral.sh/uv/) 0.13.4 or later (`required-version` in `pyproject.toml` enforces this; upgrade with `uv self update`, or `brew upgrade uv` if you installed it with Homebrew), clone the repository, and sync the development environment from the lockfile:
 
 ```
 git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
 cd inspect_ai
-pip install -e ".[dev]"
+uv sync --locked
 ```
 
-If you prefer [uv](https://docs.astral.sh/uv/), you can instead sync the development environment from the lockfile:
+`uv sync --locked` installs Inspect in editable mode with its development dependencies (the `dev` dependency group, which uv installs by default) at exactly the versions recorded in `uv.lock`. It fails if `uv.lock` is out of date with `pyproject.toml`. Inspect's dependencies are declared in `pyproject.toml`, in `dependencies` and the `optional-dependencies` extras.
 
-```
-uv sync --extra dev
-```
+[DEPENDENCIES.md](https://github.com/meridianlabs-ai/actions/blob/main/DEPENDENCIES.md) in the meridianlabs-ai/actions repository tells how Inspect and the other Inspect repositories install and change dependencies. It covers the lock file, the seven-day cooldown and its six-hour exception, emergency entries, Dependabot, the canaries, and the procedures to add or update a dependency. Follow it. This file does not repeat it. For this repository:
 
-The uv workflow is optional. Inspect's dependencies are declared in the `requirements*.txt` files and exposed through `pyproject.toml`; `uv.lock` captures a reproducible development resolution. If you are changing dependencies, update the relevant requirements file and refresh the lockfile rather than using `uv add` as the source of truth.
+- Model provider SDKs have a six-hour cooldown (`"6 hours"`), and Inspect's own packages (`inspect-*`) have no cooldown (`false`). Both are in `[tool.uv.exclude-newer-package]` in `pyproject.toml`.
+- `src/inspect_sandbox_tools/tests/requirements.txt` is a separate hashed lock for the `sandbox-tools-unit` CI job. Its header is the command that makes it again.
+- `src/inspect_ai/model/_model_data/sync_models.py` has its own lock. Its workflow runs uv with `--no-config`, so it does not read `pyproject.toml`. If the script locks a package that gets an emergency entry, add the same entry to the script's inline metadata. Then run `uv lock --script src/inspect_ai/model/_model_data/sync_models.py --no-config --upgrade-package <package>`. When you remove the emergency entry, put back the previous setting in the script and run that command again.
+
+When a major or breaking model provider SDK release breaks Inspect, raise the minimum supported version instead of adding compatibility code for both versions. Users install provider SDKs themselves, so the floor they get, where one exists, is the provider's runtime minimum check (`MIN_VERSION`, usually in `src/inspect_ai/model/_providers/providers.py`): always raise it when it exists. Some providers have no runtime version check yet. `azureai()`, `nnterp()` and `transformer_lens()` only try the import and raise `pip_dependency_error`. When you first raise a floor for one of these providers, add a `verify_required_version` check with a `MIN_VERSION`. Many provider SDKs are also dev dependencies, listed in the `pyproject.toml` `dev` extra. For those, set or raise the floor there to match the runtime minimum and update `uv.lock` in the same PR. Some provider SDKs (for example `nnterp` and `transformer_lens`) aren't in `pyproject.toml` at all, so that new runtime check is then their only floor.
 
 Create a branch with a short, descriptive name, then start working on the issue. You may find it helpful to install the pre-commit hooks:
 
@@ -127,11 +131,57 @@ make check    # Run linter (ruff) and formatter
 make test     # Run pytest suite
 ```
 
-In a uv-managed environment, run these as `uv run make check` and `uv run make test`.
+Run these as `uv run make check` and `uv run make test`, or activate the environment in `.venv` first.
 
 If any tests are failing, fix the code and run both commands again to verify. Once all the tests are passing, push your branch to GitHub.
 
+`make test` skips the gated tests: slow Docker tests, most live model-provider tests, flaky tests, and trio variants. PR CI runs only some of the slow tests and none of the live provider tests. If you change model providers, sandbox or tool code, agents, or async plumbing, run the gated tests that cover your change locally. Report the commands and results in the "Slow tests" section of the PR description. Name any relevant tests you could not run, and say why. This applies to human contributors and AI agents alike. See [Gated tests](AGENTS.md#gated-tests-slow-api-flaky-trio) in AGENTS.md for common commands and the [slow-tests skill](.agents/skills/slow-tests/SKILL.md) for the full list of flags, directories, and requirements.
+
 ## Creating a pull request
+
+Title the PR with a [Conventional Commits](https://www.conventionalcommits.org/)
+type, then the user-facing outcome: `type: description` or
+`type(scope): description`, for example `fix: eval hang when resuming with S3
+logs` or `feat(anthropic): support Claude Haiku 5.5`. PRs are squash-merged, so
+the title becomes the commit that sets the next release's version:
+
+- `fix`, `feat`, `perf` and `revert` make a patch release (0.3.x).
+- `!` after the type or scope (`feat!: ...`) marks a breaking change. It is
+  listed in the changelog but still makes a patch release; maintainers decide
+  when to make a minor release.
+- `docs`, `refactor`, `test`, `build`, `ci`, `chore` and `style` do not make a
+  release on their own.
+
+The PR Title Lint check fails until the title follows this format; editing the
+title re-runs it.
+
+Don't edit `CHANGELOG.md`; the Changelog Lint check fails PRs that do.
+Release Please writes the changelog and the GitHub Release notes from the
+squash-merged PR titles, so your PR title is the changelog line. `feat`, `fix`,
+`perf` and `revert` titles are listed under Features, Bug Fixes, Performance
+Improvements and Reverts; other types are left out. The squash commit's message
+is the PR description, which Release Please also reads:
+
+- For a breaking change, use `feat!:` (or `fix!:`) and add a paragraph to the
+  PR description starting with `BREAKING CHANGE:` that says what users must
+  change, with a blank line after it. It is listed under "Breaking Changes".
+- A line in the description that starts with a type and colon (such as
+  `fix: ...`) right after a blank line adds its own changelog entry. To show
+  such a line without adding an entry, indent it (four spaces also renders it
+  as code). A code fence does not prevent the entry when a blank line comes
+  before the line inside it.
+- To reword the entry after the PR is merged, before the release, edit the
+  merged PR's description to start with:
+
+  ```
+  BEGIN_COMMIT_OVERRIDE
+  fix: the corrected outcome (#NNN)
+  END_COMMIT_OVERRIDE
+  ```
+
+  Include `(#NNN)`, the PR number, to keep the link to the PR. The release PR
+  picks up the change on the next push to `main`. Editing `CHANGELOG.md` in
+  the release PR does not last: Release Please rewrites the release PR.
 
 Fill in the PR template and, when addressing an accepted issue, reference it
 (`Fixes #NNN`). Explain the user-facing problem and result. In
@@ -145,6 +195,12 @@ report what you ran, its outcome, and any checks you could not run. Run
 **Review expectations:** we aim to review every PR, given time. A PR that goes
 inactive for 60 days is closed by the stale bot with an invitation to reopen —
 that isn't a judgment of you or your work.
+
+**Reviewing other PRs:** feedback on other people's PRs is welcome. Unless a
+maintainer asked for your review, leave it as a comment rather than choosing
+Approve or Request changes. Those are maintainer decisions here: a
+non-maintainer's verdict doesn't count toward merging and can mislead the
+author about where their PR stands.
 
 ## Becoming a qualified contributor
 

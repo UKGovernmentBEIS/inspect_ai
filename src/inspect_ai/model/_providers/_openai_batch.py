@@ -1,3 +1,4 @@
+import json
 from typing import IO, Any, Generic, Literal, TypeVar
 
 import httpx2
@@ -22,6 +23,7 @@ from .util.file_batcher import FileBatcher
 
 
 class CompletedBatchInfo(TypedDict):
+    status: str
     result_uris: list[str]
 
 
@@ -63,6 +65,15 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
             "url": self.endpoint,
             "body": {k: v for k, v in request.request.items() if v is not NOT_GIVEN},
         }
+
+    @override
+    def _missing_result_error(
+        self, batch: Batch[ResponseT], completion_info: CompletedBatchInfo
+    ) -> Exception:
+        return RuntimeError(
+            f"Batch {batch.id} ended with status '{completion_info['status']}' "
+            "without a result for this request"
+        )
 
     @override
     def _uris_from_completion_info(
@@ -145,14 +156,27 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
             )
 
         if (error := result.get("error")) is None:
-            response_body = result["response"]["body"]
-            return request_id, self._response_cls.model_validate(response_body)
+            response = result["response"]
+            response_body = response["body"]
+            status_code = response.get("status_code", 200)
+            if 200 <= status_code < 300:
+                return request_id, self._response_cls.model_validate(response_body)
+            error_text = json.dumps(response_body)
         else:
-            return request_id, (
-                self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-                    httpx2.Response(status_code=error["code"], text=error["message"])
+            code = str(error["code"])
+            if not code.isascii() or not code.isdigit():
+                return request_id, _batch_error_to_exception(
+                    BatchError.model_validate(error)
                 )
+            status_code = int(code)
+            error_text = error["message"]
+        return request_id, self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
+            httpx2.Response(
+                status_code=status_code,
+                text=error_text,
+                request=httpx2.Request("POST", self.endpoint),
             )
+        )
 
     # Batcher overrides
 
@@ -184,7 +208,17 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
             else (0, 0)
         )
 
-        if batch_info.status not in {"completed", "failed", "cancelled", "expired"}:
+        batch_file_ids = [
+            file_id
+            for file_id in [batch_info.output_file_id, batch_info.error_file_id]
+            if file_id is not None
+        ]
+
+        # A completed batch without result files may not have them set yet, so
+        # keep polling; cancelled and expired batches can end without any.
+        if batch_info.status not in {"completed", "cancelled", "expired"} or (
+            batch_info.status == "completed" and not batch_file_ids
+        ):
             return BatchCheckResult(
                 completed_count=completed,
                 failed_count=failed,
@@ -192,22 +226,14 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
                 completion_info=None,
             )
 
-        # The doc suggests that `output_file_id` will only be populated if the batch
-        # as a whole reached the `completed` state. This means that if all but
-        # one request in the batch completed, but ultimately the batch expired,
-        # there will be no partial results returned.
-
-        batch_file_ids = [
-            file_id
-            for file_id in [batch_info.output_file_id, batch_info.error_file_id]
-            if file_id is not None
-        ]
-
         return BatchCheckResult(
             completed_count=completed,
             failed_count=failed,
             created_at=batch_info.created_at,
-            completion_info={"result_uris": batch_file_ids} if batch_file_ids else None,
+            completion_info={
+                "status": batch_info.status,
+                "result_uris": batch_file_ids,
+            },
         )
 
     # Protected - subclasses can override

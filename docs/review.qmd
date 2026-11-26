@@ -21,7 +21,7 @@ A reviewer returns a `Review` with one of three decisions:
 
 There is no `reject` or `modify`: the call has already run, so there is nothing to reject or rewrite. A result that no policy covers, or that every matching reviewer escalates, continues.
 
-Only calls that executed are reviewed. A call an approver rejected, or that failed before running because its arguments could not be parsed, produced no result and is not reviewed. Handoffs to sub-agents are not reviewed either; the sub-agent's own tool calls are reviewed as they run.
+Only calls that executed are reviewed. A call an approver rejected, or that failed before running because its arguments could not be parsed, produced no result and is not reviewed. A `handoff()` call is reviewed like any other tool once the sub-agent returns: the reviewer sees the handoff call (matched by its tool name, e.g. `transfer_to_helper`) and the transfer result the parent model receives, and the sub-agent's own tool calls are reviewed as they run.
 
 Errors reported by an executed tool are reviewed when they would otherwise be returned to the model, including parsing or approval errors raised from inside the tool.
 
@@ -86,7 +86,7 @@ The arguments are:
 | `view` | The tool's optional human-readable rendering of the call. |
 | `history` | The conversation up to and including the assistant message that made the call. |
 
-Exceptions raised by a reviewer end the sample as an error, as exceptions from approvers do. Model calls made by a reviewer do not count towards the sample's token or turn limits.
+Exceptions raised by a reviewer end the sample as an error, as exceptions from approvers do. Model calls made by a reviewer are recorded in the sample's model usage, but do not count towards any token, turn or cost limit.
 
 Cancelling a tool call while its review is unfinished stops the sample with an operator limit. The completed tool result remains in the transcript, and an information event records that review was cancelled. If the sample stops for another reason, unfinished reviewers are cancelled and their tools' completed results are also preserved. An interrupted review does not record a review decision.
 
@@ -104,7 +104,7 @@ reviewers:
 inspect eval task.py --review review.yaml
 ```
 
-Reviewers defined in your own Python modules are referenced by their registry name; use the `@reviewer(name=...)` decorator to control it. The `tools` field uses the same glob syntax as approval policies, matching either the tool name or the tool name and its arguments.
+Reviewers defined in your own Python modules are referenced by their registry name; use the `@reviewer(name=...)` decorator to control it. The `tools` and `arguments` fields work as in [approval policies](approval.qmd#auto-approver): `tools` matches tool names and `arguments` matches argument values.
 
 In Python, pass a list of `ReviewPolicy` objects:
 

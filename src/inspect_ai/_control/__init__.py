@@ -81,4 +81,10 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 #       `ctl config`), joining the version-4 retry knobs. No CLI gate — the
 #       view entry is presence-read, and a set against an older strict
 #       server is rejected atomically (version 3).
-CONTROL_API_VERSION: int = 8
+#   9 — tasks that have not started: `GET /tasks` lists them with status
+#       `queued`, and a task cancel or drain of one aborts it before it
+#       starts (`task_queued` in the result), or, while its attempt is
+#       starting, when it registers (`abort_deferred`). A task that ends
+#       without starting stays listed as finished. No CLI gate — an older
+#       server simply doesn't list them.
+CONTROL_API_VERSION: int = 9

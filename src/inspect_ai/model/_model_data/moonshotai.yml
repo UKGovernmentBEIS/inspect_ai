@@ -9,6 +9,23 @@
 moonshotai:
   display_name: Moonshot AI
   models:
+    kimi-k3.1-pro:
+      display_name: "Kimi K3.1 Pro"
+      # Release date and knowledge cutoff not stated in Moonshot's docs; omit for now.
+      context_length: 1048576
+      # Default output cap is 131072 but it is settable up to the full 1M window.
+      output_tokens: 1048576
+      reasoning: True
+      # Thinking is always on; reasoning_effort accepts low/high/max (default max).
+      # https://platform.kimi.ai/docs/guide/kimi-k3-1-pro-quickstart
+      reasoning_effort_default: max
+    kimi-k3.1-pro-highspeed:
+      # Same model as kimi-k3.1-pro with identical limits, served at 2-3x the speed.
+      display_name: "Kimi K3.1 Pro Highspeed"
+      context_length: 1048576
+      output_tokens: 1048576
+      reasoning: True
+      reasoning_effort_default: max
     kimi-k3:
       display_name: "Kimi K3"
       release_date: 2026-07-16
@@ -17,8 +34,8 @@ moonshotai:
       # Default output cap is 131072 but it is settable up to the full 1M window.
       output_tokens: 1048576
       reasoning: True
-      # K3 thinking is always on; reasoning_effort currently only accepts "max".
-      # https://platform.kimi.ai/docs/guide/use-thinking-effort
+      # Thinking is always on; reasoning_effort accepts low/high/max (default max).
+      # https://platform.kimi.ai/docs/api/models-overview
       reasoning_effort_default: max
     kimi-k2.6:
       display_name: "Kimi K2.6"

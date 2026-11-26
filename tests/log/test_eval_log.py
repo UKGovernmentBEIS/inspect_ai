@@ -1,22 +1,33 @@
+import base64
+import hashlib
 import io
+import json
 import math
 import os
 import re
 import tempfile
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import BinaryIO, Literal, cast
+from typing import Any, BinaryIO, Literal, cast
 from unittest.mock import patch
 from zipfile import ZipFile
 
 import anyio
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pydantic_core import PydanticSerializationError
 from test_helpers.utils import skip_if_trio
 from typing_extensions import override
 
 from inspect_ai import Task, eval
+from inspect_ai._util._async import current_async_backend
+from inspect_ai._util.asyncfiles import (
+    S3_COMPOSE_MIN_PREFIX,
+    AsyncFilesystem,
+    ComposeSource,
+    _s3_copy_ranges,
+)
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.content import ContentDocument
 from inspect_ai._util.file import FileInfo, filesystem, local_path
@@ -30,20 +41,29 @@ from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._subtask import SubtaskEvent
 from inspect_ai.event._timeline import TimelineEvent, timeline_build
 from inspect_ai.event._tool import ToolEvent
-from inspect_ai.log import read_eval_log
+from inspect_ai.log import (
+    EvalError,
+    EvalShardEntry,
+    EvalShards,
+    read_eval_log,
+)
 from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.log._file import (
     ReadEvalLogsProgress,
     list_eval_logs,
     log_files_from_ls,
+    read_eval_log_async,
     read_eval_log_headers,
     read_eval_log_sample,
+    read_eval_log_sample_summaries_async,
     read_eval_log_samples,
     write_eval_log,
+    write_eval_log_async,
 )
-from inspect_ai.log._log import EvalLog, EvalSample, EvalSpec
-from inspect_ai.model import get_model
+from inspect_ai.log._log import EvalLog, EvalSample, EvalSpec, EvalStats
+from inspect_ai.model import ChatMessage, ModelUsage, get_model
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import requested_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import (
     Metric,
@@ -62,6 +82,8 @@ from inspect_ai.solver import (
     generate,
     solver,
 )
+from inspect_ai.util import SandboxEnvironmentType
+from inspect_ai.util._checkpoint.config import CheckpointSampleConfig
 
 
 def log_path(file: str) -> str:
@@ -74,6 +96,40 @@ def read_log(file: str, header_only: bool = False) -> EvalLog:
 
 class NotSerializable:
     name: str
+
+
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_removed_web_browser_log_round_trip(
+    tmp_path: Path, format: Literal["json", "eval"]
+) -> None:
+    """Old browser results and stored state remain readable without the tools."""
+    source = (
+        Path(__file__).parents[1]
+        / "analysis/test_logs/2025-05-12T20-27-36-04-00_browser.json"
+    )
+    log = read_eval_log(source)
+    assert log.samples
+    sample = log.samples[0]
+    browser_events = [
+        event
+        for event in sample.events
+        if isinstance(event, ToolEvent) and event.function.startswith("web_browser_")
+    ]
+    assert browser_events
+    assert any(key.startswith("WebBrowserStore:") for key in sample.store)
+
+    target = tmp_path / f"browser.{format}"
+    write_eval_log(log, target, format=format)
+    restored = read_eval_log(target)
+    assert restored.samples
+    restored_sample = restored.samples[0]
+    assert restored_sample.store == sample.store
+    assert restored_sample.messages == sample.messages
+    assert [
+        event
+        for event in restored_sample.events
+        if isinstance(event, ToolEvent) and event.function.startswith("web_browser_")
+    ] == browser_events
 
 
 def test_ignore_unserializable():
@@ -195,6 +251,37 @@ def test_can_round_trip_serialize_model_event():
     assert original == deserialized
 
 
+def test_model_event_requested_model_round_trips_through_log(tmp_path: Path) -> None:
+    @solver
+    def bridged_generate():
+        async def solve(state: TaskState, generate: Generate):
+            with requested_model("gpt-4o-mini"):
+                return await generate(state)
+
+        return solve
+
+    task = Task(dataset=[Sample(input="Say hello.")], solver=bridged_generate())
+    log = eval(task, model="mockllm/model", log_dir=str(tmp_path))[0]
+    assert log.status == "success"
+
+    read_back = read_eval_log(log.location)
+    assert read_back.samples is not None
+    events = [e for e in read_back.samples[0].events if isinstance(e, ModelEvent)]
+    assert [(e.model, e.requested_model) for e in events] == [
+        ("mockllm/model", "gpt-4o-mini")
+    ]
+
+
+def test_model_event_requested_model_absent_in_older_log() -> None:
+    log = read_eval_log(
+        os.path.join("tests", "log", "test_eval_log", "log_read_sample.eval")
+    )
+    assert log.samples is not None
+    events = [e for s in log.samples for e in s.events if isinstance(e, ModelEvent)]
+    assert events
+    assert all(e.requested_model is None for e in events)
+
+
 def _inject_invalid_unicode_into_log(log: EvalLog) -> EvalLog:
     # Ensure samples exist
     assert log.samples is not None and len(log.samples) > 0
@@ -291,6 +378,34 @@ def test_can_round_trip_serialize_sample_init_event_with_none_state():
     assert original == deserialized
 
 
+def test_sample_init_event_omits_description_for_older_readers():
+    original = SampleInitEvent(
+        sample=Sample(input="input", description="solve this"),
+        state=None,
+        timestamp=datetime.now(timezone.utc),
+    )
+
+    serialized = original.model_dump(mode="json", exclude_none=True)
+    legacy_sample = serialized["sample"]
+
+    class PreviousSampleReader(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+        input: str
+        target: str | list[str]
+
+    assert "description" not in legacy_sample
+    PreviousSampleReader.model_validate(legacy_sample)
+    assert SampleInitEvent.model_validate(serialized).sample.description is None
+
+    schema = SampleInitEvent.model_json_schema(mode="serialization")
+    assert schema["$defs"]["Sample"]
+    assert schema["properties"]["sample"] == {"$ref": "#/$defs/Sample"}
+
+    # The omission is specific to the event; persisted eval samples retain it.
+    assert original.sample.model_dump(exclude_none=True)["description"] == "solve this"
+
+
 def test_can_round_trip_serialize_sandbox_event():
     original = SandboxEvent(action="exec", timestamp=datetime.now(timezone.utc))
 
@@ -350,6 +465,55 @@ def check_log_raises(log_file):
         read_log(log_file)
     with pytest.raises(ValueError):
         read_log(log_file, header_only=True)
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_lone_surrogate_in_model_input_is_logged(
+    tmp_path: Path, log_format: Literal["eval", "json"]
+) -> None:
+    task = Task(
+        dataset=[
+            Sample(
+                input="hi " + chr(0xD800) + " there",
+                target="x",
+            )
+        ],
+        solver=generate(),
+    )
+
+    [log] = eval(
+        task,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        log_format=log_format,
+        display="none",
+    )
+
+    assert log.status == "success"
+    assert log.error is None
+    assert log.samples is not None
+    assert len(log.samples) == 1
+    assert log.samples[0].input in (
+        "hi \ud800 there",
+        "hi \\ud800 there",
+    )
+
+    read_back = read_eval_log(log.location)
+    assert read_back.status == "success"
+    assert read_back.error is None
+    assert read_back.samples is not None
+    assert len(read_back.samples) == 1
+    assert read_back.samples[0].input in (
+        "hi \ud800 there",
+        "hi \\ud800 there",
+    )
+
+    expected_inputs = ("hi \ud800 there", "hi \\ud800 there")
+    for sample in (log.samples[0], read_back.samples[0]):
+        [model_event] = [
+            event for event in sample.events if isinstance(event, ModelEvent)
+        ]
+        assert any(message.text in expected_inputs for message in model_event.input)
 
 
 def test_unicode_surrogates_are_escaped():
@@ -419,6 +583,45 @@ def test_read_bytes_format(format):
     assert not log2.location
     assert log.eval.task == log2.eval.task
     assert log2.samples
+
+
+def _log_bytes_with_location(format: Literal["json", "eval"], location: str) -> bytes:
+    """Fixture log bytes with a `location` key added to the serialized EvalLog."""
+    file_path = os.path.join("tests", "log", "test_eval_log", f"log_formats.{format}")
+    if format == "json":
+        with open(file_path, "rb") as f:
+            return json.dumps({**json.load(f), "location": location}).encode()
+    buf = io.BytesIO()
+    with ZipFile(file_path) as src, ZipFile(buf, "w") as dst:
+        for name in src.namelist():
+            content = src.read(name)
+            if name == "header.json":
+                header = {**json.loads(content), "location": location}
+                content = json.dumps(header).encode()
+            dst.writestr(name, content)
+    return buf.getvalue()
+
+
+@pytest.mark.parametrize("format", ["json", "eval"])
+@pytest.mark.parametrize("header_only", [False, True])
+@pytest.mark.parametrize("auto", [False, True])
+def test_read_bytes_ignores_location_in_content(
+    format: Literal["json", "eval"], header_only: bool, auto: bool, tmp_path: Path
+) -> None:
+    """A stream read returns an empty location whatever the bytes contain."""
+    embedded = tmp_path / f"embedded.{format}"
+    log_bytes = _log_bytes_with_location(format, str(embedded))
+
+    log = read_eval_log(
+        io.BytesIO(log_bytes),
+        header_only=header_only,
+        format="auto" if auto else format,
+    )
+
+    assert log.location == ""
+    with pytest.raises(ValueError, match="does not have a location"):
+        write_eval_log(log)
+    assert not embedded.exists()
 
 
 def test_rewrite_eval_zip_dedupes_duplicate_members():
@@ -512,6 +715,131 @@ def test_read_bytes_header(format):
 
     assert log2.samples is None
     assert log.eval.task == log2.eval.task
+
+
+log_formats_eval = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+
+
+def _eval_shards(selection: Literal["ids", "count", "none"]) -> EvalShards:
+    return EvalShards(
+        selection=selection,
+        sample_count=3 if selection == "count" else None,
+        ledger=[
+            EvalShardEntry(
+                shard="0",
+                log="2026-09-24T11-00-00+00-00_task_aaa.eval",
+                eval_set_id="set-1",
+                status="success",
+                samples=4,
+                started_at="2026-09-24T11:00:00+00:00",
+                completed_at="2026-09-24T11:30:00+00:00",
+                model_usage={
+                    "mockllm/model": ModelUsage(
+                        input_tokens=10, output_tokens=5, total_tokens=15
+                    )
+                },
+                role_usage={
+                    "grader": ModelUsage(
+                        input_tokens=3, output_tokens=1, total_tokens=4
+                    )
+                },
+                size=1234,
+                etag='"0123abcd"',
+                mtime=1790247600.5,
+            ),
+            EvalShardEntry(
+                shard="1",
+                log="2026-09-24T11-05-00+00-00_task_bbb.eval",
+                status="error",
+                error=EvalError(
+                    message="boom", traceback="Traceback", traceback_ansi="Traceback"
+                ),
+                samples=1,
+                started_at="2026-09-24T11:05:00+00:00",
+                size=99,
+            ),
+        ],
+    )
+
+
+def _eval_log_header_json(location: str) -> dict[str, Any]:
+    with ZipFile(location) as zf:
+        return cast(dict[str, Any], json.loads(zf.read("header.json")))
+
+
+@pytest.mark.parametrize("selection", ["ids", "count", "none"])
+def test_eval_log_header_round_trips_shards(
+    tmp_path: Path, selection: Literal["ids", "count", "none"]
+) -> None:
+    log = read_eval_log(log_formats_eval, header_only=True)
+    shards = _eval_shards(selection)
+    log.eval.shards = shards
+    location = str(tmp_path / "merged.eval")
+    write_eval_log(log, location)
+
+    stored = _eval_log_header_json(location)["eval"]["shards"]
+    assert stored["selection"] == selection
+    if selection == "count":
+        assert stored["sample_count"] == 3
+        assert set(stored) == {"selection", "sample_count", "ledger"}
+    else:
+        assert set(stored) == {"selection", "ledger"}
+    assert set(stored["ledger"][0]) == {
+        "shard",
+        "log",
+        "eval_set_id",
+        "status",
+        "samples",
+        "started_at",
+        "completed_at",
+        "model_usage",
+        "role_usage",
+        "size",
+        "etag",
+        "mtime",
+    }
+    assert stored["ledger"][0]["samples"] == 4
+    assert stored["ledger"][0]["etag"] == '"0123abcd"'
+    assert "error" not in stored["ledger"][0]
+    assert stored["ledger"][1]["error"]["message"] == "boom"
+    assert "etag" not in stored["ledger"][1]
+    assert "mtime" not in stored["ledger"][1]
+
+    assert read_eval_log(location).eval.shards == shards
+    assert read_eval_log(location, header_only=True).eval.shards == shards
+
+
+def test_eval_log_header_without_shards_has_no_shards_key(tmp_path: Path) -> None:
+    log = read_eval_log(log_formats_eval, header_only=True)
+    assert log.eval.shards is None
+    location = str(tmp_path / "plain.eval")
+    write_eval_log(log, location)
+
+    assert "shards" not in _eval_log_header_json(location)["eval"]
+    assert read_eval_log(location, header_only=True).eval.shards is None
+
+
+def test_eval_log_header_with_unknown_keys_validates(tmp_path: Path) -> None:
+    log = read_eval_log(log_formats_eval, header_only=True)
+    shards = _eval_shards("ids")
+    log.eval.shards = shards
+    written = str(tmp_path / "written.eval")
+    write_eval_log(log, written)
+
+    # a header from a newer writer, with keys this version does not know
+    header = _eval_log_header_json(written)
+    header["eval"]["future_eval_field"] = "x"
+    header["eval"]["shards"]["future_shards_field"] = 1
+    header["eval"]["shards"]["ledger"][0]["future_entry_field"] = {"x": 1}
+    location = str(tmp_path / "newer.eval")
+    with ZipFile(written) as src, ZipFile(location, "w") as dst:
+        for info in src.infolist():
+            if info.filename != "header.json":
+                dst.writestr(info, src.read(info))
+        dst.writestr("header.json", json.dumps(header))
+
+    read = read_eval_log(location, header_only=True)
+    assert read.eval.shards == shards
 
 
 list_logs_dir = os.path.join("tests", "log", "test_list_logs")
@@ -1693,7 +2021,7 @@ def _seed_sample(id: str | int, text: str, *, error: str | None = None) -> EvalS
 
 
 async def _write_seed_prior(
-    log_dir: Path, samples: list[EvalSample], *, finish: bool = True
+    log_dir: Path | str, samples: list[EvalSample], *, finish: bool = True
 ) -> str:
     """Write a prior attempt's log; `finish=False` leaves it a started (journal-only) log."""
     from inspect_ai.log._log import EvalPlan, EvalStats
@@ -2276,6 +2604,96 @@ async def test_copy_prior_log_reads_a_non_s3_remote_in_chunks(monkeypatch) -> No
     assert yields == 4
 
 
+async def test_read_log_downloads_a_non_s3_remote_in_chunks(monkeypatch) -> None:
+    # read_log downloads a remote .eval log to a temp file before reading it;
+    # a non-S3 remote (gs://, az://; memory:// here) has no async client and
+    # cannot be read in a worker thread (the fsspec rule), so the download
+    # must read on the event loop one chunk at a time, yielding between chunks
+    # rather than stalling the loop for the whole file
+    from inspect_ai._util.file import file
+    from inspect_ai.log._file import read_eval_log_async
+
+    local_log = os.path.join("tests", "log", "test_eval_log", "log_streaming.eval")
+    location = "memory://read_log/log.eval"
+    with open(local_log, "rb") as src, file(location, "wb") as dst:
+        dst.write(src.read())
+    with file(location, "rb") as f:
+        memory_file_cls = type(f)  # fsspec MemoryFile (its module is untyped)
+
+    yields = 0
+    original_checkpoint = anyio.lowlevel.checkpoint
+
+    async def counting_checkpoint() -> None:
+        nonlocal yields
+        yields += 1
+        await original_checkpoint()
+
+    monkeypatch.setattr(anyio.lowlevel, "checkpoint", counting_checkpoint)
+
+    # the number of yields seen so far at each chunk read of the remote file
+    yields_at_read: list[int] = []
+    original_read = memory_file_cls.read
+
+    def counting_read(self: io.BytesIO, size: int = -1) -> bytes:
+        yields_at_read.append(yields)
+        return original_read(self, size)
+
+    monkeypatch.setattr(memory_file_cls, "read", counting_read)
+
+    log = await read_eval_log_async(location)
+
+    assert log.eval.task == (await read_eval_log_async(local_log)).eval.task
+    # the file is read in chunks up to the empty read at EOF, and the loop
+    # gets a checkpoint between one chunk read and the next
+    assert len(yields_at_read) >= 2
+    assert all(b > a for a, b in zip(yields_at_read, yields_at_read[1:]))
+
+
+async def test_read_log_cancelled_mid_download_removes_the_temp_file(
+    monkeypatch,
+) -> None:
+    # the chunked download yields between chunks, so a cancellation can land
+    # mid-download; the temp file the log is downloaded into must not leak
+    from inspect_ai._util.file import file
+    from inspect_ai.log._file import read_eval_log_async
+
+    local_log = os.path.join("tests", "log", "test_eval_log", "log_streaming.eval")
+    location = "memory://read_log/cancelled.eval"
+    with open(local_log, "rb") as src, file(location, "wb") as dst:
+        dst.write(src.read())
+    with file(location, "rb") as f:
+        memory_file_cls = type(f)
+
+    created: list[str] = []
+    original_named_temporary_file = tempfile.NamedTemporaryFile
+
+    def recording_named_temporary_file(*args, **kwargs):
+        temp = original_named_temporary_file(*args, **kwargs)
+        created.append(temp.name)
+        return temp
+
+    monkeypatch.setattr(tempfile, "NamedTemporaryFile", recording_named_temporary_file)
+
+    # cancel once the first chunk has been read (takes effect at the
+    # checkpoint that follows writing it)
+    original_read = memory_file_cls.read
+
+    def cancelling_read(self: io.BytesIO, size: int = -1) -> bytes:
+        chunk = original_read(self, size)
+        if chunk:
+            scope.cancel()
+        return chunk
+
+    monkeypatch.setattr(memory_file_cls, "read", cancelling_read)
+
+    with anyio.CancelScope() as scope:
+        await read_eval_log_async(location)
+
+    assert scope.cancelled_caught
+    assert len(created) == 1
+    assert not os.path.exists(created[0])
+
+
 async def test_eval_recorder_seed_preserves_config_updates_and_discard(
     tmp_path,
 ) -> None:
@@ -2308,3 +2726,908 @@ async def test_eval_recorder_seed_preserves_config_updates_and_discard(
     await recorder.log_discard(spec)
     assert not Path(location).exists()
     assert Path(local_path(prior)).exists()
+
+
+# ---------------------------------------------------------------------------
+# A seeded retry's first flush to S3 composes the prior log's member area
+# server-side instead of uploading it (design/s3-incremental-log-flush.md)
+# ---------------------------------------------------------------------------
+
+
+class _S3CallSpy:
+    """Proxy an aiobotocore S3 client, recording calls and injecting failures.
+
+    A failure is an exception to raise, or a cancel scope to cancel from
+    inside the call.
+    """
+
+    def __init__(
+        self,
+        client: Any,
+        calls: list[tuple[str, dict[str, Any]]],
+        failures: dict[str, Exception | anyio.CancelScope],
+    ) -> None:
+        self._client = client
+        self._calls = calls
+        self._failures = failures
+
+    def __getattr__(self, name: str) -> Any:
+        attr = getattr(self._client, name)
+        if not callable(attr) or name.startswith("_"):
+            return attr
+
+        async def call(**kwargs: Any) -> Any:
+            self._calls.append((name, kwargs))
+            failure = self._failures.pop(name, None)
+            if isinstance(failure, anyio.CancelScope):
+                failure.cancel()
+                await anyio.lowlevel.checkpoint()
+            elif failure is not None:
+                raise failure
+            return await attr(**kwargs)
+
+        return call
+
+
+def _spy_s3(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[list[tuple[str, dict[str, Any]]], dict[str, Exception | anyio.CancelScope]]:
+    calls: list[tuple[str, dict[str, Any]]] = []
+    failures: dict[str, Exception | anyio.CancelScope] = {}
+    original = AsyncFilesystem.s3_client_async
+
+    async def s3_client_async(self: AsyncFilesystem) -> Any:
+        return _S3CallSpy(await original(self), calls, failures)
+
+    monkeypatch.setattr(AsyncFilesystem, "s3_client_async", s3_client_async)
+    return calls, failures
+
+
+def _uploaded_bytes(calls: list[tuple[str, dict[str, Any]]]) -> int:
+    return sum(
+        len(kwargs["Body"])
+        for name, kwargs in calls
+        if name in ("upload_part", "put_object")
+    )
+
+
+def _large_seed_samples(count: int, size: int, *, first: int = 1) -> list[EvalSample]:
+    """Samples whose records hold ``size`` random (incompressible) bytes each."""
+    return [
+        _seed_sample(id, base64.b64encode(os.urandom(size)).decode())
+        for id in range(first, first + count)
+    ]
+
+
+def _s3_log_dir(name: str) -> str:
+    return f"s3://test-bucket/{name}-{uuid.uuid4().hex}"
+
+
+async def _s3_object(location: str) -> bytes:
+    async with AsyncFilesystem() as fs:
+        return await fs.read_file(location)
+
+
+def _temp_bytes(zip_log: Any) -> bytes:
+    zip_log._temp_file.seek(0)
+    return cast(bytes, zip_log._temp_file.read())
+
+
+def _in_progress_uploads() -> list[Any]:
+    import boto3
+
+    uploads = boto3.client("s3").list_multipart_uploads(Bucket="test-bucket")
+    return cast(list[Any], uploads.get("Uploads", []))
+
+
+def _flip_byte(zip_log: Any, offset: int) -> None:
+    """Rewrite one temp-file byte under the compose prefix, as a buggy writer would."""
+    temp = zip_log._temp_file
+    position = temp.tell()
+    temp.seek(offset)
+    byte = temp.read(1)
+    temp.seek(offset)
+    temp.write(bytes([byte[0] ^ 0xFF]))
+    temp.seek(position)
+
+
+# 4 x 2.5 MB of random sample data: a prior log whose member area is over
+# the compose minimum
+_LARGE_PRIOR = (4, 2_500_000)
+
+
+@pytest.mark.parametrize("keep", [None, {(1, 1), (2, 1), (3, 1), (4, 1)}])
+async def test_seeded_start_flush_composes_from_s3_prior(
+    mock_s3: None,
+    monkeypatch: pytest.MonkeyPatch,
+    keep: set[tuple[str | int, int]] | None,
+) -> None:
+    from inspect_ai.log._file import (
+        read_eval_log_async,
+        read_eval_log_sample_summaries_async,
+    )
+    from inspect_ai.log._log import EvalPlan, EvalStats
+    from inspect_ai.log._recorders.eval import EvalRecorder
+
+    prior = await _write_seed_prior(
+        _s3_log_dir("compose-prior"), _large_seed_samples(*_LARGE_PRIOR)
+    )
+    prior_size = len(await _s3_object(prior))
+    spec = _seed_spec("retry-attempt")
+    recorder = EvalRecorder(_s3_log_dir("compose-retry"))
+    location = await recorder.log_init(spec)
+    await recorder.log_seed(spec, prior, keep=keep)
+    zip_log = recorder.data[recorder._log_file_key(spec)]
+    prefix = zip_log._compose_prefix
+    if current_async_backend() == "asyncio":
+        assert prefix is not None and prefix.filename == prior
+        assert prefix.length >= S3_COMPOSE_MIN_PREFIX
+        assert zip_log._compose_prefix_digest is not None
+    else:
+        # trio keeps whole-file uploads: read_file_into reports no ETag
+        assert prefix is None
+
+    calls, _ = _spy_s3(monkeypatch)
+    await recorder.log_start(spec, EvalPlan())
+    await recorder.flush(spec)
+
+    # the object is the bytes a whole upload writes
+    assert await _s3_object(location) == _temp_bytes(zip_log)
+    copies = [kwargs for name, kwargs in calls if name == "upload_part_copy"]
+    if current_async_backend() == "asyncio":
+        assert prefix is not None
+        bucket, key = prior.removeprefix("s3://").split("/", 1)
+        copies.sort(key=lambda c: c["PartNumber"])
+        assert [(c["CopySource"], c["CopySourceRange"]) for c in copies] == [
+            ({"Bucket": bucket, "Key": key}, f"bytes={start}-{end - 1}")
+            for start, end in _s3_copy_ranges(prefix.length)
+        ]
+        assert len(copies) > 1
+        # only the new tail is uploaded, however large the prior
+        assert _uploaded_bytes(calls) < 1024 * 1024 < prior_size
+        assert zip_log._etag == (await AsyncFilesystem().info(location)).etag
+    else:
+        assert copies == []
+    header = await read_eval_log_async(location, header_only=True)
+    assert header.eval.eval_id == "retry-attempt" and header.status == "started"
+    summaries = await read_eval_log_sample_summaries_async(location)
+    assert {s.id for s in summaries} == {1, 2, 3, 4}
+
+    # later flushes compose onto the log's own object
+    calls.clear()
+    await recorder.log_sample(spec, _seed_sample(2, "two again"))
+    await recorder.flush(spec)
+    copies = [kwargs for name, kwargs in calls if name == "upload_part_copy"]
+    if current_async_backend() == "asyncio":
+        bucket, key = location.removeprefix("s3://").split("/", 1)
+        assert copies and all(
+            c["CopySource"] == {"Bucket": bucket, "Key": key} for c in copies
+        )
+    else:
+        assert copies == []
+    assert await _s3_object(location) == _temp_bytes(zip_log)
+
+    final = await recorder.log_finish(spec, "success", EvalStats(), None, None)
+    if current_async_backend() == "asyncio":
+        # under trio the finish reads its samples eagerly from the temp file
+        final = await read_eval_log_async(location)
+    assert final.status == "success" and final.samples is not None
+    assert {s.id for s in final.samples} == {1, 2, 3, 4}
+    assert _in_progress_uploads() == []
+
+
+@pytest.mark.parametrize("case", ["small", "restricted", "local_prior"])
+async def test_seeded_start_flush_uploads_whole_without_a_usable_prefix(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, case: str
+) -> None:
+    from inspect_ai.log._file import read_eval_log_sample_summaries_async
+    from inspect_ai.log._log import EvalPlan
+    from inspect_ai.log._recorders.eval import EvalRecorder
+
+    samples = (
+        [_seed_sample(1, "one"), _seed_sample(2, "two")]
+        if case == "small"
+        else _large_seed_samples(*_LARGE_PRIOR)
+    )
+    prior_dir = (
+        str(tmp_path / "prior") if case == "local_prior" else _s3_log_dir("whole-prior")
+    )
+    prior = await _write_seed_prior(prior_dir, samples)
+    # a restricted seed rewrites the copy, so no S3 object holds its bytes
+    keep: set[tuple[str | int, int]] | None = (
+        {(1, 1), (2, 1)} if case == "restricted" else None
+    )
+
+    spec = _seed_spec("retry-attempt")
+    recorder = EvalRecorder(_s3_log_dir("whole-retry"))
+    location = await recorder.log_init(spec)
+    await recorder.log_seed(spec, prior, keep=keep)
+    zip_log = recorder.data[recorder._log_file_key(spec)]
+    if case == "small" and current_async_backend() == "asyncio":
+        prefix = zip_log._compose_prefix
+        assert prefix is not None and prefix.length < S3_COMPOSE_MIN_PREFIX
+    else:
+        assert zip_log._compose_prefix is None
+
+    calls, _ = _spy_s3(monkeypatch)
+    await recorder.log_start(spec, EvalPlan())
+    await recorder.flush(spec)
+
+    assert not [name for name, _ in calls if name == "upload_part_copy"]
+    assert await _s3_object(location) == _temp_bytes(zip_log)
+    summaries = await read_eval_log_sample_summaries_async(location)
+    assert {s.id for s in summaries} == (
+        {id for id, _ in keep} if keep else {s.id for s in samples}
+    )
+
+
+@pytest.mark.parametrize("replacement", ["restricted", "local_prior"])
+async def test_seed_replacement_drops_the_earlier_compose_prefix(
+    mock_s3: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    replacement: str,
+) -> None:
+    # a second seed whose copy cannot compose must not keep the first seed's
+    # prefix: it describes a temp file that no longer exists
+    from inspect_ai.log._file import read_eval_log_sample_summaries_async
+    from inspect_ai.log._log import EvalPlan
+    from inspect_ai.log._recorders.eval import EvalRecorder
+
+    first = await _write_seed_prior(
+        _s3_log_dir("replaced-prior"), _large_seed_samples(*_LARGE_PRIOR)
+    )
+    second = (
+        first
+        if replacement == "restricted"
+        else await _write_seed_prior(
+            str(tmp_path / "prior"), _large_seed_samples(*_LARGE_PRIOR)
+        )
+    )
+    keep: set[tuple[str | int, int]] | None = (
+        {(1, 1)} if replacement == "restricted" else None
+    )
+
+    spec = _seed_spec("retry-attempt")
+    recorder = EvalRecorder(_s3_log_dir("replaced-retry"))
+    location = await recorder.log_init(spec)
+    await recorder.log_seed(spec, first, keep=None)
+    zip_log = recorder.data[recorder._log_file_key(spec)]
+    if current_async_backend() == "asyncio":
+        assert zip_log._compose_prefix is not None
+    await recorder.log_seed(spec, second, keep=keep)
+    assert zip_log._compose_prefix is None
+    assert zip_log._compose_prefix_digest is None
+
+    calls, _ = _spy_s3(monkeypatch)
+    await recorder.log_start(spec, EvalPlan())
+    await recorder.flush(spec)
+
+    assert not [name for name, _ in calls if name == "upload_part_copy"]
+    assert await _s3_object(location) == _temp_bytes(zip_log)
+    summaries = await read_eval_log_sample_summaries_async(location)
+    assert {s.id for s in summaries} == ({1} if keep else {1, 2, 3, 4})
+
+
+@skip_if_trio
+async def test_seeded_start_flush_uploads_whole_when_prior_changed(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from inspect_ai.log._log import EvalPlan
+    from inspect_ai.log._recorders.eval import EvalRecorder
+
+    prior = await _write_seed_prior(
+        _s3_log_dir("changed-prior"), _large_seed_samples(*_LARGE_PRIOR)
+    )
+    spec = _seed_spec("retry-attempt")
+    recorder = EvalRecorder(_s3_log_dir("changed-retry"))
+    location = await recorder.log_init(spec)
+    await recorder.log_seed(spec, prior, keep=None)
+    zip_log = recorder.data[recorder._log_file_key(spec)]
+
+    # another writer replaces the prior (e.g. a viewer header edit): the same
+    # bytes as one PutObject carry a different ETag from the multipart upload
+    async with AsyncFilesystem() as fs:
+        prior_bytes = await fs.read_file(prior)
+        bucket, key = prior.removeprefix("s3://").split("/", 1)
+        client = await fs.s3_client_async()
+        await client.put_object(Bucket=bucket, Key=key, Body=prior_bytes)
+
+    calls, _ = _spy_s3(monkeypatch)
+    await recorder.log_start(spec, EvalPlan())
+    await recorder.flush(spec)
+
+    assert "compose source changed" in caplog.text
+    assert not [name for name, _ in calls if name == "upload_part_copy"]
+    assert await _s3_object(location) == _temp_bytes(zip_log)
+    assert not zip_log._compose_disabled
+
+
+@skip_if_trio
+async def test_seeded_start_flush_compose_failure_aborts_and_uploads_whole(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from botocore.exceptions import ClientError
+
+    from inspect_ai.log._log import EvalPlan
+    from inspect_ai.log._recorders.eval import EvalRecorder
+
+    prior = await _write_seed_prior(
+        _s3_log_dir("failing-prior"), _large_seed_samples(*_LARGE_PRIOR)
+    )
+    spec = _seed_spec("retry-attempt")
+    recorder = EvalRecorder(_s3_log_dir("failing-retry"))
+    location = await recorder.log_init(spec)
+    await recorder.log_seed(spec, prior, keep=None)
+    zip_log = recorder.data[recorder._log_file_key(spec)]
+
+    calls, failures = _spy_s3(monkeypatch)
+    # the compose's tail upload fails after its prefix part was copied
+    failures["upload_part"] = ClientError(
+        cast(Any, {"Error": {"Code": "NotImplemented", "Message": "no"}}),
+        "UploadPart",
+    )
+    await recorder.log_start(spec, EvalPlan())
+    await recorder.flush(spec)
+
+    names = [name for name, _ in calls]
+    assert names.index("upload_part_copy") < names.index("abort_multipart_upload")
+    assert "server-side compose failed" in caplog.text
+    assert zip_log._compose_disabled
+    assert _in_progress_uploads() == []
+    assert await _s3_object(location) == _temp_bytes(zip_log)
+
+
+def test_compose_prefix_verify_mode_is_on_in_the_test_suite() -> None:
+    from inspect_ai.log._recorders.eval import _verify_compose_prefix
+
+    assert os.environ["INSPECT_VERIFY_COMPOSE_PREFIX"] == "1"
+    assert _verify_compose_prefix()
+
+
+@skip_if_trio
+async def test_compose_prefix_violation_fails_flushes_and_close(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import inspect_ai.log._recorders.eval as eval_module
+    from inspect_ai.log._log import EvalPlan, EvalStats
+    from inspect_ai.log._recorders.eval import (
+        ComposePrefixInvariantError,
+        EvalRecorder,
+    )
+
+    digests: list[int] = []
+    digest_prefix = eval_module._digest_prefix
+
+    def spy_digest(file: BinaryIO, length: int) -> bytes:
+        digests.append(length)
+        return digest_prefix(file, length)
+
+    prior = await _write_seed_prior(
+        _s3_log_dir("violation-prior"), _large_seed_samples(*_LARGE_PRIOR)
+    )
+    # after the prior's own flushes, which record its prefixes
+    monkeypatch.setattr(eval_module, "_digest_prefix", spy_digest)
+    spec = _seed_spec("retry-attempt")
+    recorder = EvalRecorder(_s3_log_dir("violation-retry"))
+    location = await recorder.log_init(spec)
+    await recorder.log_seed(spec, prior, keep=None)
+    zip_log = recorder.data[recorder._log_file_key(spec)]
+    prefix = zip_log._compose_prefix
+    assert prefix is not None
+    assert digests == [prefix.length]
+
+    _flip_byte(zip_log, prefix.length // 2)
+    await recorder.log_start(spec, EvalPlan())
+    with pytest.raises(ComposePrefixInvariantError, match="changed since it was"):
+        await recorder.flush(spec)
+    assert digests == [prefix.length, prefix.length]
+    async with AsyncFilesystem() as fs:
+        assert not await fs.exists(location)
+    assert _in_progress_uploads() == []
+
+    # sticky: no later flush or the finish writes anything
+    with pytest.raises(ComposePrefixInvariantError):
+        await recorder.flush(spec)
+    with pytest.raises(ComposePrefixInvariantError):
+        await recorder.log_finish(spec, "error", EvalStats(), None, None)
+    with pytest.raises(ComposePrefixInvariantError):
+        await zip_log.close(header_only=True)
+    async with AsyncFilesystem() as fs:
+        assert not await fs.exists(location)
+
+
+@skip_if_trio
+async def test_compose_prefix_unverified_outside_verify_mode(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # production relies on the invariant: without verify mode a corrupted
+    # prefix composes, and the object differs from the temp file
+    import inspect_ai.log._recorders.eval as eval_module
+    from inspect_ai.log._log import EvalPlan
+    from inspect_ai.log._recorders.eval import EvalRecorder
+
+    monkeypatch.delenv("INSPECT_VERIFY_COMPOSE_PREFIX")
+
+    def no_digest(file: BinaryIO, length: int) -> bytes:
+        raise AssertionError("verify mode is off")
+
+    monkeypatch.setattr(eval_module, "_digest_prefix", no_digest)
+
+    prior = await _write_seed_prior(
+        _s3_log_dir("unverified-prior"), _large_seed_samples(*_LARGE_PRIOR)
+    )
+    spec = _seed_spec("retry-attempt")
+    recorder = EvalRecorder(_s3_log_dir("unverified-retry"))
+    location = await recorder.log_init(spec)
+    await recorder.log_seed(spec, prior, keep=None)
+    zip_log = recorder.data[recorder._log_file_key(spec)]
+    prefix = zip_log._compose_prefix
+    assert prefix is not None and zip_log._compose_prefix_digest is None
+
+    _flip_byte(zip_log, prefix.length // 2)
+    await recorder.log_start(spec, EvalPlan())
+    await recorder.flush(spec)
+
+    composed = await _s3_object(location)
+    local = _temp_bytes(zip_log)
+    assert len(composed) == len(local) and composed != local
+    assert composed[prefix.length :] == local[prefix.length :]
+
+
+async def _assert_composed_object(
+    location: str, zip_log: Any, prefix: ComposeSource, digest: bytes
+) -> None:
+    """Compare a composed object with the recorded prefix digest and the temp file.
+
+    Reads the object's prefix range back with an unconditional GET: its ETag
+    must be the one the flush returned, and its digest the one recorded from
+    the temp file when the prefix was recorded.
+    """
+    bucket, key = location.removeprefix("s3://").split("/", 1)
+    async with AsyncFilesystem() as fs:
+        client = await fs.s3_client_async()
+        response = await client.get_object(
+            Bucket=bucket, Key=key, Range=f"bytes=0-{prefix.length - 1}"
+        )
+        body = response["Body"]
+        try:
+            prefix_bytes = await body.read()
+        finally:
+            body.close()
+    assert str(response["ETag"]).strip('"') == zip_log._etag
+    assert hashlib.blake2b(prefix_bytes).digest() == digest
+    assert await _s3_object(location) == _temp_bytes(zip_log)
+
+
+@pytest.mark.slow
+@skip_if_trio
+@pytest.mark.parametrize("size_mib", [120, 200])
+async def test_seeded_start_flush_composes_large_prior_byte_for_byte(
+    mock_s3: None, size_mib: int
+) -> None:
+    """A seeded retry's flushes compose objects that match the temp file.
+
+    The start flush composes from the prior log and each later flush from
+    the log's own object. The retry benchmark's shapes (about 120 MiB and
+    200 MiB logs).
+    """
+    from inspect_ai.log._log import EvalPlan, EvalStats
+    from inspect_ai.log._recorders.eval import EvalRecorder
+
+    sample_size = 2 * 1024 * 1024
+    prior = await _write_seed_prior(
+        _s3_log_dir("large-prior"),
+        _large_seed_samples(size_mib * 1024 * 1024 // sample_size, sample_size),
+    )
+    spec = _seed_spec("retry-attempt")
+    recorder = EvalRecorder(_s3_log_dir("large-retry"))
+    location = await recorder.log_init(spec)
+    await recorder.log_seed(spec, prior, keep=None)
+    zip_log = recorder.data[recorder._log_file_key(spec)]
+    prefix = zip_log._compose_prefix
+    digest = zip_log._compose_prefix_digest
+    assert prefix is not None and prefix.filename == prior and digest is not None
+
+    await recorder.log_start(spec, EvalPlan())
+    await recorder.flush(spec)
+    await _assert_composed_object(location, zip_log, prefix, digest)
+
+    for id in (1, 2):
+        prefix = zip_log._compose_prefix
+        digest = zip_log._compose_prefix_digest
+        assert prefix is not None and prefix.filename == location
+        assert digest is not None
+        await recorder.log_sample(spec, _seed_sample(id, f"rerun {id}"))
+        await recorder.flush(spec)
+        await _assert_composed_object(location, zip_log, prefix, digest)
+    await recorder.log_finish(spec, "error", EvalStats(), None, None)
+
+
+@pytest.mark.slow
+@skip_if_trio
+@pytest.mark.parametrize("size_mib", [120, 200])
+async def test_s3_flushes_compose_large_log_byte_for_byte(
+    mock_s3: None, size_mib: int
+) -> None:
+    """A fresh log flushed every few samples composes each flush onto its own object.
+
+    The retry benchmark's shapes (about 120 MiB and 200 MiB logs).
+    """
+    from inspect_ai.log._log import EvalPlan, EvalStats
+    from inspect_ai.log._recorders.eval import EvalRecorder
+
+    sample_size = 2 * 1024 * 1024
+    log_buffer = 10
+    spec = _seed_spec("fresh-attempt")
+    recorder = EvalRecorder(_s3_log_dir("large-fresh"))
+    location = await recorder.log_init(spec)
+    await recorder.log_start(spec, EvalPlan())
+    zip_log = recorder.data[recorder._log_file_key(spec)]
+    await recorder.flush(spec)
+
+    composed = 0
+    for batch in range(-(-size_mib * 1024 * 1024 // (sample_size * log_buffer))):
+        prefix = zip_log._compose_prefix
+        digest = zip_log._compose_prefix_digest
+        for sample in _large_seed_samples(
+            log_buffer, sample_size, first=1 + batch * log_buffer
+        ):
+            await recorder.log_sample(spec, sample)
+        await recorder.flush(spec)
+        if prefix is not None and prefix.length >= S3_COMPOSE_MIN_PREFIX:
+            assert prefix.filename == location and digest is not None
+            await _assert_composed_object(location, zip_log, prefix, digest)
+            composed += 1
+        else:
+            assert await _s3_object(location) == _temp_bytes(zip_log)
+    assert composed >= 4
+    await recorder.log_finish(spec, "error", EvalStats(), None, None)
+
+
+# ---------------------------------------------------------------------------
+# Every S3 flush composes onto the log's own object, uploading only what was
+# written since the previous flush (design/s3-incremental-log-flush.md, #481)
+# ---------------------------------------------------------------------------
+
+# 2 x 3 MB of random sample data: each batch grows the member area past the
+# compose minimum
+_LARGE_BATCH = (2, 3_000_000)
+
+
+async def _start_s3_log(name: str) -> tuple[Any, EvalSpec, str, Any]:
+    """An S3 log after ``log_start``: its recorder, spec, location and zip log."""
+    from inspect_ai.log._log import EvalPlan
+    from inspect_ai.log._recorders.eval import EvalRecorder
+
+    spec = _seed_spec(name)
+    recorder = EvalRecorder(_s3_log_dir(name))
+    location = await recorder.log_init(spec)
+    await recorder.log_start(spec, EvalPlan())
+    return recorder, spec, location, recorder.data[recorder._log_file_key(spec)]
+
+
+async def _log_large_batch(recorder: Any, spec: EvalSpec, batch: int) -> None:
+    count, size = _LARGE_BATCH
+    for sample in _large_seed_samples(count, size, first=1 + batch * count):
+        await recorder.log_sample(spec, sample)
+
+
+def _copies(calls: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:
+    return sorted(
+        (kwargs for name, kwargs in calls if name == "upload_part_copy"),
+        key=lambda c: cast(int, c["PartNumber"]),
+    )
+
+
+async def test_s3_flushes_compose_onto_the_log_own_object(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai.log._recorders.recorder import SampleRecordKey
+
+    recorder, spec, location, zip_log = await _start_s3_log("own-object")
+    bucket, key = location.removeprefix("s3://").split("/", 1)
+    calls, _ = _spy_s3(monkeypatch)
+    for batch in range(3):
+        if batch == 2:
+            # a directory-only prune leaves the member area in place
+            await recorder.log_prune(spec, {SampleRecordKey("1", 1)})
+        previous = zip_log._compose_prefix
+        await _log_large_batch(recorder, spec, batch)
+        calls.clear()
+        await recorder.flush(spec)
+
+        local = _temp_bytes(zip_log)
+        assert await _s3_object(location) == local
+        if current_async_backend() == "asyncio" and batch > 0:
+            # copies the previous object's member area, uploads the rest
+            assert previous is not None and previous.filename == location
+            assert [
+                (c["CopySource"], c["CopySourceRange"]) for c in _copies(calls)
+            ] == [
+                ({"Bucket": bucket, "Key": key}, f"bytes={start}-{end - 1}")
+                for start, end in _s3_copy_ranges(previous.length)
+            ]
+            assert _uploaded_bytes(calls) == len(local) - previous.length
+        elif current_async_backend() == "asyncio":
+            assert _copies(calls) == []
+            assert _uploaded_bytes(calls) == len(local)
+
+        prefix = zip_log._compose_prefix
+        if current_async_backend() == "asyncio":
+            assert zip_log._zip is not None
+            assert prefix == ComposeSource(
+                location, cast(str, zip_log._etag), zip_log._zip.start_dir
+            )
+            assert prefix.length >= S3_COMPOSE_MIN_PREFIX
+            assert zip_log._etag == (await AsyncFilesystem().info(location)).etag
+        else:
+            # trio keeps whole-file uploads
+            assert prefix is None
+
+    summaries = await read_eval_log_sample_summaries_async(location)
+    assert {s.id for s in summaries} == {2, 3, 4, 5, 6}
+    await recorder.log_finish(spec, "error", EvalStats(), None, None)
+    assert _in_progress_uploads() == []
+
+
+@skip_if_trio
+@pytest.mark.parametrize("status", ["success", "error"])
+async def test_s3_finish_composes_unless_the_log_is_compacted(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch, status: Literal["success", "error"]
+) -> None:
+    recorder, spec, location, zip_log = await _start_s3_log("finish")
+    await _log_large_batch(recorder, spec, 0)
+    await recorder.flush(spec)
+    # a re-run of sample 1 leaves its first record as dead bytes, enough for
+    # a successful finish to compact the log
+    await recorder.log_sample(spec, _seed_sample(1, "one again"))
+
+    calls, _ = _spy_s3(monkeypatch)
+    final = await recorder.log_finish(spec, status, EvalStats(), None, None)
+    assert (_copies(calls) == []) == (status == "success")
+
+    log = await read_eval_log_async(location)
+    assert log.status == status and log.samples is not None
+    assert {s.id: s.input for s in log.samples}[1] == "one again"
+    assert {s.id for s in log.samples} == {1, 2}
+    assert final.etag is not None
+    assert final.etag == (await AsyncFilesystem().info(location)).etag
+
+    # the conditional header write accepts the ETag the finish returned
+    log.eval.metadata = {"edited": True}
+    await write_eval_log_async(
+        log, location, if_match_etag=final.etag, header_only=True
+    )
+    edited = await read_eval_log_async(location, header_only=True)
+    assert edited.eval.metadata == {"edited": True}
+
+
+@skip_if_trio
+@pytest.mark.parametrize("failure", ["changed", "unsupported"])
+async def test_s3_flush_uploads_whole_when_compose_fails(
+    mock_s3: None,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    failure: str,
+) -> None:
+    import boto3
+    from botocore.exceptions import ClientError
+
+    recorder, spec, location, zip_log = await _start_s3_log("fallback")
+    await _log_large_batch(recorder, spec, 0)
+    await recorder.flush(spec)
+
+    calls, failures = _spy_s3(monkeypatch)
+    if failure == "changed":
+        # another writer replaces the object: the same bytes as one
+        # PutObject carry a different ETag from the multipart upload
+        bucket, key = location.removeprefix("s3://").split("/", 1)
+        boto3.client("s3").put_object(
+            Bucket=bucket, Key=key, Body=await _s3_object(location)
+        )
+    else:
+        # a store without UploadPartCopy
+        failures["upload_part_copy"] = ClientError(
+            cast(Any, {"Error": {"Code": "NotImplemented", "Message": "no"}}),
+            "UploadPartCopy",
+        )
+    await _log_large_batch(recorder, spec, 1)
+    await recorder.flush(spec)
+
+    local = _temp_bytes(zip_log)
+    assert await _s3_object(location) == local
+    assert _uploaded_bytes(calls) == len(local)
+    if failure == "changed":
+        assert "compose source changed" in caplog.text
+        assert _copies(calls) == []
+    else:
+        assert "server-side compose failed" in caplog.text
+    assert zip_log._compose_disabled == (failure == "unsupported")
+    assert _in_progress_uploads() == []
+
+    # a changed source composes again from the new object; an unsupported
+    # store keeps uploading whole logs without warning again
+    calls.clear()
+    caplog.clear()
+    await _log_large_batch(recorder, spec, 2)
+    await recorder.flush(spec)
+    assert await _s3_object(location) == _temp_bytes(zip_log)
+    assert bool(_copies(calls)) == (failure == "changed")
+    assert "compose" not in caplog.text
+    await recorder.log_finish(spec, "error", EvalStats(), None, None)
+
+
+@skip_if_trio
+async def test_s3_cancelled_compose_clears_the_prefix(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recorder, spec, location, zip_log = await _start_s3_log("cancelled")
+    await _log_large_batch(recorder, spec, 0)
+    await recorder.flush(spec)
+    written = await _s3_object(location)
+
+    calls, failures = _spy_s3(monkeypatch)
+    await _log_large_batch(recorder, spec, 1)
+    with anyio.CancelScope() as scope:
+        # cancelled while uploading the tail, after the prefix copy
+        failures["upload_part"] = scope
+        await recorder.flush(spec)
+    assert scope.cancelled_caught
+    assert _copies(calls)
+    assert "abort_multipart_upload" in [name for name, _ in calls]
+    assert _in_progress_uploads() == []
+    assert await _s3_object(location) == written
+    assert zip_log._compose_prefix is None and zip_log._compose_prefix_digest is None
+
+    # the next flush uploads the whole log
+    calls.clear()
+    await recorder.flush(spec)
+    local = _temp_bytes(zip_log)
+    assert await _s3_object(location) == local
+    assert _copies(calls) == [] and _uploaded_bytes(calls) == len(local)
+    await recorder.log_finish(spec, "error", EvalStats(), None, None)
+
+
+@skip_if_trio
+async def test_own_object_compose_prefix_violation_fails_flushes(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import inspect_ai.log._recorders.eval as eval_module
+    from inspect_ai.log._recorders.eval import ComposePrefixInvariantError
+
+    digests: list[int] = []
+    digest_prefix = eval_module._digest_prefix
+
+    def spy_digest(file: BinaryIO, length: int) -> bytes:
+        digests.append(length)
+        return digest_prefix(file, length)
+
+    monkeypatch.setattr(eval_module, "_digest_prefix", spy_digest)
+
+    recorder, spec, location, zip_log = await _start_s3_log("own-violation")
+    await _log_large_batch(recorder, spec, 0)
+    await recorder.flush(spec)
+    prefix = zip_log._compose_prefix
+    assert prefix is not None and prefix.filename == location
+    # the successful flush recorded the prefix's digest
+    assert digests == [prefix.length]
+    written = await _s3_object(location)
+
+    _flip_byte(zip_log, prefix.length // 2)
+    await _log_large_batch(recorder, spec, 1)
+    with pytest.raises(ComposePrefixInvariantError, match="changed since it was"):
+        await recorder.flush(spec)
+    assert digests == [prefix.length, prefix.length]
+    assert await _s3_object(location) == written
+    assert _in_progress_uploads() == []
+
+    # sticky: the next flush raises without writing
+    with pytest.raises(ComposePrefixInvariantError):
+        await recorder.flush(spec)
+    assert await _s3_object(location) == written
+    await recorder.log_discard(spec, keep_destination=True)
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_log_task_and_sample_description(
+    tmp_path: Path, log_format: Literal["eval", "json"]
+) -> None:
+    from inspect_ai.log import read_eval_log_sample_summaries
+
+    task = Task(
+        dataset=[
+            Sample(id=1, input="x", description="Say x."),
+            Sample(id=2, input="y"),
+        ],
+        description="Say the input.",
+    )
+    log = eval(
+        task, model="mockllm/model", log_dir=str(tmp_path), log_format=log_format
+    )[0]
+
+    for read in [
+        read_eval_log(log.location),
+        read_eval_log(log.location, header_only=True),
+    ]:
+        assert read.eval.task_description == "Say the input."
+    samples = sorted(read_eval_log(log.location).samples or [], key=lambda s: s.id)
+    assert [s.description for s in samples] == ["Say x.", None]
+    summaries = sorted(read_eval_log_sample_summaries(log.location), key=lambda s: s.id)
+    assert [s.description for s in summaries] == ["Say x.", None]
+
+    # rewriting the log preserves both fields
+    rewritten = tmp_path / f"rewritten.{log_format}"
+    write_eval_log(read_eval_log(log.location), str(rewritten))
+    reread = read_eval_log(str(rewritten))
+    assert reread.eval.task_description == "Say the input."
+    assert reread.samples is not None
+    assert sorted(s.description or "" for s in reread.samples) == ["", "Say x."]
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_description_logs_are_readable_by_legacy_sample_constructor(
+    tmp_path: Path, log_format: Literal["eval", "json"]
+) -> None:
+    class LegacySample:
+        """The pre-description Sample constructor used by previous readers."""
+
+        def __init__(
+            self,
+            input: str | list[ChatMessage],
+            choices: list[str] | None = None,
+            target: str | list[str] = "",
+            id: int | str | None = None,
+            metadata: dict[str, Any] | None = None,
+            sandbox: SandboxEnvironmentType | None = None,
+            files: dict[str, str] | None = None,
+            setup: str | None = None,
+            checkpoint: CheckpointSampleConfig | None = None,
+        ) -> None:
+            self.input = input
+            self.choices = choices
+            self.target = target
+            self.id = id
+            self.metadata = metadata
+            self.sandbox = sandbox
+            self.files = files
+            self.setup = setup
+            self.checkpoint = checkpoint
+
+    from inspect_ai.log import read_eval_log_sample_summaries
+
+    task = Task(
+        dataset=[Sample(id=1, input="x", description="Say x.")],
+        description="Say the input.",
+    )
+    log = eval(
+        task, model="mockllm/model", log_dir=str(tmp_path), log_format=log_format
+    )[0]
+    full_log = read_eval_log(log.location)
+    sample_record = read_eval_log_sample(log.location, id=1)
+
+    assert full_log.eval.task_description == "Say the input."
+    assert full_log.samples is not None
+    assert full_log.samples[0].description == "Say x."
+    assert sample_record.description == "Say x."
+    assert read_eval_log_sample_summaries(log.location)[0].description == "Say x."
+
+    for record in [full_log.samples[0], sample_record]:
+        init_events = [
+            event for event in record.events if isinstance(event, SampleInitEvent)
+        ]
+        assert len(init_events) == 1
+        legacy_sample = LegacySample(
+            **init_events[0].sample.model_dump(exclude_none=True)
+        )
+        assert legacy_sample.input == "x"
+        assert "description" not in init_events[0].sample.model_dump(exclude_none=True)
+
+
+@pytest.mark.parametrize("log_file", ["log_formats.json", "log_formats.eval"])
+def test_log_without_description_reads(log_file: str) -> None:
+    log = read_eval_log(os.path.join("tests", "log", "test_eval_log", log_file))
+    assert log.eval.task_description is None
+    assert log.samples
+    assert all(sample.description is None for sample in log.samples)
+    assert all(sample.summary().description is None for sample in log.samples)

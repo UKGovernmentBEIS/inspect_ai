@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, MutableMapping
 from logging import getLogger
 from typing import Any, Literal, cast, get_args
 
@@ -11,6 +12,7 @@ from shortuuid import uuid as _shortuuid
 
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.error import EvalError
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
@@ -20,7 +22,15 @@ from inspect_ai.event._pool import (
 )
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
+from inspect_ai.event._score import ScoreEvent
 from inspect_ai.event._validate import validate_events
+from inspect_ai.log._condense import (
+    WalkContext,
+    escape_literal_input_refs,
+    resolve_attachment_fn,
+    walk_json_value,
+    walk_model_output,
+)
 from inspect_ai.log._log import (
     EvalSample,
     EvalSampleLimit,
@@ -35,6 +45,8 @@ from inspect_ai.log._recorders.buffer.types import (
 )
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.scorer._metric import Score
+from inspect_ai.util._store import store_from_events
 
 logger = getLogger(__name__)
 
@@ -169,11 +181,117 @@ def _limit_from_summary(summary: EvalSampleSummary) -> EvalSampleLimit | None:
     )
 
 
+def dataset_sample_or_summary(
+    summary: EvalSampleSummary,
+    sample_init: SampleInitEvent | None,
+    attachments: MutableMapping[str, str],
+) -> Sample | EvalSampleSummary:
+    """Where a recovered sample's input, target and choices come from.
+
+    Shared by both recovery paths. The write path condenses a message-list
+    input again as a sample that holds references, and leaves a string input
+    as it is; the input returned is in the state each expects.
+
+    The buffered summary is thinned (`EvalSampleSummary.thin_data` truncates
+    long text and drops images), so prefer the dataset sample its
+    `SampleInitEvent` recorded. The buffer stores that event condensed: a
+    message-list input stays condensed, like the recovered messages, and a
+    string input's reference is resolved here. A sample interrupted before
+    it recorded the event (while its input media load) has only the summary,
+    which the buffer gives resolved: its literal reference text is stored as
+    attachments here.
+    """
+    if sample_init is None:
+        return summary.model_copy(
+            update={"input": escape_literal_input_refs(summary.input, attachments)}
+        )
+    sample = sample_init.sample
+    if isinstance(sample.input, str):
+        return sample.model_copy(
+            update={"input": resolve_attachment_fn(attachments)(sample.input)}
+        )
+    return sample
+
+
+def recovered_sample_scores(
+    summary: EvalSampleSummary, events: list[Event]
+) -> dict[str, Score] | None:
+    """A recovered sample's scores, taken from its final `ScoreEvent`s.
+
+    Shared by both recovery paths. The buffered summary's scores are thinned
+    (answer, explanation and metadata shortened), so each comes from the last
+    final `ScoreEvent` its scorer recorded. The summary still decides which
+    scores the sample has, and a score with no matching event keeps the
+    summary's copy.
+    """
+    if summary.scores is None:
+        return None
+    final_scores = {
+        event.scorer: event.score
+        for event in events
+        if isinstance(event, ScoreEvent)
+        and not event.intermediate
+        and event.scorer is not None
+    }
+    return {
+        name: final_scores.get(name, score) for name, score in summary.scores.items()
+    }
+
+
+def recovered_sample_store(
+    summary: EvalSampleSummary,
+    events: list[Event],
+    attachments: Mapping[str, str],
+    buffered_store: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """A recovered sample's store.
+
+    Shared by both recovery paths. A completed sample's final store, as its
+    log has it, is buffered when it completes (`buffered_store`). Not every
+    write to it has a `StoreEvent`: a solver may return a forked or copied
+    state, and task cleanup and the sidecar monitor-state copy run outside
+    the spans.
+
+    Otherwise (an in-progress sample, or a buffer from a version that didn't
+    keep the store) it is replayed from the `StoreEvent`s, so it reflects only
+    the top-level spans that ended, and changes made while `StoreEvent`s were
+    suspended (`suspend_store_events()`) are missing. The buffer stores events
+    condensed, so the
+    `attachment://` refs in the replayed values are resolved; a normal run's
+    log keeps the store inline. If the changes don't replay (older versions
+    could record `move` operations that don't), the store is left empty with
+    a warning rather than failing the recovery of every sample.
+    """
+    if buffered_store is not None:
+        return buffered_store
+    try:
+        data = dict(store_from_events(events).items())
+    # jsonpatch also raises jsonpointer's exceptions, which have no type stubs
+    except Exception as ex:
+        logger.warning(
+            "Could not replay the store changes of sample %s (epoch %s) during "
+            "recovery; recovering it with an empty store: %r",
+            summary.id,
+            summary.epoch,
+            ex,
+        )
+        return {}
+    return cast(
+        dict[str, Any],
+        walk_json_value(
+            data,
+            resolve_attachment_fn(attachments),
+            WalkContext(message_cache={}, only_core=False),
+        ),
+    )
+
+
 def reconstruct_eval_sample(
     summary: EvalSampleSummary,
     sample_data: SampleData,
     *,
     sample_metadata: dict[str, Any] | None = None,
+    sample_store: dict[str, Any] | None = None,
     cancelled: bool = False,
     incomplete_action: IncompleteAction = "retry",
     include_events: bool = True,
@@ -184,6 +302,7 @@ def reconstruct_eval_sample(
         summary: Sample summary from the buffer DB samples table.
         sample_data: Events and attachments from buffer.get_sample_data().
         sample_metadata: Full metadata stored separately from the thinned summary.
+        sample_store: The final store buffered when the sample completed.
         cancelled: If True, synthesize an EvalError per `incomplete_action`
             (for in-progress samples interrupted by a crash).
         incomplete_action: Disposition for in-progress samples (see
@@ -193,37 +312,28 @@ def reconstruct_eval_sample(
             extract messages and output.
 
     Returns:
-        A fully resolved EvalSample (not condensed — condensing happens
-        at write time in Step 4).
+        An EvalSample with message and call pools and its output resolved.
+        Events and messages keep the buffer's attachment refs until
+        `condense_sample` runs at write time.
     """
     summary = _summary_with_uuid_fallback(summary)
 
-    deduped_event_data = collapse_event_versions(sample_data.events)
+    events = reconstruct_events(sample_data)
 
-    events = validate_events([event_data.event for event_data in deduped_event_data])
-
-    if sample_metadata is None:
-        sample_init = next(
-            (event for event in events if isinstance(event, SampleInitEvent)), None
-        )
-        if sample_init is not None:
-            sample_metadata = sample_init.sample.metadata
-
-    # Buffer-DB rows store events condensed; without resolving here,
-    # _extract_messages_from_events sees empty ModelEvent.input and drops
-    # every user/tool message from the recovered sample.
-    events = resolve_model_event_inputs(
-        events, _deserialize_message_pool(sample_data.message_pool)
+    sample_init = next(
+        (event for event in events if isinstance(event, SampleInitEvent)), None
     )
-    events = resolve_model_event_calls(
-        events, _deserialize_call_pool(sample_data.call_pool)
-    )
-
-    messages, output = _extract_messages_from_events(events)
+    if sample_metadata is None and sample_init is not None:
+        sample_metadata = sample_init.sample.metadata
 
     attachments = {
         attachment.hash: attachment.content for attachment in sample_data.attachments
     }
+    dataset_sample = dataset_sample_or_summary(summary, sample_init, attachments)
+
+    # condense_sample resolves the refs in messages at write time
+    messages, output = _extract_messages_from_events(events)
+    output = resolve_output_attachments(output, attachments)
 
     # Set error: synthesize an error for in-progress samples (per the
     # recovery disposition), or preserve existing error from
@@ -241,19 +351,22 @@ def reconstruct_eval_sample(
     return EvalSample(
         id=summary.id,
         epoch=summary.epoch,
-        input=summary.input,
-        choices=summary.choices,
-        target=summary.target,
+        input=dataset_sample.input,
+        choices=dataset_sample.choices,
+        target=dataset_sample.target,
+        description=summary.description,
         metadata=sample_metadata if sample_metadata is not None else summary.metadata,
         messages=messages,
         output=output,
-        scores=summary.scores,
+        scores=recovered_sample_scores(summary, events),
+        store=recovered_sample_store(summary, events, attachments, sample_store),
         events=events if include_events else [],
         timelines=None,
         attachments=attachments,
         model_usage=summary.model_usage,
         role_usage=summary.role_usage,
         model_fallbacks=summary.model_fallbacks,
+        sentinel_stats=summary.sentinel_stats,
         turn_count=summary.turn_count,
         token_limit=summary.token_limit,
         token_limit_type=summary.token_limit_type,
@@ -271,6 +384,32 @@ def reconstruct_eval_sample(
         # doesn't merely leave it incomplete -- it erases the limit and reason
         # the buffered summary already knew
         limit=recovered_sample_limit(summary, select_limit_event(summary, events)),
+    )
+
+
+def reconstruct_events(sample_data: SampleData) -> list[Event]:
+    """A buffered sample's events: versions collapsed, validated, pools resolved.
+
+    Duplicate ``event_id`` rows collapse to their latest version (see
+    :func:`collapse_event_versions`). Buffer rows store events condensed, so
+    pooled model inputs and calls are resolved from the sample's message and
+    call pools; without that a ModelEvent's input is empty and message
+    extraction drops every user and tool message. Attachments stay as
+    ``attachment://`` references.
+
+    Raises:
+        pydantic.ValidationError: an event or a pooled message does not
+            validate.
+        ValueError: a pool entry is not JSON.
+    """
+    events = validate_events(
+        [event_data.event for event_data in collapse_event_versions(sample_data.events)]
+    )
+    events = resolve_model_event_inputs(
+        events, _deserialize_message_pool(sample_data.message_pool)
+    )
+    return resolve_model_event_calls(
+        events, _deserialize_call_pool(sample_data.call_pool)
     )
 
 
@@ -416,6 +555,22 @@ def _extract_messages_from_events(
     acc = MessageAccumulator()
     acc.process_events(events)
     return acc.result()
+
+
+def resolve_output_attachments(
+    output: ModelOutput, attachments: Mapping[str, str]
+) -> ModelOutput:
+    """Resolve the `attachment://` refs in an output taken from a model event.
+
+    The buffer stores events condensed, so the output's long text and images
+    are refs. A normal run's log keeps the output inline (condensing a sample
+    leaves `output` alone), so recovery resolves it before writing.
+    """
+    return walk_model_output(
+        output,
+        resolve_attachment_fn(attachments),
+        WalkContext(message_cache={}, only_core=False),
+    )
 
 
 def _segment_messages(model_event: ModelEvent) -> list[ChatMessage]:

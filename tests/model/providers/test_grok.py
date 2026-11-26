@@ -564,6 +564,7 @@ def _fake_grok_response() -> Any:
     from xai_sdk.chat import Response, chat_pb2
 
     proto = chat_pb2.GetChatCompletionResponse(
+        id="grok-response",
         outputs=[
             chat_pb2.CompletionOutput(
                 index=0,
@@ -572,7 +573,7 @@ def _fake_grok_response() -> Any:
                     role=chat_pb2.MessageRole.ROLE_ASSISTANT, content="hello"
                 ),
             )
-        ]
+        ],
     )
     proto.usage.prompt_tokens = 100
     proto.usage.cached_prompt_text_tokens = 80
@@ -632,7 +633,8 @@ async def test_grok_conv_id_sent_for_active_sample(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The sample's uuid pins its turns to one xAI server so the cache hits."""
-    from inspect_ai.model._providers.grok import GROK_CONV_ID_HEADER, GrokAPI
+    from inspect_ai.model._providers._grok_cache import GROK_CONV_ID_HEADER
+    from inspect_ai.model._providers.grok import GrokAPI
 
     clients = _stub_grok_client(monkeypatch)
     _stub_active_sample(monkeypatch, "sample-uuid-1")
@@ -670,7 +672,8 @@ async def test_grok_conv_id_appends_to_caller_metadata(
 
     -M metadata=... arrives as JSON, so pairs are lists rather than tuples.
     """
-    from inspect_ai.model._providers.grok import GROK_CONV_ID_HEADER, GrokAPI
+    from inspect_ai.model._providers._grok_cache import GROK_CONV_ID_HEADER
+    from inspect_ai.model._providers.grok import GrokAPI
 
     clients = _stub_grok_client(monkeypatch)
     _stub_active_sample(monkeypatch, "sample-uuid-1")
@@ -691,7 +694,8 @@ async def test_grok_metadata_model_arg_accepts_mapping(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A mapping metadata model arg yields pairs, not unpacked bare keys."""
-    from inspect_ai.model._providers.grok import GROK_CONV_ID_HEADER, GrokAPI
+    from inspect_ai.model._providers._grok_cache import GROK_CONV_ID_HEADER
+    from inspect_ai.model._providers.grok import GrokAPI
 
     clients = _stub_grok_client(monkeypatch)
     _stub_active_sample(monkeypatch, "sample-uuid-1")
@@ -743,7 +747,7 @@ def test_grok_prompt_cache_across_turns_live() -> None:
     either way. The header's measurable benefit shows up under concurrency.
     """
     from inspect_ai.event import ModelEvent
-    from inspect_ai.model._providers.grok import GROK_CONV_ID_HEADER
+    from inspect_ai.model._providers._grok_cache import GROK_CONV_ID_HEADER
     from inspect_ai.solver import Generate, TaskState, generate, solver, system_message
 
     @solver
@@ -1050,3 +1054,50 @@ async def test_grok_unary_call_attempt_timeout_is_retryable(
             )
         assert isinstance(excinfo.value.last_attempt.exception(), AttemptTimeoutError)
         _assert_client_closed(clients)
+
+
+@skip_if_trio
+async def test_grok_output_records_response_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    _stub_grok_client(monkeypatch)
+    _stub_active_sample(monkeypatch, None)
+
+    api = GrokAPI(model_name="grok-4.6", api_key="test-key")
+    output, _ = await _generate_once(api)
+
+    assert output.response_id == "grok-response"
+
+
+@pytest.mark.parametrize(
+    ("completion", "reasoning", "total", "cached", "expected_output"),
+    [
+        (9, 94, 135, 0, 103),  # reasoning reported outside completion_tokens
+        (103, 94, 135, 0, 103),  # reasoning already inside completion_tokens
+        (9, 0, 41, 0, 9),  # no reasoning
+        (9, 94, 0, 0, 9),  # no total reported: left unchanged
+        (9, 94, 135, 20, 103),  # cached prompt tokens
+    ],
+)
+def test_grok_usage_counts_reasoning_in_output_tokens(
+    completion: int, reasoning: int, total: int, cached: int, expected_output: int
+) -> None:
+    from xai_sdk.chat import usage_pb2
+
+    from inspect_ai.model._providers.grok import _model_usage_from_sampling_usage
+
+    usage = usage_pb2.SamplingUsage(
+        prompt_tokens=32,
+        completion_tokens=completion,
+        reasoning_tokens=reasoning,
+        total_tokens=total,
+        cached_prompt_text_tokens=cached,
+    )
+    model_usage = _model_usage_from_sampling_usage(usage)
+    assert model_usage.output_tokens == expected_output
+    assert model_usage.reasoning_tokens == reasoning
+    if total:
+        # input_tokens excludes cached prompt tokens
+        assert model_usage.input_tokens + cached + model_usage.output_tokens == total

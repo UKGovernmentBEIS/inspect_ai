@@ -90,12 +90,27 @@ def first_block(param: MessageParam) -> dict[str, Any]:
         ("vertex/claude-opus-5-5", TOOLSET),
         ("azure/claude-opus-5-5", LEGACY),
         ("bedrock/anthropic.claude-opus-5-5", LEGACY),
+        # Sonnet 5.5 follows Opus 5.5
+        ("claude-sonnet-5-5", TOOLSET),
+        ("vertex/claude-sonnet-5-5", TOOLSET),
+        ("azure/claude-sonnet-5-5", LEGACY),
+        ("bedrock/anthropic.claude-sonnet-5-5", LEGACY),
+        # Haiku 5.5 follows Opus 5.5
+        ("claude-haiku-5-5", TOOLSET),
+        ("vertex/claude-haiku-5-5", TOOLSET),
+        ("azure/claude-haiku-5-5", LEGACY),
+        ("bedrock/anthropic.claude-haiku-5-5", LEGACY),
         # Fable/Mythos 5.x default to the toolset where it is offered
         ("claude-fable-5", TOOLSET),
         ("claude-fable-5-1", TOOLSET),
         ("claude-mythos-5", TOOLSET),
         ("claude-mythos-5-1", TOOLSET),
         ("vertex/claude-fable-5-1", TOOLSET),
+        # Fable 5.2 rejects the legacy tool everywhere except Bedrock
+        ("claude-fable-5-2", TOOLSET),
+        ("vertex/claude-fable-5-2", TOOLSET),
+        ("azure/claude-fable-5-2", TOOLSET),
+        ("bedrock/anthropic.claude-fable-5-2", LEGACY),
         # forward-compat: an unknown Claude 5 codename gets the toolset
         ("claude-saga-5", TOOLSET),
         # everything else keeps the legacy tool (prior behavior)
@@ -181,6 +196,8 @@ def test_computer_toolset_model_arg_rejected_on_unsupported_model(
         # Fable/Mythos accept the legacy tool (computer-use docs, earlier tool versions)
         ("claude-fable-5-1", LEGACY),
         ("vertex/claude-mythos-5", LEGACY),
+        # Bedrock still accepts the legacy tool on Fable 5.2
+        ("bedrock/anthropic.claude-fable-5-2", LEGACY),
     ],
 )
 def test_computer_toolset_false_keeps_legacy_where_supported(
@@ -189,7 +206,21 @@ def test_computer_toolset_false_keeps_legacy_where_supported(
     assert computer_param(model_name, computer_toolset=False)["type"] == expected_type
 
 
-@pytest.mark.parametrize("model_name", ["claude-opus-5-5", "vertex/claude-opus-5-5"])
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "claude-opus-5-5",
+        "vertex/claude-opus-5-5",
+        "claude-sonnet-5-5",
+        "vertex/claude-sonnet-5-5",
+        "claude-haiku-5-5",
+        "vertex/claude-haiku-5-5",
+        # Fable 5.2 rejects the legacy tool everywhere except Bedrock
+        "claude-fable-5-2",
+        "vertex/claude-fable-5-2",
+        "azure/claude-fable-5-2",
+    ],
+)
 def test_computer_toolset_false_rejected_where_legacy_unsupported(
     model_name: str,
 ) -> None:
@@ -198,6 +229,8 @@ def test_computer_toolset_false_rejected_where_legacy_unsupported(
     message = str(exc_info.value.message)
     assert "computer_20251124" in message
     assert "computer_toolset=false" in message
+    # the error names the service model (no platform prefix)
+    assert model_name.split("/")[-1] in message
 
 
 @pytest.mark.parametrize(
@@ -447,6 +480,7 @@ async def _capture_generate(api: AnthropicAPI) -> dict[str, Any]:
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -520,6 +554,74 @@ async def test_toolset_request_wiring() -> None:
     assert blocks[1]["content"][0]["type"] == "image"
 
 
+async def test_toolset_replay_with_explicit_cache_breakpoint() -> None:
+    """The explicit-cache-breakpoint path threads computer_toolset_call_ids too.
+
+    `_resolve_chat_input_explicit` builds message_params independently of the
+    automatic path's `resolve_chat_input`; a caller mark must not drop
+    toolset_name replay for a request that also uses the computer toolset.
+    """
+    captured: dict[str, Any] = {}
+    api = anthropic_api("claude-opus-5-5")
+
+    async def fake_perform(
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[Any],
+        config: GenerateConfig,
+        pending_tool_uses: Any = None,
+        pending_mcp_tool_uses: Any = None,
+        span_recorder: Any = None,
+        chain: Any = None,
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        captured.update(request)
+        return {}, ModelOutput.from_content(
+            model=api.service_model_name(), content="ok"
+        )
+
+    init_sample_anthropic_assistant_internal()
+    with patch.object(api, "_perform_request_and_continuations", fake_perform):
+        await api.generate(
+            input=[
+                ChatMessageUser(
+                    content=[
+                        ContentText(text="Open the browser.", cache_breakpoint=True)
+                    ]
+                ),
+                ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(
+                            id="toolu_1",
+                            function="computer",
+                            arguments={"action": "screenshot"},
+                        ),
+                    ],
+                ),
+                ChatMessageTool(
+                    content=[ContentImage(image=PNG_DATA_URI)],
+                    tool_call_id="toolu_1",
+                    function="computer",
+                ),
+            ],
+            tools=[computer_tool_info()],
+            tool_choice="auto",
+            config=GenerateConfig(max_tokens=64),
+        )
+
+    assistant = captured["messages"][1]
+    tool_uses = [b for b in assistant["content"] if b["type"] == "tool_use"]
+    assert tool_uses[0]["toolset_name"] == "computer"
+
+    results = captured["messages"][2]
+    blocks = [b for b in results["content"] if b["type"] == "tool_result"]
+    assert blocks[0]["toolset_name"] == "computer"
+
+    assert captured["messages"][0]["content"][0]["cache_control"] == {
+        "type": "ephemeral"
+    }
+
+
 async def test_legacy_request_wiring_unchanged() -> None:
     request = await _capture_generate(anthropic_api("claude-opus-5"))
 
@@ -587,6 +689,7 @@ async def test_forced_computer_tool_choice_degrades_to_auto_with_toolset() -> No
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(
@@ -623,6 +726,7 @@ async def test_forced_computer_tool_choice_kept_with_legacy_tool() -> None:
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(

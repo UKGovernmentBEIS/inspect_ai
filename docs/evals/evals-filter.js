@@ -126,11 +126,11 @@ export function getInstallCmd(eval_) {
   return eval_.source === 'harbor' ? 'pip install inspect-harbor' : 'pip install inspect-evals';
 }
 
-export function getRunCmd(eval_, model = 'openai/gpt-5') {
+export function getRunCmd(eval_, model = 'openai/gpt-6-luna') {
   return `inspect eval ${eval_.code} --model ${model}`;
 }
 
-export function getPythonSnippet(eval_, model = 'openai/gpt-5') {
+export function getPythonSnippet(eval_, model = 'openai/gpt-6-luna') {
   // Use the task name from `code` (e.g. inspect_evals/mmlu_0_shot) rather
   // than `id` (the directory slug, e.g. mmlu) so the import/call work for
   // multi-task evals.

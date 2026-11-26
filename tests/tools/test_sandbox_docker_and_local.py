@@ -35,6 +35,7 @@ class SandboxConfig:
         config: path to a compose file, or None for the provider default.
         requires_docker: skip these cases when Docker isn't installed.
         xfails: check name -> reason, for checks this sandbox can't satisfy.
+        skips: check name -> reason, for checks inapplicable to this configuration.
     """
 
     id: str
@@ -42,6 +43,7 @@ class SandboxConfig:
     config: str | None
     requires_docker: bool
     xfails: dict[str, str] = field(default_factory=dict)
+    skips: dict[str, str] = field(default_factory=dict)
 
 
 def _compose(name: str) -> str:
@@ -55,12 +57,15 @@ SANDBOX_CONFIGS = [
         config=None,
         requires_docker=False,
         xfails={
-            "test_exec_as_user": "local sandbox ignores the user= parameter",
-            "test_exec_as_nonexistent_user": "local sandbox ignores the user= parameter",
+            "test_exec_as_user": "local sandbox cannot switch users",
             "test_exec_timeout_not_raised_on_fast_signal_death": (
                 "local sandbox doesn't wrap commands with in-container `timeout`, so "
                 "the signal exit code semantics differ (returns -15 not 143)"
             ),
+        },
+        skips={
+            "test_read_file_as_user": "local sandbox cannot switch users",
+            "test_write_file_as_user": "local sandbox cannot switch users",
         },
     ),
     # Default docker-compose runs as root, which can overwrite read-only files.
@@ -72,6 +77,9 @@ SANDBOX_CONFIGS = [
         xfails={
             "test_write_text_file_without_permissions": "root can overwrite a read-only file",
             "test_write_binary_file_without_permissions": "root can overwrite a read-only file",
+        },
+        skips={
+            "test_read_file_not_allowed": "root can read files without read bits",
         },
     ),
     # A non-root user, so read-only/permission semantics hold.
@@ -163,12 +171,15 @@ async def _config_and_env(
         )
 
 
-# Must stay function-scoped: xfails are applied per check via request.node.
+# Must stay function-scoped: skips and xfails apply to individual checks.
 @pytest.fixture
 def sandbox_env(request, _config_and_env: ConfigAndEnv) -> SandboxEnvironment:
     # Known failures vary per sandbox, so apply them here rather than on the
     # (shared, provider-agnostic) check functions. originalname is the check's
     # function name without the parametrize suffix.
+    skip_reason = _config_and_env.cfg.skips.get(request.node.originalname)
+    if skip_reason is not None:
+        pytest.skip(skip_reason)
     reason = _config_and_env.cfg.xfails.get(request.node.originalname)
     if reason is not None:
         request.node.add_marker(pytest.mark.xfail(reason=reason, strict=True))

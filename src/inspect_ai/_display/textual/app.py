@@ -27,9 +27,7 @@ from typing_extensions import override
 
 from inspect_ai._display.core.textual import textual_enable_mouse_support
 from inspect_ai._util.html import as_html_id
-from inspect_ai.event._input import InputEvent
 from inspect_ai.log._samples import active_samples
-from inspect_ai.log._transcript import transcript
 
 from ...util._panel import InputPanel
 from ..core.config import task_config
@@ -44,7 +42,13 @@ from ..core.display import (
 )
 from ..core.footer import task_footer
 from ..core.panel import task_title, tasks_title
-from ..core.rich import record_console_input, rich_initialise, rich_theme
+from ..core.rich import (
+    input_screen_capture_suspended,
+    input_screen_recording,
+    record_console_input,
+    rich_initialise,
+    rich_theme,
+)
 from .theme import inspect_dark, inspect_light
 from .widgets.console import ConsoleView
 from .widgets.footer import AppFooter
@@ -112,6 +116,10 @@ class TaskScreenApp(App[TR]):
         # all tasks processed by app
         self._app_tasks: list[TaskWithResult] = []
 
+        # the open suspension shared by overlapping suspend_app() calls
+        self._suspension: contextlib.AbstractContextManager[None] | None = None
+        self._suspension_count = 0
+
         # enable rich hooks
         rich_initialise()
 
@@ -162,16 +170,35 @@ class TaskScreenApp(App[TR]):
 
     @contextlib.contextmanager
     def suspend_app(self) -> Iterator[None]:
+        """Suspend the app while the block runs.
+
+        Overlapping calls (a sandbox setup in one task, an input screen in
+        another) share one suspension, which ends when the last of them
+        exits. Textual resumes the terminal driver only when its suspended
+        block returns normally, so the suspension is always ended normally and
+        an error or cancellation (a failed sandbox setup, which the task's
+        attempt recovers from) propagates after the app has resumed.
+        """
         # suspend only if the app is already loaded
         # (otherwise its not yet displayed )
-        if self._on_app_loaded.is_set():
-            with self.app.suspend():
-                try:
-                    yield
-                finally:
-                    self.app.refresh(repaint=True)
-        else:
+        if not self._on_app_loaded.is_set():
             yield
+            return
+
+        if self._suspension_count == 0:
+            suspension = self.app.suspend()
+            suspension.__enter__()
+            self._suspension = suspension
+        self._suspension_count += 1
+        try:
+            yield
+        finally:
+            self._suspension_count -= 1
+            if self._suspension_count == 0:
+                ending, self._suspension = self._suspension, None
+                assert ending is not None
+                ending.__exit__(None, None, None)
+                self.app.refresh(repaint=True)
 
     # exit the app when the worker terminates
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
@@ -189,13 +216,15 @@ class TaskScreenApp(App[TR]):
     async def task_screen(
         self, tasks: list[TaskSpec], parallel: bool
     ) -> AsyncIterator[TaskScreen]:
+        # set the total first: a task added while the app loads adds to it
+        self._total_tasks = len(tasks)
+
         # indicate its time to load then wait on the load
         self._on_load_app.set()
         await self._on_app_loaded.wait()
 
         # reset state
         self._tasks = []
-        self._total_tasks = len(tasks)
         self._parallel = parallel
 
         # clear existing task progress
@@ -518,41 +547,33 @@ class TextualTaskScreen(TaskScreen, Generic[TR]):
         with self.app.suspend_app():
             # get rich console
             console = rich.get_console()
+            with input_screen_capture_suspended(console):
+                # set width
+                old_width: int | None = None
+                if width:
+                    old_width = console.width
+                    console.width = min(old_width, width)
 
-            # set width
-            old_width: int | None = None
-            if width:
-                old_width = console.width
-                console.width = min(old_width, width)
+                try:
+                    # record console activity for event
+                    with input_screen_recording(console, record_event):
+                        # print header if requested
+                        if header:
+                            style = f"{rich_theme().meta} bold"
+                            console.rule(f"[{style}]{header}[/{style}]", style="black")
+                            console.print("")
 
-            # record console activity for event
-            console.record = True
+                        # yield the console
+                        with record_console_input():
+                            yield console
 
-            try:
-                # print header if requested
-                if header:
-                    style = f"{rich_theme().meta} bold"
-                    console.rule(f"[{style}]{header}[/{style}]", style="black")
+                finally:
+                    # print one blank line
                     console.print("")
 
-                # yield the console
-                with record_console_input():
-                    yield console
-
-            finally:
-                # capture recording then yield input event
-                input = console.export_text(clear=False, styles=False)
-                input_ansi = console.export_text(clear=True, styles=True)
-                console.record = False
-                if record_event:
-                    transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
-
-                # print one blank line
-                console.print("")
-
-                # reset width
-                if old_width:
-                    console.width = old_width
+                    # reset width
+                    if old_width:
+                        console.width = old_width
 
     @override
     async def input_panel(self, panel_type: type[TP]) -> TP:

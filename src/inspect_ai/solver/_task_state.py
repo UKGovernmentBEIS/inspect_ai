@@ -209,24 +209,32 @@ class TaskState:
         Convenience function for accessing the initial input from the `Sample` as a string.
 
         If the `input` is a `list[ChatMessage]`, this will return the text from
-        the last chat message
+        the last user message. If that message has no text but does have
+        non-text content (e.g. an image), a placeholder naming each part
+        (e.g. `[image]`) is returned instead.
         """
         if isinstance(self._input, str):
             return self._input
         else:
             input = next(
                 (
-                    message.text
+                    message
                     for message in reversed(self._input)
                     if message.role == "user"
                 ),
                 None,
             )
-            if input:
-                return input
-            else:
+            if input is None:
                 raise ValueError(
                     "input_text requested from TaskState but none available"
+                )
+            elif input.text or isinstance(input.content, str):
+                return input.text
+            else:
+                return " ".join(
+                    f"[{content.type}]"
+                    for content in input.content
+                    if content.type != "text"
                 )
 
     @property

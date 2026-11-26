@@ -6,6 +6,8 @@ to canonical format for model info database lookup.
 
 import pytest
 
+from inspect_ai.model import ModelOutput, ServedModelUsage, get_model
+
 
 class TestBedrockCanonicalName:
     """Tests for Bedrock provider canonical_name()."""
@@ -39,6 +41,28 @@ class TestBedrockCanonicalName:
             base_url=None,
         )
         assert api.canonical_name() == "meta/llama3-1-70b-instruct"
+
+    @pytest.mark.parametrize(
+        "model_name,expected",
+        [
+            (
+                "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                "anthropic/claude-sonnet-4-5-20250929",
+            ),
+            ("global.anthropic.claude-fable-5-2", "anthropic/claude-fable-5-2"),
+            ("us-gov.anthropic.claude-opus-5-5", "anthropic/claude-opus-5-5"),
+            ("eu.amazon.nova-lite-v1:0", "amazon/nova-lite"),
+        ],
+    )
+    def test_cross_region_inference_profile(self, model_name: str, expected: str):
+        """A cross-region prefix (us., global., ...) is not the provider."""
+        from inspect_ai.model._model_info import get_model_info
+        from inspect_ai.model._providers.bedrock import BedrockAPI
+
+        api = BedrockAPI(model_name=model_name, base_url=None)
+        assert api.canonical_name() == expected
+        if expected.startswith("anthropic/"):
+            assert get_model_info(expected) is not None
 
     def test_model_without_provider_prefix(self):
         """Test model name without provider prefix."""
@@ -238,6 +262,54 @@ class TestAnthropicCanonicalName:
 
         api = AnthropicAPI(model_name="claude-sonnet-4", api_key="test-key")
         assert api.canonical_name() == "anthropic/claude-sonnet-4"
+
+    @pytest.mark.parametrize(
+        "model_name,canonical,display_name",
+        [
+            (
+                "global.anthropic.claude-fable-5-2",
+                "anthropic/anthropic.claude-fable-5-2",
+                "Claude Fable 5.2",
+            ),
+            (
+                "us.anthropic.claude-opus-5-5",
+                "anthropic/anthropic.claude-opus-5-5",
+                "Claude Opus 5.5",
+            ),
+            (
+                "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                "anthropic/anthropic.claude-sonnet-4-5-20250929-v1:0",
+                "Claude Sonnet 4.5",
+            ),
+            (
+                "anthropic.claude-opus-5-5",
+                "anthropic/anthropic.claude-opus-5-5",
+                "Claude Opus 5.5",
+            ),
+        ],
+    )
+    def test_bedrock_cross_region_inference_profile(
+        self,
+        model_name: str,
+        canonical: str,
+        display_name: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Bedrock cross-region ids (us., global., ...) resolve to model info."""
+        from inspect_ai.model._model_info import (
+            get_model_info,
+            get_model_input_tokens,
+        )
+
+        monkeypatch.setenv("AWS_REGION", "us-east-1")
+        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "fake")
+        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "fake")
+        model = get_model(f"anthropic/bedrock/{model_name}", api_key="test-key")
+        assert model.canonical_name() == canonical
+        info = get_model_info(model)
+        assert info is not None
+        assert info.model == display_name
+        assert get_model_input_tokens(model) == info.context_length
 
 
 class TestTogetherCanonicalName:
@@ -904,3 +976,135 @@ def reset_cache():
     clear_model_info_cache()
     yield
     clear_model_info_cache()
+
+
+class TestServedModelNames:
+    """Providers report a served model under its model info database name."""
+
+    @staticmethod
+    def _output(model: str) -> ModelOutput:
+        from inspect_ai.model import ModelUsage
+
+        return ModelOutput(
+            model=model,
+            usage=ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7),
+        )
+
+    def test_azureai_deployment(self, monkeypatch):
+        from inspect_ai.model._providers.azureai import AzureAIAPI
+
+        monkeypatch.setenv("AZUREAI_API_KEY", "test-key")
+        monkeypatch.setenv("AZUREAI_BASE_URL", "https://test.azure.com/models")
+        api = AzureAIAPI(model_name="my-deployment")
+        output = self._output("gpt-4o-mini-2024-07-18")
+        assert api.served_model_usage(output) == [
+            ServedModelUsage("openai/gpt-4o-mini-2024-07-18", output.usage)
+        ]
+        assert api.served_model_usage(self._output("my-deployment")) is None
+
+    def test_anthropic_foundry_deployment(self, monkeypatch):
+        from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+        monkeypatch.setenv(
+            "AZUREAI_ANTHROPIC_BASE_URL", "https://test.services.ai.azure.com"
+        )
+        api = AnthropicAPI(model_name="azure/my-claude", api_key="test-key")
+        output = self._output("claude-opus-5-5")
+        assert api.served_model_usage(output) == [
+            ServedModelUsage("anthropic/claude-opus-5-5", output.usage)
+        ]
+        assert api.served_model_usage(self._output("my-claude")) is None
+
+        # first-party names are model ids
+        first_party = AnthropicAPI(model_name="claude-opus-5-5", api_key="test-key")
+        assert (
+            first_party.served_model_usage(self._output("claude-opus-5-5-20261001"))
+            is None
+        )
+
+    def test_fireworks_router(self):
+        from inspect_ai.model._providers.fireworks import FireworksAIAPI
+
+        api = FireworksAIAPI(
+            model_name="accounts/fireworks/routers/kimi-fast-latest", api_key="test-key"
+        )
+        output = self._output("accounts/fireworks/models/kimi-k3-fast")
+        assert api.served_model_usage(output) == [
+            ServedModelUsage("fireworks/kimi-k3-fast", output.usage)
+        ]
+        assert (
+            api.served_model_usage(
+                self._output("accounts/fireworks/routers/kimi-fast-latest")
+            )
+            is None
+        )
+
+        # the same model in either name form
+        model = FireworksAIAPI(
+            model_name="accounts/fireworks/models/kimi-k3", api_key="test-key"
+        )
+        assert model.served_model_usage(self._output("kimi-k3")) is None
+
+    def test_openrouter_router(self):
+        from inspect_ai.model._providers.openrouter import OpenRouterAPI
+
+        api = OpenRouterAPI(
+            model_name="openrouter/auto", base_url=None, api_key="test-key"
+        )
+        output = self._output("anthropic/claude-sonnet-4")
+        assert api.served_model_usage(output) == [
+            ServedModelUsage("anthropic/claude-sonnet-4", output.usage)
+        ]
+
+    def test_openrouter_same_model(self):
+        from inspect_ai.model._providers.openrouter import OpenRouterAPI
+
+        api = OpenRouterAPI(
+            model_name="openai/gpt-4o:free", base_url=None, api_key="test-key"
+        )
+        assert api.served_model_usage(self._output("openai/gpt-4o")) is None
+
+    def test_bedrock_prompt_router(self):
+        from inspect_ai.model._providers.bedrock import (
+            BedrockAPI,
+            ConverseMessage,
+            ConverseMetrics,
+            ConverseOutput,
+            ConverseResponse,
+            ConverseUsage,
+            model_output_from_response,
+        )
+
+        router = "arn:aws:bedrock:us-east-1:123456789012:default-prompt-router/anthropic.claude:1"
+        invoked = "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-haiku-20240307-v1:0"
+        response = ConverseResponse(
+            output=ConverseOutput(
+                message=ConverseMessage(role="assistant", content=[{"text": "hi"}])
+            ),
+            stopReason="end_turn",
+            usage=ConverseUsage(inputTokens=3, outputTokens=4, totalTokens=7),
+            metrics=ConverseMetrics(latencyMs=1),
+            trace={"promptRouter": {"invokedModelId": invoked}},
+        )
+        output = model_output_from_response(router, response, [])
+        assert output.model == invoked
+        assert output.message.model == invoked
+        assert ModelOutput.from_message(output.message).model == invoked
+
+        api = BedrockAPI(model_name=router, base_url=None)
+        assert api.served_model_usage(output) == [
+            ServedModelUsage("anthropic/claude-3-haiku-20240307", output.usage)
+        ]
+
+        # routers invoke cross-region inference profiles
+        output.model = "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.amazon.nova-lite-v1:0"
+        assert api.served_model_usage(output) == [
+            ServedModelUsage("amazon/nova-lite", output.usage)
+        ]
+
+        # without a prompt router the output model is the called model
+        response.trace = None
+        assert (
+            api.served_model_usage(model_output_from_response(router, response, []))
+            is None
+        )

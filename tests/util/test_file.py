@@ -1,4 +1,5 @@
 import importlib
+import json
 import os
 import sys
 import weakref
@@ -13,17 +14,20 @@ import fsspec.core  # type: ignore
 import pytest
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.error import PrerequisiteError, WriteConflictError
 from inspect_ai._util.file import (
     HF_FILESYSTEM_REQUIRED_VERSION,
     absolute_file_path,
+    acquire_exclusive_lock,
     basename,
     cleanup_s3_sessions,
+    file,
     filesystem,
     local_path,
     size_in_mb,
     strip_trailing_sep,
     to_uri,
+    url_protocol,
 )
 
 
@@ -42,12 +46,55 @@ def test_basename():
     assert basename(f"C:\\Documents\\{MYDIR}\\") == MYDIR
 
 
+@pytest.mark.parametrize(
+    "url,protocol",
+    [
+        ("s3://bucket/a.eval", "s3"),
+        ("file:///tmp/a.eval", "file"),
+        ("data:text/plain,a.eval", "data"),
+        ("simplecache::s3://bucket/a.eval", "simplecache::s3"),
+        ("/tmp/a.eval", None),
+        ("C:\\logs\\a.eval", None),
+        ("C://logs/a.eval", None),
+        ("logs/a:b.eval", None),
+    ],
+)
+def test_url_protocol(url: str, protocol: str | None) -> None:
+    assert url_protocol(url) == protocol
+
+
 def test_filesystem_file_info():
     memory_filesystem = filesystem("memory://")
     memory_filesystem.touch("test_file")
     info = memory_filesystem.info("test_file")
     assert info.name == "memory:///test_file"
     assert info.size == 0
+
+
+@pytest.mark.parametrize(
+    ("fs_options", "checks_bucket"),
+    [({}, False), ({"auto_mkdir": True}, True)],
+)
+def test_s3_write_checks_bucket_only_when_asked(
+    fs_options: dict[str, Any],
+    checks_bucket: bool,
+    mock_s3: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    s3_class = importlib.import_module("s3fs").S3FileSystem
+    original_call = s3_class._call_s3
+    calls: list[str] = []
+
+    async def recording_call(self: Any, method: str, *args: Any, **kwargs: Any) -> Any:
+        calls.append(method)
+        return await original_call(self, method, *args, **kwargs)
+
+    monkeypatch.setattr(s3_class, "_call_s3", recording_call)
+
+    with file("s3://test-bucket/bucket-check.txt", "w", fs_options=fs_options) as f:
+        f.write("x")
+
+    assert ("head_bucket" in calls) is checks_bucket
 
 
 def test_is_writeable_strips_trailing_sep():
@@ -195,6 +242,60 @@ def test_strip_trailing_sep(path: str, expected: str) -> None:
     assert strip_trailing_sep(path) == expected
 
 
+_AZURE_OPTIONS = {"account_name": "inspectunittest", "anon": True}
+_ABFSS_URL = "abfss://mycontainer@myaccount.dfs.core.windows.net/inspect-logs"
+
+
+@pytest.mark.parametrize(
+    "path,fs_options,location,uri",
+    [
+        ("s3://bucket/logs/", {}, "s3://bucket/logs", "s3://bucket/logs"),
+        ("s3://bucket/logs", {}, "s3://bucket/logs", "s3://bucket/logs"),
+        ("s3://bucket/", {}, "s3://bucket", "s3://bucket"),
+        # adlfs keeps a trailing slash when stripping the protocol, and lists
+        # names as abfs:// without the account
+        (
+            "az://container/logs/",
+            _AZURE_OPTIONS,
+            "az://container/logs",
+            "abfs://container/logs",
+        ),
+        ("az://container/", _AZURE_OPTIONS, "az://container", "abfs://container"),
+        (f"{_ABFSS_URL}/", {}, _ABFSS_URL, "abfs://mycontainer/inspect-logs"),
+        (_ABFSS_URL, {}, _ABFSS_URL, "abfs://mycontainer/inspect-logs"),
+        (
+            "webhdfs://user@namenode:9870/logs/",
+            {},
+            "webhdfs://user@namenode:9870/logs",
+            "webhdfs:///logs",
+        ),
+        ("logs/", {}, "file://{cwd}/logs", "file://{cwd}/logs"),
+        ("file://{cwd}/logs/", {}, "file://{cwd}/logs", "file://{cwd}/logs"),
+        ("/", {}, "file:///", "file:///"),
+    ],
+)
+def test_dir_location_and_uri(
+    path: str,
+    fs_options: dict[str, Any],
+    location: str,
+    uri: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("AZURE_STORAGE_ACCOUNT_NAME", raising=False)
+    monkeypatch.delenv("AZURE_ACCOUNT_NAME", raising=False)
+    cwd = tmp_path.as_posix()
+    path = path.format(cwd=cwd)
+    fs = filesystem(path, fs_options)
+    with patch.object(fs.fs, "info", side_effect=AssertionError("info called")):
+        assert fs.dir_location(path) == location.format(cwd=cwd)
+        assert fs.dir_as_uri(path) == uri.format(cwd=cwd)
+    # the location opens the same filesystem without the original options
+    if not fs_options:
+        filesystem(f"{fs.dir_location(path)}/eval-set.json")
+
+
 @pytest.mark.parametrize(
     "path,expected_suffix",
     [
@@ -319,6 +420,100 @@ def test_local_path_windows_drive() -> None:
     assert local_path("file:///C:/logs/eval%20run.eval") == "C:\\logs\\eval run.eval"
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows drive-path form")
+def test_local_path_windows_drive_in_authority() -> None:
+    r"""`file://D:/...` is how the local filesystem names files on Windows.
+
+    urlparse puts the drive in netloc, so converting the path alone gave
+    `\logs\x.eval`, which resolves against the current drive (#5322).
+    """
+    assert local_path("file://D:/logs/eval%20run.eval") == "D:\\logs\\eval run.eval"
+
+
+def test_local_path_keeps_drive_authority(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Drive authority is passed through to url2pathname on every platform.
+
+    CI is Ubuntu-only; the Windows-form tests above are skipif(win32). The
+    branch selection itself is portable — monkeypatch url2pathname and check
+    the string handed in.
+    """
+    seen: list[str] = []
+
+    def capture(u: str) -> str:
+        seen.append(u)
+        return u
+
+    monkeypatch.setattr("inspect_ai._util.file.url2pathname", capture)
+    local_path("file://D:/logs/eval%20run.eval")
+    assert seen == ["D:/logs/eval%20run.eval"]
+
+
+def test_local_path_drive_authority_used_by_resolve_logs_style_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """resolve_logs / list_eval_logs emit file://C:/...; local_path must keep C:.
+
+    On 0.3.282, evals_df / samples_df fail whenever cwd is on another drive
+    because resolve_logs yields file://C:/... and local_path dropped the
+    drive (#5322).
+    """
+    seen: list[str] = []
+
+    def capture(u: str) -> str:
+        seen.append(u)
+        return u
+
+    monkeypatch.setattr("inspect_ai._util.file.url2pathname", capture)
+    # Well-formed three-slash form and the two-slash drive-authority form
+    # both appear in the wild on Windows.
+    local_path("file:///C:/path/to/logs/run.eval")
+    local_path("file://C:/path/to/logs/run.eval")
+    assert seen == [
+        "/C:/path/to/logs/run.eval",
+        "C:/path/to/logs/run.eval",
+    ]
+
+
+def test_local_path_localhost_authority() -> None:
+    assert local_path("file://localhost/tmp/x.eval") == local_path("file:///tmp/x.eval")
+
+
+def test_local_path_ip_literal_authority_stays_path_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Non-drive authorities (e.g. 127.0.0.1) keep the path-only branch.
+
+    UNC / IP authorities stay on the path-only path so POSIX behaviour for
+    those URLs is unchanged.
+    """
+    seen: list[str] = []
+
+    def capture(u: str) -> str:
+        seen.append(u)
+        return u
+
+    monkeypatch.setattr("inspect_ai._util.file.url2pathname", capture)
+    local_path("file://127.0.0.1/tmp/x.eval")
+    local_path("file://server/share/x.eval")
+    assert seen == ["/tmp/x.eval", "/share/x.eval"]
+
+
+def test_local_path_resolves_filesystem_ls_names(tmp_path: Path) -> None:
+    """A name reported by filesystem().ls() must name the file on any drive.
+
+    `read_eval_log()` feeds `list_eval_logs()` names through `local_path`;
+    a result relative to the current drive is a FileNotFoundError whenever
+    the log dir and the working directory differ (#5322).
+    """
+    target = tmp_path / "eval run.eval"
+    target.write_text("x")
+    names = [info.name for info in filesystem(str(tmp_path)).ls(str(tmp_path))]
+    assert len(names) == 1
+    resolved = Path(local_path(names[0]))
+    assert resolved.is_absolute()
+    assert resolved.resolve() == target.resolve()
+
+
 async def test_cleanup_s3_sessions_no_instances() -> None:
     """cleanup_s3_sessions is a no-op when there are no cached instances."""
     with patch("s3fs.S3FileSystem") as mock_s3fs:
@@ -391,21 +586,22 @@ async def test_cleanup_s3_sessions_disarms_s3fs_finalizer(real_s3fs: Any) -> Non
     """cleanup_s3_sessions detaches s3fs's GC-time close_session finalizer.
 
     The finalizer would otherwise exit the already-exited client a second time
-    as a bare task on the running loop, failing with "Session was never entered".
+    as a bare task on the running loop, which fails with "Session was never
+    entered" on aiobotocore < 3.9.2.
     """
     fs = real_s3fs(cache_regions=False)
     await fs.set_session()
     finalizers = _close_session_finalizers(fs)
     assert len(finalizers) == 1 and finalizers[0].alive
-    creator = fs._s3creator
+    http_session = fs._s3creator._client._endpoint.http_session
+    assert http_session._sessions is not None
 
     await cleanup_s3_sessions()
 
     assert _close_session_finalizers(fs) == []
     assert not finalizers[0].alive
-    # the creator was exited once; a second exit is what the finalizer would do
-    with pytest.raises(AssertionError, match="Session was never entered"):
-        await creator.__aexit__(None, None, None)
+    # the creator's HTTP session was exited
+    assert http_session._sessions is None
 
 
 @skip_if_trio
@@ -492,3 +688,77 @@ async def test_cleanup_s3_sessions_no_s3creator() -> None:
         await cleanup_s3_sessions()
 
         mock_s3fs.clear_instance_cache.assert_called_once()
+
+
+def test_exclusive_lock_refuses_a_second_holder(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    holder = {"pid": 123, "host": "worker-1", "started": "2026-10-08T12:00:00"}
+    with acquire_exclusive_lock(str(lock), holder):
+        assert json.loads(lock.read_text()) == holder
+        with pytest.raises(WriteConflictError) as exc_info:
+            with acquire_exclusive_lock(to_uri(str(lock)), {"pid": 456}):
+                pytest.fail("second holder entered the lock")
+        message = str(exc_info.value)
+        assert str(lock) in message
+        assert "worker-1" in message and "123" in message
+        # the refused acquire leaves the holder's lock alone
+        assert json.loads(lock.read_text()) == holder
+    assert not lock.exists()
+
+    with acquire_exclusive_lock(str(lock), {"pid": 456}):
+        assert json.loads(lock.read_text()) == {"pid": 456}
+    assert not lock.exists()
+
+
+def test_exclusive_lock_left_by_a_crash_is_reported_not_overridden(
+    tmp_path: Path,
+) -> None:
+    lock = tmp_path / "log.merge.lock"
+    lock.write_text('{"pid": 99, "host": "crashed"}')
+    with pytest.raises(WriteConflictError, match="crashed"):
+        with acquire_exclusive_lock(str(lock), {"pid": 1}):
+            pass
+    assert lock.read_text() == '{"pid": 99, "host": "crashed"}'
+
+
+def test_exclusive_lock_released_after_exception(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    with pytest.raises(RuntimeError, match="boom"):
+        with acquire_exclusive_lock(str(lock), {"pid": 1}):
+            raise RuntimeError("boom")
+    assert not lock.exists()
+
+
+def test_exclusive_lock_released_when_info_is_not_serializable(
+    tmp_path: Path,
+) -> None:
+    lock = tmp_path / "log.merge.lock"
+    with pytest.raises(TypeError):
+        with acquire_exclusive_lock(str(lock), {"pid": object()}):
+            pytest.fail("entered the lock")
+    assert not lock.exists()
+
+
+async def test_exclusive_lock_released_after_cancellation(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    held = anyio.Event()
+
+    async def hold() -> None:
+        with acquire_exclusive_lock(str(lock), {"pid": 1}):
+            held.set()
+            await anyio.sleep_forever()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(hold)
+        await held.wait()
+        assert lock.exists()
+        tg.cancel_scope.cancel()
+    assert not lock.exists()
+
+
+def test_exclusive_lock_does_not_remove_a_replaced_lock(tmp_path: Path) -> None:
+    lock = tmp_path / "log.merge.lock"
+    with acquire_exclusive_lock(str(lock), {"pid": 1}):
+        lock.unlink()
+        lock.write_text('{"pid": 2}')
+    assert lock.read_text() == '{"pid": 2}'
