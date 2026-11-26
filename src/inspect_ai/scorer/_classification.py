@@ -1,5 +1,6 @@
 import re
 import string
+import unicodedata
 from collections import Counter
 from typing import Callable, List
 
@@ -145,7 +146,13 @@ def _remove_punc(text: str) -> str:
         # a minus directly before the number is its sign, not punctuation
         leading = text[: text.index(stripped)]
         return f"-{stripped}" if leading.endswith("-") else stripped
-    return "".join(ch for ch in text if ch not in string.punctuation)
+    return "".join(ch for ch in text if not _is_punctuation(ch))
+
+
+def _is_punctuation(ch: str) -> bool:
+    # string.punctuation is ASCII only; curly quotes, en/em dashes and other
+    # Unicode punctuation (category P*) must normalize away the same way.
+    return ch in string.punctuation or unicodedata.category(ch).startswith("P")
 
 
 def _normalize_whitespace(text: str) -> str:
@@ -160,14 +167,15 @@ def _normalize_number(text: str) -> str:
 
 
 def _tokenize(text: str) -> List[str]:
-    # split on whitespace and hyphens, except a minus sign that opens a number
+    # split on whitespace and hyphens (including the Unicode hyphens and
+    # dashes U+2010-U+2015, such as an en dash), except a minus sign that opens a number
     # ("-5", "(-5)", "((-5))"); a minus after a word and any run of opening
     # brackets ("f(-1)", "f([-1])") still splits, as before. Any whitespace
     # character separates tokens, so stop words after a newline or tab are
     # removed like the ones after a space.
     tokens = []
     start = 0
-    for match in re.finditer(r"\s|-", text):
+    for match in re.finditer(r"\s|-|[\u2010-\u2015]", text):
         index = match.start()
         if text[index] == "-" and _is_minus_sign(text, index):
             continue

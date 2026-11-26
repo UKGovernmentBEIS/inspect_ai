@@ -295,3 +295,24 @@ def test_minus_after_a_word_and_nested_brackets_splits_as_before():
     assert max_exact_score("((-40))", ["-40"]) == 1.0
     assert max_exact_score("((-40))", ["40"]) == 0.0
     assert max_exact_score("x is ([-40])", ["x is -40"]) == 1.0
+
+
+@pytest.mark.parametrize(
+    "answer, target",
+    [
+        ("O’Neill", "O'Neill"),  # curly apostrophe
+        ("O'Neill", "O’Neill"),  # the target has it
+        ("“Hamlet”", "Hamlet"),  # curly quotes
+        ("1914–1918", "1914-1918"),  # en dash
+        ("Jean‐Paul Sartre", "Jean-Paul Sartre"),  # Unicode hyphen
+        ("well—known", "well known"),  # em dash
+    ],
+)
+def test_unicode_punctuation_normalizes_like_ascii(answer: str, target: str) -> None:
+    assert max_exact_score(answer, [target]) == 1.0
+    assert max_f1_score(answer, [target]) == 1.0
+
+
+def test_unicode_letters_are_not_punctuation() -> None:
+    assert max_exact_score("été", ["ete"]) == 0.0
+    assert max_exact_score("été", ["ÉTÉ"]) == 1.0
