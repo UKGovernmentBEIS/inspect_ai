@@ -51,6 +51,7 @@ from acp.schema import (
     PermissionOptionKind,
     RequestPermissionRequest,
     RequestPermissionResponse,
+    ToolCallProgress,
     ToolCallStatus,
     ToolCallUpdate,
 )
@@ -618,10 +619,7 @@ def finish_approval_card(
     like the rest of this shim: a failure is logged, never raised.
     """
     with acp_guard("ACP approval card completion raised; the card stays pending"):
-        from inspect_ai.agent._acp._schema_builders import (
-            session_notification,
-            update_tool_call,
-        )
+        from inspect_ai.agent._acp._schema_builders import session_notification
         from inspect_ai.agent._acp.server import acp_server_accepting_clients
         from inspect_ai.log._samples import sample_active
 
@@ -635,7 +633,8 @@ def finish_approval_card(
         session.publish(
             session_notification(
                 session.session_id,
-                update_tool_call(
+                ToolCallProgress(
+                    session_update="tool_call_update",
                     tool_call_id=card.tool_call_id,
                     title=card.title,
                     status=card.status,
