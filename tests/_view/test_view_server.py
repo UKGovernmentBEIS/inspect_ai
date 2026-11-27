@@ -971,7 +971,6 @@ def _write_sharded_run(
     log_dir: Path,
     shard_mtimes: list[float],
     merged_mtime: float | None,
-    merged_suffix: str = "",
     merged_status: inspect_ai.log.EvalStatus = "success",
 ) -> None:
     """Write shards under ``<name>.shards/<k>/`` and optionally the merged log."""
@@ -985,7 +984,7 @@ def _write_sharded_run(
     if merged_mtime is not None:
         path = write_eval_log_named(
             log_dir,
-            f"{_MERGED_NAME}{merged_suffix}.eval",
+            f"{_MERGED_NAME}.eval",
             "task",
             "merged",
             status=merged_status,
@@ -1012,13 +1011,43 @@ def test_api_logs_hides_merged_shards(view_client: ViewTestClient) -> None:
     assert _listed_task_ids(view_client) == {"merged"}
 
 
-def test_api_logs_hides_shards_for_recovered_merged_log(
+_SHARD_0 = "2025-01-01T00-00-00+00-00_task_s0.eval"
+
+
+@pytest.mark.parametrize(
+    "merged_mtime,recovered_status,expected",
+    [
+        # a finished recovered log alone hides no shard
+        (None, "success", {_SHARD_0, f"{_MERGED_NAME}-recovered.eval"}),
+        # only <name>.eval decides, whatever the recovered log's status
+        (
+            2000,
+            "started",
+            {f"{_MERGED_NAME}.eval", f"{_MERGED_NAME}-recovered.eval"},
+        ),
+    ],
+)
+def test_api_logs_recovered_log_beside_shards_is_ordinary(
     view_client: ViewTestClient,
+    merged_mtime: float | None,
+    recovered_status: inspect_ai.log.EvalStatus,
+    expected: set[str],
 ) -> None:
-    _write_sharded_run(
-        view_client.log_dir, [1000], merged_mtime=2000, merged_suffix="-recovered"
+    _write_sharded_run(view_client.log_dir, [1000], merged_mtime=merged_mtime)
+    recovered = write_eval_log_named(
+        view_client.log_dir,
+        f"{_MERGED_NAME}-recovered.eval",
+        "task",
+        "recovered",
+        status=recovered_status,
     )
-    assert _listed_task_ids(view_client) == {"merged"}
+    os.utime(recovered, (3000, 3000))
+    log_dir = urllib.parse.quote_plus(str(view_client.log_dir))
+    for endpoint in ["logs", "log-files"]:
+        resp = view_client.request("GET", f"/{endpoint}?log_dir={log_dir}")
+        resp.raise_for_status()
+        names = {f["name"].rsplit("/", 1)[-1] for f in resp.json()["files"]}
+        assert names == expected, endpoint
 
 
 def test_api_logs_shows_shard_written_after_merge(
@@ -1110,31 +1139,6 @@ def test_api_logs_shows_shard_with_same_mtime_as_merge(
 ) -> None:
     _write_sharded_run(view_client.log_dir, [1000, 2000], merged_mtime=2000)
     assert _listed_task_ids(view_client) == {"merged", "s1"}
-
-
-def test_api_logs_older_of_merged_and_recovered_decides(
-    view_client: ViewTestClient,
-) -> None:
-    # s1 is newer than <name>.eval but older than <name>-recovered.eval
-    _write_sharded_run(view_client.log_dir, [1000, 3000], merged_mtime=2000)
-    recovered = write_eval_log_named(
-        view_client.log_dir,
-        f"{_MERGED_NAME}-recovered.eval",
-        "task",
-        "recovered",
-        status="success",
-    )
-    os.utime(recovered, (4000, 4000))
-    resp = view_client.request(
-        "GET", f"/logs?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}"
-    )
-    resp.raise_for_status()
-    names = {f["name"].rsplit("/", 1)[-1] for f in resp.json()["files"]}
-    assert names == {
-        f"{_MERGED_NAME}.eval",
-        f"{_MERGED_NAME}-recovered.eval",
-        "2025-01-01T00-00-01+00-00_task_s1.eval",
-    }
 
 
 def test_api_logs_shows_shards_of_running_merged_log(

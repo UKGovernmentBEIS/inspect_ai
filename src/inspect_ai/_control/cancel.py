@@ -80,6 +80,17 @@ while an errored attempt is still writing its final log: the task runner
 flags ``retry_pending`` the moment it decides an error status the eval-set
 will retry, so there is no window in which a cancel reads the attempt as
 "task already finished" and the retry then dispatches anyway.
+
+A task that has not registered (still queued, or in an attempt that has not
+reached ``register_eval``) is found in the queued registry
+(``_control/queued_tasks.py``) first. A plain cancel or a drain of a queued
+task aborts it before its log starts and reports ``task_queued``. For an
+attempt that is starting, the abort is deferred and reported as
+``abort_deferred``: the attempt's startup writes run undisturbed, and the
+abort is applied when it registers, as a running task's cancel is (see
+``TaskRecord.on_registered``). A starting preview (``run_samples=False``)
+never registers, so its cancel or drain is a no-op and it keeps its
+``started`` log. Score/error are rejected, since the task has no samples. See ``design/task-dispatch.md``, "Control channel".
 """
 
 from __future__ import annotations
@@ -90,6 +101,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from typing_extensions import NotRequired, TypedDict
 
 if TYPE_CHECKING:
+    from inspect_ai._control.queued_tasks import QueuedTask
     from inspect_ai.event._tool import ToolEvent
     from inspect_ai.log._samples import ActiveSample, SampleCancelAction
 
@@ -153,6 +165,28 @@ class CancelTaskChanged(_CancelTaskResult):
     changed: Literal[True]
 
 
+class CancelTaskQueued(_CancelTaskResult):
+    """The cancel or drain of a task that has not registered.
+
+    The task has run no samples: it aborts before its log starts (see the
+    module docstring).
+    """
+
+    changed: Literal[True]
+    task_queued: Literal[True]
+
+
+class CancelTaskDeferred(_CancelTaskResult):
+    """The cancel or drain of a task whose attempt is starting.
+
+    The attempt aborts when it registers, as a running task's cancel aborts
+    it, and ends with an error log (see the module docstring).
+    """
+
+    changed: Literal[True]
+    abort_deferred: Literal[True]
+
+
 class CancelTaskRetryAbandoned(_CancelTaskResult):
     """The between-attempts resolution.
 
@@ -165,7 +199,12 @@ class CancelTaskRetryAbandoned(_CancelTaskResult):
 
 
 CancelTaskResult = (
-    CancelTaskRejected | CancelTaskNoop | CancelTaskChanged | CancelTaskRetryAbandoned
+    CancelTaskRejected
+    | CancelTaskNoop
+    | CancelTaskChanged
+    | CancelTaskQueued
+    | CancelTaskDeferred
+    | CancelTaskRetryAbandoned
 )
 
 
@@ -259,6 +298,15 @@ def _task_cancel_directive(
         mark_task_gracefully_resolved,
         task_retry_abandoned,
     )
+    from inspect_ai._control.queued_tasks import find_queued_task
+
+    # a task that has not registered is found here before any EvalState of
+    # an earlier eval_set(retry_immediate=False) round with the same id
+    queued = find_queued_task(task_id)
+    if queued is not None:
+        return _queued_task_directive(
+            queued, stamp=stamp, action=action, dry_run=dry_run
+        )
 
     state = latest_eval_for_task(task_id)
     if state is None:
@@ -404,26 +452,87 @@ def _task_cancel_directive(
             mark_task_gracefully_resolved(state.task_id)
             # stamp the resolution first (queued samples check it as they
             # leave the queue, initializing samples as they start), then
-            # interrupt the samples already running. First resolution wins:
-            # a sample already interrupted — e.g. a per-sample 'cancel',
-            # now inside its logging window (`completed` is stamped only at
-            # context exit) — keeps its resolution; overwriting would flip
-            # a not-yet-handled 'cancel' to this score/error disposition
-            # (the runner reads the live interrupt_action as it handles the
-            # interrupt) and re-fire on_interrupt hooks on a sample already
-            # being resolved. A fired-but-not-yet-handled limit likewise
-            # keeps its disposition: the runner checks interrupt_action
-            # before limit_exceeded_error, so interrupting such a sample
-            # would hijack the limit outcome (and re-fire on_interrupt on
-            # top of the limit's own firing).
+            # interrupt the samples already running. A sample already
+            # interrupted keeps its resolution (interrupt() is first-wins). A
+            # fired-but-not-yet-handled limit likewise keeps its disposition:
+            # the runner checks interrupt_action before limit_exceeded_error,
+            # so interrupting such a sample would hijack the limit outcome
+            # (and re-fire on_interrupt on top of the limit's own firing).
             state.task_cancel.request(stamp)
             for sample in in_flight:
-                if (
-                    sample.interrupt_action is None
-                    and sample.limit_exceeded_error is None
-                ):
+                if sample.limit_exceeded_error is None:
                     sample.interrupt(stamp)
     return {**result, "changed": True}
+
+
+def _queued_task_directive(
+    queued: "QueuedTask",
+    *,
+    stamp: CancelStamp,
+    action: TaskCancelAction | None,
+    dry_run: bool,
+) -> CancelTaskResult:
+    """Cancel or drain a task that has not registered with the control channel.
+
+    Both abort it: a queued task through its run queue (``RunQueue.cancel``),
+    which starts an attempt that aborts before its log starts, and an
+    attempt that is starting when it registers. A score or error resolution
+    has no samples to apply to.
+    """
+    record = queued.record
+    if stamp in ("score", "error"):
+        return {
+            "ok": False,
+            "error": (
+                f"task {record.task_id} has not started, so there are no samples "
+                "for a resolution to apply to; use cancel or drain"
+            ),
+        }
+    result: _CancelTaskResult = {
+        "ok": True,
+        "task_id": record.task_id,
+        "task": record.task,
+        "eval_id": queued.eval.eval_id,
+        "dry_run": dry_run,
+        "in_flight": 0,
+    }
+    if action is not None:
+        result["action"] = action
+    else:
+        result["queued"] = 0
+    if record.abort_requested:
+        return {
+            **result,
+            "changed": False,
+            "reason": "cancel already requested (abort)",
+        }
+    if record.phase == "queued":
+        if not dry_run:
+            queued.cancel()
+        return {**result, "changed": True, "task_queued": True}
+    attempt_cancel = record.attempt_cancel
+    assert attempt_cancel is not None, "an attempt holds its cancel handle"
+    if attempt_cancel.cancel_type == "abort":
+        return {
+            **result,
+            "changed": False,
+            "reason": "cancel already requested (abort)",
+        }
+    if not attempt_cancel.escalates("abort"):
+        # the attempt returned a log that is not an error
+        return {**result, "changed": False, "reason": "task already finished"}
+    options = record.options
+    assert options is not None, "a listed task has not ended"
+    if not options.run_samples:
+        # a preview never registers, so a deferred abort would never apply
+        return {
+            **result,
+            "changed": False,
+            "reason": "task is a preview (run_samples=False) that runs no samples",
+        }
+    if not dry_run:
+        record.abort_requested = True
+    return {**result, "changed": True, "abort_deferred": True}
 
 
 class CancelSampleRejected(TypedDict):
@@ -452,12 +561,10 @@ class CancelSampleChanged(TypedDict):
 
 
 class CancelSampleAlreadyRequested(TypedDict):
-    """The repeat no-op on an initializing sample with an interrupt pending.
+    """The repeat no-op on a sample that already has an interrupt.
 
-    Scoped to ``started is None``: re-interrupting a *running* sample re-fires
-    its cancel scope (a real action, reported ``changed: true``), but
-    re-stamping a deferred intent does nothing, and the intent is not
-    overwritable — first resolution wins. ``interrupt`` names the pending
+    The interrupt is not overwritable — first resolution wins, whether the
+    sample is initializing or running. ``interrupt`` names the pending
     action, matching the live sample row's field.
     """
 
@@ -545,10 +652,10 @@ async def cancel_sample(
     intent, which the task runner fires the moment the sample starts, before
     any of its plan runs — so the sandbox is fully built and then torn down
     normally. The result is ``changed: True`` with a ``reason`` saying so.
-    Repeating the request while the sample is still initializing is the
-    ``changed: False`` "cancel already requested" no-op (the intent is not
-    overwritable — first resolution wins, as with the task-cancel sweep);
-    once the sample has started it lands on the running row as today.
+
+    Repeating the request on an initializing or running sample is the
+    ``changed: False`` "cancel already requested" no-op: the first
+    resolution wins, as with the task-cancel sweep.
 
     ``action="cancel"`` also acts on a sample that hasn't started
     (``design/ctl/queued-sample-cancel.md``): a queued re-run's pending
@@ -559,8 +666,8 @@ async def cancel_sample(
 
     Returns ``None`` when the sample is unknown to this process (the route
     404s); a ``changed: False`` no-op when it has already reached a terminal
-    outcome (or was already cancelled before start, or already carries a
-    deferred interrupt); ``{"ok": False, "error": ...}`` when it can't be
+    outcome (or was already cancelled before start, or already carries an
+    interrupt); ``{"ok": False, "error": ...}`` when it can't be
     cancelled — departed from the queue but not yet registered (the brief
     window before its ``ActiveSample`` exists; retryable), not yet at the
     queue (a retry attempt may reuse it from the prior attempt),
@@ -574,7 +681,7 @@ async def cancel_sample(
     sample = find_active_sample(eval_id, sample_id, epoch)
     if sample is not None and sample.completed is None:
         initializing = sample.started is None
-        if initializing and sample.interrupt_action is not None:
+        if sample.interrupt_action is not None:
             return {
                 "ok": True,
                 "sample_id": sample.sample.id,

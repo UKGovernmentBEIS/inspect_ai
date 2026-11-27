@@ -1,7 +1,7 @@
 import { i as __toESM } from "./rolldown-runtime.js";
 import { n as require_react, r as require_jsx_runtime, t as require_compiler_runtime } from "./compiler-runtime.js";
 import { t as useLatestRef } from "./useLatestRef.js";
-// ../../node_modules/.pnpm/asciinema-player@3.18.0/node_modules/asciinema-player/dist/logging-CQ2B4GZY.js
+// ../../node_modules/.pnpm/asciinema-player@3.18.1/node_modules/asciinema-player/dist/logging-CQ2B4GZY.js
 var import_jsx_runtime = require_jsx_runtime();
 var import_compiler_runtime = require_compiler_runtime();
 function parseNpt(time) {
@@ -189,7 +189,7 @@ var PrefixedLogger = class {
 		this.logger.error(`${this.prefix}${message}`, ...args);
 	}
 };
-// ../../node_modules/.pnpm/asciinema-player@3.18.0/node_modules/asciinema-player/dist/core-BMGzPqRb.js
+// ../../node_modules/.pnpm/asciinema-player@3.18.1/node_modules/asciinema-player/dist/core-BMGzPqRb.js
 var Stream = class Stream {
 	constructor(input, xfs) {
 		this.input = typeof input.next === "function" ? input : input[Symbol.iterator]();
@@ -3021,7 +3021,7 @@ function getDriver(src) {
 		return (callbacks, opts) => driver(src, callbacks, opts);
 	} else throw new Error(`unsupported driver: ${JSON.stringify(src)}`);
 }
-// ../../node_modules/.pnpm/asciinema-player@3.18.0/node_modules/asciinema-player/dist/opts-flwsQGx_.js
+// ../../node_modules/.pnpm/asciinema-player@3.18.1/node_modules/asciinema-player/dist/opts-Bk9kfHqm.js
 var equalFn = (a, b) => a === b;
 var $TRACK = Symbol("solid-track");
 var signalOptions = { equals: equalFn };
@@ -4335,11 +4335,11 @@ var Terminal = (props) => {
 	const [theme, setTheme] = createSignal(buildTheme(FALLBACK_THEME, props.adaptivePalette));
 	const lineHeight = () => props.lineHeight ?? 1.3333333333;
 	const [blinkOn, setBlinkOn] = createSignal(true);
-	const cursorOn = createMemo(() => {
+	const cursorOn = () => {
 		if (props.cursorMode === "hidden") return false;
 		if (props.cursorMode === "steady") return true;
 		return blinkOn() || cursorHold;
-	});
+	};
 	const style$1 = createMemo(() => {
 		return {
 			width: `${size().cols}ch`,
@@ -6509,7 +6509,7 @@ function uiOpts(inputOpts, overrides = {}) {
 		...overrides
 	};
 }
-// ../../node_modules/.pnpm/asciinema-player@3.18.0/node_modules/asciinema-player/dist/index.js
+// ../../node_modules/.pnpm/asciinema-player@3.18.1/node_modules/asciinema-player/dist/index.js
 function create(src, elem, opts = {}) {
 	const logger = opts.logger ?? new DummyLogger();
 	const core = new Core(src, coreOpts(opts, { logger }));

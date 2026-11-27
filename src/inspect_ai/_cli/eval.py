@@ -2772,7 +2772,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     type=click.Choice(["auto", "required", "off"]),
     envvar="INSPECT_EVAL_SENTINEL_PROXY",
     hidden=True,
-    help="Whether to look for a sentinel sidecar behind each model's proxy, as for eval. The log doesn't record it, so a retry is told again.",
+    help="Whether to look for a sentinel sidecar behind each model's proxy, as for eval. Defaults to what the log records.",
 )
 @click.option(
     "--tamper-evident-store",

@@ -29,7 +29,7 @@ import boto3
 import pytest
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai import Task, eval, eval_async
+from inspect_ai import Task, eval, eval_async, score_async
 from inspect_ai._control.events import decode_cursor
 from inspect_ai._control.log_dir import consistency
 from inspect_ai._control.log_dir.cache import (
@@ -77,10 +77,10 @@ from inspect_ai._control.log_dir.walk import walk_log_dir
 from inspect_ai._control.state import _iso_to_timestamp
 from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, FileContent
-from inspect_ai._util.file import filesystem, local_path
+from inspect_ai._util.file import filesystem
 from inspect_ai._util.log_layout import (
     eval_log_name,
-    log_basename,
+    merged_log_name,
     merged_log_task_id,
 )
 from inspect_ai.dataset import Sample
@@ -89,7 +89,6 @@ from inspect_ai.log import (
     EvalLog,
     EvalSample,
     EvalSpec,
-    list_eval_logs,
     read_eval_log_async,
     write_eval_log_async,
 )
@@ -109,7 +108,6 @@ from inspect_ai.log._recorders.buffer.types import (
     SampleData,
 )
 from inspect_ai.log._recorders.eval import EvalRecorder
-from inspect_ai.log._shards._walk import is_shard_path
 from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
@@ -273,16 +271,18 @@ async def _start_running_log(
     logged: list[int],
     sample_ids: list[int] | None,
     log_shared: int | None = None,
+    task_id: str = "RUNNINGTASK000000000000",
 ) -> _RunningLog:
     """A running log holding ``logged`` samples, with its recorder kept open.
 
     ``log_shared`` records the eval as run with ``--log-shared``, so a
-    shared buffer beside it is read.
+    shared buffer beside it is read. ``task_id`` is the header's task id (the
+    file name keeps the default).
     """
     assert source.samples is not None
     spec = source.eval.model_copy(
         update={
-            "task_id": "RUNNINGTASK000000000000",
+            "task_id": task_id,
             "eval_id": "RUNNINGEVAL000000000000",
             "dataset": source.eval.dataset.model_copy(
                 update={"sample_ids": sample_ids}
@@ -436,9 +436,10 @@ async def test_a_log_without_recorded_ids_counts_its_summaries(
     assert row["samples"]["total_final"] is False
 
 
-async def test_finished_log_without_results_is_a_lower_bound(
+async def test_finished_log_without_results_counts_its_header_total(
     tmp_path: Path, finished_log: EvalLog
 ) -> None:
+    assert finished_log.total_samples == 3
     await _attempt(
         finished_log,
         tmp_path,
@@ -448,8 +449,45 @@ async def test_finished_log_without_results_is_a_lower_bound(
     )
     _, rows = await _index(tmp_path)
     [row] = rows
+    assert row["samples"]["total"] == 3
+    assert row["samples"]["total_final"] is True
+
+
+async def test_older_finished_log_without_results_or_header_total_is_a_lower_bound(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    await _attempt(
+        finished_log,
+        tmp_path,
+        "2026-01-01T00-00-00+00-00",
+        status="error",
+        results=None,
+        total_samples=None,
+    )
+    _, rows = await _index(tmp_path)
+    [row] = rows
     assert row["samples"]["total_final"] is False
     assert row["samples"]["pending_unlisted"] is None
+
+
+async def test_a_rescored_log_keeps_its_admitted_total(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    # 20 samples admitted (19 by a SampleSource, unrecorded), only one logged
+    log = finished_log.model_copy(deep=True)
+    log.eval.dataset.sample_ids = [1]
+    log.samples = [s for s in log.samples or [] if s.id == 1]
+    log.total_samples = 20
+    rescored = await score_async(log, match(), action="overwrite")
+    assert rescored.results is not None and rescored.results.total_samples == 1
+    assert rescored.total_samples == 20
+    await _attempt(rescored, tmp_path, "2026-01-01T00-00-00+00-00")
+    _, rows = await _index(tmp_path)
+    [row] = rows
+    samples = row["samples"]
+    assert samples["total"] == 20 and samples["total_final"] is True
+    assert samples["completed"] == 1
+    assert samples["pending_unlisted"] == 19 and samples["unfinished"] == 19
 
 
 def test_totals_rules() -> None:
@@ -895,8 +933,8 @@ async def test_s3_walk_does_not_list_a_checkpoint_directory_in_a_companion(
     async with AsyncFilesystem() as fs:
         listing = await walk_log_dir(fs, f"s3://test-bucket/{prefix}")
     assert len(listing.shard_sets) == 1
-    # root, companion, 0/ and stray.checkpoints/; nothing below the last
-    assert s3_requests == Counter({"ListObjectsV2": 4})
+    # root, companion and 0/; stray.checkpoints/ is stray, not listed
+    assert s3_requests == Counter({"ListObjectsV2": 3})
 
 
 @skip_if_trio
@@ -1042,7 +1080,8 @@ async def test_walk_of_a_qualified_webhdfs_url(
     assert [m.location for m in shard_set.members] == [
         f"{root}/{name}.shards/{k}/{name}.eval" for k in ("0", "1")
     ]
-    assert [m.location for m in shard_set.merged] == [f"{root}/{name}.eval"]
+    assert shard_set.merged is not None
+    assert shard_set.merged.location == f"{root}/{name}.eval"
     assert [f.location for f in listing.eval_files] == [f"{root}/other.eval"]
 
 
@@ -1404,15 +1443,14 @@ async def test_names_without_a_timestamp_order_by_mtime_alone(
     assert row["log_location"] == str(new)
 
 
-def test_cli_errored_footer_points_at_the_log_dir(log_dir: Path) -> None:
-    import shlex
-
-    result = _ctl(str(log_dir), "task", "list")
+def test_cli_errored_footer_points_at_the_log_dir(
+    log_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a relative --log-dir keeps the temporary path out of the command
+    monkeypatch.chdir(log_dir)
+    result = _ctl(".", "task", "list")
     assert result.exit_code == 0, result.output
-    assert (
-        f"see `inspect ctl sample errors --log-dir {shlex.quote(str(log_dir))}`"
-        in result.stdout
-    )
+    assert "see `inspect ctl sample errors --log-dir .`" in result.stdout
 
 
 _BROKEN = "2099-01-01T00-00-00+00-00_broken_BROKENTASK000000000000.eval"
@@ -2029,6 +2067,101 @@ def test_cli_buffer_rows_messages_and_store_are_unsupported(
     assert "running samples are visible only with --log-shared" in human.stderr
 
 
+def _running_buffer_row(directory: Path, source: EvalLog, task_id: str) -> None:
+    """A running log with header ``task_id`` whose sample 2 is a buffer row."""
+    running = anyio.run(
+        functools.partial(
+            _start_running_log,
+            directory,
+            source,
+            logged=[1],
+            sample_ids=[1, 2],
+            log_shared=10,
+            task_id=task_id,
+        )
+    )
+    _write_buffer(running.location, [(_buffer_summary(2), [[_info("a", "e1")]])])
+
+
+@pytest.mark.parametrize("verb", ["messages", "store"])
+def test_cli_buffer_row_hint_quotes_a_task_id_with_shell_characters(
+    tmp_path: Path,
+    finished_log: EvalLog,
+    no_discovery: None,
+    monkeypatch: pytest.MonkeyPatch,
+    verb: str,
+) -> None:
+    task_id = "task id's $(x)"
+    _running_buffer_row(tmp_path, finished_log, task_id)
+    # a relative --log-dir keeps the temporary path out of the command
+    monkeypatch.chdir(tmp_path)
+    hint = (
+        "`inspect ctl sample events 'task id'\"'\"'s $(x)' 2 1 --type model "
+        "--log-dir .` shows its model calls."
+    )
+    human = _ctl(".", "sample", verb, task_id, "2")
+    assert human.exit_code == 1
+    assert hint in human.stderr
+    as_json = _ctl(".", "sample", verb, task_id, "2", "--json")
+    assert as_json.exit_code == 1
+    assert hint in as_json.stderr
+    assert hint in _json(as_json)["error"]["message"]
+
+
+@pytest.mark.parametrize("verb", ["messages", "store"])
+@pytest.mark.parametrize(
+    "task_id",
+    [
+        pytest.param("task\x1b'id", id="escape-before-quote"),
+        pytest.param("task id\x1b", id="trailing-escape"),
+        pytest.param("task\x1b[' id", id="csi"),
+        pytest.param("task\x1b]0;id", id="unterminated-string-sequence"),
+        pytest.param("task\tid", id="tab"),
+        pytest.param("task\nid", id="newline"),
+        pytest.param("task\u202eid", id="bidi-control"),
+    ],
+)
+def test_cli_buffer_row_hint_gives_no_command_for_a_non_printable_task_id(
+    tmp_path: Path, finished_log: EvalLog, no_discovery: None, task_id: str, verb: str
+) -> None:
+    """The task id is read from the log's header, so it can hold any character.
+
+    A command quoted around such an id could lose its quote characters to the
+    terminal sanitizer, and a command around the sanitized id could name
+    another task.
+    """
+    _running_buffer_row(tmp_path, finished_log, task_id)
+    message = (
+        f"its {'message list' if verb == 'messages' else 'store'} is not in the "
+        "shared buffer. `inspect ctl sample events TASK SAMPLE_ID 1 --type model "
+        "--log-dir DIR` (arguments not shown: one holds non-printable characters) "
+        "shows its model calls."
+    )
+    human = _ctl(str(tmp_path), "sample", verb, task_id, "2")
+    assert human.exit_code == 1
+    assert human.stderr.endswith(message + "\n")
+    as_json = _ctl(str(tmp_path), "sample", verb, task_id, "2", "--json")
+    assert as_json.exit_code == 1
+    assert as_json.stderr.endswith(message + "\n")
+    error = _json(as_json)["error"]
+    assert error["kind"] == "unsupported"
+    assert error["message"].endswith(message)
+
+
+def test_cli_errored_footer_gives_no_command_for_a_non_printable_log_dir(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    log_dir = tmp_path / "logs\u00a0dir"
+    log_dir.mkdir()
+    shutil.copy(finished_log.location, log_dir / Path(finished_log.location).name)
+    result = _ctl(str(log_dir), "task", "list")
+    assert result.exit_code == 0, result.output
+    assert result.stdout.endswith(
+        "1 sample errored — see `inspect ctl sample errors --log-dir DIR` "
+        "(arguments not shown: one holds non-printable characters)\n"
+    )
+
+
 def test_cli_buffer_reads_leave_the_directory_unchanged(
     tmp_path: Path, finished_log: EvalLog
 ) -> None:
@@ -2310,15 +2443,14 @@ async def _shard_views(root: Path) -> tuple[LogDirIndex, list[TaskView]]:
     return index, views
 
 
-@pytest.mark.parametrize("merged", [None, "", "-recovered", "both"])
+@pytest.mark.parametrize("merged", [False, True])
 async def test_a_shard_set_is_one_row_over_its_shards(
-    tmp_path: Path, finished_log: EvalLog, merged: str | None
+    tmp_path: Path, finished_log: EvalLog, merged: bool
 ) -> None:
     companion = await _shard_set(tmp_path, finished_log, {"0": [1], "1": [2], "2": [3]})
     merged_log: Path | None = None
-    if merged is not None:
-        for suffix in ["", "-recovered"] if merged == "both" else [merged]:
-            merged_log = await _merged(tmp_path, finished_log, suffix=suffix)
+    if merged:
+        merged_log = await _merged(tmp_path, finished_log)
 
     _, rows = await _index(tmp_path)
     # the merged log has no row of its own
@@ -2334,7 +2466,6 @@ async def test_a_shard_set_is_one_row_over_its_shards(
         assert row["eval_id"] is None and row["run_id"] is None
         assert row["log_location"] == str(companion)
     else:
-        # the newest merged log: the recovered copy when both exist
         assert row["eval_id"] == "MERGEDEVAL000000000000"
         assert row["log_location"] == str(merged_log)
     # without a recorded intended selection the total is a lower bound
@@ -2359,14 +2490,7 @@ async def test_a_shard_set_is_one_row_over_its_shards(
         "overlapping": 0,
         "mismatched": 0,
     }
-    if merged == "both":
-        # the older merged log is not read and is listed
-        [older] = row["unreadable"]
-        assert older["log_location"] == str(tmp_path / f"{_SET_NAME}.eval")
-        assert "an older merged log" in older["reason"]
-        assert row["incomplete"] is True
-    else:
-        assert row["unreadable"] == [] and row["incomplete"] is False
+    assert row["unreadable"] == [] and row["incomplete"] is False
 
 
 async def test_a_superseded_shard_attempt_is_not_read(
@@ -2476,32 +2600,6 @@ def test_a_merged_log_with_no_task_id_keeps_the_sets_key(
         assert result.exit_code == 0, (args, result.output)
 
 
-async def test_an_unreadable_newest_merged_log_keys_the_set_as_the_merge_does(
-    tmp_path: Path, finished_log: EvalLog
-) -> None:
-    # a file name pattern without {id}: only a readable merged log gives the id
-    name = "2026-02-01T00-00-00+00-00_alpha"
-    minted = "MINTEDTASKID0000000000"
-    await _shard_set(tmp_path, finished_log, {"0": [1]}, name=name)
-    merged = await _merged(tmp_path, finished_log, name=name, task_id=minted)
-    recovered = tmp_path / f"{name}-recovered.eval"
-    recovered.write_bytes(b"not a zip")
-    _, [row] = await _index(tmp_path)
-    # the older plain merged log is not read, so its task id is not used;
-    # the set gets the id a merge would give it
-    assert row["task_id"] == merged_log_task_id(
-        name, task=finished_log.eval.task, model=finished_log.eval.model
-    )
-    assert row["current_attempt"] == "shards"
-    assert row["eval_id"] is None
-    assert row["log_location"] == str(recovered)
-    assert row["incomplete"] is True
-    failure, older = row["unreadable"]
-    assert failure["log_location"] == str(recovered)
-    assert older["log_location"] == str(merged)
-    assert "an older merged log" in older["reason"]
-
-
 @pytest.mark.parametrize(
     "pattern", ["{task}_{id}", "{task}", "{id}_{task}", "{model}_{task}"]
 )
@@ -2573,37 +2671,24 @@ async def test_a_shard_directory_with_no_attempt_is_not_a_shard(
     assert row["samples"]["total"] == 2 and row["incomplete"] is False
 
 
-@pytest.mark.parametrize("root", ["dir", "companion", "shard"])
-async def test_the_walk_agrees_with_eval_set_on_shard_paths(
-    tmp_path: Path, finished_log: EvalLog, root: str
+async def test_a_recovered_log_beside_a_shard_set_is_an_ordinary_log(
+    tmp_path: Path, finished_log: EvalLog
 ) -> None:
-    companion = await _shard_set(tmp_path, finished_log, {"0": [1], "1": [2]})
-    await _merged(tmp_path, finished_log)
-    await _merged(tmp_path, finished_log, suffix="-recovered")
-    log_name = Path(finished_log.location).name
-    for directory in ("0/scans", ".hidden", ".hidden/sub"):
-        (companion / directory).mkdir(parents=True, exist_ok=True)
-        shutil.copy(finished_log.location, companion / directory / log_name)
-    nested = companion / "1" / "scans" / "n.shards"
-    await _shard(finished_log, nested, "0", [3])
-
-    base = {"dir": tmp_path, "companion": companion, "shard": companion / "0"}[root]
+    # only <name>.eval is the merged log of <name>.shards/
+    await _shard_set(tmp_path, finished_log, {"0": [1]})
+    merged = await _merged(tmp_path, finished_log)
+    recovered = await _merged(tmp_path, finished_log, suffix="-recovered")
     async with AsyncFilesystem() as fs:
-        listing = await walk_log_dir(fs, str(base))
-    shard_files = {
-        *(m.location for s in listing.shard_sets for m in s.members),
-        *(x.path for s in listing.shard_sets for x in s.stray),
-        *(x.path for x in listing.stray),
-    }
-    ordinary = {
-        *(f.location for f in listing.eval_files),
-        *(f.location for s in listing.shard_sets for f in s.merged),
-    }
-    logs = {local_path(i.name) for i in list_eval_logs(str(base), formats=["eval"])}
-    assert shard_files | ordinary == logs and not shard_files & ordinary
-    assert shard_files == {log for log in logs if is_shard_path(str(base), log)}
-    sets = {Path(s.location) for s in listing.shard_sets}
-    assert sets == {"dir": {companion}, "companion": {nested}, "shard": set()}[root]
+        listing = await walk_log_dir(fs, str(tmp_path))
+    assert [f.location for f in listing.eval_files] == [str(recovered)]
+    [shard_set] = listing.shard_sets
+    assert shard_set.merged is not None
+    assert shard_set.merged.location == str(merged)
+    # it records the set's task id, so it is a newer attempt of that task
+    _, [row] = await _index(tmp_path)
+    assert row["attempts"] == 2 and row["current_attempt"] == "log"
+    assert row["log_location"] == str(recovered)
+    assert row["unreadable"] == []
 
 
 async def test_the_walk_pairs_companions_with_logs_in_linear_work(
@@ -2622,9 +2707,9 @@ async def test_the_walk_pairs_companions_with_logs_in_linear_work(
     def counting(location: str) -> str:
         nonlocal calls
         calls += 1
-        return log_basename(location)
+        return merged_log_name(location)
 
-    monkeypatch.setattr("inspect_ai._control.log_dir.walk.log_basename", counting)
+    monkeypatch.setattr("inspect_ai._control.log_dir.walk.merged_log_name", counting)
     async with AsyncFilesystem() as fs:
         listing = await walk_log_dir(fs, str(tmp_path))
     assert len(listing.eval_files) == 2 * n and listing.shard_sets == []
@@ -2754,18 +2839,17 @@ def test_a_second_shard_sets_unreadable_merged_log_is_reported(
     second = anyio.run(
         functools.partial(_shard_set, tmp_path / "b", finished_log, {"0": [2]})
     )
-    # a duplicate's shards and older merged log are not read or listed
+    # a duplicate's shards are not read or listed
     broken = second / "1" / f"{_SHARD_STAMP}_alpha_SHARD1TASK000000000000.eval"
     broken.parent.mkdir()
     broken.write_bytes(b"not a zip")
-    (tmp_path / "b" / f"{_SET_NAME}.eval").write_bytes(b"not a zip")
-    recovered = tmp_path / "b" / f"{_SET_NAME}-recovered.eval"
-    recovered.write_bytes(b"not a zip")
+    merged = tmp_path / "b" / f"{_SET_NAME}.eval"
+    merged.write_bytes(b"not a zip")
 
     payload = _json(_ctl(tmp_path, "task", "list", "--json"))
     [row] = payload["tasks"]
     assert row["task_id"] == _SET_ID and row["samples"]["total"] == 1
-    expected = {str(recovered), str(second)}
+    expected = {str(merged), str(second)}
     assert {u["log_location"] for u in row["unreadable"]} == expected
     assert {u["log_location"] for u in payload["unreadable"]} == expected
     listing = _json(_ctl(tmp_path, "sample", "list", _SET_ID, "--json"))
@@ -2825,19 +2909,24 @@ async def test_stray_and_nested_logs_in_a_companion(
     stray = companion / Path(finished_log.location).name
     shutil.copy(finished_log.location, stray)
     (companion / "0" / "notes.json").write_text("{}")
-    # a log nested below a shard directory is an ordinary log
+    # a log nested below a shard directory is not listed
     nested = companion / "0" / "scans" / Path(finished_log.location).name
     nested.parent.mkdir()
     shutil.copy(finished_log.location, nested)
+    # a directory not named with digits is not a shard, and is not listed
+    other = companion / "extra"
+    other.mkdir()
+    shutil.copy(finished_log.location, other / Path(finished_log.location).name)
 
-    _, rows = await _index(tmp_path)
-    by_attempt = {r["current_attempt"]: r for r in rows}
-    assert set(by_attempt) == {"log", "shards"}
-    assert by_attempt["log"]["log_location"] == str(nested)
-    sharded = by_attempt["shards"]
+    _, [sharded] = await _index(tmp_path)
+    assert sharded["current_attempt"] == "shards"
     assert sharded["incomplete"] is True
-    assert [u["log_location"] for u in sharded["unreadable"]] == [str(stray)]
+    assert [u["log_location"] for u in sharded["unreadable"]] == [
+        str(stray),
+        str(other),
+    ]
     assert "not in a shard directory" in sharded["unreadable"][0]["reason"]
+    assert "not named with digits only" in sharded["unreadable"][1]["reason"]
 
 
 async def test_stray_logs_of_a_companion_without_shards_are_unattributed(
@@ -2859,15 +2948,11 @@ async def test_the_walk_lists_shard_directories_once_and_no_deeper(
     for skipped in (
         "0/.buffer/x",
         "0/run.checkpoints/1",
+        "1/scans/x.shards/0",
         ".buffer/x",
-        # checkpoint directories directly in the companion: their sample
-        # repositories are not listed
         "stray.checkpoints/1__1/a/b",
-        ".stray.checkpoints/1__1/a",
     ):
         (companion / skipped).mkdir(parents=True)
-    (companion / "1" / "scans" / "x.shards" / "0").mkdir(parents=True)
-    (companion / ".hidden" / "sub").mkdir(parents=True)
     listed: list[str] = []
     original = AsyncFilesystem.list_dir
 
@@ -2880,21 +2965,17 @@ async def test_the_walk_lists_shard_directories_once_and_no_deeper(
         listing = await walk_log_dir(fs, str(tmp_path))
     [shard_set] = listing.shard_sets
     assert [m.shard for m in shard_set.members] == ["0", "1"]
-    # the companion's dot-directories are listed once for stray logs; a
-    # companion nested below a shard is walked as an ordinary directory
+    # nothing below a shard directory is listed, and a directory not named
+    # with digits is stray, not listed
     assert sorted(Path(p).relative_to(tmp_path).as_posix() for p in listed) == [
         ".",
         companion.name,
-        f"{companion.name}/.buffer",
-        f"{companion.name}/.hidden",
-        f"{companion.name}/.hidden/sub",
-        f"{companion.name}/.stray.checkpoints",
         f"{companion.name}/0",
         f"{companion.name}/1",
-        f"{companion.name}/1/scans",
-        f"{companion.name}/1/scans/x.shards",
-        f"{companion.name}/1/scans/x.shards/0",
-        f"{companion.name}/stray.checkpoints",
+    ]
+    assert [Path(s.path).name for s in shard_set.stray] == [
+        ".buffer",
+        "stray.checkpoints",
     ]
 
 
@@ -2941,19 +3022,27 @@ async def test_s3_walk_of_a_shard_set_lists_each_shard_once(
     name = Path(finished_log.location).name
     s3 = boto3.client("s3")
     for k in range(5):
-        _upload(finished_log.location, f"{prefix}/{_SET_NAME}.shards/{k}/{name}")
+        shard = f"{prefix}/{_SET_NAME}.shards/{k}"
+        _upload(finished_log.location, f"{shard}/{name}")
         for i in range(50):
             s3.put_object(
                 Bucket="test-bucket",
-                Key=f"{prefix}/{_SET_NAME}.shards/{k}/.buffer/x/segment.{i}.zip",
+                Key=f"{shard}/.buffer/x/segment.{i}.zip",
                 Body=b"",
             )
+        # what else a worker writes: scan results, checkpoints, a nested log
+        for key in (
+            f"{shard}/scans/scan_id=x/rows.parquet",
+            f"{shard}/run.checkpoints/1__1/checkpoint",
+            f"{shard}/scans/n.shards/0/{name}",
+        ):
+            s3.put_object(Bucket="test-bucket", Key=key, Body=b"")
     async with AsyncFilesystem() as fs:
         listing = await walk_log_dir(fs, f"s3://test-bucket/{prefix}")
     [shard_set] = listing.shard_sets
     assert len(shard_set.members) == 5
     assert shard_set.path == f"{_SET_NAME}.shards"
-    # N + 2: the root, the companion and each shard, whatever the buffers hold
+    # N + 2: the root, the companion and each shard, whatever the shards hold
     assert s3_requests == Counter({"ListObjectsV2": 7})
 
 

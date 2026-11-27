@@ -223,7 +223,7 @@ from inspect_ai.util._store import init_subtask_store
 
 from ..context import init_task_context
 from ..task import Task
-from .enqueue import TaskRecord, creator_model_scope, get_run_queue
+from .enqueue import TaskRecord, attempt_scope, get_run_queue
 from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
@@ -238,6 +238,7 @@ from .log import TaskLogger, collect_eval_data, plan_to_eval_plan
 from .results import eval_results
 from .sample_source import (
     EnqueuedSample,
+    HandleChannel,
     SampleEnqueuer,
     SampleSource,
     clear_sample_enqueuer,
@@ -941,7 +942,7 @@ async def notify_task_source(options: TaskRunOptions, eval_log: EvalLog) -> None
     tasks the callback returned propagate.
     """
     if options.task_source is not None and options.run_samples:
-        with creator_model_scope(None):
+        with attempt_scope(None):
             try:
                 tasks = await options.task_source.task_complete(eval_log)
             except Exception as ex:
@@ -1477,6 +1478,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             raise
 
         try:
+            # deliver a handle's requests once the log has started, inside the
+            # try whose finally detaches the buffer again
+            if isinstance(sample_feed, HandleChannel):
+                assert sample_enqueuer is not None
+                sample_feed.attach(sample_enqueuer)
+
             # return immediately if we are not running samples
             if not options.run_samples:
                 return await logger.log_finish(
@@ -1558,6 +1565,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # the run's terminal count -- a task that read finished
                 # there could not be cancelled while the callback blocks
                 dynamic=sample_feed is not None or options.task_source is not None,
+                unregistered_attempts=(
+                    options.record.unregistered_attempts
+                    if options.record is not None
+                    else 0
+                ),
             )
             if options.record is not None:
                 options.record.on_registered()
@@ -1996,7 +2008,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 await sample_feed.sample_abandoned(abandoned, epoch)
                             )
                         if options.task_source is not None:
-                            with creator_model_scope(None):
+                            with attempt_scope(None):
                                 _enqueue_source_tasks(
                                     await options.task_source.sample_abandoned(
                                         abandoned, epoch, task
@@ -2567,6 +2579,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         finally:
             if sample_enqueuer_token is not None:
                 clear_sample_enqueuer(sample_enqueuer_token)
+            if isinstance(sample_feed, HandleChannel):
+                sample_feed.detach()
 
             # every sample task has exited by here (the try encloses the task
             # group), so any still-unaccounted samples can no longer record
@@ -3360,31 +3374,21 @@ async def _task_run_sample_attempt(
                                     # start the sample
                                     active.start(tg)
 
-                                    # a cancel arrived while this sample was
-                                    # initializing (after it left the queue,
-                                    # before it started — so the control
-                                    # layer's interrupt of in-flight samples
-                                    # missed it) — resolve it now rather than
-                                    # running the plan. A per-sample intent
-                                    # (`sample cancel` while initializing,
-                                    # stamped by `interrupt()` with no task
-                                    # group) fires first and exclusively: the
-                                    # task-level branches below also call
-                                    # interrupt(), and the runner handles the
-                                    # *live* interrupt_action, so falling
-                                    # through would let a task `score`
-                                    # overwrite the operator's per-sample
-                                    # `cancel` (the sweep applies the same
-                                    # first-resolution-wins rule).
-                                    pending_interrupt = active.interrupt_action
+                                    # a task cancel arrived while this sample
+                                    # was initializing (after it left the
+                                    # queue, before it started — so the
+                                    # control layer's interrupt of in-flight
+                                    # samples missed it) — resolve it now
+                                    # rather than running the plan. A
+                                    # per-sample intent stamped in that window
+                                    # already fired in start(), and interrupt()
+                                    # keeps the first resolution.
                                     resolution = (
                                         task_cancel.cancel_type
                                         if task_cancel is not None
                                         else None
                                     )
-                                    if pending_interrupt is not None:
-                                        active.interrupt(pending_interrupt)
-                                    elif resolution == "drain":
+                                    if resolution == "drain":
                                         # drain never interrupts in-flight
                                         # samples, but this one is not yet in
                                         # flight — it left the queue before
@@ -3946,7 +3950,7 @@ async def _task_run_sample_attempt(
                         await sample_feed.sample_complete(source_sample)
                     )
                 if task_source is not None:
-                    with creator_model_scope(None):
+                    with attempt_scope(None):
                         _enqueue_source_tasks(
                             await task_source.sample_complete(source_sample, task)
                         )

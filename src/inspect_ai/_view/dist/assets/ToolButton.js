@@ -2,11 +2,12 @@ import { i as __toESM } from "./rolldown-runtime.js";
 import { n as require_react, r as require_jsx_runtime, t as require_compiler_runtime } from "./compiler-runtime.js";
 // ../../packages/util/src/object.ts
 var printObject = (val, size = 50) => {
-	const envelope = ["{", "}"];
+	const open = "{";
+	const close = "}";
 	const ellipsis = "…";
 	const separator = ", ";
 	const kvSeparator = ": ";
-	let remainingSize = size - (envelope[0]?.length || 0) - (envelope[1]?.length || 0);
+	let remainingSize = size - 1 - 1;
 	const entries = Object.entries(val);
 	const headItems = [];
 	const tailItems = [];
@@ -44,8 +45,7 @@ var printObject = (val, size = 50) => {
 			headItems.push(ellipsis);
 		} else headItems.push(ellipsis);
 	}
-	const allItems = [...headItems, ...tailItems];
-	return envelope[0] + allItems.join(separator) + envelope[1];
+	return open + [...headItems, ...tailItems].join(separator) + close;
 };
 /**
 * Own-property read of a string-keyed record. Plain indexing walks the

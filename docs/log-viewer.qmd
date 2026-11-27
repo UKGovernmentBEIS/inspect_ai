@@ -103,7 +103,9 @@ If you are running VS Code, you can click the **View Log** link within the task 
 
 If you are running with the `inspect view` command-line then you can access logs for in-progress tasks using the [Log History](#log-history) as described above.
 
-### S3 Logs
+[]{#s3-logs}
+
+### Sharing Live Logs
 
 Multiple users can view live logs located on Amazon S3 (or any shared filesystem) by specifying an additional `--log-shared` option indicating that live log information should be written to the shared filesystem:
 
@@ -116,6 +118,10 @@ This is required because the live log viewing feature relies on a local database
 ``` bash
  inspect eval ctf.py --log-shared 30
 ```
+
+On a local or mounted disk on Linux or macOS, Inspect keeps a `.buffer` folder in the log directory between runs. Use ordinary directories for `.buffer` and its run folders. If Inspect detects that a run folder has moved or been replaced, it warns and stops sharing updates for that run. The eval continues recording locally.
+
+If several accounts run evals in the same log directory, give each account permission to create folders in `.buffer`. Inspect replaces files as it publishes updates, so configure any extra viewer permissions to apply to new files.
 
 ## Sample Details
 

@@ -292,11 +292,13 @@ def disable_ctl_server(request, monkeypatch):
 def isolate_active_model():
     """Keep the active-model contextvar from leaking across tests.
 
-    `eval` sets the process `active_model` contextvar. A test that runs `eval`
-    or `eval_set` *synchronously* in its own context (not a background thread)
-    keeps that value after the call, so it leaks into later tests. A later test
-    that resolves a bare model then gets the leaked model instead of
-    `INSPECT_EVAL_MODEL`. Restore the contextvar after each test.
+    `eval` and `eval_set` leave the caller's context unchanged, but other code
+    sets the `active_model` contextvar *synchronously* in the test's own
+    context: `inspect log merge-shards` run in-process keeps the task's model
+    active for the merge, and some tests call `init_active_model()` directly.
+    The value then leaks into later tests, and a later test that resolves a
+    bare model gets the leaked model instead of `INSPECT_EVAL_MODEL`. Restore
+    the contextvar after each test.
     """
     from inspect_ai.model._model import active_model_context_var
 

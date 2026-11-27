@@ -25,9 +25,7 @@ from pathlib import Path
 import pytest
 from acp.schema import (
     ContentToolCallContent,
-    FileEditToolCallContent,
     SessionNotification,
-    TerminalToolCallContent,
     TextContentBlock,
     ToolCallProgress,
     ToolCallStart,
@@ -71,26 +69,22 @@ def _push_tool_start(
     content block — mirroring what a tool with a registered viewer
     (e.g. the bash command preview) emits the moment the call lands.
     """
-    content: (
-        list[ContentToolCallContent | FileEditToolCallContent | TerminalToolCallContent]
-        | None
-    ) = (
-        [
-            ContentToolCallContent(
-                type="content",
-                content=TextContentBlock(type="text", text=call_view_text),
-            )
-        ]
-        if call_view_text is not None
-        else None
-    )
     start = ToolCallStart(
         session_update="tool_call",
         tool_call_id=tool_call_id,
         title=f"bash {tool_call_id}",
         status="in_progress",
         raw_input={"command": f"echo {tool_call_id}"},
-        content=content,
+        content=(
+            [
+                ContentToolCallContent(
+                    type="content",
+                    content=TextContentBlock(type="text", text=call_view_text),
+                )
+            ]
+            if call_view_text is not None
+            else None
+        ),
     )
     screen._state.consume(SessionNotification(session_id="sid-x", update=start))
 

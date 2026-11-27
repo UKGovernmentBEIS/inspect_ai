@@ -1,10 +1,13 @@
 import contextlib
 import json
 import logging
+import re
+import traceback
 from collections.abc import Awaitable, Callable
 from math import inf, nan
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import unquote, unquote_plus, urlsplit
 
 import anyio
 import httpx2
@@ -22,16 +25,17 @@ from inspect_ai import eval as inspect_eval
 from inspect_ai import score as score_log
 from inspect_ai._sentinel._sidecar._call import INSPECT_HEADERS, SidecarCall
 from inspect_ai._sentinel._sidecar._endpoint import (
+    REDACTED,
     EvalAccess,
     NoSidecar,
     SentinelProxyError,
     Sidecar,
     SidecarCallError,
+    _Client,
     _origin,
     probe,
     proxy_client,
 )
-from inspect_ai._sentinel._sidecar._events import SIDECAR_METADATA
 from inspect_ai._sentinel._sidecar._lookup import RESULT_WAIT, request_result
 from inspect_ai._sentinel._sidecar._received import (
     ReceivedCall,
@@ -155,6 +159,16 @@ async def _probed(model: Model) -> Sidecar | NoSidecar:
     return await probe(client)
 
 
+async def test_a_sidecar_speaks_the_highest_version_both_know() -> None:
+    # true is no version, though Python counts it as 1
+    info = {"service": "inspect_sentinel", "versions": [True, 1]}
+
+    found = await _probed(_model(StandInSidecar(info=info)))
+
+    assert isinstance(found, Sidecar)
+    assert type(found.version) is int
+
+
 @pytest.mark.parametrize(
     ("provider", "base_url"),
     [("anthropic", "http://proxy.test"), ("openai", "http://proxy.test/v1")],
@@ -173,6 +187,362 @@ async def test_a_sidecar_behind_the_models_base_url_is_found(
     [asked] = stand_in.probes
     assert str(asked.url) == "http://proxy.test/sentinel/info"
     assert asked.headers["authorization"] == "Bearer test-key"
+
+
+@pytest.mark.parametrize(
+    ("provider", "base_url", "origin", "proxy_url", "secrets"),
+    [
+        # each part of the user info, and the Basic authorization httpx sends
+        (
+            "anthropic",
+            "http://user:secret@proxy.test/v1",
+            "http://user:secret@proxy.test",
+            "http://proxy.test",
+            ["secret", "user", "dXNlcjpzZWNyZXQ="],
+        ),
+        # a token alone, as the user
+        (
+            "anthropic",
+            "http://secret@proxy.test",
+            "http://secret@proxy.test",
+            "http://proxy.test",
+            ["secret"],
+        ),
+        # a key in the query, or a fragment, of a base URL with no path, which
+        # the openai SDK keeps as given
+        (
+            "openai",
+            "http://proxy.test?api_key=secret",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["secret"],
+        ),
+        (
+            "openai",
+            "http://proxy.test#secret",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["secret"],
+        ),
+        # the anthropic SDK's errors show the page, which can repeat them
+        (
+            "anthropic",
+            "http://proxy.test?api_key=secret",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["secret"],
+        ),
+        (
+            "anthropic",
+            "http://proxy.test/v1#se%40cret",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["se%40cret", "se@cret"],
+        ),
+        # a short value inside a longer one, which is repeated form-decoded
+        # too, after a `;`, and a name with an empty value
+        (
+            "anthropic",
+            "http://proxy.test?v=9;key=pass9word+two&sk-abc=",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["pass", "word", "two", "sk-abc"],
+        ),
+        # a value that holds a `;`, as a parser that doesn't split at it reads
+        # it, and one decoded as Latin-1
+        (
+            "anthropic",
+            "http://proxy.test?key=pw7;c2VjcmV0IQ==&sig=caf%E9-token",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["c2VjcmV0IQ", "caf\xe9-token"],
+        ),
+        # a password that isn't ASCII, on a page labelled Windows-1252
+        (
+            "anthropic",
+            "http://agent:p%E2%82%ACss@proxy.test",
+            "http://agent:p%E2%82%ACss@proxy.test",
+            "http://proxy.test",
+            ["p\u20acss", "p\xe2\u201a\xacss"],
+        ),
+        # a name alone
+        (
+            "anthropic",
+            "http://proxy.test?sk-abc",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["sk-abc"],
+        ),
+        # a bare query, after which the anthropic SDK puts its slash, has no
+        # secret, so nothing else is redacted
+        (
+            "anthropic",
+            "http://proxy.test/v1?",
+            "http://proxy.test",
+            "http://proxy.test",
+            [],
+        ),
+        # escapes that aren't UTF-8, a byte or a cut-off sequence, repeated as
+        # given, in lower case, or decoded with U+FFFD
+        (
+            "anthropic",
+            "http://proxy.test?key=abc%FFdef&sig=ghi%E2%82jkl",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["abc%FFdef", "abc%ffdef", "abc�def", "ghi%e2%82jkl", "ghi�jkl"],
+        ),
+        # a value that matches one character before another, and an escape
+        # repeated in lower case
+        (
+            "anthropic",
+            "http://proxy.test?tag=%3Dd&key=demo%2Ftoken",
+            "http://proxy.test",
+            "http://proxy.test",
+            ["demo", "token"],
+        ),
+        (
+            "anthropic",
+            "http://user:secret@[::1]:8080/v1",
+            "http://user:secret@[::1]:8080",
+            "http://[::1]:8080",
+            ["secret"],
+        ),
+        # repeated percent-encoded, as in the URL, or decoded, as sent
+        (
+            "anthropic",
+            "http://user:se%40cret@proxy.test",
+            "http://user:se%40cret@proxy.test",
+            "http://proxy.test",
+            ["se%40cret", "se@cret"],
+        ),
+    ],
+)
+async def test_a_sidecar_is_called_with_the_credentials_its_base_url_holds_and_shown_without_them(
+    provider: str, base_url: str, origin: str, proxy_url: str, secrets: list[str]
+) -> None:
+    # a proxy's error page may repeat the URL Inspect asked for, credentials
+    # and all, and its authorization, or the base URL as configured, with its
+    # query and fragment, as given or decoded; the anthropic SDK's errors show
+    # the page. The proxy
+    # fails the first probe, answers the second as a sidecar, and fails the
+    # call to the sidecar that probe found.
+    asked: list[httpx2.URL] = []
+
+    def echo(request: httpx2.Request) -> httpx2.Response:
+        asked.append(request.url)
+        if len(asked) == 2:
+            return httpx2.Response(
+                200, json={"service": "inspect_sentinel", "versions": [1]}
+            )
+        # and names the user and each query item it rejects
+        authorization = request.headers.get("authorization", "")
+        items = " ".join(re.split("[&;]", urlsplit(base_url).query))
+        repeated = (
+            f"{request.url} {base_url} {authorization} {request.url.username} {items}"
+        )
+        lowered = re.sub("%[0-9A-F]{2}", lambda escape: escape[0].lower(), repeated)
+        decoded = [
+            unquote(repeated, encoding=encoding, errors="replace")
+            for encoding in ("utf-8", "latin-1", "cp1252")
+        ]
+        page = f"upstream failed for {repeated} ({') ('.join(decoded)}) ({unquote_plus(repeated)}) ({lowered})"
+        # the openai SDK's errors show a JSON error's body, and not a page
+        if provider == "openai":
+            return httpx2.Response(500, json={"error": {"message": page}})
+        return httpx2.Response(500, text=page)
+
+    model = get_model(
+        _MODELS[provider],
+        base_url=base_url,
+        api_key="test-key",
+        memoize=False,
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(echo)),
+    )
+    client = await proxy_client(model.api)
+    assert client is not None
+
+    found = await probe(client)
+    assert isinstance(found, NoSidecar)
+    sidecar = await probe(client)
+    assert isinstance(sidecar, Sidecar)
+    assert (sidecar.origin, sidecar.proxy_url) == (origin, proxy_url)
+    with pytest.raises(SidecarCallError) as raised:
+        await sidecar.call("end_sample", {})
+
+    # each call at the proxy's root, with the credentials and no query
+    assert [(_origin(url), url.raw_path) for url in asked] == [
+        (origin, b"/sentinel/info"),
+        (origin, b"/sentinel/info"),
+        (origin, b"/sentinel/v1"),
+    ]
+    assert proxy_url in found.reason
+    # nor anywhere a traceback of the call's error would print
+    shown = [found.reason, "".join(traceback.format_exception(raised.value))]
+    if provider == "anthropic":
+        assert f"{proxy_url}/sentinel/info" in found.reason
+        assert f"{proxy_url}/sentinel/v1" in shown[1]
+    # each error shows the proxy's page, so that it is the redaction that
+    # takes the secrets out
+    assert all("upstream failed for" in text for text in shown)
+    assert not [secret for secret in secrets if any(secret in text for text in shown)]
+
+
+class _FalseError(ValueError):
+    def __bool__(self) -> bool:
+        return False
+
+
+class _Answer:
+    def __init__(self, answer: dict[str, Any]) -> None:
+        self.answer = answer
+
+    def json(self) -> dict[str, Any]:
+        return self.answer
+
+
+@pytest.mark.parametrize(
+    ("where", "key", "secret", "described"),
+    [
+        ("message", "abc%FFdef", "abc\udcffdef", "for http://proxy.test?<>"),
+        (
+            "cause",
+            "demo-token",
+            "demo-token",
+            "denied <- ValueError: for http://proxy.test?<>",
+        ),
+        # a secret that ends in a space
+        (
+            "cause",
+            "demo-token%20",
+            "demo-token ",
+            "denied <- ValueError: for http://proxy.test?<>",
+        ),
+        ("error answer", "demo-token", "demo-token", "denied"),
+        # trimmed, as the anthropic SDK trims an error page, of a space that
+        # is encoded, or form-encoded
+        ("trimmed", "demo-token%20", "demo-token ", "for http://proxy.test?<>"),
+        ("trimmed", "demo-token+", "demo-token ", "for http://proxy.test?<>"),
+        # raised from an error that is false
+        (
+            "false cause",
+            "demo-token",
+            "demo-token",
+            "denied <- {false}: for http://proxy.test?<>",
+        ),
+        (
+            "attribute",
+            "demo-token",
+            "demo-token",
+            "Expecting value: line 1 column 1 (char 0)",
+        ),
+        (
+            "hidden context",
+            "demo-token",
+            "demo-token",
+            "Error code: 500 <- ValueError: for http://proxy.test?<>",
+        ),
+        (
+            "note",
+            "demo-token",
+            "demo-token",
+            "denied <- ValueError: upstream failed\nfor http://proxy.test?<>",
+        ),
+    ],
+)
+async def test_a_failed_call_to_a_sidecar_names_its_causes_without_a_secret(
+    where: str, key: str, secret: str, described: str
+) -> None:
+    # the error keeps no error it was raised from, which may keep the request,
+    # its credentials and the eval's token; it names each, as a traceback
+    # does, notes and all. An error may keep a byte that isn't UTF-8 as its
+    # surrogate, and an SDK raises its status error `from None`, which hides
+    # the HTTP error that names the URL.
+    class Failing:
+        async def post(self, *args: Any, **kwargs: Any) -> Any:
+            repeated = f"for http://proxy.test?key={secret}"
+            if where == "message":
+                raise ValueError(repeated)
+            if where == "cause":
+                raise RuntimeError("denied") from ValueError(repeated)
+            if where == "trimmed":
+                raise ValueError(repeated.strip())
+            if where == "false cause":
+                raise RuntimeError("denied") from _FalseError(repeated)
+            if where == "error answer":
+                return _Answer({"error": {"code": -32000, "message": "denied"}})
+            if where == "attribute":
+                # a message that names no secret, of an error that keeps one
+                raise json.JSONDecodeError("Expecting value", repeated, 0)
+            if where == "hidden context":
+                try:
+                    raise ValueError(repeated)
+                except ValueError:
+                    raise RuntimeError("Error code: 500") from None
+            noted = ValueError("upstream failed")
+            noted.add_note(repeated)
+            raise RuntimeError("denied") from noted
+
+    sidecar = Sidecar(
+        "http://proxy.test",
+        "whole",
+        Failing(),
+        base_url=f"http://proxy.test?key={key}",
+    )
+
+    # called as the model does after its call failed, while handling that
+    # call's error, which keeps the request to the proxy
+    with pytest.raises(SidecarCallError) as raised:
+        try:
+            raise ValueError("http://proxy.test?key=demo-token")
+        except ValueError:
+            await sidecar.call("end_sample", {})
+
+    false = f"{_FalseError.__module__}.{_FalseError.__qualname__}"
+    shown = described.replace("<>", REDACTED).replace("{false}", false)
+    assert str(raised.value) == f"The sidecar's end_sample failed: {shown}"
+    assert (raised.value.__cause__, raised.value.__context__) == (None, None)
+
+
+@pytest.mark.parametrize("method", ["eval_call", "answer_question"])
+async def test_a_call_before_the_eval_registered_keeps_no_error_it_was_made_in(
+    method: str,
+) -> None:
+    sidecar = Sidecar("http://proxy.test", "whole", None)
+
+    # as the model calls the sidecar, while handling its call's error
+    with pytest.raises(SidecarCallError, match="hasn't registered") as raised:
+        try:
+            raise ValueError("http://proxy.test?key=demo-token")
+        except ValueError:
+            if method == "eval_call":
+                await sidecar.eval_call("end_sample", {})
+            else:
+                await sidecar.answer_question("q1", "approve", None)
+
+    assert raised.value.__context__ is None
+
+
+@pytest.mark.parametrize(
+    ("value", "repeated"),
+    # repeated over itself, and with a `%` that a `%25` spells
+    [("aba", "ababa"), ("abc%25", "abc%25")],
+)
+async def test_a_secret_is_redacted_whole(value: str, repeated: str) -> None:
+    class Failing:
+        async def post(self, *args: Any, **kwargs: Any) -> Any:
+            raise ValueError(repeated)
+
+    sidecar = Sidecar(
+        "http://proxy.test",
+        "whole",
+        Failing(),
+        base_url=f"http://proxy.test?key={value}",
+    )
+
+    with pytest.raises(SidecarCallError) as raised:
+        await sidecar.call("end_sample", {})
+
+    assert str(raised.value) == f"The sidecar's end_sample failed: {REDACTED}"
 
 
 async def test_a_sidecar_behind_an_openai_compatible_models_base_url_is_found() -> None:
@@ -514,19 +884,50 @@ async def test_a_first_registration_sent_again_sends_the_same_token() -> None:
 @pytest.mark.parametrize(
     ("info", "says"),
     [
-        ({"service": "inspect_sentinel", "versions": [2]}, r"serves versions \[2\]"),
         (
-            {"service": "inspect_sentinel", "versions": [1], "release": "early"},
+            {"service": "inspect_sentinel", "versions": [2, "demo-token"]},
+            r"serves versions \[2\] ",
+        ),
+        # true isn't version 1
+        ({"service": "inspect_sentinel", "versions": [True]}, r"serves versions \[\] "),
+        (
+            {"service": "inspect_sentinel", "versions": [1], "release": "prior-token"},
             "releases replies early",
         ),
     ],
-    ids=["an unknown version", "early release"],
+    ids=["an unknown version", "true", "early release"],
 )
 async def test_a_sidecar_inspect_cant_work_with_is_an_error(
     info: dict[str, Any], says: str
 ) -> None:
-    with pytest.raises(SentinelProxyError, match=says):
-        await _probed(_model(StandInSidecar(info=info)))
+    # and the error repeats no secret the answer holds, nor keeps the error
+    # the caller was handling, as the model's failed call through the proxy
+    base_url = "http://proxy.test?key=demo-token"
+    model = _model(StandInSidecar(info=info), base_url=base_url)
+    with pytest.raises(SentinelProxyError, match=says) as raised:
+        try:
+            raise ValueError(base_url)
+        except ValueError:
+            await _probed(model)
+    assert not {"demo-token", "prior-token"} & set(str(raised.value).split())
+    assert "token" not in str(raised.value)
+    assert raised.value.__context__ is None
+
+
+async def test_an_answer_too_deep_to_parse_is_no_sidecar() -> None:
+    class TooDeep:
+        base_url = "http://proxy.test"
+
+        async def get(self, *args: Any, **kwargs: Any) -> Any:
+            return self
+
+        def json(self) -> Any:
+            raise RecursionError("maximum recursion depth exceeded")
+
+    found = await probe(_Client(TooDeep(), "http://proxy.test"))
+
+    assert isinstance(found, NoSidecar)
+    assert "not as a sidecar" in found.reason
 
 
 async def test_a_task_that_requires_a_sidecar_fails_without_one() -> None:
@@ -577,8 +978,7 @@ def test_an_eval_that_requires_a_sidecar_fails_its_task_without_one() -> None:
     assert log.status == "error"
     assert log.error is not None
     assert "A sentinel sidecar is required" in log.error.message
-    # the setting isn't part of the log format
-    assert "sentinel_proxy" not in log.eval.config.model_dump()
+    assert log.eval.config.sentinel_proxy == "required"
 
 
 def test_an_eval_told_to_look_finds_a_sidecar() -> None:
@@ -4229,8 +4629,8 @@ def test_each_report_says_which_models_judged_it(
     # the sidecar's own roles judged, whatever the eval set, and the log says so
     assert log.samples is not None
     [event] = _sentinel_events(log.samples[0])
-    assert event.metadata is not None
-    assert event.metadata[SIDECAR_METADATA]["models"] == [
+    assert event.remote is not None and event.remote.models is not None
+    assert [m.model_dump(exclude_none=True) for m in event.remote.models] == [
         {"role": "monitor", "model": "mockllm/judge"},
         {"model": "mockllm/named"},
     ]
@@ -4667,14 +5067,14 @@ def test_judging_usage_the_sidecar_didnt_price_is_priced_as_in_process() -> None
 )
 def test_the_time_the_sidecar_spent_judging_is_waiting(decided: dict[str, Any]) -> None:
     def run(judging_time: float | None) -> tuple[float, float]:
-        # the proxy holds the call a second, judging_time of it for its
+        # the proxy holds the call three seconds, judging_time of it for its
         # sidecar; a turn it refuses comes back as an error Inspect recovers
         stand_in = StandInSidecar(
             turns=[
                 Turn(
                     **decided,
                     judging={"judging_time": judging_time} if judging_time else None,
-                    delay=1.0,
+                    delay=3.0,
                 ),
                 Turn(),
             ]
@@ -4693,15 +5093,17 @@ def test_the_time_the_sidecar_spent_judging_is_waiting(decided: dict[str, Any]) 
         return sample.working_time, call.working_time
 
     sample_unjudged, call_unjudged = run(None)
-    sample_judged, call_judged = run(0.9)
+    sample_judged, call_judged = run(2.7)
 
     # As in process, the agent is charged only the model's time: for the
     # sample, which its working limit reads, and for the call. The amounts
     # are checked against a fake clock in tests/util/test_limit_working.py;
-    # here, on the real clock, only that the judging came out.
-    assert call_unjudged >= 1.0
-    assert call_judged < call_unjudged - 0.5
-    assert sample_judged < sample_unjudged - 0.5
+    # here, on the real clock, only that the judging came out. The hold is
+    # long and the margin wide, so a stall of up to about a second in one
+    # run doesn't fail it.
+    assert call_unjudged >= 3.0
+    assert call_judged < call_unjudged - 1.5
+    assert sample_judged < sample_unjudged - 1.5
 
 
 @pytest.mark.parametrize("limit", ["token", "cost", "turn"])
@@ -5088,9 +5490,11 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
         "stage": "tool_call",
         "call": "call_1",
         "decision": {"action": "reject", "message": "Tokyo is not allowed."},
+        "reviews": ["q_1"],
     }
     if not trimmed:
-        step["recorded"] = _RECORDED
+        # the decision is the root's, at the empty path
+        step["recorded"] = [_RECORDED[0], {**_RECORDED[1], "path": ""}]
     judgment: dict[str, Any] = {
         "outcome": "proceed",
         "steps": [step],
@@ -5113,16 +5517,11 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
     events = _sentinel_events(sample)
     irid = stand_in.model_calls[0].headers["x-irid"]
     assert all(e.step_id == "call_1" and e.stage == "tool_call" for e in events)
-    # where each came from, in its metadata, as the log format has no field
-    assert all(e.metadata and SIDECAR_METADATA in e.metadata for e in events)
-    assert events[0].metadata is not None
-    where = events[0].metadata[SIDECAR_METADATA]
-    assert (where["proxy"], where["version"], where["release"], where["request"]) == (
-        "http://proxy.test",
-        1,
-        "whole",
-        irid,
-    )
+    # where each came from
+    assert all(e.remote is not None for e in events)
+    where = events[0].remote
+    assert where is not None
+    assert (where.proxy_url, where.request_id) == ("http://proxy.test", irid)
     if trimmed:
         # the step's decision, without the protocol that made it
         [event] = events
@@ -5131,7 +5530,9 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
             "reject",
             "",
         )
-        assert where["trimmed"]
+        assert where.trimmed
+        assert where.human_reviews is not None
+        assert [r.id for r in where.human_reviews] == ["q_1"]
     else:
         # one per report, as in process
         observed, decided = events
@@ -5141,12 +5542,66 @@ def test_the_sidecars_reports_are_written_as_sentinel_events(trimmed: bool) -> N
             0.9,
         )
         assert (decided.path, decided.action, decided.message) == (
-            "no_tokyo",
+            "",
             "reject",
             "Tokyo is not allowed.",
         )
         assert decided.function == "decide"
-        assert not where["trimmed"]
+        assert not where.trimmed
+        assert _review_ids(events) == [None, ["q_1"]]
+
+
+def _review_ids(events: list[SentinelEvent]) -> list[list[str] | None]:
+    return [
+        None
+        if e.remote is None or e.remote.human_reviews is None
+        else [r.id for r in e.remote.human_reviews]
+        for e in events
+    ]
+
+
+@pytest.mark.parametrize(
+    ("recorded", "review_ids"),
+    [
+        # no root record: the step's last
+        ([_RECORDED[0], _RECORDED[1]], [None, ["q_1"]]),
+        # two root records: the first alone
+        (
+            [
+                {**_RECORDED[1], "path": "", "kind": "superseded"},
+                {**_RECORDED[1], "path": ""},
+            ],
+            [["q_1"], None],
+        ),
+    ],
+    ids=["no-root", "two-roots"],
+)
+def test_a_steps_question_ids_are_on_one_of_its_events(
+    recorded: list[dict[str, Any]], review_ids: list[list[str] | None]
+) -> None:
+    step: dict[str, Any] = {
+        "stage": "tool_call",
+        "call": "call_1",
+        "decision": {"action": "reject", "message": "Tokyo is not allowed."},
+        "reviews": ["q_1"],
+        "recorded": recorded,
+    }
+    judgment: dict[str, Any] = {
+        "outcome": "proceed",
+        "steps": [step],
+        "proposed": {
+            "message": _turn_json(("call_1", "Tokyo"), ("call_2", "Oslo")),
+            "results": {"call_1": "Tokyo is not allowed."},
+        },
+    }
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(calls=[("call_2", "weather", {"city": "Oslo"})], judgment=judgment),
+            Turn(),
+        ]
+    )
+
+    assert _review_ids(_sentinel_events(_run_agent(stand_in))) == review_ids
 
 
 def test_a_step_without_records_keeps_its_decisions_metadata() -> None:
@@ -5180,9 +5635,9 @@ def test_a_step_without_records_keeps_its_decisions_metadata() -> None:
     sample = _run_agent(stand_in)
 
     [event] = _sentinel_events(sample)
-    assert event.metadata is not None
-    assert event.metadata["rule"] == "no_tokyo"
-    assert event.metadata[SIDECAR_METADATA]["trimmed"] is False
+    assert event.metadata == {"rule": "no_tokyo"}
+    assert event.remote is not None and event.remote.trimmed is False
+    assert event.function == ""
 
 
 @scorer(metrics=[mean()])

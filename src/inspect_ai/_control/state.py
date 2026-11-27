@@ -8,6 +8,8 @@ Reads from two sources at request time:
 - :func:`inspect_ai.log._samples.active_samples` for ``in_flight``
   (currently-executing samples), plus the per-eval ``task`` / ``model``
   / ``started_at`` / ``run_id`` metadata.
+- :func:`inspect_ai._control.queued_tasks.queued_tasks` for tasks that have
+  not registered yet, listed with status ``queued``.
 
 One process can host multiple evals at once. There are two ways this
 happens:
@@ -46,6 +48,7 @@ from inspect_ai._util.file import local_path
 if TYPE_CHECKING:
     from inspect_ai._control.cancel import PendingToolCall
     from inspect_ai._control.eval_state import EvalState
+    from inspect_ai._control.queued_tasks import QueuedTask
     from inspect_ai._eval.task.scheduler import SampleKey
     from inspect_ai.log._log import EvalSampleSummary
     from inspect_ai.log._samples import ActiveSample
@@ -156,8 +159,12 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         attempt's results are written), a nested ``samples`` block:
         ``{total, completed, errored, in_flight, queued}``, an
         ``attempts`` count (1 for tasks without retries, >1 when
-        retries occurred), and the running ``refusals`` / ``http_retries``
-        tallies for this eval's samples.
+        retries occurred, counting attempts that failed before
+        registering), and the running ``refusals`` / ``http_retries``
+        tallies for this eval's samples. A task that has not registered yet
+        has status ``queued`` and no ``completed_at``; with no earlier
+        registered attempt under its id it has zero sample counts and its
+        ``attempts`` counts the attempts that failed before registering.
     """
     # Lazy imports to avoid pulling the full log/event/scorer chain at
     # module-import time (control server module is imported during
@@ -169,19 +176,22 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     from inspect_ai._control.pause import process_paused, process_paused_now
     from inspect_ai.log._samples import active_samples
 
-    states = get_eval_states()
-
     # Resolve reused evals' summaries-derived stats (lazy: the first request
     # pays the per-log reads — concurrently — instead of eval-set startup
     # paying them serially whether or not a control client ever connects;
     # subsequent requests are free). Unbounded fan-out matches the bulk
     # header reads in `read_eval_logs_async`: effective concurrency is
     # governed by the filesystem's connection pool.
-    deferred = [s for s in states if s.deferred_sample_stats is not None]
+    deferred = [s for s in get_eval_states() if s.deferred_sample_stats is not None]
     if deferred:
         await tg_collect(
             [partial(resolve_deferred_sample_stats, state) for state in deferred]
         )
+
+    # Snapshot after the await, with no await from here on: a task moves from
+    # the queued registry to its EvalState in one synchronous step, so both
+    # views read together list it exactly once.
+    states = get_eval_states()
 
     # Group live samples by eval_id (per-attempt, not folded).
     samples_by_eval: dict[str, list[ActiveSample]] = defaultdict(list)
@@ -226,7 +236,9 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         # prefer a finished earlier attempt over a still-running retry
         # (whose `completed_at` is None).
         latest = group_states[-1]
-        attempts = len(group_states)
+        attempts = len(group_states) + sum(
+            state.unregistered_attempts for state in group_states
+        )
 
         # Live samples: pull from every attempt in the group (only the
         # latest will normally have any, but be defensive).
@@ -299,8 +311,96 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
             }
         )
 
+    _add_queued_tasks(summaries, started_at)
+
     summaries.sort(key=lambda s: s["started_at"])
     return summaries
+
+
+def _add_queued_tasks(summaries: list[dict[str, Any]], started_at: float) -> None:
+    """Add a ``queued`` row for each task that has not registered.
+
+    A task with history under its id (an earlier ``eval_set(retry_immediate=
+    False)`` round) keeps its row, with its attempts, counters and log
+    location, marked ``queued``: not completed, with the queued task's
+    current pause state.
+    """
+    from inspect_ai._control.queued_tasks import queued_tasks
+
+    by_task_id = {s["task_id"]: s for s in summaries if s["task_id"]}
+    for queued in queued_tasks():
+        existing = by_task_id.get(queued.record.task_id)
+        if existing is not None:
+            existing.update(
+                status="queued",
+                completed_at=None,
+                attempts=existing["attempts"] + queued.record.unregistered_attempts,
+                **_queued_pause_fields(queued),
+            )
+        else:
+            summaries.append(_queued_summary(queued, started_at))
+
+
+def _queued_pause_fields(queued: "QueuedTask") -> dict[str, Any]:
+    """A queued task's pause fields: the latches holding it from starting.
+
+    The dispatcher checks the same latches. A queued task has nothing
+    dispatched, so it is quiesced whenever a latch holds it.
+    """
+    from inspect_ai._control.pause import (
+        task_held_count,
+        task_pause_now_sources,
+        task_pause_sources,
+    )
+
+    record = queued.record
+    paused = task_pause_sources(record.task_id, record.model) or None
+    paused_now = (
+        (task_pause_now_sources(record.task_id, record.model) or None)
+        if paused is not None
+        else None
+    )
+    return {
+        "paused": paused,
+        "paused_now": paused_now,
+        "quiesced": paused is not None,
+        "held": task_held_count(record.task_id),
+    }
+
+
+def _queued_summary(queued: "QueuedTask", started_at: float) -> dict[str, Any]:
+    """The ``GET /tasks`` row of a task that has not registered."""
+    record = queued.record
+    spec = queued.eval
+    return {
+        "run_id": spec.run_id,
+        "eval_id": spec.eval_id,
+        "task": record.task,
+        "task_id": record.task_id,
+        "model": record.model,
+        "solver": "",
+        "log_location": "",
+        "status": "queued",
+        "started_at": started_at,
+        "completed_at": None,
+        **_queued_pause_fields(queued),
+        "resolving": None,
+        "attempts": record.unregistered_attempts,
+        "epochs": queued.epochs,
+        "samples": {
+            "total": 0,
+            "completed": 0,
+            "errored": 0,
+            "cancelled": 0,
+            "in_flight": 0,
+            "queued": 0,
+        },
+        "total_tokens": 0,
+        "tokens_per_second": None,
+        "total_messages": 0,
+        "refusals": 0,
+        "http_retries": 0,
+    }
 
 
 async def current_sample_summaries(

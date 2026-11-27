@@ -366,6 +366,7 @@ def reconstruct_eval_sample(
         model_usage=summary.model_usage,
         role_usage=summary.role_usage,
         model_fallbacks=summary.model_fallbacks,
+        sentinel_stats=summary.sentinel_stats,
         turn_count=summary.turn_count,
         token_limit=summary.token_limit,
         token_limit_type=summary.token_limit_type,

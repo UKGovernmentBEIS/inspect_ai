@@ -12,9 +12,6 @@ from ._received import Judgment, ReceivedCall
 
 logger = getLogger(__name__)
 
-SIDECAR_METADATA = "sentinel_sidecar"
-"""The key of a sidecar report's provenance in the event's `metadata`: the proxy, the endpoint's version and release mode, the call's `x-irid`, whether the report was trimmed, and the models the step's monitors and protocols called."""
-
 
 def record_sidecar_reports(
     judgment: Judgment,
@@ -33,23 +30,28 @@ def record_sidecar_reports(
         step_id = step.call if step.call is not None else generate_id
         if step.models:
             _warn_of_unused_roles(step.models, sidecar)
-        # where the report came from, in the event's metadata: the log
-        # format has no field for it
+        # the eval protocol requires `model` on each of `models`; an entry
+        # without one fails the event's validation
         where: dict[str, Any] = {
-            "proxy": sidecar.origin,
-            "version": sidecar.version,
-            "release": sidecar.release,
-            "request": request,
+            "proxy_url": sidecar.proxy_url,
+            "request_id": request,
             "trimmed": bool(judgment.trimmed),
             "models": step.models or None,
         }
-        if step.reviews:
-            # the ids of the questions the step asked a person.
-            # `log_reviews` logs each question's record with its id.
-            where["reviews"] = step.reviews
+        # the questions the step asked a person go on one event of the step,
+        # its root's or, without one, its last. `log_reviews` logs each
+        # question's record with its id.
+        with_reviews: dict[str, Any] = {
+            **where,
+            "human_reviews": (
+                [{"id": id} for id in step.reviews] if step.reviews else None
+            ),
+        }
         if judgment.trimmed or step.recorded is None:
             # a step without its records holds only what Inspect acts on,
-            # with no monitor or protocol, so no function, to name. The
+            # with no monitor or protocol, so no function, to name. Its
+            # function is empty, not None: older Inspect versions require
+            # one on a reported event, and would fail to read the log. The
             # decision's own metadata is kept when the sidecar sent it: a
             # trimmed judgment leaves it out, and nothing restores it
             transcript()._event(
@@ -63,11 +65,16 @@ def record_sidecar_reports(
                         "function": "",
                         "kind": "decision",
                         "status": "reported",
-                        **_with_sidecar(_decision(step.decision), where),
+                        "remote": with_reviews,
+                        **_decision(step.decision),
                     }
                 )
             )
             continue
+        reviewed = next(
+            (r for r in step.recorded if r.get("path", "") == ""),
+            step.recorded[-1] if step.recorded else None,
+        )
         for record in step.recorded:
             transcript()._event(
                 SentinelEvent.model_validate(
@@ -77,18 +84,11 @@ def record_sidecar_reports(
                         "step_id": step_id,
                         "conversation": conversation,
                         "stage": step.stage,
-                        **_with_sidecar(_report(record), where),
+                        "remote": with_reviews if record is reviewed else where,
+                        **_report(record),
                     }
                 )
             )
-
-
-def _with_sidecar(report: dict[str, Any], where: dict[str, Any]) -> dict[str, Any]:
-    # the report's own metadata, with where it came from beside it
-    return {
-        **report,
-        "metadata": {**(report.get("metadata") or {}), SIDECAR_METADATA: where},
-    }
 
 
 def _warn_of_unused_roles(models: list[dict[str, Any]], sidecar: Sidecar) -> None:
@@ -109,7 +109,7 @@ def _warn_of_unused_roles(models: list[dict[str, Any]], sidecar: Sidecar) -> Non
         if model not in names:
             warn_once(
                 logger,
-                f"The eval's model role {role!r} ({', '.join(names)}) doesn't reach the sentinel in the sidecar at {sidecar.origin}, which takes its roles from its own configuration: its monitors used {model} for {role!r}.",
+                f"The eval's model role {role!r} ({', '.join(names)}) doesn't reach the sentinel in the sidecar at {sidecar.proxy_url}, which takes its roles from its own configuration: its monitors used {model} for {role!r}.",
             )
 
 
@@ -138,7 +138,7 @@ async def record_reports_past_limit(
             looked = await request_result(received, replied=True)
         except Exception as ex:
             logger.debug(
-                f"The sentinel sidecar at {sidecar.origin} couldn't be asked about a call past a limit: {ex}"
+                f"The sentinel sidecar at {sidecar.proxy_url} couldn't be asked about a call past a limit: {ex}"
             )
             return
     if looked.state == "decided" and looked.judgment is not None:
