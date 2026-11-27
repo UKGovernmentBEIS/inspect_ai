@@ -2989,16 +2989,7 @@ async def _task_run_sample_attempt(
             event: Event, call_attachments: Mapping[str, str]
         ) -> None:
             if logger:
-                try:
-                    logger.log_sample_event(
-                        sample_id, state.epoch, event, call_attachments
-                    )
-                except Exception as ex:
-                    # the transcript logs a subscriber's error and goes on;
-                    # with the add-only store on, the sample must stop
-                    if sample_record_writer is not None:
-                        sample_record_writer.insert_failed(ex)
-                    raise
+                logger.log_sample_event(sample_id, state.epoch, event, call_attachments)
 
         def on_sample_event(event: Event) -> None:
             emit_sample_event(

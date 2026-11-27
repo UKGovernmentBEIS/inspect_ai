@@ -17,7 +17,7 @@ import sys
 import threading
 import uuid
 import zipfile
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator
 from dataclasses import replace
 from datetime import datetime, timezone
 from functools import reduce
@@ -48,11 +48,10 @@ from inspect_ai._eval.score import (
     _get_updated_events,
     _get_updated_scores,
 )
-from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
-from inspect_ai.event import Event, InfoEvent, ScoreEvent, ToolEvent
+from inspect_ai.event import InfoEvent, ScoreEvent, ToolEvent
 from inspect_ai.hooks import (
     Hooks,
     SampleAttemptEnd,
@@ -103,7 +102,6 @@ from inspect_ai.log._recorders.buffer.types import (
     BufferPoolRow,
     BufferRows,
 )
-from inspect_ai.log._transcript import transcript
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -2911,69 +2909,6 @@ async def test_put_retries_and_412_after_retry(
     else:
         await store.put("record", b"{}")
     assert len(sends) == 2
-
-
-def test_failed_buffer_insert_stops_sample(
-    evalhost_env: MotoStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """An event the buffer cannot insert stops its sample at the next boundary."""
-    log_sample_event = TaskLogger.log_sample_event
-
-    def failing_insert(
-        self: TaskLogger,
-        id: str | int,
-        epoch: int,
-        event: Event,
-        call_attachments: Mapping[str, str],
-    ) -> None:
-        if isinstance(event, InfoEvent) and event.data == "fail insert":
-            raise RuntimeError("disk full")
-        log_sample_event(self, id, epoch, event, call_attachments)
-
-    monkeypatch.setattr(TaskLogger, "log_sample_event", failing_insert)
-
-    @tool
-    def unlucky() -> Tool:
-        async def execute() -> str:
-            """Record an event the sample buffer cannot insert."""
-            transcript().info("fail insert")
-            return "done"
-
-        return execute
-
-    requests: list[int] = []
-
-    def outputs(
-        input: list[ChatMessage], tools: list[ToolInfo], *_: Any
-    ) -> ModelOutput:
-        turn = sum(isinstance(m, ChatMessageAssistant) for m in input)
-        requests.append(turn)
-        if turn == 0:
-            return scripted_output("", scripted_call("u1", "unlucky"))
-        return scripted_output("", scripted_call("s1", "submit", answer="42"))
-
-    log = eval(
-        Task(
-            dataset=[Sample(input="go", target="42")],
-            solver=react(tools=[unlucky()]),
-            scorer=includes(),
-        ),
-        model=get_model("mockllm/model", custom_outputs=outputs),
-        log_dir=str(tmp_path),
-        display="none",
-        fail_on_error=False,
-        tamper_evident_store=evalhost_env.url,
-    )[0]
-    # the sample stops; the eval goes on (unlike a failed write)
-    assert log.status == "success", log.error
-    assert log.samples and log.samples[0].error
-    assert "sample buffer" in log.samples[0].error.message
-    # the boundary before the next request stopped it
-    assert requests == [0]
-
-    report = validate(evalhost_env, tmp_path)
-    assert report.stopped == [f"{log.eval.eval_id}/1.1/1"]
-    assert [f.kind for f in report.findings] == ["unstored_sample"]
 
 
 # ------------------------------------------------------------------- writer

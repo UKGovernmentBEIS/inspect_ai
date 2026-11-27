@@ -59,8 +59,9 @@ review as a feature.
 - A failed write stops the eval: `AddOnlyStoreError` turns off retries and
   scoring for the sample (`run.py`), and always fails the eval, whatever
   `fail_on_error` says (`_eval/task/error.py`).
-- A failed insert into the sample buffer stops the sample at its next
-  boundary (`_eval/task/run.py:2873`, `SampleRecordWriter.insert_failed`).
+- An event that the sample buffer cannot insert does not reach the store;
+  the transcript logs the error and goes on, and the sample's events then
+  give `event_mismatch`.
 - `inspect validate LOG_DIR --store s3://bucket/prefix`
   (`_cli/validate.py`). Checks: bucket settings (COMPLIANCE lock, a policy
   that denies a put without If-None-Match), one version per key, no delete
@@ -140,7 +141,7 @@ the code to the plan.
    eval completes, the validator reports `missing_closing`). Limit: an
    insert that fails after the sample's last boundary (for example during
    scoring with no model call) cannot stop the sample before it is logged;
-   the attempt then has no closing record.
+   the attempt then has no closing record. *Removed Nov-27:* see [Simplification review: removals](#simplification-review-removals).
 3. **Every path that runs a tool.** Bridged host tools now write before the
    tool runs (`agent/_bridge/sandbox/host_tool.py:381`), before the tool's
    span and pending event, as `execute_tools` does for a stage. The other
@@ -861,7 +862,8 @@ it.
 
 ## Simplification review: removals
 
-Removed because no documented guarantee depends on them:
+Items 1 to 8 weaken no documented guarantee. Items 9 and later drop the
+handling of a rare case, with Eric's go (Nov-27).
 
 1. **`sequence_gap`.** A closed attempt's records must be numbered exactly
    1 to the closing record's count, reported as `record_count`. In a
@@ -886,6 +888,12 @@ Removed because no documented guarantee depends on them:
    moto). `ConditionalRequestConflict` is no longer retried. Botocore's
    retry quota (500 tokens per client, 5 per retry) also stops retries
    early when many puts fail at once, so an outage fails the eval sooner.
+9. **A failed buffer insert stops the sample** (`SampleBufferInsertError`,
+   `SampleRecordWriter.insert_failed`, the try/except in
+   `on_sample_event_buffered`). The transcript logs the error and goes on;
+   the event does not reach the store, and the validator reports
+   `event_mismatch` instead of `unstored_sample`. A failed put still stops
+   the sample and the eval.
 
 ## The evals that were run
 
@@ -1188,7 +1196,8 @@ changed decisions 2, 3, 5 and 6, and added 14 and 15; each change is marked.
    in the same sample raise, and there is no closing record. The validator
    then reports the attempt as cut short (`test_failed_write_stops_eval`,
    which removes the eval host's write permission from inside a tool).
-   *Extended in 1b:* the same holds after a failed buffer insert.
+   *Extended in 1b:* the same holds after a failed buffer insert
+   (*removed Nov-27*).
    *Changed Nov-25:* the attempt is listed as stopped; the logged sample
    gives `unstored_sample`.
 7. A failed write fails the eval even with `fail_on_error=False` and
@@ -1214,7 +1223,7 @@ changed decisions 2, 3, 5 and 6, and added 14 and 15; each change is marked.
     (`SampleBufferInsertError`), not an add-only store error: it stops the
     sample, and `fail_on_error` and `retry_on_error` decide what happens to
     the eval. The plan says "stops the sample"; a failed write still stops
-    the eval.
+    the eval. *Removed Nov-27:* see [Simplification review: removals](#simplification-review-removals).
 15. *New in 1b.* Validator scope: one store prefix per log directory, given
     to both the eval and the validator. No new option.
 
@@ -1253,7 +1262,8 @@ for each other, validator scope). These remain or are new:
    it, so the validator reports it cut short. The plan could say this is
    the expected result. (*Nov-25:* the attempt is listed as stopped, and
    the logged sample gives `unstored_sample`; see
-   [Stopped attempts and evals](#stopped-attempts-and-evals).)
+   [Stopped attempts and evals](#stopped-attempts-and-evals).) *Nov-27:*
+   a failed insert no longer stops the sample; see [Simplification review: removals](#simplification-review-removals).
 
 ## What a real build would change
 
@@ -1362,7 +1372,7 @@ these cases. This section has the full text.
 
 - **Lost samples.** Each sample attempt writes a closing record at its end, and each eval writes one after it finishes its `.eval` file. A sample in the `.eval` file must have an attempt with a closing record, or the validator reports `unstored_sample`. A sample with a closed attempt must be in the `.eval` file, or the validator reports `missing_sample`. A finished `.eval` file must have its eval closing record, or the validator reports `missing_eval_closing`. Each attempt and eval with no closing record is also listed as `stopped`, and the validator still checks every record that it wrote.
 
-- **Honest runs with a missing closing record.** A sample stops writing without a closing record when its write to the store fails, or when an event cannot go into the local sample buffer. The sample is still in the `.eval` file with its error, so the validator reports `unstored_sample` for a run that was not changed. An eval that finishes its `.eval` file and then cannot write its eval closing record (for example during an S3 outage) gives `missing_eval_closing` in the same way.
+- **Honest runs with a missing closing record.** A sample stops writing without a closing record when its write to the store fails. The sample is still in the `.eval` file with its error, so the validator reports `unstored_sample` for a run that was not changed. An eval that finishes its `.eval` file and then cannot write its eval closing record (for example during an S3 outage) gives `missing_eval_closing` in the same way.
 
 ### Attempts and evals that stop
 
@@ -1431,13 +1441,16 @@ prior_without_file MBjNiQ...: No .eval file; EMhV3K... names it as its prior eva
   stops writing an attempt, and keeps the sample out of the .eval file or
   writes a later closed attempt, leaves the stopped attempt's events in
   the store only.
-- A failed write or a failed buffer insert gives `unstored_sample`, and an
+- A failed write gives `unstored_sample`, and an
   eval closing record that cannot be written after the .eval file is
   finished gives `missing_eval_closing`, for runs that were not changed.
   In a retry that runs a sample again that the prior eval closed with an
-  error, a failed write or buffer insert gives `event_mismatch` "(reused
+  error, a failed write gives `event_mismatch` "(reused
   from ...)" instead: the retry's copy has no closed attempt, so it is
   compared with the prior eval's records.
+- An event that the sample buffer cannot insert (a full disk, a database
+  error) never reaches the store; the sample goes on and gives
+  `event_mismatch` for a run that was not changed.
 - A sample deleted from the .eval file of an eval that stopped before it
   finished the file (no eval closing record, status `started`) is listed
   as `not_logged`, not a finding. An honest crash leaves such samples.

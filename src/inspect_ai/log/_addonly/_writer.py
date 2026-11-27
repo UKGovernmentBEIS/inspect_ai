@@ -108,14 +108,6 @@ class EvalRecordWriter:
         )
 
 
-class SampleBufferInsertError(Exception):
-    """An event of the sample could not be inserted into the sample buffer.
-
-    The event can never reach the add-only store, so the sample stops at its
-    next boundary.
-    """
-
-
 class SampleRecordWriter:
     """One sample attempt's writes, in one sequence.
 
@@ -142,13 +134,6 @@ class SampleRecordWriter:
         # puts not yet confirmed, by sequence number
         self._unconfirmed: dict[int, anyio.Event] = {}
         self._failure: Exception | None = None
-
-    def insert_failed(self, ex: Exception) -> None:
-        """Record that an event of this sample could not be inserted into the buffer."""
-        self._failure = self._failure or SampleBufferInsertError(
-            f"An event could not be inserted into the sample buffer, so it "
-            f"cannot reach the add-only store: {ex}"
-        )
 
     def _raise_if_failed(self) -> None:
         if self._failure is not None:
@@ -199,7 +184,7 @@ class SampleRecordWriter:
     async def close(self, scores: dict[str, SampleScore], error: str | None) -> None:
         """Write the last rows and the closing record.
 
-        Writes nothing once a write or a buffer insert has failed: the
+        Writes nothing once a write has failed: the
         missing closing record shows the attempt was cut short.
         """
         if self._failure is not None:
