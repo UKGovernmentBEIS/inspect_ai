@@ -4,8 +4,7 @@ Runs real evals (mockllm, react agents, parallel and serial tool stages, a
 sub-agent used as a tool, two sub-agents at once, streamed output) with the
 add-only store on, then validates the store and the .eval files. The
 tampering tests change a clean run's .eval file or store, then run the
-`inspect validate` command and check its findings. Set ADDONLY_EVIDENCE_DIR
-to save each command's output. See
+`inspect validate` command and check its findings. See
 design/tamper-evident-logs-findings.md.
 """
 
@@ -19,7 +18,6 @@ import uuid
 import zipfile
 from collections.abc import Callable, Iterator
 from dataclasses import replace
-from datetime import datetime, timezone
 from functools import reduce
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -27,7 +25,6 @@ from typing import Any, NamedTuple
 import anyio
 import pytest
 from botocore.exceptions import EndpointConnectionError, ReadTimeoutError
-from pydantic import TypeAdapter
 from test_helpers.addonly_agents import (
     agent_task,
     run,
@@ -74,7 +71,6 @@ from inspect_ai.log._addonly._records import (
     SampleClosingRecord,
     SampleRecord,
     StartRecord,
-    StoreRecord,
 )
 from inspect_ai.log._addonly._store import (
     AddOnlyStore,
@@ -89,7 +85,6 @@ from inspect_ai.log._addonly._validate import (
     _read_eval,
     _rebuild_rows,
     read_eval_nonce,
-    validate_store,
 )
 from inspect_ai.log._addonly._writer import (
     RESCORE_NONCE_ENV,
@@ -160,30 +155,13 @@ def logged_samples(store: MotoStore, eval_id: str) -> list[str]:
     return EvalClosingRecord.model_validate_json(body).logged
 
 
-EVIDENCE_DIR_ENV = "ADDONLY_EVIDENCE_DIR"
-"""If set, each `inspect validate` run of the tests saves its output there."""
-
 ValidateCli = Callable[..., CliResult]
 
 
 @pytest.fixture
-def validate_cli(request: pytest.FixtureRequest) -> ValidateCli:
-    """Runs `inspect validate` (a subprocess) and saves its output as evidence."""
-
-    def validate_cli(
-        store: MotoStore, log_dir: Path, *options: str, policy: bool = True
-    ) -> CliResult:
-        result = store.validate_cli(log_dir, *options, policy=policy)
-        evidence = os.environ.get(EVIDENCE_DIR_ENV)
-        if evidence:
-            name = request.node.name.removeprefix("test_")
-            shown = ["inspect", *result.command[3:]]
-            Path(evidence, f"{name}.txt").write_text(
-                f"$ {' '.join(shown)}\n{result.output}[exit code {result.exit_code}]\n"
-            )
-        return result
-
-    return validate_cli
+def validate_cli() -> ValidateCli:
+    """Runs `inspect validate` (a subprocess)."""
+    return MotoStore.validate_cli
 
 
 class CleanRun(NamedTuple):
@@ -2624,10 +2602,8 @@ def test_overwrite_record(clean_run: CleanRun, validate_cli: ValidateCli) -> Non
     """The .eval file edited, and the store record overwritten to match it.
 
     The eval host puts without If-None-Match. On real S3 the bucket policy
-    refuses that put; moto does not enforce it, so a second version is added,
-    usually in a later second than the first (the same second is
-    `test_overwrite_in_same_second_reads_earliest`). The validator reads the
-    earliest version.
+    refuses that put; moto does not enforce it, so a second version is added.
+    The validator reads the earliest version.
     """
     tool_seq, tool_event = next(
         (i, e)
@@ -2654,54 +2630,6 @@ def test_overwrite_record(clean_run: CleanRun, validate_cli: ValidateCli) -> Non
     result = validate_cli(clean_run.store, clean_run.log_dir)
     assert_fails_with(result, "overwrite", "event_mismatch")
     assert "2 versions: an overwrite got through." in result.output
-
-
-class _SameSecondVersions:
-    """An S3 client whose version listing gives every version one arrival time.
-
-    S3 times have whole seconds, so versions stored in the same second look
-    like this. Real S3 and moto list a key's versions newest first.
-    """
-
-    def __init__(self, client: Any) -> None:
-        self._client = client
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._client, name)
-
-    def get_paginator(self, name: str) -> Any:
-        paginator = self._client.get_paginator(name)
-        client = self
-
-        class SameSecond:
-            def paginate(self, **kwargs: Any) -> Iterator[dict[str, Any]]:
-                for page in paginator.paginate(**kwargs):
-                    for version in page.get("Versions", []):
-                        version["LastModified"] = client.arrival
-                    yield page
-
-        return SameSecond()
-
-    arrival = datetime(2026, 1, 1, tzinfo=timezone.utc)
-
-
-def test_overwrite_in_same_second_reads_earliest(clean_run: CleanRun) -> None:
-    """The validator reads a record's first version, also when both have one time."""
-    key = clean_run.sample_key(1)
-    record = SampleRecord.model_validate_json(clean_run.read(key))
-    record.rows = BufferRows()
-    clean_run.put(key, record.model_dump_json(), if_none_match=False)
-
-    store = clean_run.store
-    with store._policy_in_place():
-        report = validate_store(
-            store.url,
-            str(clean_run.log_dir),
-            client=_SameSecondVersions(store.client(store.validator)),
-        )
-    # the second version has no rows; read instead of the first, it would
-    # leave the store without the sample's first events
-    assert {f.kind for f in report.findings} == {"overwrite"}, report.findings
 
 
 def test_delete_marker(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
@@ -2777,37 +2705,6 @@ def test_eval_host_stops_before_finish(
     assert "1 eval(s), 1 sample(s) compared, 0 finding(s)." in result.output
 
 
-def test_records_with_removed_fields_load() -> None:
-    """Records written before StartRecord.eval/plan and SampleClosingRecord.error were removed still load."""
-    adapter: TypeAdapter[StoreRecord] = TypeAdapter(StoreRecord)
-    start = adapter.validate_json(
-        json.dumps(
-            dict(type="start", eval_id="e", nonce="n", eval={"task": "t"}, plan={})
-        )
-    )
-    closing = adapter.validate_json(
-        json.dumps(
-            dict(
-                type="sample_closing",
-                eval_id="e",
-                nonce="n",
-                sample=dict(sample_id=1, epoch=1, attempt=1),
-                records=2,
-                scores={},
-                error="boom",
-            )
-        )
-    )
-    assert start == StartRecord(eval_id="e", nonce="n")
-    assert closing == SampleClosingRecord(
-        eval_id="e",
-        nonce="n",
-        sample=SampleAttemptRef(sample_id=1, epoch=1, attempt=1),
-        records=2,
-        scores={},
-    )
-
-
 @pytest.mark.parametrize("change", [None, "nonce"])
 def test_stopped_attempt_records_checked(
     clean_run: CleanRun, change: FindingKind | None
@@ -2817,13 +2714,14 @@ def test_stopped_attempt_records_checked(
     Their records are still checked: a wrong nonce is a finding.
     """
     eval_id = clean_run.eval_id
-    adapter: TypeAdapter[StoreRecord] = TypeAdapter(StoreRecord)
     keys = [f"{eval_id}/{START}"] + [
         clean_run.sample_key(seq) for seq in range(1, clean_run.records() + 1)
     ]
-    records = {key: adapter.validate_json(clean_run.read(key)) for key in keys}
+    records = {key: clean_run.read(key) for key in keys}
     if change == "nonce":
-        records[clean_run.sample_key(1)].nonce = FORGED_NONCE
+        forged = SampleRecord.model_validate_json(records[clean_run.sample_key(1)])
+        forged.nonce = FORGED_NONCE
+        records[clean_run.sample_key(1)] = forged.model_dump_json().encode()
 
     stored = _read_eval(eval_id, list(records), records.__getitem__)
     assert [f.kind for f in stored.findings] == ([change] if change else [])

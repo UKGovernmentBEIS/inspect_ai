@@ -11,9 +11,9 @@ Tamper-evident logs. Keys, under the store prefix:
     rescores/<eval-id>/<rescore-id>/closing
 """
 
-from typing import Annotated, Literal, Sequence
+from typing import Literal, Sequence
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ValidationError
 
 from inspect_ai.event import Event, InfoEvent
 from inspect_ai.log._log import EvalResults, EvalStats, EvalStatus
@@ -161,15 +161,3 @@ class RescoreClosingRecord(BaseModel):
     rescore_id: str
     nonce: str
     results: EvalResults | None = None
-
-
-StoreRecord = Annotated[
-    StartRecord
-    | SampleRecord
-    | SampleClosingRecord
-    | EvalClosingRecord
-    | RescoreStartRecord
-    | RescoreSampleRecord
-    | RescoreClosingRecord,
-    Field(discriminator="type"),
-]

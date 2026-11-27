@@ -127,24 +127,10 @@ reports `event_mismatch`.
 
 ### Retry time
 
-The numbers below are for the installed botocore (1.43.117) in its default
-retry behavior.
-
-- The backoff before retry *n* is a random time up to `min(2^(n-1), 20)`
-  seconds. Over 8 attempts the waits add up to at most 71 s, and 36 s on
-  average.
-- Each attempt can also take up to the connect timeout and the read timeout,
-  60 s each by default. If every attempt reaches both, a failing write takes
-  about 17 minutes: 8 x 120 s, plus 71 s of waits.
-- Botocore's `RetryQuotaChecker` gives each client a quota of 500 tokens. A
-  retry after `ConnectTimeoutError` or `ReadTimeoutError` takes 10 tokens,
-  and any other retry takes 5. With no tokens left, botocore does not retry,
-  so an outage that fails many puts at once fails the eval sooner.
-
-Botocore has an opt-in retry behavior (`AWS_NEW_RETRIES_2026=true`). It
-scales the backoff for errors other than throttling by 0.05, honours an
-`x-amz-retry-after` header, and takes 5 tokens for a throttling retry and 14
-for any other retry. If it becomes the default, these numbers change.
+If every try of a put reaches the 60 s connect and read timeouts, a failing
+write takes about 17 minutes, the waits between tries included. The user
+docs give this bound ("Errors and Cancellation"). The figure is for
+botocore 1.43.117 and changes with its retry behavior.
 
 ### Cancellation
 

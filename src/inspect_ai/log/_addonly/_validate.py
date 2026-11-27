@@ -20,14 +20,14 @@ import json
 import sqlite3
 import tempfile
 from collections import defaultdict
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from datetime import datetime
 from functools import reduce
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
 from botocore.exceptions import ClientError
-from pydantic import BaseModel, TypeAdapter, ValidationError
+from pydantic import BaseModel, ValidationError
 
 from inspect_ai._eval.score import (
     ScoreAction,
@@ -62,7 +62,6 @@ from ._records import (
     SampleClosingRecord,
     SampleRecord,
     StartRecord,
-    StoreRecord,
     latest_marker,
 )
 from ._store import StoreLocation, error_code, s3_client, sample_key_part
@@ -140,7 +139,8 @@ class ValidationReport(BaseModel):
         return not self.findings
 
 
-_record_adapter: TypeAdapter[StoreRecord] = TypeAdapter(StoreRecord)
+_EvalRecord = StartRecord | SampleRecord | SampleClosingRecord | EvalClosingRecord
+_RescoreRecord = RescoreStartRecord | RescoreSampleRecord | RescoreClosingRecord
 
 
 class _FinalAttempt(NamedTuple):
@@ -245,14 +245,14 @@ def validate_store(
                 )
             )
 
-    def read(key: str) -> StoreRecord:
+    def read(key: str) -> bytes:
         # S3 lists a key's versions newest first. Arrival times have whole
         # seconds, so they cannot order versions stored in the same second.
         earliest = by_key[key][-1]
-        body = s3.get_object(
+        body: bytes = s3.get_object(
             Bucket=location.bucket, Key=key, VersionId=earliest.version_id
         )["Body"].read()
-        return _record_adapter.validate_json(body)
+        return body
 
     # group keys by eval id (the first part after the prefix), and rescore
     # keys ("rescores/<eval-id>/<rescore-id>/<last>") by eval and rescore id
@@ -432,7 +432,9 @@ def _eval_files(log_dir: str) -> dict[str, list[str]]:
     return {eval_id: sorted(names) for eval_id, names in files.items()}
 
 
-def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
+def _read_eval(
+    eval_id: str, keys: list[str], read: Callable[[str], bytes]
+) -> _StoredEval:
     findings: list[Finding] = []
     stopped: list[str] = []
 
@@ -441,21 +443,18 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
 
     # records the eval could have written; anything else is reported, so
     # that it cannot stop the validator
-    stored: dict[str, StoreRecord] = {}
+    stored: dict[str, _EvalRecord] = {}
     for key in keys:
         record_type = _record_type(key)
         if record_type is None:
             finding("malformed_record", "Not a key the eval writes.", key)
             continue
         try:
-            record = read(key)
+            record = record_type.model_validate_json(read(key))
             if isinstance(record, SampleRecord):
                 validate_events([json.loads(row.data) for row in record.rows.events])
         except ValueError as ex:
             finding("malformed_record", f"Cannot read it: {_first_error(ex)}", key)
-            continue
-        if not isinstance(record, record_type):
-            finding("malformed_record", f"Holds a {record.type} record.", key)
             continue
         stored[key] = record
 
@@ -467,7 +466,7 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
     nonce = start.nonce
 
     # attempts: "<eval>/<sample>.<epoch>/<attempt>/<seq|closing>"
-    attempts: dict[tuple[str, str], dict[str, StoreRecord]] = defaultdict(dict)
+    attempts: dict[tuple[str, str], dict[str, _EvalRecord]] = defaultdict(dict)
     eval_closing: EvalClosingRecord | None = None
     for key, record in stored.items():
         if record.nonce != nonce:
@@ -775,7 +774,7 @@ def _read_rescore(
     eval_id: str,
     rescore_id: str,
     lasts: list[str],
-    read: Any,
+    read: Callable[[str], bytes],
     eval_nonce: str | None,
 ) -> _StoredRescore:
     """Read and check one rescore's records (``lasts``: the last key parts).
@@ -789,21 +788,20 @@ def _read_rescore(
     def finding(kind: FindingKind, message: str, key: str) -> None:
         findings.append(Finding(kind=kind, eval_id=eval_id, key=key, message=message))
 
-    stored: dict[str, StoreRecord] = {}
+    stored: dict[str, _RescoreRecord] = {}
     for last in lasts:
         key = f"{name}/{last}"
-        record_type = {START: RescoreStartRecord, CLOSING: RescoreClosingRecord}.get(
-            last, RescoreSampleRecord
+        record_type: type[_RescoreRecord] = (
+            RescoreStartRecord
+            if last == START
+            else RescoreClosingRecord
+            if last == CLOSING
+            else RescoreSampleRecord
         )
         try:
-            record = read(key)
+            stored[last] = record_type.model_validate_json(read(key))
         except ValueError as ex:
             finding("malformed_record", f"Cannot read it: {_first_error(ex)}", key)
-            continue
-        if not isinstance(record, record_type):
-            finding("malformed_record", f"Holds a {record.type} record.", key)
-            continue
-        stored[last] = record
 
     findings.extend(
         Finding(
@@ -943,15 +941,7 @@ def _eval_file_samples(eval_file: str) -> set[str]:
     }
 
 
-def _record_type(
-    key: str,
-) -> (
-    type[StartRecord]
-    | type[SampleRecord]
-    | type[SampleClosingRecord]
-    | type[EvalClosingRecord]
-    | None
-):
+def _record_type(key: str) -> type[_EvalRecord] | None:
     """The record type a key under an eval holds, or None if the eval never writes the key."""
     match key.split("/"):
         case [_, "start"]:
