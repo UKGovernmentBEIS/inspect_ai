@@ -1959,6 +1959,27 @@ def test_add_sample_member_same_id(
     assert f"unstored_sample {clean_run.eval_id}/extra.1:" in result.output
 
 
+@pytest.mark.parametrize("member", ["samples/s0_epoch_01.json", "samples/extra.json"])
+def test_add_noncanonical_sample_member(
+    clean_run: CleanRun, validate_cli: ValidateCli, member: str
+) -> None:
+    """A zip member under `samples/` added under a name the eval never writes.
+
+    A full read of the log returns every `samples/*.json` member: here a
+    second, edited s0 (epoch "01"), or a sample s9 (a name with no epoch).
+    """
+    with zipfile.ZipFile(clean_run.location, "a") as zf:
+        sample = json.loads(zf.read("samples/s0_epoch_1.json"))
+        sample["scores"]["includes"]["value"] = "I"
+        if member == "samples/extra.json":
+            sample["id"] = "s9"
+        zf.writestr(member, json.dumps(sample))
+    assert len(read_eval_log(clean_run.location).samples or []) == 2
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "unstored_sample")
+    assert f"unstored_sample {clean_run.eval_id}/{member}:" in result.output
+
+
 def test_edit_score(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
     """The sample's score changed; its score event left as it was."""
 

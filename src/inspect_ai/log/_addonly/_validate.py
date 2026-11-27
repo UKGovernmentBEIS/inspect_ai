@@ -35,6 +35,8 @@ from inspect_ai._eval.score import (
     _get_updated_scores,
 )
 from inspect_ai._util._async import run_coroutine
+from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai.event import Event
 from inspect_ai.event._validate import validate_events
 from inspect_ai.log._condense import mark_attachments_resolved
@@ -45,9 +47,13 @@ from inspect_ai.log._file import (
     read_eval_log_sample_summaries,
 )
 from inspect_ai.log._log import EvalResults, EvalSample, EvalSampleSummary
-from inspect_ai.log._recorders import recorder_type_for_location
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.types import BufferRows
+from inspect_ai.log._recorders.eval import (
+    SAMPLES_DIR,
+    _sample_filename,
+    _sample_key,
+)
 from inspect_ai.log._recorders.streaming import materialize_streaming_sample
 from inspect_ai.scorer._metric import Score
 
@@ -635,8 +641,16 @@ def _compare_eval_file(
         )
         for sample_part, final in stored.final_attempts.items()
     ]
-    summaries, members = _eval_file_samples(eval_file)
+    summaries, members, other_members = _eval_file_samples(eval_file)
     eval_file_samples = summaries.keys() | members
+    for name in other_members:
+        finding(
+            "unstored_sample",
+            "A sample member under a name the eval never writes (it writes "
+            "samples/<id>_epoch_<epoch>.json). A full read of the log returns "
+            "it; it is not compared with the store.",
+            f"{eval_id}/{name}",
+        )
     unstored: set[str] = set()
     for sample_part in sorted(eval_file_samples - stored.final_attempts.keys()):
         earlier = _earlier_attempt(evals, stored.prior_eval_id, sample_part)
@@ -989,6 +1003,10 @@ class _EvalFileSamples(NamedTuple):
     """From the names of the sample members of the zip (which a full read
     returns), not the ids in the sample JSON: a member added under a new name
     can hold a stored sample's id."""
+    other_members: list[str]
+    """Names of ``samples/*.json`` members the eval does not write (not
+    ``_sample_filename`` of the id and epoch in the name): a full read
+    returns them too, and they are not compared."""
 
 
 def _eval_file_samples(eval_file: str) -> _EvalFileSamples:
@@ -996,13 +1014,34 @@ def _eval_file_samples(eval_file: str) -> _EvalFileSamples:
 
     Both, since an edit can add to one only.
     """
-    summaries = read_eval_log_sample_summaries(eval_file)
-    members = run_coroutine(
-        recorder_type_for_location(eval_file).read_log_sample_keys(eval_file)
-    )
+
+    async def member_names() -> list[str]:
+        async with AsyncFilesystem() as fs:
+            cd = await AsyncZipReader(fs, eval_file).entries()
+        # the members a full read loads; a re-logged sample repeats its name
+        return list(
+            dict.fromkeys(
+                e.filename
+                for e in cd.entries
+                if e.filename.startswith(f"{SAMPLES_DIR}/")
+                and e.filename.endswith(".json")
+            )
+        )
+
+    names = run_coroutine(member_names())
+    keys = {name: _sample_key(name) for name in names}
+    canonical = {
+        name: key
+        for name, key in keys.items()
+        if key is not None and _sample_filename(key.sample_id, key.epoch) == name
+    }
     return _EvalFileSamples(
-        {sample_key_part(s.id, s.epoch): s for s in summaries},
-        {sample_key_part(m.sample_id, m.epoch) for m in members},
+        {
+            sample_key_part(s.id, s.epoch): s
+            for s in read_eval_log_sample_summaries(eval_file)
+        },
+        {sample_key_part(k.sample_id, k.epoch) for k in canonical.values()},
+        [name for name in names if name not in canonical],
     )
 
 
