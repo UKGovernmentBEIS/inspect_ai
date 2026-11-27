@@ -881,7 +881,11 @@ handling of a rare case, with Eric's go (Nov-27).
 3. **The validator's versioning check.** See
    [What moto does and does not enforce](#what-moto-does-and-does-not-enforce).
    The docs drop `s3:GetBucketVersioning` from the validator role.
-4. **`StartRecord.plan`.** No code read it.
+4. **`StartRecord.plan`.** No code read it. *Round 17:* nor
+   `StartRecord.eval` (once item 14 removed `_selects`) or
+   `SampleClosingRecord.error`; both are gone. Records written with them
+   still load, as pydantic ignores the extra fields
+   (`test_records_with_removed_fields_load`).
 5. **`.` as `%2E` in keys.** `quote(safe="")` still encodes `/`; the epoch
    is the digits after the last `.`.
 6. **The version count in the `event_mismatch` message.**
@@ -960,7 +964,8 @@ handling of a rare case, with Eric's go (Nov-27).
     it). New limit: a retry with no eval closing record has no list, so
     a copied sample deleted from its .eval is not reported; before, an
     error-free one was listed as `not_logged`. `StartRecord.eval` and
-    `SampleClosingRecord.error` are still written and no longer read.
+    `SampleClosingRecord.error` were no longer read; round 17 removed them
+    (item 4).
     Store tests now cover the limited dynamic feed, its admission copy
     failing or cancelled, and the prune path.
 

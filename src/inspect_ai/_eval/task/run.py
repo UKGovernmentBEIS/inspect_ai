@@ -3803,9 +3803,7 @@ async def _task_run_sample_attempt(
                     reporter.progress()
 
                     if sample_record_writer is not None:
-                        await sample_record_writer.close(
-                            results, failure.error.message if failure else None
-                        )
+                        await sample_record_writer.close(results)
 
                     # a sample saved without being scored keeps its monitor
                     # state too, as in process, for `inspect score` to read

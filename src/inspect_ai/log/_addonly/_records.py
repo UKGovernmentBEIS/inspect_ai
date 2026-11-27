@@ -16,7 +16,7 @@ from typing import Annotated, Literal, Sequence
 from pydantic import BaseModel, Field, ValidationError
 
 from inspect_ai.event import Event, InfoEvent
-from inspect_ai.log._log import EvalResults, EvalSpec, EvalStats, EvalStatus
+from inspect_ai.log._log import EvalResults, EvalStats, EvalStatus
 from inspect_ai.log._recorders.buffer.types import BufferRows
 from inspect_ai.scorer._metric import SampleScore
 
@@ -44,7 +44,6 @@ class StartRecord(BaseModel):
     type: Literal["start"] = "start"
     eval_id: str
     nonce: str
-    eval: EvalSpec
     prior_eval_id: str | None = None
     """The eval a retry reuses samples from (itself a retry, possibly).
 
@@ -71,7 +70,6 @@ class SampleClosingRecord(BaseModel):
     records: int
     """Number of sample records the attempt wrote."""
     scores: dict[str, SampleScore]
-    error: str | None = None
 
 
 class EvalClosingRecord(BaseModel):

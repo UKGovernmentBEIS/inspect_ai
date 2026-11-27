@@ -2778,6 +2778,37 @@ def test_eval_host_stops_before_finish(
     assert "1 eval(s), 1 sample(s) compared, 0 finding(s)." in result.output
 
 
+def test_records_with_removed_fields_load() -> None:
+    """Records written before StartRecord.eval/plan and SampleClosingRecord.error were removed still load."""
+    adapter: TypeAdapter[StoreRecord] = TypeAdapter(StoreRecord)
+    start = adapter.validate_json(
+        json.dumps(
+            dict(type="start", eval_id="e", nonce="n", eval={"task": "t"}, plan={})
+        )
+    )
+    closing = adapter.validate_json(
+        json.dumps(
+            dict(
+                type="sample_closing",
+                eval_id="e",
+                nonce="n",
+                sample=dict(sample_id=1, epoch=1, attempt=1),
+                records=2,
+                scores={},
+                error="boom",
+            )
+        )
+    )
+    assert start == StartRecord(eval_id="e", nonce="n")
+    assert closing == SampleClosingRecord(
+        eval_id="e",
+        nonce="n",
+        sample=SampleAttemptRef(sample_id=1, epoch=1, attempt=1),
+        records=2,
+        scores={},
+    )
+
+
 @pytest.mark.parametrize("change", [None, "nonce"])
 def test_stopped_attempt_records_checked(
     clean_run: CleanRun, change: FindingKind | None

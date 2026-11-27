@@ -73,7 +73,6 @@ class EvalRecordWriter:
                 StartRecord(
                     eval_id=eval.eval_id,
                     nonce=writer.nonce,
-                    eval=eval,
                     prior_eval_id=prior_eval_id,
                 )
             ),
@@ -192,7 +191,7 @@ class SampleRecordWriter:
         finally:
             self._unconfirmed.pop(seq).set()
 
-    async def close(self, scores: dict[str, SampleScore], error: str | None) -> None:
+    async def close(self, scores: dict[str, SampleScore]) -> None:
         """Write the last rows and the closing record.
 
         Writes nothing once a write has failed: the
@@ -210,7 +209,6 @@ class SampleRecordWriter:
                     sample=self._ref,
                     records=self._seq,
                     scores=scores,
-                    error=error,
                 )
             ),
         )
