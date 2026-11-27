@@ -13466,8 +13466,10 @@ async def test_live_anthropic_cached_retries_with_interleaved_thinking_continue(
     init_transcript(Transcript())
     init_sample_assistant_internal()
     model = get_model(
-        "anthropic/claude-sonnet-5-5",
-        config=GenerateConfig(cache=True, reasoning_effort="high"),
+        # budgeted (extended) thinking always returns a thinking block; Claude
+        # 4.7+ only has adaptive thinking, which can skip it
+        "anthropic/claude-sonnet-4-6",
+        config=GenerateConfig(cache=True, reasoning_tokens=1024),
     )
     bridge = AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
     files = {"a.txt": "Now read b.txt.", "b.txt": "That is all."}
