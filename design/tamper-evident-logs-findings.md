@@ -243,6 +243,11 @@ id:
   against the eval closing record, and its results against the eval closing
   record or the latest rescore's closing record.
 - `missing_rescore` and `rescore_mismatch`.
+- `summary_mismatch`: a compared sample with no sample summary, or a
+  summary whose scores differ from the sample's (thinned as a summary
+  thins them). The viewer's sample list and `samples_df` read the
+  summaries. A summary with no sample is `unstored_sample` or
+  `missing_sample`.
 
 The validator rebuilds a sample's events with the code that logs a sample
 whose events were evicted: it inserts the stored rows into a new sample
@@ -261,7 +266,8 @@ These lines are listed before the count and do not change the exit code:
 Every record under the prefix is checked, whether or not its attempt or
 eval closed. Every sample in a `.eval` file must match a closed attempt of
 its own eval or, if it has none, of the nearest earlier eval along the
-prior-eval chain that closed it, after each rescore it names. Every closed
+prior-eval chain that closed it, after each rescore it names, and have a
+sample summary with its scores. Every closed
 sample, and every sample in the eval closing record's `logged` list, must be
 in the `.eval` file, unless the eval stopped before it finished the file.
 When the eval has a closing record, every sample in the `.eval` file must be
@@ -459,7 +465,8 @@ What a pass shows:
   eval's records are protected, so a wrong id gives a finding for each
   reused sample.
 - The validator does not compare the eval spec and plan, each sample's
-  messages, output and error, the sample summaries, tags and metadata,
+  messages, output and error, the sample summaries' fields other than
+  their scores, tags and metadata,
   invalidation, or `log_updates`.
 
 Stopped runs:
@@ -520,7 +527,7 @@ Honest runs that give a finding:
 - `logged` comes from the recorder's sample summaries. If an admission copy
   writes the sample to the `.eval` file and then fails to write its summary,
   and the retry still finishes, the sample is not listed, and the validator
-  reports `unstored_sample`. A review found the failed summary write with
+  reports `unstored_sample` and `summary_mismatch`. A review found the failed summary write with
   fault injection.
 - An event that the sample buffer cannot insert (a full disk, a database
   error), or that skips the buffer because a worker thread logged a warning

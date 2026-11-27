@@ -5,10 +5,10 @@ read access to the store. Takes the store's location from its caller, never
 from a .eval file.
 
 A pass means the .eval fields the store holds (events, scores, which samples
-exist, the eval's status, stats and results) match it, not that the run was
-honest: records written after a compromise pass too. Other .eval fields
-(for example sample messages and output, the sample summaries) are not
-checked.
+exist, the eval's status, stats and results) match it, and that each
+sample summary has its sample's scores, not that the run was honest: records
+written after a compromise pass too. Other .eval fields (for example sample
+messages and output, the summaries' other fields) are not checked.
 
 A rescored .eval file names its latest rescore in each sample's events. Its
 expected samples are the original run's, with each rescore of the chain
@@ -44,11 +44,12 @@ from inspect_ai.log._file import (
     read_eval_log_sample,
     read_eval_log_sample_summaries,
 )
-from inspect_ai.log._log import EvalResults, EvalSample
+from inspect_ai.log._log import EvalResults, EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders import recorder_type_for_location
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.types import BufferRows
 from inspect_ai.log._recorders.streaming import materialize_streaming_sample
+from inspect_ai.scorer._metric import Score
 
 from ._records import (
     CLOSING,
@@ -85,6 +86,7 @@ FindingKind = Literal[
     "eval_mismatch",
     "missing_rescore",
     "rescore_mismatch",
+    "summary_mismatch",
 ]
 
 
@@ -633,7 +635,8 @@ def _compare_eval_file(
         )
         for sample_part, final in stored.final_attempts.items()
     ]
-    eval_file_samples = _eval_file_samples(eval_file)
+    summaries, members = _eval_file_samples(eval_file)
+    eval_file_samples = summaries.keys() | members
     unstored: set[str] = set()
     for sample_part in sorted(eval_file_samples - stored.final_attempts.keys()):
         earlier = _earlier_attempt(evals, stored.prior_eval_id, sample_part)
@@ -699,6 +702,24 @@ def _compare_eval_file(
                 key,
             )
             continue
+        # the viewer's sample list and samples_df read the summaries
+        summary = summaries.get(sample_key_part(ref.sample_id, ref.epoch))
+        if summary is None:
+            finding(
+                "summary_mismatch",
+                f"Sample {ref.sample_id} epoch {ref.epoch} has no sample summary "
+                f"in {eval_file}{note}.",
+                key,
+            )
+        elif changed := _changed_keys(
+            summary.scores or {}, _summary_scores(logged.scores or {})
+        ):
+            finding(
+                "summary_mismatch",
+                f"Scores {changed} of the sample summary differ from the "
+                f"sample's{note}.",
+                key,
+            )
         marker = latest_marker(logged.events)
         latest = marker.rescore if marker else None
         file_rescores.add(latest if latest and latest.eval_id == eval_id else None)
@@ -959,21 +980,38 @@ def _same_json(lhs: Any, rhs: Any) -> bool:
     return json.dumps(lhs, sort_keys=True) == json.dumps(rhs, sort_keys=True)
 
 
-def _eval_file_samples(eval_file: str) -> set[str]:
-    """``<sample-id>.<epoch>`` of each sample in the .eval file.
+class _EvalFileSamples(NamedTuple):
+    """The samples of a .eval file, by ``<sample-id>.<epoch>``."""
 
-    From the sample summaries (which the viewer lists) and the names of the
-    sample members of the zip (which a full read returns), since an edit can
-    add to one only. Member names, not the ids in the sample JSON: a member
-    added under a new name can hold a stored sample's id.
+    summaries: dict[str, EvalSampleSummary]
+    """The sample summaries (which the viewer lists)."""
+    members: set[str]
+    """From the names of the sample members of the zip (which a full read
+    returns), not the ids in the sample JSON: a member added under a new name
+    can hold a stored sample's id."""
+
+
+def _eval_file_samples(eval_file: str) -> _EvalFileSamples:
+    """The .eval file's samples, from its summaries and its members.
+
+    Both, since an edit can add to one only.
     """
     summaries = read_eval_log_sample_summaries(eval_file)
     members = run_coroutine(
         recorder_type_for_location(eval_file).read_log_sample_keys(eval_file)
     )
-    return {sample_key_part(s.id, s.epoch) for s in summaries} | {
-        sample_key_part(m.sample_id, m.epoch) for m in members
-    }
+    return _EvalFileSamples(
+        {sample_key_part(s.id, s.epoch): s for s in summaries},
+        {sample_key_part(m.sample_id, m.epoch) for m in members},
+    )
+
+
+def _summary_scores(scores: dict[str, Score]) -> dict[str, Score]:
+    """Scores as a sample summary holds them (long text and metadata thinned)."""
+    return (
+        EvalSampleSummary(id=0, epoch=0, input="", target="", scores=scores).scores
+        or {}
+    )
 
 
 def _record_type(key: str) -> type[_EvalRecord] | None:

@@ -286,10 +286,10 @@ def test_plain_eval_validates(
         "1 eval(s), 1 sample(s) compared, 0 finding(s).\n"
         "Checked against the add-only store: each sample's events and scores, "
         "which samples the .eval files have, and each eval's status, stats and "
-        "results.\n"
+        "results. Each sample summary is checked against its sample's scores.\n"
         "Not checked: everything else, including the eval spec and plan, each "
-        "sample's messages, output and error, what the sample summaries say, "
-        "invalidation and log_updates.\n"
+        "sample's messages, output and error, the sample summaries' other "
+        "fields, invalidation and log_updates.\n"
         "A pass does not show that the run was honest.\n"
     ), result.output
     # --verbose lists the start record, the sample's records and both closings
@@ -1969,6 +1969,32 @@ def test_edit_score(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
     result = validate_cli(clean_run.store, clean_run.log_dir)
     assert_fails_with(result, "score_mismatch")
     assert "score_mismatch " in result.output and "'includes'" in result.output
+
+
+@pytest.mark.parametrize("edit", ["score", "removed"])
+def test_edit_sample_summaries(
+    clean_run: CleanRun, validate_cli: ValidateCli, edit: str
+) -> None:
+    """summaries.json edited, which the viewer's sample list and samples_df read.
+
+    The summary's score changed, or every summary removed.
+    """
+
+    def edit_score(summaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        for summary in summaries:
+            for value in summary["scores"].values():
+                value["value"] = "I"
+        return summaries
+
+    edit_zip_entry(
+        clean_run.location,
+        "summaries.json",
+        edit_score if edit == "score" else lambda _: [],
+    )
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "summary_mismatch")
+    assert f"summary_mismatch {clean_run.eval_id}/s0.1" in result.output
+    assert ("'includes'" in result.output) == (edit == "score")
 
 
 def test_edit_score_one_to_true(

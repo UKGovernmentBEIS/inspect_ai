@@ -111,9 +111,10 @@ def _results_line(results: EvalResults | None) -> str:
 
 CHECKED = (
     "Checked against the add-only store: each sample's events and scores, which "
-    "samples the .eval files have, and each eval's status, stats and results.\n"
+    "samples the .eval files have, and each eval's status, stats and results. "
+    "Each sample summary is checked against its sample's scores.\n"
     "Not checked: everything else, including the eval spec and plan, each "
-    "sample's messages, output and error, what the sample summaries say, "
+    "sample's messages, output and error, the sample summaries' other fields, "
     "invalidation and log_updates.\n"
     "A pass does not show that the run was honest."
 )

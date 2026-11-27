@@ -51,7 +51,7 @@ There are also a number of things that tamper-evident logs do not protect agains
 
 -   **A deleted `.eval` file of an eval that a later eval names.** This shows up as a `prior_without_file` line rather than a finding. Note that eval-host keys can forge such a later eval.
 
--   **Fields that are not stored.** The validator checks each sample's events and scores, which samples the `.eval` file has, and the eval's status, stats and results. It does not check other fields (for example the eval spec and plan, each sample's messages, output and error, or the sample summaries).
+-   **Fields that are not stored.** The validator checks each sample's events and scores, which samples the `.eval` file has, and the eval's status, stats and results. It also checks that each sample has a sample summary with the sample's scores. It does not check other fields (for example the eval spec and plan, each sample's messages, output and error, or the sample summaries' other fields).
 
 ::: {.callout-important appearance="simple"}
 A pass shows that the `.eval` file matches what was stored. It does not show that the run was honest.
@@ -276,8 +276,8 @@ When validation passes, the command exits with 0 and prints what it checked:
 
 ``` default
 1 eval(s), 1 sample(s) compared, 0 finding(s).
-Checked against the add-only store: each sample's events and scores, which samples the .eval files have, and each eval's status, stats and results.
-Not checked: everything else, including the eval spec and plan, each sample's messages, output and error, what the sample summaries say, invalidation and log_updates.
+Checked against the add-only store: each sample's events and scores, which samples the .eval files have, and each eval's status, stats and results. Each sample summary is checked against its sample's scores.
+Not checked: everything else, including the eval spec and plan, each sample's messages, output and error, the sample summaries' other fields, invalidation and log_updates.
 A pass does not show that the run was honest.
 ```
 
@@ -348,12 +348,13 @@ The following lines are findings. Each finding makes the command exit with 1:
 | `missing_eval_file` | The store has an eval with an eval closing record or a closed sample attempt, but no `.eval` file in the log directory has its eval id. | Make sure that the log directory and the store prefix match. Otherwise, someone deleted or moved the `.eval` file. |
 | `missing_eval_closing` | The `.eval` file is finished (its status is not `started`), but the store has no eval closing record, or no closing record for the latest rescore that its samples name. | An S3 outage at the end of an honest run or rescore can cause this. Otherwise, someone changed the file's status or its samples. |
 | `eval_mismatch` | The `.eval` file's status or stats differ from the eval closing record, or its results differ from the closing record of the eval or of the latest rescore. | `inspect score` without the store location, and other tools that change a log after the run, cause this. Otherwise, someone changed the file. |
-| `unstored_sample` | A sample in the `.eval` file has no attempt with a closing record in the store, for this eval or for the earlier evals that a retry reused samples from, or the eval closing record does not list it as in the `.eval` file. | A failed write to the store causes this in an honest run. The sample then has an error in the `.eval` file. So does a retry that copies a sample into its `.eval` file, fails to write the sample's summary, and still finishes. Otherwise, someone added the sample. |
+| `unstored_sample` | A sample in the `.eval` file has no attempt with a closing record in the store, for this eval or for the earlier evals that a retry reused samples from, or the eval closing record does not list it as in the `.eval` file. | A failed write to the store causes this in an honest run. The sample then has an error in the `.eval` file. So does a retry that copies a sample into its `.eval` file, fails to write the sample's summary, and still finishes (with `summary_mismatch`). Otherwise, someone added the sample. |
 | `missing_sample` | A sample with a closing record in the store, or a sample that the eval closing record lists, is not in the `.eval` file. | Someone deleted the sample. |
 | `event_mismatch` | A sample's events differ from the events rebuilt from the store (after the rescores that the sample names, if any: the message says `after rescores`). The message names the first event that differs. | `inspect score` without the store location, and a warning logged from a worker thread during the sample, cause this in an honest run. So does a failed write to the store while a retry runs a sample again that the earlier eval completed with an error (the message says `reused from`): check the eval's errors for a failed write before treating it as a change. Otherwise, someone changed the events. |
 | `score_mismatch` | A sample's scores differ from its closing record (after the rescores that the sample names, if any). | `inspect score` without the store location causes this. Otherwise, someone changed the scores. |
 | `missing_rescore` | A sample names a rescore that is not in the store, that has no record of the sample, or that rescores another eval (one that the sample's copy did not come through). The sample is not compared. | Treat the sample as changed. |
 | `rescore_mismatch` | The samples of a `.eval` file name different latest rescores of the eval. A rescore rescores every sample. | Someone replaced a sample with a copy from before or after a rescore. |
+| `summary_mismatch` | A sample in the `.eval` file has no sample summary, or its summary's scores differ from the sample's. The viewer's sample list and `samples_df()` read the summaries. | A retry that copies a sample into its `.eval` file and fails to write the sample's summary causes this in an honest run. Otherwise, someone changed the summaries. |
 
 ## Limitations
 
@@ -363,7 +364,7 @@ Tamper-evident logs currently have the following known limits:
 
 -   **Honest runs with a missing closing record.** A failed write to the store results in `unstored_sample` for a run that was not changed. If a retry is running a sample again that the earlier eval completed with an error, the result is an `event_mismatch` instead, because the validator compares the retry's copy with the earlier eval's records. Similarly, a failed write of the eval closing record (after the `.eval` file is finished) results in `missing_eval_closing`.
 
--   **A retry that cannot write a copied sample's summary.** If a retry copies a sample into its `.eval` file, fails to write the sample's summary, and still finishes, its eval closing record does not list the sample, and the validator reports `unstored_sample` for a run that was not changed.
+-   **A retry that cannot write a copied sample's summary.** If a retry copies a sample into its `.eval` file, fails to write the sample's summary, and still finishes, its eval closing record does not list the sample, and the validator reports `unstored_sample` and `summary_mismatch` for a run that was not changed.
 
 -   **Other changes after the run.** A tool that changes the eval's status, stats or results after the run will cause validation to fail, just as a hand edit does. Merged shard logs and samples removed during the run are not yet handled.
 
