@@ -26,6 +26,7 @@ from functools import reduce
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
+from botocore.exceptions import ClientError
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from inspect_ai._eval.score import (
@@ -64,7 +65,7 @@ from ._records import (
     StoreRecord,
     latest_marker,
 )
-from ._store import StoreLocation, s3_client, sample_key_part
+from ._store import StoreLocation, error_code, s3_client, sample_key_part
 
 FindingKind = Literal[
     "settings",
@@ -372,32 +373,25 @@ def validate_store(
 
 
 def read_eval_nonce(store: str, eval_id: str, client: Any | None = None) -> str:
-    """The eval's nonce, from the earliest version of its start record.
+    """The eval's nonce, from the latest version of its start record.
 
-    A rescore of the eval writes it in each record. Needs the validator's
-    read access.
+    A rescore of the eval writes it in each record. A second version is an
+    ``overwrite`` finding, and a rescore with its nonce gets ``nonce``
+    findings. Needs the validator's read access.
 
     Raises:
        ValueError: The store has no readable start record for the eval.
     """
     location = StoreLocation.parse(store)
     s3 = client if client is not None else s3_client()
-    key = location.key(eval_id, START)
-    # the store prefix, as validate_store lists it (moto refuses a "/" in it)
-    versions = [
-        v
-        for page in s3.get_paginator("list_object_versions").paginate(
-            Bucket=location.bucket, Prefix=location.key("").rstrip("/")
-        )
-        for v in page.get("Versions", [])
-        if v["Key"] == key
-    ]
-    if not versions:
-        raise ValueError(f"The store has no start record for eval {eval_id}.")
-    # S3 lists a key's versions newest first
-    body = s3.get_object(
-        Bucket=location.bucket, Key=key, VersionId=versions[-1]["VersionId"]
-    )["Body"].read()
+    try:
+        body = s3.get_object(Bucket=location.bucket, Key=location.key(eval_id, START))[
+            "Body"
+        ].read()
+    except ClientError as ex:
+        raise ValueError(
+            f"Cannot read the start record of eval {eval_id}: {error_code(ex)}."
+        ) from ex
     return StartRecord.model_validate_json(body).nonce
 
 

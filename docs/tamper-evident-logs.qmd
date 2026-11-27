@@ -155,7 +155,7 @@ Here are the steps required to create the store:
         },
         {
           "Effect": "Allow",
-          "Action": "s3:GetObjectVersion",
+          "Action": ["s3:GetObject", "s3:GetObjectVersion"],
           "Resource": "arn:aws:s3:::my-addonly-store/*"
         }
       ]

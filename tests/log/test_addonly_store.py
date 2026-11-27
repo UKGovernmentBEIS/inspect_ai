@@ -85,6 +85,7 @@ from inspect_ai.log._addonly._validate import (
     _event_version_problems,
     _read_eval,
     _rebuild_rows,
+    read_eval_nonce,
     validate_store,
 )
 from inspect_ai.log._addonly._writer import (
@@ -1970,6 +1971,9 @@ def test_validate_nonce_prints_eval_nonce(clean_run: CleanRun) -> None:
         clean_run.read(f"{clean_run.eval_id}/{START}")
     )
     assert eval_nonce(clean_run.store, clean_run.eval_id) == start.nonce
+    store = clean_run.store
+    with pytest.raises(ValueError, match="no-such-eval: NoSuchKey"):
+        read_eval_nonce(store.url, "no-such-eval", store.client(store.validator))
 
 
 @scorer(metrics=[mean()])

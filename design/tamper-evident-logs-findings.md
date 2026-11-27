@@ -912,6 +912,15 @@ handling of a rare case, with Eric's go (Nov-27).
     rescore with no closing record is still listed as `stopped`. Since
     records cannot be deleted, the finding failed every later validation
     of the prefix.
+13. **The listing in `read_eval_nonce`.** `inspect validate --nonce` reads
+    the start record with one `get_object`, not by listing every version
+    under the store prefix to find the earliest. It prints the newest
+    version's nonce; a second version is an `overwrite` finding, and a
+    rescore with that nonce gets `nonce` findings. A `get_object` without
+    a version id needs `s3:GetObject`, so the docs' validator role now has
+    it next to `s3:GetObjectVersion` (moto's validator user has `s3:Get*`,
+    so the tests cannot show this). A missing start record gives
+    `NoSuchKey`, or `AccessDenied` for a role without `s3:ListBucket`.
 
 ## The evals that were run
 
