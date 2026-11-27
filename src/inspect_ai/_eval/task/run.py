@@ -3782,6 +3782,12 @@ async def _task_run_sample_attempt(
             # TaskSource) once the completion block below has exited (see there)
             source_sample: EvalSample | None = None
 
+            # drain sample events for both completion and retry paths (before
+            # the add-only store's shield below, so that a cancel does not
+            # wait for on_sample_event hooks)
+            with anyio.CancelScope(shield=isinstance(failure, _AttemptCancel)):
+                await drain_sample_events()
+
             # complete the sample if there is no error or if there is no retry_on_error in play
             # (with the add-only store on, also when the eval is cancelled,
             # until the sample is logged: a sample stopped after its closing
@@ -3790,9 +3796,6 @@ async def _task_run_sample_attempt(
                 shield=isinstance(failure, _AttemptCancel)
                 or sample_record_writer is not None
             ) as completion_scope:
-                # drain sample events for both completion and retry paths
-                await drain_sample_events()
-
                 outcome: _AttemptOutcome = _attempt_outcome(
                     failure=failure,
                     handled_interrupt=handled_interrupt,

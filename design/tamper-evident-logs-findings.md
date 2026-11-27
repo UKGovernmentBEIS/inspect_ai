@@ -144,9 +144,13 @@ With the store on, two shields keep an honest cancelled run valid:
   sample's completion through its closing record and its log write. Without
   it, a sample cancelled after its closing record and before it is logged
   gives `missing_sample` in the retry
-  (`test_eval_retry_after_cancel_in_close_validates[closing]`). The shield
-  drops after the sample is logged, so scanners, hooks and sidecar teardown
-  stay cancellable.
+  (`test_eval_retry_after_cancel_in_close_validates[closing]`). The
+  sample's `on_sample_event` hooks are drained before the shield, and the
+  shield drops after the sample is logged, so hooks, scanners and sidecar
+  teardown stay cancellable
+  (`test_eval_retry_after_cancel_in_sample_event_hook_validates`). A sample
+  cancelled while its hooks are drained stops before its closing record, as
+  a sample cancelled before scoring does.
 
 Each shield was removed in a copy of the tree to confirm the failure it
 prevents. The cost is that an eval stopped during an S3 outage waits while

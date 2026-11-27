@@ -55,6 +55,7 @@ from inspect_ai.hooks import (
     Hooks,
     SampleAttemptEnd,
     SampleEnd,
+    SampleEvent,
     SampleInit,
     SampleScoring,
     hooks,
@@ -777,6 +778,64 @@ def test_eval_retry_after_cancel_in_sample_end_hook_validates(
     assert result.exit_code == 0, result.output
     assert result.findings() == []
     assert "2 eval(s), 4 sample(s) compared, 0 finding(s)." in result.output
+
+
+class StuckScoreEventHook(Hooks):
+    """The sample event hook waits at the first score event (s0's), for up to 4 s.
+
+    Less than the 5 s the sample end waits for the hook before it goes on.
+    """
+
+    async def on_sample_event(self, data: SampleEvent) -> None:
+        if isinstance(data.event, ScoreEvent) and not cancel_gates["s0_hook"].is_set():
+            cancel_gates["s0_hook"].set()
+            with anyio.move_on_after(4):
+                await anyio.Event().wait()
+            cancel_gates["hook_timed_out"].set()
+
+
+def test_eval_retry_after_cancel_in_sample_event_hook_validates(
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """s1 fails while s0, scored, waits for its sample event hook.
+
+    The eval's failure cancels the hook, as without the store. s0 stops
+    before its closing record. Then eval_retry.
+    """
+    monkeypatch.setitem(cancel_gates, "s0_hook", threading.Event())
+    monkeypatch.setitem(cancel_gates, "hook_timed_out", threading.Event())
+    fail = tmp_path / "fail.json"
+    fail.write_text("true")
+    hooks("stuck_score_event", "Waits at s0's score event.")(StuckScoreEventHook)
+    try:
+        log = eval(
+            stuck_hook_task(str(fail)),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            display="none",
+            max_samples=2,
+            tamper_evident_store=evalhost_env.url,
+        )[0]
+    finally:
+        del _registry["hooks:stuck_score_event"]
+    assert log.status == "error"
+    assert not cancel_gates["hook_timed_out"].is_set()
+
+    fail.write_text("false")
+    log = eval_retry(
+        log,
+        log_dir=str(tmp_path),
+        display="none",
+        tamper_evident_store=evalhost_env.url,
+    )[0]
+    assert log.status == "success", log.error
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
 
 
 @solver
