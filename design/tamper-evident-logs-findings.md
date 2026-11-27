@@ -79,7 +79,8 @@ review as a feature.
   reused samples are found (the start record's `prior_eval_id`), and added
   reused samples missing from a retry's .eval. Review round 3 applied the
   retry's own selection to that check, and lists evals with no .eval file
-  that a later eval names. It exits non-zero on any
+  that a later eval names. The simplification review replaced that check
+  with the list of copied samples in the retry's eval closing record. It exits non-zero on any
   finding. `--verbose` lists each record
   with its arrival time. The scope for matching eval ids to .eval files is
   the `--store` prefix: one prefix per log directory.
@@ -330,7 +331,9 @@ and its own commit.
    is cancelled during admission (`log.py:614`), (c) the prior eval put the
    sample's closing record and stopped before the sample reached its .eval
    (`run.py:3706`). A later retry that completes holds the samples, and
-   eval_set's cleanup then removes the stopped retry's .eval.
+   eval_set's cleanup then removes the stopped retry's .eval. *Replaced
+   Nov-27* by a list of copied samples in the eval closing record; see
+   [Simplification review: removals](#simplification-review-removals).
 4. **Retried only when retry_on_error allows it** (8df86b887). An attempt
    with no closing record was `retried` whenever a later attempt was
    closed. Now the attempt number must also be at most the start record's
@@ -380,6 +383,7 @@ these. Each fix has a test that failed first, and its own commit.
    from its start record's eval spec (`_selects`). The eval spec replaces
    the `started` flag of `_StoredEval`. Tests:
    `test_eval_set_narrower_retry_validates[sample_id]`, `[epochs]`.
+   *Replaced Nov-27:* see [Simplification review: removals](#simplification-review-removals).
 2. **A visible list for evals with no .eval file that a later eval
    names** (8f313aa41). This keeps decision D2 (not a finding), but the
    eval now shows: `inspect validate` prints
@@ -401,7 +405,8 @@ these. Each fix has a test that failed first, and its own commit.
    before it runs one again, and someone deletes the copy from the
    retry's .eval, the validator does not report it (the check covers
    samples closed without an error only). An eval_set run again later to
-   retry an earlier run needs the store option again.
+   retry an earlier run needs the store option again. *Nov-27:* both
+   limits are gone; see [Simplification review: removals](#simplification-review-removals).
 
 Not changed: rescore (on hold with Eric).
 
@@ -645,7 +650,9 @@ A Codex review and a Claude review of 62cffe88d found these.
    (one of the causes in "A retry that stops early"), stopped while it
    ran it, and the later retry stops before it runs it. That is the same
    limit, one eval further back. Test:
-   `test_retry_stopped_while_hook_waits_validates[*-2]`.
+   `test_retry_stopped_while_hook_waits_validates[*-2]`. *Nov-27:* the
+   prior-chain `missing_sample` check is replaced; see
+   [Simplification review: removals](#simplification-review-removals).
 2. **Test gates.** eval_retry loads the task from its file, which runs
    the test module again with an empty `_cancel_gates`. So in the retry
    test, s1 failed with `KeyError` at once instead of waiting for s0's
@@ -876,7 +883,7 @@ handling of a rare case, with Eric's go (Nov-27).
    The docs drop `s3:GetBucketVersioning` from the validator role.
 4. **`StartRecord.plan`.** No code read it.
 5. **`.` as `%2E` in keys.** `quote(safe="")` still encodes `/`; the epoch
-   is the digits after the last `.`, which `_selects` splits on.
+   is the digits after the last `.`.
 6. **The version count in the `event_mismatch` message.**
 7. **The timing and moto probe scripts.** Their results stay in this note.
 8. **The store client's own put retry loop.** The client uses botocore's
@@ -921,6 +928,30 @@ handling of a rare case, with Eric's go (Nov-27).
     it next to `s3:GetObjectVersion` (moto's validator user has `s3:Get*`,
     so the tests cannot show this). A missing start record gives
     `NoSuchKey`, or `AccessDenied` for a role without `s3:ListBucket`.
+14. **The inferred check for a reused sample missing from a retry's
+    .eval** (`_selects`, `_StoredEval.sample_parts`, the
+    `closing.error is None` filter, and `_StoredEval.spec`). A retry's
+    eval closing record now lists the samples it copied from its prior log
+    (`EvalClosingRecord.copied`): the keys `TaskLogger.seed_from_prior`
+    and `seed_added_samples` copied, less those that `log_finish` pruned
+    (a dynamic feed's unconsulted records on a natural success). The
+    validator requires each one in the retry's .eval, unless the retry ran
+    it again and closed it. The list is per attempt: `TaskLogger.reinit`
+    resets it, and each attempt's `task_run` seeds again, so
+    `task_retry_attempts` and eval_set retries need no prior eval id on
+    the logger (round 2's crash). Tests read the list for eval_retry and a
+    retry of a retry, `task_retry_attempts`, eval_set retries with and
+    without cleanup, and narrower retries (`sample_id`, epochs). Gone:
+    the three false `missing_sample` findings for a retry that stops
+    early (an unseeded retry, a limited dynamic feed cancelled during
+    admission, a prior eval that closed a sample it never logged), and
+    the gap for a deleted copy of a sample the prior eval closed with an
+    error (`test_retry_stopped_while_hook_waits_validates` now deletes
+    it). New limit: a retry with no eval closing record has no list, so
+    a copied sample deleted from its .eval is not reported; before, an
+    error-free one was listed as `not_logged`. `StartRecord.eval` and
+    `SampleClosingRecord.error` are still written and no longer read.
+    The limited dynamic feed and the prune path ran in no store test.
 
 ## The evals that were run
 
@@ -1416,7 +1447,7 @@ The line means that the store has no closing record for the attempt or the eval.
 
 ### Samples not logged by an eval that stopped
 
-- **Samples deleted from the `.eval` file of an eval that stopped.** Inspect writes samples to the `.eval` file in groups of several samples (the `log_buffer` option), not one at a time. So when an honest eval host dies, the store usually has closed samples that are not in the file. When an eval has no closing record and its `.eval` file has the status `started`, the validator lists each closed sample that is not in the file as `not_logged`. So if someone deletes samples from the `.eval` file of such an eval, the validator shows a `not_logged` line for each sample, not a finding. An eval with no closing record, no closed sample attempt and no `.eval` file is listed only as `stopped`. An eval with a closed sample attempt and no `.eval` file is a `missing_eval_file` finding, because an honest eval writes its `.eval` file before any sample runs.
+- **Samples deleted from the `.eval` file of an eval that stopped.** Inspect writes samples to the `.eval` file in groups of several samples (the `log_buffer` option), not one at a time. So when an honest eval host dies, the store usually has closed samples that are not in the file. When an eval has no closing record and its `.eval` file has the status `started`, the validator lists each closed sample that is not in the file as `not_logged`. So if someone deletes samples from the `.eval` file of such an eval, the validator shows a `not_logged` line for each sample, not a finding. A sample that such an eval copied from an earlier eval's log shows no line at all, because only the eval closing record lists those samples. An eval with no closing record, no closed sample attempt and no `.eval` file is listed only as `stopped`. An eval with a closed sample attempt and no `.eval` file is a `missing_eval_file` finding, because an honest eval writes its `.eval` file before any sample runs.
 
 ```
 not_logged LdM2ww.../s0.1/1: Closed, not in the .eval file: the eval stopped before it logged the sample.
@@ -1436,9 +1467,9 @@ prior_without_file MBjNiQ...: No .eval file; EMhV3K... names it as its prior eva
 
 `eval_set()` deletes the `.eval` file of a failed attempt after its retry (`retry_cleanup`, on by default). This does not cause a finding: the retry's records name the failed attempt's eval, and the validator still uses that eval's records to check the samples that the retry reused. The validator lists the failed attempt's eval as `prior_without_file`.
 
-### A retry that stops early
+### Samples a retry copied
 
-- **A retry that stops early.** A retry must keep each sample that the earlier eval completed without an error and that the retry selects (by its sample ids and number of epochs), or the validator reports `missing_sample`. A retry copies these samples into its log before it runs any sample, so it usually keeps them. But in these cases a retry that stops before it runs the sample has no copy and no records of it, and the validator reports a `missing_sample` for a run that was not changed: the earlier `.eval` file was gone when the retry started, or `log_samples` is off; a dataset that adds samples while it runs, with `limit` set, was cancelled; or the earlier eval stopped after it stored the sample and before the sample was in its `.eval` file. Each of these can also be true of an eval further back in a chain of retries. A later retry that completes keeps the samples. If eval_set deletes the stopped retry's `.eval` file, the finding goes away. A retry that stops before it finishes its `.eval` file lists the sample as `not_logged` instead.
+- **Samples a retry copied.** A retry copies the samples that it selects from the earlier eval's log into its own before it runs any sample, with or without an error. A dataset that adds samples while it runs, with `limit` set, copies each one when it admits it. The retry's eval closing record lists the copies that its log keeps, and each one must be in the retry's `.eval` file, or the validator reports `missing_sample`. A copy that the retry ran again and closed is compared through that attempt instead. A retry with no eval closing record has no list, so a copied sample deleted from its `.eval` file is not reported.
 
 ## Known limits
 
@@ -1456,14 +1487,9 @@ prior_without_file MBjNiQ...: No .eval file; EMhV3K... names it as its prior eva
 - A retry's `prior_eval_id` is a claim by the retry's eval host. The
   earlier eval's records are protected, so a reused sample is still
   checked against them; a wrong id gives a finding for each reused sample.
-- A retry that stops early can give a false `missing_sample` (review
-  round 2, fix 3, cases a to c). A retry that stops before it finishes
-  its .eval file lists the sample as `not_logged` instead.
 - A deleted .eval file of an eval that a later eval names is not a
   finding (review round 2, fix 5); it is listed as `prior_without_file`
   (review round 3, fix 2). Eval-host keys can forge such a later eval.
-- A copied errored sample deleted from a retry's .eval, before the retry
-  runs it again, is not reported (review round 3, fix 4).
 - A stopped attempt or eval is listed, not a finding. How to interpret it
   (an honest cancel or crash, or a compromised host that stops writing to
   hide what a sample did) is an open question. A compromised process that
@@ -1483,6 +1509,8 @@ prior_without_file MBjNiQ...: No .eval file; EMhV3K... names it as its prior eva
 - A sample deleted from the .eval file of an eval that stopped before it
   finished the file (no eval closing record, status `started`) is listed
   as `not_logged`, not a finding. An honest crash leaves such samples.
+  A sample that such an eval copied from its prior log is not listed:
+  only the eval closing record lists those samples.
 
 ## Not tested
 

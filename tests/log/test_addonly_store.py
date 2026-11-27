@@ -65,6 +65,7 @@ from inspect_ai.log._addonly._records import (
     CLOSING,
     RESCORE_MARKER_SOURCE,
     START,
+    EvalClosingRecord,
     RescoreMarker,
     RescoreSampleRecord,
     SampleAttemptRef,
@@ -144,6 +145,16 @@ def evalhost_env(moto_store: MotoStore, monkeypatch: pytest.MonkeyPatch) -> Moto
 
 def validate(store: MotoStore, log_dir: Path) -> ValidationReport:
     return store.validate(log_dir)
+
+
+def copied(store: MotoStore, eval_id: str) -> list[str]:
+    """The samples the eval closing record lists as copied from the prior log."""
+    body = (
+        store.client(store.admin)
+        .get_object(Bucket=BUCKET, Key=f"{store.prefix}/{eval_id}/{CLOSING}")["Body"]
+        .read()
+    )
+    return EvalClosingRecord.model_validate_json(body).copied
 
 
 EVIDENCE_DIR_ENV = "ADDONLY_EVIDENCE_DIR"
@@ -592,6 +603,7 @@ def test_eval_retry_validates(
     retry, whose own names the first eval, where the records are.
     """
     log = retried_task_run(evalhost_env, tmp_path, failures, s0_failures=2)
+    assert copied(evalhost_env, log.eval.eval_id) == []
     for status in ["error", "success"]:
         log = eval_retry(
             log,
@@ -600,6 +612,8 @@ def test_eval_retry_validates(
             tamper_evident_store=evalhost_env.url,
         )[0]
         assert log.status == status, log.error
+        # the seed copies the errored s0 too
+        assert copied(evalhost_env, log.eval.eval_id) == ["s0.1", "s1.1"]
 
     result = validate_cli(evalhost_env, tmp_path)
     assert result.exit_code == 0, result.output
@@ -1023,7 +1037,8 @@ def test_retry_stopped_while_hook_waits_validates(
     or its sample scoring hook; with two retries, the second retries the
     first and stops the same way. Each retry's .eval keeps the first eval's
     copy of s0, which is compared with the first eval's records, and each
-    retry's s0 attempt is listed as stopped.
+    retry's s0 attempt is listed as stopped. That copy, deleted, is
+    `missing_sample`: the retry's eval closing record lists it.
     """
     phase = tmp_path / "phase"
     phase.write_text("first")
@@ -1075,6 +1090,16 @@ def test_retry_stopped_while_hook_waits_validates(
         f"{retries + 1} eval(s), {2 * retries + 2} sample(s) compared, 0 finding(s)."
         in result.output
     )
+
+    # the retry copied the errored s0 and stopped before it ran it again:
+    # deleting that copy from the retry's .eval is a finding
+    assert copied(evalhost_env, retry_ids[-1]) == ["s0.1", "s1.1"]
+    retry = read_eval_log(log.location)
+    retry.samples = [s for s in retry.samples or [] if s.id != "s0"]
+    write_eval_log(retry, retry.location)
+    result = validate_cli(evalhost_env, log_dir)
+    assert_fails_with(result, "missing_sample")
+    assert f"missing_sample {retry_ids[-1]}/s0.1:" in result.output
 
 
 def test_eval_stopped_while_retry_waits_lists_stopped(
@@ -1253,6 +1278,7 @@ def test_task_retry_attempts_validates(
         tamper_evident_store=evalhost_env.url,
     )[0]
     assert log.status == "success", log.error
+    assert copied(evalhost_env, log.eval.eval_id) == ["s0.1", "s1.1"]
 
     result = validate_cli(evalhost_env, log_dir)
     assert result.exit_code == 0, result.output
@@ -1287,6 +1313,7 @@ def test_eval_set_retry_validates(
     )
     assert success, logs[0].error
     assert len(list(log_dir.glob("*.eval"))) == (1 if retry_cleanup else 2)
+    assert copied(evalhost_env, logs[0].eval.eval_id) == ["s0.1", "s1.1"]
 
     result = validate_cli(evalhost_env, log_dir)
     assert result.exit_code == 0, result.output
@@ -1332,6 +1359,9 @@ def test_eval_set_narrower_retry_validates(
     }
     success, logs = eval_set(retried_task(str(failures)), **retry, **options)
     assert success, logs[0].error
+    assert copied(evalhost_env, logs[0].eval.eval_id) == (
+        ["s0.1"] if "sample_id" in retry else ["s0.1", "s1.1"]
+    )
 
     result = validate_cli(evalhost_env, log_dir)
     assert result.exit_code == 0, result.output

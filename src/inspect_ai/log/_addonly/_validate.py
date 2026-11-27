@@ -44,7 +44,7 @@ from inspect_ai.log._file import (
     read_eval_log_sample,
     read_eval_log_sample_summaries,
 )
-from inspect_ai.log._log import EvalResults, EvalSample, EvalSpec
+from inspect_ai.log._log import EvalResults, EvalSample
 from inspect_ai.log._recorders import recorder_type_for_location
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.types import BufferRows
@@ -155,12 +155,7 @@ class _StoredEval(NamedTuple):
     findings: list[Finding]
     stopped: list[str]
     """The eval id and attempt prefixes with no closing record."""
-    spec: EvalSpec | None
-    """The start record's eval spec (None without a start record)."""
     closing: EvalClosingRecord | None
-    sample_parts: set[str]
-    """``<sample-id>.<epoch>`` of every attempt in the store or the eval
-    closing record."""
     final_attempts: dict[str, _FinalAttempt]
     """The last closed attempt of each sample, by ``<sample-id>.<epoch>``."""
     prior_eval_id: str | None
@@ -467,7 +462,7 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
     start = stored.get(f"{eval_id}/{START}")
     if start is None:
         finding("missing_start", "No start record.")
-        return _StoredEval(findings, stopped, None, None, set(), {}, None, None)
+        return _StoredEval(findings, stopped, None, {}, None, None)
     assert isinstance(start, StartRecord)
     nonce = start.nonce
 
@@ -538,9 +533,7 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
     return _StoredEval(
         findings,
         stopped,
-        start.eval,
         eval_closing,
-        {sample_part for sample_part, _ in attempts.keys() | listed},
         final_attempts,
         start.prior_eval_id,
         nonce,
@@ -575,7 +568,7 @@ def _compare_eval_file(
         findings.append(Finding(kind=kind, eval_id=eval_id, key=key, message=message))
 
     stored = evals[eval_id]
-    if stored.spec is None:
+    if stored.nonce is None:
         return _Compared(findings, 0)
     if eval_file is None:
         # eval_set's retry_cleanup deletes a retried eval's .eval file; the
@@ -642,25 +635,18 @@ def _compare_eval_file(
             )
         )
 
-    # a retry's .eval holds every sample of its prior eval that it selects
-    # (the seed copies them), so each one the prior evals closed without an
-    # error must be there
-    prior_samples = {
-        sample_part
-        for prior_id in _prior_evals(evals, stored.prior_eval_id)
-        for sample_part in evals[prior_id].sample_parts
-        if _selects(stored.spec, sample_part)
-    }
-    for sample_part in sorted(prior_samples - stored.sample_parts - eval_file_samples):
-        earlier = _earlier_attempt(evals, stored.prior_eval_id, sample_part)
-        if earlier is not None and earlier[1].closing.error is None:
-            source, final = earlier
-            missing_sample(
-                f"Not in {eval_file}. A retry reuses it from "
-                f"{source}/{sample_part}/{final.closing.sample.attempt}, which "
-                "closed without an error.",
-                f"{eval_id}/{sample_part}",
-            )
+    # a retry's .eval holds each sample it copied from its prior log; one it
+    # ran again and closed is compared above
+    copied = set(stored.closing.copied) if stored.closing else set()
+    for sample_part in sorted(
+        copied - stored.final_attempts.keys() - eval_file_samples
+    ):
+        finding(
+            "missing_sample",
+            f"Not in {eval_file}. The eval closing record lists it as copied "
+            f"from the prior eval {stored.prior_eval_id}.",
+            f"{eval_id}/{sample_part}",
+        )
 
     compared = 0
     # the latest rescore of this eval each sample names (None: not rescored)
@@ -915,23 +901,6 @@ def _prior_evals(
         seen.add(eval_id)
         yield eval_id
         eval_id = evals[eval_id].prior_eval_id
-
-
-def _selects(spec: EvalSpec, sample_part: str) -> bool:
-    """Whether the eval selects ``<sample-id>.<epoch>``.
-
-    By the dataset's sample ids and the epoch count, as a retry selects the
-    samples it copies from its prior eval (``TaskLogger.seed_from_prior``).
-    """
-    epoch = sample_part.rpartition(".")[2]
-    ids = spec.dataset.sample_ids
-    return (
-        epoch.isdecimal()
-        and int(epoch) <= (spec.config.epochs or 1)
-        and (
-            ids is None or sample_part in {sample_key_part(i, int(epoch)) for i in ids}
-        )
-    )
 
 
 def _changed_keys(

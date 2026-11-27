@@ -83,6 +83,11 @@ class EvalClosingRecord(BaseModel):
     results: EvalResults | None = None
     samples: list[SampleAttemptRef]
     """Every sample attempt the eval started."""
+    copied: list[str]
+    """``<sample-id>.<epoch>`` of each sample a retry copied from its prior log.
+
+    Its .eval file must hold each one.
+    """
 
 
 class RescoreRef(BaseModel, frozen=True):

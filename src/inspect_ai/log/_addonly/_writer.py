@@ -8,6 +8,7 @@ writes one record per sample once its scorers finish.
 
 import os
 import secrets
+from collections.abc import Iterable
 from contextvars import ContextVar
 from typing import Literal
 
@@ -91,8 +92,17 @@ class EvalRecordWriter:
         return SampleRecordWriter(self, buffer_db, ref)
 
     async def close(
-        self, status: EvalStatus, stats: EvalStats, results: EvalResults | None
+        self,
+        status: EvalStatus,
+        stats: EvalStats,
+        results: EvalResults | None,
+        copied: Iterable[tuple[str | int, int]],
     ) -> None:
+        """Write the eval closing record.
+
+        ``copied`` is each ``(sample_id, epoch)`` a retry copied from its
+        prior log and kept in its own.
+        """
         await self.store.put(
             f"{self.eval_id}/{CLOSING}",
             _body(
@@ -103,6 +113,7 @@ class EvalRecordWriter:
                     stats=stats,
                     results=results,
                     samples=self._attempts,
+                    copied=sorted(sample_key_part(id, epoch) for id, epoch in copied),
                 )
             ),
         )
