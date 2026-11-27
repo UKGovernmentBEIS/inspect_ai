@@ -88,6 +88,19 @@ FindingKind = Literal[
 ]
 
 
+_STORE_READ_REFUSED = {
+    "AccessDenied",
+    "AllAccessDisabled",
+    "NoSuchBucket",
+    "InvalidAccessKeyId",
+    "SignatureDoesNotMatch",
+    "ExpiredToken",
+    "InvalidToken",
+}
+"""S3 error codes of a record read that stop the validator: its keys or the
+bucket, not the record. Any other refusal is the record's malformed_record."""
+
+
 class Finding(BaseModel):
     kind: FindingKind
     eval_id: str | None = None
@@ -246,12 +259,24 @@ def validate_store(
             )
 
     def read(key: str) -> bytes:
+        """The key's earliest version.
+
+        Raises:
+           ValueError: S3 refused this record only (for example its storage
+              class), which eval-host keys can cause; a malformed_record.
+           ClientError: The validator cannot read the store.
+        """
         # S3 lists a key's versions newest first. Arrival times have whole
         # seconds, so they cannot order versions stored in the same second.
         earliest = by_key[key][-1]
-        body: bytes = s3.get_object(
-            Bucket=location.bucket, Key=key, VersionId=earliest.version_id
-        )["Body"].read()
+        try:
+            body: bytes = s3.get_object(
+                Bucket=location.bucket, Key=key, VersionId=earliest.version_id
+            )["Body"].read()
+        except ClientError as ex:
+            if error_code(ex) in _STORE_READ_REFUSED:
+                raise
+            raise ValueError(f"S3 refused the read: {error_code(ex)}.") from ex
         return body
 
     # group keys by eval id (the first part after the prefix), and rescore

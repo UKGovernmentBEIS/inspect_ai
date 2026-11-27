@@ -211,6 +211,14 @@ Store checks:
   rebuild), `unlisted_attempt` (an attempt the eval closing record does not
   list), `record_count` (a closed attempt's records not numbered 1 to its
   count), and `late_event_version`.
+- A record that S3 refuses to return, for example one in an archive storage
+  class (`InvalidObjectState`), is a record the validator cannot read. A
+  refusal that is about the validator's credentials or the bucket
+  (`AccessDenied`, `NoSuchBucket`, an expired or invalid key) stops the
+  validator instead (`_STORE_READ_REFUSED`). S3 also returns `AccessDenied`
+  for a record encrypted with a KMS key the validator cannot use, so
+  eval-host keys can stop the validator this way; it fails, it does not
+  pass.
 
 `.eval` checks, for every `.eval` file in the log directory with the eval's
 id:

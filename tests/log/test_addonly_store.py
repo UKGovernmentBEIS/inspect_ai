@@ -24,7 +24,7 @@ from typing import Any, NamedTuple
 
 import anyio
 import pytest
-from botocore.exceptions import EndpointConnectionError, ReadTimeoutError
+from botocore.exceptions import ClientError, EndpointConnectionError, ReadTimeoutError
 from test_helpers.addonly_agents import (
     agent_task,
     run,
@@ -85,6 +85,7 @@ from inspect_ai.log._addonly._validate import (
     _read_eval,
     _rebuild_rows,
     read_eval_nonce,
+    validate_store,
 )
 from inspect_ai.log._addonly._writer import (
     RESCORE_NONCE_ENV,
@@ -2427,6 +2428,49 @@ def test_malformed_record(
     assert_fails_with(result, "malformed_record")
     assert f"malformed_record {key}:" in result.output
     assert ": :" not in result.output
+
+
+def test_unreadable_record(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
+    """A record S3 will not return (GLACIER storage class), added with eval-host keys.
+
+    Reported, and the eval's other records still checked.
+    """
+    key = clean_run.sample_key(clean_run.records() + 1)
+    clean_run.store.client(clean_run.store.evalhost).put_object(
+        Bucket=BUCKET,
+        Key=f"{clean_run.store.prefix}/{key}",
+        Body=clean_run.forged_record(clean_run.records() + 1),
+        IfNoneMatch="*",
+        StorageClass="GLACIER",
+    )
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(result, "malformed_record")
+    assert f"malformed_record {key}: Cannot read it: " in result.output
+    assert "InvalidObjectState" in result.output
+    assert "1 sample(s) compared" in result.output
+
+
+class _GetObjectRefused:
+    """The validator's client, with every ``get_object`` refused with ``code``."""
+
+    def __init__(self, client: Any, code: str) -> None:
+        self._client = client
+        self._code = code
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._client, name)
+
+    def get_object(self, **kwargs: Any) -> Any:
+        raise ClientError({"Error": {"Code": self._code}}, "GetObject")
+
+
+@pytest.mark.parametrize("code", ["AccessDenied", "NoSuchBucket", "ExpiredToken"])
+def test_store_read_refused_fails(clean_run: CleanRun, code: str) -> None:
+    """A refusal that means the validator cannot read the store stops it."""
+    store = clean_run.store
+    client = _GetObjectRefused(store.client(store.validator), code)
+    with pytest.raises(ClientError, match=code):
+        validate_store(store.url, str(clean_run.log_dir), client=client)
 
 
 @pytest.mark.parametrize(

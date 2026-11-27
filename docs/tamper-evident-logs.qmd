@@ -268,6 +268,8 @@ inspect validate logs --store s3://my-addonly-store/team-a
 
 You can also set the store location using the `INSPECT_VALIDATE_STORE` environment variable. Be sure to run the validator on a host that the eval hosts cannot control.
 
+If S3 refuses a record read because of the validator's credentials or the bucket (for example `AccessDenied` or `NoSuchBucket`), the command stops with that error rather than reporting findings. S3 also returns `AccessDenied` for a record encrypted with a KMS key that the validator cannot use, so such a record stops the command too.
+
 ### Pass
 
 When validation passes, the command exits with 0 and prints what it checked:
@@ -340,7 +342,7 @@ The following lines are findings. Each finding makes the command exit with 1:
 | `nonce` | A record's nonce differs from the eval's start record's. This includes the records of a rescore. The eval host's keys cannot read the nonce from the store. | Treat the record as forged. |
 | `record_count` | The sample records of an attempt with a closing record are not numbered 1, 2, 3 and so on up to the count in the closing record. | Treat the extra records, or the closing record, as forged. |
 | `late_event_version` | A record has a new version of an event that an earlier record stored complete. | An agent that calls [bridged tools](agent-bridge.qmd#bridged-tools) one at a time causes this in an honest run. Otherwise, treat the new version as a change to an event that the store confirmed. |
-| `malformed_record` | A key that the eval never writes, a record that cannot be read or holds the wrong type of record, or sample records whose events cannot be rebuilt. | Treat the record as forged. The validator still checks the eval's other records. If the events cannot be rebuilt, they are not compared with the `.eval` file. |
+| `malformed_record` | A key that the eval never writes, a record that cannot be read (including one that S3 refuses to return, for example because of its storage class) or holds the wrong type of record, or sample records whose events cannot be rebuilt. | Treat the record as forged. The validator still checks the eval's other records. If the events cannot be rebuilt, they are not compared with the `.eval` file. |
 | `unlisted_attempt` | The store has records of a sample attempt that the eval closing record does not list. | Treat the attempt as written by someone other than the eval. |
 | `unstored_eval` | A `.eval` file in the log directory has an eval id with no records under the store prefix. | Make sure that the store prefix is correct and that the eval ran with `tamper_evident_store`. Otherwise, treat the file as not checked. |
 | `missing_eval_file` | The store has an eval with an eval closing record or a closed sample attempt, but no `.eval` file in the log directory has its eval id. | Make sure that the log directory and the store prefix match. Otherwise, someone deleted or moved the `.eval` file. |
