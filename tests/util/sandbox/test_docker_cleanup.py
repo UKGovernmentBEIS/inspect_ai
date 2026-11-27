@@ -196,12 +196,16 @@ class FakeDocker:
 
 
 @pytest.fixture
-def fake_docker(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeDocker:
+def fake_docker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fresh_display: None
+) -> FakeDocker:
     # a working directory with no compose file or Dockerfile, so a bare
     # `sandbox="docker"` resolves to the generated generic compose file
     work = tmp_path / "work"
     work.mkdir()
     monkeypatch.chdir(work)
+    # with no cached display, the eval builds a "none" display, which quiets
+    # the console even if an earlier test un-quieted it
     init_display_type("none")
     return FakeDocker(monkeypatch, tmp_path)
 
