@@ -363,7 +363,6 @@ async def score_async(
             log.eval.eval_id,
             nonce,
             action,
-            [registry_unqualified_name(s) for s in resolved_scorers],
         )
         if tamper_evident_store and nonce
         else None

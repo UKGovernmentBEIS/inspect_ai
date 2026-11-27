@@ -1922,7 +1922,6 @@ def test_rescore_without_eval(clean_run: CleanRun, validate_cli: ValidateCli) ->
             rescore_id="r1",
             nonce=FORGED_NONCE,
             action="append",
-            scorers=["match"],
         ).model_dump_json(),
     )
     result = validate_cli(clean_run.store, clean_run.log_dir)
@@ -1956,7 +1955,6 @@ def test_rescore_record_without_scorers_span(
             rescore_id="r1",
             nonce=nonce,
             action="append",
-            scorers=["match"],
         ).model_dump_json(),
     )
     clean_run.put(

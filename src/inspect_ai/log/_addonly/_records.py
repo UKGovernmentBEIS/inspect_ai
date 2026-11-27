@@ -138,7 +138,6 @@ class RescoreStartRecord(BaseModel):
     rescore_id: str
     nonce: str
     action: Literal["append", "overwrite"]
-    scorers: list[str]
 
 
 class RescoreSampleRecord(BaseModel):

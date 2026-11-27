@@ -259,7 +259,6 @@ class RescoreRecordWriter:
         eval_id: str,
         nonce: str,
         action: Literal["append", "overwrite"],
-        scorers: list[str],
     ) -> "RescoreRecordWriter":
         """Write the start record and check the store's settings, as an eval does."""
         writer = cls(
@@ -275,7 +274,6 @@ class RescoreRecordWriter:
                     rescore_id=writer.ref.rescore_id,
                     nonce=writer.nonce,
                     action=action,
-                    scorers=scorers,
                 )
             ),
         )

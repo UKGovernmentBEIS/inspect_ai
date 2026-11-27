@@ -687,8 +687,7 @@ protected logs is a common feature. let's do #2 now"). Built on
   nonce from the eval's start record, with the validator's read access.
   So the rescorer needs add rights only, as the eval host has. The
   records, under `rescores/<eval-id>/<rescore-id>/` in the store prefix:
-  - `start`: eval id, rescore id, nonce, action (append or overwrite),
-    scorer names.
+  - `start`: eval id, rescore id, nonce, action (append or overwrite).
     Written with the same checks as the eval's start record
     (`put_start_and_check`).
   - `<sample-id>.<epoch>`, one per sample, written once the sample's
