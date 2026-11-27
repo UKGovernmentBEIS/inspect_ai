@@ -228,10 +228,14 @@ Store checks:
   class (`InvalidObjectState`), is a record the validator cannot read. A
   refusal that is about the validator's credentials or the bucket
   (`AccessDenied`, `NoSuchBucket`, an expired or invalid key) stops the
-  validator instead (`_STORE_READ_REFUSED`). S3 also returns `AccessDenied`
-  for a record encrypted with a KMS key the validator cannot use, so
-  eval-host keys can stop the validator this way; it fails, it does not
-  pass.
+  validator instead (`_STORE_READ_REFUSED`), as does a server error (HTTP
+  5xx after botocore's retries: an outage, not a record eval-host keys can
+  forge). S3 also returns `AccessDenied` for a record encrypted with a KMS
+  key the validator cannot use, so anyone who can put with another SSE-KMS
+  key (eval-host keys included) can stop the validator this way; it fails,
+  it does not pass. The docs' bucket policy has a statement
+  (`DenyEncryptionHeaders`) that refuses a put naming any encryption, so
+  each record gets the bucket's default encryption; it prevents this.
 
 `.eval` checks, for every `.eval` file in the log directory with the eval's
 id:
@@ -239,7 +243,10 @@ id:
 - `unstored_eval` and `missing_eval_file`.
 - `unstored_sample`: a `.eval` sample with no closed attempt in the eval, or
   in the prior evals it copied from, or one that the eval closing record's
-  `logged` list does not have.
+  `logged` list does not have. Also a `samples/*.json` zip member whose
+  name is not `_sample_filename` of the id and epoch it parses to (or does
+  not parse): a full read returns every `samples/*.json` member, and the
+  validator reads samples by their canonical names.
 - `missing_sample`: a closed sample, or a sample in the eval closing
   record's `logged` list, that is not in the `.eval` file.
 - `event_mismatch` and `score_mismatch`: the sample's events and scores
@@ -250,9 +257,13 @@ id:
 - `missing_rescore` and `rescore_mismatch`.
 - `summary_mismatch`: a compared sample with no sample summary, or a
   summary whose scores differ from the sample's (thinned as a summary
-  thins them). The viewer's sample list and `samples_df` read the
-  summaries. A summary with no sample is `unstored_sample` or
-  `missing_sample`.
+  thins them), or more than one `summaries.json` row with its
+  `(str(id), epoch)`. Python keeps the last such row; the viewer keys rows
+  by the JSON id and epoch (`1` and `"1"` differ), so it can list another.
+  The viewer's sample list and `samples_df` read the summaries. A summary
+  with no sample is `unstored_sample` or `missing_sample`. Rows are checked
+  for repeats only in `summaries.json`, not in the journal summaries of a
+  `.eval` file still `started`.
 
 The validator rebuilds a sample's events with the code that logs a sample
 whose events were evicted: it inserts the stored rows into a new sample
@@ -260,7 +271,8 @@ buffer and reads them back with `open_sample_history` and
 `materialize_streaming_sample`. It reads the `.eval` sample with attachments
 resolved in full, and compares JSON text (`_same_json`), so NaN equals NaN
 and `1` differs from `true`. It finds `.eval` samples by summary and by zip
-member name, so a member added under a new name is reported.
+member name, so a member added under a new name is reported, whether or
+not the name is one the eval writes.
 
 These lines are listed before the count and do not change the exit code:
 `stopped`, `not_logged`, `prior_without_file`, `rescored` and
@@ -271,8 +283,8 @@ These lines are listed before the count and do not change the exit code:
 Every record under the prefix is checked, whether or not its attempt or
 eval closed. Every sample in a `.eval` file must match a closed attempt of
 its own eval or, if it has none, of the nearest earlier eval along the
-prior-eval chain that closed it, after each rescore it names, and have a
-sample summary with its scores. Every closed
+prior-eval chain that closed it, after each rescore it names, and have one
+sample summary, with its scores. Every closed
 sample, and every sample in the eval closing record's `logged` list, must be
 in the `.eval` file, unless the eval stopped before it finished the file.
 When the eval has a closing record, every sample in the `.eval` file must be

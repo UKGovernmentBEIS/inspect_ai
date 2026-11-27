@@ -29,7 +29,7 @@ Tamper-evident logs protect against the following:
 
 -   **Edits by a compromised eval process.** Events that the store confirmed before the compromise can't be changed. If the process changes them in its local copy, the `.eval` file will no longer match the store.
 
--   **Lost samples.** Each sample attempt writes a closing record at its end. If a sample has a closing record but isn't in the `.eval` file, the validator reports `missing_sample`. The eval closing record lists each sample in the `.eval` file when the eval finished. Each one must still be in it, and the file must have no other sample (`unstored_sample`). For a retry, the list includes the samples that it copied from the earlier eval's log. The exception is an eval that stopped before it finished its `.eval` file (see [What Is Not Protected](#what-is-not-protected) below).
+-   **Lost samples.** Each sample attempt writes a closing record at its end. If a sample has a closing record but isn't in the `.eval` file, the validator reports `missing_sample`. The eval closing record lists each sample in the `.eval` file when the eval finished. Each one must still be in it, and the file must have no other sample (`unstored_sample`), including a sample member that the eval would never write (Inspect reads every `samples/*.json` member of the file, but the eval writes only `samples/<id>_epoch_<epoch>.json`). For a retry, the list includes the samples that it copied from the earlier eval's log. The exception is an eval that stopped before it finished its `.eval` file (see [What Is Not Protected](#what-is-not-protected) below).
 
 ## What Is Not Protected
 
@@ -53,7 +53,7 @@ There are also a number of things that tamper-evident logs do not protect agains
 
 -   **A deleted `.eval` file of an eval that a later eval names.** This shows up as a `prior_without_file` line rather than a finding. Note that eval-host keys can forge such a later eval.
 
--   **Fields that are not stored.** The validator checks each sample's events and scores, which samples the `.eval` file has, and the eval's status, stats and results. It also checks that each sample has a sample summary with the sample's scores. It does not check other fields, for example the eval spec and plan, each sample's messages, output and error, the sample summaries' other fields, the score reductions, invalidation, `log_updates`, or the eval's error.
+-   **Fields that are not stored.** The validator checks each sample's events and scores, which samples the `.eval` file has, and the eval's status, stats and results. It also checks that each sample has one sample summary, with the sample's scores. It does not check other fields, for example the eval spec and plan, each sample's messages, output and error, the sample summaries' other fields, the score reductions, invalidation, `log_updates`, or the eval's error.
 
 -   **Logs in the `.json` format.** The validator checks only `.eval` files. It ignores a `.json` log in the log directory, so a `.json` copy of a log with edited scores passes.
 
@@ -108,7 +108,7 @@ Here are the steps required to create the store:
     }
     ```
 
-3.  Add a bucket policy. Its first statement refuses a put without `If-None-Match` (without this statement, a put can add a second version of an object). The other two statements let the eval hosts' role add objects and read the Object Lock settings. Replace `111122223333` with the ID of the eval hosts' account, and `eval-host` with the name of their role.
+3.  Add a bucket policy. Its first statement refuses a put without `If-None-Match` (without this statement, a put can add a second version of an object). The second refuses a put that names an encryption, so each record uses the bucket's default encryption, which the validator can read (without this statement, someone who can add to the store can add a record encrypted with another KMS key, which stops the validator; see [Validating Logs](#validating-logs)). Inspect does not name an encryption when it writes a record. The other two statements let the eval hosts' role add objects and read the Object Lock settings. Replace `111122223333` with the ID of the eval hosts' account, and `eval-host` with the name of their role.
 
     ``` json
     {
@@ -121,6 +121,14 @@ Here are the steps required to create the store:
           "Action": "s3:PutObject",
           "Resource": "arn:aws:s3:::my-addonly-store/*",
           "Condition": {"Null": {"s3:if-none-match": "true"}}
+        },
+        {
+          "Sid": "DenyEncryptionHeaders",
+          "Effect": "Deny",
+          "Principal": "*",
+          "Action": "s3:PutObject",
+          "Resource": "arn:aws:s3:::my-addonly-store/*",
+          "Condition": {"Null": {"s3:x-amz-server-side-encryption": "false"}}
         },
         {
           "Sid": "EvalHostPut",
@@ -272,7 +280,9 @@ inspect validate logs --store s3://my-addonly-store/team-a
 
 You can also set the store location using the `INSPECT_VALIDATE_STORE` environment variable. Be sure to run the validator on a host that the eval hosts cannot control. The validator checks only the `.eval` files in the log directory, not `.json` logs.
 
-If S3 refuses a record read because of the validator's credentials or the bucket (for example `AccessDenied` or `NoSuchBucket`), the command stops with that error rather than reporting findings. S3 also returns `AccessDenied` for a record encrypted with a KMS key that the validator cannot use, so such a record stops the command too.
+If S3 refuses a record read because of the validator's credentials or the bucket (for example `AccessDenied` or `NoSuchBucket`), or fails with a server error (HTTP 5xx, for example `InternalError` or `SlowDown`) after the S3 client's retries, the command stops with that error rather than reporting findings. Run it again when S3 is available.
+
+S3 also returns `AccessDenied` for a record encrypted with a KMS key that the validator cannot use, so such a record stops the command too. Anyone who can add to the store (including someone with the eval hosts' keys) can cause this, by adding a record encrypted with another KMS key. The `DenyEncryptionHeaders` statement in the [bucket policy](#store-setup) prevents it.
 
 ### Pass
 
@@ -352,13 +362,13 @@ The following lines are findings. Each finding makes the command exit with 1:
 | `missing_eval_file` | The store has an eval with an eval closing record or a closed sample attempt, but no `.eval` file in the log directory has its eval id. | Make sure that the log directory and the store prefix match. Otherwise, someone deleted or moved the `.eval` file. |
 | `missing_eval_closing` | The `.eval` file is finished (its status is not `started`), but the store has no eval closing record, or no closing record for the latest rescore that its samples name. | An S3 outage at the end of an honest run or rescore can cause this. Otherwise, someone changed the file's status or its samples. |
 | `eval_mismatch` | The `.eval` file's status or stats differ from the eval closing record, or its results differ from the closing record of the eval or of the latest rescore. | `inspect score` without the store location, and other tools that change a log after the run, cause this. Otherwise, someone changed the file. |
-| `unstored_sample` | A sample in the `.eval` file has no attempt with a closing record in the store, for this eval or for the earlier evals that a retry reused samples from, or the eval closing record does not list it as in the `.eval` file. | A failed write to the store causes this in an honest run. The sample then has an error in the `.eval` file. So does a retry that copies a sample into its `.eval` file, fails to write the sample's summary, and still finishes (with `summary_mismatch`). Otherwise, someone added the sample. |
+| `unstored_sample` | A sample in the `.eval` file has no attempt with a closing record in the store, for this eval or for the earlier evals that a retry reused samples from, or the eval closing record does not list it as in the `.eval` file. Also a sample member of the `.eval` file under a name that the eval never writes (it writes `samples/<id>_epoch_<epoch>.json`); a full read of the log returns that member, and it is not compared. | A failed write to the store causes this in an honest run. The sample then has an error in the `.eval` file. So does a retry that copies a sample into its `.eval` file, fails to write the sample's summary, and still finishes (with `summary_mismatch`). Otherwise, someone added the sample. |
 | `missing_sample` | A sample with a closing record in the store, or a sample that the eval closing record lists, is not in the `.eval` file. | Someone deleted the sample. |
 | `event_mismatch` | A sample's events differ from the events rebuilt from the store (after the rescores that the sample names, if any: the message says `after rescores`). The message names the first event that differs. | `inspect score` without the store location, and a warning logged from a worker thread during the sample, cause this in an honest run. So does a failed write to the store while a retry runs a sample again that the earlier eval completed with an error (the message says `reused from`): check the eval's errors for a failed write before treating it as a change. Otherwise, someone changed the events. |
 | `score_mismatch` | A sample's scores differ from its closing record (after the rescores that the sample names, if any). | `inspect score` without the store location causes this. Otherwise, someone changed the scores. |
 | `missing_rescore` | A sample names a rescore that is not in the store, that has no record of the sample, or that rescores another eval (one that the sample's copy did not come through). The sample is not compared. | Treat the sample as changed. |
 | `rescore_mismatch` | The samples of a `.eval` file name different latest rescores of the eval. A rescore rescores every sample. | Someone replaced a sample with a copy from before or after a rescore. |
-| `summary_mismatch` | A sample in the `.eval` file has no sample summary, or its summary's scores differ from the sample's. The viewer's sample list and `samples_df()` read the summaries. | A retry that copies a sample into its `.eval` file and fails to write the sample's summary causes this in an honest run. Otherwise, someone changed the summaries. |
+| `summary_mismatch` | A sample in the `.eval` file has no sample summary, or its summary's scores differ from the sample's, or `summaries.json` has more than one row for the sample (Inspect keeps the last, and the viewer can list another). The viewer's sample list and `samples_df()` read the summaries. | A retry that copies a sample into its `.eval` file and fails to write the sample's summary causes this in an honest run. Otherwise, someone changed the summaries. |
 
 ## Limitations
 
