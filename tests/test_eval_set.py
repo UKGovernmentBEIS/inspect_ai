@@ -5336,8 +5336,7 @@ def test_eval_set_ignores_logs_in_excluded_dirs(
     done_dir = tmp_path / "done"
     success, _ = eval_set([mine, other], log_dir=str(done_dir), model="mockllm/model")
     assert success
-    # completed logs of this task and of another, among other files in a new
-    # log directory
+    # completed logs of this task and of another, as files under artifacts/
     log_dir = tmp_path / "set"
     shutil.copytree(done_dir, log_dir / "artifacts" / "sample")
 

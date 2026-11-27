@@ -158,8 +158,7 @@ def without_excluded_dirs(
 
     Raises:
         LogExcludeDirsError: A name in the variable is a path, or a listed
-            file is not below `log_dir`. Neither can be matched, and skipping
-            it would leave the filter silently off.
+            file is not below `log_dir`.
     """
     excluded = excluded_dir_names()
     if not excluded:
@@ -172,6 +171,7 @@ def without_excluded_dirs(
         if name == root:
             return True
         if not name.startswith(prefix):
+            # keeping it would leave the filter silently off for this file
             raise LogExcludeDirsError(
                 f"INSPECT_LOG_EXCLUDE_DIRS cannot be applied to '{log_dir}': "
                 f"'{name}' is not listed below '{prefix}'."

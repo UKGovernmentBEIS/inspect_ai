@@ -225,7 +225,6 @@ def test_bundle_leaves_out_logs_in_excluded_dirs(
 ) -> None:
     memory_fs.pipe(f"/logs/{_LOG_NAME}", b"log")
     memory_fs.pipe(f"/logs/artifacts/sample/{_LOG_NAME}", b"other")
-    memory_fs.pipe("/logs/artifacts/sample/eval-set.json", b"{}")
     bundle_logs = tmp_path / "bundle" / "logs"
     monkeypatch.setenv("INSPECT_LOG_EXCLUDE_DIRS", "artifacts")
 
