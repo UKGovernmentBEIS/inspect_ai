@@ -18,7 +18,7 @@ from shortuuid import uuid
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.json import to_json_safe
 from inspect_ai.event import Event, InfoEvent
-from inspect_ai.log._log import EvalPlan, EvalResults, EvalSpec, EvalStats, EvalStatus
+from inspect_ai.log._log import EvalResults, EvalSpec, EvalStats, EvalStatus
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.types import BufferRows
 from inspect_ai.scorer._metric import SampleScore
@@ -59,7 +59,6 @@ class EvalRecordWriter:
         cls,
         location: StoreLocation,
         eval: EvalSpec,
-        plan: EvalPlan,
         prior_eval_id: str | None = None,
     ) -> "EvalRecordWriter":
         """Write the start record and check the store's settings.
@@ -74,7 +73,6 @@ class EvalRecordWriter:
                     eval_id=eval.eval_id,
                     nonce=writer.nonce,
                     eval=eval,
-                    plan=plan,
                     prior_eval_id=prior_eval_id,
                 )
             ),

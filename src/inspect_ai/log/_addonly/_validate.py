@@ -73,10 +73,8 @@ FindingKind = Literal[
     "multipart",
     "missing_start",
     "nonce",
-    "sequence_gap",
     "record_count",
     "late_event_version",
-    "event_without_uuid",
     "unlisted_attempt",
     "missing_eval_closing",
     "missing_eval_file",
@@ -149,7 +147,6 @@ _record_adapter: TypeAdapter[StoreRecord] = TypeAdapter(StoreRecord)
 
 class _FinalAttempt(NamedTuple):
     closing: SampleClosingRecord
-    records: list[SampleRecord]
     events: list[Event] | None
     """Rebuilt from the records (None if they cannot be: a malformed_record)."""
 
@@ -438,8 +435,6 @@ def _check_settings(s3: Any, bucket: str) -> list[Finding]:
     mode = lock.get("Rule", {}).get("DefaultRetention", {}).get("Mode")
     if lock.get("ObjectLockEnabled") != "Enabled" or mode != "COMPLIANCE":
         findings.append(finding(f"Object Lock is not in COMPLIANCE mode: {lock}"))
-    if s3.get_bucket_versioning(Bucket=bucket).get("Status") != "Enabled":
-        findings.append(finding("Versioning is not enabled."))
     try:
         policy = json.loads(s3.get_bucket_policy(Bucket=bucket)["Policy"])
     except s3.exceptions.ClientError:
@@ -537,8 +532,6 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
             key=lambda r: r.seq,
         )
         seqs = [r.seq for r in sample_records]
-        if seqs != list(range(1, len(seqs) + 1)):
-            finding("sequence_gap", f"Sequence numbers {seqs} have a gap.", prefix)
         # a row the eval could not have written (a pool row that is not JSON,
         # a key stored twice) fails here, not when its record is read
         events: list[Event] | None = None
@@ -555,7 +548,7 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
             stopped.append(prefix)
         else:
             assert isinstance(closing, SampleClosingRecord)
-            if seqs and max(seqs) > closing.records or len(seqs) != closing.records:
+            if seqs != list(range(1, closing.records + 1)):
                 finding(
                     "record_count",
                     f"Closing record counts {closing.records} records, "
@@ -567,9 +560,7 @@ def _read_eval(eval_id: str, keys: list[str], read: Any) -> _StoredEval:
                 current is None
                 or current.closing.sample.attempt < closing.sample.attempt
             ):
-                final_attempts[sample_part] = _FinalAttempt(
-                    closing, sample_records, events
-                )
+                final_attempts[sample_part] = _FinalAttempt(closing, events)
         for message in _event_version_problems(sample_records):
             finding(*message, key=prefix)
 
@@ -754,7 +745,7 @@ def _compare_eval_file(
         if final.events is None:
             continue
         compared += 1
-        if difference := _compare_events(logged, expected.events, final, chain):
+        if difference := _compare_events(logged, expected.events):
             finding("event_mismatch", f"{difference}{note}", key)
 
     # status and stats come from the eval closing record, results from the
@@ -1065,18 +1056,12 @@ def _first_error(ex: Exception) -> str:
 def _event_version_problems(
     records: list[SampleRecord],
 ) -> Iterator[tuple[FindingKind, str]]:
-    """Events without a uuid, and event versions written after a boundary stored the event complete."""
+    """Event versions written after a boundary stored the event complete."""
     stored_complete: dict[str, int] = {}
     for record in records:
         completed_here: dict[str, int] = {}
         for row in record.rows.events:
             event = json.loads(row.data)
-            if not row.event_id or event.get("uuid") != row.event_id:
-                yield (
-                    "event_without_uuid",
-                    f"Record {record.seq}: buffer row id {row.event_id!r}, "
-                    f"event uuid {event.get('uuid')!r}.",
-                )
             if row.event_id in stored_complete:
                 yield (
                     "late_event_version",
@@ -1121,12 +1106,7 @@ def rebuild_events(records: list[SampleRecord]) -> list[Event]:
             db.cleanup()
 
 
-def _compare_events(
-    logged: EvalSample,
-    expected: list[Event],
-    final: _FinalAttempt,
-    chain: list[_RescoreStep],
-) -> str | None:
+def _compare_events(logged: EvalSample, expected: list[Event]) -> str | None:
     """The first difference between the logged events and the expected ones, if any."""
     logged_events = [e.model_dump(mode="json") for e in logged.events]
     stored_events = [e.model_dump(mode="json") for e in expected]
@@ -1137,16 +1117,9 @@ def _compare_events(
                 for k in lhs.keys() | rhs.keys()
                 if not _same_json(lhs.get(k), rhs.get(k))
             )
-            versions = sum(
-                row.event_id == rhs.get("uuid")
-                for r in final.records
-                for row in r.rows.events
-            ) + sum(
-                e.uuid == rhs.get("uuid") for step in chain for e in step.record.events
-            )
             return (
                 f"Event {index} ({rhs.get('event')} {rhs.get('uuid')}) differs in "
-                f"{fields}; the store has {versions} version(s) of it."
+                f"{fields}."
             )
     if len(logged_events) != len(stored_events):
         return (

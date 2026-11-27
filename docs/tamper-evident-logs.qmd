@@ -148,7 +148,6 @@ Here are the steps required to create the store:
           "Effect": "Allow",
           "Action": [
             "s3:ListBucketVersions",
-            "s3:GetBucketVersioning",
             "s3:GetBucketPolicy",
             "s3:GetBucketObjectLockConfiguration"
           ],
@@ -301,7 +300,7 @@ See the [Output Reference](#output-reference) below for what each line means.
 When validation fails, the command exits with 1 and prints one line for each finding, consisting of the kind of finding, the eval id or record key, and a message. For example, here a tool result was changed in the `.eval` file:
 
 ``` default
-event_mismatch ceb6p9.../s0.1/1: Event 8 (tool FWBdtR...) differs in ['result']; the store has 2 version(s) of it.
+event_mismatch ceb6p9.../s0.1/1: Event 8 (tool FWBdtR...) differs in ['result'].
 
 1 eval(s), 1 sample(s) compared, 1 finding(s).
 ```
@@ -335,15 +334,13 @@ The following lines are findings. Each finding makes the command exit with 1:
 
 | Finding | What it means | What to do |
 |------------------------|------------------------------------|------------------------------------|
-| `settings` | The bucket does not have Object Lock in COMPLIANCE mode, versioning is not on, or the bucket policy has no statement that refuses a put without `If-None-Match`. The validator also reports the last one when it cannot read the bucket policy. | Fix the bucket with the steps in [Store Setup](#store-setup), and run the validator in the bucket's account. While a setting was wrong, someone could change or delete records. |
+| `settings` | The bucket does not have Object Lock in COMPLIANCE mode, or the bucket policy has no statement that refuses a put without `If-None-Match`. The validator also reports the last one when it cannot read the bucket policy. | Fix the bucket with the steps in [Store Setup](#store-setup), and run the validator in the bucket's account. While a setting was wrong, someone could change or delete records. |
 | `overwrite` | A record has more than one version, or a delete marker. The validator uses the earliest version. | Find out who could write or delete in the bucket. |
 | `multipart` | A record was uploaded in parts. The eval never does this. The arrival time of such a record is when the upload started. | Treat the record as written by someone other than the eval. |
 | `missing_start` | The store has records under this eval id, but no start record. The validator checks nothing else for this eval, and does not compare its `.eval` file. | Treat the records as forged. The eval writes its start record before any other record. |
 | `nonce` | A record's nonce differs from the eval's start record's. This includes the records of a rescore. The eval host's keys cannot read the nonce from the store. | Treat the record as forged. |
-| `sequence_gap` | The sample records of an attempt are not numbered 1, 2, 3 and so on. | In an attempt with a closing record, treat the extra record as forged. In a `stopped` attempt, a crash while two writes were in flight can also cause it. |
-| `record_count` | The number of sample records differs from the count in the attempt's closing record. | Treat the extra records, or the closing record, as forged. |
+| `record_count` | The sample records of an attempt with a closing record are not numbered 1, 2, 3 and so on up to the count in the closing record. | Treat the extra records, or the closing record, as forged. |
 | `late_event_version` | A record has a new version of an event that an earlier record stored complete. | An agent that calls [bridged tools](agent-bridge.qmd#bridged-tools) one at a time causes this in an honest run. Otherwise, treat the new version as a change to an event that the store confirmed. |
-| `event_without_uuid` | A stored event has no uuid, or its uuid differs from the id of its buffer row. The eval always writes both. | Treat the record as forged. |
 | `malformed_record` | A key that the eval never writes, a record that cannot be read or holds the wrong type of record, or sample records whose events cannot be rebuilt. | Treat the record as forged. The validator still checks the eval's other records. If the events cannot be rebuilt, they are not compared with the `.eval` file. |
 | `unlisted_attempt` | The store has records of a sample attempt that the eval closing record does not list. | Treat the attempt as written by someone other than the eval. |
 | `unstored_eval` | A `.eval` file in the log directory has an eval id with no records under the store prefix. | Make sure that the store prefix is correct and that the eval ran with `tamper_evident_store`. Otherwise, treat the file as not checked. |

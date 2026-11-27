@@ -740,7 +740,7 @@ class TaskLogger:
            plan: The eval plan.
            prior_eval_id: The eval a retry reuses samples from.
         """
-        await self._start_addonly(plan, prior_eval_id)
+        await self._start_addonly(prior_eval_id)
         await self.recorder.log_start(self.eval, plan)
         # the first destination write: for a seeded retry attempt it already
         # carries the complete prior sample set
@@ -756,7 +756,7 @@ class TaskLogger:
             db.log_written()
         return True
 
-    async def _start_addonly(self, plan: EvalPlan, prior_eval_id: str | None) -> None:
+    async def _start_addonly(self, prior_eval_id: str | None) -> None:
         """Start the eval's add-only store records, when a store is configured."""
         location = self._tamper_evident_store
         if location is None:
@@ -765,9 +765,7 @@ class TaskLogger:
             raise AddOnlyStoreError(
                 "Writing to an add-only store requires log_realtime (the sample buffer)."
             )
-        self.addonly = await EvalRecordWriter.start(
-            location, self.eval, plan, prior_eval_id
-        )
+        self.addonly = await EvalRecordWriter.start(location, self.eval, prior_eval_id)
 
     async def start_sample(self, sample: EvalSampleSummary) -> None:
         if self._buffer_db is not None:

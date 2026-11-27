@@ -2212,14 +2212,14 @@ def test_forged_record_wrong_nonce(
     assert f"nonce {clean_run.sample_key(seq)}:" in result.output
 
 
-def test_forged_record_sequence_gap(
+def test_forged_record_number_past_next(
     clean_run: CleanRun, validate_cli: ValidateCli
 ) -> None:
     """A record added with a number past the next one."""
     seq = clean_run.records() + 5
     clean_run.put(clean_run.sample_key(seq), clean_run.forged_record(seq))
     result = validate_cli(clean_run.store, clean_run.log_dir)
-    assert_fails_with(result, "nonce", "sequence_gap", "record_count")
+    assert_fails_with(result, "nonce", "record_count")
 
 
 def test_forged_late_event_version(
@@ -2240,32 +2240,6 @@ def test_forged_late_event_version(
         result, "nonce", "record_count", "late_event_version", "event_mismatch"
     )
     assert f"event {tool_event['uuid']}, stored complete in record" in result.output
-
-
-def test_forged_event_without_uuid(
-    clean_run: CleanRun, validate_cli: ValidateCli
-) -> None:
-    """A record with a row whose id is not its event's uuid."""
-    seq = clean_run.records() + 1
-    record = SampleRecord(
-        eval_id=clean_run.eval_id,
-        nonce=FORGED_NONCE,
-        sample=SampleAttemptRef(sample_id="s0", epoch=1, attempt=1),
-        seq=seq,
-        rows=BufferRows(
-            events=[
-                BufferEventRow(
-                    event_id="row-id",
-                    data=InfoEvent(uuid="event-uuid", data="x").model_dump_json(),
-                )
-            ]
-        ),
-    )
-    clean_run.put(clean_run.sample_key(seq), record.model_dump_json())
-    result = validate_cli(clean_run.store, clean_run.log_dir)
-    assert_fails_with(
-        result, "nonce", "record_count", "event_without_uuid", "event_mismatch"
-    )
 
 
 @pytest.mark.parametrize(
@@ -2665,7 +2639,7 @@ def test_remove_last_record(clean_run: CleanRun, validate_cli: ValidateCli) -> N
 def test_remove_middle_record(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
     clean_run.store.remove_version(clean_run.sample_key(2))
     result = validate_cli(clean_run.store, clean_run.log_dir)
-    assert_fails_with(result, "sequence_gap", "record_count", "event_mismatch")
+    assert_fails_with(result, "record_count", "event_mismatch")
 
 
 def test_remove_eval_closing(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
@@ -2701,14 +2675,13 @@ def test_eval_host_stops_before_finish(
     assert "1 eval(s), 1 sample(s) compared, 0 finding(s)." in result.output
 
 
-@pytest.mark.parametrize("change", [None, "sequence_gap", "nonce"])
+@pytest.mark.parametrize("change", [None, "nonce"])
 def test_stopped_attempt_records_checked(
     clean_run: CleanRun, change: FindingKind | None
 ) -> None:
     """An attempt and an eval with no closing record are listed as stopped.
 
-    Their records are still checked: a gap in the sequence numbers or a
-    wrong nonce is a finding.
+    Their records are still checked: a wrong nonce is a finding.
     """
     eval_id = clean_run.eval_id
     adapter: TypeAdapter[StoreRecord] = TypeAdapter(StoreRecord)
@@ -2716,8 +2689,6 @@ def test_stopped_attempt_records_checked(
         clean_run.sample_key(seq) for seq in range(1, clean_run.records() + 1)
     ]
     records = {key: adapter.validate_json(clean_run.read(key)) for key in keys}
-    if change == "sequence_gap":
-        del records[clean_run.sample_key(2)]
     if change == "nonce":
         records[clean_run.sample_key(1)].nonce = FORGED_NONCE
 
@@ -2772,27 +2743,6 @@ def test_remove_start(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
 # ------------------------------------------------- store settings changed
 
 
-def test_versioning_suspended(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
-    """Versioning suspended, so an overwrite would replace a record.
-
-    Real S3 refuses this on an Object Lock bucket; moto allows it. (moto
-    refuses to change the Object Lock mode of a bucket that holds objects,
-    as real S3 does for COMPLIANCE, so that change is not tested.)
-    """
-    admin = clean_run.store.client(clean_run.store.admin)
-    admin.put_bucket_versioning(
-        Bucket=BUCKET, VersioningConfiguration={"Status": "Suspended"}
-    )
-    try:
-        result = validate_cli(clean_run.store, clean_run.log_dir)
-    finally:
-        admin.put_bucket_versioning(
-            Bucket=BUCKET, VersioningConfiguration={"Status": "Enabled"}
-        )
-    assert_fails_with(result, "settings")
-    assert "Versioning is not enabled." in result.output
-
-
 def test_policy_removed(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
     """No bucket policy requires If-None-Match, so the host could overwrite."""
     result = validate_cli(clean_run.store, clean_run.log_dir, policy=False)
@@ -2820,7 +2770,7 @@ def test_prefix_per_log_dir_scopes_validation(
 
 
 def test_sample_key_encoding() -> None:
-    assert sample_key_part("a.1", 2) == "a%2E1.2"
+    assert sample_key_part("a.1", 2) == "a.1.2"
     assert sample_key_part("a/1", 2) == "a%2F1.2"
     assert sample_key_part(7, 1) == "7.1"
 

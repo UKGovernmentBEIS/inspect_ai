@@ -49,12 +49,8 @@ class StoreLocation(NamedTuple):
 
 
 def sample_key_part(sample_id: str | int, epoch: int) -> str:
-    """``<sample-id>.<epoch>`` with the sample id URL-encoded.
-
-    ``quote`` leaves ``.`` alone, so it is encoded too: a ``.`` in a sample
-    id must not look like the epoch separator.
-    """
-    return f"{quote(str(sample_id), safe='').replace('.', '%2E')}.{epoch}"
+    """``<sample-id>.<epoch>`` with the sample id URL-encoded."""
+    return f"{quote(str(sample_id), safe='')}.{epoch}"
 
 
 def s3_client(sdk_retries: bool = True) -> Any:

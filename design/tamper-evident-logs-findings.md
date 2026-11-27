@@ -20,9 +20,9 @@ review as a feature.
 | Question | Answer | Evidence |
 | --- | --- | --- |
 | 1. No legitimate event version is written after the event is complete and a boundary stored it | False for bridged host tools called one at a time: the bridge's `message_id` update is a late version (seen in a run). True for every other path run. The sentinel sidecar's updates can also be late when sub-agents run at once (code reading, not run). | `test_host_tools_against_addonly_store[serial]` (2 findings); `test_agent_eval_validates`, `test_streaming_eval_validates`, `test_host_tools_against_addonly_store[parallel]`, timing script (0 findings); rule proven by `test_late_event_version_flagged` |
-| 2. Every buffered event has a uuid | True. The `uuid()` fallback at `buffer/database.py:424` never fires for sample events. | Code path below; validator check `event_without_uuid` found none in any run |
+| 2. Every buffered event has a uuid | True. The `uuid()` fallback at `buffer/database.py:424` never fires for sample events. | Code path below; the validator's check for it (`event_without_uuid`, since removed) found none in any run |
 | 3. A sample rebuilt from buffer rows matches the sample logged from memory | True for every sample run, once no warning is logged from a worker thread (see [Events lost when a worker thread logs a warning](#events-lost-when-a-worker-thread-logs-a-warning)). | `test_agent_eval_validates` (6 samples), `test_streaming_eval_validates`, bridge test, timing script and probe runs (1,000+ samples) |
-| 4. Time per boundary write | Local moto, not S3: median 4.5 ms with 1 sample (put alone 3.9 ms). Median 34 ms, p95 65 ms with 10 samples at once (put alone 27 ms). | `scripts/addonly_timing.py` |
+| 4. Time per boundary write | Local moto, not S3: median 4.5 ms with 1 sample (put alone 3.9 ms). Median 34 ms, p95 65 ms with 10 samples at once (put alone 27 ms). | A timing script, since removed; results in [4. Time per boundary write](#4-time-per-boundary-write) |
 
 ## What was built
 
@@ -62,12 +62,12 @@ review as a feature.
 - A failed insert into the sample buffer stops the sample at its next
   boundary (`_eval/task/run.py:2873`, `SampleRecordWriter.insert_failed`).
 - `inspect validate LOG_DIR --store s3://bucket/prefix`
-  (`_cli/validate.py`). Checks: bucket settings (COMPLIANCE lock,
-  versioning, a policy that denies a put without If-None-Match), one version
-  per key, no delete markers, multipart uploads, a start record, nonces,
-  sequence gaps, sample and eval closing records, record counts, attempts
-  missing from the eval closing list, late event versions, events without a
-  uuid, a .eval file for each eval, and the .eval events against the stored
+  (`_cli/validate.py`). Checks: bucket settings (COMPLIANCE lock, a policy
+  that denies a put without If-None-Match), one version per key, no delete
+  markers, multipart uploads, a start record, nonces, sample and eval
+  closing records, record numbers 1 to the closing record's count, attempts
+  missing from the eval closing list, late event versions, a .eval file for
+  each eval, and the .eval events against the stored
   events. Step 1c added: records the eval could not have written, .eval
   files and samples with no records, two .eval files with one eval id, and
   the .eval scores and eval status, stats and results against the closing
@@ -89,16 +89,15 @@ review as a feature.
     and `test_host_tools_against_addonly_store` (parallel and serial).
   - `tests/test_helpers/addonly_moto.py` (moto setup, `MotoStore.validate`),
     `tests/test_helpers/addonly_agents.py` (scripted agents).
-- Scripts: `scripts/addonly_timing.py`,
-  `scripts/addonly_moto_probe.py`.
+- Scripts: a timing script and a moto probe script, since removed. Their
+  results are in [4. Time per boundary write](#4-time-per-boundary-write)
+  and [What moto does and does not enforce](#what-moto-does-and-does-not-enforce).
 
 Run them from the repo root:
 
 ```bash
 pytest tests/log/test_addonly_store.py
 pytest tests/agent/test_bridge_approval.py -k addonly_store
-PYTHONPATH=tests python scripts/addonly_timing.py
-PYTHONPATH=tests python scripts/addonly_moto_probe.py
 ```
 
 The eval writes to the store when it gets
@@ -151,7 +150,9 @@ the code to the plan.
    host tools, validated). What the runs show about the two open late
    updates is in [Answers, 1](#1-no-legitimate-late-event-versions). They
    are not settled here.
-4. **`.` as `%2E`.** Already done in step 1 (`sample_key_part`).
+4. **`.` as `%2E`.** Already done in step 1 (`sample_key_part`). Removed
+   later: the epoch is the digits after the last `.`, so a `.` in a sample
+   id cannot be taken for the separator.
 5. **Sub-agents.** The lock is gone. `SampleRecordWriter.write`
    (`_writer.py:136`) reads the new rows and takes the next sequence number
    with no `await` between them, so numbers follow row order. It then puts
@@ -424,8 +425,8 @@ Changes:
    `inspect validate` prints `stopped <prefix>: No closing record: cut
    short, or its host stopped writing.` before the count. The exit code
    does not change. Every record that the attempt wrote is still checked:
-   nonce, sequence numbers, record type, event versions, malformed
-   records. `missing_closing` is gone from `FindingKind`.
+   nonce, record type, event versions, malformed records. Record numbers
+   are checked only against a closing record (`record_count`). `missing_closing` is gone from `FindingKind`.
 2. **One list for retries too.** The `retried` list and its
    `retry_on_error` condition are gone. A retried attempt has no closing
    record, so it is in `stopped`.
@@ -452,8 +453,7 @@ Tests (`tests/log/test_addonly_store.py`):
 
 - `test_stopped_attempt_records_checked[None]`: an attempt and an eval
   with no closing record give no finding and are both listed.
-  `[sequence_gap]` and `[nonce]`: the stopped attempt's records still give
-  these findings.
+  `[nonce]`: the stopped attempt's records still give this finding.
 - `test_eval_host_stops_before_finish`: no eval closing record and a .eval
   file still `started`: 0 findings, the eval listed, its sample compared.
 - `test_remove_eval_closing`: `missing_eval_closing`, the eval listed.
@@ -857,6 +857,24 @@ it.
   rights only). An input edited before the rescore still gives a finding,
   as its other events are checked against the original records.
 
+## Simplification review: removals
+
+Removed because no documented guarantee depends on them:
+
+1. **`sequence_gap`.** A closed attempt's records must be numbered exactly
+   1 to the closing record's count, reported as `record_count`. In a
+   stopped attempt a gap is not a finding: its events are not compared,
+   and a crash with two puts in flight leaves one.
+2. **`event_without_uuid`.** See [Answers, 2](#2-every-buffered-event-has-a-uuid).
+3. **The validator's versioning check.** See
+   [What moto does and does not enforce](#what-moto-does-and-does-not-enforce).
+   The docs drop `s3:GetBucketVersioning` from the validator role.
+4. **`StartRecord.plan`.** No code read it.
+5. **`.` as `%2E` in keys.** `quote(safe="")` still encodes `/`; the epoch
+   is the digits after the last `.`, which `_selects` splits on.
+6. **The version count in the `event_mismatch` message.**
+7. **The timing and moto probe scripts.** Their results stay in this note.
+
 ## The evals that were run
 
 All use mockllm with a scripted output function
@@ -984,9 +1002,12 @@ subscriber sees it:
 - Restored checkpoint events get uuids in `_normalize_seeded_events`.
 
 So the fallback `event.event.uuid or uuid()` at `buffer/database.py:424`
-does not fire for sample events. The validator checks every stored row:
-the row's `event_id` must equal the `uuid` in the event JSON
-(`event_without_uuid`). No run had a finding.
+does not fire for sample events. The validator checked every stored row:
+the row's `event_id` had to equal the `uuid` in the event JSON
+(`event_without_uuid`). No run had a finding. The check was removed once
+this was answered: the rebuild and the late-version check go by the row
+id, and a row with a new id is one more event, which anyone with the nonce
+can add anyway.
 
 ### 3. Rebuilt samples match samples logged from memory
 
@@ -1070,7 +1091,7 @@ plan's estimate of tens of milliseconds for a real S3 put is not tested.
 
 ## What moto does and does not enforce
 
-From `scripts/addonly_moto_probe.py`:
+From a moto probe script (since removed):
 
 ```
 action                                                       real S3 (docs)                moto
@@ -1099,7 +1120,8 @@ host: put key with '%' in it                                 allowed            
   version, even with the governance bypass. But moto lets anyone shorten
   compliance retention and then delete the version, and lets versioning be
   suspended on an Object Lock bucket. Real S3 refuses both. So moto cannot
-  show that compliance mode keeps originals.
+  show that compliance mode keeps originals. The validator does not check
+  versioning: Object Lock turns it on, and real S3 refuses to suspend it.
 - Bucket policy that requires If-None-Match: not enforced. moto applies the
   Deny but ignores the `s3:if-none-match` condition key, so it refuses every
   put, with or without the header. An IAM Allow with the same condition is
@@ -1172,7 +1194,8 @@ changed decisions 2, 3, 5 and 6, and added 14 and 15; each change is marked.
 11. Multipart detection: an ETag with a `-`. A real build would use
     GetObjectAttributes.
 12. The sample id in a key is URL-encoded, and `.` is also encoded as
-    `%2E` (now in the plan).
+    `%2E` (now in the plan). *Later removed:* `.` is not encoded; the epoch
+    is the digits after the last `.`.
 13. This note is in `design/`, the repo's design notes folder. `docs/` is
     the source of the public website.
 14. *New in 1b.* A failed buffer insert is an ordinary sample error
