@@ -933,8 +933,12 @@ handling of a rare case, with Eric's go (Nov-27).
     `closing.error is None` filter, and `_StoredEval.spec`). A retry's
     eval closing record now lists the samples it copied from its prior log
     (`EvalClosingRecord.copied`): the keys `TaskLogger.seed_from_prior`
-    and `seed_added_samples` copied, less those that `log_finish` pruned
-    (a dynamic feed's unconsulted records on a natural success). The
+    and `seed_added_samples` seeded that the log still holds at
+    `log_finish`, after its prune (a dynamic feed's unconsulted records on
+    a natural success). *Changed Nov-27 (round 17):* the list first
+    subtracted only the pruned keys, so an admission copy that failed or
+    was cancelled after `on_sample` recorded its key was listed without
+    being in the .eval (a false `missing_sample`). The
     validator requires each one in the retry's .eval, unless the retry ran
     it again and closed it. The list is per attempt: `TaskLogger.reinit`
     resets it, and each attempt's `task_run` seeds again, so
@@ -951,7 +955,8 @@ handling of a rare case, with Eric's go (Nov-27).
     a copied sample deleted from its .eval is not reported; before, an
     error-free one was listed as `not_logged`. `StartRecord.eval` and
     `SampleClosingRecord.error` are still written and no longer read.
-    The limited dynamic feed and the prune path ran in no store test.
+    Store tests now cover the limited dynamic feed, its admission copy
+    failing or cancelled, and the prune path.
 
 ## The evals that were run
 

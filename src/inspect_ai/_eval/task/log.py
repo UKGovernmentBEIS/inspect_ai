@@ -1341,12 +1341,18 @@ class TaskLogger:
         # shielded: a cancellation (e.g. the task's abort) then lands only
         # before the write or after the teardown, never leaving the buffer db
         # open or samples pending beside a finished log
-        pruned: set[SampleRecordKey] = set()
+        logged: set[SampleRecordKey] = set()
         with anyio.CancelScope() as teardown_scope:
             async with self._flush_lock:
                 if prune_unplanned and status == "success" and self._seeded_pending:
-                    pruned = set(self._seeded_pending)
-                    await self.recorder.log_prune(self.eval, pruned)
+                    await self.recorder.log_prune(self.eval, set(self._seeded_pending))
+                # a seeded key is listed as copied only if its record is in the
+                # log: a pruned record is not, nor one whose admission copy
+                # failed or was cancelled after on_sample recorded its key
+                logged = {
+                    _seeded_key(s.id, s.epoch)
+                    for s in await self.recorder.sample_summaries(self.eval) or []
+                }
 
                 # finish and get log
                 log = await self.recorder.log_finish(
@@ -1385,7 +1391,7 @@ class TaskLogger:
 
         # after the .eval copy is finished, so a store outage still leaves it
         if self.addonly is not None:
-            await self.addonly.close(status, stats, results, self._seeded_keys - pruned)
+            await self.addonly.close(status, stats, results, self._seeded_keys & logged)
 
         # return log
         return log

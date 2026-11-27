@@ -42,7 +42,9 @@ from test_helpers.addonly_moto import (
     moto_addonly_store,
 )
 
-from inspect_ai import Task, eval, eval_retry, eval_set, score, task
+from inspect_ai import SampleSource, Task, eval, eval_retry, eval_set, score, task
+from inspect_ai._control.cancel import cancel_task
+from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._eval.score import (
     ScoreAction,
     _get_updated_events,
@@ -60,7 +62,7 @@ from inspect_ai.hooks import (
     SampleScoring,
     hooks,
 )
-from inspect_ai.log import EvalLog, EvalSample, read_eval_log, write_eval_log
+from inspect_ai.log import EvalLog, EvalSample, EvalSpec, read_eval_log, write_eval_log
 from inspect_ai.log._addonly._records import (
     CLOSING,
     RESCORE_MARKER_SOURCE,
@@ -101,6 +103,7 @@ from inspect_ai.log._recorders.buffer.types import (
     BufferPoolRow,
     BufferRows,
 )
+from inspect_ai.log._recorders.eval import EvalRecorder
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -1366,6 +1369,172 @@ def test_eval_set_narrower_retry_validates(
     result = validate_cli(evalhost_env, log_dir)
     assert result.exit_code == 0, result.output
     assert result.findings() == []
+
+
+def limited_feed_task(failing: dict[str, bool]) -> Task:
+    """A dynamic feed of samples 1-3; sample 3 fails while ``failing["3"]``."""
+
+    class Feed(SampleSource):
+        def __init__(self) -> None:
+            self.next_id = 2
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=1, input="q", target="Default")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self.next_id > 3:
+                return None
+            self.next_id += 1
+            return [Sample(id=self.next_id - 1, input="q", target="Default")]
+
+    @solver
+    def fail_3() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 3 and failing["3"]:
+                raise RuntimeError("first run fails")
+            return await generate(state)
+
+        return solve
+
+    @task
+    def limited_feed() -> Task:
+        return Task(dataset=Feed(), solver=fail_3(), scorer=includes())
+
+    return limited_feed()
+
+
+def failed_limited_feed(store: MotoStore, log_dir: Path) -> dict[str, Any]:
+    """Runs a limited feed whose sample 3 fails; returns eval_set options to retry it."""
+    options: dict[str, Any] = dict(
+        log_dir=str(log_dir),
+        model="mockllm/model",
+        display="none",
+        max_samples=1,
+        retry_attempts=0,
+        retry_on_error=0,
+        tamper_evident_store=store.url,
+    )
+    success, _ = eval_set(limited_feed_task({"3": True}), **options)
+    assert not success
+    return options
+
+
+@pytest.mark.parametrize("limit", [2, 3])
+def test_eval_set_limited_feed_retry_validates(
+    evalhost_env: MotoStore, tmp_path: Path, limit: int
+) -> None:
+    """A limited dynamic feed's retry lists the samples it admitted as copied.
+
+    With limit 3, sample 3 is copied with its error, then runs again.
+    """
+    options = failed_limited_feed(evalhost_env, tmp_path)
+    success, logs = eval_set(limited_feed_task({"3": False}), limit=limit, **options)
+    assert success, logs[0].error
+    assert copied(evalhost_env, logs[0].eval.eval_id) == [
+        f"{id}.1" for id in range(1, limit + 1)
+    ]
+    assert validate(evalhost_env, tmp_path).findings == []
+
+
+@pytest.mark.parametrize("interrupt", ["error", "cancel"])
+def test_eval_set_limited_feed_retry_interrupted_copy_validates(
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    interrupt: str,
+) -> None:
+    """A limited feed's retry stops while copying admitted sample 2 into its .eval.
+
+    The copy fails (disk full) or a task cancel lands in it. The .eval does
+    not have sample 2, so the eval closing record does not list it as copied.
+    """
+    options = failed_limited_feed(evalhost_env, tmp_path)
+    log_sample = EvalRecorder.log_sample
+
+    async def interrupt_copy(
+        self: EvalRecorder,
+        eval: EvalSpec,
+        sample: EvalSample,
+        *,
+        write_through: bool = False,
+    ) -> None:
+        if write_through and sample.id == 2:
+            if interrupt == "cancel":
+                receipt = cancel_task(get_eval_states()[0].task_id, action="cancel")
+                assert receipt is not None and receipt["ok"]
+                with anyio.fail_after(30):
+                    await anyio.sleep_forever()
+            raise OSError("disk full")
+        await log_sample(self, eval, sample, write_through=write_through)
+
+    monkeypatch.setattr(EvalRecorder, "log_sample", interrupt_copy)
+    success, logs = eval_set(limited_feed_task({"3": False}), limit=2, **options)
+    assert not success
+    assert logs[0].status == "error" and logs[0].error
+    assert ("cancelled by user" in logs[0].error.message) == (interrupt == "cancel")
+    final = read_eval_log(logs[0].location)
+    assert [s.id for s in final.samples or []] == [1]
+    assert copied(evalhost_env, final.eval.eval_id) == ["1.1"]
+    assert validate(evalhost_env, tmp_path).findings == []
+
+
+def shrinking_feed_task(failing: dict[str, bool]) -> Task:
+    """Sample 1 adds samples 2 and 3 on its first completion, then only 2."""
+    completions = 0
+
+    class Feed(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=1, input="q", target="Default")]
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            nonlocal completions
+            if sample.id != 1:
+                return None
+            completions += 1
+            ids = [2, 3] if completions == 1 else [2]
+            return [Sample(id=id, input="q", target="Default") for id in ids]
+
+    @solver
+    def fail_3() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 3 and failing["3"]:
+                failing["3"] = False
+                raise RuntimeError("first run fails")
+            return await generate(state)
+
+        return solve
+
+    @task
+    def shrinking_feed() -> Task:
+        return Task(dataset=Feed(), solver=fail_3(), scorer=includes())
+
+    return shrinking_feed()
+
+
+@pytest.mark.parametrize("retry_cleanup", [True, False])
+def test_eval_set_retry_pruned_sample_not_copied(
+    evalhost_env: MotoStore, tmp_path: Path, retry_cleanup: bool
+) -> None:
+    """A dynamic feed's retry drops prior sample 3, which it did not produce again.
+
+    The eval closing record lists only the copies its .eval keeps.
+    """
+    success, logs = eval_set(
+        shrinking_feed_task({"3": True}),
+        log_dir=str(tmp_path),
+        model="mockllm/model",
+        display="none",
+        max_samples=1,
+        retry_attempts=1,
+        retry_on_error=0,
+        retry_cleanup=retry_cleanup,
+        tamper_evident_store=evalhost_env.url,
+    )
+    assert success, logs[0].error
+    final = read_eval_log(logs[0].location)
+    assert sorted(s.id for s in final.samples or []) == [1, 2]
+    assert copied(evalhost_env, final.eval.eval_id) == ["1.1", "2.1"]
+    assert validate(evalhost_env, tmp_path).findings == []
 
 
 def test_edit_reused_sample(
