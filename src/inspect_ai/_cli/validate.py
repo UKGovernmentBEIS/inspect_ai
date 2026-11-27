@@ -44,7 +44,11 @@ def validate_command(
     any finding. A pass covers the .eval fields the store holds (see the success line),
     not that the run was honest: records written after a compromise pass too.
     """
-    from inspect_ai.log._addonly._validate import read_eval_nonce, validate_store
+    from inspect_ai.log._addonly._validate import (
+        NewerStoreVersionError,
+        read_eval_nonce,
+        validate_store,
+    )
 
     if nonce_eval_id is not None:
         if log_dir is not None:
@@ -57,7 +61,10 @@ def validate_command(
     if log_dir is None:
         raise click.UsageError("Missing argument 'LOG_DIR'.")
 
-    report = validate_store(store, log_dir)
+    try:
+        report = validate_store(store, log_dir)
+    except NewerStoreVersionError as ex:
+        raise PrerequisiteError(str(ex)) from ex
     if verbose:
         for record in report.records:
             click.echo(f"{record.arrival.isoformat()}  {record.key}")

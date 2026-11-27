@@ -42,7 +42,20 @@ rescores/<eval-id>/<rescore-id>/closing
 
 The records are JSON models in `src/inspect_ai/log/_addonly/_records.py`.
 Each record holds the eval's nonce, a secret that the eval makes at start and
-keeps only in memory.
+keeps only in memory, and `version`, the store format version that wrote it
+(`STORE_VERSION`, now 1).
+
+Compatibility: the validator reads every store format version from 1 to its
+own `STORE_VERSION`, record by record, so one store (and one rescore chain)
+can hold records of several versions. A change to a record's format raises
+`STORE_VERSION` and keeps the reading of the earlier versions. A record with
+a later version stops the validator (`NewerStoreVersionError`; the CLI says
+to upgrade inspect_ai), since it cannot read it; eval-host keys can stop
+the validator this way, as with a record under another KMS key. A record with no `version`,
+or a value that is not an integer of 1 or more, is a `record_version`
+finding and is not read. `test_store_version_1_validates` validates saved
+version 1 records and their `.eval` file
+(`tests/log/test_addonly_store_v1/`) on every run.
 
 - `StartRecord`: the eval id, the nonce, and `prior_eval_id` (the eval that a
   retry copied samples from).
@@ -222,7 +235,9 @@ Store checks:
 - `missing_start`, `nonce`, `malformed_record` (a key the eval never writes,
   a record it cannot read or of the wrong type, or rows that stop the sample
   rebuild), `unlisted_attempt` (an attempt the eval closing record does not
-  list), `record_count` (a closed attempt's records not numbered 1 to its
+  list), `record_version` (a record with no store format version, or a
+  value that is not one; it is not read), `record_count` (a closed
+  attempt's records not numbered 1 to its
   count), and `late_event_version`.
 - A record that S3 refuses to return, for example one in an archive storage
   class (`InvalidObjectState`), is a record the validator cannot read. A

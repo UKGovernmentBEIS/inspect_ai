@@ -24,7 +24,7 @@ from collections.abc import Callable, Iterator, Mapping
 from datetime import datetime
 from functools import reduce
 from pathlib import Path
-from typing import Any, Literal, NamedTuple
+from typing import Any, Literal, NamedTuple, TypeVar
 
 from botocore.exceptions import ClientError
 from pydantic import BaseModel, ValidationError
@@ -64,6 +64,7 @@ from ._records import (
     CLOSING,
     RESCORES,
     START,
+    STORE_VERSION,
     EvalClosingRecord,
     RescoreClosingRecord,
     RescoreRef,
@@ -96,6 +97,7 @@ FindingKind = Literal[
     "missing_rescore",
     "rescore_mismatch",
     "summary_mismatch",
+    "record_version",
 ]
 
 
@@ -111,6 +113,10 @@ _STORE_READ_REFUSED = {
 """S3 error codes of a record read that stop the validator: its keys or the
 bucket, not the record. So does a server error (HTTP 5xx, after botocore's
 retries). Any other refusal is the record's malformed_record."""
+
+
+class NewerStoreVersionError(Exception):
+    """A record has a store format version later than this inspect_ai reads."""
 
 
 class Finding(BaseModel):
@@ -233,6 +239,10 @@ def validate_store(
           validator's own configuration, never from a .eval file).
        log_dir: Directory holding the .eval copies.
        client: boto3 S3 client with read access (default: from environment).
+
+    Raises:
+       NewerStoreVersionError: A record has a later store format version
+          than this inspect_ai reads.
     """
     location = StoreLocation.parse(store)
     s3 = client if client is not None else s3_client()
@@ -488,9 +498,12 @@ def _read_eval(
             finding("malformed_record", "Not a key the eval writes.", key)
             continue
         try:
-            record = record_type.model_validate_json(read(key))
+            record = _parse_record(record_type, key, read(key))
             if isinstance(record, SampleRecord):
                 validate_events([json.loads(row.data) for row in record.rows.events])
+        except _NoVersion as ex:
+            finding("record_version", str(ex), key)
+            continue
         except ValueError as ex:
             finding("malformed_record", f"Cannot read it: {_first_error(ex)}", key)
             continue
@@ -883,7 +896,9 @@ def _read_rescore(
             else RescoreSampleRecord
         )
         try:
-            stored[last] = record_type.model_validate_json(read(key))
+            stored[last] = _parse_record(record_type, key, read(key))
+        except _NoVersion as ex:
+            finding("record_version", str(ex), key)
         except ValueError as ex:
             finding("malformed_record", f"Cannot read it: {_first_error(ex)}", key)
 
@@ -1087,6 +1102,37 @@ def _summary_scores(scores: dict[str, Score]) -> dict[str, Score]:
         EvalSampleSummary(id=0, epoch=0, input="", target="", scores=scores).scores
         or {}
     )
+
+
+class _NoVersion(ValueError):
+    """A record with no store format version, or a value that is not one."""
+
+
+_R = TypeVar("_R", bound=BaseModel)
+
+
+def _parse_record(record_type: type[_R], key: str, body: bytes) -> _R:
+    """Parse a record of store format version 1 to ``STORE_VERSION``.
+
+    Raises:
+       NewerStoreVersionError: The record has a later version.
+       _NoVersion: The record has no version, or one that is not 1 or more.
+       ValueError: The record is not a ``record_type``.
+    """
+    data = json.loads(body)
+    if isinstance(data, dict):
+        if "version" not in data:
+            raise _NoVersion("The record has no store format version.")
+        version = data["version"]
+        if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+            raise _NoVersion(f"{json.dumps(version)} is not a store format version.")
+        if version > STORE_VERSION:
+            raise NewerStoreVersionError(
+                f"Record {key} has store format version {version}. This "
+                f"inspect_ai reads versions up to {STORE_VERSION}: upgrade "
+                "inspect_ai to validate it."
+            )
+    return record_type.model_validate_json(body)
 
 
 def _record_type(key: str) -> type[_EvalRecord] | None:

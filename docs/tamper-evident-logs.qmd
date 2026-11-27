@@ -334,6 +334,8 @@ Use the `--verbose` option to list every record in the store along with the time
 
 To see the original events of a sample, you can read its records from the add-only store. Each sample attempt has the keys `<eval-id>/<sample-id>.<epoch>/<attempt>/<n>` (one record per write) and `<eval-id>/<sample-id>.<epoch>/<attempt>/closing`.
 
+Each record is a JSON object with a `version` field: the store format version of the Inspect that wrote it (currently 1). The validator reads records of every version from 1 to its own, so you can validate older records with a newer Inspect, also when one store or one rescore chain holds records of several versions. If a record has a later version than your Inspect reads, the command stops with an error that names the record and its version: upgrade Inspect to validate it. Anyone who can add to the store can also stop the command this way.
+
 ### Output Reference
 
 The following lines are listed in the output but are not findings, and do not change the exit code:
@@ -354,6 +356,7 @@ The following lines are findings. Each finding makes the command exit with 1:
 | `overwrite` | A record has more than one version, or a delete marker. The validator uses the earliest version. | Find out who could write or delete in the bucket. |
 | `missing_start` | The store has records under this eval id, but no start record. The validator checks nothing else for this eval, and does not compare its `.eval` file. | Treat the records as forged. The eval writes its start record before any other record. |
 | `nonce` | A record's nonce differs from the eval's start record's. This includes the records of a rescore. The eval host's keys cannot read the nonce from the store. | Treat the record as forged. |
+| `record_version` | A record has no store format version, or its `version` is not an integer of 1 or more. The record is not read. | Treat the record as forged. Inspect writes a version in every record. |
 | `record_count` | The sample records of an attempt with a closing record are not numbered 1, 2, 3 and so on up to the count in the closing record. | Treat the extra records, or the closing record, as forged. |
 | `late_event_version` | A record has a new version of an event that an earlier record stored complete. | An agent that calls [bridged tools](agent-bridge.qmd#bridged-tools) one at a time causes this in an honest run. Otherwise, treat the new version as a change to an event that the store confirmed. |
 | `malformed_record` | A key that the eval never writes, a record that cannot be read (including one that S3 refuses to return, for example because of its storage class) or holds the wrong type of record, or sample records whose events cannot be rebuilt. | Treat the record as forged. The validator still checks the eval's other records. If the events cannot be rebuilt, they are not compared with the `.eval` file. |

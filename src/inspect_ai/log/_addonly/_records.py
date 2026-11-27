@@ -26,6 +26,14 @@ START = "start"
 CLOSING = "closing"
 RESCORES = "rescores"
 RESCORE_MARKER_SOURCE = "tamper_evident_rescore"
+STORE_VERSION = 1
+"""The store format version each record holds. The validator reads every
+version from 1 to this one (a store can hold records of several), and
+stops at a later one."""
+
+
+class _StoreRecord(BaseModel):
+    version: int = STORE_VERSION
 
 
 class SampleAttemptRef(BaseModel):
@@ -40,7 +48,7 @@ class SampleAttemptRef(BaseModel):
         )
 
 
-class StartRecord(BaseModel):
+class StartRecord(_StoreRecord):
     type: Literal["start"] = "start"
     eval_id: str
     nonce: str
@@ -51,7 +59,7 @@ class StartRecord(BaseModel):
     """
 
 
-class SampleRecord(BaseModel):
+class SampleRecord(_StoreRecord):
     """The sample buffer's rows inserted since the attempt's previous record."""
 
     type: Literal["sample"] = "sample"
@@ -62,7 +70,7 @@ class SampleRecord(BaseModel):
     rows: BufferRows
 
 
-class SampleClosingRecord(BaseModel):
+class SampleClosingRecord(_StoreRecord):
     type: Literal["sample_closing"] = "sample_closing"
     eval_id: str
     nonce: str
@@ -72,7 +80,7 @@ class SampleClosingRecord(BaseModel):
     scores: dict[str, SampleScore]
 
 
-class EvalClosingRecord(BaseModel):
+class EvalClosingRecord(_StoreRecord):
     type: Literal["eval_closing"] = "eval_closing"
     eval_id: str
     nonce: str
@@ -131,7 +139,7 @@ def latest_marker(events: Sequence[Event]) -> RescoreMarker | None:
     )
 
 
-class RescoreStartRecord(BaseModel):
+class RescoreStartRecord(_StoreRecord):
     type: Literal["rescore_start"] = "rescore_start"
     eval_id: str
     rescore_id: str
@@ -139,7 +147,7 @@ class RescoreStartRecord(BaseModel):
     action: Literal["append", "overwrite"]
 
 
-class RescoreSampleRecord(BaseModel):
+class RescoreSampleRecord(_StoreRecord):
     """One sample's new scores and the events the scorers added."""
 
     type: Literal["rescore_sample"] = "rescore_sample"
@@ -155,7 +163,7 @@ class RescoreSampleRecord(BaseModel):
     """With attachments resolved."""
 
 
-class RescoreClosingRecord(BaseModel):
+class RescoreClosingRecord(_StoreRecord):
     type: Literal["rescore_closing"] = "rescore_closing"
     eval_id: str
     rescore_id: str

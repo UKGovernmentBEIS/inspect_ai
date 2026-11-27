@@ -64,10 +64,13 @@ from inspect_ai.log import EvalLog, EvalSample, EvalSpec, read_eval_log, write_e
 from inspect_ai.log._addonly._records import (
     CLOSING,
     RESCORE_MARKER_SOURCE,
+    RESCORES,
     START,
+    STORE_VERSION,
     EvalClosingRecord,
     RescoreMarker,
     RescoreSampleRecord,
+    RescoreStartRecord,
     SampleAttemptRef,
     SampleClosingRecord,
     SampleRecord,
@@ -2516,6 +2519,98 @@ def test_forged_record_wrong_nonce(
     result = validate_cli(clean_run.store, clean_run.log_dir)
     assert_fails_with(result, "nonce", "record_count")
     assert f"nonce {clean_run.sample_key(seq)}:" in result.output
+
+
+def _put_versioned_record(clean_run: CleanRun, record: str, version: Any) -> str:
+    """Add a record of s0, or a rescore start record, with ``version`` (None: no version field)."""
+    seq = clean_run.records() + 1
+    if record == "sample":
+        key = clean_run.sample_key(seq)
+        data = json.loads(clean_run.forged_record(seq))
+    else:
+        key = f"{RESCORES}/{clean_run.eval_id}/r1/{START}"
+        data = RescoreStartRecord(
+            eval_id=clean_run.eval_id,
+            rescore_id="r1",
+            nonce=FORGED_NONCE,
+            action="append",
+        ).model_dump(mode="json")
+    if version is None:
+        del data["version"]
+    else:
+        data["version"] = version
+    clean_run.put(key, json.dumps(data))
+    return key
+
+
+@pytest.mark.parametrize("version", [None, "1", True, 0])
+@pytest.mark.parametrize("record", ["sample", "rescore_start"])
+def test_record_version(
+    clean_run: CleanRun, validate_cli: ValidateCli, record: str, version: Any
+) -> None:
+    """A record with no store format version, or a value that is not one.
+
+    It is reported and not read as a version 1 record. The eval's records
+    hold version 1.
+    """
+    assert json.loads(clean_run.read(f"{clean_run.eval_id}/{START}"))["version"] == 1
+    key = _put_versioned_record(clean_run, record, version)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert_fails_with(
+        result,
+        "record_version",
+        *(["missing_start"] if record == "rescore_start" else []),
+    )
+    expected = (
+        "The record has no store format version"
+        if version is None
+        else f"{json.dumps(version)} is not a store format version"
+    )
+    assert f"record_version {key}: {expected}" in result.output
+
+
+@pytest.mark.parametrize("record", ["sample", "rescore_start"])
+def test_newer_record_version_stops(
+    clean_run: CleanRun, validate_cli: ValidateCli, record: str
+) -> None:
+    """A record with a later store format version than this inspect_ai reads stops the validator."""
+    key = _put_versioned_record(clean_run, record, STORE_VERSION + 1)
+    result = validate_cli(clean_run.store, clean_run.log_dir)
+    assert result.exit_code != 0, result.output
+    assert result.findings() == [], result.output
+    assert f"Record {key} has store format version 2" in (result.output)
+    assert "upgrade inspect_ai" in result.output
+
+
+STORE_V1 = Path(__file__).parent / "test_addonly_store_v1"
+"""Version 1 store records (under ``store/``) and the .eval file of an
+honest eval with one sample, rescored once (append)."""
+
+
+def test_store_version_1_validates(evalhost_env: MotoStore, tmp_path: Path) -> None:
+    """Saved version 1 records and their .eval file still validate.
+
+    Later inspect_ai versions must keep reading every earlier store format
+    version.
+    """
+    s3 = evalhost_env.client(evalhost_env.admin)
+    records = [p for p in sorted((STORE_V1 / "store").rglob("*")) if p.is_file()]
+    for path in records:
+        s3.put_object(
+            Bucket=BUCKET,
+            Key=f"{evalhost_env.prefix}/{path.relative_to(STORE_V1 / 'store').as_posix()}",
+            Body=path.read_bytes(),
+            IfNoneMatch="*",
+        )
+    (eval_file,) = STORE_V1.glob("*.eval")
+    shutil.copy(eval_file, tmp_path)
+
+    report = validate(evalhost_env, tmp_path)
+    assert report.findings == []
+    assert report.samples_compared == 1
+    assert len(report.rescores) == 1
+    assert len(report.records) == len(records) == 8
+    assert all(json.loads(p.read_bytes())["version"] == 1 for p in records)
 
 
 def test_forged_record_number_past_next(
