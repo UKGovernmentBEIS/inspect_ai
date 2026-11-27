@@ -337,10 +337,12 @@ reported as a finding.
 20. **The validator does not check bucket versioning.** Object Lock turns
     versioning on, and real S3 refuses to suspend it on an Object Lock
     bucket.
-21. **Rescore records under an eval id with no other records are not a
-    finding.** They cannot affect a comparison, because a sample can name
-    only rescores of evals that its copy came through. Their nonce is not
-    checked, as there is no start record to check it against.
+21. **Rescore records under an eval id with no other records give no
+    `nonce` finding.** They cannot affect a comparison, because a sample can
+    name only rescores of evals that its copy came through, and there is no
+    eval start record to check their nonce against. Each rescore is still
+    read: one with no rescore start record gives `missing_start`, and an
+    unreadable record gives `malformed_record`.
 
 ## Honest runs that validate
 
@@ -486,6 +488,11 @@ Rescores:
   that marker from the `.eval` sample clears it.
 - A rescore without the store option fails validation, as any other change
   to the scores or events does.
+- The rescore does not validate its input. An input edited before the
+  rescore still gives a finding, because the validator checks the sample's
+  other events and kept scores against the original records. An edit that
+  the rescore replaces, such as a score that an overwrite drops, leaves
+  nothing in the output to report.
 
 Honest runs that give a finding:
 
@@ -528,9 +535,10 @@ and accepts pending-then-complete and several versions in one record.
 No late version was found in:
 
 - `test_agent_eval_validates`: a react agent with two sub-agents run as
-  tools in one parallel stage, 3 samples x 2 epochs. The test also asserts
-  that some tool events were stored pending and completed in a later
-  record.
+  tools in one parallel stage, 1 sample. The test also asserts that some
+  tool events were stored pending and completed in a later record.
+- `test_samples_at_once_validate`: the same agent, 3 samples x 2 epochs
+  run at once.
 - `test_streaming_eval_validates`: pending model versions with partial
   output, then the complete version.
 - `test_host_tools_against_addonly_store[parallel]`: bridged host tools
@@ -540,7 +548,7 @@ No late version was found in:
 The model event's second complete version (timing fields set and the event
 sent again) was in the same record as the first in every run.
 
-Two open cases:
+Three open cases:
 
 - **Bridge `message_id`.** `agent/_bridge/types.py` sets the tool event's
   `message_id` when the scaffold's next request arrives. When the scaffold
@@ -554,13 +562,17 @@ Two open cases:
   generate call awaits the sidecar's decision. No boundary of the same agent
   falls in between, but a boundary of another sub-agent of the same sample
   can, and it stores the model event complete.
+- **Bridge `agent_tool_call_ids`.** `_record_agent_tool_call_ids`
+  (`agent/_bridge/util.py`) updates a completed model event when the bridge
+  gives the agent fresh tool-call ids. No run checked whether a boundary
+  can store the event before this update.
 
 The other callers of `Transcript._event_updated` update pending events only.
 
 #### 2. Every buffered event has a uuid
 
 True. The only writer of sample event rows is the transcript subscriber
-(`on_sample_event` in `_eval/task/run.py`). Each event gets its uuid before
+(`on_sample_event_buffered` in `_eval/task/run.py`). Each event gets its uuid before
 any subscriber sees it: `BaseEvent.model_post_init` sets it unless the event
 is read from a log, `Transcript._event` calls `_ensure_event_key` before it
 notifies subscribers, and restored checkpoint events get uuids in
