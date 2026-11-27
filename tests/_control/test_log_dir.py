@@ -766,7 +766,8 @@ async def test_walk_skips_buffers_and_checkpoints_and_descends_other_dirs(
     shutil.copy(finished_log.location, tmp_path / name)
     (tmp_path / "nested" / "deeper").mkdir(parents=True)
     shutil.copy(finished_log.location, tmp_path / "nested" / "deeper" / name)
-    for skipped in (".buffer/x", "run.checkpoints/1"):
+    monkeypatch.setenv("INSPECT_LOG_EXCLUDE_DIRS", "artifacts")
+    for skipped in (".buffer/x", "run.checkpoints/1", "artifacts/sample"):
         (tmp_path / skipped).mkdir(parents=True)
         shutil.copy(finished_log.location, tmp_path / skipped / name)
     listed: list[str] = []
@@ -1190,6 +1191,17 @@ def test_cli_per_sample_failures_map_to_error_kinds(
     assert error["kind"] == "storage_error"
     assert error["exception"] == "inspect_ai.LogChangedError"
     assert "changed during the read" in error["message"]
+
+
+def test_cli_an_exclude_dirs_path_value_is_an_invalid_request(
+    log_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    monkeypatch.setenv("INSPECT_LOG_EXCLUDE_DIRS", "artifacts/")
+    result = _ctl(str(log_dir), "task", "list", "--json")
+    assert result.exit_code == 1
+    assert json.loads(result.stdout)["error"]["kind"] == "invalid_request"
 
 
 def test_cli_list_reads_report_a_torn_member_and_sample_reads_fail(

@@ -152,11 +152,17 @@ def _fail_from(ex: BaseException, *, walking: bool) -> NoReturn:
         StrayLogError,
         UnsupportedLogFormatError,
     )
+    from inspect_ai.log._file import LogExcludeDirsError
     from inspect_ai.log._shards._errors import ShardSetError
 
     root = _log_dir_root()
     kind: Literal[
-        "not_found", "ambiguous", "unsupported", "storage_error", "invalid_response"
+        "not_found",
+        "ambiguous",
+        "unsupported",
+        "storage_error",
+        "invalid_response",
+        "invalid_request",
     ]
     status: int | None = None
     if isinstance(ex, SampleNotFoundError):
@@ -184,6 +190,8 @@ def _fail_from(ex: BaseException, *, walking: bool) -> NoReturn:
     elif isinstance(ex, ShardSetError):
         # a shard-set name S3 would read as another key (see list_shard_set)
         kind, message = "storage_error", str(ex)
+    elif isinstance(ex, LogExcludeDirsError):
+        kind, message = "invalid_request", str(ex)
     elif isinstance(ex, (FileNotFoundError, NotADirectoryError)) and walking:
         kind, message = "not_found", f"Log directory {root} not found."
     elif isinstance(ex, FileNotFoundError):

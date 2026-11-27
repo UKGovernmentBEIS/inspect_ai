@@ -206,7 +206,7 @@ If the log directory also holds other files (for example, files written by the e
 export INSPECT_LOG_EXCLUDE_DIRS=artifacts,reports
 ```
 
-Listing a log directory then ignores any log below a subdirectory with one of those names, at any depth. That covers `eval_set()`, `list_eval_logs()`, log bundles, and data frames read from a directory. A log file you name directly is still read, and listing one of the named directories itself still lists its logs.
+Listing a log directory then ignores any log below a subdirectory with one of those names, at any depth. That covers `eval_set()`, `list_eval_logs()`, the log viewer, log bundles, `inspect log convert`, `inspect ctl --log-dir`, and data frames read from a directory. A log file you name directly is still read, and listing one of the named directories itself still lists its logs.
 
 {{< include _sample-preservation.md >}}
 

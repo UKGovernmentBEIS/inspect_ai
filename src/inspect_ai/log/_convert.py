@@ -14,6 +14,7 @@ from inspect_ai.log._file import (
     read_eval_log,
     read_eval_log_async,
     resolve_local_path,
+    without_excluded_dirs,
     write_eval_log,
 )
 from inspect_ai.log._recorders import create_recorder_for_location
@@ -106,7 +107,8 @@ def convert_eval_logs(
         convert_file(path)
     else:
         root_dir = fs.info(path).name
-        eval_logs = log_files_from_ls(fs.ls(path, recursive=True), None, True)
+        files = without_excluded_dirs(fs.ls(path, recursive=True), path, fs)
+        eval_logs = log_files_from_ls(files, None, True)
         destinations = [
             contained_log_destination(eval_log.name, root_dir, output_dir, extension=to)
             for eval_log in eval_logs

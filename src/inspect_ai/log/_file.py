@@ -128,28 +128,42 @@ def _list_log_files(fs: FileSystem, log_dir: str, recursive: bool) -> list[FileI
         return []
 
 
+class LogExcludeDirsError(PrerequisiteError):
+    """`INSPECT_LOG_EXCLUDE_DIRS` cannot be applied to a listing."""
+
+
+def excluded_dir_names() -> set[str]:
+    """The directory names in `INSPECT_LOG_EXCLUDE_DIRS` (comma separated).
+
+    Raises:
+        LogExcludeDirsError: A name is a path. It could never match a
+            directory name, which would leave the filter silently off.
+    """
+    value = os.environ.get("INSPECT_LOG_EXCLUDE_DIRS", "")
+    names = {name.strip() for name in value.split(",")} - {""}
+    if any(sep in name for name in names for sep in {"/", os.sep}):
+        raise LogExcludeDirsError(
+            f"INSPECT_LOG_EXCLUDE_DIRS takes directory names, not paths: '{value}'."
+        )
+    return names
+
+
 def without_excluded_dirs(
     files: list[FileInfo], log_dir: str, fs: FileSystem
 ) -> list[FileInfo]:
     """Drop the files below a directory named in `INSPECT_LOG_EXCLUDE_DIRS`.
 
-    The variable holds comma separated directory names. A file listed from
-    `log_dir` is dropped when a directory on its path below `log_dir`, at any
-    depth, has one of those names.
+    A file listed from `log_dir` is dropped when a directory on its path below
+    `log_dir`, at any depth, has one of the names in the variable.
 
     Raises:
-        PrerequisiteError: A name in the variable is a path, or a listed file
-            is not below `log_dir`. Neither can be matched, and skipping it
-            would leave the filter silently off.
+        LogExcludeDirsError: A name in the variable is a path, or a listed
+            file is not below `log_dir`. Neither can be matched, and skipping
+            it would leave the filter silently off.
     """
-    value = os.environ.get("INSPECT_LOG_EXCLUDE_DIRS", "")
-    excluded = {name.strip() for name in value.split(",")} - {""}
+    excluded = excluded_dir_names()
     if not excluded:
         return files
-    if any(sep in name for name in excluded for sep in {fs.sep, os.sep}):
-        raise PrerequisiteError(
-            f"INSPECT_LOG_EXCLUDE_DIRS takes directory names, not paths: '{value}'."
-        )
     root = fs.dir_as_uri(log_dir).rstrip(fs.sep)
     prefix = root + fs.sep
 
@@ -158,7 +172,7 @@ def without_excluded_dirs(
         if name == root:
             return True
         if not name.startswith(prefix):
-            raise PrerequisiteError(
+            raise LogExcludeDirsError(
                 f"INSPECT_LOG_EXCLUDE_DIRS cannot be applied to '{log_dir}': "
                 f"'{name}' is not listed below '{prefix}'."
             )
