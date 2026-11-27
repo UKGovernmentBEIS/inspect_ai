@@ -800,7 +800,7 @@ def boundary_after_cancel(path: str, first: bool) -> Solver:
 
     async def s0_boundary_after_cancel() -> None:
         cancel_gates["s0_waiting"].set()
-        await anyio.to_thread.run_sync(cancel_gates["cancelled"].wait)
+        assert await anyio.to_thread.run_sync(cancel_gates["cancelled"].wait, 30)
         await store_boundary()
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -812,7 +812,9 @@ def boundary_after_cancel(path: str, first: bool) -> Solver:
             if state.sample_id == "s0":
                 await s0_boundary_after_cancel()
             if state.sample_id == "s1":
-                await anyio.to_thread.run_sync(cancel_gates["s0_waiting"].wait)
+                assert await anyio.to_thread.run_sync(
+                    cancel_gates["s0_waiting"].wait, 30
+                )
                 assert await anyio.to_thread.run_sync(
                     cancel_gates["s2_waiting"].wait, 30
                 )
@@ -864,6 +866,7 @@ def test_eval_retry_after_cancel_at_boundary_validates(
         tamper_evident_store=evalhost_env.url,
     )[0]
     assert log.status == "error"
+    assert log.error and "attempt fails" in log.error.message, log.error
 
     fail.write_text("false")
     log = eval_retry(
