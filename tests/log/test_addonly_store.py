@@ -2048,6 +2048,62 @@ def test_repeated_sample_summary(
     assert f"summary_mismatch {eval_id}/1.1:" in result.output
 
 
+def test_finished_eval_without_summaries_json(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """summaries.json removed from a finished .eval, and journal summary rows written.
+
+    Python keeps the last journal row per `(str(id), epoch)` (the honest
+    row); the viewer can list the edited id "1" row as well.
+    """
+    log = numeric_score_run(evalhost_env, tmp_path)
+    path = Path(log.location)
+    with zipfile.ZipFile(path) as zf:
+        entries = {info.filename: zf.read(info) for info in zf.infolist()}
+    summaries = json.loads(entries.pop("summaries.json"))
+    edited = json.loads(json.dumps(summaries[0]))
+    edited["id"] = "1"
+    edited["scores"]["one_score"]["value"] = 0
+    entries = {
+        **{n: d for n, d in entries.items() if not n.startswith("_journal/summaries/")},
+        "_journal/summaries/1.json": json.dumps([edited]).encode(),
+        "_journal/summaries/2.json": json.dumps(summaries).encode(),
+    }
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, data in entries.items():
+            zf.writestr(name, data)
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert_fails_with(result, "summary_mismatch")
+    assert f"summary_mismatch {log.eval.eval_id}: file://" in result.output
+    assert f"{path.name} has no summaries.json" in result.output
+
+
+@pytest.mark.parametrize("field", ["id", "epoch"])
+def test_sample_summary_id_type(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli, field: str
+) -> None:
+    """Int-id sample 1's summaries.json row given id "1" or epoch "1".
+
+    Python reads either as the sample's row; the viewer keys rows by JSON id
+    and drops a row whose epoch is not a number.
+    """
+    log = numeric_score_run(evalhost_env, tmp_path)
+
+    def edit(summaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        summaries[0][field] = str(summaries[0][field])
+        return summaries
+
+    edit_zip_entry(Path(log.location), "summaries.json", edit)
+    result = validate_cli(evalhost_env, tmp_path)
+    assert_fails_with(result, "summary_mismatch")
+    row = '["1", 1]' if field == "id" else '[1, "1"]'
+    assert (
+        f"summary_mismatch {log.eval.eval_id}/1.1/1: A summaries.json row has id "
+        f"and epoch {row}; the sample has [1, 1]." in result.output
+    )
+
+
 def test_edit_score_one_to_true(
     evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
 ) -> None:

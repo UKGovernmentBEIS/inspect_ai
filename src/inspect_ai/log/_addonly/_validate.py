@@ -19,7 +19,7 @@ latest rescore's closing record.
 import json
 import sqlite3
 import tempfile
-from collections import Counter, defaultdict
+from collections import defaultdict
 from collections.abc import Callable, Iterator, Mapping
 from datetime import datetime
 from functools import reduce
@@ -659,9 +659,7 @@ def _compare_eval_file(
         )
         for sample_part, final in stored.final_attempts.items()
     ]
-    summaries, members, other_members, repeated_summaries = _eval_file_samples(
-        eval_file
-    )
+    summaries, members, other_members, summary_rows = _eval_file_samples(eval_file)
     eval_file_samples = summaries.keys() | members
     for name in other_members:
         finding(
@@ -671,13 +669,21 @@ def _compare_eval_file(
             "it; it is not compared with the store.",
             f"{eval_id}/{name}",
         )
-    for sample_part in repeated_summaries:
+    # the recorder writes summaries.json when the eval finishes; without it
+    # the viewer lists the journal's summary rows, which are not compared
+    if summary_rows is None and header["status"] != "started":
         finding(
             "summary_mismatch",
-            "summaries.json has more than one row for this sample. The "
-            "viewer can list each.",
-            f"{eval_id}/{sample_part}",
+            f"{eval_file} has no summaries.json, which a finished eval writes.",
         )
+    for sample_part, rows in (summary_rows or {}).items():
+        if len(rows) > 1:
+            finding(
+                "summary_mismatch",
+                "summaries.json has more than one row for this sample. The "
+                "viewer can list each.",
+                f"{eval_id}/{sample_part}",
+            )
     unstored: set[str] = set()
     for sample_part in sorted(eval_file_samples - stored.final_attempts.keys()):
         earlier = _earlier_attempt(evals, stored.prior_eval_id, sample_part)
@@ -761,6 +767,19 @@ def _compare_eval_file(
                 f"sample's{note}.",
                 key,
             )
+        # the viewer keys rows by their JSON id and epoch, and drops a row
+        # whose epoch is not a number
+        sample_ids = [ref.sample_id, ref.epoch]
+        for row_ids in (summary_rows or {}).get(
+            sample_key_part(ref.sample_id, ref.epoch), []
+        ):
+            if not _same_json(row_ids, sample_ids):
+                finding(
+                    "summary_mismatch",
+                    f"A summaries.json row has id and epoch {json.dumps(row_ids)}; "
+                    f"the sample has {json.dumps(sample_ids)}{note}.",
+                    key,
+                )
         marker = latest_marker(logged.events)
         latest = marker.rescore if marker else None
         file_rescores.add(latest if latest and latest.eval_id == eval_id else None)
@@ -1036,16 +1055,17 @@ class _EvalFileSamples(NamedTuple):
     """Names of ``samples/*.json`` members the eval does not write (not
     ``_sample_filename`` of the id and epoch in the name): a full read
     returns them too, and they are not compared."""
-    repeated_summaries: list[str]
-    """Samples with more than one summaries.json row. inspect_ai keeps the
-    last row per ``(str(id), epoch)``; the viewer keys rows by the JSON id
-    (1 and "1" differ), so it can list another row too."""
+    summary_rows: dict[str, list[list[Any]]] | None
+    """The JSON id and epoch of each summaries.json row, by sample (None: no
+    summaries.json, as in a log still running). inspect_ai keeps the last
+    row per ``(str(id), epoch)``; the viewer keys rows by the JSON id and
+    epoch (1 and "1" differ), so it can list another row too."""
 
 
 class _ZipContents(NamedTuple):
     sample_members: list[str]
-    summary_rows: list[EvalSampleSummary]
-    """summaries.json's rows, not deduplicated (none in a log still running)."""
+    summary_rows: list[Any] | None
+    """summaries.json's rows as JSON, not deduplicated (None: no summaries.json)."""
 
 
 def _eval_file_samples(eval_file: str) -> _EvalFileSamples:
@@ -1059,11 +1079,9 @@ def _eval_file_samples(eval_file: str) -> _EvalFileSamples:
             reader = AsyncZipReader(fs, eval_file)
             names = [e.filename for e in (await reader.entries()).entries]
             rows = (
-                _parse_summaries(
-                    await _read_member_json(reader, SUMMARIES_JSON), SUMMARIES_JSON
-                )
+                await _read_member_json(reader, SUMMARIES_JSON)
                 if SUMMARIES_JSON in names
-                else []
+                else None
             )
         # the members a full read loads; a re-logged sample repeats its name
         return _ZipContents(
@@ -1084,7 +1102,13 @@ def _eval_file_samples(eval_file: str) -> _EvalFileSamples:
         for name, key in keys.items()
         if key is not None and _sample_filename(key.sample_id, key.epoch) == name
     }
-    row_counts = Counter(sample_key_part(row.id, row.epoch) for row in rows)
+    summary_rows: dict[str, list[list[Any]]] | None = None
+    if rows is not None:
+        summary_rows = defaultdict(list)
+        for raw, row in zip(rows, _parse_summaries(rows, SUMMARIES_JSON), strict=True):
+            summary_rows[sample_key_part(row.id, row.epoch)].append(
+                [raw["id"], raw["epoch"]]
+            )
     return _EvalFileSamples(
         {
             sample_key_part(s.id, s.epoch): s
@@ -1092,7 +1116,7 @@ def _eval_file_samples(eval_file: str) -> _EvalFileSamples:
         },
         {sample_key_part(k.sample_id, k.epoch) for k in canonical.values()},
         [name for name in names if name not in canonical],
-        sorted(key for key, count in row_counts.items() if count > 1),
+        summary_rows,
     )
 
 
