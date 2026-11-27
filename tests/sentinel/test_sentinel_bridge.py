@@ -13466,8 +13466,8 @@ async def test_live_anthropic_cached_retries_with_interleaved_thinking_continue(
     init_transcript(Transcript())
     init_sample_assistant_internal()
     model = get_model(
-        # budgeted (extended) thinking always returns a thinking block; Claude
-        # 4.7+ only has adaptive thinking, which can skip it
+        # budgeted thinking with the interleaved-thinking beta thinks on every
+        # step; Claude 4.7+ only has adaptive thinking, which can skip a step
         "anthropic/claude-sonnet-4-6",
         config=GenerateConfig(cache=True, reasoning_tokens=1024),
     )
