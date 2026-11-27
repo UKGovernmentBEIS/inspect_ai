@@ -285,7 +285,7 @@ Lines that start with `stopped`, `not_logged`, `prior_without_file`, `rescored` 
 stopped LdM2ww.../s0.1/1: No closing record: cut short, or its host stopped writing.
 ```
 
-For a rescored log, the validator lists each rescore with the time that S3 received its start record and its action, followed by the original results of the eval:
+For a rescored log, the validator lists each rescore with the time that S3 received its start record (for a record uploaded in parts, the time that its upload started) and its action, followed by the original results of the eval:
 
 ``` default
 rescored X8V4zZ... by LumFze... at 2026-11-25T15:41:22+00:00 (append)
@@ -314,7 +314,7 @@ record_count VbcjdG.../s0.1/1: Closing record counts 15 records, store has [1, 2
 1 eval(s), 1 sample(s) compared, 2 finding(s).
 ```
 
-Use the `--verbose` option to list every record in the store along with the time that S3 received it.
+Use the `--verbose` option to list every record in the store along with the time that S3 received it. For a record uploaded in parts, S3 shows the time that its upload started.
 
 To see the original events of a sample, you can read its records from the add-only store. Each sample attempt has the keys `<eval-id>/<sample-id>.<epoch>/<attempt>/<n>` (one record per write) and `<eval-id>/<sample-id>.<epoch>/<attempt>/closing`.
 
@@ -327,7 +327,7 @@ The following lines are listed in the output but are not findings, and do not ch
 | `stopped` | The store has no closing record for this eval, sample attempt or rescore (`rescores/<eval-id>/<rescore-id>`). A cancel, an error in another sample, a crash or a retry cuts a run short. A compromised host can also stop writing. The validator still checks each record that the eval or attempt wrote. It does not compare a stopped attempt's events, or a stopped eval's status, stats and results, with the `.eval` file. | Make sure that you know why the run stopped. If you do not, treat what the eval or attempt did as not checked. |
 | `not_logged` | The sample attempt wrote its closing record, but the sample is not in the `.eval` file. Shown only for an eval with no closing record whose `.eval` file has the status `started`. | If the eval host crashed or was killed, this is expected: Inspect writes samples to the `.eval` file in groups. Otherwise, someone may have deleted the sample from the file. |
 | `prior_without_file` | No `.eval` file has this eval id, and a later eval names this eval as its prior eval. `eval_set()` deletes such files after a retry (`retry_cleanup`). | Make sure that you ran the later eval as a retry of this eval. Eval-host keys can forge the later eval, so a deleted `.eval` file can also show this way. |
-| `rescored` | The store has a rescore of this eval, with the time that S3 received its start record and its action (`append` or `overwrite`). | Make sure that you know who ran each rescore. Anyone with the eval's nonce and add rights to the store can write one. |
+| `rescored` | The store has a rescore of this eval, with the time that S3 received its start record (or started its upload, for a record uploaded in parts) and its action (`append` or `overwrite`). | Make sure that you know who ran each rescore. Anyone with the eval's nonce and add rights to the store can write one. |
 | `original_results` | The results in the eval's closing record, before any rescore. | Compare them with the rescored results. |
 
 The following lines are findings. Each finding makes the command exit with 1:
