@@ -246,7 +246,7 @@ def test_openai_completion_params_extra_body_not_mutated() -> None:
 
 
 @skip_if_no_openai
-async def test_openai_o_series_developer_messages() -> None:
+async def test_openai_reasoning_developer_messages() -> None:
     async def check_developer_messages(model_name: str):
         model = get_model(
             model_name,
@@ -263,7 +263,7 @@ async def test_openai_o_series_developer_messages() -> None:
 
 
 @skip_if_no_openai
-async def test_openai_o_series_reasoning_effort() -> None:
+async def test_openai_reasoning_effort() -> None:
     async def check_reasoning_effort(model_name: str, effort: str = "medium"):
         model = get_model(
             model_name,
@@ -274,12 +274,12 @@ async def test_openai_o_series_reasoning_effort() -> None:
         assert len(response.completion) >= 1
 
     await check_reasoning_effort("openai/gpt-6-luna")
-    # GPT-6 has no "minimal" effort; "none" is its lowest
+    # gpt-6-luna has no "minimal" effort; "none" is its lowest
     await check_reasoning_effort("openai/gpt-6-luna", "none")
 
 
 @skip_if_no_openai
-async def test_openai_o_series_max_tokens() -> None:
+async def test_openai_reasoning_max_tokens() -> None:
     async def check_max_tokens(model_name: str):
         model = get_model(
             model_name,
