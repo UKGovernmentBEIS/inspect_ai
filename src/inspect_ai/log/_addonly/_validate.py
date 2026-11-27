@@ -35,7 +35,6 @@ from inspect_ai._eval.score import (
 )
 from inspect_ai._util._async import run_coroutine
 from inspect_ai.event import Event
-from inspect_ai.event._tree import EventTreeSpan, event_tree
 from inspect_ai.event._validate import validate_events
 from inspect_ai.log._condense import mark_attachments_resolved
 from inspect_ai.log._file import (
@@ -846,16 +845,6 @@ def _read_rescore(
         if not isinstance(record, record_type):
             finding("malformed_record", f"Holds a {record.type} record.", key)
             continue
-        if isinstance(record, RescoreSampleRecord) and not _one_scorers_span(
-            record.events
-        ):
-            finding(
-                "malformed_record",
-                "Its events are not one top-level scorers span, as a rescore "
-                "adds them.",
-                key,
-            )
-            continue
         stored[last] = record
 
     findings.extend(
@@ -881,15 +870,6 @@ def _read_rescore(
         if isinstance(record, RescoreSampleRecord)
     }
     return _StoredRescore(findings, start, closing, samples)
-
-
-def _one_scorers_span(events: list[Event]) -> bool:
-    """Whether ``inspect score`` can apply the events: one top-level scorers span."""
-    match event_tree(events):
-        case [EventTreeSpan(type="scorers", name="scorers", parent_id=None)]:
-            return True
-        case _:
-            return False
 
 
 def _rescore_chain(

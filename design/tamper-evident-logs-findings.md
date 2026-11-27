@@ -744,7 +744,7 @@ protected logs is a common feature. let's do #2 now"). Built on
   - A rescore sample record whose events are not one top-level scorers
     span is `malformed_record`, not a validator crash: score.py's
     `_get_updated_events` unpacks one span, and an overwrite asserts that
-    the scorers span's parent is in the tree.
+    the scorers span's parent is in the tree. *Removed Nov-27:* see [Simplification review: removals](#simplification-review-removals).
 
 ### Changes from the plan
 
@@ -801,7 +801,8 @@ Review of 53c971c8a (Claude Opus 5.5, fresh context).
 3. **Test.** `test_rescore_record_without_scorers_span` now adds a marker
    naming the rescore to the sample, so the chain is applied. It gives
    `malformed_record` and `missing_rescore`; without the scorers span
-   check the validator would crash in `_get_updated_events`.
+   check the validator would crash in `_get_updated_events`. *Removed
+   Nov-27* with the check.
 
 ### Review round 12: fixes
 
@@ -894,6 +895,12 @@ handling of a rare case, with Eric's go (Nov-27).
    the event does not reach the store, and the validator reports
    `event_mismatch` instead of `unstored_sample`. A failed put still stops
    the sample and the eval.
+10. **`_one_scorers_span`.** A nonce holder's rescore sample record whose
+    events are not one top-level scorers span crashes the validator in
+    `_get_updated_events` when a .eval sample names that rescore, the same
+    documented crash as a scorers span whose parent is missing. A nonce
+    holder can write a rescore that validates, so the check protected
+    nothing. See [Known limits](#known-limits).
 
 ## The evals that were run
 
@@ -1419,8 +1426,11 @@ prior_without_file MBjNiQ...: No .eval file; EMhV3K... names it as its prior eva
 - A rescore is a claim by whoever held the eval's nonce and could add to
   the store. A handed-out nonce works for every later rescore of the
   eval. See [Rescore support](#rescore-support).
-- A nonce holder's scorers span whose parent is not in the events crashes
-  the validator in `_get_updated_events` on an overwrite rescore.
+- A nonce holder's rescore sample record whose events are not one
+  top-level scorers span, or whose scorers span's parent is not in the
+  events (on an overwrite rescore), crashes the validator in
+  `_get_updated_events` when a .eval sample names that rescore. Removing
+  that marker from the .eval sample clears it.
 - A retry that was not rescored can hold, for a reused sample, the
   earlier eval's copy from before or after a rescore of that eval; it
   passes (review round 12, fix 2).

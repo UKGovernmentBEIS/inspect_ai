@@ -65,9 +65,7 @@ from inspect_ai.log._addonly._records import (
     CLOSING,
     RESCORE_MARKER_SOURCE,
     START,
-    RescoreClosingRecord,
     RescoreMarker,
-    RescoreRef,
     RescoreSampleRecord,
     RescoreStartRecord,
     SampleAttemptRef,
@@ -1953,61 +1951,6 @@ def test_rescore_without_eval(clean_run: CleanRun, validate_cli: ValidateCli) ->
     result = validate_cli(clean_run.store, clean_run.log_dir)
     assert_fails_with(result, "rescore_without_eval")
     assert result.stopped() == ["rescores/no-such-eval/r1"]
-
-
-def test_rescore_record_without_scorers_span(
-    clean_run: CleanRun, validate_cli: ValidateCli
-) -> None:
-    """A rescore, named by the sample, whose sample record's events are not a scorers span.
-
-    Findings, not a validator crash: score.py's functions take one
-    top-level scorers span.
-    """
-    base = f"rescores/{clean_run.eval_id}/r1"
-    eval_id = clean_run.eval_id
-    edit_sample(
-        clean_run,
-        lambda sample: sample.events.append(
-            RescoreMarker(
-                rescore=RescoreRef(eval_id=eval_id, rescore_id="r1"), chain_length=1
-            ).event()
-        ),
-    )
-    nonce = StartRecord.model_validate_json(clean_run.read(f"{eval_id}/{START}")).nonce
-    clean_run.put(
-        f"{base}/{START}",
-        RescoreStartRecord(
-            eval_id=eval_id,
-            rescore_id="r1",
-            nonce=nonce,
-            action="append",
-        ).model_dump_json(),
-    )
-    clean_run.put(
-        f"{base}/s0.1",
-        RescoreSampleRecord(
-            eval_id=eval_id,
-            rescore_id="r1",
-            nonce=nonce,
-            sample_id="s0",
-            epoch=1,
-            scores={},
-            events=[InfoEvent(data="not a span")],
-        ).model_dump_json(),
-    )
-    clean_run.put(
-        f"{base}/{CLOSING}",
-        RescoreClosingRecord(
-            eval_id=eval_id,
-            rescore_id="r1",
-            nonce=nonce,
-            results=read_eval_log(clean_run.location, header_only=True).results,
-        ).model_dump_json(),
-    )
-    result = validate_cli(clean_run.store, clean_run.log_dir)
-    assert_fails_with(result, "malformed_record", "missing_rescore")
-    assert f"malformed_record {base}/s0.1: Its events are not one" in result.output
-    assert f"{base}, which has no record of it" in result.output
 
 
 def test_rescore_with_wrong_nonce(
