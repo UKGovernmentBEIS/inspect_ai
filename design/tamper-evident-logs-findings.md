@@ -477,7 +477,7 @@ Tests (`tests/log/test_addonly_store.py`):
   `retry_on_error` and one sample slot, a retry still waits for the slot
   when the eval stops).
 - `test_failed_write_stops_eval` and `test_failed_buffer_insert_stops_sample`
-  now expect the findings below.
+  (removed Nov-27) now expect the findings below.
 
 Honest runs that still give a finding (documented as known limits):
 
