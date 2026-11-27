@@ -146,7 +146,7 @@ def without_excluded_dirs(
     excluded = {name.strip() for name in value.split(",")} - {""}
     if not excluded:
         return files
-    if any(fs.sep in name for name in excluded):
+    if any(sep in name for name in excluded for sep in {fs.sep, os.sep}):
         raise PrerequisiteError(
             f"INSPECT_LOG_EXCLUDE_DIRS takes directory names, not paths: '{value}'."
         )
