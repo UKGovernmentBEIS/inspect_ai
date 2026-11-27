@@ -25,7 +25,7 @@ Below we'll cover what tamper-evident logs do and don't protect, how to set up t
 
 Tamper-evident logs protect against the following:
 
--   **Edits to a finished log.** If someone changes a sample's events or scores, deletes or adds a sample, or replaces the `.eval` file, `inspect validate` will report it. The original events remain in the add-only store.
+-   **Edits to a finished log.** If someone changes a sample's events or scores, deletes or adds a sample, or replaces the `.eval` file with the file of another eval, `inspect validate` will report it. Putting back a copy of the same file from before a rescore is not reported (see [What Is Not Protected](#what-is-not-protected)). The original events remain in the add-only store.
 
 -   **Edits by a compromised eval process.** Events that the store confirmed before the compromise can't be changed. If the process changes them in its local copy, the `.eval` file will no longer match the store.
 
@@ -47,11 +47,15 @@ There are also a number of things that tamper-evident logs do not protect agains
 
 -   **Rescores by a holder of the eval's nonce.** Anyone who has the eval's nonce and can add to the store can write a rescore with any scores. A nonce that you hand out works for every later rescore of that eval, and a process that was compromised during the run already knows it. The validator lists each rescore, but does not vouch for it.
 
+-   **A rescored file put back to its copy from before the rescore.** If someone replaces a rescored `.eval` file with its copy from before the rescore (or from before a later rescore), the copy still matches the original run's records, and the validator passes it. The rescore shows only as a `rescored` line.
+
 -   **A reused sample from before a rescore.** If a retry was not rescored, a sample that it reused from an earlier eval can be replaced with that eval's copy from before or after one of the eval's rescores, and the validator passes it.
 
 -   **A deleted `.eval` file of an eval that a later eval names.** This shows up as a `prior_without_file` line rather than a finding. Note that eval-host keys can forge such a later eval.
 
--   **Fields that are not stored.** The validator checks each sample's events and scores, which samples the `.eval` file has, and the eval's status, stats and results. It also checks that each sample has a sample summary with the sample's scores. It does not check other fields (for example the eval spec and plan, each sample's messages, output and error, or the sample summaries' other fields).
+-   **Fields that are not stored.** The validator checks each sample's events and scores, which samples the `.eval` file has, and the eval's status, stats and results. It also checks that each sample has a sample summary with the sample's scores. It does not check other fields, for example the eval spec and plan, each sample's messages, output and error, the sample summaries' other fields, the score reductions, invalidation, `log_updates`, or the eval's error.
+
+-   **Logs in the `.json` format.** The validator checks only `.eval` files. It ignores a `.json` log in the log directory, so a `.json` copy of a log with edited scores passes.
 
 ::: {.callout-important appearance="simple"}
 A pass shows that the `.eval` file matches what was stored. It does not show that the run was honest.
@@ -266,7 +270,7 @@ Use the `inspect validate` command to check a log directory against the add-only
 inspect validate logs --store s3://my-addonly-store/team-a
 ```
 
-You can also set the store location using the `INSPECT_VALIDATE_STORE` environment variable. Be sure to run the validator on a host that the eval hosts cannot control.
+You can also set the store location using the `INSPECT_VALIDATE_STORE` environment variable. Be sure to run the validator on a host that the eval hosts cannot control. The validator checks only the `.eval` files in the log directory, not `.json` logs.
 
 If S3 refuses a record read because of the validator's credentials or the bucket (for example `AccessDenied` or `NoSuchBucket`), the command stops with that error rather than reporting findings. S3 also returns `AccessDenied` for a record encrypted with a KMS key that the validator cannot use, so such a record stops the command too.
 
@@ -277,7 +281,7 @@ When validation passes, the command exits with 0 and prints what it checked:
 ``` default
 1 eval(s), 1 sample(s) compared, 0 finding(s).
 Checked against the add-only store: each sample's events and scores, which samples the .eval files have, and each eval's status, stats and results. Each sample summary is checked against its sample's scores.
-Not checked: everything else, including the eval spec and plan, each sample's messages, output and error, the sample summaries' other fields, invalidation and log_updates.
+Not checked: everything else, including .json logs, the eval spec and plan, each sample's messages, output and error, the sample summaries' other fields, reductions, invalidation, log_updates and the eval's error.
 A pass does not show that the run was honest.
 ```
 

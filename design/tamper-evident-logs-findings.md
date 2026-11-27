@@ -466,8 +466,11 @@ What a pass shows:
   reused sample.
 - The validator does not compare the eval spec and plan, each sample's
   messages, output and error, the sample summaries' fields other than
-  their scores, tags and metadata,
-  invalidation, or `log_updates`.
+  their scores, tags and metadata, the score reductions, invalidation,
+  `log_updates`, or the eval's error.
+- The validator reads only `.eval` files (`_eval_files` lists
+  `formats=["eval"]`). A `.json` log in the log directory, such as a copy
+  with edited scores, is not checked and gives no finding.
 
 Stopped runs:
 
@@ -508,6 +511,10 @@ Rescores:
   parent that is not in the events, stops the validator with an error in
   `_get_updated_events` when a `.eval` sample names that rescore. Removing
   that marker from the `.eval` sample clears it.
+- A rescored `.eval` file put back to its copy from before the rescore
+  passes: that copy names no rescore (or an earlier one), and matches the
+  original run's records. The rescore shows only as a `rescored` line. The
+  store does not record which rescore a `.eval` file must name.
 - A rescore without the store option fails validation, as any other change
   to the scores or events does.
 - The rescore does not validate its input. An input edited before the

@@ -287,9 +287,10 @@ def test_plain_eval_validates(
         "Checked against the add-only store: each sample's events and scores, "
         "which samples the .eval files have, and each eval's status, stats and "
         "results. Each sample summary is checked against its sample's scores.\n"
-        "Not checked: everything else, including the eval spec and plan, each "
-        "sample's messages, output and error, the sample summaries' other "
-        "fields, invalidation and log_updates.\n"
+        "Not checked: everything else, including .json logs, the eval spec and "
+        "plan, each sample's messages, output and error, the sample summaries' "
+        "other fields, reductions, invalidation, log_updates and the eval's "
+        "error.\n"
         "A pass does not show that the run was honest.\n"
     ), result.output
     # --verbose lists the start record, the sample's records and both closings
