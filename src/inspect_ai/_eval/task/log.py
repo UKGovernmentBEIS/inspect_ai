@@ -1342,10 +1342,14 @@ class TaskLogger:
             async with self._flush_lock:
                 if prune_unplanned and status == "success" and self._seeded_pending:
                     await self.recorder.log_prune(self.eval, set(self._seeded_pending))
-                logged = [
-                    (s.id, s.epoch)
-                    for s in await self.recorder.sample_summaries(self.eval) or []
-                ]
+                logged = (
+                    [
+                        (s.id, s.epoch)
+                        for s in await self.recorder.sample_summaries(self.eval) or []
+                    ]
+                    if self.addonly is not None
+                    else []
+                )
 
                 # finish and get log
                 log = await self.recorder.log_finish(
