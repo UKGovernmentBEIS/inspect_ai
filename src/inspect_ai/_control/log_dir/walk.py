@@ -114,7 +114,8 @@ async def walk_log_dir(
     an ordinary log (``task list --shards``).
 
     A subdirectory named in ``INSPECT_LOG_EXCLUDE_DIRS`` is not listed, as
-    ``list_eval_logs`` leaves out the logs below one.
+    ``list_eval_logs`` leaves out the logs below one. The names do not apply
+    inside a companion, which the shard-set walk lists.
 
     Raises ``FileNotFoundError`` when a local ``root`` does not exist, and
     ``LogExcludeDirsError`` when ``INSPECT_LOG_EXCLUDE_DIRS`` names a path. A
@@ -139,8 +140,7 @@ async def walk_log_dir(
             if is_root:
                 raise
             return
-        dirs = [d for d in listing.dirs if basename(d) not in excluded]
-        buffer_dir = next((d for d in dirs if basename(d) == _BUFFER_DIR), None)
+        buffer_dir = next((d for d in listing.dirs if basename(d) == _BUFFER_DIR), None)
         files: list[LogFile] = []
         for info in listing.files:
             name = basename(info.name)
@@ -148,6 +148,7 @@ async def walk_log_dir(
                 files.append(_log_file(info, buffer_dir=buffer_dir))
             elif is_log_file(name, [".json"]):
                 json_logs.append(info.name)
+        dirs = [d for d in listing.dirs if basename(d) not in excluded]
         companions = [d for d in dirs if find_sets and _is_companion(d)]
         by_name = {merged_log_name(f.name): f for f in files}
         merged = {c: by_name.get(_set_name(c)) for c in companions}

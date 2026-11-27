@@ -224,7 +224,8 @@ buffer segments or checkpoint objects, whose counts grow with run age:
   outside a companion is descended, as `list_eval_logs` recurses, so an
   eval-set directory or a directory of runs works. The exception is a
   subdirectory named in `INSPECT_LOG_EXCLUDE_DIRS`, which is not listed:
-  `list_eval_logs` leaves out the logs below one too.
+  `list_eval_logs` leaves out the logs below one too. The names do not
+  apply inside a companion, which `list_shard_set` lists as the merge does.
 - **Companions.** With shard aggregation (the default; `task list
   --shards` walks every `<name>.shards/` as an ordinary directory, "CLI
   surface"), the first `<name>.shards/` on each path below the root is
