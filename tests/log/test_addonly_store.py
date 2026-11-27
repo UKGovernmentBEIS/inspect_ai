@@ -67,7 +67,6 @@ from inspect_ai.log._addonly._records import (
     START,
     RescoreMarker,
     RescoreSampleRecord,
-    RescoreStartRecord,
     SampleAttemptRef,
     SampleClosingRecord,
     SampleRecord,
@@ -1935,22 +1934,6 @@ def test_unrescored_sample_in_rescored_file(
 
     result = validate_cli(evalhost_env, tmp_path)
     assert_fails_with(result, "rescore_mismatch")
-
-
-def test_rescore_without_eval(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
-    """A rescore record under an eval id the store has no records of."""
-    clean_run.put(
-        "rescores/no-such-eval/r1/start",
-        RescoreStartRecord(
-            eval_id="no-such-eval",
-            rescore_id="r1",
-            nonce=FORGED_NONCE,
-            action="append",
-        ).model_dump_json(),
-    )
-    result = validate_cli(clean_run.store, clean_run.log_dir)
-    assert_fails_with(result, "rescore_without_eval")
-    assert result.stopped() == ["rescores/no-such-eval/r1"]
 
 
 def test_rescore_with_wrong_nonce(

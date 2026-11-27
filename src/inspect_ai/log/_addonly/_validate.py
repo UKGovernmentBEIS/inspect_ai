@@ -83,7 +83,6 @@ FindingKind = Literal[
     "unstored_sample",
     "score_mismatch",
     "eval_mismatch",
-    "rescore_without_eval",
     "missing_rescore",
     "rescore_mismatch",
 ]
@@ -321,16 +320,6 @@ def validate_store(
         ]
     )
     findings.extend(f for r in rescores.values() for f in r.findings)
-    findings.extend(
-        Finding(
-            kind="rescore_without_eval",
-            eval_id=eval_id,
-            key=_rescore_name(eval_id, rescore_id),
-            message="The store has no records of the eval this rescore names.",
-        )
-        for eval_id, rescore_id in rescores
-        if eval_id not in evals
-    )
 
     return ValidationReport(
         evals=sorted(evals),
@@ -812,7 +801,7 @@ def _read_rescore(
     """Read and check one rescore's records (``lasts``: the last key parts).
 
     Each record must have the eval's nonce (``eval_nonce``; None when the
-    store has no start record of the eval, which is a finding of its own).
+    store has no start record of the eval, and then it is not checked).
     """
     name = _rescore_name(eval_id, rescore_id)
     findings: list[Finding] = []

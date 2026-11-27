@@ -352,7 +352,6 @@ The following lines are findings. Each finding makes the command exit with 1:
 | `score_mismatch` | A sample's scores differ from its closing record (after the rescores that the sample names, if any). | `inspect score` without the store location causes this. Otherwise, someone changed the scores. |
 | `missing_rescore` | A sample names a rescore that is not in the store, that has no record of the sample, or that rescores another eval (one that the sample's copy did not come through). The sample is not compared. | Treat the sample as changed. |
 | `rescore_mismatch` | The samples of a `.eval` file name different latest rescores of the eval. A rescore rescores every sample. | Someone replaced a sample with a copy from before or after a rescore. |
-| `rescore_without_eval` | The store has a rescore under an eval id with no other records. | Treat the rescore as forged. |
 
 ## Limitations
 

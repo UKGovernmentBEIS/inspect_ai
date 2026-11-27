@@ -735,7 +735,7 @@ protected logs is a common feature. let's do #2 now"). Built on
     latest rescores of the eval; an honest rescore rescores every sample,
     so this catches a sample put back to its copy from before a rescore),
     `rescore_without_eval` (a rescore under an eval id with no other
-    records). Existing kinds cover the rest: `nonce` for a rescore record
+    records; *removed Nov-27:* see [Simplification review: removals](#simplification-review-removals).). Existing kinds cover the rest: `nonce` for a rescore record
     whose nonce is not the eval's, `missing_start` and `malformed_record`
     for rescore records, `missing_eval_closing` for a
     finished file whose latest rescore has no closing record,
@@ -905,6 +905,13 @@ handling of a rare case, with Eric's go (Nov-27).
     are only printed (`--verbose`, and the `rescored ... at` line). A
     record uploaded in parts still needs the eval's nonce, or it gets a
     `nonce` finding.
+12. **`rescore_without_eval`.** Rescore records under an eval id with no
+    other records cannot affect a comparison: a sample can name only
+    rescores of evals in the store that its copy came through. Their nonce
+    is not checked, as there is no start record to check it against. A
+    rescore with no closing record is still listed as `stopped`. Since
+    records cannot be deleted, the finding failed every later validation
+    of the prefix.
 
 ## The evals that were run
 
