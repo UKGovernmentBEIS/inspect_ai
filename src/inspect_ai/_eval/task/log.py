@@ -1343,7 +1343,6 @@ class TaskLogger:
         # shielded: a cancellation (e.g. the task's abort) then lands only
         # before the write or after the teardown, never leaving the buffer db
         # open or samples pending beside a finished log
-        logged: set[SampleRecordKey] = set()
         with anyio.CancelScope() as teardown_scope:
             async with self._flush_lock:
                 if prune_unplanned and status == "success" and self._seeded_pending:
