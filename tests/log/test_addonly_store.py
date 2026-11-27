@@ -615,7 +615,7 @@ def test_eval_retry_validates(
 def fail_while_s0_closes(path: str) -> Solver:
     """While the file holds true, s1 raises once s0 starts the put the test gates.
 
-    s2 waits until the eval's failure cancels it.
+    s2 waits until the eval's failure cancels it; s1 raises only once s2 waits.
     """
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -625,9 +625,13 @@ def fail_while_s0_closes(path: str) -> Solver:
                 assert await anyio.to_thread.run_sync(
                     cancel_gates["s0_closing"].wait, 30
                 )
+                assert await anyio.to_thread.run_sync(
+                    cancel_gates["s2_waiting"].wait, 30
+                )
                 raise RuntimeError("attempt fails")
             if state.sample_id == "s2":
                 try:
+                    cancel_gates["s2_waiting"].set()
                     await anyio.sleep_forever()
                 finally:
                     cancel_gates["cancelled"].set()
@@ -661,6 +665,7 @@ def test_eval_retry_after_cancel_in_close_validates(
     once s0 is logged. Then eval_retry.
     """
     monkeypatch.setitem(cancel_gates, "s0_closing", threading.Event())
+    monkeypatch.setitem(cancel_gates, "s2_waiting", threading.Event())
     monkeypatch.setitem(cancel_gates, "cancelled", threading.Event())
     monkeypatch.setitem(cancel_gates, "s0_hook", threading.Event())
     monkeypatch.setitem(cancel_gates, "hook_timed_out", threading.Event())
@@ -788,8 +793,9 @@ def boundary_after_cancel(path: str, first: bool) -> Solver:
     """While the file holds true, s0 writes at a boundary with a cancel pending.
 
     s0 waits in a worker thread until the eval's failure (s1) has cancelled
-    s2, then writes before (`first`) or after its generate. The cancel
-    reaches s0 at its next checkpoint, which is in that write.
+    s2 (s1 raises only once s2 waits), then writes before (`first`) or after
+    its generate. The cancel reaches s0 at its next checkpoint, which is in
+    that write.
     """
 
     async def s0_boundary_after_cancel() -> None:
@@ -807,9 +813,13 @@ def boundary_after_cancel(path: str, first: bool) -> Solver:
                 await s0_boundary_after_cancel()
             if state.sample_id == "s1":
                 await anyio.to_thread.run_sync(cancel_gates["s0_waiting"].wait)
+                assert await anyio.to_thread.run_sync(
+                    cancel_gates["s2_waiting"].wait, 30
+                )
                 raise RuntimeError("attempt fails")
             if state.sample_id == "s2":
                 try:
+                    cancel_gates["s2_waiting"].set()
                     await anyio.sleep_forever()
                 finally:
                     cancel_gates["cancelled"].set()
@@ -841,6 +851,7 @@ def test_eval_retry_after_cancel_at_boundary_validates(
     Then eval_retry.
     """
     monkeypatch.setitem(cancel_gates, "s0_waiting", threading.Event())
+    monkeypatch.setitem(cancel_gates, "s2_waiting", threading.Event())
     monkeypatch.setitem(cancel_gates, "cancelled", threading.Event())
     fail = tmp_path / "fail.json"
     fail.write_text("true")
