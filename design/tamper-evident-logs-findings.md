@@ -249,8 +249,10 @@ Store checks:
   key the validator cannot use, so anyone who can put with another SSE-KMS
   key (eval-host keys included) can stop the validator this way; it fails,
   it does not pass. The docs' bucket policy has a statement
-  (`DenyEncryptionHeaders`) that refuses a put naming any encryption, so
-  each record gets the bucket's default encryption; it prevents this.
+  (`DenyEncryptionHeaders`) that refuses a put naming SSE-S3, SSE-KMS or
+  DSSE-KMS encryption (`s3:x-amz-server-side-encryption`), so each record
+  gets the bucket's default encryption; it prevents this. A record put with
+  SSE-C reads back as a 4xx, a `malformed_record` finding.
 
 `.eval` checks, for every `.eval` file in the log directory with the eval's
 id:
@@ -498,7 +500,7 @@ What a pass shows:
   reused sample.
 - The validator does not compare the eval spec and plan, each sample's
   messages, output and error, the sample summaries' fields other than
-  their scores, tags and metadata, the score reductions, invalidation,
+  their scores, the score reductions, invalidation,
   `log_updates`, or the eval's error.
 - The validator reads only `.eval` files (`_eval_files` lists
   `formats=["eval"]`). A `.json` log in the log directory, such as a copy

@@ -108,7 +108,7 @@ Here are the steps required to create the store:
     }
     ```
 
-3.  Add a bucket policy. Its first statement refuses a put without `If-None-Match` (without this statement, a put can add a second version of an object). The second refuses a put that names an encryption, so each record uses the bucket's default encryption, which the validator can read (without this statement, someone who can add to the store can add a record encrypted with another KMS key, which stops the validator; see [Validating Logs](#validating-logs)). Inspect does not name an encryption when it writes a record. The other two statements let the eval hosts' role add objects and read the Object Lock settings. Replace `111122223333` with the ID of the eval hosts' account, and `eval-host` with the name of their role.
+3.  Add a bucket policy. Its first statement refuses a put without `If-None-Match` (without this statement, a put can add a second version of an object). The second refuses a put that names SSE-S3, SSE-KMS or DSSE-KMS encryption (the `s3:x-amz-server-side-encryption` header), so each record uses the bucket's default encryption, which the validator can read (without this statement, someone who can add to the store can add a record encrypted with another KMS key, which stops the validator; see [Validating Logs](#validating-logs); a record put with SSE-C encryption gives a `malformed_record` finding instead). Inspect does not name an encryption when it writes a record. The other two statements let the eval hosts' role add objects and read the Object Lock settings. Replace `111122223333` with the ID of the eval hosts' account, and `eval-host` with the name of their role.
 
     ``` json
     {
