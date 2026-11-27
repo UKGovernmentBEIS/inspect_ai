@@ -19,7 +19,7 @@ from shortuuid import uuid
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.json import to_json_safe
 from inspect_ai.event import Event, InfoEvent
-from inspect_ai.log._log import EvalResults, EvalSpec, EvalStats, EvalStatus
+from inspect_ai.log._log import EvalResults, EvalStats, EvalStatus
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.types import BufferRows
 from inspect_ai.scorer._metric import SampleScore
@@ -59,19 +59,19 @@ class EvalRecordWriter:
     async def start(
         cls,
         location: StoreLocation,
-        eval: EvalSpec,
+        eval_id: str,
         prior_eval_id: str | None = None,
     ) -> "EvalRecordWriter":
         """Write the start record and check the store's settings.
 
         ``prior_eval_id`` is the eval a retry reuses samples from.
         """
-        writer = cls(AddOnlyStore(location), eval.eval_id, secrets.token_hex(32))
+        writer = cls(AddOnlyStore(location), eval_id, secrets.token_hex(32))
         await writer.store.put_start_and_check(
-            f"{eval.eval_id}/{START}",
+            f"{eval_id}/{START}",
             _body(
                 StartRecord(
-                    eval_id=eval.eval_id,
+                    eval_id=eval_id,
                     nonce=writer.nonce,
                     prior_eval_id=prior_eval_id,
                 )

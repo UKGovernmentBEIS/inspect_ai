@@ -770,7 +770,9 @@ class TaskLogger:
             raise AddOnlyStoreError(
                 "Writing to an add-only store requires log_realtime (the sample buffer)."
             )
-        self.addonly = await EvalRecordWriter.start(location, self.eval, prior_eval_id)
+        self.addonly = await EvalRecordWriter.start(
+            location, self.eval.eval_id, prior_eval_id
+        )
 
     async def start_sample(self, sample: EvalSampleSummary) -> None:
         if self._buffer_db is not None:
