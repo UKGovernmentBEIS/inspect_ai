@@ -35,7 +35,7 @@ from inspect_ai._util.asyncfiles import AsyncFilesystem, get_async_filesystem
 from inspect_ai._util.azure import AzureAuthError, is_azure_listing_auth_error
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
-from inspect_ai._util.error import EvalError
+from inspect_ai._util.error import EvalError, PrerequisiteError
 from inspect_ai._util.file import (
     FileInfo,
     FileSystem,
@@ -128,6 +128,34 @@ def _list_log_files(fs: FileSystem, log_dir: str, recursive: bool) -> list[FileI
         return []
 
 
+def without_excluded_dirs(
+    files: list[FileInfo], log_dir: str, fs: FileSystem
+) -> list[FileInfo]:
+    """Drop the files below a directory named in `INSPECT_LOG_EXCLUDE_DIRS`.
+
+    The variable holds comma separated directory names. A file listed from
+    `log_dir` is dropped when a directory on its path below `log_dir`, at any
+    depth, has one of those names.
+    """
+    names = os.environ.get("INSPECT_LOG_EXCLUDE_DIRS", "").split(",")
+    excluded = {name.strip() for name in names} - {""}
+    if not excluded:
+        return files
+    prefix = fs.dir_as_uri(log_dir).rstrip(fs.sep) + fs.sep
+
+    def kept(name: str) -> bool:
+        # a file that cannot be placed below log_dir must not slip through
+        if not name.startswith(prefix):
+            raise PrerequisiteError(
+                f"INSPECT_LOG_EXCLUDE_DIRS cannot be applied to '{log_dir}': "
+                f"'{name}' is not listed below '{prefix}'."
+            )
+        dirs = name[len(prefix) :].replace(fs.sep, "/").split("/")[:-1]
+        return excluded.isdisjoint(dirs)
+
+    return [file for file in files if kept(file.name)]
+
+
 def list_eval_logs(
     log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
     formats: list[Literal["eval", "json"]] | None = None,
@@ -137,6 +165,9 @@ def list_eval_logs(
     fs_options: dict[str, Any] = {},
 ) -> list[EvalLogInfo]:
     """List all eval logs in a directory.
+
+    Logs below a directory named in the `INSPECT_LOG_EXCLUDE_DIRS` environment
+    variable (comma separated directory names) are not listed.
 
     Args:
       log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
@@ -167,9 +198,8 @@ def list_eval_logs(
     # get the eval logs
     logger.debug(f"Listing eval logs for {log_dir}")
     fs = filesystem(log_dir, fs_options)
-    eval_logs = log_files_from_ls(
-        _list_log_files(fs, log_dir, recursive), formats, descending
-    )
+    files = without_excluded_dirs(_list_log_files(fs, log_dir, recursive), log_dir, fs)
+    eval_logs = log_files_from_ls(files, formats, descending)
     logger.debug(f"Listing eval logs for {log_dir} completed")
 
     # apply filter if requested
@@ -248,6 +278,11 @@ async def _list_eval_logs_async(
 ) -> list[EvalLogInfo]:
     # async filesystem if we can
     fs = filesystem(log_dir, fs_options)
+
+    async def resolve(files: list[FileInfo]) -> list[EvalLogInfo]:
+        files = without_excluded_dirs(files, log_dir, fs)
+        return await log_files_from_ls_async(files, formats, descending)
+
     if fs.is_s3() and not fs_options:
         # S3: list via the shared async filesystem (one warm aiobotocore client +
         # connection pool, reused across requests when the view server binds it).
@@ -273,7 +308,7 @@ async def _list_eval_logs_async(
             raise
         # resolve to eval logs (async fan-out so header reads on
         # non-conforming filenames don't block the event loop)
-        return await log_files_from_ls_async(logs, formats, descending)
+        return await resolve(logs)
     elif fs.is_async() and current_async_backend() != "asyncio":
         # fsspec's asynchronous=True mode requires a running asyncio loop, so
         # under trio list via fsspec's sync API instead, which drives its own
@@ -288,7 +323,7 @@ async def _list_eval_logs_async(
                 # remediation guidance instead of silently reporting no logs.
                 raise AzureAuthError(log_dir, ex) from ex
             raise
-        return await log_files_from_ls_async(logs, formats, descending)
+        return await resolve(logs)
     elif fs.is_async():
         async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
             try:
@@ -311,13 +346,13 @@ async def _list_eval_logs_async(
                 raise
 
             logs = [fs._file_info(file) for file in files]
-            return await log_files_from_ls_async(logs, formats, descending)
+            return await resolve(logs)
     else:
         # Local recursive listings can be large; keep them off the event loop.
         logs = await anyio.to_thread.run_sync(
             partial(_list_log_files, fs, log_dir, recursive)
         )
-        return await log_files_from_ls_async(logs, formats, descending)
+        return await resolve(logs)
 
 
 @contextlib.asynccontextmanager

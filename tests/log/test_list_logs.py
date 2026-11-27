@@ -8,12 +8,14 @@ import boto3
 import pytest
 
 from inspect_ai._util.azure import AzureAuthError
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai.log import list_eval_logs, list_eval_logs_async
 from inspect_ai.log._file import (
     EvalLogInfo,
     _walk_without_detail,
     manifest_eval_log_name,
+    without_excluded_dirs,
 )
 
 AZURE_AUTH_MESSAGE = "Server failed to authenticate the request"
@@ -132,6 +134,66 @@ async def test_list_logs_async_matches_sync():
     )
 
     assert async_names == sync_names
+
+
+async def test_list_logs_exclude_dirs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    filename = "2026-01-01T00-00-00_task_id.eval"
+    kept = ["", "nested", "artifacts-v2"]
+    for subdir in [*kept, "artifacts/sample/project", "nested/reports/sample"]:
+        (tmp_path / subdir).mkdir(parents=True, exist_ok=True)
+        (tmp_path / subdir / filename).touch()
+    monkeypatch.setenv("INSPECT_LOG_EXCLUDE_DIRS", "artifacts, reports")
+
+    def subdirs(logs: list[EvalLogInfo], log_dir: Path) -> set[str]:
+        root = filesystem(str(log_dir)).dir_as_uri(str(log_dir))
+        return {
+            log.name.removeprefix(root).removesuffix(filename).strip("/")
+            for log in logs
+        }
+
+    assert subdirs(list_eval_logs(str(tmp_path)), tmp_path) == set(kept)
+    logs = await list_eval_logs_async(str(tmp_path))
+    assert subdirs(logs, tmp_path) == set(kept)
+    assert subdirs(list_eval_logs(str(tmp_path), recursive=False), tmp_path) == {""}
+    # only directories below the listed one count
+    inside = tmp_path / "artifacts" / "sample" / "project"
+    assert subdirs(list_eval_logs(str(inside)), inside) == {""}
+
+
+async def test_list_logs_exclude_dirs_s3(
+    prefix_scoped_s3: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prefix = prefix_scoped_s3.removeprefix("s3://test-bucket/")
+    filename = "2026-01-01T00-00-00_task_id.eval"
+    for key in [filename, f"nested/artifacts/sample/{filename}"]:
+        boto3.client("s3").put_object(
+            Bucket="test-bucket", Key=f"{prefix}/{key}", Body=b""
+        )
+    monkeypatch.setenv("INSPECT_LOG_EXCLUDE_DIRS", "artifacts")
+
+    expected = {f"{prefix_scoped_s3}/{filename}"}
+    options = {"anon": True}
+    logs = list_eval_logs(prefix_scoped_s3, fs_options=options)
+    assert {log.name for log in logs} == expected
+    logs = await list_eval_logs_async(prefix_scoped_s3, fs_options=options)
+    assert {log.name for log in logs} == expected
+    logs = await list_eval_logs_async(prefix_scoped_s3)
+    assert {log.name for log in logs} == expected
+
+
+def test_exclude_dirs_refuses_a_file_it_cannot_place(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fs = filesystem("memory://logs")
+    stray = FileInfo(
+        name="memory://elsewhere/artifacts/x.eval", type="file", size=0, mtime=None
+    )
+    assert without_excluded_dirs([stray], "memory://logs", fs) == [stray]
+    monkeypatch.setenv("INSPECT_LOG_EXCLUDE_DIRS", "artifacts")
+    with pytest.raises(PrerequisiteError, match="cannot be applied"):
+        without_excluded_dirs([stray], "memory://logs", fs)
 
 
 async def test_list_logs_async_missing_dir(tmp_path: Path):

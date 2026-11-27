@@ -188,6 +188,14 @@ Once all of the tasks in an eval set are complete, re-running `inspect eval-set`
 results = list_eval_logs("logs-run-42")
 ```
 
+If the log directory also holds other files (for example, files written by the evaluated agent), keep them in subdirectories and name those in the `INSPECT_LOG_EXCLUDE_DIRS` environment variable (comma separated):
+
+``` bash
+export INSPECT_LOG_EXCLUDE_DIRS=artifacts,reports
+```
+
+Listing a log directory then ignores any log below a directory with one of those names, at any depth. That covers `eval_set()`, `list_eval_logs()`, log bundles, and data frames read from a directory. A log file you name directly is still read.
+
 If you are calling the `eval_set()` function it will return a tuple of `bool` and `list[EvalLog]`, where the `bool` indicates whether all tasks were completed:
 
 ``` python

@@ -16,6 +16,7 @@ from inspect_ai._view._csp import read_content_security_policy
 from ._file import (
     contained_log_destination,
     log_files_from_ls,
+    without_excluded_dirs,
     without_merged_shards,
     write_log_listing,
 )
@@ -299,9 +300,10 @@ def copy_log_files(
 ) -> None:
     log_fs = filesystem(log_dir, fs_options)
     if log_fs.exists(log_dir):
-        eval_logs = log_files_from_ls(
-            log_fs.ls(log_dir, recursive=True), ["json", "eval"], False
+        files = without_excluded_dirs(
+            log_fs.ls(log_dir, recursive=True), log_dir, log_fs
         )
+        eval_logs = log_files_from_ls(files, ["json", "eval"], False)
         if len(eval_logs) == 0:
             raise PrerequisiteError(
                 f"The log directory {log_dir} doesn't contain any log files."

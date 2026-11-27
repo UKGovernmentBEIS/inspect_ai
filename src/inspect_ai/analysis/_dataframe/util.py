@@ -14,7 +14,12 @@ from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai._util.version import verify_required_version
-from inspect_ai.log._file import EvalLogInfo, list_eval_logs, log_files_from_ls
+from inspect_ai.log._file import (
+    EvalLogInfo,
+    list_eval_logs,
+    log_files_from_ls,
+    without_excluded_dirs,
+)
 from inspect_ai.log._log import EvalLog
 
 if TYPE_CHECKING:
@@ -96,7 +101,10 @@ def resolve_logs(
             info = await async_fs.info(log_str)
         if info.type == "directory":
             fs = filesystem(log_str)
-            return [fi for fi in fs.ls(info.name, recursive=True) if fi.type == "file"]
+            files = without_excluded_dirs(
+                fs.ls(info.name, recursive=True), info.name, fs
+            )
+            return [fi for fi in files if fi.type == "file"]
         else:
             return [info]
 
