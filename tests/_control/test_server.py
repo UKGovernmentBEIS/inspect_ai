@@ -1373,6 +1373,44 @@ def test_eval_honours_ctl_server_env(
     assert published == [1]
 
 
+@pytest.mark.real_ctl_server
+def test_eval_logs_freed_after_control_server_stops(short_data_dir: Path) -> None:
+    """The logs ``eval()`` returns are freed once the caller drops them.
+
+    The process-wide app keeps the last control server after it stops, so the
+    server must not keep the run's context (the run queue and its logs).
+    """
+    import gc
+    import weakref
+
+    from inspect_ai import Task, eval
+    from inspect_ai._control.discovery import list_discovered_servers
+    from inspect_ai.dataset import Sample
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+    published: list[int] = []
+
+    @solver
+    def probe() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            published.append(len(list_discovered_servers()))
+            return state
+
+        return solve
+
+    logs = eval(
+        Task(dataset=[Sample(input="hi")], solver=probe()),
+        model="mockllm/model",
+        display="none",
+        log_dir=str(short_data_dir),
+    )
+    assert published == [1]
+    log_ref = weakref.ref(logs[0])
+    del logs
+    gc.collect()
+    assert log_ref() is None
+
+
 def test_eval_set_honours_ctl_server_env_from_dotenv(
     monkeypatch: pytest.MonkeyPatch, short_data_dir: Path, tmp_path: Path
 ) -> None:

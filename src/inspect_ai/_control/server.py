@@ -1900,6 +1900,10 @@ class ControlServer:
                 except OSError:
                     pass
             self._unlink_socket()
+            # the process-wide app keeps this server after it stops, and the
+            # finished task's context holds the run's ContextVars, such as the
+            # run queue and its logs
+            self._serve_task = None
 
 
 @asynccontextmanager
