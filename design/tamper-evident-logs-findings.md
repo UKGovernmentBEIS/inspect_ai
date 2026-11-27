@@ -217,7 +217,8 @@ id:
 
 - `unstored_eval` and `missing_eval_file`.
 - `unstored_sample`: a `.eval` sample with no closed attempt in the eval, or
-  in the prior evals it copied from.
+  in the prior evals it copied from, or one that the eval closing record's
+  `logged` list does not have.
 - `missing_sample`: a closed sample, or a sample in the eval closing
   record's `logged` list, that is not in the `.eval` file.
 - `event_mismatch` and `score_mismatch`: the sample's events and scores
@@ -246,7 +247,9 @@ eval closed. Every sample in a `.eval` file must match a closed attempt of
 its own eval or, if it has none, of the nearest earlier eval along the
 prior-eval chain that closed it, after each rescore it names. Every closed
 sample, and every sample in the eval closing record's `logged` list, must be
-in the `.eval` file, unless the eval stopped before it finished the file. A finished `.eval` file must match its eval closing
+in the `.eval` file, unless the eval stopped before it finished the file.
+When the eval has a closing record, every sample in the `.eval` file must be
+in its `logged` list. A finished `.eval` file must match its eval closing
 record. Its results must match its latest rescore's closing record, or the
 eval closing record when it is not rescored. An
 attempt, eval or rescore with no closing record is listed as `stopped`, not
@@ -422,7 +425,7 @@ prior_without_file MBjNiQ...: No .eval file; EMhV3K... names it as its prior eva
 
 ### Samples a retry copied
 
-- **Samples a retry copied.** A retry copies the samples that it selects from the earlier eval's log into its own before it runs any sample, with or without an error. A dataset that adds samples while it runs, with `limit` set, copies each one when it admits it. The retry's eval closing record lists each sample in its `.eval` file when it finished, the copies included, and each one must still be in that file, or the validator reports `missing_sample`. A copy that the retry ran again and closed is compared through that attempt instead. A retry with no eval closing record has no list, so a copied sample deleted from its `.eval` file is not reported.
+- **Samples a retry copied.** A retry copies the samples that it selects from the earlier eval's log into its own before it runs any sample, with or without an error. A dataset that adds samples while it runs, with `limit` set, copies each one when it admits it. The retry's eval closing record lists each sample in its `.eval` file when it finished, the copies included, and each one must still be in that file, or the validator reports `missing_sample`. A sample in the file that the list does not have, such as one of the earlier eval's samples that a narrower retry did not select, is an `unstored_sample` finding. A copy that the retry ran again and closed is compared through that attempt instead. A retry with no eval closing record has no list, so a copied sample deleted from its `.eval` file, or added to it, is not reported.
 
 ## Known limits
 
@@ -458,18 +461,14 @@ Stopped runs:
   finding. A sample that such an eval copied from its prior log gives no
   line.
 - A retry with no eval closing record has no `logged` list, so a copied
-  sample deleted from its `.eval` file is not reported.
+  sample deleted from its `.eval` file, or a prior eval's sample added to
+  it, is not reported.
 
 Retries:
 
 - A deleted `.eval` file of an eval that a later eval names gives a
   `prior_without_file` line, not a finding. Eval-host keys can forge such a
   later eval.
-- `logged` comes from the recorder's sample summaries. If an admission copy
-  writes the sample to the `.eval` file and then fails to write its summary,
-  and the retry still finishes, the sample is not listed. Deleting it from
-  the `.eval` file is then not reported. A review found this with fault
-  injection. Whether to handle it is an open decision.
 
 Rescores:
 
@@ -502,6 +501,11 @@ Honest runs that give a finding:
   no closed attempt.
 - A failed write of the eval closing record, after the `.eval` file is
   finished, gives `missing_eval_closing`.
+- `logged` comes from the recorder's sample summaries. If an admission copy
+  writes the sample to the `.eval` file and then fails to write its summary,
+  and the retry still finishes, the sample is not listed, and the validator
+  reports `unstored_sample`. A review found the failed summary write with
+  fault injection.
 - An event that the sample buffer cannot insert (a full disk, a database
   error), or that skips the buffer because a worker thread logged a warning
   during the sample, never reaches the store. The validator reports

@@ -609,9 +609,11 @@ def _compare_eval_file(
         for sample_part, final in stored.final_attempts.items()
     ]
     eval_file_samples = _eval_file_samples(eval_file)
+    unstored: set[str] = set()
     for sample_part in sorted(eval_file_samples - stored.final_attempts.keys()):
         earlier = _earlier_attempt(evals, stored.prior_eval_id, sample_part)
         if earlier is None:
+            unstored.add(sample_part)
             finding(
                 "unstored_sample",
                 "In the .eval file, with no closed attempt in the store"
@@ -634,18 +636,26 @@ def _compare_eval_file(
             )
         )
 
-    # the .eval file holds each sample the eval closing record lists; one the
-    # eval closed is compared above
-    listed = set(stored.closing.logged) if stored.closing else set()
-    for sample_part in sorted(
-        listed - stored.final_attempts.keys() - eval_file_samples
-    ):
-        finding(
-            "missing_sample",
-            f"Not in {eval_file}. The eval closing record lists it as in the "
-            ".eval file when the eval finished.",
-            f"{eval_id}/{sample_part}",
-        )
+    # the .eval file holds the samples the eval closing record lists, and no
+    # others; one the eval closed is compared above
+    if stored.closing is not None:
+        listed = set(stored.closing.logged)
+        for sample_part in sorted(
+            listed - stored.final_attempts.keys() - eval_file_samples
+        ):
+            finding(
+                "missing_sample",
+                f"Not in {eval_file}. The eval closing record lists it as in the "
+                ".eval file when the eval finished.",
+                f"{eval_id}/{sample_part}",
+            )
+        for sample_part in sorted(eval_file_samples - listed - unstored):
+            finding(
+                "unstored_sample",
+                "In the .eval file, but the eval closing record does not list it "
+                "as in the .eval file when the eval finished.",
+                f"{eval_id}/{sample_part}",
+            )
 
     compared = 0
     # the latest rescore of this eval each sample names (None: not rescored)

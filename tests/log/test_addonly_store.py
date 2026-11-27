@@ -1348,6 +1348,44 @@ def test_eval_set_narrower_retry_validates(
     assert result.findings() == []
 
 
+def test_add_prior_sample_to_narrower_retry(
+    evalhost_env: MotoStore,
+    tmp_path: Path,
+    validate_cli: ValidateCli,
+    failures: Path,
+) -> None:
+    """The earlier eval's s1 added to a retry that selected only s0.
+
+    s1 matches the earlier eval's records, but the retry's eval closing
+    record does not list it.
+    """
+    failures.write_text(json.dumps({"s0": 1}))
+    log_dir = tmp_path / "logs"
+    options: dict[str, Any] = dict(
+        log_dir=str(log_dir),
+        model="mockllm/model",
+        display="none",
+        max_samples=2,
+        retry_attempts=0,
+        retry_cleanup=False,
+        tamper_evident_store=evalhost_env.url,
+    )
+    success, logs = eval_set(retried_task(str(failures)), **options)
+    assert not success
+    first = read_eval_log(logs[0].location)
+    success, logs = eval_set(retried_task(str(failures)), sample_id=["s0"], **options)
+    assert success, logs[0].error
+    retry = read_eval_log(logs[0].location)
+    assert retry.samples
+    retry.samples.append(next(s for s in first.samples or [] if s.id == "s1"))
+    write_eval_log(retry, retry.location)
+
+    result = validate_cli(evalhost_env, log_dir)
+    assert_fails_with(result, "unstored_sample")
+    assert f"unstored_sample {retry.eval.eval_id}/s1.1:" in result.output
+    assert "eval closing record" in result.output
+
+
 def limited_feed_task(failing: dict[str, bool]) -> Task:
     """A dynamic feed of samples 1-3; sample 3 fails while ``failing["3"]``."""
 
