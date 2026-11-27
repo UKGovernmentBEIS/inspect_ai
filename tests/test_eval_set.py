@@ -5326,41 +5326,27 @@ def test_eval_set_resume_with_an_ordinary_added_task_needs_allow_dirty(
     assert success
 
 
-def test_eval_set_resume_ignores_logs_in_excluded_dirs(
+def test_eval_set_ignores_logs_in_excluded_dirs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # empty, not unset: a project .env could set an unset variable again
     monkeypatch.setenv("INSPECT_LOG_EXCLUDE_DIRS", "")
-    log_dir = tmp_path / "set"
     mine = Task(dataset=[Sample(input="mine")], name="mine")
-    success, _ = eval_set(mine, log_dir=str(log_dir), model="mockllm/model")
-    assert success
-    # another eval's log, among other files kept in the eval set's log directory
     other = Task(dataset=[Sample(input="other")], name="other")
-    eval(other, log_dir=str(log_dir / "artifacts" / "sample"), model="mockllm/model")
+    done_dir = tmp_path / "done"
+    success, _ = eval_set([mine, other], log_dir=str(done_dir), model="mockllm/model")
+    assert success
+    # completed logs of this task and of another, among other files in a new
+    # log directory
+    log_dir = tmp_path / "set"
+    shutil.copytree(done_dir, log_dir / "artifacts" / "sample")
 
     with pytest.raises(PrerequisiteError, match="not associated with a task"):
         eval_set(mine, log_dir=str(log_dir), model="mockllm/model")
     monkeypatch.setenv("INSPECT_LOG_EXCLUDE_DIRS", "artifacts")
     success, logs = eval_set(mine, log_dir=str(log_dir), model="mockllm/model")
     assert success
-    assert _task_names(logs) == ["mine"]
-
-
-def test_eval_set_runs_a_task_whose_only_log_is_in_an_excluded_dir(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    mine = Task(dataset=[Sample(input="mine")], name="mine")
-    done_dir = tmp_path / "done"
-    success, _ = eval_set(mine, log_dir=str(done_dir), model="mockllm/model")
-    assert success
-    # a completed log of the same task, among other files in a new log directory
-    log_dir = tmp_path / "set"
-    shutil.copytree(done_dir, log_dir / "artifacts" / "sample")
-
-    monkeypatch.setenv("INSPECT_LOG_EXCLUDE_DIRS", "artifacts")
-    success, logs = eval_set(mine, log_dir=str(log_dir), model="mockllm/model")
-    assert success
+    # the task ran: its log is its own, not the completed one in artifacts/
     assert [Path(log.location).parent.name for log in logs] == ["set"]
 
 

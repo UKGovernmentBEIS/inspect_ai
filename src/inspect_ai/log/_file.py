@@ -136,22 +136,33 @@ def without_excluded_dirs(
     The variable holds comma separated directory names. A file listed from
     `log_dir` is dropped when a directory on its path below `log_dir`, at any
     depth, has one of those names.
+
+    Raises:
+        PrerequisiteError: A name in the variable is a path, or a listed file
+            is not below `log_dir`. Neither can be matched, and skipping it
+            would leave the filter silently off.
     """
-    names = os.environ.get("INSPECT_LOG_EXCLUDE_DIRS", "").split(",")
-    excluded = {name.strip() for name in names} - {""}
+    value = os.environ.get("INSPECT_LOG_EXCLUDE_DIRS", "")
+    excluded = {name.strip() for name in value.split(",")} - {""}
     if not excluded:
         return files
-    prefix = fs.dir_as_uri(log_dir).rstrip(fs.sep) + fs.sep
+    if any(fs.sep in name for name in excluded):
+        raise PrerequisiteError(
+            f"INSPECT_LOG_EXCLUDE_DIRS takes directory names, not paths: '{value}'."
+        )
+    root = fs.dir_as_uri(log_dir).rstrip(fs.sep)
+    prefix = root + fs.sep
 
     def kept(name: str) -> bool:
-        # a file that cannot be placed below log_dir must not slip through
+        # log_dir itself: a log file passed as log_dir, or a store's folder marker
+        if name == root:
+            return True
         if not name.startswith(prefix):
             raise PrerequisiteError(
                 f"INSPECT_LOG_EXCLUDE_DIRS cannot be applied to '{log_dir}': "
                 f"'{name}' is not listed below '{prefix}'."
             )
-        dirs = name[len(prefix) :].replace(fs.sep, "/").split("/")[:-1]
-        return excluded.isdisjoint(dirs)
+        return excluded.isdisjoint(name[len(prefix) :].split(fs.sep)[:-1])
 
     return [file for file in files if kept(file.name)]
 
@@ -166,8 +177,9 @@ def list_eval_logs(
 ) -> list[EvalLogInfo]:
     """List all eval logs in a directory.
 
-    Logs below a directory named in the `INSPECT_LOG_EXCLUDE_DIRS` environment
-    variable (comma separated directory names) are not listed.
+    Logs below a subdirectory of `log_dir` named in the
+    `INSPECT_LOG_EXCLUDE_DIRS` environment variable (comma separated directory
+    names) are not listed.
 
     Args:
       log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)

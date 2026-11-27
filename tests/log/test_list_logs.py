@@ -160,6 +160,8 @@ async def test_list_logs_exclude_dirs(
     # only directories below the listed one count
     inside = tmp_path / "artifacts" / "sample" / "project"
     assert subdirs(list_eval_logs(str(inside)), inside) == {""}
+    # a log file passed as log_dir is listed as itself
+    assert len(list_eval_logs(str(tmp_path / filename))) == 1
 
 
 async def test_list_logs_exclude_dirs_s3(
@@ -183,17 +185,19 @@ async def test_list_logs_exclude_dirs_s3(
     assert {log.name for log in logs} == expected
 
 
-def test_exclude_dirs_refuses_a_file_it_cannot_place(
+def test_exclude_dirs_refuses_what_it_cannot_match(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fs = filesystem("memory://logs")
     stray = FileInfo(
         name="memory://elsewhere/artifacts/x.eval", type="file", size=0, mtime=None
     )
-    assert without_excluded_dirs([stray], "memory://logs", fs) == [stray]
     monkeypatch.setenv("INSPECT_LOG_EXCLUDE_DIRS", "artifacts")
-    with pytest.raises(PrerequisiteError, match="cannot be applied"):
+    with pytest.raises(PrerequisiteError, match="is not listed below"):
         without_excluded_dirs([stray], "memory://logs", fs)
+    monkeypatch.setenv("INSPECT_LOG_EXCLUDE_DIRS", "artifacts/")
+    with pytest.raises(PrerequisiteError, match="not paths"):
+        without_excluded_dirs([], "memory://logs", fs)
 
 
 async def test_list_logs_async_missing_dir(tmp_path: Path):
