@@ -122,7 +122,7 @@ async def test_responses_phase_model_arg(monkeypatch: pytest.MonkeyPatch) -> Non
 @skip_if_no_openai
 async def test_openai_responses_compatible() -> None:
     with environ_var("OPENAI_BASE_URL", "https://api.openai.com/v1"):
-        model = get_model("openai-api/openai/gpt-5", responses_api=True)
+        model = get_model("openai-api/openai/gpt-6-luna", responses_api=True)
         message = ChatMessageUser(content="This is a test string. What are you?")
         response = await model.generate(input=[message])
         assert len(response.completion) >= 1

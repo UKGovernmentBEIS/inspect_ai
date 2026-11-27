@@ -259,7 +259,7 @@ async def test_openai_o_series_developer_messages() -> None:
             ]
         )
 
-    await check_developer_messages("openai/o3")
+    await check_developer_messages("openai/gpt-6-luna")
 
 
 @skip_if_no_openai
@@ -273,8 +273,9 @@ async def test_openai_o_series_reasoning_effort() -> None:
         response = await model.generate(input=[message])
         assert len(response.completion) >= 1
 
-    await check_reasoning_effort("openai/o3")
-    await check_reasoning_effort("openai/gpt-5-mini", "minimal")
+    await check_reasoning_effort("openai/gpt-6-luna")
+    # GPT-6 has no "minimal" effort; "none" is its lowest
+    await check_reasoning_effort("openai/gpt-6-luna", "none")
 
 
 @skip_if_no_openai
@@ -288,14 +289,14 @@ async def test_openai_o_series_max_tokens() -> None:
         response = await model.generate(input=[message])
         assert len(response.completion) >= 1
 
-    await check_max_tokens("openai/o3")
+    await check_max_tokens("openai/gpt-6-luna")
 
 
 @skip_if_no_openai
 def test_openai_flex_requests():
     log = eval(
         Task(),
-        model="openai/gpt-5-mini",
+        model="openai/gpt-6-luna",
         model_args=dict(service_tier="flex", client_timeout=1200),
     )[0]
     assert log.status == "success"

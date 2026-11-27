@@ -69,10 +69,11 @@ def test_openai_responses_assistant_messages():
 
 
 @skip_if_no_openai
-def test_openai_responses_o3_pro():
+def test_openai_responses_pro_mode():
     log = eval(
         Task(dataset=[Sample(input="Please tell me your favorite color")]),
-        model="openai/o3-pro",
+        model="openai/gpt-6.1-sol",
+        reasoning_mode="pro",
     )[0]
     assert log.status == "success"
 
@@ -80,7 +81,7 @@ def test_openai_responses_o3_pro():
 @skip_if_no_openai
 def test_openai_responses_no_store():
     log = eval(
-        Task(), model="openai/gpt-5-mini", model_args=dict(responses_store=False)
+        Task(), model="openai/gpt-6-luna", model_args=dict(responses_store=False)
     )[0]
     assert log.status == "success"
 

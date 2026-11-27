@@ -419,7 +419,7 @@ async def _continue_interrupted_history(model: str) -> None:
 
 @skip_if_no_google
 async def test_repaired_history_continues_on_google() -> None:
-    await _continue_interrupted_history("google/gemini-2.5-flash")
+    await _continue_interrupted_history("google/gemini-3.5-flash-lite")
 
 
 @skip_if_no_bedrock

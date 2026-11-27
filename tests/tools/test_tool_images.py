@@ -61,8 +61,8 @@ def test_openai_responses_tool_image_result():
 
 @skip_if_no_openai
 @flaky_retry(max_retries=3)
-def test_openai_gpt_5_mini_tool_image_result():
-    check_tool_image_result(get_model("openai/gpt-5-mini"))
+def test_openai_gpt_6_luna_tool_image_result():
+    check_tool_image_result(get_model("openai/gpt-6-luna"))
 
 
 @skip_if_no_google
@@ -70,7 +70,7 @@ def test_openai_gpt_5_mini_tool_image_result():
     max_retries=3
 )  # We've seen this fail when the model passes extra arguments to the tool
 def test_google_tool_image_result():
-    check_tool_image_result("google/gemini-2.5-pro")
+    check_tool_image_result("google/gemini-3.5-flash-lite")
 
 
 @skip_if_no_anthropic

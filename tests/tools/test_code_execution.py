@@ -104,13 +104,13 @@ def test_google_code_execution() -> None:
 @skip_if_no_docker
 @flaky_retry(max_retries=3)
 def test_google_code_execution_python() -> None:
-    check_python_code_execution("google", "gemini-2.5-flash")
+    check_python_code_execution("google", "gemini-3.5-flash-lite")
 
 
 @skip_if_no_openai
 @flaky_retry(max_retries=3)
 def test_openai_code_execution() -> None:
-    check_code_execution("openai/gpt-5-mini")
+    check_code_execution("openai/gpt-6-luna")
 
 
 @pytest.mark.slow
@@ -118,7 +118,7 @@ def test_openai_code_execution() -> None:
 @skip_if_no_docker
 @flaky_retry(max_retries=3)
 def test_openai_code_execution_python() -> None:
-    check_python_code_execution("openai", "gpt-5-mini")
+    check_python_code_execution("openai", "gpt-6-luna")
 
 
 @skip_if_no_anthropic

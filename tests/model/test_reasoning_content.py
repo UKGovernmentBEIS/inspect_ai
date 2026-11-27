@@ -35,7 +35,7 @@ async def test_reasoning_content_groq():
 
 @skip_if_no_openai
 async def test_reasoning_content_openai():
-    await check_reasoning_content("openai/gpt-5-mini")
+    await check_reasoning_content("openai/gpt-6-luna")
 
 
 @skip_if_no_openai

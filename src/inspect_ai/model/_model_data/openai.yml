@@ -188,6 +188,9 @@ openai:
           snapshot: "2025-03-19"
         latest:
           snapshot: latest
+    # Deprecated: shuts down on the OpenAI API on 2026-12-11. OpenAI recommends
+    # gpt-6.1-sol.
+    # https://developers.openai.com/api/docs/deprecations
     o3:
       display_name: o3
       release_date: 2025-04-16
@@ -215,6 +218,9 @@ openai:
           snapshot: "2025-01-31"
         latest:
           snapshot: latest
+    # Deprecated: shuts down on the OpenAI API on 2026-12-11. OpenAI recommends
+    # gpt-6.1-sol with reasoning mode pro.
+    # https://developers.openai.com/api/docs/deprecations
     o3-pro:
       display_name: o3 Pro
       release_date: 2025-06-10
@@ -242,6 +248,9 @@ openai:
           snapshot: "2025-04-16"
         latest:
           snapshot: latest
+    # Deprecated: shuts down on the OpenAI API on 2026-12-11. OpenAI recommends
+    # gpt-6.1-sol.
+    # https://developers.openai.com/api/docs/deprecations
     gpt-5:
       display_name: GPT-5
       release_date: 2025-08-07
@@ -257,6 +266,9 @@ openai:
           snapshot: "2025-08-07"
         latest:
           snapshot: latest
+    # Deprecated: shuts down on the OpenAI API on 2026-12-11. OpenAI recommends
+    # gpt-6.1-terra.
+    # https://developers.openai.com/api/docs/deprecations
     gpt-5-mini:
       display_name: GPT-5 Mini
       release_date: 2025-08-07
@@ -272,6 +284,9 @@ openai:
           snapshot: "2025-08-07"
         latest:
           snapshot: latest
+    # Deprecated: shuts down on the OpenAI API on 2026-12-11. OpenAI recommends
+    # gpt-6-luna.
+    # https://developers.openai.com/api/docs/deprecations
     gpt-5-nano:
       display_name: GPT-5 Nano
       release_date: 2025-08-07

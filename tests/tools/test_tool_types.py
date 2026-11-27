@@ -286,7 +286,7 @@ def test_anthropoic_tool_types() -> None:
 @skip_if_no_google
 @pytest.mark.flaky
 def test_google_tool_types() -> None:
-    check_tool_types("google/gemini-2.5-pro")
+    check_tool_types("google/gemini-3.5-flash-lite")
 
 
 @skip_if_no_mistral

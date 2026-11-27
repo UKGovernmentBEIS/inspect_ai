@@ -1752,4 +1752,4 @@ def test_live_anthropic_working_time() -> None:
 
 @skip_if_no_google
 def test_live_google_working_time() -> None:
-    _check_live_working_time("google/gemini-2.5-flash")
+    _check_live_working_time("google/gemini-3.5-flash-lite")
