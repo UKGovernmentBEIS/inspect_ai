@@ -27,6 +27,12 @@ from inspect_ai.log._recorders import eval as eval_recorder
 from inspect_ai.log._recorders.eval import EvalRecorder
 from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.recorder import SampleRecordKey
+from inspect_ai.log._sentinel_stats import (
+    SentinelHumanReviewCounts,
+    SentinelRemoteStats,
+    SentinelStats,
+    SentinelStepCounts,
+)
 from inspect_ai.log._util import thin_input, thin_text
 from inspect_ai.model import (
     ChatMessage,
@@ -117,6 +123,27 @@ def test_sample_summary_does_not_mutate_sample_input() -> None:
     assert isinstance(summary.input, list)
     assert isinstance(summary.input[0].content, list)
     assert summary.input[0].content[0] == ContentText(text="(Reasoning)")
+
+
+def test_sample_summary_has_the_samples_sentinel_stats() -> None:
+    stats = SentinelStats(
+        steps={
+            "tool_call": SentinelStepCounts(total=3, judged=2, unjudged={"error": 1})
+        },
+        actions={"proceed": 1, "reject": 1},
+        human_reviews=SentinelHumanReviewCounts(total=1, answered=1),
+        complete=False,
+        incomplete_reason="cancelled before scoring",
+        remote=SentinelRemoteStats(
+            proxy_url="http://proxy.test", version=1, release="whole", model_calls=2
+        ),
+    )
+    sample = EvalSample(id=1, epoch=1, input="x", target="y")
+    assert sample.summary().sentinel_stats is None
+
+    sample.sentinel_stats = {"threshold": stats}
+    summary = EvalSampleSummary.model_validate_json(sample.summary().model_dump_json())
+    assert summary.sentinel_stats == {"threshold": stats}
 
 
 def test_logged_sample_input_preserves_content() -> None:

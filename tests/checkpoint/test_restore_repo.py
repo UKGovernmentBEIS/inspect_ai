@@ -4,13 +4,16 @@ On resume the host repo is copied byte-for-byte from the resume source and
 restored into the new attempt's ``context/`` dir — the repo is untrusted
 input. These tests build actual restic repos (binary via ``resolve_restic``,
 downloaded and cached on first use) and check that ``restore_repo`` lands
-legitimate context files directly in the target and refuses a snapshot
-whose tree would redirect reads or renames at host files.
+legitimate context files directly in the target, refuses a snapshot
+whose tree would redirect reads or renames at host files, and keeps none
+of the snapshot's recorded modes or extended attributes.
 """
 
 from __future__ import annotations
 
 import os
+import stat
+import sys
 from pathlib import Path
 
 import anyio
@@ -27,6 +30,10 @@ from inspect_ai.util._restic import (
 
 pytestmark = pytest.mark.slow
 
+posix_modes = pytest.mark.skipif(
+    sys.platform == "win32", reason="POSIX permission bits"
+)
+
 PASSWORD = "pw"
 MAX_FILES = 64
 MAX_BYTES = 1024**3
@@ -37,6 +44,10 @@ async def _init_repo(tmp_path: Path) -> tuple[Path, str]:
     repo = str(tmp_path / "repo")
     await init_repo(restic, repo, PASSWORD)
     return restic, repo
+
+
+def _mode(path: Path) -> int:
+    return stat.S_IMODE(os.lstat(path).st_mode)
 
 
 def _tree(root: Path) -> dict[str, str | None]:
@@ -199,6 +210,162 @@ async def test_restore_refuses_snapshot_with_symlinks(tmp_path: Path) -> None:
         [*siblings_before, "restored"]
     )
     assert list(target.iterdir()) == []
+
+
+@pytest.mark.parametrize("mode", [0o4755, 0o2755, 0o1644])
+@posix_modes
+async def test_restore_refuses_snapshot_with_special_mode_file(
+    tmp_path: Path, mode: int
+) -> None:
+    """A regular file recorded setuid, setgid or sticky fails before restic writes."""
+    restic, repo = await _init_repo(tmp_path)
+    source = tmp_path / "sample" / "context"
+    source.mkdir(parents=True)
+    (source / "store.json").write_text("{}")
+    (source / "tool").write_text("#!/bin/sh\n")
+    try:
+        (source / "tool").chmod(mode)
+    except OSError as ex:
+        pytest.skip(f"cannot set mode {mode:04o} on a regular file: {ex}")
+    if _mode(source / "tool") != mode:
+        pytest.skip(f"filesystem did not keep mode {mode:04o} on a regular file")
+    await run_backup(restic, repo, PASSWORD, str(source), "ckpt-00001")
+
+    target = tmp_path / "restored"
+    with pytest.raises(RestoredTreeError, match="mode bit.*tool"):
+        await restore_repo(
+            restic,
+            repo,
+            PASSWORD,
+            str(target),
+            max_files=MAX_FILES,
+            max_bytes=MAX_BYTES,
+        )
+
+    assert list(target.iterdir()) == []
+
+
+@posix_modes
+async def test_restore_replaces_recorded_modes(tmp_path: Path) -> None:
+    """Restored files land 0600 and directories 0700, whatever the snapshot recorded.
+
+    The source dir itself is setgid here, as a context dir created under a
+    ``g+s`` log directory is; that must not refuse the restore. The
+    target's own mode is not changed.
+    """
+    restic, repo = await _init_repo(tmp_path)
+    source = tmp_path / "sample" / "context"
+    source.mkdir(parents=True)
+    (source / "store.json").write_text('{"k": 1}')
+    (source / "store.json").chmod(0o666)
+    (source / "events.json").write_text("[]")
+    (source / "events.json").chmod(0o755)
+    shared = source / "shared"
+    shared.mkdir()
+    (shared / "x.json").write_text("{}")
+    (shared / "x.json").chmod(0o664)
+    shared.chmod(0o3777)
+    source.chmod(0o2775)
+    await run_backup(restic, repo, PASSWORD, str(source), "ckpt-00001")
+
+    target = tmp_path / "restored"
+    target.mkdir()
+    target.chmod(0o777)
+    await restore_repo(
+        restic, repo, PASSWORD, str(target), max_files=MAX_FILES, max_bytes=MAX_BYTES
+    )
+
+    assert _tree(target) == {
+        "store.json": '{"k": 1}',
+        "events.json": "[]",
+        "shared": None,
+        "shared/x.json": "{}",
+    }
+    assert _mode(target) == 0o777
+    assert _mode(target / "shared") == 0o700
+    for name in ("store.json", "events.json", "shared/x.json"):
+        assert _mode(target / name) == 0o600, name
+
+
+@posix_modes
+async def test_restic_leaves_scratch_dir_mode_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Restic does not change the mode of the directory it restores into.
+
+    The scratch dir's 0700 is what keeps recorded modes out of reach until
+    they are reset, so a restic that applied the source dir's recorded mode
+    (0777 here) to its target would undo that.
+    """
+    from inspect_ai.util._restic import ops
+
+    restic, repo = await _init_repo(tmp_path)
+    source = tmp_path / "sample" / "context"
+    source.mkdir(parents=True)
+    (source / "store.json").write_text("{}")
+    source.chmod(0o777)
+    await run_backup(restic, repo, PASSWORD, str(source), "ckpt-00001")
+
+    scratch_modes: list[int] = []
+    adopt = ops._adopt_restored_tree
+
+    def record_then_adopt(scratch: Path, target: Path) -> None:
+        scratch_modes.append(_mode(scratch) & 0o777)
+        adopt(scratch, target)
+
+    monkeypatch.setattr(ops, "_adopt_restored_tree", record_then_adopt)
+    target = tmp_path / "restored"
+    await restore_repo(
+        restic, repo, PASSWORD, str(target), max_files=MAX_FILES, max_bytes=MAX_BYTES
+    )
+
+    assert scratch_modes == [0o700]
+    assert _tree(target) == {"store.json": "{}"}
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="os.setxattr is Linux-only")
+async def test_restore_does_not_reapply_extended_attributes(tmp_path: Path) -> None:
+    """An extended attribute the snapshot recorded is not set on the restored file.
+
+    A plain ``restic restore`` of the same snapshot does set it, which shows
+    the snapshot carries the attribute and the exclusion is what drops it.
+    The control restores the source dir alone, so it does not depend on
+    restic being able to reapply the metadata of the dirs above it.
+    """
+    restic, repo = await _init_repo(tmp_path)
+    source = tmp_path / "sample" / "context"
+    source.mkdir(parents=True)
+    (source / "store.json").write_text("{}")
+    try:
+        os.setxattr(source / "store.json", "user.inspect_test", b"1")
+    except OSError as ex:
+        pytest.skip(f"filesystem does not support user extended attributes: {ex}")
+    await run_backup(restic, repo, PASSWORD, str(source), "ckpt-00001")
+
+    plain = tmp_path / "plain"
+    await anyio.run_process(
+        [
+            str(restic),
+            "-r",
+            repo,
+            "restore",
+            "--target",
+            str(plain),
+            "--",
+            f"latest:{source}",
+        ],
+        env=restic_env(PASSWORD),
+        check=True,
+    )
+    assert "user.inspect_test" in os.listxattr(plain / "store.json")
+
+    target = tmp_path / "restored"
+    await restore_repo(
+        restic, repo, PASSWORD, str(target), max_files=MAX_FILES, max_bytes=MAX_BYTES
+    )
+
+    assert (target / "store.json").read_text() == "{}"
+    assert "user.inspect_test" not in os.listxattr(target / "store.json")
 
 
 async def test_restore_empties_target_before_restoring(tmp_path: Path) -> None:

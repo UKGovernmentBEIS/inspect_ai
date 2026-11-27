@@ -52,13 +52,31 @@ class MCPServerConfigHTTP(MCPServerConfig):
 
     @property
     def authorization_token(self) -> str | None:
-        if self.headers and "Authorization" in self.headers:
-            authorization = str(self.headers["Authorization"])
-            authorization = (
-                authorization[7:]
-                if authorization.upper().startswith("BEARER ")
-                else authorization
-            )
-            return authorization
-        else:
+        """Bearer token from the `Authorization` header, without the prefix.
+
+        Header names are case-insensitive. The exact name `Authorization`, which
+        `mcp_server_http(authorization=...)` writes, takes precedence over other
+        casings of it in `headers`.
+        """
+        values = authorization_header_values(self.headers)
+        if not values:
             return None
+        authorization = (self.headers or {}).get("Authorization", values[0])
+        return strip_bearer(authorization)
+
+
+def authorization_header_values(headers: dict[str, str] | None) -> list[str]:
+    """Values of every header named `Authorization`, in any case."""
+    return [
+        str(value)
+        for name, value in (headers or {}).items()
+        if name.lower() == "authorization"
+    ]
+
+
+def strip_bearer(authorization: str) -> str:
+    return (
+        authorization[7:]
+        if authorization.upper().startswith("BEARER ")
+        else authorization
+    )

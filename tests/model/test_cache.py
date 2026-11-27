@@ -1,30 +1,47 @@
+import ast
 import json
+import math
+import multiprocessing
 import pickle
 import sys
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterator, Literal, cast
+from typing import Any, Callable, Iterator, Literal, NamedTuple, cast
 
 import httpx2
 import pytest
-from pydantic import SecretStr
+from click.testing import CliRunner
+from pydantic import BaseModel, SecretStr
+from test_helpers.output_cache import (
+    concurrent_cache_entry,
+    concurrent_cache_output,
+    concurrent_cache_writer,
+)
 from test_helpers.utils import run_example
 
 from inspect_ai import Task, eval, eval_async, eval_retry, task
+from inspect_ai._cli.cache import cache_command
 from inspect_ai._eval.evalset import GENERATE_CONFIG_FIELDS_TO_EXCLUDE
 from inspect_ai._util import appdirs
 from inspect_ai._util import logger as inspect_logger
 from inspect_ai._util.constants import get_deserializing_context
-from inspect_ai._util.content import ContentText
+from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log import EvalSample, read_eval_log
 from inspect_ai.model import (
     CachePolicy,
+    ChatCompletionChoice,
+    ChatMessageAssistant,
     ChatMessageUser,
     GenerateConfig,
+    Logprob,
+    Logprobs,
+    Model,
     ModelOutput,
+    ModelUsage,
     get_model,
 )
 from inspect_ai.model import _cache as cache_module
@@ -39,10 +56,13 @@ from inspect_ai.model._cache import (
     cache_model_args_key,
     cache_path,
     cache_prune,
+    cache_size,
     cache_store,
 )
+from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.scorer import exact
 from inspect_ai.solver import Generate, TaskState, generate, solver
+from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams
 
 
 async def test_cache_separates_model_args(
@@ -579,10 +599,7 @@ def test_cache_skips_content_filter(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 def test_cache_entry_from_before_input_context_tokens(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A cached output pickled before input_context_tokens existed still reads it."""
-    import pickle
-
-    from inspect_ai.model import ModelUsage
+    """A cached output without input_context_tokens reads it as None."""
     from inspect_ai.model._model_output import output_input_context_tokens
 
     monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
@@ -603,18 +620,14 @@ def test_cache_entry_from_before_input_context_tokens(
 
     run_eval()
 
-    # rewrite the stored entry in the pickle state of an older ModelOutput
+    # rewrite the stored entry's output as an older ModelOutput would be
     entries = [p for p in tmp_path.rglob("*") if p.is_file()]
     assert len(entries) == 1
-    expiry, output = pickle.loads(entries[0].read_bytes())
-    output.usage = ModelUsage(input_tokens=5, output_tokens=1, total_tokens=6)
-    del output.__dict__["input_context_tokens"]
-    output.__pydantic_fields_set__.discard("input_context_tokens")
-    entries[0].write_bytes(pickle.dumps((expiry, output)))
-
-    _, legacy = pickle.loads(entries[0].read_bytes())
-    assert legacy.input_context_tokens is None
-    assert output_input_context_tokens(legacy) == 5
+    header, body = entries[0].read_bytes().splitlines()
+    output = json.loads(body)
+    output["usage"] = {"input_tokens": 5, "output_tokens": 1, "total_tokens": 6}
+    del output["input_context_tokens"]
+    entries[0].write_bytes(header + b"\n" + json.dumps(output).encode() + b"\n")
 
     # a cache hit on that entry publishes and logs a usable output
     sample = run_eval()
@@ -659,6 +672,10 @@ def test_cache_trace_omits_key_components(
 # A model name that walks out of the cache directory. With the cache root at
 # <tmp>/a/b/c/generate it points at <tmp>/a/b/x.
 _ESCAPING_MODEL = "openai/../../../x"
+
+# Cache keys for planted entries.
+_KEY = "0123456789abcdef0123456789abcdef"
+_OTHER_KEY = "fedcba9876543210fedcba9876543210"
 
 
 @pytest.fixture
@@ -706,18 +723,44 @@ def _entry(model: str) -> CacheEntry:
     )
 
 
-def _plant(path: Path, content: str, expiry: datetime | None) -> None:
+def _header(expiry: datetime | None, key: str, **fields: Any) -> dict[str, Any]:
+    return {
+        "version": 1,
+        "key": key,
+        "expiry": expiry.isoformat() if expiry else None,
+    } | fields
+
+
+def _plant(
+    path: Path,
+    content: str,
+    expiry: datetime | None,
+    key: str | None = None,
+    body: bytes | None = None,
+) -> None:
+    """Plant a current-format entry, with the key from its file name unless given."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "wb") as f:
-        pickle.dump((expiry, ModelOutput.from_content(model="m", content=content)), f)
+    header = _header(expiry, key or path.name.removesuffix(".jsonl"))
+    if body is None:
+        output = ModelOutput.from_content(model="m", content=content)
+        body = output.model_dump_json().encode() + b"\n"
+    path.write_bytes(json.dumps(header).encode() + b"\n" + body)
+
+
+def _plant_legacy(path: Path, content: str, expiry: datetime | None) -> None:
+    """Plant an entry as earlier versions of Inspect wrote it (a pickle)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    output = ModelOutput.from_content(model="m", content=content)
+    path.write_bytes(pickle.dumps((expiry, output)))
 
 
 _PAST = datetime(2000, 1, 1, tzinfo=timezone.utc)
+_FUTURE = datetime(2999, 1, 1, tzinfo=timezone.utc)
 
 
 def test_cache_store_and_fetch_stay_in_cache_dir(cache_root: Path, tmp_path: Path):
     entry = _entry(_ESCAPING_MODEL)
-    outside = tmp_path / "a" / "b" / "x" / entry.key
+    outside = tmp_path / "a" / "b" / "x" / f"{entry.key}.jsonl"
 
     # store creates nothing outside the cache root
     output = ModelOutput.from_content(model="m", content="Hi")
@@ -771,34 +814,43 @@ def test_cache_refuses_symlinks_out_of_cache_dir(cache_root: Path, tmp_path: Pat
     assert cache_store(entry=entry, output=output) is False
     assert list(outside.iterdir()) == []
 
-    # an entry file that is a symlink out of the cache
+    # entry files that are symlinks out of the cache: an expired current-format
+    # entry and a legacy entry, each linked under its key-derived name
     entry = _entry("openai/gpt-4")
     target = outside / "entry"
-    _plant(target, "planted", expiry=_PAST)
-    link = cache_path("openai/gpt-4") / entry.key
-    link.parent.mkdir(parents=True)
+    _plant(target, "planted", expiry=_PAST, key=entry.key)
+    legacy_target = outside / "legacy"
+    _plant_legacy(legacy_target, "planted", expiry=_PAST)
+    model_dir = cache_path("openai/gpt-4")
+    model_dir.mkdir(parents=True)
+    link = model_dir / f"{entry.key}.jsonl"
     link.symlink_to(target)
+    legacy_link = model_dir / entry.key
+    legacy_link.symlink_to(legacy_target)
     assert cache_fetch(entry) is None
     assert cache_list_expired() == []
-    assert target.exists()
+    cache_prune([link, legacy_link])
+    assert target.exists() and legacy_target.exists()
 
 
 def test_cache_clear_list_and_prune_stay_in_cache_dir(cache_root: Path, tmp_path: Path):
     outside = tmp_path / "a" / "b" / "x"
-    _plant(outside / "expired", "planted", expiry=_PAST)
+    expired = outside / f"{_KEY}.jsonl"
+    legacy = outside / _OTHER_KEY
+    _plant(expired, "planted", expiry=_PAST)
+    _plant_legacy(legacy, "planted", expiry=_PAST)
     before = _files_outside(cache_root, tmp_path)
 
     assert cache_clear(_ESCAPING_MODEL) is False
     assert cache_list_expired([_ESCAPING_MODEL]) == []
-    cache_prune([outside / "expired"])
+    cache_prune([expired, legacy])
     assert _files_outside(cache_root, tmp_path) == before
 
 
 def test_cache_layout_unchanged_for_normal_model_names(cache_root: Path):
-    # entries written before this change (same path, same pickle format) are
-    # still read, so existing caches keep hitting
+    # entries are stored under the model directory as <key>.jsonl
     entry = _entry("openai/gpt-4")
-    _plant(cache_root / "openai" / "gpt-4" / entry.key, "existing", expiry=None)
+    _plant(cache_root / "openai" / "gpt-4" / f"{entry.key}.jsonl", "existing", None)
     fetched = cache_fetch(entry)
     assert fetched is not None and fetched.completion == "existing"
 
@@ -806,24 +858,29 @@ def test_cache_layout_unchanged_for_normal_model_names(cache_root: Path):
     entry = _entry("hf/org/Model-1.5:8b")
     output = ModelOutput.from_content(model="m", content="Hi")
     assert cache_store(entry=entry, output=output) is True
-    assert (cache_root / "hf" / "org" / "Model-1.5:8b" / entry.key).is_file()
+    assert (cache_root / "hf" / "org" / "Model-1.5:8b" / f"{entry.key}.jsonl").is_file()
     fetched = cache_fetch(entry)
     assert fetched is not None and fetched.completion == "Hi"
 
     # clear, list and prune still work by model name
-    _plant(cache_root / "openai" / "gpt-4" / "old", "old", expiry=_PAST)
-    expired = cache_list_expired(["openai/gpt-4"])
-    assert expired == [cache_root / "openai" / "gpt-4" / "old"]
-    cache_prune(expired)
-    assert not expired[0].exists()
+    expired = cache_root / "openai" / "gpt-4" / f"{_KEY}.jsonl"
+    legacy = cache_root / "openai" / "gpt-4" / _OTHER_KEY
+    _plant(expired, "old", expiry=_PAST)
+    _plant_legacy(legacy, "old", expiry=_FUTURE)
+    pruneable = cache_list_expired(["openai/gpt-4"])
+    assert sorted(pruneable) == sorted([expired, legacy])
+    cache_prune(pruneable)
+    assert not expired.exists() and not legacy.exists()
     assert cache_clear("openai/gpt-4") is True
     assert not (cache_root / "openai" / "gpt-4").exists()
     assert inspect_logger._warned == []
 
 
 def test_cache_refusals_create_nothing(absent_cache_root: Path, tmp_path: Path):
-    outside = tmp_path / "outside"
-    _plant(outside, "planted", expiry=_PAST)
+    expired = tmp_path / f"{_KEY}.jsonl"
+    legacy = tmp_path / _OTHER_KEY
+    _plant(expired, "planted", expiry=_PAST)
+    _plant_legacy(legacy, "planted", expiry=_PAST)
 
     entry = _entry(_ESCAPING_MODEL)
     output = ModelOutput.from_content(model="m", content="Hi")
@@ -833,8 +890,8 @@ def test_cache_refusals_create_nothing(absent_cache_root: Path, tmp_path: Path):
     assert cache_fetch(entry) is None
     assert cache_clear(_ESCAPING_MODEL) is False
     assert cache_list_expired([_ESCAPING_MODEL]) == []
-    cache_prune([outside])
-    assert list(tmp_path.iterdir()) == [outside]
+    cache_prune([expired, legacy])
+    assert sorted(tmp_path.iterdir()) == sorted([expired, legacy])
 
     # the fixture does point the cache here: an accepted lookup creates it
     assert cache_path() == absent_cache_root
@@ -842,7 +899,483 @@ def test_cache_refusals_create_nothing(absent_cache_root: Path, tmp_path: Path):
 
 
 def test_cache_prune_skips_unresolvable_paths(cache_root: Path):
-    expired = cache_root / "openai" / "gpt-4" / "old"
+    expired = cache_root / "openai" / "gpt-4" / f"{_KEY}.jsonl"
     _plant(expired, "old", expiry=_PAST)
     cache_prune([Path("invalid\0path"), expired])
     assert not expired.exists()
+
+
+class _CountingModel(NamedTuple):
+    model: Model
+    calls: list[ModelOutput]
+
+
+def _counting_model(
+    monkeypatch: pytest.MonkeyPatch, output: Callable[[], ModelOutput]
+) -> _CountingModel:
+    """A mockllm model whose provider returns `output()` and records each call."""
+    model = get_model("mockllm/model", memoize=False)
+    calls: list[ModelOutput] = []
+
+    async def provider_generate(*args: Any, **kwargs: Any) -> ModelOutput:
+        calls.append(output())
+        return calls[-1]
+
+    monkeypatch.setattr(model.api, "generate", provider_generate)
+    return _CountingModel(model, calls)
+
+
+def _entries(root: Path) -> list[Path]:
+    return sorted(root.rglob("*.jsonl"))
+
+
+def _not_cached_warnings() -> list[str]:
+    return [m for m in inspect_logger._warned if "are not cached" in m]
+
+
+class _PickleSideEffect:
+    """Unpickling this creates `marker`."""
+
+    def __init__(self, marker: Path) -> None:
+        self.marker = marker
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        return (open, (str(self.marker), "w"))
+
+
+async def test_cache_never_deserializes_pickle(
+    cache_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    marker = tmp_path / "marker"
+    payload = pickle.dumps((None, _PickleSideEffect(marker)))
+
+    def no_unpickling(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("the cache must not unpickle")
+
+    counting = _counting_model(
+        monkeypatch, lambda: ModelOutput.from_content(model="m", content="Hi")
+    )
+    await counting.model.generate("Hello", cache=True)
+    [entry_path] = _entries(cache_root)
+    key = entry_path.name.removesuffix(".jsonl")
+    planted = [
+        entry_path.parent / key,
+        entry_path,
+        entry_path.parent / "unrelated",
+    ]
+
+    monkeypatch.setattr(pickle, "load", no_unpickling)
+    monkeypatch.setattr(pickle, "loads", no_unpickling)
+    monkeypatch.setattr(pickle, "Unpickler", no_unpickling)
+
+    def plant() -> None:
+        for path in planted:
+            path.write_bytes(payload)
+
+    plant()
+    await counting.model.generate("Hello", cache=True)
+    assert len(counting.calls) == 2
+    plant()
+    assert cache_list_expired() == [planted[0]]
+    cache_prune()
+    assert not planted[0].exists()
+
+    plant()
+    runner = CliRunner()
+    result = runner.invoke(cache_command, ["list", "--pruneable"])
+    assert result.exit_code == 0, result.output
+    result = runner.invoke(cache_command, ["prune"])
+    assert result.exit_code == 0, result.output
+    assert not planted[0].exists()
+    assert planted[1].read_bytes() == payload
+    assert planted[2].read_bytes() == payload
+
+    assert not marker.exists()
+
+
+def test_cache_module_does_not_import_pickle():
+    """Tripwire: the cache module must never deserialize with pickle."""
+    source = Path(cache_module.__file__).read_text(encoding="utf-8")
+    imported = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module)
+    assert not {"pickle", "_pickle", "cloudpickle", "dill"} & imported
+
+
+def _cache_entry_for(content: str) -> CacheEntry:
+    return CacheEntry(
+        base_url=None,
+        config=GenerateConfig(),
+        input=[ChatMessageUser(content=content)],
+        model="mockllm/model",
+        policy=CachePolicy(),
+        tool_choice=None,
+        tools=[],
+    )
+
+
+def test_cache_round_trip(cache_root: Path):
+    output = ModelOutput(
+        model="m",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    id="message-id",
+                    content=[
+                        ContentReasoning(reasoning="thinking", signature="sig"),
+                        ContentText(text="Hi"),
+                    ],
+                    tool_calls=[
+                        ToolCall(
+                            id="call-1",
+                            function="f",
+                            arguments={"s": "x", "n": None, "l": [1, 2.5, True]},
+                        ),
+                        ToolCall(
+                            id="call-2",
+                            function="g",
+                            arguments={"a": math.inf, "b": {"c": -math.inf}},
+                        ),
+                    ],
+                ),
+                stop_reason="tool_calls",
+                logprobs=Logprobs(content=[Logprob(token="Hi", logprob=-math.inf)]),
+            )
+        ],
+        usage=ModelUsage(input_tokens=1, output_tokens=2, total_cost=math.inf),
+        time=1.5,
+    )
+    entry = _cache_entry_for("round trip")
+    assert cache_store(entry=entry, output=output) is True
+    assert cache_fetch(entry) == output
+    assert _not_cached_warnings() == []
+
+
+def test_cache_round_trip_non_ascii(cache_root: Path):
+    text = "Grüße, 你好, привет 🎉"
+    output = ModelOutput.from_message(
+        ChatMessageAssistant(
+            content=text,
+            tool_calls=[ToolCall(id="call", function="f", arguments={text: text})],
+        )
+    )
+    entry = _cache_entry_for("non-ascii")
+    assert cache_store(entry=entry, output=output) is True
+    assert cache_fetch(entry) == output
+    [path] = _entries(cache_root)
+    body = path.read_bytes().splitlines()[1]
+    assert text.encode("utf-8") in body
+
+
+def _future_header() -> bytes:
+    return json.dumps(_header(_FUTURE, "{key}")).encode()
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        pytest.param(b"\x00\xff\x13 not json\n{}\n", id="random-bytes"),
+        pytest.param(
+            json.dumps(_header(_PAST, "{key}")).encode(), id="header-without-newline"
+        ),
+        pytest.param(
+            json.dumps(_header(_PAST, "{key}", pad="x" * 5000)).encode() + b"\n",
+            id="header-over-4k",
+        ),
+        pytest.param(
+            json.dumps(_header(_PAST, "{key}", version=2)).encode() + b"\n",
+            id="version-2",
+        ),
+        pytest.param(
+            json.dumps(_header(_PAST, _OTHER_KEY)).encode() + b"\n", id="other-key"
+        ),
+        pytest.param(
+            json.dumps(
+                {"version": 1, "key": "{key}", "expiry": "2000-01-01T00:00:00"}
+            ).encode()
+            + b"\n",
+            id="expiry-without-offset",
+        ),
+    ],
+)
+async def test_cache_invalid_headers(
+    cache_root: Path, monkeypatch: pytest.MonkeyPatch, content: bytes
+):
+    counting = _counting_model(
+        monkeypatch, lambda: ModelOutput.from_content(model="m", content="Hi")
+    )
+    await counting.model.generate("Hello", cache=True)
+    [path] = _entries(cache_root)
+    key = path.name.removesuffix(".jsonl")
+    body = path.read_bytes().splitlines(keepends=True)[1]
+    content = content.replace(b"{key}", key.encode())
+    if content.endswith(b"\n"):
+        content += body
+    path.write_bytes(content)
+
+    assert cache_list_expired() == []
+    cache_prune()
+    cache_prune([path])
+    assert path.read_bytes() == content
+
+    await counting.model.generate("Hello", cache=True)
+    assert len(counting.calls) == 2
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param(b"", id="missing"),
+        pytest.param(b'{"model": "m", "choi', id="truncated"),
+        pytest.param(b'{"choices": "not a list"}\n', id="invalid"),
+    ],
+)
+@pytest.mark.parametrize("expired", [False, True])
+async def test_cache_invalid_bodies_are_judged_by_header(
+    cache_root: Path, monkeypatch: pytest.MonkeyPatch, body: bytes, expired: bool
+):
+    counting = _counting_model(
+        monkeypatch, lambda: ModelOutput.from_content(model="m", content="Hi")
+    )
+    await counting.model.generate("Hello", cache=True)
+    [path] = _entries(cache_root)
+    _plant(path, "", expiry=_PAST if expired else _FUTURE, body=body)
+
+    if expired:
+        assert cache_list_expired() == [path]
+        cache_prune()
+        assert not path.exists()
+    else:
+        assert cache_list_expired() == []
+        cache_prune([path])
+        assert path.exists()
+        await counting.model.generate("Hello", cache=True)
+        assert len(counting.calls) == 2
+
+
+def test_cache_expiry(cache_root: Path):
+    entry = _entry("openai/gpt-4")
+    path = cache_root / "openai" / "gpt-4" / f"{entry.key}.jsonl"
+
+    # expired: listed, pruned, and a miss that deletes it on lookup
+    _plant(path, "expired", expiry=_PAST)
+    assert cache_list_expired() == [path]
+    cache_prune()
+    assert not path.exists()
+    _plant(path, "expired", expiry=_PAST)
+    assert cache_fetch(entry) is None
+    assert not path.exists()
+
+    # unexpired, or never expiring: a hit, neither listed nor pruned
+    for expiry in [_FUTURE, None]:
+        _plant(path, "fresh", expiry=expiry)
+        assert cache_list_expired() == []
+        cache_prune([path])
+        fetched = cache_fetch(entry)
+        assert fetched is not None and fetched.completion == "fresh"
+
+
+def test_cache_legacy_entries(cache_root: Path):
+    entry = _entry("openai/gpt-4")
+    legacy = cache_root / "openai" / "gpt-4" / entry.key
+    _plant_legacy(legacy, "legacy", expiry=_FUTURE)
+
+    # never used, whatever its expiry; listed and pruned, by model too
+    assert cache_fetch(entry) is None
+    assert cache_list_expired() == [legacy]
+    assert cache_list_expired(["openai/gpt-4"]) == [legacy]
+    assert cache_list_expired(["openai/gpt-5"]) == []
+    cache_prune([legacy])
+    assert not legacy.exists()
+
+    # a key-named file without a pickle header is left alone
+    legacy.write_bytes(b"not a pickle")
+    assert cache_list_expired() == []
+    cache_prune([legacy])
+    assert legacy.exists()
+
+
+@dataclass
+class _Point:
+    x: int
+
+
+class _PointModel(BaseModel):
+    x: int
+
+
+_DATE_TOOL = ToolInfo(
+    name="f",
+    description="A tool with one parameter.",
+    parameters=ToolParams(properties={"x": ToolParam(type="string")}),
+)
+
+
+def _output_with_call(call: ToolCall) -> ModelOutput:
+    return ModelOutput.from_message(ChatMessageAssistant(content="", tool_calls=[call]))
+
+
+def _output_with_args(arguments: dict[str, Any]) -> ModelOutput:
+    return _output_with_call(ToolCall(id="call", function="f", arguments=arguments))
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        pytest.param(lambda: _output_with_args({"\ud800": 1}), id="surrogate-key"),
+        pytest.param(
+            lambda: _output_with_call(
+                parse_tool_call("call", "f", "2026-01-01", [_DATE_TOOL])
+            ),
+            id="yaml-date",
+        ),
+        pytest.param(
+            lambda: _output_with_call(
+                parse_tool_call("call", "f", '1: first\n"1": second', [_DATE_TOOL])
+            ),
+            id="yaml-colliding-keys",
+        ),
+        pytest.param(lambda: _output_with_args({"x": _Point(1)}), id="dataclass"),
+        pytest.param(
+            lambda: _output_with_args({"x": _PointModel(x=1)}), id="pydantic-model"
+        ),
+        pytest.param(
+            lambda: ModelOutput.from_content(model="m", content="Hi").model_copy(
+                update={"metadata": {"x": object()}}
+            ),
+            id="metadata-object",
+        ),
+    ],
+)
+async def test_cache_lossy_outputs_are_not_cached(
+    cache_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    output: Callable[[], ModelOutput],
+):
+    counting = _counting_model(monkeypatch, output)
+    first = await counting.model.generate("Hello", cache=True)
+    assert first is counting.calls[0]
+    assert _entries(cache_root) == []
+    await counting.model.generate("Hello", cache=True)
+    assert len(counting.calls) == 2
+    assert len(_not_cached_warnings()) == 1
+
+
+def test_cache_nan_output_is_not_stored(cache_root: Path):
+    output = ModelOutput.from_content(model="m", content="Hi")
+    output.time = math.nan
+    assert cache_store(entry=_cache_entry_for("nan"), output=output) is False
+    assert _entries(cache_root) == []
+    assert len(_not_cached_warnings()) == 1
+
+
+def _output_with_empty_completion() -> ModelOutput:
+    output = ModelOutput.from_content(model="m", content="merged text")
+    output.completion = ""
+    return output
+
+
+@pytest.mark.parametrize(
+    "output,check",
+    [
+        pytest.param(
+            lambda: ModelOutput.from_content(model="m", content="Hi").model_copy(
+                update={"metadata": {"at": datetime(2026, 1, 1, tzinfo=timezone.utc)}}
+            ),
+            lambda hit: hit.metadata == {"at": "2026-01-01T00:00:00Z"},
+            id="datetime-metadata",
+        ),
+        pytest.param(
+            _output_with_empty_completion,
+            lambda hit: hit.completion == "merged text",
+            id="empty-completion",
+        ),
+    ],
+)
+async def test_cache_normalized_outputs_are_cached(
+    cache_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    output: Callable[[], ModelOutput],
+    check: Callable[[ModelOutput], bool],
+):
+    counting = _counting_model(monkeypatch, output)
+    await counting.model.generate("Hello", cache=True)
+    hit = await counting.model.generate("Hello", cache=True)
+    assert len(counting.calls) == 1
+    assert check(hit)
+    assert _not_cached_warnings() == []
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Windows refuses the rename while a reader holds the entry open",
+)
+def test_cache_concurrent_writers_and_reader(cache_root: Path):
+    # writers and reader share the cache directory through INSPECT_CACHE_DIR
+    context = multiprocessing.get_context("spawn")
+    writers = [
+        context.Process(target=concurrent_cache_writer, args=(letter, 15))
+        for letter in ["a", "b"]
+    ]
+    expected = [concurrent_cache_output(letter) for letter in ["a", "b"]]
+    entry = concurrent_cache_entry()
+    for writer in writers:
+        writer.start()
+    try:
+        fetches = 0
+        while any(writer.is_alive() for writer in writers):
+            fetched = cache_fetch(entry)
+            if fetched is None and fetches == 0:
+                continue  # the first store has not completed yet
+            assert fetched in expected
+            fetches += 1
+    finally:
+        for writer in writers:
+            writer.join()
+    assert [writer.exitcode for writer in writers] == [0, 0]
+    assert fetches > 0
+    assert cache_fetch(entry) in expected
+    assert list(cache_root.rglob(".inspect_tmp_*")) == []
+
+
+async def test_cache_failed_write_is_skipped(
+    cache_root: Path, monkeypatch: pytest.MonkeyPatch
+):
+    def failing_write(*args: Any, **kwargs: Any) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(cache_module, "atomic_write_bytes", failing_write)
+    counting = _counting_model(
+        monkeypatch, lambda: ModelOutput.from_content(model="m", content="Hi")
+    )
+    output = await counting.model.generate("Hello", cache=True)
+    assert output.completion == "Hi"
+    assert _entries(cache_root) == []
+
+
+def test_cache_temporary_files_are_not_entries(cache_root: Path):
+    temporary = cache_root / "openai" / "gpt-4" / ".inspect_tmp_abc.writing"
+    _plant(temporary, "in progress", expiry=_PAST, key=_KEY)
+    assert cache_list_expired() == []
+    cache_prune([temporary])
+    assert temporary.exists()
+    assert cache_size() == [("openai/gpt-4", temporary.stat().st_size)]
+    assert cache_clear() is True
+    assert not temporary.exists()
+
+
+async def test_cache_path_setup_failures_are_misses(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    (tmp_path / "generate").write_text("not a directory")
+    counting = _counting_model(
+        monkeypatch, lambda: ModelOutput.from_content(model="m", content="Hi")
+    )
+    for _ in range(2):
+        output = await counting.model.generate("Hello", cache=True)
+        assert output.completion == "Hi"
+    assert len(counting.calls) == 2

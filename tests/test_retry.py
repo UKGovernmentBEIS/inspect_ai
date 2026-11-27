@@ -2,7 +2,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Generator, Literal
+from typing import Any, Generator, Literal, cast
 
 import pytest
 from test_helpers.utils import (
@@ -11,7 +11,15 @@ from test_helpers.utils import (
     skip_if_no_docker,
 )
 
-from inspect_ai import Task, eval, eval_retry, task, task_with
+from inspect_ai import (
+    Task,
+    enqueue_task,
+    eval,
+    eval_retry,
+    samples_from_handle,
+    task,
+    task_with,
+)
 from inspect_ai.dataset import Sample
 from inspect_ai.log import (
     ProvenanceData,
@@ -26,8 +34,15 @@ from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._model_info import clear_model_info_cache
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import exact
-from inspect_ai.solver import TaskState, generate, solver
-from inspect_ai.util import SandboxEnvironmentSpec
+from inspect_ai.solver import Generate, TaskState, generate, solver
+from inspect_ai.util import (
+    ExecResult,
+    SandboxEnvironment,
+    SandboxEnvironmentConfigType,
+    SandboxEnvironmentSpec,
+    sandboxenv,
+)
+from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 from inspect_ai.viewer import TaskSamplesView, ViewerConfig
 
 
@@ -61,6 +76,53 @@ def test_eval_retryable():
             assert retryable[0].task_id == task_id
             eval_retry(retryable, log_dir=log_dir)
             retryable = retryable_eval_logs(list_eval_logs(log_dir))
+
+
+@solver
+def _raise_solver():
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        raise ValueError("failed")
+
+    return solve
+
+
+@solver
+def _feeding_solver():
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        [handle] = enqueue_task(
+            Task(
+                dataset=samples_from_handle(),
+                solver=_raise_solver(),
+                fail_on_error=True,
+                name="fed",
+            )
+        )
+        await handle.enqueue_sample(Sample(input="x"))
+        await handle.result()
+        raise ValueError("creator failed")
+
+    return solve
+
+
+@task
+def creator() -> Task:
+    return Task(dataset=[Sample(input="x")], solver=_feeding_solver())
+
+
+def test_eval_retryable_leaves_out_fed_task_logs(tmp_path: Path) -> None:
+    log_dir = str(tmp_path)
+    logs = eval(creator(), model="mockllm/model", log_dir=log_dir)
+    assert sorted((log.eval.task, log.status) for log in logs) == [
+        ("creator", "error"),
+        ("fed", "error"),
+    ]
+
+    retryable = retryable_eval_logs(list_eval_logs(log_dir))
+    assert [read_eval_log(log, header_only=True).eval.task for log in retryable] == [
+        "creator"
+    ]
+    retried = eval_retry(retryable, log_dir=log_dir)
+    assert "creator" in [log.eval.task for log in retried]
 
 
 @task
@@ -257,6 +319,98 @@ def my_task():
 
         finally:
             os.chdir(eval_wd)
+
+
+@sandboxenv(name="retry_probe")
+class RetryProbeSandbox(SandboxEnvironment):
+    """Records the config each task_init receives."""
+
+    task_init_configs: list[SandboxEnvironmentConfigType | None] = []
+
+    @classmethod
+    async def task_init(
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None
+    ) -> None:
+        cls.task_init_configs.append(config)
+
+    @classmethod
+    async def sample_init(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
+    ) -> dict[str, SandboxEnvironment]:
+        return {"default": cls()}
+
+    @classmethod
+    async def sample_cleanup(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        environments: dict[str, SandboxEnvironment],
+        interrupted: bool,
+    ) -> None:
+        pass
+
+    async def exec(self, *args: Any, **kwargs: Any) -> ExecResult[str]:
+        raise NotImplementedError
+
+    async def write_file(self, *args: Any, **kwargs: Any) -> None:
+        raise NotImplementedError
+
+    async def read_file(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
+
+
+@pytest.mark.parametrize("config", ['{"image": "python:3.12"}', "probe.json"])
+def test_eval_retry_sandbox_config_from_another_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, config: str
+) -> None:
+    """A retry from a log gives task_init the config the first run gave it.
+
+    The task file is in its own directory, and the first run and the retry
+    each run from a different working directory. An inline-JSON config
+    reaches both task_init calls unchanged; a relative config file beside the
+    task file reaches both as that file's absolute path.
+    """
+    task_dir = (tmp_path / "task").resolve()
+    task_dir.mkdir()
+    (task_dir / "probe.json").write_text("{}")
+    task_file = task_dir / "probe_task.py"
+    task_file.write_text(
+        f"""from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+
+
+@task
+def probe_task():
+    return Task(dataset=[Sample(input="x")], sandbox=("retry_probe", {config!r}))
+"""
+    )
+    first_wd = tmp_path / "first"
+    retry_wd = tmp_path / "retry"
+    first_wd.mkdir()
+    retry_wd.mkdir()
+    # the provider registered under the name: loading this module again from a
+    # task file (as other tests here do) registers another copy of the class
+    probe = cast(type[RetryProbeSandbox], registry_find_sandboxenv("retry_probe"))
+    probe.task_init_configs = []
+
+    monkeypatch.chdir(first_wd)
+    log = eval(
+        f"{task_file.as_posix()}@probe_task",
+        solver=failing_solver(),
+        model="mockllm/model",
+        log_dir=(tmp_path / "logs").as_posix(),
+    )[0]
+    assert log.status == "error"
+
+    monkeypatch.chdir(retry_wd)
+    retried = eval_retry(log, log_dir=(tmp_path / "logs").as_posix())[0]
+    assert retried.status == "error"
+
+    expected = config if config.startswith("{") else (task_dir / config).as_posix()
+    assert probe.task_init_configs == [expected, expected]
 
 
 def test_invalidation(tmp_path: Path):
@@ -614,13 +768,14 @@ def retry_incomplete_task():
     )
 
 
-def _setup_crashed_retry_log(log_dir: str):
+def _setup_crashed_retry_log(log_dir: str, flushed_sample_1: bool = False):
     """Create a crashed 'started' log artifact for `retry_incomplete_task`.
 
     Rewrites a real eval log as a hard-crash artifact (start journal only, no
     header), with a buffer DB holding sample 1 completed (unflushed) and
-    sample 2 in progress at crash. Returns (started_log, buffer); the caller
-    owns buffer cleanup.
+    sample 2 in progress at crash. With `flushed_sample_1`, sample 1 is in the
+    log (uuid "flushed-1") instead of the buffer. Returns (started_log,
+    buffer); the caller owns buffer cleanup.
     """
     import zipfile
     from datetime import datetime, timezone
@@ -630,7 +785,7 @@ def _setup_crashed_retry_log(log_dir: str):
     from inspect_ai._util.file import local_path
     from inspect_ai._util.json import to_json_str_safe
     from inspect_ai.event import SampleInitEvent
-    from inspect_ai.log import EvalSampleSummary
+    from inspect_ai.log import EvalSample, EvalSampleSummary
     from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
     from inspect_ai.log._recorders.eval import LogStart
     from inspect_ai.log._recorders.types import SampleEvent
@@ -654,24 +809,42 @@ def _setup_crashed_retry_log(log_dir: str):
                 )
             ),
         )
+        if flushed_sample_1:
+            flushed = EvalSample(
+                id=1,
+                epoch=1,
+                uuid="flushed-1",
+                input="Say hello",
+                target="hello",
+                scores={"accuracy": Score(value="C", answer="hello")},
+            )
+            zf.writestr("samples/1_epoch_1.json", to_json_str_safe(flushed))
+            zf.writestr(
+                "_journal/summaries/1.json", to_json_str_safe([flushed.summary()])
+            )
 
     buffer = SampleBufferDatabase(started_log.location)
     now = datetime.now(timezone.utc).isoformat()
-    # sample 1: completed (scored) but unflushed at crash
-    completed = EvalSampleSummary(
-        id=1,
-        epoch=1,
-        input="Say hello",
-        target="hello",
-        scores={"accuracy": Score(value="C", answer="hello")},
-        started_at=now,
-        completed_at=now,
-    )
-    buffer.start_sample(completed)
-    buffer.log_events(
-        [SampleEvent(id=1, epoch=1, event=SampleInitEvent(sample=samples[0], state={}))]
-    )
-    buffer.complete_sample(completed, sample_metadata=None)
+    if not flushed_sample_1:
+        # sample 1: completed (scored) but unflushed at crash
+        completed = EvalSampleSummary(
+            id=1,
+            epoch=1,
+            input="Say hello",
+            target="hello",
+            scores={"accuracy": Score(value="C", answer="hello")},
+            started_at=now,
+            completed_at=now,
+        )
+        buffer.start_sample(completed)
+        buffer.log_events(
+            [
+                SampleEvent(
+                    id=1, epoch=1, event=SampleInitEvent(sample=samples[0], state={})
+                )
+            ]
+        )
+        buffer.complete_sample(completed, sample_metadata=None)
 
     # sample 2: in progress at crash
     in_progress = EvalSampleSummary(
@@ -715,6 +888,41 @@ def test_eval_retry_incomplete_action_error_finalizes():
             assert "terminated by operator during recovery" in resolved.error.message
             # the recovered file is the final log, so the buffer is swept
             assert not buffer.db_path.exists()
+        finally:
+            buffer.cleanup()
+
+
+def test_eval_retry_reruns_invalidated_sample_of_finalized_recovery() -> None:
+    """A recovery finalized as "success" is still retried when a sample is invalidated.
+
+    The crashed log's flushed sample was invalidated and the log written again
+    (a "started" header). Recovery with incomplete_action='error' covers the
+    whole dataset and finalizes it, but the invalidated sample has to re-run.
+    """
+    with tempfile.TemporaryDirectory() as log_dir:
+        started_log, buffer = _setup_crashed_retry_log(log_dir, flushed_sample_1=True)
+        try:
+            crashed = invalidate_samples(
+                read_eval_log(started_log.location),
+                sample_uuids=["flushed-1"],
+                provenance=ProvenanceData(author="test_person", reason="test_reason"),
+            )
+            write_eval_log(crashed, location=started_log.location)
+
+            (final,) = eval_retry(
+                started_log.location, log_dir=log_dir, incomplete_action="error"
+            )
+
+            assert final.status == "success"
+            assert not final.invalidated
+            # a retry ran: the result is a fresh log, not the recovered file
+            assert final.location is not None
+            assert "-recovered" not in final.location
+            retried = read_eval_log(final.location)
+            assert retried.samples is not None
+            rerun = next(s for s in retried.samples if s.id == 1)
+            assert rerun.uuid != "flushed-1"
+            assert rerun.invalidation is None
         finally:
             buffer.cleanup()
 

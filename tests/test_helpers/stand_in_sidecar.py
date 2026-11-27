@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+import anyio
 import httpx2
 
 ENDPOINT = "/sentinel/v1"
@@ -55,6 +56,15 @@ class Turn:
     stop_reason: str | None = None
     """An Anthropic stop reason in place of the one the turn's content gives, such as `pause_turn`."""
 
+    judging: dict[str, Any] | None = None
+    """What the sidecar's judging of the call took, such as `judging_time` and `judging_usage`, added to the answer `request_result` gives with `judgment`."""
+
+    delay: float = 0.0
+    """How long the call is held before it is answered, in seconds, as a proxy holds it while its sidecar judges."""
+
+    then: Callable[[], None] | None = None
+    """Run as the turn answers its call, for what happens at the sidecar before the client's next request."""
+
 
 @dataclass
 class StandInSidecar:
@@ -86,6 +96,12 @@ class StandInSidecar:
     tokens: dict[str, str] = field(default_factory=dict)
     """The token kept for each eval, by its id, from its first registration. Clearing it is a restart that lost them."""
 
+    answer_after: anyio.Event | None = None
+    """Set by a method as it answers, to hold that answer until the event is set: the stand-in has taken the call, and its answer is slow to arrive."""
+
+    answer_lost: bool = False
+    """Set with `answer_after`, to lose the held answer with its connection once the event is set: the stand-in has taken the call, and its answer never arrives."""
+
     now: float | None = None
     """The stand-in's clock, in seconds since the epoch, or None to read the real one."""
 
@@ -96,6 +112,9 @@ class StandInSidecar:
 
     judgments: dict[str, dict[str, Any]] = field(default_factory=dict)
     """What was decided of each model call whose turn says, by its `x-irid`: the latest attempt's."""
+
+    judging: dict[str, dict[str, Any]] = field(default_factory=dict)
+    """What judging each of those calls took, by its `x-irid`."""
 
     @property
     def probes(self) -> list[httpx2.Request]:
@@ -109,8 +128,25 @@ class StandInSidecar:
     def model_calls(self) -> list[httpx2.Request]:
         return [r for r in self.requests if r.url.path in _MODEL_ROUTES]
 
+    _holds: dict[int, float] = field(default_factory=dict)
+    """How long to hold each model call before answering it, by the request's `id()`."""
+
     def http_client(self) -> httpx2.AsyncClient:
-        return httpx2.AsyncClient(transport=httpx2.MockTransport(self._handle))
+        return httpx2.AsyncClient(transport=httpx2.MockTransport(self._handle_async))
+
+    async def _handle_async(self, request: httpx2.Request) -> httpx2.Response:
+        response = self._handle(request)
+        after, self.answer_after = self.answer_after, None
+        lost, self.answer_lost = self.answer_lost, False
+        if after is not None:
+            await after.wait()
+            if lost:
+                raise httpx2.ReadError("The connection was lost.", request=request)
+        # held as a proxy holds a call while its sidecar judges
+        hold = self._holds.pop(id(request), 0.0)
+        if hold:
+            await anyio.sleep(hold)
+        return response
 
     def _handle(self, request: httpx2.Request) -> httpx2.Response:
         self.requests.append(request)
@@ -163,9 +199,13 @@ class StandInSidecar:
                         400, json={"error": {"type": "error", "message": unread}}
                     )
             turn = self.turns.pop(0) if self.turns else Turn()
+            if turn.then is not None:
+                turn.then()
             irid = request.headers.get("x-irid")
             if irid is not None and turn.judgment is not None:
                 self.judgments[irid] = turn.judgment
+                self.judging[irid] = turn.judging or {}
+            self._holds[id(request)] = turn.delay
             answered = _MODEL_ROUTES[path](turn, bool(asked.get("stream")), asked)
             if turn.later:
                 assert self.now is not None, "a turn's `later` needs `now` set"
@@ -274,6 +314,7 @@ class StandInSidecar:
                     "records": "held",
                     "state": "decided",
                     "judgment": self.judgments[params["id"]],
+                    **self.judging[params["id"]],
                 }
                 if params["id"] in self.judgments
                 else {}

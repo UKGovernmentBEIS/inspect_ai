@@ -23,11 +23,10 @@ from inspect_ai._util.file import (
     local_path,
     url_protocol,
 )
-from inspect_ai._util.log_layout import log_basename
+from inspect_ai._util.log_layout import merged_log_name
 
 from ._errors import ShardSetError
 from ._owned import OwnedReads, run_owned
-from ._walk import _name
 
 _LOCK_SUFFIX = ".merge.lock"
 
@@ -94,7 +93,7 @@ def is_local(location: str) -> bool:
 def merge_lock_path(merged: str) -> str:
     """``<dir>/<name>.merge.lock`` for the merged log ``<dir>/<name>.eval``."""
     path = local_path(merged)
-    return os.path.join(os.path.dirname(path), f"{log_basename(path)}{_LOCK_SUFFIX}")
+    return os.path.join(os.path.dirname(path), f"{merged_log_name(path)}{_LOCK_SUFFIX}")
 
 
 @contextmanager
@@ -122,26 +121,6 @@ def merge_guard(merged: str) -> Iterator[None]:
     info = {"pid": os.getpid(), "host": socket.gethostname(), "started": iso_now()}
     with acquire_exclusive_lock(merge_lock_path(merged), info):
         yield
-
-
-async def merged_log_copy(
-    fs: AsyncFilesystem, merged: str, etag: str | None, temp_dir: str
-) -> str:
-    """A local path holding the merged log as the merge read it.
-
-    A local log is read in place (the merge lock keeps other merges out). An
-    S3 log is downloaded in ranges pinned to `etag`, so every byte comes from
-    the version whose header the merge read.
-
-    Raises:
-        WriteConflictError: The S3 object changed since it was read.
-    """
-    if is_local(merged):
-        return local_path(merged)
-    assert is_s3_filename(merged) and etag is not None, "S3 reads report an ETag"
-    copy = os.path.join(temp_dir, _name(merged))
-    await fs.get_file_if_match(merged, copy, etag)
-    return copy
 
 
 async def publish(

@@ -27,9 +27,11 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
+    ModelOutput,
     get_model,
 )
-from inspect_ai.model._providers.anthropic import AnthropicAPI
+from inspect_ai.model._internal import content_internal_tag
+from inspect_ai.model._providers.anthropic import AnthropicAPI, _content_list
 from inspect_ai.tool import ToolCall, ToolFunction, ToolInfo
 
 
@@ -989,6 +991,297 @@ async def test_anthropic_count_tokens_strips_thinking_from_payload(
                 b.get("type") not in ("thinking", "redacted_thinking") for b in content
             )
     assert "thinking" not in captured
+
+
+def test_pad_server_tool_blocks_for_token_counting() -> None:
+    """Orphaned server tool blocks get a placeholder `server_tool_use` block.
+
+    Reproduces the count_tokens 400s that compaction hit when a server tool
+    result arrived in the turn after its use block (a client tool call cut the
+    first turn short) and only the later message was counted: "unexpected
+    `tool_use_id` found in `web_search_tool_result` blocks" and, for web search
+    with dynamic filtering, "source tool ... not found for tool use block".
+    """
+    from anthropic.types import MessageParam
+
+    from inspect_ai.model._providers.anthropic import (
+        pad_server_tool_blocks_for_token_counting,
+    )
+
+    def caller(source: str | None) -> dict[str, Any]:
+        if source is None:
+            return {"type": "direct"}
+        return {"type": "code_execution_20260120", "tool_id": source}
+
+    def use(id: str, name: str, source: str | None = None) -> dict[str, Any]:
+        return {
+            "type": "server_tool_use",
+            "id": id,
+            "name": name,
+            "input": {"query": "q"},
+            "caller": caller(source),
+        }
+
+    def result(type: str, id: str, source: str | None = None) -> dict[str, Any]:
+        return {
+            "type": type,
+            "tool_use_id": id,
+            "content": [],
+            "caller": caller(source),
+        }
+
+    def placeholder(
+        id: str, name: str, caller: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        block = {"type": "server_tool_use", "id": id, "name": name, "input": {}}
+        if caller is not None:
+            block["caller"] = caller
+        return block
+
+    text = {"type": "text", "text": "done"}
+    messages: list[dict[str, Any]] = [
+        # result whose use block is in a message that is not being counted
+        {
+            "role": "assistant",
+            "content": [result("web_search_tool_result", "s1"), text],
+        },
+        # dynamic filtering: a search issued from, and the result of, a code
+        # execution call whose use block is in a message that is not being counted
+        {
+            "role": "assistant",
+            "content": [
+                use("s2", "web_search", source="c1"),
+                result("web_search_tool_result", "s2", source="c1"),
+                result("code_execution_tool_result", "c1"),
+                text,
+            ],
+        },
+        # dynamic filtering: neither the search's use block nor the code
+        # execution call's is being counted
+        {
+            "role": "assistant",
+            "content": [
+                result("web_search_tool_result", "s3", source="c2"),
+                result("code_execution_tool_result", "c2"),
+            ],
+        },
+        {"role": "user", "content": "unchanged"},
+        # complete span
+        {
+            "role": "assistant",
+            "content": [
+                use("s4", "web_search"),
+                result("web_search_tool_result", "s4"),
+            ],
+        },
+        # use and result in different messages, both being counted
+        {"role": "assistant", "content": [use("c3", "code_execution")]},
+        {"role": "assistant", "content": [result("code_execution_tool_result", "c3")]},
+    ]
+
+    padded = pad_server_tool_blocks_for_token_counting(
+        cast(list[MessageParam], messages)
+    )
+
+    assert padded[0]["content"] == [
+        placeholder("s1", "web_search", caller(None)),
+        *messages[0]["content"],
+    ]
+    assert padded[1]["content"] == [
+        placeholder("c1", "code_execution"),
+        *messages[1]["content"],
+    ]
+    assert padded[2]["content"] == [
+        placeholder("c2", "code_execution"),
+        placeholder("s3", "web_search", caller("c2")),
+        messages[2]["content"][0],
+        messages[2]["content"][1],
+    ]
+    # everything else is untouched
+    for index in range(3, len(messages)):
+        assert padded[index] is messages[index]
+
+
+# server tool blocks an assistant message can open with when a client tool call
+# ended the prior turn while the server tool call was still running (the use
+# blocks of "srvtoolu_ws1", "srvtoolu_ce1" and "srvtoolu_ce2" stay with the prior
+# message), and the blocks count_tokens must send for that message counted on its
+# own
+_PRIOR_TURN_RESULTS: dict[str, tuple[list[dict[str, Any]], list[tuple[str, str]]]] = {
+    "web_search": (
+        [
+            {
+                "type": "web_search_tool_result",
+                "tool_use_id": "srvtoolu_ws1",
+                "content": [],
+            }
+        ],
+        [
+            ("server_tool_use", "srvtoolu_ws1"),
+            ("web_search_tool_result", "srvtoolu_ws1"),
+        ],
+    ),
+    "dynamic_filtering": (
+        [
+            {
+                "type": "server_tool_use",
+                "id": "srvtoolu_ws2",
+                "name": "web_search",
+                "input": {"query": "inspect ai"},
+                "caller": {
+                    "type": "code_execution_20260120",
+                    "tool_id": "srvtoolu_ce1",
+                },
+            },
+            {
+                "type": "web_search_tool_result",
+                "tool_use_id": "srvtoolu_ws2",
+                "content": [],
+                "caller": {
+                    "type": "code_execution_20260120",
+                    "tool_id": "srvtoolu_ce1",
+                },
+            },
+            {
+                "type": "code_execution_tool_result",
+                "tool_use_id": "srvtoolu_ce1",
+                "content": {
+                    "type": "code_execution_result",
+                    "stdout": "",
+                    "stderr": "",
+                    "return_code": 0,
+                    "content": [],
+                },
+            },
+        ],
+        [
+            ("server_tool_use", "srvtoolu_ce1"),
+            ("server_tool_use", "srvtoolu_ws2"),
+            ("web_search_tool_result", "srvtoolu_ws2"),
+            ("code_execution_tool_result", "srvtoolu_ce1"),
+        ],
+    ),
+    "dynamic_filtering_results_only": (
+        [
+            {
+                "type": "web_search_tool_result",
+                "tool_use_id": "srvtoolu_ws3",
+                "content": [],
+                "caller": {
+                    "type": "code_execution_20260120",
+                    "tool_id": "srvtoolu_ce2",
+                },
+            },
+            {
+                "type": "code_execution_tool_result",
+                "tool_use_id": "srvtoolu_ce2",
+                "content": {
+                    "type": "code_execution_result",
+                    "stdout": "",
+                    "stderr": "",
+                    "return_code": 0,
+                    "content": [],
+                },
+            },
+        ],
+        [
+            ("server_tool_use", "srvtoolu_ce2"),
+            ("server_tool_use", "srvtoolu_ws3"),
+            ("web_search_tool_result", "srvtoolu_ws3"),
+            ("code_execution_tool_result", "srvtoolu_ce2"),
+        ],
+    ),
+}
+
+
+def _prior_turn_result_message(blocks: list[dict[str, Any]]) -> ChatMessageAssistant:
+    """An assistant message recorded as opening with a prior turn's results."""
+    from inspect_ai._util.content import ContentToolUse
+    from inspect_ai.model._providers.anthropic import (
+        _ServerToolSpan,
+        init_sample_anthropic_assistant_internal,
+        record_server_tool_spans,
+    )
+
+    tool_types: dict[str, Literal["web_search", "code_execution"]] = {
+        "web_search_tool_result": "web_search",
+        "code_execution_tool_result": "code_execution",
+    }
+    results = [block for block in blocks if block["type"] in tool_types]
+    message = ChatMessageAssistant(
+        id="msg_tail",
+        content=[
+            *[
+                ContentToolUse(
+                    tool_type=tool_types[block["type"]],
+                    id=block["tool_use_id"],
+                    name=tool_types[block["type"]],
+                    arguments="{}",
+                    result="",
+                )
+                for block in results
+            ],
+            ContentText(text="done"),
+        ],
+    )
+    init_sample_anthropic_assistant_internal()
+    record_server_tool_spans(
+        "msg_tail",
+        [
+            _ServerToolSpan(
+                blocks=cast(Any, blocks),
+                content_ids=[block["tool_use_id"] for block in results],
+            )
+        ],
+    )
+    return message
+
+
+@pytest.mark.parametrize("case", list(_PRIOR_TURN_RESULTS))
+async def test_anthropic_count_tokens_pads_prior_turn_server_tool_result(
+    monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    """count_tokens sends a use block for a result recorded from a prior turn.
+
+    When a client tool call ends a turn while a server tool call is still
+    running, the result arrives in the next response and is recorded for that
+    message alone (its use block replays with the prior message). Counting
+    that message without the prior one must not send an orphaned result.
+    """
+    blocks, expected = _PRIOR_TURN_RESULTS[case]
+    api = AnthropicAPI(model_name="claude-opus-4-8", api_key="test-key")
+
+    captured: dict[str, Any] = {}
+
+    async def fake_count_tokens(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return types.SimpleNamespace(input_tokens=123)
+
+    monkeypatch.setattr(api.client.messages, "count_tokens", fake_count_tokens)
+
+    assert await api.count_tokens([_prior_turn_result_message(blocks)]) == 123
+
+    [message] = captured["messages"]
+    assert [
+        (b["type"], b.get("id") or b.get("tool_use_id")) for b in message["content"]
+    ] == [*expected, ("text", None)]
+
+
+@skip_if_no_anthropic
+@pytest.mark.parametrize("case", list(_PRIOR_TURN_RESULTS))
+async def test_anthropic_count_tokens_prior_turn_server_tool_result(case: str) -> None:
+    """count_tokens must not 400 on a server tool result from a prior turn.
+
+    Live counterpart of the test above: without padding, the API rejects the
+    request with "unexpected `tool_use_id` found in `web_search_tool_result`
+    blocks ... Each `web_search_tool_result` block must have a corresponding
+    `server_tool_use` block before it." or, for web search with dynamic
+    filtering, "source tool ... not found for tool use block".
+    """
+    blocks, _ = _PRIOR_TURN_RESULTS[case]
+    model = get_model("anthropic/claude-opus-4-8")
+    token_count = await model.api.count_tokens([_prior_turn_result_message(blocks)])
+    assert token_count > 0
 
 
 async def test_anthropic_continuation_preserves_server_tool_pairing() -> None:
@@ -2361,6 +2654,9 @@ def test_anthropic_claude_4_0_base_name_uses_extended_thinking(model_name: str) 
         "bedrock/anthropic.claude-saga-5",
         "vertex/claude-saga-5",
         "azure/claude-saga-5",
+        "bedrock/anthropic.claude-mythos-5-2",
+        "vertex/claude-mythos-5-2",
+        "azure/claude-mythos-5-2",
     ],
 )
 def test_anthropic_no_binding_off_first_party(model_name: str) -> None:
@@ -2434,11 +2730,30 @@ def test_anthropic_sonnet_5_5_binding_on_bedrock(model_name: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "model_name", ["claude-mythos-5-1", "claude-mythos-5-2", "claude-mythos-preview"]
+    "model_name",
+    [
+        "claude-mythos-5-1",
+        "claude-mythos-5-2",
+        "claude-mythos-5-2-20261101",
+        "claude-mythos-preview",
+    ],
 )
-def test_anthropic_mythos_no_binding(model_name: str) -> None:
-    """Mythos does not run the binding check, so no opt-in is sent."""
+def test_anthropic_mythos_binding(model_name: str) -> None:
+    """Mythos 5.2 binds thinking blocks; the others accept the opt-in."""
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    request = _request_with_thinking_history()
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {
+        "type": "adaptive",
+        "block_binding": {"prefix_mismatch_behavior": "drop_block"},
+    }
+
+
+def test_anthropic_mythos_5_no_binding() -> None:
+    """Base Mythos 5 does not bind and, like Fable 5, gets no opt-in."""
+    api = AnthropicAPI(model_name="claude-mythos-5", api_key="test-key")
     request = _request_with_thinking_history()
     betas: list[str] = []
     api.apply_thinking_block_binding(request, betas)
@@ -3409,6 +3724,69 @@ async def test_anthropic_stream_capture_restores_container() -> None:
     assert message.container.id == "container_from_delta"
 
 
+async def test_anthropic_stream_compaction_usage_sums_iterations() -> None:
+    """Streamed compaction usage is the sum of `usage.iterations`.
+
+    The SDK's non-beta stream accumulator drops `message_delta.usage.iterations`.
+    The usage is from a live claude-haiku-5-5 response.
+    """
+    import json
+
+    import httpx2
+
+    iterations = [
+        {
+            "type": "compaction",
+            "input_tokens": 48,
+            "output_tokens": 415,
+            "cache_creation_input_tokens": 60104,
+        },
+        {"type": "message", "input_tokens": 233, "output_tokens": 206},
+    ]
+    events: list[dict[str, Any]] = [
+        {
+            "type": "message_start",
+            "message": {
+                "id": "msg_x",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-haiku-5-5",
+                "content": [],
+                "usage": {"input_tokens": 48, "output_tokens": 8},
+            },
+        },
+        {
+            "type": "message_delta",
+            "delta": {"stop_reason": "end_turn"},
+            "usage": {
+                "input_tokens": 233,
+                "output_tokens": 206,
+                "iterations": iterations,
+            },
+        },
+        {"type": "message_stop"},
+    ]
+    sse = "".join(f"event: {e['type']}\ndata: {json.dumps(e)}\n\n" for e in events)
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
+            200, headers={"content-type": "text/event-stream"}, text=sse
+        )
+
+    model = get_model(
+        "anthropic/claude-haiku-5-5",
+        api_key="test-key",
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(respond)),
+        memoize=False,
+    )
+    # streams at the default max_tokens
+    output = await model.generate("hello")
+
+    assert output.usage is not None
+    assert output.usage.total_tokens == 61006
+    assert output.input_context_tokens == 60152
+
+
 async def test_anthropic_stream_capture_tolerates_compaction_delta() -> None:
     """A compaction_delta must not be reported as a text stream delta.
 
@@ -3951,6 +4329,154 @@ async def test_anthropic_interleaved_thinking_tool_calls_preserved() -> None:
     )
 
 
+async def test_anthropic_tool_use_id_repeated_in_a_turn_records_no_position() -> None:
+    from anthropic.types import ContentBlock, ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._providers.anthropic import (
+        assistant_internal,
+        content_and_tool_calls_from_assistant_content_blocks,
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    blocks: list[ContentBlock] = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="sig1"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "1"}),
+        ThinkingBlock(type="thinking", thinking="t2", signature="sig2"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "2"}),
+        ToolUseBlock(type="tool_use", id="b", name="tool_a", input={"x": "3"}),
+    ]
+    content_and_tool_calls_from_assistant_content_blocks(blocks, [])
+
+    internal = assistant_internal()
+    assert "a" not in internal.client_tool_call_positions
+    assert "a" not in internal.tool_call_internal_names
+    assert internal.client_tool_call_positions["b"] == 2
+
+
+@pytest.mark.parametrize("restore", [None, "current", "legacy"])
+async def test_anthropic_call_to_another_function_replays_without_the_ids_name_and_position(
+    restore: str | None,
+) -> None:
+    """A tool use id's internal name and position replay only with a call to its function.
+
+    The parse records `bash` (called as `bash_session`) after the thinking
+    block. The call as parsed replays with them; a call to `read_file` under
+    the id (a filter changed the function and kept the id) replays under its
+    own name, last. Both hold after a checkpoint restore, including one
+    written before functions were recorded (`legacy`): the function is derived
+    from the first message to hold the id, the call as parsed.
+    """
+    from dataclasses import replace
+
+    from anthropic.types import ContentBlock, TextBlock, ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        content_and_tool_calls_from_assistant_content_blocks,
+        dump_anthropic_assistant_internal,
+        init_sample_anthropic_assistant_internal,
+    )
+
+    tools = [
+        ToolInfo(name="bash_session", description="Run a command."),
+        ToolInfo(name="read_file", description="Read a file."),
+    ]
+    blocks: list[ContentBlock] = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="s1"),
+        ToolUseBlock(
+            type="tool_use", id="a", name="bash", input={"command": "cat notes.txt"}
+        ),
+        TextBlock(type="text", text="Reading."),
+    ]
+    init_sample_anthropic_assistant_internal()
+    content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
+        blocks, tools
+    )
+    assert tool_calls is not None and tool_calls[0].function == "bash_session"
+    if restore is not None:
+        dumped = dump_anthropic_assistant_internal()
+        assert isinstance(dumped, dict)
+        if restore == "legacy":
+            del dumped["client_tool_call_functions"]
+        init_sample_anthropic_assistant_internal()
+        init_sample_anthropic_assistant_internal(dumped)
+
+    async def replayed(call: ToolCall) -> list[tuple[str, object]]:
+        message = ChatMessageAssistant(
+            content=content, tool_calls=[call], model="claude-opus-4-8"
+        )
+        return [
+            (block["type"], block.get("name"))
+            for block in await assistant_message_block_params(message)
+        ]
+
+    native = [("thinking", None), ("tool_use", "bash"), ("text", None)]
+    assert await replayed(tool_calls[0]) == native
+    changed = replace(tool_calls[0], function="read_file", arguments={"path": "a"})
+    assert await replayed(changed) == [
+        ("thinking", None),
+        ("text", None),
+        ("tool_use", "read_file"),
+    ]
+
+
+@pytest.mark.parametrize("first", ["parsed", "cached", "shared"])
+async def test_anthropic_state_restored_without_functions_is_the_first_holders(
+    first: str,
+) -> None:
+    """A checkpoint written before functions were recorded restores names and positions.
+
+    The function they are for is derived from the first message to hold the
+    id. When that holds the call as parsed, it replays natively, and a later
+    call to another function under the id replays from itself. Calls to two
+    functions under the id in one message give no function, so neither
+    replays the name or position.
+    """
+    from inspect_ai.model._assistant_internal import derive_recorded_functions
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    init_sample_anthropic_assistant_internal(
+        {
+            "tool_call_internal_names": {"a": "bash"},
+            "client_tool_call_positions": {"a": 0},
+        }
+    )
+    parsed = ToolCall(id="a", function="bash_session", arguments={"command": "ls"})
+    changed = ToolCall(id="a", function="read_file", arguments={"path": "a"})
+
+    async def replayed(*calls: ToolCall) -> list[tuple[str, object]]:
+        message = ChatMessageAssistant(content="Running.", tool_calls=list(calls))
+        return [
+            (block["type"], block.get("name"))
+            for block in await assistant_message_block_params(message)
+        ]
+
+    if first == "shared":
+        assert await replayed(parsed, changed) == [
+            ("text", None),
+            ("tool_use", "bash_session"),
+            ("tool_use", "read_file"),
+        ]
+        assert await replayed(parsed) == [("text", None), ("tool_use", "bash_session")]
+        return
+    if first == "parsed":
+        assert await replayed(parsed) == [("tool_use", "bash"), ("text", None)]
+    else:
+        # the cached output as generated, before a filter changes its call
+        derive_recorded_functions(
+            ModelOutput.from_message(
+                ChatMessageAssistant(content="Running.", tool_calls=[parsed])
+            )
+        )
+    assert await replayed(changed) == [("text", None), ("tool_use", "read_file")]
+    assert await replayed(parsed) == [("tool_use", "bash"), ("text", None)]
+
+
 async def test_anthropic_interleaved_thinking_last_gets_no_content() -> None:
     """A turn ending in an interleaved thinking block must not end on thinking.
 
@@ -4182,6 +4708,32 @@ async def test_reasoning_tokens_fall_back_to_counting_thinking_text() -> None:
 
     assert output.usage is not None
     assert output.usage.reasoning_tokens == 37
+
+
+def test_content_list_preserves_every_internal_payload() -> None:
+    flattened = "\n".join(
+        [
+            "first",
+            content_internal_tag({"a": 1}),
+            "second",
+            content_internal_tag({"b": 2}),
+        ]
+    )
+
+    content = _content_list(flattened)
+
+    assert [
+        (block.text, block.internal)
+        for block in content
+        if isinstance(block, ContentText)
+    ] == [("first", {"a": 1}), ("second", {"b": 2})]
+
+
+@pytest.mark.parametrize("text", ["just text", ""])
+def test_content_list_without_internal_is_a_single_block(text: str) -> None:
+    content = _content_list(text)
+
+    assert content == [ContentText(text=text)]
 
 
 @pytest.mark.anyio

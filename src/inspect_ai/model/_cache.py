@@ -2,19 +2,29 @@ import json
 import logging
 import math
 import os
-import pickle
 import re
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from hashlib import md5, sha256
+from io import BytesIO
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from shutil import rmtree
-from typing import Any, Optional
+from typing import Any, BinaryIO, Optional
 
 from dateutil.relativedelta import relativedelta
-from pydantic import BaseModel, Field, ValidationInfo, model_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    Field,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
+from pydantic_core import to_json
 
 from inspect_ai._util.appdirs import inspect_cache_dir
+from inspect_ai._util.atomic_write import atomic_write_bytes
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
@@ -63,7 +73,7 @@ def _is_safe_model_name(model: str) -> bool:
 def _cache_entry_path(entry: "CacheEntry") -> Path | None:
     """Path of the cache file for `entry`, or None (with a warning) if it is outside the cache directory."""
     try:
-        filename = cache_path(model=entry.model) / entry.key
+        filename = cache_path(model=entry.model) / f"{entry.key}{_ENTRY_SUFFIX}"
         if _path_is_in_cache(filename):
             return filename
     except ValueError:
@@ -369,6 +379,169 @@ def _is_expired(expiry: datetime | None) -> bool:
     return datetime.now(timezone.utc) > expiry
 
 
+# Cache entry files (format version 1) are UTF-8 JSON Lines with two lines: a
+# header (`_CacheHeader`) and the `ModelOutput`. They are only ever parsed with
+# the stdlib `json` module and validated with Pydantic, so reading a cache file
+# cannot execute code. Entries written by earlier versions of Inspect are
+# pickles named by the bare key; they are never read, only recognized by their
+# first two bytes so that `cache_prune` can delete them.
+_ENTRY_VERSION = 1
+_ENTRY_SUFFIX = ".jsonl"
+_MAX_HEADER_BYTES = 4096
+_KEY_PATTERN = re.compile(r"[0-9a-f]{32}")
+_PICKLE_PROTOCOLS = range(2, 6)
+
+
+class _CacheHeader(BaseModel):
+    """First line of a cache entry file."""
+
+    version: int = Field(strict=True)
+    key: str = Field(strict=True)
+    expiry: AwareDatetime | None
+
+    @field_validator("expiry", mode="before")
+    @classmethod
+    def _expiry_is_iso_string(cls, value: Any) -> Any:
+        if value is not None and not isinstance(value, (str, datetime)):
+            raise ValueError("expiry must be an ISO 8601 string or null")
+        return value
+
+
+class _InvalidEntry(ValueError):
+    """A cache entry file that cannot be read."""
+
+
+class _OutputNotCacheable(ValueError):
+    """A model output that the cache cannot store and return unchanged."""
+
+
+def _read_header(f: BinaryIO, key: str) -> _CacheHeader:
+    """Read and validate the header line of a cache entry file.
+
+    Raises:
+       _InvalidEntry: If the header is missing, too long, does not validate,
+          has another format version or names another key.
+    """
+    line = f.readline(_MAX_HEADER_BYTES)
+    if not line.endswith(b"\n"):
+        raise _InvalidEntry("header line is missing or too long")
+    try:
+        data = json.loads(line)
+    except (ValueError, RecursionError) as ex:
+        raise _InvalidEntry(f"header is not JSON: {ex}") from ex
+    if not isinstance(data, dict):
+        raise _InvalidEntry("header is not a JSON object")
+    try:
+        header = _CacheHeader.model_validate(data)
+    except ValidationError as ex:
+        raise _InvalidEntry(f"invalid header: {ex}") from ex
+    if header.version != _ENTRY_VERSION:
+        raise _InvalidEntry(f"unsupported format version {header.version}")
+    if header.key != key:
+        raise _InvalidEntry("header key does not match the file name")
+    return header
+
+
+def _read_body(f: BinaryIO) -> ModelOutput:
+    """Read and validate the `ModelOutput` line that follows the header.
+
+    Validation runs without the log deserialization context, so stored
+    message IDs are kept as written.
+    """
+    body = f.read()
+    if not body.endswith(b"\n"):
+        raise _InvalidEntry("body is missing or truncated")
+    return ModelOutput.model_validate(json.loads(body))
+
+
+def _entry_bytes(key: str, expiry: datetime | None, output: ModelOutput) -> bytes:
+    """Serialize a cache entry, checking that lookup will return `output` unchanged.
+
+    The body is written with non-finite floats as `NaN`/`Infinity` constants
+    (as eval logs write them) and strings as UTF-8. It is then read back with
+    the lookup's reader and compared with `output`, leaving out `metadata`
+    values (which may come back in their JSON form) and treating an empty
+    `completion` as the first choice's text (as validation fills it in).
+
+    Raises:
+       _OutputNotCacheable: If the output does not serialize or does not
+          read back equal.
+    """
+    header = _CacheHeader(version=_ENTRY_VERSION, key=key, expiry=expiry)
+    try:
+        body = to_json(output.model_dump(), inf_nan_mode="constants") + b"\n"
+    except Exception as ex:
+        raise _OutputNotCacheable("they cannot be serialized to JSON") from ex
+    try:
+        read_back = _read_body(BytesIO(body))
+    except Exception as ex:
+        raise _OutputNotCacheable("they do not read back unchanged from JSON") from ex
+    if _comparable(read_back) != _comparable(output):
+        raise _OutputNotCacheable("they do not read back unchanged from JSON")
+    return header.model_dump_json().encode("utf-8") + b"\n" + body
+
+
+def _comparable(output: ModelOutput) -> ModelOutput:
+    """`output` without `metadata` and with `completion` filled as validation fills it."""
+    return output.model_copy(
+        update={
+            "completion": output.completion
+            or (output.choices[0].message.text if output.choices else ""),
+            "metadata": None,
+            "fallback": output.fallback.model_copy(update={"metadata": None})
+            if output.fallback
+            else None,
+            "choices": [
+                choice.model_copy(
+                    update={
+                        "message": choice.message.model_copy(update={"metadata": None})
+                    }
+                )
+                for choice in output.choices
+            ],
+        }
+    )
+
+
+def _entry_name_key(name: str) -> str | None:
+    """The cache key of a current-format entry file name, or None."""
+    if name.endswith(_ENTRY_SUFFIX):
+        key = name[: -len(_ENTRY_SUFFIX)]
+        if _KEY_PATTERN.fullmatch(key):
+            return key
+    return None
+
+
+def _is_pruneable(path: Path) -> bool:
+    """Whether `path` is an expired current-format entry or a legacy entry.
+
+    Only regular files named like an entry are opened. A current-format
+    entry is judged by its header alone; a legacy (pickle) entry by its name
+    and its first two bytes, without deserializing it.
+
+    Raises:
+       _InvalidEntry: If a current-format entry's header is invalid.
+       OSError: If the file cannot be read.
+    """
+    if not path.is_file():
+        return False
+    key = _entry_name_key(path.name)
+    if key is not None:
+        with open(path, "rb") as f:
+            header = _read_header(f, key)
+        if _is_expired(header.expiry):
+            trace("Expired cache entry found: %s (%s)", path, header.expiry)
+            return True
+        return False
+    if _KEY_PATTERN.fullmatch(path.name):
+        with open(path, "rb") as f:
+            magic = f.read(2)
+        if len(magic) == 2 and magic[0] == 0x80 and magic[1] in _PICKLE_PROTOCOLS:
+            trace("Cache entry from an earlier version found: %s", path)
+            return True
+    return False
+
+
 def cache_store(
     entry: CacheEntry,
     output: ModelOutput,
@@ -379,54 +552,60 @@ def cache_store(
     retry loops (e.g. `react()`'s `retry_refusals`) re-call generate with
     identical inputs, so a cached refusal would be replayed on every retry
     instead of giving the model a fresh attempt.
+
+    Outputs that would not read back unchanged (see `_entry_bytes`) are not
+    cached, with a warning. The entry is written to a temporary file and
+    renamed into place, so readers never see a partly written entry.
     """
     if any(choice.stop_reason == "content_filter" for choice in output.choices):
         trace("Not caching content_filter output: %s", entry.key)
         return False
 
-    filename = _cache_entry_path(entry)
-    if filename is None:
-        return False
-
+    filename: Path | None = None
     try:
-        filename.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(filename, "wb") as f:
-            expiry = _cache_expiry(entry.policy)
-            trace("Storing in cache: %s (expires: %s)", filename, expiry)
-            pickle.dump((expiry, output), f)
+        filename = _cache_entry_path(entry)
+        if filename is None:
+            return False
+        expiry = _cache_expiry(entry.policy)
+        data = _entry_bytes(entry.key, expiry, output)
+        trace("Storing in cache: %s (expires: %s)", filename, expiry)
+        atomic_write_bytes(str(filename), data, fsync=False)
         return True
+    except _OutputNotCacheable as e:
+        trace(f"Not caching {filename}: {e} ({e.__cause__})")
+        warn_once(
+            logger,
+            f"Some outputs of model {entry.model!r} are not cached because {e}.",
+        )
+        return False
     except Exception as e:
         trace(f"Failed to cache {filename}: {e}")
         return False
 
 
 def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
-    """Fetch a value from the cache directory."""
-    filename = _cache_entry_path(entry)
-    if filename is None:
-        return None
+    """Fetch a value from the cache directory.
+
+    A missing, invalid or expired entry is a miss (an expired entry is also
+    deleted).
+    """
+    filename: Path | None = None
     try:
+        filename = _cache_entry_path(entry)
+        if filename is None:
+            return None
+
         trace("Fetching from cache: %s", filename)
-
         with open(filename, "rb") as f:
-            expiry, output = pickle.load(f)
-            if not isinstance(output, ModelOutput):
-                trace(
-                    "Unexpected cached type, can only fetch ModelOutput: %s (%s)",
-                    type(output),
-                    filename,
-                )
-                return None
+            header = _read_header(f, entry.key)
+            if not _is_expired(header.expiry):
+                return _read_body(f)
 
-            if _is_expired(expiry):
-                trace("Cache expired for %s (%s)", filename, expiry)
-                # If it's expired, no point keeping it as we'll never access it
-                # successfully again.
-                filename.unlink(missing_ok=True)
-                return None
-
-            return output
+        trace("Cache expired for %s (%s)", filename, header.expiry)
+        # If it's expired, no point keeping it as we'll never access it
+        # successfully again.
+        filename.unlink(missing_ok=True)
+        return None
     except Exception as e:
         trace(f"Failed to fetch from cache {filename}: {e}")
         return None
@@ -561,7 +740,11 @@ def cache_size(
 
 
 def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
-    """Returns a list of all the cached files that have passed their expiry time.
+    """Returns a list of all the cache entries that can be pruned.
+
+    These are entries that have passed their expiry time, and entries written
+    by an earlier version of Inspect (which are never used). Entries are
+    judged by their header alone, and other files are ignored.
 
     Args:
         filter_by: Default []. List of model names to filter by. If
@@ -595,13 +778,10 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
                 trace("Skipping path outside the cache: %s", path)
                 continue
             try:
-                with open(path, "rb") as f:
-                    expiry, _cache_entry = pickle.load(f)
-                    if _is_expired(expiry):
-                        trace("Expired cache entry found: %s (%s)", path, expiry)
-                        expired_cache_entries.append(path)
-            except Exception as e:
-                trace("Failed to load cached item %s: %s", path, e)
+                if _is_pruneable(path):
+                    expired_cache_entries.append(path)
+            except (_InvalidEntry, OSError) as e:
+                trace("Skipping cache file %s: %s", path, e)
                 continue
 
     return expired_cache_entries
@@ -609,6 +789,9 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
 
 def cache_prune(files: list[Path] = []) -> None:
     """Delete all expired cache entries.
+
+    Entries written by an earlier version of Inspect are also deleted, since
+    they are never used. Files that are not cache entries are left alone.
 
     Args:
         files: List of files to prune. If empty, this
@@ -624,11 +807,9 @@ def cache_prune(files: list[Path] = []) -> None:
             logger.warning(f"Not pruning {file}: it is outside the cache directory.")
             continue
         try:
-            with open(file, "rb") as f:
-                expiry, _cache_entry = pickle.load(f)
-                if _is_expired(expiry):
-                    trace("Pruning expired cache: %s", file)
-                    file.unlink(missing_ok=True)
-        except Exception as e:
+            if _is_pruneable(file):
+                trace("Pruning cache entry: %s", file)
+                file.unlink(missing_ok=True)
+        except (_InvalidEntry, OSError) as e:
             trace("Failed to prune cache %s: %s", file, e)
             continue

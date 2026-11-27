@@ -6,6 +6,7 @@
 | anthropic/claude-haiku-5-5 | medium |
 | anthropic/claude-mythos-5 | high |
 | anthropic/claude-mythos-5-1 | high |
+| anthropic/claude-mythos-5-2 | high |
 | anthropic/claude-opus-4-6 | adaptive |
 | anthropic/claude-opus-4-7 | adaptive |
 | anthropic/claude-opus-4-8 | high |
@@ -31,6 +32,8 @@
 | google/gemini-3.8-flash | medium |
 | google/gemini-4-argon | medium |
 | google/gemini-4-carbon | medium |
+| google/gemini-4-hydrogen | high |
+| google/gemini-4-neon | high |
 | grok/grok-3-mini | low |
 | grok/grok-4 | no effort scale |
 | grok/grok-4.3 | low |

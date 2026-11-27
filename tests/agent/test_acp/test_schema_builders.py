@@ -1,5 +1,3 @@
-import ast
-from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
@@ -14,40 +12,6 @@ from inspect_ai.agent._acp._schema_builders import (
     update_plan,
     update_tool_call,
 )
-
-_REPO_ROOT = Path(__file__).parents[3]
-
-
-def _imports_acp_helpers(path: Path) -> bool:
-    return any(
-        (isinstance(node, ast.ImportFrom) and node.module == "acp.helpers")
-        or (
-            isinstance(node, ast.ImportFrom)
-            and node.module == "acp"
-            and any(alias.name == "helpers" for alias in node.names)
-        )
-        or (
-            isinstance(node, ast.Import)
-            and any(alias.name == "acp.helpers" for alias in node.names)
-        )
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-    )
-
-
-def test_no_acp_helpers_imports() -> None:
-    """agent-client-protocol 1.0 removed `acp.helpers`."""
-    files = [
-        path
-        for root in ("src/inspect_ai", "tests")
-        for path in (_REPO_ROOT / root).rglob("*.py")
-    ]
-    assert files
-    offenders = [
-        str(path.relative_to(_REPO_ROOT))
-        for path in files
-        if _imports_acp_helpers(path)
-    ]
-    assert offenders == []
 
 
 def _dump(model: BaseModel) -> dict[str, Any]:

@@ -197,6 +197,7 @@ The `EvalLog` object returned from `eval()` provides programmatic interface to t
 | `eval` | `EvalSpec` | Top level eval details including task, model, creation time, etc. |
 | `plan` | `EvalPlan` | List of solvers and model generation config used for the eval. |
 | `results` | `EvalResults` | Aggregate results computed by scorer metrics. |
+| `total_samples` | `int \| None` | Sample/epoch runs accepted for this attempt, saved when the eval finishes, even when `results` is absent. `None` means unknown. |
 | `stats` | `EvalStats` | Model usage statistics (input and output tokens) |
 | `error` | `EvalError` | Error information (if `status == "error`) including traceback. |
 | `tags` | `list[str]` | Current tags (eval-time tags merged with any post-eval edits). |
@@ -246,7 +247,7 @@ for log in logs:
     write_eval_log(log)
 ```
 
-Note that the `EvalLog.location` is a URI rather than a traditional file path(e.g. it could be a `file://` URI, an `s3://` URI or any other URI supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
+Note that the `EvalLog.location` is a URI rather than a traditional file path (e.g. it could be a `file://` URI, an `s3://` URI or any other URI supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
 
 ### Functions
 
@@ -306,7 +307,7 @@ You can also use `read_eval_log_sample_summaries()` as means of filtering which 
 ```python
 errors: list[EvalSample] = []
 for sample in read_eval_log_sample_summaries(log_file):
-    if sample.error is not None
+    if sample.error is not None:
         errors.append(
             read_eval_log_sample(log_file, sample.id, sample.epoch)
         )
@@ -481,6 +482,106 @@ Retrying a log (`inspect eval-retry`) and rescoring it (`inspect score`) are dif
 
 When you edit a score, a `ScoreEditEvent` is automatically added to the sample's event log. This provides a complete audit trail of all score modifications that can be viewed in the log viewer.
 
+### Excluding Samples
+
+To leave samples out of a finished log's metrics, use `exclude_samples()`. Each score the sample holds becomes an unscored `NaN` with the reason `"excluded"`, and the earlier score stays in the score history. A sample that holds no score (for example, one that errored before it was scored) gets one under the log's first scorer. Metrics are then recomputed:
+
+``` python
+from inspect_ai.log import (
+    read_eval_log, write_eval_log, exclude_samples, ProvenanceData
+)
+
+log = read_eval_log("my_eval.eval")
+
+exclude_samples(
+    log,
+    ["sample-3", ("sample-7", 2)],  # every epoch of sample-3, epoch 2 of sample-7
+    ProvenanceData(author="alice", reason="task environment was broken"),
+)
+
+write_eval_log(log)
+```
+
+The reason is required, and is also the score's explanation.
+
+The same edit is available from the command line. It rewrites the log in place:
+
+``` bash
+$ inspect log exclude logs/my_eval.eval --sample sample-3 --sample sample-7 \
+    --epoch 2 --reason "task environment was broken"
+```
+
+`--epoch` applies to every `--sample`. `--author` defaults to your git identity, else your user name.
+
+An excluded epoch takes no part in epoch reduction: a sample reduces as if that epoch had not run, and a sample with every epoch excluded counts as unscored. Epochs are reduced with the reducers the log records, rebuilt by name, so a custom reducer configured with other arguments is rebuilt with its defaults.
+
+Some things to keep in mind:
+
+-   Exclusion does not change the sample's transcript, output or error. An errored sample that you exclude is still re-run by `inspect eval-retry` and eval set retries, and the new result replaces the exclusion.
+
+-   Rescoring with `inspect score --action append` keeps the excluded scores, but the appended scores count in their own metrics. Apply the exclusion again to exclude them too. `--action overwrite` replaces the sample's scores, so apply the exclusion again afterwards.
+
+-   As with `edit_score()`, the log's task file is not imported. If the eval used a metric or reducer defined in its task file, import that module before calling `exclude_samples()`; otherwise a `LookupError` names it and the log is not changed. `inspect log exclude` works only when every metric and reducer is part of Inspect or an installed package.
+
+-   The log must have finished. To exclude a sample of a running eval, cancel it with `inspect ctl sample cancel --action cancel`, then exclude it once the log is written.
+
+### Zeroing Samples
+
+To count samples of a finished log as failures, zero them. What a failure is depends on the task's scorers (`I` for `match()`, `0` for a numeric scorer, a failed test in a sandbox), so zeroing takes two steps.
+
+First, run the samples again with the `empty_attempt()` solver, which does nothing. `Task.setup` still runs, so the sample's environment is prepared, and the task's scorers then score the untouched state:
+
+``` bash
+$ inspect eval my_task.py --solver inspect_ai/empty_attempt \
+    --sample-id sample-3,sample-7 --log-dir logs/empty
+```
+
+Then copy those verdicts into the log with `zero_samples()`. Each score of the empty-attempt sample replaces the score of the same name, with the reason `"zeroed"`, and the earlier score stays in the score history. Metrics are then recomputed:
+
+``` python
+from inspect_ai.log import (
+    read_eval_log, write_eval_log, zero_samples, ProvenanceData
+)
+
+log = read_eval_log("logs/my_eval.eval")
+empty = read_eval_log("logs/empty/my_empty_attempt.eval")
+
+zero_samples(
+    log,
+    empty,
+    ["sample-3", ("sample-7", 2)],  # every epoch of sample-3, epoch 2 of sample-7
+    ProvenanceData(author="alice", reason="the agent was given the answer"),
+)
+
+write_eval_log(log)
+```
+
+Or from the command line, which rewrites the log in place:
+
+``` bash
+$ inspect log zero logs/my_eval.eval --from logs/empty/my_empty_attempt.eval \
+    --sample sample-3 --reason "the agent was given the answer"
+```
+
+When running the empty attempt:
+
+-   Write its log to its own log directory. An eval set's log directory is also where it looks for logs to reuse.
+
+-   Pass the settings the original run had (model, task arguments, sandbox). The verdict reflects the task and settings of the empty-attempt run; `zero_samples()` compares only the task name and scorer names of the two logs.
+
+-   `--sample-id` selects samples by pattern and may include a task prefix. Samples it selects that you do not zero are ignored; a sample you zero that it did not run is refused.
+
+-   The run uses the task's epochs (or `--epochs`), and every epoch you zero must be in its log.
+
+A zero must count in the metrics, so `zero_samples()` refuses, and edits nothing, when:
+
+-   The sample id is an integer. Inspect numbers samples without ids by position, so an integer id need not name the same sample in another run.
+-   The empty attempt errored, hit a limit, or holds no score.
+-   A verdict is a dict or list, is unscored (`NaN`, for example when a grader failed), or cites messages or events of the empty attempt's transcript.
+-   The sample holds a score the empty attempt does not produce (from a scorer that returned nothing, a solver, or `inspect score --action append`).
+
+Exclude such samples instead. As with exclusion, zeroing does not change the sample's transcript, output or error, so `inspect eval-retry` still re-runs a zeroed errored sample, and rescoring with `inspect score` scores the original transcript, not the empty attempt. `inspect score --action overwrite` replaces the sample's scores, so apply the zero again afterwards.
+
 ### Tags & Metadata Editing
 
 You can also edit the tags and metadata associated with a log after evaluation. This is useful for workflows like QA review, categorisation, and filtering—for example, tagging a log as `"needs_qa"` at eval time, then updating it to `"qa_passed"` after review.
@@ -648,6 +749,8 @@ We've shown a number of Python functions that let you work with eval logs from c
 | `inspect log dump`           | Print log file contents as JSON.                   |
 | `inspect log convert`        | Convert between log file formats.                  |
 | `inspect log export-config`  | Export a run config YAML from a log file.          |
+| `inspect log exclude`        | [Exclude samples](#excluding-samples) from a log's metrics. |
+| `inspect log zero`           | [Zero samples](#zeroing-samples) of a log.         |
 | `inspect log schema`         | Print JSON schema for log files.                   |
 
 ### Listing Logs
@@ -734,5 +837,5 @@ $ inspect log schema
 
 Because evaluation logs contain lots of numerical data and calculations, it is possible that some `number` values will be `NaN` or `Inf`. These numeric values are supported natively by Python's JSON parser, however are not supported by the JSON parsers built in to browsers and Node JS.
 
-To correctly read `Nan` and `Inf` values from eval logs in JavaScript, we recommend that you use the [JSON5 Parser](https://github.com/json5/json5). For other languages, `Nan` and `Inf` may be natively supported (if not, see these JSON 5 implementations for [other languages](https://github.com/json5/json5/wiki/In-the-Wild)).
+To correctly read `NaN` and `Inf` values from eval logs in JavaScript, we recommend that you use the [JSON5 Parser](https://github.com/json5/json5). For other languages, `NaN` and `Inf` may be natively supported (if not, see these JSON 5 implementations for [other languages](https://github.com/json5/json5/wiki/In-the-Wild)).
 :::

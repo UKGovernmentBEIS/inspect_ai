@@ -10,7 +10,11 @@ from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+from inspect_ai._util.content import ContentImage
+from inspect_ai._util.hash import mm3_hash
+from inspect_ai.event import ModelEvent
 from inspect_ai.log import read_eval_log_async
+from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -24,6 +28,7 @@ from inspect_ai.log._recover import (
     default_output_path,
     write_recovered_eval_log,
 )
+from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelCall
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.scorer._metric import Score
 
@@ -221,3 +226,74 @@ async def test_write_recovered_eval_log_empty() -> None:
             assert log.status == "error"
             read_log = await read_eval_log_async(output)
             assert read_log.status == "error"
+
+
+async def test_write_recovered_eval_log_keeps_genuine_references() -> None:
+    """Condensed flushed and buffer samples keep their references, and literals stay literal."""
+    image = "data:image/png;base64," + ("B" * 120)
+    long_text = "genuine long text " * 10
+    literal = "attachment://" + mm3_hash(long_text)
+    escaped = f"{ATTACHMENT_PROTOCOL}{mm3_hash(literal)}"
+    image_ref = f"{ATTACHMENT_PROTOCOL}{mm3_hash(image)}"
+    text_ref = f"{ATTACHMENT_PROTOCOL}{mm3_hash(long_text)}"
+    attachments = {
+        mm3_hash(image): image,
+        mm3_hash(long_text): long_text,
+        mm3_hash(literal): literal,
+    }
+
+    def condensed_sample(id: int) -> EvalSample:
+        return _make_sample(id).model_copy(
+            update={
+                "messages": [
+                    ChatMessageUser(content=[ContentImage(image=image_ref)]),
+                    ChatMessageUser(content=escaped),
+                ],
+                "events": [
+                    ModelEvent(
+                        model="mockllm/model",
+                        input=[ChatMessageUser(content=text_ref)],
+                        tools=[],
+                        tool_choice="auto",
+                        config=GenerateConfig(),
+                        output=ModelOutput.from_content("mockllm/model", escaped),
+                        call=ModelCall(
+                            request={"messages": [{"content": text_ref}]},
+                            response={"content": text_ref},
+                        ),
+                    )
+                ],
+                "attachments": attachments,
+            }
+        )
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = os.path.join(temp_dir, "recovered.eval")
+            crashed = _make_crashed_log(temp_dir, samples=[condensed_sample(1)])
+
+            await write_recovered_eval_log(
+                crashed,
+                iter([(condensed_sample(2), False)]),
+                output,
+                metrics=None,
+            )
+
+            stored = await read_eval_log_async(output)
+            assert stored.samples is not None and len(stored.samples) == 2
+            for sample in stored.samples:
+                assert sample.attachments == attachments
+
+            resolved = await read_eval_log_async(output, resolve_attachments=True)
+            assert resolved.samples is not None
+            for sample in resolved.samples:
+                content = sample.messages[0].content
+                assert isinstance(content, list)
+                assert isinstance(content[0], ContentImage)
+                assert content[0].image == image
+                assert sample.messages[1].text == literal
+                [event] = [e for e in sample.events if isinstance(e, ModelEvent)]
+                assert event.input[0].text == long_text
+                assert event.output.message.text == literal
+                assert event.call is not None
+                assert event.call.response == {"content": long_text}

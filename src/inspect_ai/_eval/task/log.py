@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from importlib import metadata as importlib_metadata
 from importlib.metadata import Distribution
@@ -44,6 +45,7 @@ from inspect_ai.log import (
     EvalStatus,
     HeadlineMetric,
 )
+from inspect_ai.log._condense import resolved_sample_summary
 from inspect_ai.log._log import (
     EvalLog,
     EvalMetricDefinition,
@@ -325,8 +327,10 @@ class TaskLogger:
             viewer=viewer,
         )
 
-        # stack recorder and location
+        # stack recorder and location (set when init() has the recorder's
+        # entry; None before that, and again after reinit())
         self.recorder = recorder
+        self._location: str | None = None
         # the prior log's `eval.created`, which this attempt's must follow
         self._prior_created = prior_created
         self.header_only = header_only
@@ -395,6 +399,12 @@ class TaskLogger:
         self._discarded = False
 
     async def init(self) -> None:
+        """Start this attempt's log: the recorder entry and the buffer database.
+
+        Called by ``task_run`` when the attempt starts. The location is set
+        only once ``recorder.log_init()`` returns, so a failure before then
+        leaves the logger holding nothing.
+        """
         self._bump_created_past_prior()
         self._bump_created_past_existing_logs()
         self._location = await self.recorder.log_init(self.eval)
@@ -412,10 +422,15 @@ class TaskLogger:
             location=self._location,
             log_images=self.eval.config.log_images is not False,
             log_shared=self.eval.config.log_shared,
+            wait_for_log=True,
         )
 
     async def reinit(self) -> None:
-        """Reset this logger for a retry attempt with a fresh eval entry."""
+        """Reset this logger for a retry attempt with a fresh eval entry.
+
+        Releases what the failed attempt held; the retry's own ``task_run``
+        calls :meth:`init`.
+        """
         from inspect_ai._control.eval_state import detach_eval_live
 
         # the superseded attempt's EvalState holds providers bound to THIS
@@ -446,13 +461,14 @@ class TaskLogger:
         self._prior_seeded = False
         self._seeded_pending = set()
         # the retry attempt gets a fresh log, which must re-record the run's
-        # full accumulated process-scoped updates in init() below
+        # full accumulated process-scoped updates in init()
         self._process_updates_recorded = 0
         # log_finish() (or discard() above) has cleaned up the buffer db; a
         # stale one would collide with the new attempt's (the location repeats
         # if `created` lands on the same second)
         await self._release_buffer_db(keep=False)
-        await self.init()
+        # the retry never reports its predecessor's file as its own
+        self._location = None
 
     def _bump_created_past_prior(self) -> None:
         """Make `eval.created` at least a second later than the prior log's.
@@ -502,7 +518,8 @@ class TaskLogger:
         )
 
     @property
-    def location(self) -> str:
+    def location(self) -> str | None:
+        """The attempt's log file, or ``None`` before :meth:`init` sets it."""
         return self._location
 
     @property
@@ -551,6 +568,8 @@ class TaskLogger:
         """
         if self._finished:
             return True
+        if self._location is None:
+            return False
         return self.recorder.destination_written(self.eval)
 
     @property
@@ -706,16 +725,41 @@ class TaskLogger:
         await self.recorder.log_start(self.eval, plan)
         # the first destination write: for a seeded retry attempt it already
         # carries the complete prior sample set
+        await self._flush_log()
+
+    async def _flush_log(self) -> bool:
+        """Flush the recorder and release queued shared updates once the header exists."""
         await self.recorder.flush(self.eval)
+        db = self._buffer_db
+        if db is not None and db.waiting_for_log:
+            if not self.destination_written:
+                return False
+            db.log_written()
+        return True
 
     async def start_sample(self, sample: EvalSampleSummary) -> None:
         if self._buffer_db is not None:
             self._buffer_db.start_sample(sample)
 
-    def log_sample_event(self, id: str | int, epoch: int, event: Event) -> None:
-        # log the sample event
+    def log_sample_event(
+        self,
+        id: str | int,
+        epoch: int,
+        event: Event,
+        call_attachments: Mapping[str, str],
+    ) -> None:
+        """Buffer a sample event, as a transcript gives it to subscribers that keep their own attachment store.
+
+        Args:
+            id: Sample id.
+            epoch: Sample epoch.
+            event: The event, with its model call condensed.
+            call_attachments: The attachments the call references.
+        """
         if self._buffer_db is not None:
-            self._buffer_db.log_events([SampleEvent(id=id, epoch=epoch, event=event)])
+            self._buffer_db.log_events(
+                [SampleEvent(id=id, epoch=epoch, event=event)], call_attachments
+            )
 
     def remove_sample(self, id: str | int, epoch: int) -> None:
         if self._buffer_db is not None:
@@ -773,6 +817,8 @@ class TaskLogger:
         if sample is None:
             from inspect_ai.log._file import read_eval_log_sample_async
 
+            if self.location is None:
+                return None
             try:
                 sample = await read_eval_log_sample_async(
                     self.location, id, epoch, exclude_fields=exclude_fields
@@ -823,7 +869,9 @@ class TaskLogger:
         self._seeded_pending.discard(_seeded_key(sample.id, sample.epoch))
         if self._buffer_db is not None:
             self._buffer_db.complete_sample(
-                sample.summary(), sample_metadata=sample.metadata
+                resolved_sample_summary(sample),
+                sample_metadata=sample.metadata,
+                sample_store=sample.store,
             )
 
         # flush=False leaves the sample in the recorder's buffer for whichever
@@ -890,10 +938,9 @@ class TaskLogger:
                     return 0
                 below_threshold = require_threshold and len(pending) < self.flush_buffer
 
-            if below_threshold:
+            if below_threshold or not await self._flush_log():
                 reschedule_stale_flush = True
             else:
-                await self.recorder.flush(self.eval)
                 flushed = len(pending)
 
                 async with self._flush_pending_lock:
@@ -985,13 +1032,13 @@ class TaskLogger:
         run's accumulated process-scoped updates this log has recorded.
         Called at the two points that bracket the gap between "logger
         exists" and "logger is a live fan-out target": from :meth:`init`, to
-        snapshot retunes that predate the log (a retry attempt or a later
-        eval-set child); and from ``task_run`` immediately before
-        ``register_eval``, because all of a run's initial loggers are
-        init()ed up front in ``prepare_options`` while retunes fan out only
-        to *registered* evals — without the catch-up, a task queued behind
-        ``--max-tasks`` would never record a retune applied while it waited,
-        even though the process-global override still governs it. The
+        snapshot retunes that predate the log (a task that waited in the
+        queue, a retry attempt or a later eval-set child); and from
+        ``task_run`` immediately before ``register_eval``, because retunes
+        fan out only to *registered* evals — without the catch-up, a retune
+        applied while the attempt seeded its prior samples or wrote its
+        header would never be recorded, even though the process-global
+        override still governs it. The
         catch-up must precede ``register_eval``: both run on the eval's
         single event loop and ``register_eval`` is sync, so no retune can
         land between the final watermark check here and registration (after
@@ -1156,9 +1203,14 @@ class TaskLogger:
         drop — the entry leak is the very thing this method exists to close.
         Detaches control handlers and quiesces already captured flush/config
         calls before dropping their recorder. A discarded log is not marked
-        finished: its destination may never have been written.
+        finished: its destination may never have been written. A logger that
+        holds no recorder entry (never initialised, or reset by
+        :meth:`reinit`) has nothing to discard.
         """
         from inspect_ai._control.eval_state import detach_eval_live
+
+        if self._location is None:
+            return
 
         detach_eval_live(self.eval.eval_id)
         async with self._flush_lock:
@@ -1223,6 +1275,7 @@ class TaskLogger:
         reductions: list[EvalSampleReductions] | None = None,
         error: EvalError | None = None,
         prune_unplanned: bool = False,
+        total_samples: int | None = None,
     ) -> EvalLog:
         """Finish this attempt's log.
 
@@ -1267,6 +1320,7 @@ class TaskLogger:
                     reductions,
                     error,
                     self.header_only,
+                    total_samples=total_samples,
                 )
                 teardown_scope.shield = True
 

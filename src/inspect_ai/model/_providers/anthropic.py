@@ -148,6 +148,8 @@ from inspect_ai._util.http import (
 )
 from inspect_ai._util.http_defaults_httpx2 import (
     DEFAULT_REQUEST_TIMEOUT,
+    REQUEST_TIMEOUT_ENV,
+    connect_timeout,
     default_async_client,
     default_timeout,
 )
@@ -167,12 +169,17 @@ from inspect_ai.model._compaction.edit import (
 from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
-    parse_content_with_internal,
+    parse_content_with_internal_blocks,
 )
 from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
-from inspect_ai.tool._mcp._remote import is_mcp_server_tool
+from inspect_ai.tool._mcp._remote import (
+    is_mcp_server_tool,
+    mcp_server_config,
+    redact_anthropic_mcp_servers,
+    redact_anthropic_sdk_debug_log,
+)
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 from inspect_ai.util._json import (
     JSON_SCHEMA_EXTENDED_FIELDS,
@@ -181,7 +188,7 @@ from inspect_ai.util._json import (
 )
 
 from ..._util.httpx import httpx_classify_retry
-from .._call_tools import TOOL_CALLS_FAIL_FAST
+from .._call_tools import TOOL_CALLS_FAIL_FAST, repeated_call_ids
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -246,6 +253,12 @@ from .util import (
 from .util.hooks import HttpxHooks
 
 logger = getLogger(__name__)
+
+ANTHROPIC_GENERATE_TIMEOUT = 1800.0
+"""Read deadline (seconds) for generate calls."""
+
+AUTO_STREAMING_MAX_TOKENS = 8192
+"""`max_tokens` at or above which generate streams by default."""
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 AZUREAI_ANTHROPIC_API_KEY = "AZUREAI_ANTHROPIC_API_KEY"
@@ -452,6 +465,8 @@ class AnthropicAPI(ModelAPI):
         computer_toolset: bool | None = None,
         **model_args: Any,
     ):
+        redact_anthropic_sdk_debug_log()
+
         # extract any service prefix from model name
         parts = model_name.split("/")
         if len(parts) > 1:
@@ -544,6 +559,43 @@ class AnthropicAPI(ModelAPI):
         )
         model_args["http_client"] = default_async_client()
         return model_args
+
+    def _generate_timeout(
+        self, request: dict[str, Any], streaming: bool
+    ) -> httpx2.Timeout | anthropic.NotGiven:
+        """Request budget for a generate call.
+
+        A non-streaming response sends nothing until the whole message is
+        ready, and a proxy that buffers server-sent events does the same to a
+        streaming one, so a very long input can outlast the SDK's 10 minute
+        read deadline. That timeout is retried, every attempt fails the same
+        way, and with Inspect's default unlimited retries the sample never
+        finishes, so the read deadline is raised.
+
+        A budget set by the caller (`timeout` model arg or
+        `INSPECT_HTTP_REQUEST_TIMEOUT`) is left alone. So is a non-streaming
+        request above the auto-streaming threshold: an explicit timeout would
+        skip the SDK's check that rejects non-streaming requests whose output
+        may take longer than 10 minutes.
+        """
+        if (
+            "timeout" in self.model_args
+            or os.environ.get(REQUEST_TIMEOUT_ENV, "").strip()
+            or self.client.timeout != anthropic.DEFAULT_TIMEOUT
+        ):
+            return anthropic.NOT_GIVEN
+        if (
+            not streaming
+            and (request.get("max_tokens") or 0) > AUTO_STREAMING_MAX_TOKENS
+        ):
+            return anthropic.NOT_GIVEN
+        sdk_timeout = anthropic.DEFAULT_TIMEOUT
+        return httpx2.Timeout(
+            connect=connect_timeout(),
+            read=ANTHROPIC_GENERATE_TIMEOUT,
+            write=sdk_timeout.write,
+            pool=sdk_timeout.pool,
+        )
 
     def _create_client(
         self,
@@ -1026,7 +1078,9 @@ class AnthropicAPI(ModelAPI):
                 if container is not None:
                     request["container"] = container
 
-                model_call = set_active_model_event_call(request, model_call_filter)
+                model_call = set_active_model_event_call(
+                    redact_anthropic_mcp_servers(request), model_call_filter
+                )
 
                 # stream if the caller passed on_stream or (in auto mode) when
                 # using reasoning or >= 8192 max_tokens; an explicit streaming
@@ -1132,6 +1186,7 @@ class AnthropicAPI(ModelAPI):
         # compaction), we may have orphaned tool_use or tool_result blocks.
         # Pad with fake paired items to satisfy API validation.
         messages = pad_tool_messages_for_token_counting(messages)
+        messages = pad_server_tool_blocks_for_token_counting(messages)
 
         # count_tokens applies the same thinking-block validation as generate
         # (non-empty thinking; signatures on the latest assistant message must be
@@ -1301,10 +1356,14 @@ class AnthropicAPI(ModelAPI):
                 )
             head_message = await self._batcher.generate_for_request(request)
         elif streaming:
-            async with self.client.messages.stream(**request) as stream:
+            async with self.client.messages.stream(
+                **request, timeout=self._generate_timeout(request, True)
+            ) as stream:
                 head_message, _ = await _capture_compaction_from_stream(stream)
         else:
-            head_message = await self.client.messages.create(**request, stream=False)
+            head_message = await self.client.messages.create(
+                **request, stream=False, timeout=self._generate_timeout(request, False)
+            )
 
         head_model_output, continuation_required = await model_output_from_message(
             self.client,
@@ -1687,16 +1746,18 @@ class AnthropicAPI(ModelAPI):
     ) -> None:
         """Opt into dropping prefix-mismatched thinking blocks on bound-thinking models.
 
-        Fable 5.1+, Opus 5.5, Sonnet 5.5, and Haiku 5.5 bind thinking blocks to
+        Fable 5.1+, Mythos 5.2, Opus 5.5, Sonnet 5.5, and Haiku 5.5 bind thinking blocks to
         the request prefix that produced them; solvers legitimately edit history, and without
         drop_block such an edit fails the replay with a 400. Applied to every
         request for these models — not only those replaying thinking blocks —
         so the beta header stays uniform across a task's requests (the batcher
-        submits a single header set per batch). Mythos does not run the
-        binding check, so it is excluded. Claude names Inspect doesn't
+        submits a single header set per batch). Mythos 5.1 and
+        claude-mythos-preview don't run the binding check but are opted in
+        with the rest of their name patterns. Claude names Inspect doesn't
         recognise (a new codename, or a version newer than any known release)
         are assumed to bind as well: models that don't bind accept the opt-in
-        (verified live on Claude 4.6 through Fable 5). Applied on the
+        (verified live on Claude 4.6 through Fable 5 and on Mythos 5, 5.1,
+        and preview). Applied on the
         first-party API and,
         for Sonnet 5.5 (verified live), on Bedrock: the binding-controls beta
         arrives per model on bedrock/vertex and is not offered on foundry, so
@@ -1710,7 +1771,7 @@ class AnthropicAPI(ModelAPI):
         replaces this binding config.
         """
         family = self.model_family()
-        binds_thinking = "mythos" not in family and (
+        binds_thinking = (
             self.is_claude_fable_5_1_or_later()
             or self.is_claude_opus_5_5_or_later()
             or self.is_claude_sonnet_5_5_or_later()
@@ -1778,7 +1839,8 @@ class AnthropicAPI(ModelAPI):
     # see https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests
     def auto_streaming(self, config: GenerateConfig) -> bool:
         return self.is_using_thinking(config) or (
-            config.max_tokens is not None and config.max_tokens >= 8192
+            config.max_tokens is not None
+            and config.max_tokens >= AUTO_STREAMING_MAX_TOKENS
         )
 
     def is_thinking_model(self) -> bool:
@@ -2014,8 +2076,17 @@ class AnthropicAPI(ModelAPI):
         return self.model_name.replace(f"{self.service}/", "", 1)
 
     def canonical_name(self) -> str:
-        """Canonical model name for model info database lookup."""
-        return f"anthropic/{self.service_model_name()}"
+        """Canonical model name for model info database lookup.
+
+        On Bedrock the cross-region inference profile prefix (us., global.,
+        ...) is dropped: the database keys Bedrock ids as `anthropic.claude-...`.
+        """
+        name = self.service_model_name()
+        if self.is_bedrock():
+            from ._litellm_proxy_names import strip_bedrock_cross_region
+
+            name = strip_bedrock_cross_region(name)
+        return f"anthropic/{name}"
 
     def input_tokens_name(self) -> str:
         """Model name used for looking up model input tokens."""
@@ -2457,7 +2528,7 @@ class AnthropicAPI(ModelAPI):
         mcp_servers: list[MCPServerConfigHTTP] = []
         for tool in tools:
             if is_mcp_server_tool(tool):
-                mcp_servers.append(MCPServerConfigHTTP.model_validate(tool.options))
+                mcp_servers.append(mcp_server_config(tool))
             else:
                 standard_tools.append(tool)
         return standard_tools, mcp_servers
@@ -3808,6 +3879,7 @@ async def assistant_message_block_params(
     computer_toolset_call_ids: Collection[str] = frozenset(),
 ) -> list[MessageBlockParam]:
     block_params: list[MessageBlockParam] = []
+    derive_anthropic_recorded_functions(message)
 
     # build block params per content item ("segments") so that client tool
     # calls can be spliced back at their original interleaved positions below.
@@ -3874,11 +3946,11 @@ async def assistant_message_block_params(
     tools_by_position: dict[int, list[MessageBlockParam]] = {}
     for tool_call in message.tool_calls or []:
         position = (
-            content_len
-            if combined
-            else assistant_internal().client_tool_call_positions.get(
+            assistant_internal().client_tool_call_positions.get(
                 tool_call.id, content_len
             )
+            if not combined and _has_recorded_state(tool_call)
+            else content_len
         )
         position = min(max(position, 0), content_len)
         if tool_call.id in computer_toolset_call_ids:
@@ -4072,6 +4144,15 @@ class _AssistantInternal:
     with client tool calls in a single turn). Keyed by tool use id (like
     `tool_call_internal_names`) so it survives the agent bridge and log
     round-trip."""
+    client_tool_call_functions: dict[str, str] = field(default_factory=dict)
+    """The function each tool use id's internal name and position were recorded
+    for, keyed by tool use id.
+
+    A call to another function under the id (a filter changed the function
+    and kept the id) replays without them (`_has_recorded_state`). An id
+    restored from a checkpoint written before this was recorded has none until
+    it is derived from the message holding its call
+    (`derive_anthropic_recorded_functions`)."""
     server_mcp_tool_uses: dict[
         str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
     ] = field(default_factory=dict)
@@ -4125,6 +4206,9 @@ def init_sample_anthropic_assistant_internal(value: JsonValue | None = None) -> 
     )
     internal.client_tool_call_positions.update(
         cast("dict[str, int]", value.get("client_tool_call_positions", {}))
+    )
+    internal.client_tool_call_functions.update(
+        cast("dict[str, str]", value.get("client_tool_call_functions", {}))
     )
     internal.server_mcp_tool_uses.update(
         {
@@ -4190,6 +4274,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
         internal.thinking_blocks
         or internal.tool_call_internal_names
         or internal.client_tool_call_positions
+        or internal.client_tool_call_functions
         or internal.server_mcp_tool_uses
         or span_table
         or internal.containers
@@ -4201,6 +4286,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
             "thinking_blocks": dict(internal.thinking_blocks),
             "tool_call_internal_names": dict(internal.tool_call_internal_names),
             "client_tool_call_positions": dict(internal.client_tool_call_positions),
+            "client_tool_call_functions": dict(internal.client_tool_call_functions),
             "server_mcp_tool_uses": {
                 tool_use_id: list(use_result)
                 for tool_use_id, use_result in internal.server_mcp_tool_uses.items()
@@ -4224,6 +4310,43 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
             "containers": dict(internal.containers),
         },
     )
+
+
+def derive_anthropic_recorded_functions(message: ChatMessageAssistant) -> None:
+    """Record the function of the message's calls whose name and position have none.
+
+    A checkpoint written before functions were recorded restores a tool use
+    id's internal name and position without one. They are the call's under
+    the id in the first message to hold it: an output as generated,
+    before a filter can change its calls (`derive_recorded_functions`), or the
+    earliest message of a request (`assistant_message_block_params`). An id
+    several of the message's calls to different functions share has no
+    derivable function, so its name and position are dropped.
+    """
+    internal = assistant_internal()
+    if not (internal.tool_call_internal_names or internal.client_tool_call_positions):
+        return
+    derived: dict[str, str | None] = {}
+    for call in message.tool_calls or []:
+        if call.id in internal.client_tool_call_functions or (
+            call.id not in internal.tool_call_internal_names
+            and call.id not in internal.client_tool_call_positions
+        ):
+            continue
+        if derived.setdefault(call.id, call.function) != call.function:
+            derived[call.id] = None
+    for call_id, function in derived.items():
+        if function is None:
+            forget_anthropic_tool_call(call_id)
+        else:
+            internal.client_tool_call_functions[call_id] = function
+
+
+def forget_anthropic_tool_call(call_id: str) -> None:
+    """Drop the call's internal name and position, so the call replays from itself."""
+    assistant_internal().tool_call_internal_names.pop(call_id, None)
+    assistant_internal().client_tool_call_positions.pop(call_id, None)
+    assistant_internal().client_tool_call_functions.pop(call_id, None)
 
 
 _anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
@@ -4610,6 +4733,20 @@ async def model_output_from_message(
         output_tokens = sum(
             it.get("output_tokens", 0) for it in iterations if isinstance(it, dict)
         )
+        cache_writes = [
+            it.get("cache_creation_input_tokens")
+            for it in iterations
+            if isinstance(it, dict)
+        ]
+        cache_reads = [
+            it.get("cache_read_input_tokens")
+            for it in iterations
+            if isinstance(it, dict)
+        ]
+        if any(v is not None for v in cache_writes):
+            input_tokens_cache_write = sum(v or 0 for v in cache_writes)
+        if any(v is not None for v in cache_reads):
+            input_tokens_cache_read = sum(v or 0 for v in cache_reads)
         # the first iteration read the request's input (later ones read a
         # compacted or extended version of it)
         first = next((it for it in iterations if isinstance(it, dict)), None)
@@ -4637,7 +4774,7 @@ async def model_output_from_message(
         {"extra_body": dict(extra_body)} if extra_body else None
     )
 
-    # thinking block binding (Fable 5.1, Opus/Sonnet/Haiku 5.5): with the
+    # thinking block binding (Fable 5.1, Mythos 5.2, Opus/Sonnet/Haiku 5.5): with the
     # thinking-binding beta, replayed thinking blocks the server dropped (e.g.
     # after a history edit) are reported via input_transformations. Warn so callers know
     # reasoning context was lost; the raw entries (including the message path
@@ -4969,26 +5106,24 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     "</result>", ""
                 )
 
-            # parse out <internal> tags which might be here due to the bridge
-            content_text, content_internal = parse_content_with_internal(
+            for parsed_block in parse_content_with_internal_blocks(
                 content_text, CONTENT_INTERNAL_TAG
-            )
-
-            content.append(
-                ContentText(
-                    type="text",
-                    text=content_text,
-                    internal=content_internal,
-                    citations=(
-                        [
-                            to_inspect_citation(citation)
-                            for citation in content_block.citations
-                        ]
-                        if content_block.citations
-                        else None
-                    ),
+            ):
+                content.append(
+                    ContentText(
+                        type="text",
+                        text=parsed_block.text,
+                        internal=parsed_block.internal,
+                        citations=(
+                            [
+                                to_inspect_citation(citation)
+                                for citation in content_block.citations
+                            ]
+                            if content_block.citations
+                            else None
+                        ),
+                    )
                 )
-            )
         elif isinstance(content_block, ToolUseBlock):
             tool_calls = tool_calls or []
             arguments: dict[str, Any] = content_block.model_dump().get("input", {})
@@ -5013,6 +5148,9 @@ def content_and_tool_calls_from_assistant_content_blocks(
             # `_AssistantInternal.client_tool_call_positions`)
             assistant_internal().client_tool_call_positions[content_block.id] = len(
                 content
+            )
+            assistant_internal().client_tool_call_functions[content_block.id] = (
+                tool_name
             )
             tool_calls.append(
                 ToolCall(
@@ -5103,6 +5241,11 @@ def content_and_tool_calls_from_assistant_content_blocks(
     # caller and take precedence)
     if local_span_recorder:
         index_server_tool_spans(span_recorder.take_spans(include_open=True))
+
+    # an id the content repeats keeps no name or position, so no call replays
+    # another's
+    for call_id in repeated_call_ids(tool_calls or []):
+        forget_anthropic_tool_call(call_id)
 
     return content, tool_calls
 
@@ -5486,6 +5629,7 @@ async def _capture_compaction_from_stream(
     """
     compaction_content: str | None = None
     container: Container | None = None
+    iterations: Any = None
     # tool_use blocks by content index, so input_json_delta fragments can be
     # attributed to their call id / function when reported as stream deltas
     tool_blocks: dict[int, Any] = {}
@@ -5545,6 +5689,7 @@ async def _capture_compaction_from_stream(
                 report_model_stream_progress()
         elif event.type == "message_delta":
             usage = getattr(event, "usage", None)
+            iterations = getattr(usage, "iterations", None) or iterations
             report_model_stream_progress(
                 getattr(usage, "output_tokens", None) if usage is not None else None
             )
@@ -5557,6 +5702,10 @@ async def _capture_compaction_from_stream(
     if message.container is None and container is not None:
         message.container = container
 
+    # patch the usage.iterations the SDK snapshot dropped
+    if iterations is not None and getattr(message.usage, "iterations", None) is None:
+        setattr(message.usage, "iterations", iterations)
+
     # Fix up compaction blocks with captured content
     if compaction_content is not None:
         for block in message.content:
@@ -5568,7 +5717,21 @@ async def _capture_compaction_from_stream(
 
 
 def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
+    if not _has_recorded_state(tool_call):
+        return None
     return assistant_internal().tool_call_internal_names.get(tool_call.id, None)
+
+
+def _has_recorded_state(tool_call: ToolCall) -> bool:
+    """Whether the internal name and position under the call's id are the call's.
+
+    They are when they were recorded for its function
+    (`client_tool_call_functions`). A call to another function under the id,
+    or under an id whose function is unknown, replays from itself, with its
+    own name, last in its message.
+    """
+    function = assistant_internal().client_tool_call_functions.get(tool_call.id)
+    return tool_call.type == "function" and function == tool_call.function
 
 
 def _computer_toolset_fail_fast_tools(
@@ -6047,6 +6210,105 @@ def pad_tool_messages_for_token_counting(
     return result
 
 
+# server tool result block types mapped to the server tool that produces them
+_SERVER_TOOL_RESULT_TOOL_NAMES: dict[
+    str,
+    Literal[
+        "web_search",
+        "web_fetch",
+        "code_execution",
+        "bash_code_execution",
+        "text_editor_code_execution",
+    ],
+] = {
+    "web_search_tool_result": "web_search",
+    "web_fetch_tool_result": "web_fetch",
+    "code_execution_tool_result": "code_execution",
+    "bash_code_execution_tool_result": "bash_code_execution",
+    "text_editor_code_execution_tool_result": "text_editor_code_execution",
+}
+
+
+def pad_server_tool_blocks_for_token_counting(
+    messages: list[MessageParam],
+) -> list[MessageParam]:
+    """Pad server tool blocks to satisfy Anthropic's API validation for token counting.
+
+    Anthropic's count_tokens API validates server tool structure the same way
+    generate does:
+    - Every server tool result block (e.g. `web_search_tool_result`) must have
+      its `server_tool_use` block earlier in the request
+    - Every server tool block issued from inside code execution (web search
+      with dynamic filtering) must have the code execution `server_tool_use`
+      block named by its `caller.tool_id` earlier in the request
+
+    A turn can end while a server tool call is still running (a client tool call
+    cut it short), in which case its result arrives at the start of a later
+    assistant message (see `_ServerToolSpanRecorder.add_prior_turn_result`).
+    Compaction counts message *subsets*, so that later message can be counted
+    without the earlier one holding the use block, which the API rejects
+    ("unexpected `tool_use_id` found in `web_search_tool_result` blocks", "source
+    tool ... not found for tool use block"). Insert a minimal placeholder
+    `server_tool_use` block ahead of each such block, in the order a real
+    response would have them (code execution first, then the nested call).
+
+    This slightly overcounts tokens but that's acceptable for compaction triggering.
+
+    Mirrors `pad_tool_messages_for_token_counting`: a count-time-only fixup for
+    Anthropic's message-structure validation.
+    """
+    seen_use_ids: set[str] = set()
+    result: list[MessageParam] = []
+    for msg in messages:
+        content = msg.get("content")
+        if msg["role"] != "assistant" or not isinstance(content, list):
+            result.append(msg)
+            continue
+
+        padded: list[Any] = []
+        changed = False
+        for block in content:
+            if isinstance(block, dict) and (
+                block["type"] == "server_tool_use"
+                or block["type"] in _SERVER_TOOL_RESULT_TOOL_NAMES
+            ):
+                caller = block.get("caller")
+                source_id = caller.get("tool_id") if caller else None
+                if source_id and source_id not in seen_use_ids:
+                    seen_use_ids.add(source_id)
+                    changed = True
+                    padded.append(
+                        ServerToolUseBlockParam(
+                            type="server_tool_use",
+                            id=source_id,
+                            name="code_execution",
+                            input={},
+                        )
+                    )
+                if block["type"] == "server_tool_use":
+                    seen_use_ids.add(block["id"])
+                elif block["tool_use_id"] not in seen_use_ids:
+                    seen_use_ids.add(block["tool_use_id"])
+                    changed = True
+                    placeholder = ServerToolUseBlockParam(
+                        type="server_tool_use",
+                        id=block["tool_use_id"],
+                        name=_SERVER_TOOL_RESULT_TOOL_NAMES[block["type"]],
+                        input={},
+                    )
+                    if caller:
+                        placeholder["caller"] = caller
+                    padded.append(placeholder)
+            padded.append(block)
+
+        if changed:
+            result.append(AssistantMessageParam(role="assistant", content=padded))
+        else:
+            result.append(msg)
+
+    return result
+
+
 def neutralize_thinking_for_token_counting(
     messages: list[MessageParam],
 ) -> list[MessageParam]:
@@ -6127,11 +6389,12 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
 
 def _content_list(input: str | list[Content]) -> list[Content]:
     if isinstance(input, str):
-        # parse out <internal> tags which might be here due to the bridge
-        input, content_internal = parse_content_with_internal(
-            input, CONTENT_INTERNAL_TAG
-        )
-        return [ContentText(text=input, internal=content_internal)]
+        blocks = parse_content_with_internal_blocks(input, CONTENT_INTERNAL_TAG)
+        return [
+            ContentText(text=block.text, internal=block.internal)
+            for block in blocks
+            if block.text or block.internal is not None
+        ] or [ContentText(text="", internal=None)]
     else:
         return input
 

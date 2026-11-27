@@ -61,6 +61,54 @@ class SandboxUnavailableError(RuntimeError):
     """
 
 
+SandboxTimeoutReason = Literal["command", "no_response", "unknown"]
+"""A provider's classification of a sandbox timeout.
+
+`"command"`: The provider classifies the timeout as expiration of the
+command's execution deadline. This is the provider's assessment and may
+rely on implementation-specific heuristics.
+
+`"no_response"`: The command's execution deadline is enforced separately,
+and the provider's own, later wait for a response to the request expired.
+This does not establish whether the command started, completed, or remains
+running, and partial output may still have been received.
+
+`"unknown"`: The provider supports this field and declares that it cannot
+classify the timeout as either of the above. Providers should report this
+rather than guess, for example when a single timer covers both the
+command's running time and communication with the sandbox.
+"""
+
+
+class SandboxTimeoutError(TimeoutError):
+    """Raised when a sandbox operation times out.
+
+    Providers may raise this directly, supplying `reason` where they can
+    classify the timeout. A plain `TimeoutError` raised by a provider is
+    wrapped in this class, with `reason` left as `None`, when the sandbox is
+    used through `sandbox()`.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        truncated_output: str | None = None,
+        *,
+        reason: SandboxTimeoutReason | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.truncated_output = truncated_output
+        """Partial command output captured before the timeout, if available."""
+        self.reason = reason
+        """The provider's classification of the timeout.
+
+        `None` means unset: no classification was supplied, because the
+        provider does not know about this field or raised a plain
+        `TimeoutError`. This is distinct from `"unknown"`, where the provider
+        supports the field and declares that it cannot classify the timeout.
+        """
+
+
 ST = TypeVar("ST", bound="SandboxEnvironment")
 
 _sandbox_prebuilt: ContextVar[bool] = ContextVar("sandbox_prebuilt", default=False)
@@ -173,7 +221,9 @@ class RootAccess:
     reason: str
     """Why the probe reached ``state``, for traces and error messages."""
     error: Exception | None = None
-    """The probe's exception when it raised (always set for ``failed``)."""
+    """The exception of a ``failed`` probe, which the tools raise as their cause.
+
+    Other outcomes keep only ``reason``."""
 
 
 class SandboxEnvironment(abc.ABC):
@@ -251,9 +301,10 @@ class SandboxEnvironment(abc.ABC):
           env: Environment variables for execution.
           user: Optional username or UID to run the command as.
           timeout: Optional execution timeout (seconds).
-          timeout_retry: Retry the command in the case that it times out.
-            Commands will be retried up to twice, with a timeout of no greater
-            than 60 seconds for the first retry and 30 for the second.
+          timeout_retry: Allow provider-specific retries for sandbox operation
+            timeouts. Docker does not retry a known command timeout; host
+            operations may be retried up to twice, with timeouts of at most
+            60 seconds for the first retry and 30 for the second.
           concurrency: For sandboxes that run locally, request that the `concurrency()`
             function be used to throttle concurrent subprocesses.
 
@@ -267,8 +318,14 @@ class SandboxEnvironment(abc.ABC):
             request because the sandbox is not running or provider-injected
             execution machinery is unavailable. A missing caller-specified
             executable is returned as an ordinary failed `ExecResult`.
-          TimeoutError: If the specified `timeout` expires
-            (and `timeout_retry` attempts also timeout).
+          SandboxTimeoutError: If the command or the sandbox operation times
+            out. `reason` carries the provider's classification where it
+            has one: `"command"` for the command's own deadline,
+            `"no_response"` when the provider's later wait for a response
+            expired, `"unknown"` when it cannot tell, and `None` when the
+            provider does not classify timeouts. A plain `TimeoutError`
+            raised by a provider is wrapped as `SandboxTimeoutError` with
+            `reason=None` when called through `sandbox()`.
           UnicodeDecodeError: May be raised if the sandbox provider
             cannot decode the command output to UTF-8 and does not
             support using the UTF-8 replacement character for
@@ -517,6 +574,18 @@ class SandboxEnvironment(abc.ABC):
     ) -> None:
         """Called at task startup initialize resources.
 
+        Called once for each sandbox configuration in a run, when the first
+        task that needs it starts, while other tasks may be running. Runs in
+        the directory the eval was launched from, with the process's own
+        environment, as `sample_init` does. A relative config path that
+        exists under the task's directory (a string config, or a build
+        context in a `ComposeConfig`) arrives as an absolute path.
+
+        If a call raises, it gets no `task_cleanup`, so release whatever it
+        allocated before raising. `task_init` can then be called again for
+        the same configuration in the same run (the task's retry, or another
+        task that needs it), and that call either sets it up or raises again.
+
         Args:
           task_name: Name of task using the sandbox environment.
           config: Implementation defined configuration (optional).
@@ -538,12 +607,21 @@ class SandboxEnvironment(abc.ABC):
         sample metadata variable interpolation) and end up yielding different images
         that need their own init (e.g. 'docker pull').
 
+        The variables are not set in the process environment. Inspect passes them
+        only to the Docker provider's `task_init` (and its subclasses'). Any other
+        provider that returns variables fails setup with a `PrerequisiteError`:
+        put what `task_init` needs in the sandbox config instead, and pass
+        environment variables to the subprocesses it starts with
+        `subprocess(env=...)`.
+
+        Runs in the directory the eval was launched from.
+
         Args:
             config: Implementation defined configuration (optional).
             metadata: metadata: Sample `metadata` field
 
         Returns:
-            Environment variables to set for call to task_init.
+            Environment variables for the call to task_init.
         """
         return {}
 
@@ -592,6 +670,9 @@ class SandboxEnvironment(abc.ABC):
         cls, task_name: str, config: SandboxEnvironmentConfigType | None, cleanup: bool
     ) -> None:
         """Called at task exit as a last chance to cleanup resources.
+
+        Runs in the directory the eval was launched from, with the process's
+        own environment.
 
         Args:
           task_name: Name of task using the sandbox environment.
@@ -692,17 +773,29 @@ A tuple, e.g. ("docker", "compose.yaml"), is equivalent to SandboxEnvironmentSpe
 
 
 def resolve_sandbox_environment(
-    sandbox: SandboxEnvironmentType | None,
+    sandbox: SandboxEnvironmentType | list[Any] | dict[str, Any] | None,
 ) -> SandboxEnvironmentSpec | None:
-    # do the resolution
-    if isinstance(sandbox, str):
+    """Resolve a sandbox and its shorthands to a `SandboxEnvironmentSpec`.
+
+    Also reads the serialized forms found in logs: the dict a
+    `SandboxEnvironmentSpec` serializes to, and the list that logs written
+    while it was a `NamedTuple` contain.
+
+    Raises:
+        ValueError: If `sandbox` is not one of these forms.
+    """
+    if sandbox is None:
+        return None
+    elif isinstance(sandbox, str):
         return SandboxEnvironmentSpec(type=sandbox)
     elif isinstance(sandbox, SandboxEnvironmentSpec):
         return sandbox
-    elif isinstance(sandbox, tuple):
+    elif isinstance(sandbox, (tuple, list)) and len(sandbox) == 2:
         return SandboxEnvironmentSpec(sandbox[0], sandbox[1])
+    elif isinstance(sandbox, dict):
+        return SandboxEnvironmentSpec.model_validate(sandbox)
     else:
-        return None
+        raise ValueError(f"Invalid sandbox specification: {sandbox!r}")
 
 
 def deserialize_sandbox_specific_config(

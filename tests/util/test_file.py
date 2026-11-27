@@ -21,6 +21,7 @@ from inspect_ai._util.file import (
     acquire_exclusive_lock,
     basename,
     cleanup_s3_sessions,
+    file,
     filesystem,
     local_path,
     size_in_mb,
@@ -68,6 +69,32 @@ def test_filesystem_file_info():
     info = memory_filesystem.info("test_file")
     assert info.name == "memory:///test_file"
     assert info.size == 0
+
+
+@pytest.mark.parametrize(
+    ("fs_options", "checks_bucket"),
+    [({}, False), ({"auto_mkdir": True}, True)],
+)
+def test_s3_write_checks_bucket_only_when_asked(
+    fs_options: dict[str, Any],
+    checks_bucket: bool,
+    mock_s3: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    s3_class = importlib.import_module("s3fs").S3FileSystem
+    original_call = s3_class._call_s3
+    calls: list[str] = []
+
+    async def recording_call(self: Any, method: str, *args: Any, **kwargs: Any) -> Any:
+        calls.append(method)
+        return await original_call(self, method, *args, **kwargs)
+
+    monkeypatch.setattr(s3_class, "_call_s3", recording_call)
+
+    with file("s3://test-bucket/bucket-check.txt", "w", fs_options=fs_options) as f:
+        f.write("x")
+
+    assert ("head_bucket" in calls) is checks_bucket
 
 
 def test_is_writeable_strips_trailing_sep():

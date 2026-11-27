@@ -16,6 +16,11 @@ from ._config_update import (
     effective_generate_config,
 )
 from ._convert import convert_eval_logs
+from ._disposition import (
+    SampleSelector,
+    exclude_samples,
+    zero_samples,
+)
 from ._edit import (
     LogEdit,
     LogUpdate,
@@ -83,6 +88,13 @@ from ._recover import (
 from ._resolve import resolve_sample_events_data
 from ._retry import retryable_eval_logs
 from ._score import edit_score
+from ._sentinel_stats import (
+    SentinelEvalStats,
+    SentinelHumanReviewCounts,
+    SentinelRemoteStats,
+    SentinelStats,
+    SentinelStepCounts,
+)
 from ._shards._api import (
     ShardMergeResult,
     merge_eval_log_shards,
@@ -131,6 +143,11 @@ __all__ = [
     "EvalSpec",
     "EvalStats",
     "EvalStatus",
+    "SentinelEvalStats",
+    "SentinelHumanReviewCounts",
+    "SentinelRemoteStats",
+    "SentinelStats",
+    "SentinelStepCounts",
     "EvalLogInfo",
     "WriteEvalLogResult",
     "HeadlineMetric",
@@ -174,6 +191,9 @@ __all__ = [
     "edit_eval_log",
     "invalidate_samples",
     "uninvalidate_samples",
+    "exclude_samples",
+    "zero_samples",
+    "SampleSelector",
     "recover_eval_log",
     "recoverable_eval_logs",
     "IncompleteAction",

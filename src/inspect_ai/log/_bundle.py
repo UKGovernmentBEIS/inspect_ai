@@ -13,7 +13,12 @@ from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.file import absolute_file_path, filesystem
 from inspect_ai._view._csp import read_content_security_policy
 
-from ._file import log_files_from_ls, without_merged_shards, write_log_listing
+from ._file import (
+    contained_log_destination,
+    log_files_from_ls,
+    without_merged_shards,
+    write_log_listing,
+)
 
 # INSPECT_VIEW_BUNDLE_OUT_DIR
 
@@ -275,8 +280,9 @@ def copy_file_to_bundle(
     file_path: str, base_log_dir: str, target_dir: str, log_fs: Any
 ) -> None:
     """Copy a single file to the bundle target directory."""
-    relative_path = os.path.relpath(file_path, base_log_dir)
-    output_path = os.path.join(target_dir, relative_path)
+    output_path = contained_log_destination(
+        file_path, base_log_dir, target_dir
+    ).destination
 
     # Make directories containing output_path if they don't exist.
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -306,9 +312,7 @@ def copy_log_files(
         # find any eval-set files and move those as well
         eval_set_files = set()
         for eval_log in eval_logs:
-            eval_set_path = os.path.join(
-                os.path.dirname(eval_log.name), "eval-set.json"
-            )
+            eval_set_path = f"{os.path.dirname(eval_log.name)}/eval-set.json"
             if log_fs.exists(eval_set_path):
                 eval_set_files.add(eval_set_path)
 

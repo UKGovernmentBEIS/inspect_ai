@@ -42,7 +42,7 @@ even though the orchestration is asyncio.
 
 from __future__ import annotations
 
-from logging import getLogger
+from logging import DEBUG, WARNING, getLogger
 from typing import TYPE_CHECKING, Any, Callable, Literal, Protocol, cast
 
 import anyio
@@ -51,10 +51,12 @@ from acp.schema import (
     PermissionOptionKind,
     RequestPermissionRequest,
     RequestPermissionResponse,
+    ToolCallProgress,
     ToolCallStatus,
     ToolCallUpdate,
 )
 
+from inspect_ai._util.format import markdown_escaped, safe_code_fence
 from inspect_ai.agent._acp._guards import acp_guard
 from inspect_ai.tool._tool_call import (
     ToolCall,
@@ -63,6 +65,7 @@ from inspect_ai.tool._tool_call import (
 )
 
 from .._approval import Approval, ApprovalDecision
+from .util import arguments_view
 
 if TYPE_CHECKING:
     from acp.schema import ContentToolCallContent
@@ -176,7 +179,7 @@ def _format_view_content_as_markdown(
     includes a bold title heading (if ``view_content.title`` is set)
     and — for non-markdown source — a fenced code block around the
     body so whitespace / indentation are preserved by any markdown
-    renderer.
+    renderer. The title is escaped, as it can hold the call's arguments.
 
     This is what lets the inline approval section (in the TUI) and
     any other ACP client (Zed etc.) render the same visual structure
@@ -188,7 +191,7 @@ def _format_view_content_as_markdown(
 
     parts: list[str] = []
     if view_content.title:
-        parts.append(f"**{view_content.title}**")
+        parts.append(f"**{markdown_escaped(view_content.title)}**")
         parts.append("")  # blank line between heading and body
     if view_content.format == "markdown":
         parts.append(view_content.content)
@@ -199,7 +202,7 @@ def _format_view_content_as_markdown(
         # text containing literal ``` (e.g. a viewer dumping help
         # output, or a tool printing markdown source) doesn't break
         # out of the fence and render as live markdown.
-        fence = _safe_code_fence(view_content.content)
+        fence = safe_code_fence(view_content.content)
         parts.append(fence)
         parts.append(view_content.content)
         parts.append(fence)
@@ -208,29 +211,6 @@ def _format_view_content_as_markdown(
         format="markdown",
         content="\n".join(parts),
     )
-
-
-def _safe_code_fence(content: str) -> str:
-    """Return a backtick fence longer than any backtick run in ``content``.
-
-    CommonMark / GFM rule: a fenced code block opened with N
-    backticks closes at the next line whose fence has at least N
-    backticks. Pick ``max_run + 1`` so the close fence we emit
-    can't be matched by anything embedded in the content.
-
-    Minimum length 3 — keeps standard plaintext (no backticks at
-    all) wrapped in the familiar ``` fence.
-    """
-    max_run = 0
-    cur_run = 0
-    for ch in content:
-        if ch == "`":
-            cur_run += 1
-            if cur_run > max_run:
-                max_run = cur_run
-        else:
-            cur_run = 0
-    return "`" * max(3, max_run + 1)
 
 
 def _separator_block() -> "ContentToolCallContent":
@@ -371,6 +351,18 @@ def _tool_call_update(
         content_blocks.append(_separator_block())
     if call_blocks:
         content_blocks.extend(call_blocks)
+    # every argument, in a block of its own, unless the view is the call's
+    # default view (see arguments_view)
+    all_arguments = arguments_view(call, view)
+    arguments_blocks = (
+        content_blocks_from_view(_format_view_content_as_markdown(all_arguments))
+        if all_arguments is not None
+        else None
+    )
+    if arguments_blocks:
+        if content_blocks:
+            content_blocks.append(_separator_block())
+        content_blocks.extend(arguments_blocks)
 
     return ToolCallUpdate(
         tool_call_id=call.id,
@@ -498,9 +490,14 @@ async def _request_from_driver_with_fallback(
                     except cancel_exc:
                         raise
                     except Exception as exc:
-                        # Transport failure or other client-side error.
-                        # Try the next client in the fallback chain.
-                        logger.debug(
+                        # Try the next client in the fallback chain. A
+                        # ConnectionError means the client left. Anything
+                        # else (an error reply, a malformed response) is
+                        # from a client that stays attached but isn't asked
+                        # again until another client attaches, so the sample
+                        # can stay parked.
+                        logger.log(
+                            DEBUG if isinstance(exc, ConnectionError) else WARNING,
                             "ACP approval request failed for client %r; "
                             "trying next: %s",
                             client,
@@ -530,14 +527,14 @@ async def request_human_approval_via_acp(
     """Route a human-approval prompt through attached ACP clients.
 
     Returns:
-        - An :class:`Approval` when at least one ACP client responded.
-        - ``None`` when no ACP clients are attached, when no live
-          ACP session is bound for the current sample, when every
-          attached client failed (disconnect, transport error), or
-          when an unexpected internal error occurred building or
-          racing the request. The caller falls through to the
-          existing in-proc panel / console human-approval flow in any
-          of those cases.
+        - An :class:`Approval` when an ACP client responded. With no
+          client attached, or once every attached client has failed,
+          this waits for the next client to attach.
+        - ``None`` when no ACP server is accepting clients, when there
+          is no active sample or ACP session, or when an unexpected
+          internal error occurred building or racing the request. The
+          caller falls through to the in-proc panel / console
+          human-approval flow in those cases.
 
     The ``message`` argument (the assistant text accompanying the
     tool call) is accepted for signature parity with the in-proc
@@ -622,10 +619,7 @@ def finish_approval_card(
     like the rest of this shim: a failure is logged, never raised.
     """
     with acp_guard("ACP approval card completion raised; the card stays pending"):
-        from inspect_ai.agent._acp._schema_builders import (
-            session_notification,
-            update_tool_call,
-        )
+        from inspect_ai.agent._acp._schema_builders import session_notification
         from inspect_ai.agent._acp.server import acp_server_accepting_clients
         from inspect_ai.log._samples import sample_active
 
@@ -639,7 +633,8 @@ def finish_approval_card(
         session.publish(
             session_notification(
                 session.session_id,
-                update_tool_call(
+                ToolCallProgress(
+                    session_update="tool_call_update",
                     tool_call_id=card.tool_call_id,
                     title=card.title,
                     status=card.status,

@@ -41,7 +41,7 @@ from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, handoff, re
 from inspect_ai.agent._bridge import bridge as bridge_module
 from inspect_ai.agent._bridge import types as bridge_types
 from inspect_ai.agent._bridge.responses_impl import filter_duplicate_assistant_content
-from inspect_ai.agent._bridge.types import AgentBridge, _unplaced_key
+from inspect_ai.agent._bridge.types import AgentBridge, _Received, _unplaced_key
 from inspect_ai.agent._bridge.util import apply_message_ids
 from inspect_ai.dataset import Sample
 from inspect_ai.event import ModelEvent, ToolEvent
@@ -267,7 +267,11 @@ async def _anthropic(mangle: bool) -> None:
             )
 
 
-async def _google(mangle: bool) -> None:
+async def _google(
+    mangle: bool,
+    rebuild: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+) -> None:
+    """A Google SDK scaffold; `rebuild` changes each reply it sends back."""
     from google.genai import types
 
     client = genai.Client(api_key="inspect")
@@ -297,6 +301,8 @@ async def _google(mangle: bool) -> None:
         )
         if mangle:
             content = _mangle(content)
+        if rebuild is not None:
+            content = rebuild(content)
         contents.append(content)
         calls = [
             part.function_call.name
@@ -417,9 +423,8 @@ def test_bridge_keeps_message_ids(
     tmp_path: Path,
 ) -> None:
     log = _run(scaffold_agent(dialect, mangle), tmp_path, log_format)
-    # Google rebuilds tool call ids, so the reply calling a tool comes back
-    # changed; the mangling scaffold changes both replies it sends back
-    edits = 2 if mangle else 1 if dialect == "google" else 0
+    # the mangling scaffold changes both replies it sends back
+    edits = 2 if mangle else 0
     for logged in [log, read_eval_log(log.location)]:
         # the scaffold's own system message comes first, so its first request
         # doesn't start with the sample's conversation
@@ -1532,8 +1537,10 @@ def test_compacted_identical_google_calls_never_link_another_calls_result(
 ) -> None:
     """Ten equal Google calls with equal results, compacted to the last nine, link no wrong result.
 
-    Google re-derives equal call ids, so nothing places the retained calls:
-    they get new ids, and the latest call's host result stays unlinked.
+    Each call is handed over and sent back under its own id, so each
+    retained reply that was in an earlier request keeps the id it had there.
+    The latest reply was in none: it gets a new id, and its call's host
+    result stays unlinked.
     """
     host_events: list[ToolEvent] = []
 
@@ -1601,9 +1608,10 @@ def test_compacted_identical_google_calls_never_link_another_calls_result(
     assert log.status == "success", log.error
     assert log.samples
     events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
-    reply_ids = {event.output.message.id for event in events[:10]}
-    compacted = events[10].input
-    assert not {m.id for m in compacted if m.role == "assistant"} & reply_ids
+    reply_ids = [event.output.message.id for event in events[:10]]
+    compacted = [m.id for m in events[10].input if m.role == "assistant"]
+    assert compacted[:-1] == reply_ids[1:-1]
+    assert compacted[-1] not in reply_ids
     assert host_events[-1].message_id is None
     assert all(event.message_id is not None for event in host_events[:-1])
 
@@ -1725,14 +1733,21 @@ def test_yaml_mixed_keys_are_accepted_by_message_identity(operation: str) -> Non
         assert reply.id is not None
 
 
-def test_responses_dedupe_tells_a_lone_surrogate_from_its_escaped_text() -> None:
+@pytest.mark.parametrize("with_ids", [False, True])
+def test_responses_dedupe_tells_a_lone_surrogate_from_its_escaped_text(
+    with_ids: bool,
+) -> None:
     """Assistant text whose `internal` holds a lone surrogate isn't a duplicate of one holding its escaped text."""
 
     def text(internal_id: str) -> ContentText:
         return ContentText(text="same", internal={"id": internal_id})
 
     content: list[Content] = [text("msg \ud800"), text("msg \\ud800")]
-    assert filter_duplicate_assistant_content([*content, content[1]]) == content
+    groups = [
+        (f"item_{index}" if with_ids else None, [block])
+        for index, block in enumerate(content)
+    ]
+    assert filter_duplicate_assistant_content(groups * 2) == content
 
 
 def _compacted_to(reply: ChatMessageAssistant) -> list[ChatMessage]:
@@ -1787,7 +1802,7 @@ async def test_compaction_after_re_derived_ids_keeps_the_latest_replys_id(
         kept = [ChatMessageUser(content="Summary: listed the files once.")]
         await scaffold.request([task, first_back, old_result], second)
     bridge._record_transported_reply(second, [second_back])
-    [event] = _awaiting(bridge, second)
+    [event] = _awaiting(bridge, second, result="NEW")
 
     with recording_placements() as placements:
         ids = await scaffold.request(
@@ -1884,7 +1899,7 @@ def test_google_reply_with_non_string_argument_keys_keeps_its_id(
     assert log.samples
     first, second = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
     returned = second.input[1]
-    assert returned.id == edited_id(first.output.message.id, returned)
+    assert returned.id == first.output.message.id
 
 
 async def test_resumed_bridge_keeps_the_main_threads_id() -> None:
@@ -2405,7 +2420,113 @@ async def test_google_reply_calling_a_name_with_a_lone_surrogate_is_returned(
             await client.aio.models.generate_content(model="inspect", contents=contents)
 
     returned = bridge.state.messages[1]
-    assert returned.id == edited_id(first.id or "", returned)
+    assert returned.id == first.id
+
+
+async def test_google_sdk_results_answer_their_own_identical_calls() -> None:
+    """Without a sentinel, a Google SDK client's results each answer the call whose id they carry.
+
+    The model calls the same tool with the same arguments twice. The client
+    sends the reply back as the SDK gives it, and the results, under their
+    calls' ids, in reverse order.
+    """
+    from google.genai import types
+
+    calls = [
+        ToolCall(id=call_id, function="read", arguments={"path": "a.txt"})
+        for call_id in ("call_1", "call_2")
+    ]
+    bridge = AgentBridge(AgentState(messages=[]))
+    client = genai.Client(api_key="inspect")
+    contents: list[dict[str, Any]] = [{"role": "user", "parts": [{"text": PROMPT}]}]
+    with _active_mock_model(
+        ModelOutput.from_message(ChatMessageAssistant(content="", tool_calls=calls)),
+        ModelOutput.from_content("mockllm/model", "Done."),
+    ):
+        with _serving(bridge):
+            response = await client.aio.models.generate_content(
+                model="inspect", contents=contents
+            )
+            assert response.candidates and response.candidates[0].content
+            reply = response.candidates[0].content
+            handed = [
+                part.function_call
+                for part in reply.parts or []
+                if part.function_call is not None
+            ]
+            assert [call.id for call in handed] == ["call_1", "call_2"]
+            results = [
+                types.Part(
+                    function_response=types.FunctionResponse(
+                        id=call.id,
+                        name=call.name,
+                        response={"output": f"result of {call.id}"},
+                    )
+                ).model_dump(exclude_none=True, by_alias=True)
+                for call in reversed(handed)
+            ]
+            contents += [
+                reply.model_dump(exclude_none=True, by_alias=True),
+                {"role": "user", "parts": results},
+            ]
+            await client.aio.models.generate_content(model="inspect", contents=contents)
+
+    assistant = bridge.state.messages[1]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert [call.id for call in assistant.tool_calls or []] == ["call_1", "call_2"]
+    answers = [m for m in bridge.state.messages if isinstance(m, ChatMessageTool)]
+    assert [m.tool_call_id for m in answers] == ["call_2", "call_1"]
+    for answer in answers:
+        assert f"result of {answer.tool_call_id}" in answer.text
+
+
+def _without_call_ids(content: dict[str, Any]) -> dict[str, Any]:
+    """A Google reply as a scaffold that rebuilds its calls from name and arguments sends it back."""
+    return {
+        **content,
+        "parts": [
+            {
+                **part,
+                "functionCall": {
+                    key: value
+                    for key, value in part["functionCall"].items()
+                    if key != "id"
+                },
+            }
+            if "functionCall" in part
+            else part
+            for part in content["parts"]
+        ],
+    }
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_google_scaffold_dropping_call_ids_keeps_message_ids(
+    log_format: Literal["eval", "json"], tmp_path: Path
+) -> None:
+    """A Google scaffold that sends calls back without their ids keeps the reply as an edit of it.
+
+    The call comes back under the id derived from it, so the reply calling
+    the tool is its derived edit, as it was before the bridge handed ids
+    over.
+    """
+
+    @agent
+    def dropping_ids() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            store().set("input_id", state.messages[0].id)
+            async with agent_bridge(state) as bridge:
+                await _google(mangle=False, rebuild=_without_call_ids)
+                return bridge.state
+
+        return execute
+
+    log = _run(dropping_ids(), tmp_path, log_format)
+    for logged in [log, read_eval_log(log.location)]:
+        assert (
+            assert_ids_agree(logged, model_calls=3, edits="derived", input_prompt=False)
+            == 1
+        )
 
 
 class _CountingList(list[str]):
@@ -2520,11 +2641,11 @@ def test_matching_work_is_linear_with_concurrent_candidates(
     Every candidate's output stays a reason the next request may not be a
     retry, and none is compared with each reply.
     """
-    # both above the recent threads the bridge keeps (`_MAX_RECENT_THREADS`)
+    # both at or above the recent threads the bridge keeps (`_MAX_RECENT_THREADS`)
     small = _concurrent_candidates_work(dialect, 16, tmp_path)
-    large = _concurrent_candidates_work(dialect, 128, tmp_path)
-    # linear is 8x; comparing each output with each reply is 64x
-    assert large < 12 * small
+    large = _concurrent_candidates_work(dialect, 64, tmp_path)
+    # linear is under 4x; comparing each output with each reply is 7.5x
+    assert large < 6 * small
 
 
 def _assert_contract(log: EvalLog) -> EvalSample:
@@ -2719,7 +2840,7 @@ def _awaiting(
     reply: ChatMessageAssistant,
     executions: int = 1,
     index: int = 0,
-    result: str = "",
+    result: str = "a.txt",
 ) -> list[ToolEvent]:
     """Host tool events for call `index` of `reply`, as executing a granted call records them."""
     assert reply.id is not None and reply.tool_calls is not None
@@ -2732,7 +2853,9 @@ def _awaiting(
     ]
     for event in events:
         bridge._await_result_message(
-            handed_calls(bridge, reply.id, reply.tool_calls)[index], event
+            handed_calls(bridge, reply.id, reply.tool_calls)[index],
+            event,
+            _Received(result),
         )
     return events
 
@@ -2893,8 +3016,8 @@ async def test_host_results_sent_late_still_link(delay: str) -> None:
     )
     scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
     await scaffold.request([task], reply)
-    [event_a] = _awaiting(scaffold.bridge, reply, index=0)
-    [event_b] = _awaiting(scaffold.bridge, reply, index=1)
+    [event_a] = _awaiting(scaffold.bridge, reply, index=0, result="A")
+    [event_b] = _awaiting(scaffold.bridge, reply, index=1, result="B")
 
     if delay == "split-parallel":
         first = await scaffold.request([task, reply, _result("call_a", "A")])
@@ -2970,7 +3093,7 @@ def _link_copy(
         event = ToolEvent(
             id=call.id, function=call.function, arguments=call.arguments, result=result
         )
-        bridge._await_result_message(tracked[position], event)
+        bridge._await_result_message(tracked[position], event, _Received(result))
         events.append(event)
     tool_messages = [
         ChatMessageTool(
@@ -2989,13 +3112,25 @@ def _link_copy(
     return [event.message_id for event in events]
 
 
-def test_host_result_links_to_the_answer_whatever_its_content() -> None:
-    """`message_id` names the answer to the call, not a message holding `result`."""
+@pytest.mark.parametrize(
+    "answer,linked",
+    [
+        ("contents of file a", True),
+        ("Output:\ncontents of file a\n", True),
+        ("MCP error -32001: Request timed out", False),
+    ],
+    ids=["result", "result within other text", "client timeout"],
+)
+def test_host_result_links_only_an_answer_holding_it(answer: str, linked: bool) -> None:
+    """`message_id` names the call's answer only when the answer holds its result.
+
+    A scaffold whose client gave up on the call answers it without the result.
+    """
     handed = [_read("a", "a")]
 
-    ids = _link_copy(handed, [(0, "A")], handed, [(handed[0], "edited")])
+    ids = _link_copy(handed, [(0, "contents of file a")], handed, [(handed[0], answer)])
 
-    assert ids == ["result-0"]
+    assert ids == ["result-0" if linked else None]
 
 
 # validates as `internal` (pydantic's limit is ~255) but is too deep to serialize

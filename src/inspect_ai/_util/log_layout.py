@@ -3,8 +3,8 @@
 An eval log at ``<dir>/<name>.eval`` has companion directories beside it
 whose names derive from ``<name>``: ``<name>.checkpoints/`` (sandbox
 checkpoints) and ``<name>.shards/`` (per-worker shard logs). This module is
-the single owner of the ``.eval`` / ``-recovered`` suffix rule those
-derivations share, and of the ``{created}_{task}_{id}`` log name itself, so
+the single owner of the ``.eval`` / ``-recovered`` suffix rules those
+derivations use, and of the ``{created}_{task}_{id}`` log name itself, so
 that both the log recorders and the checkpoint package can use them.
 
 Pure path computation — no filesystem side effects.
@@ -82,17 +82,27 @@ def merged_log_task_id(name: str, *, task: str, model: str) -> str:
     return uuid(name=name)
 
 
+def merged_log_name(log_location: str) -> str:
+    """Return the log's basename with its ``.eval`` suffix stripped.
+
+    The name of a merged log, from which its ``<name>.shards/`` directory
+    and merge lock derive. A ``-recovered`` suffix is kept: a
+    ``<name>-recovered.eval`` is an ordinary log, not a merged log of
+    ``<name>.shards/``.
+    """
+    base = basename(log_location)
+    return base[: -len(_LOG_SUFFIX)] if base.endswith(_LOG_SUFFIX) else base
+
+
 def log_basename(log_location: str) -> str:
     """Return the log's basename with recovery and log suffixes stripped.
 
-    Used to derive the companion directory names beside the log
-    (``<log-base>.checkpoints/``, ``<log-base>.shards/``) and the matching
-    per-eval checkpoint working dir under ``inspect_cache_dir("checkpoints")/``
-    (ephemeral, host cache).
+    Used to derive the checkpoints directory beside the log
+    (``<log-base>.checkpoints/``) and the matching per-eval checkpoint
+    working dir under ``inspect_cache_dir("checkpoints")/`` (ephemeral, host
+    cache), which a log and its ``-recovered`` copy share.
     """
-    base = basename(log_location)
-    if base.endswith(_LOG_SUFFIX):
-        base = base[: -len(_LOG_SUFFIX)]
+    base = merged_log_name(log_location)
     if base.endswith(_RECOVERED_SUFFIX):
         base = base[: -len(_RECOVERED_SUFFIX)]
     return base
@@ -115,21 +125,19 @@ def eval_checkpoints_dir(log_location: str, override_root: str | None) -> str:
 def eval_shards_dir(log_location: str) -> str:
     """Compute the shards dir path for a merged eval log.
 
-    ``<dir>/<name>.eval`` (or ``<dir>/<name>-recovered.eval``) maps to
-    ``<dir>/<name>.shards``, by the same suffix rule as
-    :func:`eval_checkpoints_dir`. The inverse is
+    ``<dir>/<name>.eval`` maps to ``<dir>/<name>.shards``. The inverse is
     :func:`eval_log_for_shards_dir`.
     """
-    return _with_basename(log_location, f"{log_basename(log_location)}{_SHARDS_SUFFIX}")
+    return _with_basename(
+        log_location, f"{merged_log_name(log_location)}{_SHARDS_SUFFIX}"
+    )
 
 
 def eval_log_for_shards_dir(shards_dir: str) -> str:
     """Compute the merged eval log path for a shards dir.
 
     ``<dir>/<name>.shards`` (with or without a trailing slash) maps to
-    ``<dir>/<name>.eval``. The inverse of :func:`eval_shards_dir`, except
-    that a ``-recovered`` log and its original share one shards dir, which
-    maps back to the original.
+    ``<dir>/<name>.eval``. The inverse of :func:`eval_shards_dir`.
 
     Raises:
         ValueError: If the directory name does not end in ``.shards``.
@@ -142,21 +150,18 @@ def eval_log_for_shards_dir(shards_dir: str) -> str:
     return _with_basename(shards_dir, f"{base[: -len(_SHARDS_SUFFIX)]}{_LOG_SUFFIX}")
 
 
-def merged_log_candidates_for_shard(shard_location: str) -> list[str] | None:
-    """Return the merged log locations a shard log belongs to.
+def merged_log_for_shard(shard_location: str) -> str | None:
+    """Return the merged log location a shard log belongs to.
 
     A shard is a log file at ``<dir>/<name>.shards/<k>/<file>``. Its merged
-    log is ``<dir>/<name>.eval``, or ``<dir>/<name>-recovered.eval`` after a
-    manual recovery, so both candidates are returned. Returns ``None`` when
-    the location does not follow the shard layout.
+    log is ``<dir>/<name>.eval``. Returns ``None`` when the location does not
+    follow the shard layout.
     """
     shards_dir = dirname(dirname(shard_location))
     base = basename(shards_dir)
     if not base.endswith(_SHARDS_SUFFIX) or base == _SHARDS_SUFFIX:
         return None
-    merged = eval_log_for_shards_dir(shards_dir)
-    recovered = f"{merged[: -len(_LOG_SUFFIX)]}{_RECOVERED_SUFFIX}{_LOG_SUFFIX}"
-    return [merged, recovered]
+    return eval_log_for_shards_dir(shards_dir)
 
 
 def _with_basename(location: str, name: str) -> str:

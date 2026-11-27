@@ -1201,8 +1201,8 @@ var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_compiler_runtime = require_compiler_runtime();
 var import_ansi_output = require_ansi_output();
 var AnsiDisplayRich_module_default = {
-	container: "_container_f35vk_1",
-	toggle: "_toggle_f35vk_1"
+	container: "_container_1unjd_1",
+	toggle: "_toggle_1unjd_1"
 };
 // ../../packages/react/src/components/AnsiDisplayRich.tsx
 var RichANSIDisplay = (t0) => {
