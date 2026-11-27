@@ -68,7 +68,7 @@ async def test_anthropic_output_cache(
 def test_anthropic_effort() -> None:
     log = eval(
         Task(dataset=[Sample(input="Please tell a story about toys.")]),
-        model="anthropic/claude-opus-4-5",
+        model="anthropic/claude-opus-5-5",
         effort="low",
     )[0]
     assert log.status == "success"
