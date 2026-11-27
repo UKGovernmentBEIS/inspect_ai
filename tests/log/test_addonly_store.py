@@ -2413,6 +2413,42 @@ def test_validate_nonce_prints_eval_nonce(clean_run: CleanRun) -> None:
         read_eval_nonce(store.url, "no-such-eval", store.client(store.validator))
 
 
+@pytest.mark.parametrize("version", [None, "1", 0, STORE_VERSION + 1])
+def test_validate_nonce_record_version(clean_run: CleanRun, version: Any) -> None:
+    """`inspect validate --nonce` reads the start record's version as the validator does.
+
+    No version, or a value that is not one, is an error; a later version
+    asks to upgrade inspect_ai.
+    """
+    data = json.loads(clean_run.read(f"{clean_run.eval_id}/{START}"))
+    if version is None:
+        del data["version"]
+    else:
+        data["version"] = version
+    clean_run.put(f"other-eval/{START}", json.dumps(data))
+    store = clean_run.store
+    result = subprocess.run(
+        [
+            *[sys.executable, "-m", "inspect_ai", "validate"],
+            *["--nonce", "other-eval", "--store", store.url],
+        ],
+        env={**os.environ, **store.env(store.validator)},
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0, result.stdout
+    assert data["nonce"] not in result.stdout
+    expected = (
+        "upgrade inspect_ai"
+        if version == STORE_VERSION + 1
+        else "has no store format version"
+        if version is None
+        else "is not a store format version"
+    )
+    output = " ".join((result.stdout + result.stderr).split())
+    assert expected in output, output
+
+
 @scorer(metrics=[mean()])
 def failing_score() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:

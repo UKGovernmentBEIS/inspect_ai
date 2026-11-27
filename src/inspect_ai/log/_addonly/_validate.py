@@ -424,18 +424,19 @@ def read_eval_nonce(store: str, eval_id: str, client: Any | None = None) -> str:
 
     Raises:
        ValueError: The store has no readable start record for the eval.
+       NewerStoreVersionError: The start record has a later store format
+          version than this inspect_ai reads.
     """
     location = StoreLocation.parse(store)
     s3 = client if client is not None else s3_client()
+    key = location.key(eval_id, START)
     try:
-        body = s3.get_object(Bucket=location.bucket, Key=location.key(eval_id, START))[
-            "Body"
-        ].read()
+        body = s3.get_object(Bucket=location.bucket, Key=key)["Body"].read()
     except ClientError as ex:
         raise ValueError(
             f"Cannot read the start record of eval {eval_id}: {error_code(ex)}."
         ) from ex
-    return StartRecord.model_validate_json(body).nonce
+    return _parse_record(StartRecord, key, body).nonce
 
 
 def _check_settings(s3: Any, bucket: str) -> list[Finding]:

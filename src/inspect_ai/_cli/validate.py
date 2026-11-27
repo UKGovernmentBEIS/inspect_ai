@@ -55,7 +55,7 @@ def validate_command(
             raise click.UsageError("--nonce takes no LOG_DIR.")
         try:
             click.echo(read_eval_nonce(store, nonce_eval_id))
-        except ValueError as ex:
+        except (ValueError, NewerStoreVersionError) as ex:
             raise PrerequisiteError(str(ex)) from ex
         return
     if log_dir is None:
