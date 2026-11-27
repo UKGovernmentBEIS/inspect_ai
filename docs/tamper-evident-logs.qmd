@@ -45,6 +45,8 @@ There are also a number of things that tamper-evident logs do not protect agains
 
 -   **Samples deleted from the `.eval` file of an eval that stopped.** If an eval stopped before it finished its `.eval` file, a sample deleted from that file shows up as a `not_logged` line rather than a finding. A sample that such a retry copied from the earlier eval's log does not show up at all, because only the eval closing record lists those samples.
 
+-   **A summary added for a `not_logged` sample.** In the `.eval` file of an eval that stopped, the validator does not check a sample summary for a sample listed as `not_logged`. Someone can add such a summary, and `samples_df()` and the viewer then list the sample with any scores.
+
 -   **Rescores by a holder of the eval's nonce.** Anyone who has the eval's nonce and can add to the store can write a rescore with any scores. A nonce that you hand out works for every later rescore of that eval, and a process that was compromised during the run already knows it. The validator lists each rescore, but does not vouch for it.
 
 -   **A rescored file put back to its copy from before the rescore.** If someone replaces a rescored `.eval` file with its copy from before the rescore (or from before a later rescore), the copy still matches the original run's records, and the validator passes it. The rescore shows only as a `rescored` line.
@@ -371,7 +373,7 @@ The following lines are findings. Each finding makes the command exit with 1:
 | `score_mismatch` | A sample's scores differ from its closing record (after the rescores that the sample names, if any). | `inspect score` without the store location causes this. Otherwise, someone changed the scores. |
 | `missing_rescore` | A sample names a rescore that is not in the store, that has no record of the sample, or that rescores another eval (one that the sample's copy did not come through). The sample is not compared. | Treat the sample as changed. |
 | `rescore_mismatch` | The samples of a `.eval` file name different latest rescores of the eval. A rescore rescores every sample. | Someone replaced a sample with a copy from before or after a rescore. |
-| `summary_mismatch` | A sample in the `.eval` file has no sample summary, or its summary's scores differ from the sample's, or `summaries.json` has more than one row for the sample (Inspect keeps the last, and the viewer can list another). The viewer's sample list and `samples_df()` read the summaries. | A retry that copies a sample into its `.eval` file and fails to write the sample's summary causes this in an honest run. Otherwise, someone changed the summaries. |
+| `summary_mismatch` | A sample in the `.eval` file has no sample summary, or its summary's scores differ from the sample's, or `summaries.json` has more than one row for the sample (Inspect keeps the last, and the viewer can list another), or a `summaries.json` row whose JSON id or epoch differs from the sample's (for example `1` and `"1"`). Also a finished `.eval` file (its status is not `started`) with no `summaries.json`. The viewer's sample list and `samples_df()` read the summaries. | A retry that copies a sample into its `.eval` file and fails to write the sample's summary causes this in an honest run. Otherwise, someone changed the summaries. |
 
 ## Limitations
 

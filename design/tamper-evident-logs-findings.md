@@ -277,6 +277,10 @@ id:
   thins them), or more than one `summaries.json` row with its
   `(str(id), epoch)`. Python keeps the last such row; the viewer keys rows
   by the JSON id and epoch (`1` and `"1"` differ), so it can list another.
+  Also a `summaries.json` row whose JSON id or epoch differs from the
+  sample's (for example `1` and `"1"`), and a finished `.eval` file (status
+  not `started`) with no `summaries.json`, where the viewer lists the
+  journal summary rows, which are not compared.
   The viewer's sample list and `samples_df` read the summaries. A summary
   with no sample is `unstored_sample` or `missing_sample`. Rows are checked
   for repeats only in `summaries.json`, not in the journal summaries of a
@@ -520,6 +524,12 @@ Stopped runs:
   closing record, status `started`) gives a `not_logged` line, not a
   finding. A sample that such an eval copied from its prior log gives no
   line.
+- In the same case (no eval closing record, `.eval` file still `started`),
+  a summary row for a sample listed as `not_logged` is not checked: the
+  validator skips the sample before the summary checks. An added row with
+  any scores passes, and `samples_df` and the viewer list the sample with
+  those scores. An honest run writes a sample and its summary row in the
+  same flush, so an honest `not_logged` sample has no summary row.
 - A retry with no eval closing record has no `logged` list, so a copied
   sample deleted from its `.eval` file, or a prior eval's sample added to
   it, is not reported.
