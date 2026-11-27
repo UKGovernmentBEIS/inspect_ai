@@ -894,8 +894,14 @@ handling of a rare case, with Eric's go (Nov-27).
    sets on the 412 of a retried put (`test_put_retries_and_412_after_retry`
    injects the network error in botocore's `before-send` event, under
    moto). `ConditionalRequestConflict` is no longer retried. Botocore's
-   retry quota (500 tokens per client, 5 per retry) also stops retries
-   early when many puts fail at once, so an outage fails the eval sooner.
+   retry quota (500 tokens per client, 5 per retry, 10 for a connect or
+   read timeout) also stops retries early when many puts fail at once, so
+   an outage fails the eval sooner. The 71 s bounds the waits between
+   attempts only; each attempt can also take the client's connect and
+   read timeouts (60 s each). These numbers are botocore 1.43's default
+   retry mode: its opt-in new mode (`AWS_NEW_RETRIES_2026`) uses shorter
+   backoff for non-throttling errors and 14 tokens per retry, and would
+   change them if it became the default.
 9. **A failed buffer insert stops the sample** (`SampleBufferInsertError`,
    `SampleRecordWriter.insert_failed`, the try/except in
    `on_sample_event_buffered`). The transcript logs the error and goes on;
@@ -1243,12 +1249,16 @@ changed decisions 2, 3, 5 and 6, and added 14 and 15; each change is marked.
    new boto3 session per eval. This works under asyncio and trio, and
    avoids fsspec. A new session is needed because the default session keeps
    the first credentials it found. *Changed in 1b:* the eval host's client
-   has SDK retries off and a pool of 50 connections.
+   has SDK retries off and a pool of 50 connections. *Changed Nov-27:* it
+   has botocore's standard retries (decision 3).
 3. *Changed in 1b (was: botocore's own retries, no time limit).* Retries:
    the eval's own loop, SDK retries off. It retries network errors,
    throttling, 5xx and `ConditionalRequestConflict` for up to 60 s, and
    fails on any other error, including every 412. The 60 s is a placeholder;
-   the plan's open decision on the time limit stays open.
+   the plan's open decision on the time limit stays open. *Changed Nov-27:*
+   botocore's standard retries replace the loop (8 attempts, at most 71 s
+   of backoff plus each attempt's connect and read timeouts); see
+   [Simplification review: removals](#simplification-review-removals).
 4. A boundary with no new rows writes nothing. (In 1b it still waits for
    the records already numbered.)
 5. *Replaced in 1b (was: one lock per sample attempt).* No lock. A write
@@ -1332,7 +1342,8 @@ for each other, validator scope). These remain or are new:
 
 - Use an async S3 client (aiobotocore, as `AsyncFilesystem` does) with
   connection reuse.
-- Set the retry time limit (this branch uses 60 s).
+- Set the retry limit (this branch uses botocore's standard retries with 8
+  attempts: at most 71 s of backoff, plus each attempt's request time).
 - Make sure every event of a sample reaches the buffer, also when a worker
   thread logs during the sample (plan issue 1).
 - Settle the bridge `message_id` update and the sentinel sidecar updates
