@@ -3783,8 +3783,9 @@ async def _task_run_sample_attempt(
             source_sample: EvalSample | None = None
 
             # drain sample events for both completion and retry paths (before
-            # the add-only store's shield below, so that a cancel does not
-            # wait for on_sample_event hooks)
+            # the add-only store's shield below, so the store adds no shield
+            # to on_sample_event hooks; an attempt already ended by a cancel
+            # shields them, as without the store)
             with anyio.CancelScope(shield=isinstance(failure, _AttemptCancel)):
                 await drain_sample_events()
 
