@@ -381,9 +381,6 @@ class TaskLogger:
         # and the recorder resolves them against a sample's string form, so
         # a dataset-typed int key would let "2" read the withheld record 2.
         self._seeded_pending: set[SampleRecordKey] = set()
-        # every key seeded from the prior log, for the add-only store's eval
-        # closing record
-        self._seeded_keys: set[SampleRecordKey] = set()
 
         # sample buffer db
         self._buffer_db: SampleBufferDatabase | None = None
@@ -475,7 +472,6 @@ class TaskLogger:
         # the retry attempt re-enters task_run, which seeds its fresh log
         self._prior_seeded = False
         self._seeded_pending = set()
-        self._seeded_keys = set()
         # the retry attempt gets a fresh log, which must re-record the run's
         # full accumulated process-scoped updates in init()
         self._process_updates_recorded = 0
@@ -690,7 +686,6 @@ class TaskLogger:
         self._prior_seeded = True
         seeded = await self.recorder.sample_summaries(self.eval)
         self._seeded_pending = {_seeded_key(s.id, s.epoch) for s in seeded or []}
-        self._seeded_keys = set(self._seeded_pending)
         _warn_if_clock_behind_prior(seeded or [], prior)
 
     async def seed_added_samples(
@@ -704,13 +699,13 @@ class TaskLogger:
         every admitted sample. Each record is withheld from live readers as
         it lands (``on_sample``), like the initial seed's.
         """
-
-        def on_sample(id: str | int, epoch: int) -> None:
-            self._seeded_pending.add(_seeded_key(id, epoch))
-            self._seeded_keys.add(_seeded_key(id, epoch))
-
         await self.recorder.log_seed_samples(
-            self.eval, prior, keep, on_sample=on_sample
+            self.eval,
+            prior,
+            keep,
+            on_sample=lambda id, epoch: self._seeded_pending.add(
+                _seeded_key(id, epoch)
+            ),
         )
 
     async def read_prior_sample(self, id: str | int, epoch: int) -> EvalSample | None:
@@ -1347,13 +1342,10 @@ class TaskLogger:
             async with self._flush_lock:
                 if prune_unplanned and status == "success" and self._seeded_pending:
                     await self.recorder.log_prune(self.eval, set(self._seeded_pending))
-                # a seeded key is listed as copied only if its record is in the
-                # log: a pruned record is not, nor one whose admission copy
-                # failed or was cancelled after on_sample recorded its key
-                logged = {
-                    _seeded_key(s.id, s.epoch)
+                logged = [
+                    (s.id, s.epoch)
                     for s in await self.recorder.sample_summaries(self.eval) or []
-                }
+                ]
 
                 # finish and get log
                 log = await self.recorder.log_finish(
@@ -1392,7 +1384,7 @@ class TaskLogger:
 
         # after the .eval copy is finished, so a store outage still leaves it
         if self.addonly is not None:
-            await self.addonly.close(status, stats, results, self._seeded_keys & logged)
+            await self.addonly.close(status, stats, results, logged)
 
         # return log
         return log

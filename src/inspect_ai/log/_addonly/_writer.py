@@ -95,12 +95,11 @@ class EvalRecordWriter:
         status: EvalStatus,
         stats: EvalStats,
         results: EvalResults | None,
-        copied: Iterable[tuple[str | int, int]],
+        logged: Iterable[tuple[str | int, int]],
     ) -> None:
         """Write the eval closing record.
 
-        ``copied`` is each ``(sample_id, epoch)`` a retry copied from its
-        prior log and kept in its own.
+        ``logged`` is each ``(sample_id, epoch)`` in the .eval file at finish.
         """
         await self.store.put(
             f"{self.eval_id}/{CLOSING}",
@@ -112,7 +111,7 @@ class EvalRecordWriter:
                     stats=stats,
                     results=results,
                     samples=self._attempts,
-                    copied=sorted(sample_key_part(id, epoch) for id, epoch in copied),
+                    logged=sorted(sample_key_part(id, epoch) for id, epoch in logged),
                 )
             ),
         )

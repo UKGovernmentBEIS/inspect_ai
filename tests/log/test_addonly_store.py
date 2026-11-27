@@ -150,14 +150,14 @@ def validate(store: MotoStore, log_dir: Path) -> ValidationReport:
     return store.validate(log_dir)
 
 
-def copied(store: MotoStore, eval_id: str) -> list[str]:
-    """The samples the eval closing record lists as copied from the prior log."""
+def logged_samples(store: MotoStore, eval_id: str) -> list[str]:
+    """The samples the eval closing record lists as in the .eval file."""
     body = (
         store.client(store.admin)
         .get_object(Bucket=BUCKET, Key=f"{store.prefix}/{eval_id}/{CLOSING}")["Body"]
         .read()
     )
-    return EvalClosingRecord.model_validate_json(body).copied
+    return EvalClosingRecord.model_validate_json(body).logged
 
 
 EVIDENCE_DIR_ENV = "ADDONLY_EVIDENCE_DIR"
@@ -606,7 +606,7 @@ def test_eval_retry_validates(
     retry, whose own names the first eval, where the records are.
     """
     log = retried_task_run(evalhost_env, tmp_path, failures, s0_failures=2)
-    assert copied(evalhost_env, log.eval.eval_id) == []
+    assert logged_samples(evalhost_env, log.eval.eval_id) == ["s0.1", "s1.1"]
     for status in ["error", "success"]:
         log = eval_retry(
             log,
@@ -615,8 +615,7 @@ def test_eval_retry_validates(
             tamper_evident_store=evalhost_env.url,
         )[0]
         assert log.status == status, log.error
-        # the seed copies the errored s0 too
-        assert copied(evalhost_env, log.eval.eval_id) == ["s0.1", "s1.1"]
+        assert logged_samples(evalhost_env, log.eval.eval_id) == ["s0.1", "s1.1"]
 
     result = validate_cli(evalhost_env, tmp_path)
     assert result.exit_code == 0, result.output
@@ -1096,7 +1095,7 @@ def test_retry_stopped_while_hook_waits_validates(
 
     # the retry copied the errored s0 and stopped before it ran it again:
     # deleting that copy from the retry's .eval is a finding
-    assert copied(evalhost_env, retry_ids[-1]) == ["s0.1", "s1.1"]
+    assert logged_samples(evalhost_env, retry_ids[-1]) == ["s0.1", "s1.1"]
     retry = read_eval_log(log.location)
     retry.samples = [s for s in retry.samples or [] if s.id != "s0"]
     write_eval_log(retry, retry.location)
@@ -1281,7 +1280,7 @@ def test_task_retry_attempts_validates(
         tamper_evident_store=evalhost_env.url,
     )[0]
     assert log.status == "success", log.error
-    assert copied(evalhost_env, log.eval.eval_id) == ["s0.1", "s1.1"]
+    assert logged_samples(evalhost_env, log.eval.eval_id) == ["s0.1", "s1.1"]
 
     result = validate_cli(evalhost_env, log_dir)
     assert result.exit_code == 0, result.output
@@ -1316,7 +1315,7 @@ def test_eval_set_retry_validates(
     )
     assert success, logs[0].error
     assert len(list(log_dir.glob("*.eval"))) == (1 if retry_cleanup else 2)
-    assert copied(evalhost_env, logs[0].eval.eval_id) == ["s0.1", "s1.1"]
+    assert logged_samples(evalhost_env, logs[0].eval.eval_id) == ["s0.1", "s1.1"]
 
     result = validate_cli(evalhost_env, log_dir)
     assert result.exit_code == 0, result.output
@@ -1362,7 +1361,7 @@ def test_eval_set_narrower_retry_validates(
     }
     success, logs = eval_set(retried_task(str(failures)), **retry, **options)
     assert success, logs[0].error
-    assert copied(evalhost_env, logs[0].eval.eval_id) == (
+    assert logged_samples(evalhost_env, logs[0].eval.eval_id) == (
         ["s0.1"] if "sample_id" in retry else ["s0.1", "s1.1"]
     )
 
@@ -1423,14 +1422,14 @@ def failed_limited_feed(store: MotoStore, log_dir: Path) -> dict[str, Any]:
 def test_eval_set_limited_feed_retry_validates(
     evalhost_env: MotoStore, tmp_path: Path, limit: int
 ) -> None:
-    """A limited dynamic feed's retry lists the samples it admitted as copied.
+    """A limited dynamic feed's retry lists the samples it admitted.
 
     With limit 3, sample 3 is copied with its error, then runs again.
     """
     options = failed_limited_feed(evalhost_env, tmp_path)
     success, logs = eval_set(limited_feed_task({"3": False}), limit=limit, **options)
     assert success, logs[0].error
-    assert copied(evalhost_env, logs[0].eval.eval_id) == [
+    assert logged_samples(evalhost_env, logs[0].eval.eval_id) == [
         f"{id}.1" for id in range(1, limit + 1)
     ]
     assert validate(evalhost_env, tmp_path).findings == []
@@ -1446,7 +1445,7 @@ def test_eval_set_limited_feed_retry_interrupted_copy_validates(
     """A limited feed's retry stops while copying admitted sample 2 into its .eval.
 
     The copy fails (disk full) or a task cancel lands in it. The .eval does
-    not have sample 2, so the eval closing record does not list it as copied.
+    not have sample 2, so the eval closing record does not list it.
     """
     options = failed_limited_feed(evalhost_env, tmp_path)
     log_sample = EvalRecorder.log_sample
@@ -1474,7 +1473,7 @@ def test_eval_set_limited_feed_retry_interrupted_copy_validates(
     assert ("cancelled by user" in logs[0].error.message) == (interrupt == "cancel")
     final = read_eval_log(logs[0].location)
     assert [s.id for s in final.samples or []] == [1]
-    assert copied(evalhost_env, final.eval.eval_id) == ["1.1"]
+    assert logged_samples(evalhost_env, final.eval.eval_id) == ["1.1"]
     assert validate(evalhost_env, tmp_path).findings == []
 
 
@@ -1517,7 +1516,7 @@ def test_eval_set_retry_pruned_sample_not_copied(
 ) -> None:
     """A dynamic feed's retry drops prior sample 3, which it did not produce again.
 
-    The eval closing record lists only the copies its .eval keeps.
+    The eval closing record lists only the samples its .eval keeps.
     """
     success, logs = eval_set(
         shrinking_feed_task({"3": True}),
@@ -1533,7 +1532,7 @@ def test_eval_set_retry_pruned_sample_not_copied(
     assert success, logs[0].error
     final = read_eval_log(logs[0].location)
     assert sorted(s.id for s in final.samples or []) == [1, 2]
-    assert copied(evalhost_env, final.eval.eval_id) == ["1.1", "2.1"]
+    assert logged_samples(evalhost_env, final.eval.eval_id) == ["1.1", "2.1"]
     assert validate(evalhost_env, tmp_path).findings == []
 
 
@@ -2839,7 +2838,8 @@ def test_stopped_attempt_malformed_buffer_row(
 
     A pool row that is not JSON, or an attachment already stored. The sample
     closing record and the .eval sample are gone, so nothing is compared,
-    but the attempt's rows are still rebuilt.
+    but the attempt's rows are still rebuilt. The eval closing record lists
+    the sample, so its absence from the .eval file is ``missing_sample``.
     """
     records = [
         SampleRecord.model_validate_json(clean_run.read(clean_run.sample_key(i)))
@@ -2863,8 +2863,9 @@ def test_stopped_attempt_malformed_buffer_row(
     write_eval_log(log, clean_run.location)
 
     result = validate_cli(clean_run.store, clean_run.log_dir)
-    assert_fails_with(result, "malformed_record")
+    assert_fails_with(result, "malformed_record", "missing_sample")
     assert f"malformed_record {clean_run.eval_id}/s0.1/1:" in result.output
+    assert f"missing_sample {clean_run.eval_id}/s0.1:" in result.output
     assert result.stopped() == [f"{clean_run.eval_id}/s0.1/1"]
 
 

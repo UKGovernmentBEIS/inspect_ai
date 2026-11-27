@@ -51,9 +51,9 @@ keeps only in memory.
 - `SampleClosingRecord`: the number of sample records the attempt wrote, and
   the sample's scores.
 - `EvalClosingRecord`: the eval's status, stats and results, every sample
-  attempt the eval started (`samples`), and `copied`, the
-  `<sample-id>.<epoch>` of each sample that a retry copied from its prior log
-  and kept in its own.
+  attempt the eval started (`samples`), and `logged`, the
+  `<sample-id>.<epoch>` of each sample in its `.eval` file when the eval
+  finished.
 - `RescoreStartRecord`, `RescoreSampleRecord` and `RescoreClosingRecord`: see
   [How a rescore writes](#how-a-rescore-writes).
 
@@ -173,15 +173,10 @@ written to the `.eval` file, for every outcome except a retry of the
 attempt. `TaskLogger.log_finish` writes the eval closing record after the
 `.eval` file is finished, so a store outage still leaves a finished copy.
 
-The eval closing record's `copied` list is `_seeded_keys & logged`.
-`_seeded_keys` holds each key that `seed_from_prior` copied from the prior
-log, and each key that a limited dynamic feed's `seed_added_samples` copied
-as it admitted the sample. `logged` is the set of keys in
+The eval closing record's `logged` list is the key of each sample in
 `recorder.sample_summaries(eval)`, read under the flush lock after any prune.
 So a pruned record, and an admission copy that failed or was cancelled
-before its summary, are not listed. `TaskLogger.reinit` clears
-`_seeded_keys`, so each attempt of `task_retry_attempts` or `eval_set` lists
-only its own copies.
+before its summary, are not listed.
 
 ## How a rescore writes
 
@@ -237,8 +232,8 @@ id:
 - `unstored_eval` and `missing_eval_file`.
 - `unstored_sample`: a `.eval` sample with no closed attempt in the eval, or
   in the prior evals it copied from.
-- `missing_sample`: a closed sample, or a sample the eval closing record
-  lists as copied, that is not in the `.eval` file.
+- `missing_sample`: a closed sample, or a sample in the eval closing
+  record's `logged` list, that is not in the `.eval` file.
 - `event_mismatch` and `score_mismatch`: the sample's events and scores
   against the records, after the rescores the sample names.
 - `missing_eval_closing` and `eval_mismatch`: the file's status and stats
@@ -264,9 +259,8 @@ Every record under the prefix is checked, whether or not its attempt or
 eval closed. Every sample in a `.eval` file must match a closed attempt of
 its own eval or, if it has none, of the nearest earlier eval along the
 prior-eval chain that closed it, after each rescore it names. Every closed
-sample, and every sample that a retry's eval closing record lists as
-copied, must be in the `.eval` file, unless the eval stopped before it
-finished the file. A finished `.eval` file must match its eval closing
+sample, and every sample in the eval closing record's `logged` list, must be
+in the `.eval` file, unless the eval stopped before it finished the file. A finished `.eval` file must match its eval closing
 record. Its results must match its latest rescore's closing record, or the
 eval closing record when it is not rescored. An
 attempt, eval or rescore with no closing record is listed as `stopped`, not
@@ -314,11 +308,12 @@ reported as a finding.
     comes from the same earlier eval, so the start record's
     `prior_eval_id` is enough. The validator follows the chain of start
     records to the nearest eval that closed each copied sample.
-11. **A retry lists the samples it copied.** The `copied` list in the eval
-    closing record states what the `.eval` file must hold, so the validator
-    does not infer it from the retry's selection. The list is per attempt,
-    so `task_retry_attempts` and `eval_set` retries need no prior eval id on
-    the logger.
+11. **The eval closing record lists the samples in the `.eval` file.** The
+    `logged` list states what the `.eval` file must hold, so the validator
+    does not infer a retry's copies from its selection. The list holds every
+    sample in the log, so the logger does not track which samples it copied.
+    The list is per attempt, so `task_retry_attempts` and `eval_set` retries
+    need no prior eval id on the logger.
 12. **A copy that a stopped retry kept is compared with the nearest earlier
     eval that closed it.** A retry seeds its `.eval` file with the prior
     eval's samples, also the errored ones it runs again. When it stops
@@ -370,7 +365,7 @@ The store tests run each of these end to end against moto and validate with
   as `stopped` (`test_retry_on_error_validates`).
 - `task_retry_attempts`, `eval_retry`, and a retry of a retry
   (`test_task_retry_attempts_validates`, `test_eval_retry_validates`). The
-  tests assert each retry's `copied` list.
+  tests assert each eval's `logged` list.
 - `eval_set` retries with and without `retry_cleanup`, narrower retries by
   `sample_id` or epochs, a limited dynamic feed, a pruned prior record, and
   an admission copy that fails or is cancelled
@@ -439,7 +434,7 @@ prior_without_file MBjNiQ...: No .eval file; EMhV3K... names it as its prior eva
 
 ### Samples a retry copied
 
-- **Samples a retry copied.** A retry copies the samples that it selects from the earlier eval's log into its own before it runs any sample, with or without an error. A dataset that adds samples while it runs, with `limit` set, copies each one when it admits it. The retry's eval closing record lists the copies that its log keeps, and each one must be in the retry's `.eval` file, or the validator reports `missing_sample`. A copy that the retry ran again and closed is compared through that attempt instead. A retry with no eval closing record has no list, so a copied sample deleted from its `.eval` file is not reported.
+- **Samples a retry copied.** A retry copies the samples that it selects from the earlier eval's log into its own before it runs any sample, with or without an error. A dataset that adds samples while it runs, with `limit` set, copies each one when it admits it. The retry's eval closing record lists each sample in its `.eval` file when it finished, the copies included, and each one must still be in that file, or the validator reports `missing_sample`. A copy that the retry ran again and closed is compared through that attempt instead. A retry with no eval closing record has no list, so a copied sample deleted from its `.eval` file is not reported.
 
 ## Known limits
 
@@ -474,7 +469,7 @@ Stopped runs:
   closing record, status `started`) gives a `not_logged` line, not a
   finding. A sample that such an eval copied from its prior log gives no
   line.
-- A retry with no eval closing record has no `copied` list, so a copied
+- A retry with no eval closing record has no `logged` list, so a copied
   sample deleted from its `.eval` file is not reported.
 
 Retries:
@@ -482,7 +477,7 @@ Retries:
 - A deleted `.eval` file of an eval that a later eval names gives a
   `prior_without_file` line, not a finding. Eval-host keys can forge such a
   later eval.
-- `copied` comes from the recorder's sample summaries. If an admission copy
+- `logged` comes from the recorder's sample summaries. If an admission copy
   writes the sample to the `.eval` file and then fails to write its summary,
   and the retry still finishes, the sample is not listed. Deleting it from
   the `.eval` file is then not reported. A review found this with fault

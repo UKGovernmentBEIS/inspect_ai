@@ -29,7 +29,7 @@ Tamper-evident logs protect against the following:
 
 -   **Edits by a compromised eval process.** Events that the store confirmed before the compromise can't be changed. If the process changes them in its local copy, the `.eval` file will no longer match the store.
 
--   **Lost samples.** Each sample attempt writes a closing record at its end. If a sample has a closing record but isn't in the `.eval` file, the validator reports `missing_sample`. A retry's eval closing record lists the samples that it copied from the earlier eval's log, and each one must be in the retry's `.eval` file. The exception is an eval that stopped before it finished its `.eval` file (see [What Is Not Protected](#what-is-not-protected) below).
+-   **Lost samples.** Each sample attempt writes a closing record at its end. If a sample has a closing record but isn't in the `.eval` file, the validator reports `missing_sample`. The eval closing record lists each sample in the `.eval` file when the eval finished, and each one must still be in it. For a retry, the list includes the samples that it copied from the earlier eval's log. The exception is an eval that stopped before it finished its `.eval` file (see [What Is Not Protected](#what-is-not-protected) below).
 
 ## What Is Not Protected
 
@@ -216,7 +216,7 @@ inspect eval-retry logs/2026-11-22T10-00-00_ctf_abc.eval \
 
 `eval_set()` and `task_retry_attempts` retry a failed eval within the same run, and use the store location that the run was given. However, when you run `eval_set()` again to retry the evals of an earlier run, you need to provide the store location again.
 
-A sample that a retry reuses from the earlier eval is not written again. Rather, the retry's start record names the earlier eval, its eval closing record lists the samples that it copied from the earlier eval's log, and the validator compares the sample with the records of the eval that ran it (the earlier eval, or an eval before it when the earlier eval was also a retry).
+A sample that a retry reuses from the earlier eval is not written again. Rather, the retry's start record names the earlier eval, its eval closing record lists the sample with the others in its `.eval` file, and the validator compares the sample with the records of the eval that ran it (the earlier eval, or an eval before it when the earlier eval was also a retry).
 
 When using `retry_on_error`, the failed attempt keeps its records in the store and has no closing record. The validator lists it as `stopped` and does not report it as a finding.
 
@@ -347,7 +347,7 @@ The following lines are findings. Each finding makes the command exit with 1:
 | `missing_eval_closing` | The `.eval` file is finished (its status is not `started`), but the store has no eval closing record, or no closing record for the latest rescore that its samples name. | An S3 outage at the end of an honest run or rescore can cause this. Otherwise, someone changed the file's status or its samples. |
 | `eval_mismatch` | The `.eval` file's status or stats differ from the eval closing record, or its results differ from the closing record of the eval or of the latest rescore. | `inspect score` without the store location, and other tools that change a log after the run, cause this. Otherwise, someone changed the file. |
 | `unstored_sample` | A sample in the `.eval` file has no attempt with a closing record in the store, for this eval or for the earlier evals that a retry reused samples from. | A failed write to the store causes this in an honest run. The sample then has an error in the `.eval` file. Otherwise, someone added the sample. |
-| `missing_sample` | A sample with a closing record in the store is not in the `.eval` file. In a retry, it can also be a sample that the retry's eval closing record lists as copied from the earlier eval's log. | Someone deleted the sample. |
+| `missing_sample` | A sample with a closing record in the store, or a sample that the eval closing record lists, is not in the `.eval` file. | Someone deleted the sample. |
 | `event_mismatch` | A sample's events differ from the events rebuilt from the store (after the rescores that the sample names, if any: the message says `after rescores`). The message names the first event that differs. | `inspect score` without the store location, and a warning logged from a worker thread during the sample, cause this in an honest run. So does a failed write to the store while a retry runs a sample again that the earlier eval completed with an error (the message says `reused from`): check the eval's errors for a failed write before treating it as a change. Otherwise, someone changed the events. |
 | `score_mismatch` | A sample's scores differ from its closing record (after the rescores that the sample names, if any). | `inspect score` without the store location causes this. Otherwise, someone changed the scores. |
 | `missing_rescore` | A sample names a rescore that is not in the store, that has no record of the sample, or that rescores another eval (one that the sample's copy did not come through). The sample is not compared. | Treat the sample as changed. |

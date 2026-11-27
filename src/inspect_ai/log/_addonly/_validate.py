@@ -635,16 +635,16 @@ def _compare_eval_file(
             )
         )
 
-    # a retry's .eval holds each sample it copied from its prior log; one it
-    # ran again and closed is compared above
-    copied = set(stored.closing.copied) if stored.closing else set()
+    # the .eval file holds each sample the eval closing record lists; one the
+    # eval closed is compared above
+    listed = set(stored.closing.logged) if stored.closing else set()
     for sample_part in sorted(
-        copied - stored.final_attempts.keys() - eval_file_samples
+        listed - stored.final_attempts.keys() - eval_file_samples
     ):
         finding(
             "missing_sample",
-            f"Not in {eval_file}. The eval closing record lists it as copied "
-            f"from the prior eval {stored.prior_eval_id}.",
+            f"Not in {eval_file}. The eval closing record lists it as in the "
+            ".eval file when the eval finished.",
             f"{eval_id}/{sample_part}",
         )
 
