@@ -109,7 +109,8 @@ _STORE_READ_REFUSED = {
     "InvalidToken",
 }
 """S3 error codes of a record read that stop the validator: its keys or the
-bucket, not the record. Any other refusal is the record's malformed_record."""
+bucket, not the record. So does a server error (HTTP 5xx, after botocore's
+retries). Any other refusal is the record's malformed_record."""
 
 
 class Finding(BaseModel):
@@ -275,7 +276,7 @@ def validate_store(
         Raises:
            ValueError: S3 refused this record only (for example its storage
               class), which eval-host keys can cause; a malformed_record.
-           ClientError: The validator cannot read the store.
+           ClientError: The validator cannot read the store, or S3 failed.
         """
         # S3 lists a key's versions newest first. Arrival times have whole
         # seconds, so they cannot order versions stored in the same second.
@@ -285,7 +286,8 @@ def validate_store(
                 Bucket=location.bucket, Key=key, VersionId=earliest.version_id
             )["Body"].read()
         except ClientError as ex:
-            if error_code(ex) in _STORE_READ_REFUSED:
+            status = ex.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0)
+            if error_code(ex) in _STORE_READ_REFUSED or status >= 500:
                 raise
             raise ValueError(f"S3 refused the read: {error_code(ex)}.") from ex
         return body

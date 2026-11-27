@@ -2636,6 +2636,57 @@ def test_store_read_refused_fails(clean_run: CleanRun, code: str) -> None:
         validate_store(store.url, str(clean_run.log_dir), client=client)
 
 
+class _GetObjectServerError:
+    """The validator's client, with the read of one key failing with an HTTP ``status``."""
+
+    def __init__(self, client: Any, key: str, code: str, status: int) -> None:
+        self._client = client
+        self._key = key
+        self._code = code
+        self._status = status
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._client, name)
+
+    def get_object(self, **kwargs: Any) -> Any:
+        if kwargs["Key"] != self._key:
+            return self._client.get_object(**kwargs)
+        raise ClientError(
+            {
+                "Error": {"Code": self._code},
+                "ResponseMetadata": {
+                    "HTTPStatusCode": self._status,
+                    "RequestId": "",
+                    "HostId": "",
+                    "HTTPHeaders": {},
+                    "RetryAttempts": 4,
+                },
+            },
+            "GetObject",
+        )
+
+
+@pytest.mark.parametrize(
+    "code,status",
+    [
+        ("InternalError", 500),
+        ("SlowDown", 503),
+        ("ServiceUnavailable", 503),
+        ("BadGateway", 502),
+    ],
+)
+def test_store_server_error_fails(clean_run: CleanRun, code: str, status: int) -> None:
+    """An S3 server error on one record read (after botocore's retries) stops the validator.
+
+    It is an outage, not a record eval-host keys could forge.
+    """
+    store = clean_run.store
+    key = f"{store.prefix}/{clean_run.sample_key(1)}"
+    client = _GetObjectServerError(store.client(store.validator), key, code, status)
+    with pytest.raises(ClientError, match=code):
+        validate_store(store.url, str(clean_run.log_dir), client=client)
+
+
 @pytest.mark.parametrize(
     "table,key",
     [
