@@ -1703,9 +1703,14 @@ def eval_nonce(store: MotoStore, eval_id: str) -> str:
 
 
 def score_command(
-    log_file: Path, action: str, *options: str, store: str | None, nonce: str | None
+    log_file: Path,
+    action: str,
+    *options: str,
+    store: str | None,
+    nonce: str | None,
+    scorer: str = "match",
 ) -> subprocess.CompletedProcess[str]:
-    """`inspect score --scorer match` (a subprocess), with the environment's keys.
+    """`inspect score --scorer <scorer>` (a subprocess), with the environment's keys.
 
     Writes to ``log_file`` unless ``options`` name an output file.
     """
@@ -1713,7 +1718,7 @@ def score_command(
     return subprocess.run(
         [
             *[sys.executable, "-m", "inspect_ai", "score", str(log_file)],
-            *["--scorer", "match", "--overwrite", "--action", action],
+            *["--scorer", scorer, "--overwrite", "--action", action],
             *(["--tamper-evident-store", store] if store else []),
             *options,
         ],
@@ -1730,6 +1735,7 @@ def rescore(
     *options: str,
     store: MotoStore | None,
     nonce: str | None = None,
+    scorer: str = "match",
 ) -> None:
     """Rescore with the store, if given, and the eval's nonce, as `inspect validate --nonce` prints it.
 
@@ -1742,6 +1748,7 @@ def rescore(
         *options,
         store=store.url if store else None,
         nonce=nonce or (eval_nonce(store, eval_id) if store else None),
+        scorer=scorer,
     )
     assert result.returncode == 0, result.stderr
 
@@ -1826,23 +1833,30 @@ def test_rescored_copy_validates(
     assert "1 eval(s), 2 sample(s) compared, 0 finding(s)." in result.output
 
 
+@pytest.mark.parametrize(
+    "scorer,kinds",
+    [
+        ("match", {"score_mismatch", "eval_mismatch", "event_mismatch"}),
+        ("includes", {"event_mismatch"}),
+    ],
+)
 def test_rescore_without_store_fails_validation(
-    clean_run: CleanRun, validate_cli: ValidateCli
+    clean_run: CleanRun, validate_cli: ValidateCli, scorer: str, kinds: set[str]
 ) -> None:
     """`inspect score` without the store option: the rescore is not stored.
 
-    Besides the scores and results, `inspect score` writes the sample's
-    events again in span order, with the new scorers span in place of the
-    old one, so the events differ too.
+    `inspect score` writes the sample's events again in span order, with the
+    new scorers span in place of the old one, so the events differ. The
+    eval's own scorer (`includes`) gives the same scores and results.
     """
-    rescore(clean_run.location, "overwrite", store=None)
+    rescore(clean_run.location, "overwrite", store=None, scorer=scorer)
     log = read_eval_log(clean_run.location)
     assert log.eval.eval_id == clean_run.eval_id
     assert log.samples and log.samples[0].scores
-    assert set(log.samples[0].scores) == {"match"}
+    assert set(log.samples[0].scores) == {scorer}
 
     result = validate_cli(clean_run.store, clean_run.log_dir)
-    assert_fails_with(result, "score_mismatch", "eval_mismatch", "event_mismatch")
+    assert_fails_with(result, *kinds)
 
 
 def test_edit_score_after_rescore(

@@ -255,7 +255,7 @@ The rescore writes a start record, one record for each sample with its new score
 
 The validator rebuilds the expected samples from the original run's records and then applies each rescore that the samples name, in order, in the same way that `inspect score` does. A sample can name only rescores of its own eval, or, for a sample that a retry reused, rescores of the earlier evals that the sample came through. The rescored file's status and stats are checked against the eval's closing record, and its results against the closing record of the latest rescore. If you write the rescored log to a new file, the validator checks both the original and the rescored file.
 
-If you rescore without the store location, the rescore is not stored, and the validator reports `score_mismatch`, `eval_mismatch` and `event_mismatch` for the rescored file.
+If you rescore without the store location, the rescore is not stored, and the validator reports the differences in the rescored file, which can include `score_mismatch`, `eval_mismatch` and `event_mismatch`.
 
 A retry of a rescored log reuses its samples along with their rescores, and the validator checks them in the same way. A sample that the retry runs again cannot name a rescore of the earlier eval.
 
