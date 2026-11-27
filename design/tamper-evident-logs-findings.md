@@ -28,8 +28,8 @@ review as a feature.
 
 - `src/inspect_ai/log/_addonly/`
   - `_store.py`: the store client. Each put sends `If-None-Match: *`. The
-    client has SDK retries off; `AddOnlyStore.put` retries network errors,
-    throttling and 5xx for up to 60 s, and fails on any 412. The check
+    client uses botocore's standard retries (8 attempts), and a put fails on
+    any 412. The check
     before the eval starts writes the start record, writes it again (must
     get 412), tries to read and delete it (must be denied), and reads the
     Object Lock settings (must be enabled, COMPLIANCE).
@@ -124,7 +124,9 @@ the code to the plan.
    `_store.py:195`). Tests: `test_put_retries_and_412_after_retry` (a
    network error before the put reaches the store is retried; a put that
    reaches the store and loses its response fails on the retry's 412),
-   `test_put_has_sdk_retries_off`.
+   `test_put_has_sdk_retries_off`. *Changed Nov-27:* botocore's retries
+   replace the loop; see [Simplification review:
+   removals](#simplification-review-removals).
 2. **Failed buffer insert.** The transcript still logs a subscriber's error
    and goes on. The sample's event callback (`_eval/task/run.py:2865`)
    now tells the sample's writer when the insert fails
@@ -874,6 +876,16 @@ Removed because no documented guarantee depends on them:
    is the digits after the last `.`, which `_selects` splits on.
 6. **The version count in the `event_mismatch` message.**
 7. **The timing and moto probe scripts.** Their results stay in this note.
+8. **The store client's own put retry loop.** The client uses botocore's
+   standard retries (`S3_MAX_ATTEMPTS = 8`: at most 71 s of backoff, 36 s
+   on average, against the loop's 60 s), and `put()` is one `to_thread`
+   call. A 412 still fails the write. The "may be this eval's own earlier
+   put" hint now reads `ResponseMetadata.RetryAttempts`, which botocore
+   sets on the 412 of a retried put (`test_put_retries_and_412_after_retry`
+   injects the network error in botocore's `before-send` event, under
+   moto). `ConditionalRequestConflict` is no longer retried. Botocore's
+   retry quota (500 tokens per client, 5 per retry) also stops retries
+   early when many puts fail at once, so an outage fails the eval sooner.
 
 ## The evals that were run
 

@@ -3,26 +3,19 @@
 Tamper-evident logs. See design/tamper-evident-logs-findings.md.
 """
 
-from itertools import count
 from typing import Any, NamedTuple
 from urllib.parse import quote
 
 import anyio
 import anyio.to_thread
-from botocore.exceptions import ClientError, ConnectionError, HTTPClientError
+from botocore.exceptions import ClientError
 
-PUT_RETRY_SECONDS = 60.0
-"""How long a put is retried before the write fails (the plan leaves the limit open)."""
+S3_MAX_ATTEMPTS = 8
+"""Attempts per S3 call, with botocore's standard retries.
 
-_TRANSIENT_CODES = {
-    "ConditionalRequestConflict",
-    "InternalError",
-    "RequestTimeout",
-    "ServiceUnavailable",
-    "SlowDown",
-    "Throttling",
-    "ThrottlingException",
-}
+Its backoff waits at most 71 s over 8 attempts (36 s on average). The plan
+leaves the limit open.
+"""
 
 
 class AddOnlyStoreError(Exception):
@@ -53,7 +46,7 @@ def sample_key_part(sample_id: str | int, epoch: int) -> str:
     return f"{quote(str(sample_id), safe='')}.{epoch}"
 
 
-def s3_client(sdk_retries: bool = True) -> Any:
+def s3_client() -> Any:
     """A boto3 S3 client (honours ``AWS_ENDPOINT_URL`` and the usual credentials).
 
     From a fresh session: the default session caches the credentials it
@@ -67,21 +60,13 @@ def s3_client(sdk_retries: bool = True) -> Any:
 
     config = Config(
         max_pool_connections=50,
-        retries=None if sdk_retries else {"max_attempts": 0},
+        retries={"total_max_attempts": S3_MAX_ATTEMPTS, "mode": "standard"},
     )
     return boto3.session.Session().client("s3", config=config)
 
 
 def error_code(ex: ClientError) -> str:
     return str(ex.response.get("Error", {}).get("Code", ""))
-
-
-def _transient(ex: Exception) -> bool:
-    """A network error, throttling or a 5xx: the put may succeed if tried again."""
-    if isinstance(ex, ClientError):
-        status = ex.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0)
-        return status >= 500 or error_code(ex) in _TRANSIENT_CODES
-    return isinstance(ex, (ConnectionError, HTTPClientError))
 
 
 class AddOnlyStore:
@@ -93,26 +78,19 @@ class AddOnlyStore:
 
     def __init__(self, location: StoreLocation, client: Any | None = None) -> None:
         self.location = location
-        self._client = client if client is not None else s3_client(sdk_retries=False)
+        self._client = client if client is not None else s3_client()
 
     async def put(self, key: str, body: bytes) -> None:
-        """Put a record, retrying transient errors for up to ``PUT_RETRY_SECONDS``.
+        """Put a record; botocore retries network errors, throttling and 5xx.
 
-        The client has SDK retries off, so this loop sees every attempt. Any
-        412 fails the write, also one after a retried put: the host cannot
-        read the store to tell its own lost put from a record another writer
-        added first.
+        Any 412 fails the write, also one after a retried put: the host
+        cannot read the store to tell its own lost put from a record another
+        writer added first.
         """
-        deadline = anyio.current_time() + PUT_RETRY_SECONDS
-        for attempt in count(1):
-            try:
-                await anyio.to_thread.run_sync(self._put, key, body)
-                return
-            except Exception as ex:
-                if _transient(ex) and anyio.current_time() < deadline:
-                    await anyio.sleep(min(0.1 * 2**attempt, 5.0))
-                    continue
-                raise AddOnlyStoreError(_put_error(key, ex, attempt)) from ex
+        try:
+            await anyio.to_thread.run_sync(self._put, key, body)
+        except Exception as ex:
+            raise AddOnlyStoreError(_put_error(key, ex)) from ex
 
     def _put(self, key: str, body: bytes) -> None:
         self._client.put_object(
@@ -178,17 +156,13 @@ class AddOnlyStore:
             )
 
 
-def _put_error(key: str, ex: Exception, attempts: int) -> str:
+def _put_error(key: str, ex: Exception) -> str:
     if not isinstance(ex, ClientError):
-        return (
-            f"Add-only store write failed for '{key}' after {attempts} attempt(s): {ex}"
-        )
+        return f"Add-only store write failed for '{key}': {ex}"
+    retried = ex.response.get("ResponseMetadata", {}).get("RetryAttempts", 0) > 0
     lost_put = (
         " The record may be this eval's own earlier put whose response was lost."
-        if error_code(ex) == "PreconditionFailed" and attempts > 1
+        if error_code(ex) == "PreconditionFailed" and retried
         else ""
     )
-    return (
-        f"Add-only store refused record '{key}' after {attempts} attempt(s): "
-        f"{error_code(ex)} ({ex}).{lost_put}"
-    )
+    return f"Add-only store refused record '{key}': {error_code(ex)} ({ex}).{lost_put}"

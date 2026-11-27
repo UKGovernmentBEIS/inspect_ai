@@ -2877,46 +2877,40 @@ def test_failed_write_stops_eval(
         assert report.stopped == [eval_id, f"{eval_id}/1.1/1"]
 
 
-class _FlakyPut:
-    """An S3 client whose first put fails with a network error.
-
-    With ``stored``, the first put reaches the store and only its response is
-    lost.
-    """
-
-    def __init__(self, client: Any, stored: bool) -> None:
-        self._client = client
-        self._stored = stored
-        self.puts = 0
-
-    def put_object(self, **kwargs: Any) -> Any:
-        self.puts += 1
-        if self.puts > 1:
-            return self._client.put_object(**kwargs)
-        if self._stored:
-            self._client.put_object(**kwargs)
-            raise ReadTimeoutError(endpoint_url="moto")
-        raise EndpointConnectionError(endpoint_url="moto")
-
-
 @pytest.mark.parametrize("stored", [False, True], ids=["not_stored", "response_lost"])
 async def test_put_retries_and_412_after_retry(
     evalhost_env: MotoStore, stored: bool
 ) -> None:
-    """A transient error is retried; a 412 after a retried put fails the write."""
-    client = _FlakyPut(evalhost_env.client(evalhost_env.evalhost), stored)
-    store = AddOnlyStore(StoreLocation.parse(evalhost_env.url), client)
+    """Botocore retries a network error; a 412 after a retried put fails the write.
+
+    The first send fails with a network error. With ``stored``, the put
+    first reaches the store and only its response is lost.
+    """
+    store = AddOnlyStore(StoreLocation.parse(evalhost_env.url))
+    other = evalhost_env.client(evalhost_env.evalhost)
+    sends: list[str] = []
+
+    def first_send_fails(request: Any, **_: Any) -> None:
+        sends.append(request.url)
+        if len(sends) > 1:
+            return
+        if stored:
+            other.put_object(
+                Bucket=BUCKET,
+                Key=store.location.key("record"),
+                Body=b"{}",
+                IfNoneMatch="*",
+            )
+            raise ReadTimeoutError(endpoint_url="moto")
+        raise EndpointConnectionError(endpoint_url="moto")
+
+    store._client.meta.events.register("before-send.s3.PutObject", first_send_fails)
     if stored:
         with pytest.raises(AddOnlyStoreError, match="PreconditionFailed.*own earlier"):
             await store.put("record", b"{}")
     else:
         await store.put("record", b"{}")
-    assert client.puts == 2
-
-
-def test_put_has_sdk_retries_off(evalhost_env: MotoStore) -> None:
-    store = AddOnlyStore(StoreLocation.parse(evalhost_env.url))
-    assert store._client.meta.config.retries["total_max_attempts"] == 1
+    assert len(sends) == 2
 
 
 def test_failed_buffer_insert_stops_sample(
