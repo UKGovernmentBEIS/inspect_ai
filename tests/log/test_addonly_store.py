@@ -2019,6 +2019,32 @@ def test_edit_sample_summaries(
     assert ("'includes'" in result.output) == (edit == "score")
 
 
+@pytest.mark.parametrize("row_id", [1, "1"], ids=["int_id", "str_id"])
+def test_repeated_sample_summary(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli, row_id: Any
+) -> None:
+    """A summaries.json row with edited scores added before int-id sample 1's row.
+
+    Python keeps the last row per `(str(id), epoch)`, so it reads the honest
+    row; the viewer keys rows by JSON id and epoch, so it can list an id "1"
+    row as well.
+    """
+    log = numeric_score_run(evalhost_env, tmp_path)
+    eval_id = log.eval.eval_id
+
+    def add_row(summaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        assert summaries[0]["id"] == 1
+        edited = json.loads(json.dumps(summaries[0]))
+        edited["id"] = row_id
+        edited["scores"]["one_score"]["value"] = 0
+        return [edited, *summaries]
+
+    edit_zip_entry(Path(log.location), "summaries.json", add_row)
+    result = validate_cli(evalhost_env, tmp_path)
+    assert_fails_with(result, "summary_mismatch")
+    assert f"summary_mismatch {eval_id}/1.1:" in result.output
+
+
 def test_edit_score_one_to_true(
     evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
 ) -> None:
