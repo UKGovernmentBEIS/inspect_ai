@@ -160,8 +160,12 @@ botocore retries these writes.
 
 The sample closing record is written after scoring and before the sample is
 written to the `.eval` file, for every outcome except a retry of the
-attempt. `TaskLogger.log_finish` writes the eval closing record after the
-`.eval` file is finished, so a store outage still leaves a finished copy.
+attempt. Once the sample is logged, `_task_run_sample_attempt` clears the
+sample's writer (`init_sample_record_writer(None)`), so a model call in a
+scanner or an `on_sample_end` hook adds no record after the closing record
+(`test_model_call_in_sample_end_hook_validates`). `TaskLogger.log_finish`
+writes the eval closing record after the `.eval` file is finished, so a
+store outage still leaves a finished copy.
 
 The eval closing record's `logged` list is the key of each sample in
 `recorder.sample_summaries(eval)`, read under the flush lock after any prune.

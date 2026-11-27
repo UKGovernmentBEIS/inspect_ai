@@ -838,6 +838,36 @@ def test_eval_retry_after_cancel_in_sample_event_hook_validates(
     assert result.findings() == []
 
 
+class ModelCallSampleEndHook(Hooks):
+    async def on_sample_end(self, data: SampleEnd) -> None:
+        await get_model("mockllm/model").generate("Summarize the sample.")
+
+
+def test_model_call_in_sample_end_hook_validates(
+    evalhost_env: MotoStore, tmp_path: Path, validate_cli: ValidateCli
+) -> None:
+    """A sample end hook calls a model after the sample closing record."""
+    hooks("model_call_sample_end", "Calls a model.")(ModelCallSampleEndHook)
+    try:
+        log = eval(
+            Task(
+                dataset=[Sample(id="s0", input="hi", target="Default")],
+                scorer=includes(),
+            ),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            display="none",
+            tamper_evident_store=evalhost_env.url,
+        )[0]
+    finally:
+        del _registry["hooks:model_call_sample_end"]
+    assert log.status == "success", log.error
+
+    result = validate_cli(evalhost_env, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert result.findings() == []
+
+
 @solver
 def boundary_after_cancel(path: str, first: bool) -> Solver:
     """While the file holds true, s0 writes at a boundary with a cancel pending.

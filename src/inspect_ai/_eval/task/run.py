@@ -3891,6 +3891,9 @@ async def _task_run_sample_attempt(
                             results = scores_as_logged(results, eval_sample)
                         else:
                             eval_sample = make_eval_sample()
+                        # a boundary in a scanner or hook below would add a
+                        # record after the closing record
+                        init_sample_record_writer(None)
                         completion_scope.shield = isinstance(failure, _AttemptCancel)
                         await scan_eval_sample(
                             eval_sample,

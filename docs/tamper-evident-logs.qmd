@@ -17,7 +17,7 @@ While an eval runs, each sample writes its events to an *add-only store*: an S3 
 -   Before each set of tool calls starts.
 -   At the end of the sample, after scoring.
 
-At each of these points the sample waits until S3 confirms the write. Later, you can use the `inspect validate` command to compare the `.eval` files with the add-only store and report each difference.
+At each of these points the sample waits until S3 confirms the write. Model and tool calls after the sample is logged (for example in a scanner or an `on_sample_end` hook) write nothing to the store. Later, you can use the `inspect validate` command to compare the `.eval` files with the add-only store and report each difference.
 
 Below we'll cover what tamper-evident logs do and don't protect, how to set up the add-only store, and how to run evals and validate their logs.
 
