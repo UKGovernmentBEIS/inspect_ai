@@ -65,7 +65,7 @@ review as a feature.
 - `inspect validate LOG_DIR --store s3://bucket/prefix`
   (`_cli/validate.py`). Checks: bucket settings (COMPLIANCE lock, a policy
   that denies a put without If-None-Match), one version per key, no delete
-  markers, multipart uploads, a start record, nonces, sample and eval
+  markers, a start record, nonces, sample and eval
   closing records, record numbers 1 to the closing record's count, attempts
   missing from the eval closing list, late event versions, a .eval file for
   each eval, and the .eval events against the stored
@@ -901,6 +901,10 @@ handling of a rare case, with Eric's go (Nov-27).
     documented crash as a scorers span whose parent is missing. A nonce
     holder can write a rescore that validates, so the check protected
     nothing. See [Known limits](#known-limits).
+11. **`multipart` and `_Version.etag`.** No check uses arrival times; they
+    are only printed (`--verbose`, and the `rescored ... at` line). A
+    record uploaded in parts still needs the eval's nonce, or it gets a
+    `nonce` finding.
 
 ## The evals that were run
 
@@ -1220,7 +1224,7 @@ changed decisions 2, 3, 5 and 6, and added 14 and 15; each change is marked.
     the record, so messages and output are not compared), with attachments and pools resolved in full. It
     treats an event as complete when its JSON has no true `pending`.
 11. Multipart detection: an ETag with a `-`. A real build would use
-    GetObjectAttributes.
+    GetObjectAttributes. *Removed Nov-27:* see [Simplification review: removals](#simplification-review-removals).
 12. The sample id in a key is URL-encoded, and `.` is also encoded as
     `%2E` (now in the plan). *Later removed:* `.` is not encoded; the epoch
     is the digits after the last `.`.
@@ -1281,8 +1285,7 @@ for each other, validator scope). These remain or are new:
   thread logs during the sample (plan issue 1).
 - Settle the bridge `message_id` update and the sentinel sidecar updates
   (plan issues 2 and 3).
-- Validator: parallel reads, JSON output, the hash index of Appendix C, and
-  GetObjectAttributes for multipart detection.
+- Validator: parallel reads, JSON output and the hash index of Appendix C.
 - Records for re-scores and shard merges (out of scope here; retries are
   done).
 - Test compliance mode, the If-None-Match policy and real put latency in a

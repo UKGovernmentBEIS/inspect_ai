@@ -69,7 +69,6 @@ from ._store import StoreLocation, s3_client, sample_key_part
 FindingKind = Literal[
     "settings",
     "overwrite",
-    "multipart",
     "missing_start",
     "nonce",
     "record_count",
@@ -202,7 +201,6 @@ class _Version(NamedTuple):
     key: str
     version_id: str
     arrival: datetime
-    etag: str
 
 
 def validate_store(
@@ -232,7 +230,7 @@ def validate_store(
         for v in page.get("Versions", []):
             if v["Key"].startswith(prefix):
                 by_key[v["Key"]].append(
-                    _Version(v["Key"], v["VersionId"], v["LastModified"], v["ETag"])
+                    _Version(v["Key"], v["VersionId"], v["LastModified"])
                 )
         for marker in page.get("DeleteMarkers", []):
             if marker["Key"].startswith(prefix):
@@ -249,15 +247,6 @@ def validate_store(
                     key=key,
                     message=f"{len(versions)} versions: an overwrite got through. "
                     "The earliest is used.",
-                )
-            )
-        if any("-" in v.etag for v in versions):
-            findings.append(
-                Finding(
-                    kind="multipart",
-                    key=key,
-                    message="Uploaded in parts: its arrival time is when the "
-                    "upload started, not when it finished.",
                 )
             )
 

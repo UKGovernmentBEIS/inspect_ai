@@ -2435,30 +2435,6 @@ def test_forged_eval_without_start(
     assert "missing_start no-such-eval: No start record." in result.output
 
 
-def test_forged_record_in_parts(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
-    """A record added with a multipart upload, whose arrival time is its start."""
-    seq = clean_run.records() + 1
-    s3 = clean_run.store.client(clean_run.store.evalhost)
-    key = f"{clean_run.store.prefix}/{clean_run.sample_key(seq)}"
-    upload = s3.create_multipart_upload(Bucket=BUCKET, Key=key)["UploadId"]
-    part = s3.upload_part(
-        Bucket=BUCKET,
-        Key=key,
-        UploadId=upload,
-        PartNumber=1,
-        Body=clean_run.forged_record(seq),
-    )
-    s3.complete_multipart_upload(
-        Bucket=BUCKET,
-        Key=key,
-        UploadId=upload,
-        MultipartUpload={"Parts": [{"PartNumber": 1, "ETag": part["ETag"]}]},
-        IfNoneMatch="*",
-    )
-    result = validate_cli(clean_run.store, clean_run.log_dir)
-    assert_fails_with(result, "multipart", "nonce", "record_count")
-
-
 def test_overwrite_record(clean_run: CleanRun, validate_cli: ValidateCli) -> None:
     """The .eval file edited, and the store record overwritten to match it.
 
