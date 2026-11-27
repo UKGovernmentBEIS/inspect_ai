@@ -947,6 +947,10 @@ class _FlakyAPI(ModelAPI):
         self.return_call = return_call
         self.usage = usage
         self.attempts: dict[str, int] = {}
+        # when set, each attempt sets `started` and lasts until `until` is set
+        # (instead of `attempt_seconds`)
+        self.started: anyio.Event | None = None
+        self.until: anyio.Event | None = None
 
     async def generate(
         self,
@@ -983,7 +987,12 @@ class _FlakyAPI(ModelAPI):
 
     async def _attempt(self, key: str) -> None:
         self.attempts[key] = self.attempts.get(key, 0) + 1
-        await anyio.sleep(self.attempt_seconds)
+        if self.started is not None:
+            self.started.set()
+        if self.until is not None:
+            await self.until.wait()
+        else:
+            await anyio.sleep(self.attempt_seconds)
         if self.attempts[key] <= self.fail_times:
             raise _FlakyError(f"attempt {self.attempts[key]} failed")
 
@@ -1456,10 +1465,11 @@ def test_human_input_is_waiting() -> None:
 
 
 @tool
-def _second_tool() -> Tool:
+def _second_tool(started: anyio.Event, until: anyio.Event) -> Tool:
     async def execute() -> str:
-        """Tool that runs for one second."""
-        await anyio.sleep(1.0)
+        """Tool that runs until `until` is set."""
+        started.set()
+        await until.wait()
         return "done"
 
     return execute
@@ -1475,11 +1485,19 @@ def test_sibling_work_during_backoff_is_working(
     def backoff_beside_work() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             flaky = get_model("flakytiming/m", fail_times=1, memoize=False)
-            slow = get_model("flakytiming/m", attempt_seconds=1.0, memoize=False)
+            slow = get_model("flakytiming/m", memoize=False)
+            assert isinstance(slow.api, _FlakyAPI)
+            # the sibling's work is in flight from before the retried call
+            # starts until after it returns, so it covers the failed attempt
+            # and the backoff whatever the scheduling
+            started, until = anyio.Event(), anyio.Event()
+            slow.api.started, slow.api.until = started, until
 
             async def work() -> None:
                 if sibling == "tool":
-                    await execute_tools(_tool_calls("_second_tool"), [_second_tool()])
+                    await execute_tools(
+                        _tool_calls("_second_tool"), [_second_tool(started, until)]
+                    )
                 elif sibling == "count_tokens":
                     await slow.count_tokens("slow")
                 elif sibling == "compact":
@@ -1488,11 +1506,13 @@ def test_sibling_work_during_backoff_is_working(
                     await slow.generate("slow")
 
             async def retried() -> None:
+                await started.wait()
                 await flaky.generate("flaky")
+                until.set()
 
-            # the retried attempt and its backoff (0.1 s + 0.3 s) end
-            # well inside the sibling's one second of work
-            await tg_collect([work, retried])
+            # fail rather than hang if the two calls cannot run side by side
+            with anyio.fail_after(30):
+                await tg_collect([work, retried])
             return state
 
         return solve

@@ -60,7 +60,13 @@ from inspect_ai.event._tree import (
 from inspect_ai.log import (
     EvalLog,
 )
-from inspect_ai.log._condense import resolve_sample_attachments
+from inspect_ai.log._condense import (
+    attachment_refs_from_object,
+    attachment_state,
+    escape_literal_event_refs,
+    resolve_event_calls,
+    resolve_sample_attachments,
+)
 from inspect_ai.log._headline import headline_metric_ref, resolve_headline_metric
 from inspect_ai.log._log import EvalMetricDefinition, EvalSample
 from inspect_ai.log._resolve import rebind_sample_timelines
@@ -82,6 +88,7 @@ from inspect_ai.scorer._scorer import ScorerSpec, as_scorer_spec, unique_scorer_
 from inspect_ai.solver import TaskState
 from inspect_ai.util._display import (
     DisplayType,
+    display_type,
     display_type_initialized,
     init_display_type,
 )
@@ -138,8 +145,8 @@ def score(
     # standard platform init for top level entry points
     platform_init()
 
-    # initialize display type
-    init_display_type(display)
+    # initialize display type (keeping the current one by default, as eval does)
+    init_display_type(display or display_type())
 
     # resolve scorers into a list
     scorers = [scorers] if isinstance(scorers, Scorer) else scorers
@@ -616,8 +623,24 @@ async def _run_score_task(
                         scorer=registry_unqualified_name(scorer),
                     )
 
-    # slice off only the newly added events
-    new_events = transcript().events[len(resolved_sample.events) :]
+    # slice off only the newly added events. They are raw except for model
+    # calls (scoring keeps error calls), which the scoring transcript condensed
+    # into its own attachments; bring both to the state of the sample they join
+    scoring_transcript = transcript()
+    new_events = list(scoring_transcript.events[len(resolved_sample.events) :])
+    if attachment_state(sample) == "full":
+        new_events = resolve_event_calls(new_events, scoring_transcript.attachments)
+    else:
+        attachments = dict(sample.attachments)
+        if attachment_state(sample) == "condensed":
+            new_events = escape_literal_event_refs(new_events, attachments)
+        call_refs = attachment_refs_from_object(new_events)
+        attachments.update(
+            (hash, value)
+            for hash, value in scoring_transcript.attachments.items()
+            if hash in call_refs
+        )
+        sample.attachments = attachments
 
     sample.scores = _get_updated_scores(sample, results, action=action)
     sample.events = _get_updated_events(sample, new_events, action=action)

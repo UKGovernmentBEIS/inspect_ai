@@ -2,11 +2,12 @@ import { i as __toESM } from "./rolldown-runtime.js";
 import { n as require_react, r as require_jsx_runtime, t as require_compiler_runtime } from "./compiler-runtime.js";
 // ../../packages/util/src/object.ts
 var printObject = (val, size = 50) => {
-	const envelope = ["{", "}"];
+	const open = "{";
+	const close = "}";
 	const ellipsis = "…";
 	const separator = ", ";
 	const kvSeparator = ": ";
-	let remainingSize = size - (envelope[0]?.length || 0) - (envelope[1]?.length || 0);
+	let remainingSize = size - 1 - 1;
 	const entries = Object.entries(val);
 	const headItems = [];
 	const tailItems = [];
@@ -44,8 +45,7 @@ var printObject = (val, size = 50) => {
 			headItems.push(ellipsis);
 		} else headItems.push(ellipsis);
 	}
-	const allItems = [...headItems, ...tailItems];
-	return envelope[0] + allItems.join(separator) + envelope[1];
+	return open + [...headItems, ...tailItems].join(separator) + close;
 };
 /**
 * Own-property read of a string-keyed record. Plain indexing walks the
@@ -63,6 +63,28 @@ var printObject = (val, size = 50) => {
 	const record = Object.fromEntries(entries);
 	Object.setPrototypeOf(record, null);
 	return record;
+};
+/**
+* zustand-persist `merge` that fills the keys an older build's blob lacks.
+* The default merge is shallow, so a persisted slice replaces the current
+* one wholesale and any key added since comes back undefined. Plain objects
+* merge recursively; a value the blob does have wins, including legacy keys
+* a slice migration still reads. Where the current value is an object or
+* array, a persisted value of another kind (`null`, a string) can't be
+* state this build reads, so the current value replaces it.
+*/ var fillPersistedDefaults = (persisted, current) => fillMissing(persisted, current);
+var fillMissing = (persisted, current) => {
+	if (Array.isArray(current)) return Array.isArray(persisted) ? persisted : current;
+	if (!isPlainObject(current)) return persisted === void 0 ? current : persisted;
+	if (!isPlainObject(persisted)) return current;
+	const merged = { ...persisted };
+	for (const key of Object.keys(current)) merged[key] = fillMissing(persisted[key], current[key]);
+	return merged;
+};
+var isPlainObject = (value) => {
+	if (typeof value !== "object" || value === null) return false;
+	const proto = Object.getPrototypeOf(value);
+	return proto === Object.prototype || proto === null;
 };
 // ../../node_modules/.pnpm/clsx@2.1.1/node_modules/clsx/dist/clsx.mjs
 var import_jsx_runtime = require_jsx_runtime();
@@ -296,11 +318,11 @@ var AnsiDisplay_module_default = {
 	"ansi-display-run-blink": "_ansi-display-run-blink_33le5_1"
 };
 var ToolButton_module_default = {
-	toolButton: "_toolButton_1nf6j_1",
-	marginRight: "_marginRight_1nf6j_7",
-	subtle: "_subtle_1nf6j_19",
-	latched: "_latched_1nf6j_23",
-	collapsibleLabel: "_collapsibleLabel_1nf6j_31"
+	toolButton: "_toolButton_k7xmg_1",
+	marginRight: "_marginRight_k7xmg_7",
+	subtle: "_subtle_k7xmg_19",
+	latched: "_latched_k7xmg_23",
+	collapsibleLabel: "_collapsibleLabel_k7xmg_31"
 };
 // ../../packages/react/src/components/ToolButton.tsx
 var ToolButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
@@ -400,6 +422,6 @@ var ToolButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 });
 var labelTitle = (label) => typeof label === "string" ? label : void 0;
 ToolButton.displayName = "ToolButton";
-export { logLevelIcon as a, nullProtoRecord as c, iconForMimeType as i, printObject as l, AnsiDisplay_module_default as n, clsx as o, Icon as r, getOwn as s, ToolButton as t };
+export { logLevelIcon as a, getOwn as c, iconForMimeType as i, nullProtoRecord as l, AnsiDisplay_module_default as n, clsx as o, Icon as r, fillPersistedDefaults as s, ToolButton as t, printObject as u };
 
 //# sourceMappingURL=ToolButton.js.map

@@ -25,6 +25,7 @@ from inspect_ai._util.json import (
 )
 from inspect_ai._util.trace import trace_action
 
+from .._condense import condensed_sample_summary, escape_literal_refs
 from .._config_update import ConfigUpdate
 from .._edit import LogUpdate
 from .._log import (
@@ -162,7 +163,7 @@ class JSONRecorder(FileRecorder):
             ]
         log.samples_by_key[key] = sample
         log.data.samples.append(sample)
-        log.summaries.append(sample.summary())
+        log.summaries.append(condensed_sample_summary(sample))
 
     @override
     async def sample_summaries(self, eval: EvalSpec) -> list[EvalSampleSummary] | None:
@@ -222,6 +223,7 @@ class JSONRecorder(FileRecorder):
         invalidated: bool = False,
         log_updates: list[LogUpdate] | None = None,
         config_updates: list[ConfigUpdate] | None = None,
+        total_samples: int | None = None,
     ) -> EvalLog:
         await self.close_seed_source(eval)
         log = self.data[self._log_file_key(eval)]
@@ -233,6 +235,9 @@ class JSONRecorder(FileRecorder):
         # None means "not supplied" — keep the updates accumulated mid-run
         if config_updates is not None:
             log.data.config_updates = config_updates
+        # same "not supplied" convention as config_updates
+        if total_samples is not None:
+            log.data.total_samples = total_samples
         log.data.recompute_tags_and_metadata()
         if error:
             log.data.error = error
@@ -346,7 +351,10 @@ class JSONRecorder(FileRecorder):
     async def read_log_bytes(
         cls, log_bytes: IO[bytes], header_only: bool = False
     ) -> EvalLog:
-        return _parse_json_log(from_json(log_bytes.read()), header_only)
+        log = _parse_json_log(from_json(log_bytes.read()), header_only)
+        # a stream has no location; don't keep one parsed from its content
+        log.location = ""
+        return log
 
     @override
     @classmethod
@@ -392,6 +400,11 @@ class JSONRecorder(FileRecorder):
         # sort samples before writing as they can come in out of order
         if log.samples:
             sort_samples(log.samples)
+            # samples are written as they are, so a resolved sample's literal
+            # reference text must become attachments
+            samples = [escape_literal_refs(sample) for sample in log.samples]
+            if any(a is not b for a, b in zip(samples, log.samples)):
+                log = log.model_copy(update={"samples": samples})
 
         fs = filesystem(location)
         # Standard write
@@ -592,6 +605,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         error: EvalError | None = None
         log_updates: list[LogUpdate] | None = None
         config_updates: list[ConfigUpdate] | None = None
+        total_samples: int | None = None
         for k, v in values.items():
             if k == "status":
                 assert v in get_args(EvalStatus)
@@ -612,6 +626,10 @@ def _read_header_streaming(log_file: str) -> EvalLog:
                 log_updates = [LogUpdate.model_validate(u) for u in v]
             elif k == "config_updates":
                 config_updates = [ConfigUpdate.model_validate(u) for u in v]
+            elif k == "total_samples":
+                if v is not None:
+                    assert isinstance(v, int), "'total_samples' must be an int or null"
+                total_samples = v
 
     assert status, "Must encounter a 'status'"
     assert eval, "Must encounter a 'eval'"
@@ -629,5 +647,6 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         config_updates=config_updates,
         version=version,
         error=error,
+        total_samples=total_samples,
         location=log_file,
     )

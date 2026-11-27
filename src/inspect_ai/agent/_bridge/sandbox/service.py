@@ -1,3 +1,4 @@
+from contextlib import AbstractContextManager
 from logging import getLogger  # noqa: E402
 from typing import Awaitable, Callable, Protocol, TypeGuard, cast
 
@@ -14,6 +15,7 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
+from inspect_ai.util._json import json_schema_dump
 from inspect_ai.util._limit import (
     Limit,
     LimitExceededError,
@@ -54,7 +56,8 @@ def _forward_provider_errors(
     Any exception from the wrapped generate is returned (not raised) under
     `PROVIDER_ERROR_KEY` so the sandbox service RPC delivers it via the `result`
     channel. This lets the model proxy emit a provider-dialect error response
-    and stay up, instead of the RPC `error` channel triggering a fatal exit.
+    with the provider's status, which an error on the RPC `error` channel does
+    not carry.
 
     A termination is re-raised: a `TerminateSampleError` (from an approver's
     `terminate` decision, too many consecutive rejections, or a request or
@@ -102,19 +105,6 @@ def _forward_provider_errors(
     compaction lock, a connection slot, the pause gate or a retry.
     """
 
-    def refuse_after_a_recorded_limit() -> None:
-        recorded = bridge.generation_limit
-        if recorded is not None:
-            # a copy: raising the recorded error would add this request's
-            # frames to the traceback it is raised to the agent with
-            raise LimitExceededError(
-                recorded.type,
-                value=recorded.value,
-                limit=recorded.limit,
-                message=recorded.message,
-                source=recorded.source,
-            )
-
     async def generate_forwarding_errors(
         json_data: dict[str, JsonValue],
         headers: dict[str, str] | None = None,
@@ -128,7 +118,7 @@ def _forward_provider_errors(
                         JsonValue, provider_error_payload(bridge.generation_limit)
                     )
                 }
-            with dispatch_guard(refuse_after_a_recorded_limit):
+            with _refuse_after_a_recorded_limit(bridge):
                 return await generate(json_data, headers)
         except Exception as ex:
             if find_control_flow(ex) is not None:
@@ -178,6 +168,30 @@ def _forward_provider_errors(
             return {PROVIDER_ERROR_KEY: cast(JsonValue, payload)}
 
     return generate_forwarding_errors
+
+
+def _refuse_after_a_recorded_limit(
+    bridge: SandboxAgentBridge,
+) -> AbstractContextManager[None]:
+    """Refuse each provider call made in this context once `bridge` has recorded a limit.
+
+    The call raises a copy of the recorded limit (see `dispatch_guard`).
+    """
+
+    def refuse() -> None:
+        recorded = bridge.generation_limit
+        if recorded is not None:
+            # a copy: raising the recorded error would add this call's
+            # frames to the traceback it is raised to the agent with
+            raise LimitExceededError(
+                recorded.type,
+                value=recorded.value,
+                limit=recorded.limit,
+                message=recorded.message,
+                source=recorded.source,
+            )
+
+    return dispatch_guard(refuse)
 
 
 def _encloses(outer: LimitExceededError, inner: LimitExceededError) -> bool:
@@ -298,6 +312,14 @@ async def run_model_service(
     instance: str,
     started: anyio.Event,
 ) -> None:
+    """Serve the bridge's model service to its proxy.
+
+    The service's request queue is private to the tools user, the user the
+    proxy runs as, so no other user (the sandbox's default user included) can
+    submit requests past the proxy's check of the client's user. Every bridge
+    does this, scoped or not: bridges' queues share one parent directory, which
+    must have one owner.
+    """
     await sandbox_service(
         name=MODEL_SERVICE,
         methods={
@@ -318,6 +340,7 @@ async def run_model_service(
         },
         until=lambda: False,
         sandbox=sandbox,
+        user=sandbox._tools_user,
         instance=instance,
         polling_interval=2,
         started=started,
@@ -418,7 +441,7 @@ def list_tools(
             {
                 "name": info.name,
                 "description": info.description,
-                "inputSchema": info.parameters.model_dump(exclude_none=True),
+                "inputSchema": json_schema_dump(info.parameters),
             }
             for info in tools_info
         ]
@@ -429,9 +452,16 @@ def list_tools(
 def call_tool(
     bridge: SandboxAgentBridge,
 ) -> Callable[[str, str, JsonValue], Awaitable[JsonValue]]:
-    """Execute a bridged tool and return its result (`execute_host_tool`)."""
+    """Execute a bridged tool and return its result (`execute_host_tool`).
+
+    Once the bridge has recorded a limit, a model call the tool makes is
+    refused before it reaches the provider, as a generation request's is (see
+    `_forward_provider_errors`). The tool gets the limit error, which the
+    scaffold reads as a tool error.
+    """
 
     async def execute(server: str, tool: str, arguments: JsonValue) -> JsonValue:
-        return await execute_host_tool(bridge, server, tool, arguments)
+        with _refuse_after_a_recorded_limit(bridge):
+            return await execute_host_tool(bridge, server, tool, arguments)
 
     return execute

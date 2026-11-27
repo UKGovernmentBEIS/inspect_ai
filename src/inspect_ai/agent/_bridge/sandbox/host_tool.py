@@ -36,6 +36,12 @@ from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.service import find_control_flow
 from inspect_ai.util._span import parent_span, span
 
+from ..types import (
+    _RESULT_EVIDENCE,
+    BridgedToolId,
+    _Received,
+    target_execution_id,
+)
 from .types import SandboxAgentBridge, _ToolExecutionGrant
 
 logger = getLogger(__name__)
@@ -86,10 +92,19 @@ async def execute_host_tool(
     content) is truncated to the same output limit, in the same format
     (`truncate_tool_output`).
 
+    No sentinel stage runs here. A sentinel's `tool_call` check runs before
+    the call's grant is minted, and its `tool_result` check when the scaffold
+    sends the result back in a request (`sentinel_tool_results`), as for a
+    tool the scaffold runs itself: that request carries the call's id, which
+    an MCP call does not.
+
     Every request is recorded as one `ToolEvent` in a `tool` span, as a native
     call is, with `metadata["bridge"]` describing it (see `ToolEvent`). An
-    execution that consumed a grant takes the proposing call's id and is
-    recorded in the span of the proposing `ModelEvent`; a denied or rejected
+    execution that consumed a grant takes the id its call was handed to the
+    scaffold under, records the model's id for the call as `proposal_id` and
+    its handout's run of the tool as `execution_id` (`target_execution_id`),
+    and is recorded in the span of the
+    proposing `ModelEvent`; a denied or rejected
     request gets a fresh id and the error the scaffold receives. A running
     call can be cancelled by the operator like a native one.
     """
@@ -192,6 +207,20 @@ class _BridgeMetadata:
         }
 
 
+def _handout(grant: _ToolExecutionGrant | None) -> str | None:
+    """The execution a run that consumed `grant` is (`ToolEvent.execution_id`): its handout's run of the grant's tool (`target_execution_id`).
+
+    `None` without a grant, or when the run's request matched grants of more
+    than one handout (`_Proposal.ambiguous`): which of them it ran for is
+    unknown, as one handout's response may never have reached the scaffold.
+    """
+    if grant is None or grant.proposal.ambiguous:
+        return None
+    return target_execution_id(
+        grant.proposal.execution_id, BridgedToolId(grant.server, grant.tool)
+    )
+
+
 async def _record_rejection(
     bridge: SandboxAgentBridge,
     tool: str,
@@ -204,10 +233,15 @@ async def _record_rejection(
     failed: bool | None = None,
     call_message_id: str | None = None,
     grant: _ToolExecutionGrant | None = None,
+    raised: BaseException | None = None,
 ) -> None:
-    """Record a request that did not execute as a completed event in its own `tool` span."""
+    """Record a request that did not execute as a completed event in its own `tool` span.
+
+    `raised` is what the RPC raises for a request that consumed `grant`.
+    """
     event = ToolEvent(
         id=event_id or uuid(),
+        execution_id=_handout(grant),
         function=tool,
         arguments=arguments,
         view=view,
@@ -238,13 +272,19 @@ async def _record_rejection(
         # request was still received and decided, so it is still recorded
         if not recorded:
             transcript()._event(event)
-        _await_result_message(bridge, grant, event)
+        _await_result_message(bridge, grant, event, _received("", None, raised))
 
 
 def _await_result_message(
-    bridge: SandboxAgentBridge, grant: _ToolExecutionGrant | None, event: ToolEvent
+    bridge: SandboxAgentBridge,
+    grant: _ToolExecutionGrant | None,
+    event: ToolEvent,
+    received: _Received,
 ) -> None:
     """Await the result message of the execution that consumed `grant`.
+
+    `received` is what the scaffold receives for the call (`_received`),
+    which a result message must hold (`_holds_result`).
 
     An execution on a server registered with `require_proposal=False` never
     links: an unproposed call there takes a pending proposal's grant
@@ -254,6 +294,7 @@ def _await_result_message(
         bridge._await_result_message(
             grant.proposal.reply,
             event,
+            received,
             linkable=grant.proposal.linkable
             and grant.server not in bridge.proposal_exempt_servers,
         )
@@ -269,7 +310,7 @@ async def _execute_granted(
 ) -> JsonValue:
     if grant is not None:
         metadata.function = grant.proposal.call.function
-        metadata.proposal_id = grant.proposal.call.id
+        metadata.proposal_id = grant.proposal.proposal_id
         metadata.grant = "consumed"
     else:
         metadata.grant = "exempt"
@@ -300,9 +341,11 @@ async def _execute_granted(
             failed=True if mapped is None else None,
             call_message_id=call_message_id,
             grant=grant,
+            raised=ex,
         )
         raise
     if validation_errors:
+        parsing = ToolParsingError(validation_errors)
         await _record_rejection(
             bridge,
             tool,
@@ -313,12 +356,14 @@ async def _execute_granted(
             view=view,
             call_message_id=call_message_id,
             grant=grant,
+            raised=parsing,
         )
-        raise ToolParsingError(validation_errors)
+        raise parsing
     call_arguments = cast(dict[str, JsonValue], arguments)
 
     event = ToolEvent(
         id=event_id,
+        execution_id=_handout(grant),
         function=tool,
         arguments=call_arguments,
         view=view,
@@ -396,7 +441,12 @@ async def _execute_granted(
                 transcript()._event_updated(event)
             else:
                 transcript()._event(event)
-            _await_result_message(bridge, grant, event)
+            _await_result_message(
+                bridge,
+                grant,
+                event,
+                _received(outcome.result, outcome.reply, outcome.raised),
+            )
             if outcome.fatal is not None:
                 bridge.request_fail(outcome.fatal)
 
@@ -433,6 +483,35 @@ def _reply(output: ToolResult, result: ToolResult) -> JsonValue:
     ):
         return _mcp_tool_result_content(result)
     return to_json_str_safe(result)
+
+
+def _received(
+    output: ToolResult, reply: JsonValue, raised: BaseException | None
+) -> _Received:
+    """What the scaffold receives for a call recorded as `output`, whose RPC returned `reply` or raised `raised`.
+
+    The error's text (which the scaffold shows after the service's prefix,
+    no evidence as a denied call's error carries it too); else the first text
+    of `output`, which the reply holds as is or JSON-escaped (`_reply`); else
+    the first text of the reply, which for media is an image URL or path (an
+    MCP text block), or the JSON of other media. Only the start of the text
+    is kept (`_RESULT_EVIDENCE`), as the reply may hold large media.
+    """
+    if raised is not None:
+        return _Received(str(raised).strip()[:_RESULT_EVIDENCE])
+    texts = (
+        [content.text for content in output if isinstance(content, ContentText)]
+        if isinstance(output, list)
+        else []
+    )
+    for block in reply if isinstance(reply, list) else [reply]:
+        match block:
+            case str():
+                texts.append(block)
+            case {"type": "text", "text": str() as text}:
+                texts.append(text)
+    text = next((stripped for text in texts if (stripped := text.strip())), "")
+    return _Received(text[:_RESULT_EVIDENCE])
 
 
 def _raised(ex: Exception, tool: str, max_output: int | None) -> _Outcome:

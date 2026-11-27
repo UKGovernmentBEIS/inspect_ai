@@ -841,6 +841,27 @@ def test_cli_message_with_a_lost_response_is_sent_once(
     assert group.members["worker-1"].calls == [("message", "stop that", False, False)]
 
 
+def test_cli_lost_response_gives_no_command_for_a_non_printable_sample_id(
+    server: _Server, sample: _FakeSample
+) -> None:
+    server.after_response = _lose_response
+    result = _invoke(
+        *("message", "t1", "s\t1", "2", "--agent", "worker-1"),
+        *("--text", "stop that", "--json"),
+    )
+    assert result.exit_code == 1
+    check = (
+        "Check with `inspect ctl sample agent list TASK SAMPLE_ID 2` "
+        "(arguments not shown: one holds non-printable characters) before sending "
+        "it again."
+    )
+    assert result.stderr.endswith(check + "\n")
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "unknown_outcome"
+    assert error["message"].endswith(check)
+    assert len(server.requests) == 1
+
+
 @pytest.mark.parametrize("action", ["pause", "resume", "stop"])
 def test_cli_group_action_with_a_lost_response_is_sent_once(
     server: _Server, sample: _FakeSample, action: str

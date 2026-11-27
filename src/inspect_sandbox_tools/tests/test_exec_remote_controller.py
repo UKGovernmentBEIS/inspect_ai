@@ -421,6 +421,40 @@ class TestPollDeliversOutputAfterLeaderExits:
             assert result.exit_code == 0
 
     @pytest.mark.asyncio
+    async def test_output_past_a_buffer_that_is_full_at_exit_is_delivered(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The reader waiting on the full buffer holds the end of the output."""
+        monkeypatch.setattr(job_module, "_BACKPRESSURE_BUFFER_SIZE", 64 * 1024)
+        controller = Controller()
+        pid = await controller.submit("seq -w 1 20000")
+        await _wait_for_exit(controller._jobs[pid])
+
+        result, stdout, _ = await self._poll_to_completion(controller, pid)
+
+        # numbered lines, so lost, repeated or reordered output shows
+        assert stdout == "".join(f"{i:05d}\n" for i in range(1, 20001))
+        assert (result.state, result.exit_code) == ("completed", 0)
+
+    @pytest.mark.asyncio
+    async def test_room_given_to_a_full_buffer_after_exit_is_bounded(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Output left beyond the room is cut off, and the job still ends."""
+        limit, room = 64 * 1024, 16 * 1024
+        monkeypatch.setattr(job_module, "_BACKPRESSURE_BUFFER_SIZE", limit)
+        monkeypatch.setattr(job_module, "_MAX_TAIL_BYTES", room)
+        controller = Controller()
+        pid = await controller.submit("seq -w 1 20000")  # 120,000 bytes
+        await _wait_for_exit(controller._jobs[pid])
+
+        result, stdout, _ = await self._poll_to_completion(controller, pid)
+
+        # the reader stops with the read (of up to 4096 bytes) that reaches the limit
+        assert limit + room <= len(stdout) < limit + room + 4096
+        assert (result.state, result.exit_code) == ("completed", 0)
+
+    @pytest.mark.asyncio
     async def test_completes_within_one_second_when_a_child_writes_forever(
         self,
     ) -> None:
@@ -726,6 +760,45 @@ class TestKillByJobKey:
         finally:
             while not spawned.empty():
                 _kill_group(spawned.get_nowait().pid)
+
+    @pytest.mark.asyncio
+    async def test_start_whose_stdin_closed_before_the_write_kills_the_job(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Input is not dropped silently when stdin closed before it is written.
+
+        asyncio has seen the close (the transport is closing) but has not yet
+        recorded the connection as lost, so writing the input would discard it
+        and the start would return the PID of a job that never got its input.
+        """
+        real_spawn = Job.spawn
+        spawned: list[Job] = []
+
+        async def spawn_until_stdin_closing(command: str, **kwargs: Any) -> Job:
+            job = await real_spawn(command, **kwargs)
+            spawned.append(job)
+            stdin = job._process.stdin
+            assert stdin is not None
+            with anyio.fail_after(10):
+                while not stdin.is_closing():
+                    await asyncio.sleep(0)
+            return job
+
+        monkeypatch.setattr(Job, "spawn", spawn_until_stdin_closing)
+        controller = Controller()
+        try:
+            with pytest.raises(ConnectionResetError, match="Connection lost"):
+                await controller.submit(
+                    "sleep 0.05; exec 0<&-; exec sleep 60",
+                    input=_LARGE_INPUT,
+                    job_key=_JOB_KEY,
+                )
+
+            assert not _group_alive(spawned[0].pid)
+            assert controller._jobs == {}
+        finally:
+            for job in spawned:
+                _kill_group(job.pid)
 
     @pytest.mark.asyncio
     async def test_kill_key_during_a_failed_start_waits_for_the_job_to_die(

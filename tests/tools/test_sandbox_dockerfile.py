@@ -23,7 +23,9 @@ def test_sandbox_dockerfile_raises_for_unsupported_config():
     class MyConfig(BaseModel, frozen=True):
         pass
 
+    # a setup error ends the task with its error log
     sandbox = SandboxEnvironmentSpec("docker", MyConfig())
-    with pytest.raises(ValueError) as e_info:
-        eval(Task(sandbox=sandbox))[0]
-    assert "Unsupported config type" in str(e_info.value)
+    log = eval(Task(sandbox=sandbox), model="mockllm/model")[0]
+    assert log.status == "error"
+    assert log.error is not None
+    assert "Unsupported config type" in log.error.message

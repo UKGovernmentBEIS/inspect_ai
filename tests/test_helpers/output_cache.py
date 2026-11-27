@@ -5,7 +5,9 @@ import pytest
 
 import inspect_ai.model._model as model_module
 from inspect_ai.model import (
+    CachePolicy,
     ChatMessage,
+    ChatMessageAssistant,
     ChatMessageUser,
     GenerateConfig,
     ModelOutput,
@@ -52,9 +54,41 @@ async def check_output_cache_round_trip(
     assert first.completion
     assert provider_calls == 1
     assert len(stored) == 1
-    assert (cache_path(str(model)) / stored[0]).is_file()
+    assert (cache_path(str(model)) / f"{stored[0]}.jsonl").is_file()
 
     second = await model.generate(input, cache=True)
     assert provider_calls == 1
     assert len(stored) == 1
     assert second.completion == first.completion
+
+
+def concurrent_cache_output(letter: str) -> ModelOutput:
+    """A large output with fixed IDs, for the concurrent cache writers test."""
+    return ModelOutput.from_message(
+        ChatMessageAssistant(id=f"id-{letter}", content=letter * 2_000_000)
+    )
+
+
+def concurrent_cache_entry() -> CacheEntry:
+    """The cache entry that the concurrent writers and the reader share."""
+    return CacheEntry(
+        base_url=None,
+        config=GenerateConfig(),
+        input=[ChatMessageUser(content="Hello")],
+        model="mockllm/model",
+        policy=CachePolicy(),
+        tool_choice=None,
+        tools=[],
+    )
+
+
+def concurrent_cache_writer(letter: str, stores: int) -> None:
+    """Store `concurrent_cache_output(letter)` under the shared key `stores` times.
+
+    Runs in a child process; the cache directory comes from its inherited
+    `INSPECT_CACHE_DIR`.
+    """
+    output = concurrent_cache_output(letter)
+    for _ in range(stores):
+        if not cache_store(entry=concurrent_cache_entry(), output=output):
+            raise RuntimeError("cache_store failed")

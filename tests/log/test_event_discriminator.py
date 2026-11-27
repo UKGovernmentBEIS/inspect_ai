@@ -13,6 +13,7 @@ from inspect_ai.event._event import DiscriminatedEvent, Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sentinel import SentinelEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log import read_eval_log, write_eval_log
 from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSample, EvalSpec
 from inspect_ai.scorer import Reference
@@ -98,6 +99,23 @@ def _sentinel_event(**kwargs: Any) -> SentinelEvent:
 
 _MODIFIED = ToolCall(id="call_1", function="bash", arguments={"cmd": "ls"})
 
+_REMOTE: dict[str, Any] = dict(
+    proxy_url="http://proxy.test",
+    request_id="irid_1",
+    request_received="2026-11-23T10:00:00+00:00",
+    reply_received="2026-11-23T10:00:02+00:00",
+    human_reviews=[
+        dict(
+            id="q_1",
+            asked="2026-11-23T10:00:01+00:00",
+            answered="2026-11-23T10:00:05+00:00",
+            decision="approve",
+            resolution="answered",
+        )
+    ],
+    models=[dict(role="monitor", model="mockllm/judge")],
+)
+
 _REFERENCES = [
     Reference(type="message", id="msg_22", cite="[M22]"),
     Reference(type="event", id="evt_7"),
@@ -126,6 +144,19 @@ def _observation(**kwargs: Any) -> SentinelEvent:
         _observation(references=_REFERENCES),
         _sentinel_event(references=_REFERENCES),
         _observation(status="error", suspicion=None, error="ValueError: no model"),
+        _observation(stage="tool_result", execution_id="call_token"),
+        _observation(completed="2026-11-23T10:00:03+00:00", working_time=1.5),
+        _sentinel_event(remote=_REMOTE),
+        _sentinel_event(function="", remote=dict(_REMOTE, trimmed=True)),
+        _sentinel_event(
+            status="unjudged",
+            function=None,
+            action=None,
+            explanation=None,
+            reason="provider_error",
+        ),
+        # a status a later Inspect adds records no report
+        _sentinel_event(status="paused", function=None, action=None),
     ],
 )
 def test_sentinel_event_round_trips(event: SentinelEvent) -> None:
@@ -145,6 +176,32 @@ def test_sentinel_event_reads_continue_from_old_logs_as_proceed(status: str) -> 
     assert restored.action == "proceed"
 
 
+def test_events_from_logs_without_an_execution_id_read_as_none() -> None:
+    adapter: TypeAdapter[Event] = TypeAdapter(DiscriminatedEvent)
+    approval = ApprovalEvent(
+        message="",
+        call=_MODIFIED,
+        approver="auto",
+        decision="approve",
+        execution_id="call_token",
+    )
+    tool = ToolEvent(
+        id="call_1",
+        function="read_file",
+        arguments={"path": "notes.txt"},
+        execution_id="run_1",
+    )
+    for event in [_observation(execution_id="call_token"), approval, tool]:
+        logged = event.model_dump(mode="json")
+        del logged["execution_id"]
+        restored = adapter.validate_json(json.dumps(logged))
+        assert isinstance(restored, SentinelEvent | ApprovalEvent | ToolEvent)
+        assert restored.execution_id is None
+    logged_events: list[Event] = [approval, tool]
+    for event in logged_events:
+        assert adapter.validate_json(adapter.dump_json(event)) == event
+
+
 def test_sentinel_event_rejects_invalid_suspicion() -> None:
     for suspicion in [float("nan"), float("inf"), {}]:
         with pytest.raises(ValidationError):
@@ -152,7 +209,7 @@ def test_sentinel_event_rejects_invalid_suspicion() -> None:
 
 
 @pytest.mark.parametrize("kind", ["observation", "decision"])
-@pytest.mark.parametrize("status", ["cancelled", "bypassed"])
+@pytest.mark.parametrize("status", ["cancelled", "bypassed", "unjudged", "paused"])
 @pytest.mark.parametrize(
     "field,value",
     [
@@ -166,6 +223,8 @@ def test_sentinel_event_without_report_rejects_report_fields(
     kind: str, status: str, field: str, value: Any
 ) -> None:
     fields: dict[str, Any] = dict(kind=kind, status=status, function=None, action=None)
+    if status == "unjudged":
+        fields.update(reason="cancelled", explanation=None)
     _sentinel_event(**fields)
     fields[field] = value
     with pytest.raises(ValidationError, match=field):
@@ -220,6 +279,28 @@ def test_sentinel_error_records_only_the_error(
 def test_sentinel_error_is_only_on_an_error_event(status: str) -> None:
     with pytest.raises(ValidationError, match="only on, an 'error'"):
         _sentinel_event(status=status, error="boom")
+
+
+@pytest.mark.parametrize(
+    "fields,match",
+    [
+        (dict(status="unjudged"), "only on, an 'unjudged'"),
+        (dict(reason="cancelled"), "only on, an 'unjudged'"),
+        (dict(status="unjudged", reason="cancelled", path="judge"), "empty path"),
+        (dict(status="unjudged", reason="cancelled", audit=True), "audit"),
+        (
+            dict(status="unjudged", reason="cancelled", explanation="why"),
+            "explanation",
+        ),
+    ],
+)
+def test_sentinel_unjudged_is_a_root_event_with_a_reason(
+    fields: dict[str, Any], match: str
+) -> None:
+    with pytest.raises(ValidationError, match=match):
+        _sentinel_event(
+            **{"function": None, "action": None, "explanation": None, **fields}
+        )
 
 
 def test_sentinel_superseded_is_only_for_decisions() -> None:

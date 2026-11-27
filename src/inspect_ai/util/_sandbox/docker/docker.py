@@ -26,12 +26,14 @@ from ..environment import (
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxTimeoutError,
     SandboxUnavailableError,
     SandboxUserUnsupportedError,
     sandbox_prebuilt,
 )
 from ..limits import OutputLimitExceededError, SandboxEnvironmentLimits
 from ..registry import sandboxenv
+from ..setup import current_task_init_env
 from .cleanup import (
     cli_cleanup,
     project_cleanup,
@@ -61,7 +63,6 @@ from .failure import (
     classify_exec_failure,
     raise_for_unsupported_user,
 )
-from .internal import build_internal_image, is_internal_image, is_internal_image_built
 from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name
 
@@ -104,7 +105,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         try:
             # create project
             project = await ComposeProject.create(
-                name=task_project_name(task_name), config=config
+                name=task_project_name(task_name),
+                config=config,
+                env=current_task_init_env(),
             )
 
             # record auto compose
@@ -131,18 +134,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                         f"ERROR: Docker service '{name}' includes an explicitly configured container_name ('{container_name}'). This is not permitted, as container names should be provisioned by Docker compose and an explicit container_name will not work with epochs > 1."
                     )
 
-                # build internal images
-                image = service.get("image", None)
-                if image and is_internal_image(image):
-                    if not prebuilt:
-                        await build_internal_image(image)
-                    elif not await is_internal_image_built(image):
-                        raise PrerequisiteError(
-                            PREBUILT_IMAGES_ERROR_PREFIX
-                            + f"the internal image '{image}' is not present in the Docker image store."
-                        )
                 # pull any remote images
-                elif service.get("build", None) is None and not service.get("x-local"):
+                image = service.get("image", None)
+                if service.get("build", None) is None and not service.get("x-local"):
                     # skip the pull if the image is already available locally
                     # (avoids noisy errors for images loaded via 'docker load')
                     if image and await docker_image_exists_locally(image):
@@ -375,20 +369,25 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         host_timeout = timeout + 10 if timeout is not None else None
 
         start_time = time.monotonic()
-        exec_result = await compose_exec(
-            args + [self._service] + in_container_cmd,
-            project=self._project,
-            timeout=host_timeout,
-            timeout_retry=timeout_retry,
-            input=input,
-            output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
-            concurrency=concurrency,
-        )
+        try:
+            exec_result = await compose_exec(
+                args + [self._service] + in_container_cmd,
+                project=self._project,
+                timeout=host_timeout,
+                timeout_retry=timeout_retry,
+                input=input,
+                output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
+                concurrency=concurrency,
+            )
+        except TimeoutError as ex:
+            # the host-side timeout expired: the in-container timeout had its
+            # chance to end the command and return cleanly, and did not, so
+            # the daemon or the container stopped answering. whether the
+            # command is still running is unknown.
+            raise SandboxTimeoutError(str(ex), reason="no_response") from ex
 
-        # in-container timeout fired. the docker CLI returned cleanly
-        # — this is NOT a daemon hang — so fail hard with a TimeoutError
-        # rather than returning the exit code. exit codes vary by
-        # implementation:
+        # In-container timeouts return exit codes without triggering host retries.
+        # Timeout exit codes vary by implementation:
         #   124: GNU timeout, command killed by SIGTERM (the normal case)
         #   137: SIGKILL escalation via -k (command ignored SIGTERM)
         #   143: BusyBox timeout, command killed by SIGTERM (128 + 15)
@@ -402,15 +401,12 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         elapsed = time.monotonic() - start_time
         if timeout is not None and exec_result.returncode in (124, 137, 143):
             if elapsed >= timeout:
-                # preserve the partial output captured before the timeout so it can
-                # be surfaced to the caller via SandboxTimeoutError.truncated_output
-                timeout_error = TimeoutError(
-                    f"Command timed out after {timeout} seconds"
-                )
                 partial_output = (exec_result.stdout or "") + (exec_result.stderr or "")
-                if partial_output:
-                    setattr(timeout_error, "truncated_output", partial_output)
-                raise timeout_error
+                raise SandboxTimeoutError(
+                    f"Command timed out after {timeout} seconds",
+                    truncated_output=partial_output or None,
+                    reason="command",
+                )
             # else: the command's own exit code or a signal death that came
             # too fast to be a timeout (e.g. OOM kill) — fall through and
             # return the ExecResult
@@ -480,10 +476,14 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         file = self.container_file(file)
 
         # The requested user may be root, so utilities must not come from the
-        # image's PATH.
+        # image's PATH. The commands run from "/", as `read_file()`'s do: the
+        # path is absolute, and the user may be unable to enter the default
+        # working directory.
         parent = Path(file).parent.as_posix()
         if parent != ".":
-            result = await self.exec(pinned_command(["mkdir", "-p", parent]), user=user)
+            result = await self.exec(
+                pinned_command(["mkdir", "-p", parent]), cwd="/", user=user
+            )
             if not result.success:
                 raise_for_unsupported_user(result.stderr or result.stdout, user)
                 if "permission denied" in result.stderr.casefold():
@@ -496,6 +496,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             result = await self.exec(
                 pinned_shell_command('set -e\ntee -- "$1" > /dev/null', file),
                 input=contents,
+                cwd="/",
                 timeout=TIMEOUT,
                 user=user,
             )
@@ -506,6 +507,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     'set -e\nbase64 -d | tee -- "$1" > /dev/null', file
                 ),
                 input=base64_contents,
+                cwd="/",
                 timeout=TIMEOUT,
                 user=user,
             )
@@ -513,7 +515,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             raise_for_unsupported_user(result.stderr or result.stdout, user)
             if "permission denied" in result.stderr.casefold():
                 ls_result = await self.exec(
-                    pinned_command(["ls", "-la", "."]), user=user
+                    pinned_command(["ls", "-la", "--", parent]), cwd="/", user=user
                 )
                 error_string = f"Permission was denied. Error details: {result.stderr}; ls -la: {ls_result.stdout}"
                 raise PermissionError(error_string)

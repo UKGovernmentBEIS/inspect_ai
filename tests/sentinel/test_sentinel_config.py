@@ -374,6 +374,23 @@ def test_eval_retry_rebuilds_the_sentinel(tmp_path: Path) -> None:
     assert active_root(retried) == "inspect_sentinel/concurrent"
 
 
+@pytest.mark.parametrize(
+    "given,restored", [(None, "auto"), ("off", "off")], ids=["from log", "given"]
+)
+def test_eval_retry_restores_sentinel_proxy_unless_given(
+    tmp_path: Path, given: Any, restored: str
+) -> None:
+    log = eval(
+        d2_retry_task(str(tmp_path / "marker")),
+        model="mockllm/model",
+        sentinel_proxy="auto",
+        log_dir=str(tmp_path),
+    )[0]
+    assert (log.status, log.eval.config.sentinel_proxy) == ("error", "auto")
+    retried = eval_retry(log, log_dir=str(tmp_path), sentinel_proxy=given)[0]
+    assert retried.eval.config.sentinel_proxy == restored
+
+
 def test_cli_sentinel_args_become_the_entry_params() -> None:
     args = (
         "score=0.9",

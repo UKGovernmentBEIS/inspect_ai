@@ -1,7 +1,9 @@
+import warnings
 from pathlib import Path
 
 import pandas as pd
 import pyarrow as pa
+import pytest
 from pydantic import JsonValue
 
 from inspect_ai import Task, eval
@@ -35,6 +37,16 @@ def test_samples_df_messages_parallel() -> None:
     dfs = samples_df(LOGS_DIR, columns=columns)
     dfs_parallel = samples_df(LOGS_DIR, columns=columns, parallel=2)
     assert dfs[SAMPLE_ID].to_list() == dfs_parallel[SAMPLE_ID].to_list()
+
+
+@pytest.mark.parametrize("parallel", [False, 2])
+def test_samples_df_no_inplace_deprecation_warning(parallel: bool | int) -> None:
+    """Deduplication does not use pandas' deprecated `inplace` keyword."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message=".*inplace keyword.*")
+        samples_df(LOGS_DIR, parallel=parallel)
+        samples_df(LOGS_DIR, columns=SampleSummary + SampleMessages, parallel=parallel)
+        messages_df(LOGS_DIR, parallel=parallel)
 
 
 def test_events_df_parallel() -> None:

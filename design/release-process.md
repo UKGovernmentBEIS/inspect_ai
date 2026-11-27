@@ -44,7 +44,33 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
    notes are the version's changelog section. In the same `release.yml` run,
    `build` builds and gates the distributions, and `publish-pypi` (environment
    `pypi`) and `publish-npm` (environment `npm`, via `npm-publish.yml`) each
-   wait for an environment reviewer's approval.
+   wait for an environment reviewer's approval. Once `publish-pypi` succeeds,
+   `announce` posts the release to Slack (see [Slack
+   announcement](#slack-announcement)), and `docs` renders the docs site at
+   the tag and deploys it to GitHub Pages (`inspect.aisi.org.uk`), using
+   meridianlabs-ai/actions' `publish-docs.yml`. It deploys only when the tag
+   is the latest GitHub Release, so a recovery run for an older release never
+   rolls the site back.
+
+## Slack announcement
+
+The `announce` job in `release.yml` posts ":rocket: inspect-ai X.Y.Z
+released" with the GitHub Release notes and a link to the release, using the
+shared `meridianlabs-ai/actions/slack-release-announce` action. It runs only
+after `publish-pypi` succeeds, so a rejected or failed PyPI publish is never
+announced; it does not wait for npm. It reads the notes and URL with `gh
+release view` for the tag the run resolved, because Release Please reports
+the release only in the run that creates it, not in a re-run or recovery run.
+
+The webhook is the `SLACK_WEBHOOK_URL` repository secret, a Slack incoming
+webhook for the announcement channel; only `announce` reads it. While the
+secret is unset, the job succeeds without posting anything.
+
+Every run whose `publish-pypi` job succeeds announces, as in `inspect_flow`
+and `inspect_swarm`, even when PyPI already had every file. So re-running
+all jobs, or a recovery dispatch, after PyPI already has the release may post
+a duplicate announcement. If only the announcement failed, re-run the failed
+jobs: that re-runs only `announce`. The break-glass paths do not announce.
 
 ## Changelog
 
@@ -131,7 +157,9 @@ Trusted publishers: PyPI matches the workflow file that runs the publishing
 job, so `release.yml` and `publish.yml` each need a PyPI publisher. npm matches
 the calling workflow, so `release.yml` and `npm-publish.yml` each need an npm
 publisher. The `pypi` and `npm` environments must allow deployments from
-`main` (release.yml) and from version tags (break-glass).
+`main` (release.yml) and from version tags (break-glass). The `github-pages`
+environment must allow `main`, and the Pages source must be "GitHub Actions".
+`publish-docs.yml` refuses any tag that is not a published release's.
 
 ## Minor or major release
 
@@ -154,8 +182,8 @@ Re-running the Release workflow is safe at any point.
   job, or run the Release workflow on `main` with no `tag`. It dispatches each
   check workflow that has no run yet on the release PR's head commit. Closing
   and reopening the release PR also runs them, as the person who reopened it.
-- **Release created, then a later job failed or was cancelled** (build or
-  either publish). In order of preference:
+- **Release created, then a later job failed or was cancelled** (build,
+  either publish, or docs). In order of preference:
   1. *Re-run failed jobs.* This keeps the original run's tag, and when only a
      publish job failed, it re-publishes the build job's original artifact.
   2. *Re-run all jobs*, or re-run a run that failed inside Release Please
@@ -186,7 +214,10 @@ Re-running the Release workflow is safe at any point.
 - **A resumed release** rebuilds from the tag (except when only a publish job
   is re-run) and publishes behind the same environment approvals. Its GitHub
   Release notes are the ones Release Please wrote when it created the
-  release.
+  release. It is announced in Slack again once its PyPI job succeeds, even
+  if PyPI already had the release (see [Slack
+  announcement](#slack-announcement)); to retry only a failed announcement,
+  re-run the failed jobs.
 - **Files PyPI already has** are skipped when they match: the same SHA256, or,
   for a rebuild (archive metadata such as timestamps differs between builds),
   the same members with the same contents under the parity rules
@@ -212,6 +243,9 @@ Re-running the Release workflow is safe at any point.
   with dry-run unchecked.
 - **Local:** `python scripts/pypi-release.py release X.Y.Z` (PyPI only; its
   tag push no longer triggers npm, so dispatch `npm-publish.yml` on the tag).
+
+None of these deploy the docs; the next release's deploy includes their
+changes.
 
 After any release made outside the release PR, open a PR that sets
 `.release-please-manifest.json` and `fallback_version` in `pyproject.toml` to

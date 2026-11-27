@@ -292,11 +292,13 @@ def disable_ctl_server(request, monkeypatch):
 def isolate_active_model():
     """Keep the active-model contextvar from leaking across tests.
 
-    `eval` sets the process `active_model` contextvar. A test that runs `eval`
-    or `eval_set` *synchronously* in its own context (not a background thread)
-    keeps that value after the call, so it leaks into later tests. A later test
-    that resolves a bare model then gets the leaked model instead of
-    `INSPECT_EVAL_MODEL`. Restore the contextvar after each test.
+    `eval` and `eval_set` leave the caller's context unchanged, but other code
+    sets the `active_model` contextvar *synchronously* in the test's own
+    context: `inspect log merge-shards` run in-process keeps the task's model
+    active for the merge, and some tests call `init_active_model()` directly.
+    The value then leaks into later tests, and a later test that resolves a
+    bare model gets the leaked model instead of `INSPECT_EVAL_MODEL`. Restore
+    the contextvar after each test.
     """
     from inspect_ai.model._model import active_model_context_var
 
@@ -305,6 +307,28 @@ def isolate_active_model():
         yield
     finally:
         active_model_context_var.reset(token)
+
+
+@pytest.fixture(autouse=True)
+def isolate_request_had_retry():
+    """Keep the retried-request contextvar from leaking across tests.
+
+    `report_http_retry` marks the request in flight as retried by setting the
+    `_request_had_retry` contextvar, and only a generate under an adaptive
+    connections controller clears it. A test that reports a retry
+    *synchronously* in its own context (calling `report_http_retry`, or a
+    model's `should_retry`, directly) keeps the mark after it returns, so it
+    leaks into later tests. A later test that reads the contextvar during a
+    generate with no controller then finds its request already marked as
+    retried. Restore the contextvar after each test.
+    """
+    from inspect_ai.util._concurrency import _request_had_retry
+
+    token = _request_had_retry.set(_request_had_retry.get())
+    try:
+        yield
+    finally:
+        _request_had_retry.reset(token)
 
 
 @pytest.fixture(autouse=True)
@@ -419,6 +443,32 @@ def isolated_hooks_registry() -> Iterator[None]:
         registry_mod._registry.update(saved)
         # Direct dict updates don't invalidate get_all_hooks()'s cache.
         registry_mod._registry_version += 1
+
+
+@pytest.fixture
+def fresh_display(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Start with no display, display type or Rich console settings, as a new process does.
+
+    Earlier tests leave these set (a quiet console, a cached display), which
+    would hide or redirect the output a test captures; restoring them keeps
+    this test's display from leaking into later ones. The console is reset in
+    place, as `rich.reconfigure()` does, so a logging handler bound to it by an
+    earlier test still writes to it. It is wide enough not to wrap long
+    temporary paths in that output.
+    """
+    import rich
+    from rich.console import Console
+
+    from inspect_ai._display.core import active
+    from inspect_ai._display.core import rich as display_rich
+    from inspect_ai.util import _display
+
+    monkeypatch.setattr(active, "_active_display", None)
+    monkeypatch.setattr(_display, "_display_type", None)
+    monkeypatch.setattr(display_rich, "_console_settings", None)
+    monkeypatch.setattr(display_rich, "_reconfigure_in_place", False)
+    monkeypatch.setenv("COLUMNS", "1000")
+    monkeypatch.setattr(rich.get_console(), "__dict__", Console().__dict__)
 
 
 @pytest.fixture
@@ -950,6 +1000,23 @@ def _report_oom_kills(exitstatus: int) -> None:
                 "(meridianlabs-ai/inspect_ai#232 diagnostics)"
             )
         return
+
+
+@pytest.fixture
+def fake_sentinel(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Install `test_helpers.fake_sentinel` as `inspect_sentinel` for the test, reporting `SENTINEL_MIN_VERSION`."""
+    from test_helpers import fake_sentinel as fake
+
+    import inspect_ai._sentinel
+
+    monkeypatch.setitem(sys.modules, "inspect_sentinel", fake)
+    monkeypatch.setitem(sys.modules, "inspect_sentinel._integration", fake)
+    fake.report_version(monkeypatch)
+    yield
+    # _dispatch binds the fake's names when it is imported, so forget it: a
+    # later import meets the block on inspect_sentinel again
+    sys.modules.pop("inspect_ai._sentinel._dispatch", None)
+    vars(inspect_ai._sentinel).pop("_dispatch", None)
 
 
 def pytest_configure(config):

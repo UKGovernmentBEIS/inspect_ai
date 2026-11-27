@@ -1,16 +1,23 @@
 """Finding a sentinel sidecar behind a model's proxy, and calling its endpoint for evals."""
 
+import base64
+import re
 import secrets
+import sys
+import traceback
 from dataclasses import dataclass, field
 from itertools import count
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, NoReturn
+from urllib.parse import unquote, urlsplit
 
 import anyio
 
-from ._sign import eval_call_message, now, sign
+from ._sign import answer_message, eval_call_message, now, sign
 
 if TYPE_CHECKING:
+    import httpx2
+
     from inspect_ai.model._model import ModelAPI
 
 logger = getLogger(__name__)
@@ -26,6 +33,15 @@ REDACTED = "<redacted>"
 
 UNAUTHORIZED = -32010
 """The sidecar's error for a call whose token or signature doesn't match the token it keeps for the eval, or whose timestamp is outside its window."""
+
+UNKNOWN_QUESTION = -32011
+"""The sidecar's error code for an answer to a question it doesn't hold for the eval.
+
+The question has closed, or its call has ended.
+"""
+
+QUESTION_ANSWERED = -32012
+"""The sidecar's error code for an answer to a question that already has an answer."""
 
 
 class SentinelProxyError(RuntimeError):
@@ -50,8 +66,17 @@ class EvalAccess:
     """The token the eval made for the sidecar, which never changes. It is sent only in a registration to a sidecar that holds no token for the eval, and signs everything else."""
     lock: anyio.Lock = field(default_factory=anyio.Lock, repr=False)
     """Held while the eval registers, so a sidecar that lost the task is registered again once, not by every sample that finds it lost."""
-    registrations: int = 0
-    """How many registrations of the task the sidecar has taken."""
+    registrations_begun: int = 0
+    """How many registrations of the task the eval has begun to send, each counted before it is sent. The sidecar may replace what it held for the task with any of them, so a sample's registration counts only while this is what it was when the sample's was sent."""
+    registered: bool = False
+    """Whether the sidecar has answered a registration of the task, and so holds the eval's token."""
+    restarts_found: int = 0
+    """How many times the sidecar was found to hold no token for an eval it had registered, as after a restart. It lost with the token everything it held for the eval: the monitor state of each attempt it had begun judging."""
+
+    async def wait_for_registration(self) -> None:
+        """Wait while a registration of the task is on its way, however it ends."""
+        async with self.lock:
+            pass
 
     def credentials(self, method: str) -> dict[str, Any]:
         """The eval's id, and a signature of a call to a method made now, for the call's params."""
@@ -62,17 +87,53 @@ class EvalAccess:
             "mac": sign(self.token, eval_call_message(method, self.eval_id, timestamp)),
         }
 
+    def answer_params(
+        self, id: str, decision: str, reason: str | None
+    ) -> dict[str, Any]:
+        """The params for `answer_question`, signed now.
+
+        The signature covers the answer itself.
+        """
+        timestamp = now()
+        params: dict[str, Any] = {
+            "eval_id": self.eval_id,
+            "timestamp": timestamp,
+            "mac": sign(
+                self.token,
+                answer_message(self.eval_id, timestamp, id, decision, reason),
+            ),
+            "id": id,
+            "decision": decision,
+        }
+        if reason is not None:
+            params["reason"] = reason
+        return params
+
 
 @dataclass
 class Sidecar:
     """A sidecar that answered the probe, reached through the model's proxy with the model's own credentials."""
 
     origin: str
+    """The proxy's scheme, host and port, as the model's base URL gives them, credentials included, since Inspect's calls to the sidecar authenticate with them. It holds no path, query or fragment."""
     release: Literal["whole", "early"]
     client: Any = field(repr=False)
     version: int = 1
     """The version of the endpoint for evals Inspect speaks to it."""
+    review: bool = False
+    """Whether the sidecar sends a sentinel's questions for a person to the eval.
+
+    Inspect shows them in its approval UI.
+    """
     access: EvalAccess | None = field(default=None, repr=False)
+    base_url: str | None = field(default=None, repr=False)
+    """The model's base URL, whose query and fragment, which the origin drops, an error may still repeat. Where it isn't given, the origin's credentials are the only secrets the URL holds."""
+
+    @property
+    def proxy_url(self) -> str:
+        """The proxy's address without its credentials, for messages and the log."""
+        return without_credentials(self.origin)
+
     """The eval's id and token for this sidecar, shared by every model of the task whose calls go through it."""
     _ids: "count[int]" = field(default_factory=lambda: count(1), repr=False)
 
@@ -83,18 +144,47 @@ class Sidecar:
             SidecarCallError: If the call failed, or was answered with an error, including `unauthorized` when the sidecar keeps another token for the eval or the call's timestamp is outside its window.
         """
         access = self.access
-        if access is None or access.registrations == 0:
-            raise SidecarCallError(
-                method, "the eval hasn't registered with the sidecar"
+        if access is None or not access.registered:
+            _raise_unchained(
+                SidecarCallError(method, "the eval hasn't registered with the sidecar")
             )
         return await self.call(method, {**params, **access.credentials(method)})
+
+    async def answer_question(
+        self, id: str, decision: str, reason: str | None
+    ) -> dict[str, Any]:
+        """Send a person's answer to one of the sidecar's questions.
+
+        The call's signature covers the answer, so it can't be reused to send a
+        different answer.
+
+        Raises:
+            SidecarCallError: If the call failed, or the sidecar refused the answer.
+        """
+        access = self.access
+        if access is None or not access.registered:
+            _raise_unchained(
+                SidecarCallError(
+                    "answer_question", "the eval hasn't registered with the sidecar"
+                )
+            )
+        return await self.call(
+            "answer_question", access.answer_params(id, decision, reason)
+        )
 
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Call a method of the endpoint for evals, and return its result.
 
-        A registration's request holds the eval's token, and an error may repeat the request, as a proxy's error page does. So no error raised here holds the token, in its message or in an error it is chained to.
+        A registration's request holds the eval's token, the base URL may hold the proxy's credentials, in its user info, query or fragment, and an error may repeat the request or the base URL, as a proxy's error page does, or keep the request. So no error raised here holds either in its message, nor is chained to one that may.
         """
-        failed: str | None = None
+        try:
+            return await self._call(method, params)
+        except SidecarCallError as ex:
+            _raise_unchained(ex)
+
+    async def _call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        handling = sys.exception()
+        failed: Exception | None = None
         answer: Any = None
         try:
             response = await self.client.post(
@@ -110,14 +200,17 @@ class Sidecar:
             )
             answer = response.json()
         except Exception as ex:
-            if not self._holds_token(ex):
-                raise SidecarCallError(method, str(ex)) from ex
-            failed = self._without_token(str(ex))
+            failed = ex
         if failed is not None:
-            # Raised outside the handler, so the error that holds the token
-            # is neither this one's cause nor its context: a traceback prints
-            # both.
-            raise SidecarCallError(method, failed)
+            # Described and raised outside the handler, so that neither this
+            # error nor one in describing it is chained to the failure. Each
+            # part is redacted before it is trimmed, which could cut a secret
+            # short.
+            described = " <- ".join(
+                self._without_secrets(part).strip()
+                for part in _described(failed, handling)
+            )
+            raise SidecarCallError(method, described)
         if not isinstance(answer, dict):
             raise SidecarCallError(method, "the answer isn't JSON-RPC")
         error = answer.get("error")
@@ -125,7 +218,7 @@ class Sidecar:
             code = error.get("code")
             raise SidecarCallError(
                 method,
-                self._without_token(str(error.get("message", ""))),
+                self._without_secrets(str(error.get("message", ""))),
                 code if isinstance(code, int) else None,
             )
         result = answer.get("result")
@@ -133,27 +226,46 @@ class Sidecar:
             raise SidecarCallError(method, "the answer has no result")
         return result
 
-    def _without_token(self, text: str) -> str:
-        # the text with the eval's token taken out
-        access = self.access
-        return text.replace(access.token, REDACTED) if access is not None else text
+    def _secrets(self) -> list[tuple[str, str]]:
+        # each secret an error may repeat, with what stands in its place
+        secrets = _credentials(self.origin if self.base_url is None else self.base_url)
+        if self.access is not None:
+            secrets.append((self.access.token, REDACTED))
+        return secrets
 
-    def _holds_token(self, error: BaseException) -> bool:
-        # whether the error, or one it is chained to, holds the eval's token
-        access = self.access
-        if access is None:
-            return False
-        seen: set[int] = set()
-        pending: list[BaseException | None] = [error]
-        while pending:
-            found = pending.pop()
-            if found is None or id(found) in seen:
-                continue
-            seen.add(id(found))
-            if access.token in str(found):
-                return True
-            pending += [found.__cause__, found.__context__]
-        return False
+    def _without_secrets(self, text: str) -> str:
+        # the text with the proxy's credentials and the eval's token taken out
+        return _replaced(text, self._secrets())
+
+
+def _raise_unchained(error: Exception) -> NoReturn:
+    # raised while the caller handles an error, such as a failed model call
+    # through the proxy, an error takes that for its context, which keeps the
+    # request to the proxy
+    try:
+        raise error
+    finally:
+        error.__context__ = None
+
+
+def _described(error: BaseException, handling: BaseException | None) -> list[str]:
+    # the error's message, then each error it was raised from or while
+    # handling, as a traceback names them, up to the one the caller was
+    # handling; a context an SDK hid with `from None` too, as it may name
+    # what failed
+    described = [str(error)]
+    seen = {id(error)}
+    found = _chained(error)
+    while found is not None and found is not handling and id(found) not in seen:
+        seen.add(id(found))
+        described.append("".join(traceback.format_exception_only(found)))
+        found = _chained(found)
+    return described
+
+
+def _chained(error: BaseException) -> BaseException | None:
+    # the error this one was raised from, or else while handling
+    return error.__cause__ if error.__cause__ is not None else error.__context__
 
 
 class _Client(NamedTuple):
@@ -217,7 +329,11 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
     Raises:
         SentinelProxyError: If a sidecar answered that Inspect can't work with.
     """
-    origin = _origin(client.sdk.base_url)
+    base_url = str(client.sdk.base_url)
+    origin = _origin(base_url)
+    shown = without_credentials(origin)
+    failed: Exception | None = None
+    response: Any = None
     try:
         response = await client.sdk.get(
             f"{origin}/sentinel/info",
@@ -225,32 +341,56 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
             options={"max_retries": 0, "timeout": PROBE_TIMEOUT},
         )
     except Exception as ex:
-        return NoSidecar(*_no_answer(origin, getattr(ex, "status_code", None), ex))
+        failed = ex
+    if failed is not None:
+        # redacted outside the handler, so that an error in redacting isn't
+        # chained to the failure
+        failure = _replaced(str(failed), _credentials(base_url))
+        return NoSidecar(
+            *_no_answer(shown, getattr(failed, "status_code", None), failure)
+        )
 
     try:
         info = response.json()
-    except ValueError:
+    except Exception:
+        # not JSON, or nested past what Python's parser takes
         info = None
     if not isinstance(info, dict) or info.get("service") != "inspect_sentinel":
         return NoSidecar(
-            f"{origin} answered the probe, but not as a sidecar", definite=True
+            f"{shown} answered the probe, but not as a sidecar", definite=True
         )
 
+    # The errors repeat nothing the sidecar answered but its integer
+    # versions, as text may hold a secret: of the base URL, or the eval's
+    # token, which this probe doesn't know. Raised while the caller handles an
+    # error, such as a failed model call through the proxy, they keep none.
     versions = info.get("versions")
-    if not isinstance(versions, list) or not any(v in VERSIONS for v in versions):
-        raise SentinelProxyError(
-            f"The sentinel sidecar at {origin} serves versions {versions} of its endpoint for evals, and this Inspect speaks {list(VERSIONS)}."
+    served = [
+        v
+        for v in (versions if isinstance(versions, list) else [])
+        if isinstance(v, int) and not isinstance(v, bool)
+    ]
+    if not any(v in VERSIONS for v in served):
+        _raise_unchained(
+            SentinelProxyError(
+                f"The sentinel sidecar at {shown} serves versions {served} of its endpoint for evals, and this Inspect speaks {list(VERSIONS)}."
+            )
         )
     release = info.get("release", "whole")
     if release != "whole":
-        raise SentinelProxyError(
-            f"The sentinel sidecar at {origin} releases replies early ({release!r}), which Inspect doesn't support yet. Run the sidecar with `--release whole`."
+        _raise_unchained(
+            SentinelProxyError(
+                f"The sentinel sidecar at {shown} releases replies early, which Inspect doesn't support yet. Run the sidecar with `--release whole`."
+            )
         )
-    version = max(v for v in versions if v in VERSIONS)
-    return Sidecar(origin, release, client.sdk, version)
+    version = max(v for v in served if v in VERSIONS)
+    # A sidecar that doesn't report `review`, such as one from before sidecars
+    # could ask a person through an eval, asks no questions through the eval.
+    review = info.get("review") is True
+    return Sidecar(origin, release, client.sdk, version, review, base_url=base_url)
 
 
-def _no_answer(origin: str, status: object, ex: Exception) -> tuple[str, bool]:
+def _no_answer(origin: str, status: object, failure: str) -> tuple[str, bool]:
     # An HTTP status means the endpoint answered: a 404 says there is no
     # sidecar, and any other 4xx that none can be reached there with the
     # model's credentials, as from a gateway that answers an unknown route
@@ -263,14 +403,127 @@ def _no_answer(origin: str, status: object, ex: Exception) -> tuple[str, bool]:
             f"{origin} answered the probe with {status}, so no sidecar can be reached there",
             True,
         )
-    return f"probing {origin} for a sidecar failed: {ex}", False
+    return f"probing {origin} for a sidecar failed: {failure}", False
 
 
-def _origin(base_url: Any) -> str:
-    # a proxy forwards /sentinel/ at its root, and an OpenAI base URL ends in /v1
-    url = str(base_url)
-    scheme, _, rest = url.partition("://")
-    return f"{scheme}://{rest.split('/', 1)[0]}"
+def _origin(url: "httpx2.URL | str") -> str:
+    # a proxy forwards /sentinel/ at its root, an OpenAI base URL ends in /v1,
+    # and a base URL's query or fragment isn't the proxy's
+    import httpx2
+
+    root = httpx2.URL(url).copy_with(path="/", query=None, fragment=None)
+    return str(root).removesuffix("/")
+
+
+def without_credentials(origin: str) -> str:
+    """An origin without the user and password a base URL can carry, for showing or recording it."""
+    import httpx2
+
+    shown = httpx2.URL(origin).copy_with(username=None, password=None, path="/")
+    return str(shown).removesuffix("/")
+
+
+def _credentials(url: str) -> list[tuple[str, str]]:
+    # each secret the URL holds, decoded, with what stands in its place: the
+    # whole user info goes, and each of its parts is redacted, as is the
+    # Basic authorization httpx sends for it. So is each query value, or the
+    # name of an item with none, and the fragment. The slash the anthropic
+    # SDK puts on the end of its base URL's query is left off, as redacting a
+    # value covers it with the slash.
+    import httpx2
+
+    secrets: list[tuple[str, str]] = []
+
+    def add(text: str, shown: str) -> None:
+        # decoded keeping each byte that isn't UTF-8, decoded as Python does
+        # by default, which writes one U+FFFD for a cut-off sequence, and
+        # decoded as Latin-1 or Windows-1252, as a server may decode a query
+        # or label its page; each trimmed too, form-decoded first, as the
+        # anthropic SDK trims an error page that ends in it
+        decoded = [
+            unquote(text, errors=errors) for errors in ("surrogateescape", "replace")
+        ]
+        decoded += [
+            unquote(text, encoding=encoding, errors="replace")
+            for encoding in ("latin-1", "cp1252")
+        ]
+        secrets.extend(
+            (secret, shown)
+            for each in decoded
+            for secret in (each, each.strip(), each.replace("+", " ").strip())
+        )
+
+    userinfo = httpx2.URL(url).userinfo.decode("ascii")
+    if userinfo:
+        user, _, password = userinfo.partition(":")
+        add(f"{userinfo}@", "")
+        add(user, REDACTED)
+        add(password, REDACTED)
+        basic = f"{unquote(user)}:{unquote(password)}".encode()
+        secrets.append((base64.b64encode(basic).decode("ascii"), REDACTED))
+    parts = urlsplit(url)
+    # each item whole too, as a parser that splits at `;` inside a value, or
+    # at `=` inside a name, repeats it
+    for item in re.split("[&;]", parts.query.removesuffix("/")):
+        name, _, value = item.partition("=")
+        add(value or name, REDACTED)
+        add(item, REDACTED)
+    add(parts.fragment, REDACTED)
+    return [(secret, shown) for secret, shown in secrets if secret]
+
+
+def _spellings(secret: str) -> str:
+    # a pattern for the secret however an error spells it: each character as
+    # itself or percent-encoded, in either case, and a space and a plus as
+    # either, as form encoding writes them. A byte that isn't UTF-8, kept as
+    # its surrogate, is that or percent-encoded. The encoded spelling is tried
+    # first, so that a `%` doesn't match alone where `%25` spells it.
+    def spelled(char: str) -> list[str]:
+        if "\udc80" <= char <= "\udcff":
+            return [f"%(?i:{ord(char) - 0xDC00:02x})", re.escape(char)]
+        encoded = "".join(f"%(?i:{byte:02x})" for byte in char.encode())
+        return [encoded, re.escape(char)]
+
+    pattern = []
+    for char in secret:
+        chars = {" ", "+"} if char in " +" else {char}
+        pattern.append(
+            f"(?:{'|'.join(form for c in sorted(chars) for form in spelled(c))})"
+        )
+    return "".join(pattern)
+
+
+def _found(text: str, secrets: list[tuple[str, str]]) -> list[tuple[int, int, str]]:
+    # where the secrets are in the text, however spelled, with what stands in
+    # each place. Matches that overlap are merged, so that no part of a secret
+    # is left beside another that starts before it; a span that overlaps the
+    # whole user info goes, and any other is redacted.
+    matches = [
+        (found.start(), found.end(1), shown)
+        for secret, shown in secrets
+        if secret
+        for found in re.finditer(f"(?=({_spellings(secret)}))", text)
+    ]
+    merged: list[tuple[int, int, str]] = []
+    for start, end, shown in sorted(matches):
+        if merged and start < merged[-1][1]:
+            first, last, before = merged[-1]
+            removed = "" if "" in (before, shown) else REDACTED
+            merged[-1] = (first, max(last, end), removed)
+        else:
+            merged.append((start, end, shown))
+    return merged
+
+
+def _replaced(text: str, secrets: list[tuple[str, str]]) -> str:
+    # the text with each secret, however spelled, replaced
+    pieces: list[str] = []
+    at = 0
+    for start, end, shown in _found(text, secrets):
+        pieces += [text[at:start], shown]
+        at = end
+    pieces.append(text[at:])
+    return "".join(pieces)
 
 
 def _response_type() -> type:

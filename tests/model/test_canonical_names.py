@@ -6,7 +6,7 @@ to canonical format for model info database lookup.
 
 import pytest
 
-from inspect_ai.model import ModelOutput, ServedModelUsage
+from inspect_ai.model import ModelOutput, ServedModelUsage, get_model
 
 
 class TestBedrockCanonicalName:
@@ -41,6 +41,28 @@ class TestBedrockCanonicalName:
             base_url=None,
         )
         assert api.canonical_name() == "meta/llama3-1-70b-instruct"
+
+    @pytest.mark.parametrize(
+        "model_name,expected",
+        [
+            (
+                "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                "anthropic/claude-sonnet-4-5-20250929",
+            ),
+            ("global.anthropic.claude-fable-5-2", "anthropic/claude-fable-5-2"),
+            ("us-gov.anthropic.claude-opus-5-5", "anthropic/claude-opus-5-5"),
+            ("eu.amazon.nova-lite-v1:0", "amazon/nova-lite"),
+        ],
+    )
+    def test_cross_region_inference_profile(self, model_name: str, expected: str):
+        """A cross-region prefix (us., global., ...) is not the provider."""
+        from inspect_ai.model._model_info import get_model_info
+        from inspect_ai.model._providers.bedrock import BedrockAPI
+
+        api = BedrockAPI(model_name=model_name, base_url=None)
+        assert api.canonical_name() == expected
+        if expected.startswith("anthropic/"):
+            assert get_model_info(expected) is not None
 
     def test_model_without_provider_prefix(self):
         """Test model name without provider prefix."""
@@ -240,6 +262,54 @@ class TestAnthropicCanonicalName:
 
         api = AnthropicAPI(model_name="claude-sonnet-4", api_key="test-key")
         assert api.canonical_name() == "anthropic/claude-sonnet-4"
+
+    @pytest.mark.parametrize(
+        "model_name,canonical,display_name",
+        [
+            (
+                "global.anthropic.claude-fable-5-2",
+                "anthropic/anthropic.claude-fable-5-2",
+                "Claude Fable 5.2",
+            ),
+            (
+                "us.anthropic.claude-opus-5-5",
+                "anthropic/anthropic.claude-opus-5-5",
+                "Claude Opus 5.5",
+            ),
+            (
+                "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                "anthropic/anthropic.claude-sonnet-4-5-20250929-v1:0",
+                "Claude Sonnet 4.5",
+            ),
+            (
+                "anthropic.claude-opus-5-5",
+                "anthropic/anthropic.claude-opus-5-5",
+                "Claude Opus 5.5",
+            ),
+        ],
+    )
+    def test_bedrock_cross_region_inference_profile(
+        self,
+        model_name: str,
+        canonical: str,
+        display_name: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Bedrock cross-region ids (us., global., ...) resolve to model info."""
+        from inspect_ai.model._model_info import (
+            get_model_info,
+            get_model_input_tokens,
+        )
+
+        monkeypatch.setenv("AWS_REGION", "us-east-1")
+        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "fake")
+        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "fake")
+        model = get_model(f"anthropic/bedrock/{model_name}", api_key="test-key")
+        assert model.canonical_name() == canonical
+        info = get_model_info(model)
+        assert info is not None
+        assert info.model == display_name
+        assert get_model_input_tokens(model) == info.context_length
 
 
 class TestTogetherCanonicalName:

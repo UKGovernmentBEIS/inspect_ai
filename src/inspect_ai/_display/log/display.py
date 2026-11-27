@@ -68,7 +68,15 @@ class LogDisplay(Display):
         # Create and yield task display
         task = TaskWithResult(profile, None)
         self.tasks.append(task)
-        yield LogTaskDisplay(task)
+        try:
+            yield LogTaskDisplay(task)
+        except BaseException:
+            # a row completed before the exception (e.g. an abandoned retry)
+            # still reports its result
+            if task.result is not None:
+                self._log_result(task)
+                self._log_status()
+            raise
         self._log_result(task)
         self._log_status()
 
@@ -127,15 +135,12 @@ class LogDisplay(Display):
                 stacklevel=4,
             )
         elif isinstance(task.result, TaskError):
-            logging.error(
-                f"{title} failed ({task.result.samples_completed}/{task.profile.samples} logged)",
-                exc_info=(
-                    task.result.exc_type,
-                    task.result.exc_value,
-                    task.result.traceback,
-                ),
-                stacklevel=4,
-            )
+            message = f"{title} failed ({task.result.samples_completed}/{task.profile.samples} logged)"
+            if task.result.exc_info is not None:
+                logging.error(message, exc_info=task.result.exc_info, stacklevel=4)
+            else:
+                # the live exception was already released: log its text
+                logging.error(f"{message}\n{task.result.text}", stacklevel=4)
         elif isinstance(task.result, TaskSuccess):
             config = task_config_str(task.profile)
             stats = self._task_stats_str(task.result.stats)

@@ -120,6 +120,11 @@ class ModelEvent(BaseEvent):
     output: ModelOutput
     """Output from model."""
 
+    agent_tool_call_ids: list[str] | None = Field(default=None)
+    """For a call made through an agent bridge, the id the agent received for each tool call in `output.message`, in order, when the bridge gave any of them a new id (as when the model reused one id for several calls). The agent's later messages, and the results of its calls, carry these ids. For a turn tool approval rejected, the agent never received the calls: the ids appear only in the rejection the model is sent next.
+
+    `None` when every call kept the model's id, for direct calls, and in logs written before it was recorded. `None` does not prove the agent received the model's ids: a response a bridge's request or response filter returned as a copy, changed or not, records none even when the bridge gave its calls new ids."""
+
     retries: int | None = Field(default=None)
     """Retries for the model API request."""
 

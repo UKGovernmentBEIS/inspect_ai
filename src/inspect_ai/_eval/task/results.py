@@ -33,6 +33,7 @@ from inspect_ai.scorer._metric import (
     SampleScore,
     Value,
     metric_scores,
+    score_is_excluded,
 )
 from inspect_ai.scorer._metrics.accuracy import accuracy
 from inspect_ai.scorer._metrics.std import stderr
@@ -525,14 +526,17 @@ def scorers_from_metric_dict(
                 continue
             if isinstance(value, dict):
                 if metric_key in value:
-                    # Convert the score into a simple scalar value to apply metrics
-                    metric_score = deepcopy(sample_score)
-                    metric_score.score.value = cast(float, value[metric_key])
-                    if isinstance(metric_score.score.value, float) and math.isnan(
-                        metric_score.score.value
-                    ):
+                    leaf = value[metric_key]
+                    # None (missing) is unscored here, like NaN: per-key
+                    # metrics have no missing-value policy, and value_to_float
+                    # would otherwise count it as 0.0. Whole-score metrics
+                    # such as aggregate() still receive the dict with None.
+                    if leaf is None or (isinstance(leaf, float) and math.isnan(leaf)):
                         unscored_samples += 1
                     else:
+                        # Convert the score into a simple scalar value to apply metrics
+                        metric_score = deepcopy(sample_score)
+                        metric_score.score.value = leaf
                         scored_samples += 1
                         key_scores.append(metric_score)
                 else:
@@ -711,6 +715,13 @@ def resolve_glob_metric_keys(
 def reduce_scores(
     scores: list[SampleScore], reducer: ScoreReducer
 ) -> list[SampleScore]:
+    """Reduce each sample's epoch scores to one score.
+
+    Excluded epochs (`score_is_excluded()`) are left out, so the sample
+    reduces, sample metadata included, as if they had not run. When every
+    epoch is excluded the reducer is not called and the sample reduces to its
+    first excluded score, which counts as unscored.
+    """
     # Group the scores by sample_id
     grouped_scores: dict[str, list[SampleScore]] = defaultdict(list)
     for sample_score in scores:
@@ -720,11 +731,17 @@ def reduce_scores(
     # reduce the scores
     reduced_scores: list[SampleScore] = []
     for scores in grouped_scores.values():
-        reduced = reducer([score.score for score in scores])
+        kept = [score for score in scores if not score_is_excluded(score.score)]
+        if kept:
+            reduced = reducer([score.score for score in kept])
+            first = kept[0]
+        else:
+            first = scores[0]
+            reduced = first.score.model_copy(update={"history": []})
         reduced_scores.append(
             SampleScore(
-                sample_id=scores[0].sample_id,
-                sample_metadata=scores[0].sample_metadata,
+                sample_id=first.sample_id,
+                sample_metadata=first.sample_metadata,
                 score=reduced,
             )
         )

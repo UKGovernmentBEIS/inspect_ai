@@ -1,7 +1,10 @@
 import gc
+import io
+import json
 import tempfile
 import weakref
 from pathlib import Path
+from typing import Any, Callable
 
 import pandas as pd
 import pytest
@@ -59,6 +62,15 @@ SECURITY_GUIDE_LOG = LOGS_DIR / "2025-05-12T20-28-26-04-00_security-guide.json"
 def test_evals_df():
     df = evals_df(LOGS_DIR)
     assert len(df) == 4
+
+
+def test_evals_df_total_samples_falls_back_to_header():
+    """total_samples survives a missing results block via the header count (#5814)."""
+    log = read_eval_log(str(SECURITY_GUIDE_LOG))
+    log.results = None
+    log.total_samples = 20
+    df = evals_df([log])
+    assert df.iloc[0]["total_samples"] == 20
 
 
 def test_evals_df_scores_with_reducers():
@@ -418,6 +430,16 @@ def test_messages_df_filter():
     assert len(df) == 14
 
 
+@pytest.mark.parametrize("parallel", [False, 2])
+def test_messages_df_keeps_shared_input_messages(
+    tmp_path: Path, parallel: bool | int
+) -> None:
+    task = Task(dataset=[Sample(input=[ChatMessageUser(content="Say hi.")])], epochs=2)
+    eval(task, model="mockllm/model", log_dir=str(tmp_path))
+    df = messages_df(str(tmp_path), parallel=parallel)
+    assert df.groupby("sample_id").size().tolist() == [2, 2]
+
+
 def test_events_df():
     df = events_df(LOGS_DIR)
     assert len(df) == 124
@@ -591,6 +613,20 @@ def test_samples_df_eval_log():
     log = read_eval_log(str(SECURITY_GUIDE_LOG))
     df = samples_df(log)
     assert len(df) == 3
+
+
+@pytest.mark.parametrize("reader", [samples_df, messages_df, events_df])
+def test_sample_readers_do_not_reread_location_from_stream_content(
+    reader: Callable[..., Any],
+) -> None:
+    """A header read from a stream has no location for a reader to re-read."""
+    with open(SECURITY_GUIDE_LOG, "rb") as f:
+        content = {**json.load(f), "location": str(SECURITY_GUIDE_LOG)}
+    log = read_eval_log(io.BytesIO(json.dumps(content).encode()), header_only=True)
+
+    assert log.location == ""
+    with pytest.raises(ValueError, match="No recorder for location"):
+        reader(log)
 
 
 def test_samples_df_multiple_eval_logs():
