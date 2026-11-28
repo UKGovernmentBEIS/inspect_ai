@@ -549,7 +549,7 @@ async def worker():
     try:
         while True:
             # background work
-            anyio.sleep(1.0)
+            await anyio.sleep(1.0)
     finally:
         # cleanup
 

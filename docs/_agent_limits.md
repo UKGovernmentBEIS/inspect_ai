@@ -41,7 +41,7 @@ Note that when limits are exceeded during an agent's execution, the way this is 
     state, limit_error = await run(
         agent=web_surfer(), 
         input="What were the 3 most popular movies of 2020?",
-        limits=[token_limit(1024*500)])
+        limits=[token_limit(1024*500)]
     )
     if limit_error:
         ...

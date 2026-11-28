@@ -827,7 +827,7 @@ def swe_bench():
             some test results, call this tool to brainstorm ways to fix the
             failing tests.
         """))
-    ])
+    ]
 
     return Task(
         dataset=read_dataset(),
@@ -835,7 +835,7 @@ def swe_bench():
             system_message("system.txt"),
             use_tools(tools),
             generate(),
-        ),
+        ],
         scorer=includes(),
         sandbox=("docker", "compose.yaml")
     )
