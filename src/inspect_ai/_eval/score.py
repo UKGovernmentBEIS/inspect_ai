@@ -927,6 +927,10 @@ def log_model_record(log: EvalLog) -> str | None:
     )
 
 
+SCAN_IMPORT_METADATA = "scan_import"
+"""`EvalScorer.metadata` key naming the Inspect Scout scanner a score came from."""
+
+
 def resolve_scorers(
     log: EvalLog, scorer: str | None = None, scorer_args: dict[str, Any] | None = None
 ) -> list[Scorer]:
@@ -958,17 +962,29 @@ def resolve_scorers(
             )
         ]
     # See if we can create scorers from the eval itself
-    elif log.eval.scorers is not None:
+
+    # scores imported from a scan have no scorer to run
+    imported = {
+        score.name
+        for score in log.eval.scorers or []
+        if SCAN_IMPORT_METADATA in (score.metadata or {})
+    }
+    if log.eval.scorers is not None and len(log.eval.scorers) > len(imported):
         return [
             scorer_from_log_name(score.name, task_path, **(score.options or {}))
             for score in log.eval.scorers
+            if score.name not in imported
         ]
+    elif log.eval.scorers is not None and not imported:
+        return []
 
-    # Otherwise, perhaps we can re-create them from the results
+    # Otherwise, perhaps we can re-create them from the results. A header that
+    # lists only imported scores says nothing about the log's own scorers.
     return (
         [
             scorer_from_log_name(score.name, task_path, **score.params)
             for score in log.results.scores
+            if score.scorer not in imported
         ]
         if log.results
         else []

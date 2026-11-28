@@ -56,6 +56,24 @@ If you need to pass arguments to the scorer, you can do so using scorer args (`-
 inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer match -S location=end
 ```
 
+### Importing Scan Results
+
+If you have a completed [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) scan of a log, you can add its results to the log as scores without running the scanners again:
+
+``` bash
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --from-scan ./scans/scan_id=abc123
+```
+
+This runs no scorer and no model, and does not import the log's task file, so the warning above does not apply to it. It requires the `inspect-scout` package (0.5.5 or later) and cannot be combined with `--scorer`, `-S`, `--metric`, `--model`, `--model-base-url`, `-M`, `--model-role` or `--stream`.
+
+Each scanner becomes a score named after it. A result's value, answer, explanation and metadata become the score's, and its message and event references are stored in the score metadata under `scanner_references`. The scores appear in the log viewer and in `samples_df()`.
+
+A result is matched to a sample by the eval id and the sample UUID. The import stops, and leaves the log as it was, if the scan is incomplete or has errors, if it has a result for another log or for no sample in this one, or if a scanner has more than one result for a sample. Scanners that return one result per message or event therefore cannot be imported. A result with no value gives no score, unless it has an answer, an explanation, metadata or references, in which case the score is recorded as unscored. A scanner that returns a list of results must give each one a distinct label.
+
+Scanners whose results are all numbers or booleans get `mean()` and `stderr()` metrics, computed with the log's epoch reducer as for any other score. Metrics declared on the scanner are not imported, and other scanners get no metrics and no entry in the log's results: their scores are on the samples only.
+
+Imported scores are appended to the existing ones. Pass `--action overwrite` to replace all existing scores, including those of samples the scan has no result for.
+
 ### Overwriting Logs
 
 When you use the `inspect score` command, you will prompted whether or not you'd like to overwrite the existing log file (with the scores added), or create a new scored log file. By default, the command will create a new log file with a `-scored` suffix to distinguish it from the original file. You may also control this using the `--overwrite` flag as follows:

@@ -6,6 +6,7 @@ from typing import AsyncGenerator
 import anyio
 import click
 import rich
+from rich.markup import escape
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
@@ -21,14 +22,20 @@ from inspect_ai._display.core.results import sample_coverage_messages, task_scor
 from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._eval.context import init_eval_context
 from inspect_ai._eval.loader import metric_from_spec, print_record
+from inspect_ai._eval.scan_results import (
+    ScanImportError,
+    import_scan_results_async,
+)
 from inspect_ai._eval.score import (
     ScoreAction,
     log_model_record,
     resolve_scorers,
     score_async,
 )
+from inspect_ai._eval.task.scan import verify_scout_prerequisites
 from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.config import parse_cli_args
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem, local_path
 from inspect_ai._util.platform import platform_init
 from inspect_ai.log._log import EvalLog, EvalResults, EvalSample
@@ -71,6 +78,12 @@ from .common import CommonOptions, common_options, process_common_options
     type=str,
     envvar="INSPECT_SCORE_SCORER",
     help="Scorer to use for scoring",
+)
+@click.option(
+    "--from-scan",
+    type=str,
+    envvar="INSPECT_SCORE_FROM_SCAN",
+    help="Import completed Inspect Scout results instead of executing a scorer.",
 )
 @click.option(
     "-S",
@@ -125,6 +138,7 @@ def score_command(
     m: tuple[str, ...] | None,
     model_role: tuple[str, ...] | None,
     scorer: str | None,
+    from_scan: str | None,
     s: tuple[str, ...] | None,
     metric: tuple[str, ...] | None,
     action: ScoreAction | None,
@@ -137,6 +151,10 @@ def score_command(
     model endpoint and other settings recorded in it. Only run it on logs you
     trust. With --scorer, the log's metrics are rebuilt without importing its
     task file; the log's model and model roles are still used.
+
+    With --from-scan no scorer or model runs and nothing the log names is
+    imported: the results of a completed Inspect Scout scan are added to the
+    log as scores. They are appended unless --action overwrite is given.
     """
     process_common_options(common)
 
@@ -150,6 +168,7 @@ def score_command(
             m=m,
             model_role=model_role,
             scorer=scorer,
+            from_scan=from_scan,
             s=s,
             metric=metric,
             overwrite=False if overwrite is None else overwrite,
@@ -176,10 +195,22 @@ async def score(
     m: tuple[str, ...] | None = None,
     model_role: tuple[str, ...] | None = None,
     stream: int | bool = False,
+    from_scan: str | None = None,
 ) -> None:
     platform_init()
 
     init_eval_context(log_level, None, log_refusals=True)
+    _validate_scan_import_options(
+        from_scan=from_scan,
+        scorer=scorer,
+        scorer_args=s,
+        metric=metric,
+        model=model,
+        model_base_url=model_base_url,
+        model_args=m,
+        model_roles=model_role,
+        stream=stream,
+    )
     scorer_args = parse_cli_config(args=s, config=None)
     model_args = parse_cli_args(m)
     model_roles = parse_model_role_cli_args(model_role) if model_role else None
@@ -204,6 +235,25 @@ async def score(
         raise ValueError(
             f"Cannot determine the number of samples to score for {log_file}"
         )
+
+    if from_scan is not None:
+        # the scan already holds the results: no scorer or model is resolved,
+        # and nothing the log names is imported. The import runs before the
+        # output file prompt so that a scan that cannot be imported fails first.
+        coverage = eval_log.results
+        try:
+            eval_log = await import_scan_results_async(
+                eval_log, from_scan, action=action or "append", copy=False
+            )
+        except ScanImportError as ex:
+            raise PrerequisiteError(escape(str(ex))) from ex
+        output_file = _resolve_output_file(
+            log_file, output_file=output_file, overwrite=overwrite
+        )
+        write_recorder = create_recorder_for_location(output_file, log_dir)
+        await write_recorder.write_log(output_file, eval_log)
+        print_results(output_file, eval_log, coverage=coverage)
+        return
 
     # Sample coverage describes the original run, not this scoring pass, and
     # `--action overwrite` replaces `results` with counts taken over the samples
@@ -288,6 +338,42 @@ async def score(
         await recorder.write_log(output_file, eval_log)
 
     print_results(output_file, eval_log, coverage=pre_score_coverage)
+
+
+def _validate_scan_import_options(
+    *,
+    from_scan: str | None,
+    scorer: str | None,
+    scorer_args: tuple[str, ...] | None,
+    metric: tuple[str, ...] | None,
+    model: str | None,
+    model_base_url: str | None,
+    model_args: tuple[str, ...] | None,
+    model_roles: tuple[str, ...] | None,
+    stream: int | bool,
+) -> None:
+    if from_scan is None:
+        return
+
+    incompatible = {
+        "--scorer": scorer is not None,
+        "-S": bool(scorer_args),
+        "--metric": bool(metric),
+        "--model": model is not None,
+        "--model-base-url": model_base_url is not None,
+        "-M": bool(model_args),
+        "--model-role": bool(model_roles),
+        "--stream": bool(stream),
+    }
+    supplied = [option for option, present in incompatible.items() if present]
+    if supplied:
+        raise PrerequisiteError(
+            "--from-scan cannot be combined with scoring option(s): "
+            + ", ".join(supplied)
+            + ". Most of these can also be set by an INSPECT_SCORE_* environment "
+            "variable."
+        )
+    verify_scout_prerequisites()
 
 
 def print_results(
