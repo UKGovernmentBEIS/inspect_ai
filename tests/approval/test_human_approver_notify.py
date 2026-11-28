@@ -27,7 +27,7 @@ async def test_human_approver_fires_notify_via_apprise(
     async def fake_panel(*args: object, **kwargs: object) -> Approval:
         raise NotImplementedError
 
-    def fake_console(*args: object, **kwargs: object) -> Approval:
+    async def fake_console(*args: object, **kwargs: object) -> Approval:
         return Approval(decision="approve")
 
     # Patch the bindings inside approver.py — the module imports the panel

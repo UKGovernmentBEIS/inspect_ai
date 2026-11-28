@@ -366,6 +366,16 @@ def input_screen_recording(console: Console, record_event: bool) -> Iterator[Non
             transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
 
 
+def record_console_line(console: Console, line: str) -> None:
+    """Add a line the user typed to the console's recording, if it is recording.
+
+    For input read without `Console.input`, which `record_console_input` records.
+    """
+    if console.record:
+        with console._record_buffer_lock:
+            console._record_buffer.append(Segment(line))
+
+
 @contextmanager
 def record_console_input() -> Iterator[None]:
     # monkey patch .input method to record inputs
@@ -373,9 +383,7 @@ def record_console_input() -> Iterator[None]:
 
     def input_with_record(self: Console, *args: Any, **kwargs: Any) -> str:
         result = input_original(self, *args, **kwargs)
-        if self.record:
-            with self._record_buffer_lock:
-                self._record_buffer.append(Segment(result))
+        record_console_line(self, result)
         return result
 
     Console.input = input_with_record  # type: ignore

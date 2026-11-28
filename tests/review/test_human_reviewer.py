@@ -28,7 +28,7 @@ class Surface:
         async def panel(*args: object, **kwargs: object) -> Approval:
             raise NotImplementedError
 
-        def console(
+        async def console(
             message: str, view: ToolCallView, choices: list[str], *args: object
         ) -> Approval:
             self.views.append(view)
@@ -220,6 +220,7 @@ async def test_the_consoles_enter_default_cannot_continue_a_sample_it_was_not_of
     # fail-closed mapping to stop the sample.
     from inspect_ai._display.core.active import clear_task_screen, init_task_screen
     from inspect_ai._display.core.display import TaskScreen
+    from inspect_ai.approval._human import console as console_module
 
     async def no_acp(**kwargs: object) -> Approval | None:
         return None
@@ -229,7 +230,9 @@ async def test_the_consoles_enter_default_cannot_continue_a_sample_it_was_not_of
 
     monkeypatch.setattr(acp_module, "request_human_approval_via_acp", no_acp)
     monkeypatch.setattr(human_module, "panel_approval", no_panel)
-    monkeypatch.setattr("builtins.input", lambda *args: "")  # the operator hits Enter
+    # the operator hits Enter
+    monkeypatch.setattr(console_module, "_read_stdin_chunk", lambda: b"\n")
+    monkeypatch.setattr(console_module, "_stdin", console_module._StdinLines())
     init_task_screen(TaskScreen())
     try:
         decided = await review(human_reviewer(choices=["terminate"]))

@@ -1,9 +1,13 @@
+import contextlib
 import fnmatch
+import io
 import json
 import logging
 import math
 import ntpath
-from collections.abc import Iterable
+import queue
+import threading
+from collections.abc import Iterable, Iterator
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date
@@ -24,6 +28,7 @@ from pydantic import (
     model_validator,
 )
 from pydantic_core import PydanticSerializationError
+from rich.console import Console
 from test_helpers.limits import find_limit_event, priced_models, with_usage
 
 from inspect_ai import Task, eval
@@ -2023,7 +2028,7 @@ async def test_human_approver_drops_modify_from_choices(
         presented.append(choices)
         return Approval(decision="approve")
 
-    def console(
+    async def console(
         message: str,
         view: ToolCallView,
         choices: list[ApprovalDecision],
@@ -2403,3 +2408,149 @@ async def test_raising_viewer_rejects_call() -> None:
     assert len(approvals) == 1
     assert approvals[0].decision == "reject"
     assert approvals[0].view is None
+
+
+class _ConsoleKeyboard:
+    """Stands in for the keyboard and screen of the console approval prompt."""
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from inspect_ai.approval._human import console as console_module
+
+        self.chunks: queue.Queue[bytes] = queue.Queue()
+        self.reading = threading.Event()
+        self.output = io.StringIO()
+        self.console = Console(file=self.output, width=100, record=True)
+
+        def read_chunk() -> bytes:
+            self.reading.set()
+            return self.chunks.get()
+
+        @contextlib.contextmanager
+        def input_screen(**kwargs: object) -> Iterator[Console]:
+            yield self.console
+
+        monkeypatch.setattr(console_module, "_read_stdin_chunk", read_chunk)
+        monkeypatch.setattr(console_module, "input_screen", input_screen)
+        monkeypatch.setattr(console_module, "_stdin", console_module._StdinLines())
+
+    def type(self, text: str) -> None:
+        self.chunks.put(text.encode())
+
+    async def wait_for_read(self) -> None:
+        """Wait until a read of the keyboard has started, then re-arm."""
+        assert await anyio.to_thread.run_sync(self.reading.wait, 10)
+        self.reading.clear()
+
+
+async def _ask_console(choices: list[ApprovalDecision] | None = None) -> Approval:
+    from inspect_ai.approval._human.console import console_approval
+
+    return await console_approval(
+        "run it?",
+        ToolCallView(),
+        choices or ["approve", "reject", "terminate"],
+        ToolCall(id="t1", function="bash", arguments={"cmd": "ls"}),
+    )
+
+
+async def test_console_approval_reads_a_choice_and_asks_again_after_an_invalid_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keyboard = _ConsoleKeyboard(monkeypatch)
+    # an invalid line and the answer, in one read and with Windows line endings
+    keyboard.type("x\r\nr\r\n")
+
+    approval = await _ask_console()
+
+    assert approval.decision == "reject"
+    assert "Please select one of the available options" in keyboard.output.getvalue()
+    # what was typed is recorded with the screen, for the transcript
+    recorded = keyboard.console.export_text()
+    assert "(a): x" in recorded and "(a): r" in recorded
+
+
+async def test_console_approval_reads_a_line_typed_in_parts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keyboard = _ConsoleKeyboard(monkeypatch)
+    keyboard.type("t")
+    keyboard.type("\n")
+
+    assert (await _ask_console()).decision == "terminate"
+
+
+async def test_console_approval_takes_the_default_for_an_empty_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keyboard = _ConsoleKeyboard(monkeypatch)
+    keyboard.type("\n")
+
+    assert (await _ask_console()).decision == "approve"
+
+
+async def test_console_approval_raises_eoferror_when_stdin_closes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keyboard = _ConsoleKeyboard(monkeypatch)
+    keyboard.chunks.put(b"")
+
+    with pytest.raises(EOFError):
+        await _ask_console()
+
+
+async def test_a_cancel_withdraws_the_console_approval_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.approval._human import console as console_module
+
+    keyboard = _ConsoleKeyboard(monkeypatch)
+    outcome: list[Approval] = []
+
+    async def ask() -> None:
+        outcome.append(await _ask_console())
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(ask)
+        await keyboard.wait_for_read()
+        # the loop runs while the prompt waits: this task got here, and can
+        # cancel the prompt
+        tg.cancel_scope.cancel()
+
+    assert outcome == []
+    assert "Approval withdrawn." in keyboard.output.getvalue()
+
+    # the withdrawn prompt's read keeps running: a line typed now answers no
+    # prompt, and the next prompt takes the line typed after it is shown
+    pending = console_module._stdin._pending
+    assert pending is not None
+    keyboard.type("a\n")
+    await anyio.to_thread.run_sync(pending.exception, 10)
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(ask)
+        await keyboard.wait_for_read()
+        keyboard.type("r\n")
+    assert [approval.decision for approval in outcome] == ["reject"]
+
+
+async def test_console_approval_prompts_are_shown_one_at_a_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keyboard = _ConsoleKeyboard(monkeypatch)
+    decisions: list[str] = []
+
+    async def ask() -> None:
+        decisions.append((await _ask_console()).decision)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(ask)
+        tg.start_soon(ask)
+        await keyboard.wait_for_read()
+        keyboard.type("t\n")
+        await keyboard.wait_for_read()
+        keyboard.type("r\n")
+
+    assert decisions == ["terminate", "reject"]
+    output = keyboard.output.getvalue()
+    assert output.count("Approve Tool") == 2
+    # the second panel is shown only after the first prompt is answered
+    assert output.index("Decision: Terminate") < output.rindex("Approve Tool")
