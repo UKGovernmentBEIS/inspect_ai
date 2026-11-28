@@ -978,7 +978,7 @@ async def _eval_async_inner(
             else None,
             approval=config_from_approval_policies(approval) if approval else None,
             review=config_from_review_policies(review) if review else None,
-            sentinel=sentinel_config(eval_sentinel)
+            sentinel=sentinel_config(eval_sentinel, relative_to=os.getcwd())
             if eval_sentinel is not None
             else None,
             sentinel_proxy=sentinel_proxy,

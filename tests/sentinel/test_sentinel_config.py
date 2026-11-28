@@ -1,3 +1,4 @@
+import importlib.util
 import inspect
 import json
 import os
@@ -15,6 +16,7 @@ from test_helpers.fake_sentinel import report_version
 
 from inspect_ai import (
     Task,
+    enqueue_task,
     eval,
     eval_async,
     eval_retry,
@@ -48,6 +50,7 @@ from inspect_ai.model import (
 from inspect_ai.model._model import ModelName
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, tool
+from inspect_ai.util import resource
 
 # mypy checks the tests against inspect_sentinel's API; they run on the fake
 if TYPE_CHECKING:
@@ -372,6 +375,82 @@ def test_eval_retry_rebuilds_the_sentinel(tmp_path: Path) -> None:
         "block": {"name": "d2_rule", "params": {"reason": "retry"}}
     }
     assert active_root(retried) == "inspect_sentinel/concurrent"
+
+
+@solver
+def enqueue_tool_child(own_sentinel: bool) -> Solver:
+    # adds a child task whose model calls `addition` once, with a sentinel of
+    # its own or none
+    child_solver = [record_sentinel(), use_tools(addition()), generate()]
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="addition",
+                    tool_arguments={"x": 1, "y": 2},
+                ),
+                ModelOutput.from_content("mockllm/model", content="done"),
+            ],
+            memoize=False,
+        )
+        enqueue_task(
+            Task(
+                dataset=[Sample(input="x", target="y")],
+                solver=child_solver,
+                model=model,
+                sentinel=d2_rule(reason="child") if own_sentinel else None,
+                name="child",
+            )
+        )
+        return state
+
+    return solve
+
+
+@task
+def d2_enqueue_parent(marker: str, own_sentinel: bool) -> Task:
+    return Task(
+        dataset=[Sample(input="x", target="y")],
+        solver=[fail_once(marker), enqueue_tool_child(own_sentinel)],
+    )
+
+
+@pytest.mark.parametrize("own_sentinel", [False, True])
+def test_eval_retry_guards_an_enqueued_task_with_the_logged_sentinel(
+    tmp_path: Path, own_sentinel: bool
+) -> None:
+    # the logged sentinel overrides an enqueued task's own, as the eval's
+    # sentinel did in the run the log records
+    log_dir = tmp_path / "logs"
+    log = eval(
+        d2_enqueue_parent(str(tmp_path / "marker"), own_sentinel),
+        model="mockllm/model",
+        sentinel=d2_rule(reason="retry"),
+        log_dir=str(log_dir),
+    )[0]
+    assert log.status == "error"
+
+    retried = eval_retry(log, log_dir=str(log_dir))[0]
+
+    assert retried.status == "success", retried.error
+    [child] = [
+        read_eval_log(str(file))
+        for file in log_dir.glob("*.eval")
+        if read_eval_log(str(file), header_only=True).eval.task == "child"
+    ]
+    assert config_data(child) == {"name": "d2_rule", "params": {"reason": "retry"}}
+    assert active_root(child) == "d2_rule"
+    assert child.samples
+    events = child.samples[0].events
+    [tool_event] = [e for e in events if isinstance(e, ToolEvent)]
+    assert tool_event.error is not None
+    assert tool_event.error.type == "approval"
+    assert [
+        (e.action, e.explanation) for e in events if isinstance(e, SentinelEvent)
+    ] == [("reject", "retry")]
 
 
 @pytest.mark.parametrize(
@@ -851,3 +930,266 @@ def test_sentinel_is_the_last_positional_parameter(fn: Callable[..., Any]) -> No
     # the sidecar client's setting follows it, for the same reason
     expected = ["sentinel"] if fn is Task.__init__ else ["sentinel", "sentinel_proxy"]
     assert names[-len(expected) :] == expected
+
+
+# a task file whose sentinel reads a source file named relative to the
+# directory it is created in, as `human(channel=)` does; the task fails once,
+# so there is a retry
+NOTED_TASK = """
+import runpy
+from pathlib import Path
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import solver
+from inspect_sentinel import (
+    BeforeToolCall,
+    Decision,
+    Protocol,
+    protocol,
+    source_references,
+)
+
+FAILED_ONCE = Path(__file__).parent / "failed_once"
+
+
+@protocol
+@source_references("reason")
+def noted(reason: str) -> Protocol:
+    file, _, name = reason.rpartition(":")
+    text = runpy.run_path(file)[name]
+    with open(Path(__file__).parent / "reads.txt", "a") as reads:
+        reads.write(text + "\\n")
+
+    async def decide(context, step: BeforeToolCall, escalations) -> Decision | None:
+        return Decision.reject(text)
+
+    return decide
+
+
+@solver
+def fail_once():
+    async def solve(state, generate):
+        if not FAILED_ONCE.exists():
+            FAILED_ONCE.touch()
+            raise RuntimeError("first attempt fails")
+        return state
+
+    return solve
+
+
+@task
+def noted_task():
+    return Task(
+        dataset=[Sample(input="x", target="y")],
+        solver=fail_once(),
+        sentinel=noted(reason="reasons.py:REASON"),
+    )
+"""
+
+
+def write_noted_task(project: Path) -> Path:
+    tasks = project / "tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "reasons.py").write_text('REASON = "noted"\n')
+    task_file = tasks / "noted_task.py"
+    task_file.write_text(NOTED_TASK)
+    return task_file
+
+
+@pytest.mark.parametrize(
+    ("launch", "reference"),
+    [
+        ("project", "tasks/reasons.py:REASON"),
+        # outside the project, so the log records the task file by its
+        # absolute path
+        ("run", "../project/tasks/reasons.py:REASON"),
+    ],
+)
+def test_a_task_sentinels_file_reference_is_logged_relative_to_the_launch_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, launch: str, reference: str
+) -> None:
+    task_file = write_noted_task(tmp_path / "project")
+    (tmp_path / launch).mkdir(exist_ok=True)
+    monkeypatch.chdir(tmp_path / launch)
+    task = "tasks/noted_task.py" if launch == "project" else str(task_file)
+    log = eval(task, model="mockllm/model", log_dir=str(tmp_path / "logs"))[0]
+    assert log.status == "error"
+
+    retried = eval_retry(log, log_dir=str(tmp_path / "logs"))[0]
+
+    assert config_data(log) == {"name": "noted", "params": {"reason": reference}}
+    assert retried.status == "success", retried.error
+    assert config_data(retried) == config_data(log)
+
+
+def test_cli_eval_retry_rebuilds_a_task_sentinels_file_reference(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_noted_task(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    log = eval("tasks/noted_task.py", model="mockllm/model", log_dir="logs")[0]
+    assert log.status == "error"
+
+    result = subprocess.run(
+        [sys.executable, "-c", CLI_MAIN, "eval-retry", log.location]
+        + ["--log-dir", "logs", "--display", "none"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+    assert result.returncode == 0, result.stderr
+    [retried] = [
+        read_eval_log(str(file))
+        for file in (tmp_path / "logs").glob("*.eval")
+        if str(file) != log.location
+    ]
+    assert retried.status == "success", retried.error
+    assert config_data(retried) == {
+        "name": "noted",
+        "params": {"reason": "tasks/reasons.py:REASON"},
+    }
+
+
+def test_a_sentinel_without_config_relative_to_logs_its_references_as_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from test_helpers import fake_sentinel
+
+    monkeypatch.delattr(fake_sentinel, "config_relative_to")
+    write_noted_task(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    log = eval("tasks/noted_task.py", model="mockllm/model", log_dir="logs")[0]
+
+    assert log.status == "error"
+    assert config_data(log) == {
+        "name": "noted",
+        "params": {"reason": "reasons.py:REASON"},
+    }
+
+
+def import_noted_task(task_file: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    # the task file imported as a module, registering `imported_noted_task`,
+    # as a project imports its own task factories
+    task_file.write_text(
+        NOTED_TASK.replace("def noted_task", "def imported_noted_task")
+    )
+    spec = importlib.util.spec_from_file_location("imported_noted", task_file)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, "imported_noted", module)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("called_as", ["object", "name"])
+def test_an_imported_task_factorys_sentinel_is_logged_from_where_it_was_made(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, called_as: str
+) -> None:
+    # the factory runs in the launch directory, so its relative file is the
+    # root's, not the one beside the task file
+    task_file = write_noted_task(tmp_path)
+    (task_file.parent / "reasons.py").write_text('REASON = "beside the task file"\n')
+    (tmp_path / "reasons.py").write_text('REASON = "root"\n')
+    module = import_noted_task(task_file, monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    task = (
+        module.imported_noted_task() if called_as == "object" else "imported_noted_task"
+    )
+    log = eval(task, model="mockllm/model", log_dir="logs")[0]
+    assert log.status == "error"
+
+    retried = eval_retry(log, log_dir="logs")[0]
+
+    assert config_data(log) == {
+        "name": "noted",
+        "params": {"reason": "reasons.py:REASON"},
+    }
+    assert retried.status == "success", retried.error
+    # the retry loads the task from its file, in its directory, then builds
+    # the logged sentinel, which replaces the task's own, in the root
+    reads = (task_file.parent / "reads.txt").read_text().splitlines()
+    assert reads == ["root", "beside the task file", "root"]
+
+
+def test_a_sentinel_made_elsewhere_and_attached_to_a_task_is_logged_from_there(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    task_file = write_noted_task(tmp_path)
+    (tmp_path / "reasons.py").write_text('REASON = "root"\n')
+    (tmp_path / "elsewhere").mkdir()
+    (tmp_path / "elsewhere" / "reasons.py").write_text('REASON = "elsewhere"\n')
+    module = import_noted_task(task_file, monkeypatch)
+    monkeypatch.chdir(tmp_path / "elsewhere")
+    sentinel = module.noted(reason="reasons.py:REASON")
+    monkeypatch.chdir(tmp_path)
+    log = eval(
+        task_with(module.imported_noted_task(), sentinel=sentinel),
+        model="mockllm/model",
+        log_dir="logs",
+    )[0]
+    assert log.status == "error"
+
+    retried = eval_retry(log, log_dir="logs")[0]
+
+    assert config_data(log) == {
+        "name": "noted",
+        "params": {"reason": "elsewhere/reasons.py:REASON"},
+    }
+    assert retried.status == "success", retried.error
+    # once when it was made and once from the log on retry; the retried
+    # task's own sentinel reads the root's
+    reads = (task_file.parent / "reads.txt").read_text().splitlines()
+    assert reads.count("elsewhere") == 2
+
+
+# a task file with no sentinel of its own, which fails once
+PLAIN_TASK = NOTED_TASK.replace('sentinel=noted(reason="reasons.py:REASON"),', "")
+
+
+@protocol
+def d2_policy(policy_file: str, reader: str, reads: str) -> Protocol:
+    # reads a data file named relative to where it is created, and appends what
+    # it read to `reads`, a file named by its absolute path
+    policy = (
+        Path(policy_file).read_text() if reader == "path" else resource(policy_file)
+    )
+    with open(reads, "a") as file:
+        file.write(policy + "\n")
+
+    async def decide(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        return None
+
+    return decide
+
+
+@pytest.mark.parametrize("reader", ["path", "resource"])
+def test_eval_retry_rebuilds_an_eval_sentinel_where_the_eval_ran(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reader: str
+) -> None:
+    # a data file of the same name beside the task file is not read
+    tasks = tmp_path / "tasks"
+    tasks.mkdir()
+    (tasks / "plain_task.py").write_text(PLAIN_TASK)
+    (tasks / "policy.txt").write_text("the task file's policy")
+    (tmp_path / "policy.txt").write_text("the eval's policy")
+    reads = tmp_path / "reads.txt"
+    monkeypatch.chdir(tmp_path)
+    log = eval(
+        "tasks/plain_task.py",
+        model="mockllm/model",
+        sentinel=d2_policy(policy_file="policy.txt", reader=reader, reads=str(reads)),
+        log_dir="logs",
+    )[0]
+    assert log.status == "error"
+
+    retried = eval_retry(log, log_dir="logs")[0]
+
+    assert retried.status == "success", retried.error
+    assert reads.read_text().splitlines() == ["the eval's policy"] * 2
+    assert config_data(retried) == config_data(log)

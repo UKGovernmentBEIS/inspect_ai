@@ -16,10 +16,12 @@ escalations. There are no compositions (`observe_only`, `threshold`,
 """
 
 import inspect
+import os
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import wraps
 from importlib import metadata
+from pathlib import Path
 from typing import (
     Any,
     Generic,
@@ -359,6 +361,11 @@ def _register(kind: Kind, factory: F, name: str | None, version: int) -> F:
             **{k: config_from_sentinel(v).model_dump() for k, v in nested.items()},
         }
         setattr(instance, _ENTRY, entry)
+        marked = getattr(factory, _SOURCE_REFERENCES, ())
+        origins = {
+            key: _origin(value) for key, value in arguments.items() if key in marked
+        }
+        setattr(instance, _ORIGINS, {k: v for k, v in origins.items() if v})
         return instance
 
     registry_add(create, info)
@@ -410,6 +417,57 @@ def _build(
         raise ValueError(f"{layer.name!r} is not a registered monitor or protocol.")
     nested = {k: _build(v.root) for k, v in layer.nested.items()}
     return cast(Callable[..., object], factory)(**layer.params, **nested)
+
+
+_SOURCE_REFERENCES = "__fake_sentinel_source_references__"
+
+
+def source_references(*params: str) -> Callable[[F], F]:
+    """Mark params whose value is a `"<file>.py:name"` reference, relative to where the factory is called, as `inspect_sentinel` marks `human(channel=)`. Applied below `@monitor` or `@protocol`."""
+
+    def decorate(factory: F) -> F:
+        setattr(factory, _SOURCE_REFERENCES, params)
+        return factory
+
+    return decorate
+
+
+_ORIGINS = "__fake_sentinel_origins__"
+
+
+def _origin(reference: object) -> Path | None:
+    # the file a relative "<file>.py:name" reference names, resolved where the
+    # factory is called, as `inspect_sentinel` keeps it in memory
+    if not isinstance(reference, str):
+        return None
+    file = reference.rpartition(":")[0]
+    if not file.endswith(".py") or Path(file).is_absolute():
+        return None
+    return (Path.cwd() / file).resolve()
+
+
+def config_relative_to(sentinels: Sentinels, directory: str) -> SentinelConfig:
+    """`config_from_sentinel()` with each marked reference's file, resolved where its instance was made, relative to `directory` (absolute where there is no relative path), as `inspect_sentinel`'s `config_relative_to()`. Top-level instances only."""
+
+    def relative(entry: Any, instance: object) -> Any:
+        params = dict(entry["params"])
+        for key, origin in getattr(instance, _ORIGINS, {}).items():
+            try:
+                file = os.path.relpath(origin, Path(directory).resolve())
+            except ValueError:
+                file = str(origin)
+            params[key] = f"{Path(file).as_posix()}:{params[key].rpartition(':')[2]}"
+        return {**entry, "params": params}
+
+    layer: Any = config_from_sentinel(sentinels).model_dump()
+    if isinstance(sentinels, list):
+        layer = [relative(e, s) for e, s in zip(layer, cast(list[object], sentinels))]
+    elif isinstance(sentinels, Mapping):
+        mapping = cast(Mapping[str, object], sentinels)
+        layer = {name: relative(layer[name], s) for name, s in mapping.items()}
+    else:
+        layer = relative(layer, sentinels)
+    return SentinelConfig.model_validate(layer)
 
 
 def config_from_sentinel(sentinels: Sentinels) -> SentinelConfig:

@@ -243,10 +243,28 @@ def resolve_sentinel_root(sentinels: Sentinels) -> SentinelRoot:
     return resolve_sentinel(cast("inspect_sentinel._integration.Sentinels", sentinels))
 
 
-def sentinel_config(sentinels: Sentinels) -> SentinelConfig:
-    _require_sentinel()
-    from inspect_sentinel._integration import config_from_sentinel
+def sentinel_config(
+    sentinels: Sentinels, relative_to: str | None = None
+) -> SentinelConfig:
+    """The configuration the eval log records for constructed sentinels.
 
-    return config_from_sentinel(
-        cast("inspect_sentinel._integration.Sentinels", sentinels)
-    )
+    A sentinel's relative file reference (e.g. `human(channel=)`'s
+    `"review.py:ask"`) is relative to the directory it was constructed in,
+    which is the task file's directory for a task file the loader creates,
+    and the caller's for an imported task factory or a sentinel attached to a
+    task. The log records paths relative to the launch directory, where
+    `eval_retry()` rebuilds the logged sentinel. inspect_sentinel keeps the
+    file each reference resolved to at construction and records it relative
+    to `relative_to`; with an inspect_sentinel without
+    `config_relative_to()`, references are recorded as constructed.
+
+    Args:
+        sentinels: The constructed sentinels.
+        relative_to: The directory to record file references relative to.
+    """
+    _require_sentinel()
+    integration = importlib.import_module("inspect_sentinel._integration")
+    config_relative_to = getattr(integration, "config_relative_to", None)
+    if relative_to is not None and config_relative_to is not None:
+        return cast(SentinelConfig, config_relative_to(sentinels, relative_to))
+    return cast(SentinelConfig, integration.config_from_sentinel(sentinels))

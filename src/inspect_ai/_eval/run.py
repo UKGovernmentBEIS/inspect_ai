@@ -380,7 +380,9 @@ async def eval_run(
                 if sentinel is not None:
                     task.sentinel = sentinel
                 elif task.sentinel is not None:
-                    task_eval_config.sentinel = sentinel_config(task.sentinel)
+                    task_eval_config.sentinel = sentinel_config(
+                        task.sentinel, relative_to=eval_wd
+                    )
                 sentinel_root = (
                     resolve_sentinel_root(task.sentinel)
                     if task.sentinel is not None
