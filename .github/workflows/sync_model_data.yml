@@ -32,7 +32,7 @@ jobs:
       # the file. actions-cache none: this job holds API keys, so it restores
       # no cache (tests/test_workflow_cache.py).
       - name: Install Python dependencies
-        uses: meridianlabs-ai/actions/install-python-dependencies@65f1b6bdb9b1af7eb0bc89942c624dd4efef1316 # main, 2026-11-02
+        uses: meridianlabs-ai/actions/install-python-dependencies@40b7c888e3a8c34a083e8354099b18d1d7e936a0 # main, 2026-11-02
         with:
           versions: locked
           python-version: "3.11"
