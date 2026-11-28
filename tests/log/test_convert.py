@@ -177,6 +177,20 @@ def test_convert_dir_keeps_nested_names(tmp_path: pathlib.Path, converter: str):
     assert output_file.exists()
 
 
+@pytest.mark.parametrize("converter", _CONVERTERS.keys())
+def test_convert_dir_leaves_out_logs_in_excluded_dirs(
+    tmp_path: pathlib.Path, converter: str, monkeypatch: pytest.MonkeyPatch
+):
+    _, log_dir = _nested_log_dir(tmp_path)
+    shutil.copytree(log_dir / "sub", log_dir / "artifacts" / "sample")
+    output_dir = tmp_path / "out"
+    monkeypatch.setenv("INSPECT_LOG_EXCLUDE_DIRS", "artifacts")
+
+    _CONVERTERS[converter](str(log_dir), str(output_dir))
+
+    assert [path.name for path in output_dir.iterdir()] == ["sub"]
+
+
 @pytest.mark.parametrize("link", ["dir", "file"])
 @pytest.mark.parametrize("converter", _CONVERTERS.keys())
 def test_convert_dir_refuses_symlinks_out_of_output_dir(

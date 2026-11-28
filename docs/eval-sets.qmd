@@ -200,6 +200,14 @@ else:
 
 Note that eval_set() does by default do quite a bit of retrying (up to 10 times by default) so `success=False` reflects the case where even after all of the retries the tasks were still not completed (this might occur due to a service outage or perhaps bugs in eval code raising runtime errors).
 
+If the log directory also holds other files (for example, files written by the evaluated agent), keep them in subdirectories and name those in the `INSPECT_LOG_EXCLUDE_DIRS` environment variable (comma separated directory names, not paths):
+
+``` bash
+export INSPECT_LOG_EXCLUDE_DIRS=artifacts,reports
+```
+
+Listing a log directory then ignores any log below a subdirectory with one of those names, at any depth. That covers `eval_set()`, `list_eval_logs()`, the log viewer, log bundles, `inspect log convert`, `inspect ctl --log-dir`, and data frames read from a directory. A log file you name directly is still read, and listing one of the named directories itself still lists its logs.
+
 {{< include _sample-preservation.md >}}
 
 ## Task Enumeration

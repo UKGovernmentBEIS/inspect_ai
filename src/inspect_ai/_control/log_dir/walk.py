@@ -21,7 +21,7 @@ from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import EVAL_LOG_FORMAT
 from inspect_ai._util.file import FileInfo, local_path
 from inspect_ai._util.log_layout import _SHARDS_SUFFIX, merged_log_name
-from inspect_ai.log._file import is_log_file
+from inspect_ai.log._file import excluded_dir_names, is_log_file
 from inspect_ai.log._shards._walk import (
     AttemptSortKey,
     ShardDir,
@@ -113,13 +113,19 @@ async def walk_log_dir(
     Without it, every ``*.shards/`` is an ordinary directory and every log
     an ordinary log (``task list --shards``).
 
-    Raises ``FileNotFoundError`` when a local ``root`` does not exist. A
+    A subdirectory named in ``INSPECT_LOG_EXCLUDE_DIRS`` is not listed, as
+    ``list_eval_logs`` leaves out the logs below one. The names do not apply
+    inside a companion, which the shard-set walk lists.
+
+    Raises ``FileNotFoundError`` when a local ``root`` does not exist, and
+    ``LogExcludeDirsError`` when ``INSPECT_LOG_EXCLUDE_DIRS`` names a path. A
     subdirectory that disappears during the walk is skipped: its logs are gone,
     not unreadable. A ``file://`` root is walked as its local path, so every
     location the walk returns is directly readable (reserved characters in
     names need no URI encoding).
     """
     root = local_path(root)
+    excluded = excluded_dir_names()
     limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_LISTINGS)
     eval_files: list[LogFile] = []
     json_logs: list[str] = []
@@ -142,12 +148,13 @@ async def walk_log_dir(
                 files.append(_log_file(info, buffer_dir=buffer_dir))
             elif is_log_file(name, [".json"]):
                 json_logs.append(info.name)
-        companions = [d for d in listing.dirs if find_sets and _is_companion(d)]
+        dirs = [d for d in listing.dirs if basename(d) not in excluded]
+        companions = [d for d in dirs if find_sets and _is_companion(d)]
         by_name = {merged_log_name(f.name): f for f in files}
         merged = {c: by_name.get(_set_name(c)) for c in companions}
         claimed = {f.location for f in merged.values() if f is not None}
         eval_files.extend(f for f in files if f.location not in claimed)
-        subdirs = [d for d in listing.dirs if d not in merged and _descend(basename(d))]
+        subdirs = [d for d in dirs if d not in merged and _descend(basename(d))]
         await tg_collect(
             [functools.partial(visit, d, False, find_sets) for d in subdirs]
             + [functools.partial(visit_companion, c, merged[c]) for c in companions]

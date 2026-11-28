@@ -134,7 +134,8 @@ directories, so it gives no rows rather than `not_found`. Over a
 directory that holds no task, the sample reads return their empty
 result (an empty list or page, or null for `sample show`) before resolving a
 selector, so an unmatched selector there exits 0 rather than
-`not_found`. An
+`not_found`. An `INSPECT_LOG_EXCLUDE_DIRS` value that names a path rather
+than a directory name is `invalid_request`. An
 ambiguous selector is `ambiguous` through the same `_resolve_target_eval`
 as live mode, run over the mode's rows; so is a sample key two shards hold.
 A log that exists but does not parse, or a manifest or buffered events
@@ -221,7 +222,10 @@ buffer segments or checkpoint objects, whose counts grow with run age:
   listing is recorded on the logs beside it, and a log's manifest path is
   derived as `.buffer/<stem>/manifest.json`. Every other subdirectory
   outside a companion is descended, as `list_eval_logs` recurses, so an
-  eval-set directory or a directory of runs works.
+  eval-set directory or a directory of runs works. The exception is a
+  subdirectory named in `INSPECT_LOG_EXCLUDE_DIRS`, which is not listed:
+  `list_eval_logs` leaves out the logs below one too. The names do not
+  apply inside a companion, which `list_shard_set` lists as the merge does.
 - **Companions.** With shard aggregation (the default; `task list
   --shards` walks every `<name>.shards/` as an ordinary directory, "CLI
   surface"), the first `<name>.shards/` on each path below the root is

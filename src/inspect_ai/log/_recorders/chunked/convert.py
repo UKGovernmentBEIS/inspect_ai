@@ -49,6 +49,7 @@ from ..._file import (
     contained_log_destination,
     log_files_from_ls,
     resolve_local_path,
+    without_excluded_dirs,
 )
 from ..._log import EvalSample
 from ..._skeleton import sample_skeleton
@@ -151,7 +152,8 @@ def convert_eval_logs_to_chunked(
         convert_file(path)
     else:
         root_dir = fs.info(path).name
-        eval_logs = log_files_from_ls(fs.ls(path, recursive=True), ["eval"], True)
+        files = without_excluded_dirs(fs.ls(path, recursive=True), path, fs)
+        eval_logs = log_files_from_ls(files, ["eval"], True)
         destinations = [
             contained_log_destination(
                 eval_log.name, root_dir, output_dir, extension="eval"

@@ -220,6 +220,19 @@ def test_bundle_copies_nested_log_names(memory_fs: Any, tmp_path: Path) -> None:
     assert (bundle_logs / "sub" / "eval-set.json").read_bytes() == b"{}"
 
 
+def test_bundle_leaves_out_logs_in_excluded_dirs(
+    memory_fs: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    memory_fs.pipe(f"/logs/{_LOG_NAME}", b"log")
+    memory_fs.pipe(f"/logs/artifacts/sample/{_LOG_NAME}", b"other")
+    bundle_logs = tmp_path / "bundle" / "logs"
+    monkeypatch.setenv("INSPECT_LOG_EXCLUDE_DIRS", "artifacts")
+
+    copy_log_files("memory://logs", str(bundle_logs), lambda _: None)
+
+    assert [path.name for path in bundle_logs.iterdir()] == [_LOG_NAME]
+
+
 @pytest.mark.parametrize("name", [f"sub/../../escaped/{_LOG_NAME}", f"./{_LOG_NAME}"])
 def test_bundle_refuses_dot_components_in_log_names(
     memory_fs: Any, tmp_path: Path, name: str

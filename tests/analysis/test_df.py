@@ -716,6 +716,20 @@ def test_score_details_includes_reason() -> None:
     assert "other_reason" not in details
 
 
+def test_resolve_logs_directory_leaves_out_excluded_dirs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    filename = "2026-01-01T00-00-00_task_id.eval"
+    for subdir in ["", "artifacts/sample"]:
+        (tmp_path / subdir).mkdir(parents=True, exist_ok=True)
+        (tmp_path / subdir / filename).touch()
+    monkeypatch.setenv("INSPECT_LOG_EXCLUDE_DIRS", "artifacts")
+
+    listed = [log.name for log in list_eval_logs(str(tmp_path))]
+    assert len(listed) == 1
+    assert resolve_logs(str(tmp_path)) == listed
+
+
 def test_dataframe_functions_empty_list(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
