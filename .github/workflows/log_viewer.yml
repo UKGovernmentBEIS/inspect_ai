@@ -17,9 +17,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  UV_VERSION: 0.9.4
-
 jobs:
   # Keep the existing check names on Markdown-only PRs, but skip the viewer
   # checkout and toolchains. Pushes to main still run every check.
@@ -50,24 +47,16 @@ jobs:
           filter: "blob:none"
           submodules: recursive
 
-      - name: Set up Python
-        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: 3.11
-
-      - name: Install uv
-        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-        with:
-          enable-cache: true
-          version: "${{ env.UV_VERSION }}"
-
+      # Exactly what uv.lock pins, so the check changes only with the code or
+      # the lockfile.
       - name: Install Python dependencies
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv pip install --system .[dev]
+        uses: meridianlabs-ai/actions/install-python-dependencies@65f1b6bdb9b1af7eb0bc89942c624dd4efef1316 # main, 2026-11-02
+        with:
+          versions: locked
+          python-version: "3.11"
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         with:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
@@ -105,11 +94,11 @@ jobs:
 
       - name: Regenerate schema from Python source
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: python src/inspect_ai/_view/schema.py
+        run: uv run --no-sync python src/inspect_ai/_view/schema.py
 
       - name: Check schema is up to date (docstring-only drift tolerated)
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: python .github/scripts/check_openapi_drift.py
+        run: uv run --no-sync python .github/scripts/check_openapi_drift.py
 
       - name: Ensure regeneration produced no other changes
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
@@ -128,6 +117,10 @@ jobs:
             git -C src/inspect_ai/_view/ts-mono diff -- . ':!packages/inspect-common/src/types/generated.ts'
             exit 1
           fi
+
+      - name: Minimize uv cache
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || steps.filter.outputs.code == 'true') }}
+        run: uv cache prune --ci
 
   submodule-on-main:
     runs-on: ubuntu-latest
@@ -193,7 +186,7 @@ jobs:
         with:
           submodules: true
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         with:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
@@ -222,6 +215,10 @@ jobs:
 
   dist-validation:
     runs-on: ubuntu-latest
+    # Build with no cache. An earlier revision of a PR can write its PR's cache,
+    # so a restored pnpm store could plant tooling that emits a tampered bundle
+    # and makes it match. cache-mode none also stops this job writing entries.
+    cache-mode: none
     permissions:
       contents: read
       pull-requests: read
@@ -242,7 +239,7 @@ jobs:
         with:
           submodules: true
 
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         with:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
@@ -252,8 +249,7 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22.x"
-          cache: pnpm
-          cache-dependency-path: src/inspect_ai/_view/ts-mono/pnpm-lock.yaml
+          package-manager-cache: false
 
       - name: Install dependencies
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
@@ -265,11 +261,33 @@ jobs:
         working-directory: src/inspect_ai/_view/ts-mono
         run: pnpm --filter @meridianlabs/log-viewer build
 
+      # Compare the build output with the committed dist as git trees, not
+      # through the working tree: the build's copy into dist can be skipped,
+      # and the working tree follows PR-controlled .gitignore and
+      # .gitattributes. A tree hash covers paths, contents, modes, symlinks
+      # and submodules. Source maps are built but not committed.
       - name: Check dist is up-to-date
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: |
-          if ! git diff --exit-code src/inspect_ai/_view/dist
+          build="$PWD/src/inspect_ai/_view/ts-mono/apps/inspect/dist"
+          find "$build" -type f -name '*.map' -delete
+          git_dir="$(git rev-parse --absolute-git-dir)"
+          GIT_INDEX_FILE="$(mktemp -d "$RUNNER_TEMP/dist-index.XXXXXX")/index"
+          export GIT_INDEX_FILE
+          git --git-dir="$git_dir" --work-tree="$build" -C "$build" add --all --force .
+          built="$(git --git-dir="$git_dir" write-tree)"
+          unset GIT_INDEX_FILE
+          entry="$(git ls-tree HEAD src/inspect_ai/_view/dist)"
+          if [ "${entry%% *}" != 040000 ]
           then
+            echo "❌ src/inspect_ai/_view/dist is missing or not a directory in the commit."
+            exit 1
+          fi
+          committed="$(git rev-parse HEAD:src/inspect_ai/_view/dist)"
+          if [ "$built" != "$committed" ]
+          then
+            git --no-pager diff --stat "$committed" "$built"
+            git --no-pager diff "$committed" "$built"
             echo "❌ dist/ is out of sync with the frontend source!"
             echo ""
             echo "The build output has changed. Run:"

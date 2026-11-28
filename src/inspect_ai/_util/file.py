@@ -1,6 +1,7 @@
 import datetime
 import importlib
 import io
+import json
 import logging
 import os
 import re
@@ -9,11 +10,22 @@ import tempfile
 import unicodedata
 import weakref
 from contextlib import contextmanager
+from contextvars import ContextVar
 from copy import deepcopy
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from pathlib import Path
-from typing import Any, BinaryIO, Callable, Iterator, Literal, TextIO, cast, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    BinaryIO,
+    Callable,
+    Iterator,
+    Literal,
+    TextIO,
+    cast,
+    overload,
+)
 from urllib.parse import quote_from_bytes, urlparse
 from urllib.request import url2pathname
 
@@ -30,8 +42,16 @@ from inspect_ai._util.azure import (
     is_azure_delete_permission_error,
     is_azure_path,
 )
-from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
+from inspect_ai._util.error import (
+    PrerequisiteError,
+    WriteConflictError,
+    pip_dependency_error,
+)
+from inspect_ai._util.git import redact_url_credentials
 from inspect_ai._util.trace import trace_message
+
+if TYPE_CHECKING:
+    import aiohttp
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
 # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.generic.GenericFileSystem
@@ -86,15 +106,8 @@ def file(
           if you are accessing a public S3 bucket with no credentials.
 
     """
-    # get the default storage options for the scheme then apply passed options
-    options = default_fs_options(file)
-    options.update(fs_options)
-
-    # open the file
-    open_file = fsspec.open(file, mode=mode, encoding=encoding, **options)
-
     # yield the file and ensure it is closed when we exit the context
-    with open_file as f:
+    with open_file(file, mode, encoding, fs_options) as f:
         try:
             yield f
         finally:
@@ -110,6 +123,11 @@ def open_file(
     # get the default storage options for the scheme then apply passed options
     options = default_fs_options(file)
     options.update(fs_options)
+
+    # s3 has no directories: fsspec's makedirs before each write is a HeadBucket
+    # (then a GetBucketLocation, then a CreateBucket, as each one fails)
+    if url_protocol(file) == "s3":
+        options.setdefault("auto_mkdir", False)
 
     # open the file and return the stream
     return fsspec.open(file, mode=mode, encoding=encoding, **options)
@@ -162,6 +180,73 @@ def write_atomic_text(path: str | Path, write: Callable[[TextIO], object]) -> No
         raise
 
 
+@contextmanager
+def acquire_exclusive_lock(path: str, info: dict[str, Any]) -> Iterator[None]:
+    """Hold a lock file at a local `path` for the duration of the block.
+
+    The file is created with ``O_CREAT | O_EXCL``, so at most one holder
+    exists, and `info` is written into it as JSON to identify the holder. The
+    file is removed when the block exits, including on an exception or
+    cancellation. A lock left by a process that crashed is never overridden:
+    the holder named in it must be checked and the file removed by hand.
+
+    Args:
+        path: Local path or ``file://`` URI of the lock file.
+        info: JSON-serializable description of the holder (for example its
+            pid, host and start time). Informational only; never read back
+            to decide anything.
+
+    Raises:
+        WriteConflictError: The lock file already exists. The message names
+            the file and its contents.
+    """
+    lock = local_path(path)
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o666)
+    except FileExistsError:
+        raise WriteConflictError(
+            f"Lock file {lock} is held by another process: "
+            f"{_lock_holder(lock)}. If that process is no longer running, "
+            "delete the lock file and try again."
+        ) from None
+    try:
+        os.write(fd, json.dumps(info).encode("utf-8"))
+        yield
+    finally:
+        _release_exclusive_lock(lock, fd)
+
+
+def _lock_holder(lock: str) -> str:
+    try:
+        with open(lock, encoding="utf-8", errors="replace") as f:
+            return f.read(1000) or "(empty)"
+    except OSError as ex:
+        return f"(unreadable: {ex})"
+
+
+def _release_exclusive_lock(lock: str, fd: int) -> None:
+    """Close `fd` and remove `lock` only if it is still the file `fd` created.
+
+    The descriptor stays open until this check: once a file is closed and
+    unlinked, Linux can give its inode number to the next file created, so a
+    replacement would look like the original.
+    """
+    created = os.fstat(fd)
+    try:
+        current = os.stat(lock)
+    except FileNotFoundError:
+        logger.warning(f"Lock file {lock} was removed while it was held.")
+        return
+    finally:
+        os.close(fd)
+    if (current.st_dev, current.st_ino) != (created.st_dev, created.st_ino):
+        logger.warning(
+            f"Lock file {lock} was replaced while it was held; leaving it in place."
+        )
+        return
+    os.remove(lock)
+
+
 def basename(file: str) -> str:
     """Get the base name of the file.
 
@@ -180,6 +265,16 @@ def basename(file: str) -> str:
     _, path_without_protocol = split_protocol(normalized_path)
     name: str = path_without_protocol.rstrip("/").split("/")[-1]
     return name
+
+
+def url_protocol(url: str) -> str | None:
+    """The protocol fsspec reads in `url`, or None for a local path.
+
+    fsspec reads ``data:`` as a protocol without slashes, and a one-letter
+    scheme (``C://``) as a Windows drive. A chained URL is not split.
+    """
+    protocol: str | None = split_protocol(url)[0]
+    return protocol
 
 
 def dirname(file: str) -> str:
@@ -468,21 +563,37 @@ def to_uri(path_or_uri: str) -> str:
     return "file://" + quote_from_bytes(bytes(path_obj), safe="/:@")
 
 
+_WINDOWS_DRIVE_AUTHORITY = re.compile(r"[A-Za-z]:")
+
+
 def local_path(filename: str) -> str:
     """Convert a file:// URL to a local path, or return as-is.
 
     Percent-encoded characters are decoded (the inverse of `to_uri`, which
     encodes them), so paths with spaces or literal percent sequences round
-    trip. Known limitation (unchanged): a UNC-style `file://server/share`
-    URL drops its host component — only the path part is returned.
+    trip. A Windows drive in the authority (`file://D:/logs/...`, the form
+    the local filesystem reports on Windows) is kept so the path does not
+    resolve against the current drive (#5322). Known limitation (unchanged):
+    a UNC-style `file://server/share` URL drops its host component — only
+    the path part is returned.
     """
     if filename.startswith("file://"):
-        return url2pathname(urlparse(filename).path)
+        parsed = urlparse(filename)
+        # urlparse puts a Windows drive ("D:") in netloc and leaves only
+        # "/logs/..." in path; converting the path alone gives "\logs\...",
+        # which resolves against the current drive (#5322).
+        if _WINDOWS_DRIVE_AUTHORITY.fullmatch(parsed.netloc):
+            return url2pathname(parsed.netloc + parsed.path)
+        return url2pathname(parsed.path)
     return filename
 
 
 def default_fs_options(file: str) -> dict[str, Any]:
     scheme = urlparse(file).scheme
+    if _refuse_http_redirects.get() and _is_chained_http_url(file):
+        raise ValueError(
+            f"Chained URLs over HTTP(S) are not supported when HTTP redirects are refused: {file}"
+        )
     if (
         scheme == "s3"
         and configured_async_backend() == "trio"
@@ -500,6 +611,8 @@ def default_fs_options(file: str) -> dict[str, Any]:
     # on demand rather than for every filesystem.
     if scheme in AZURE_SCHEMES:
         apply_azure_fs_options(options)
+    if scheme in ("http", "https") and _refuse_http_redirects.get():
+        options["get_client"] = _redirect_refusing_client
     # disable caching for all filesystems
     options.update(
         dict(
@@ -508,6 +621,83 @@ def default_fs_options(file: str) -> dict[str, Any]:
         )
     )
     return options
+
+
+class HTTPRedirectError(Exception):
+    """An HTTP(S) read got a redirect while redirects were refused."""
+
+
+_refuse_http_redirects: ContextVar[bool] = ContextVar(
+    "_refuse_http_redirects", default=False
+)
+
+
+@contextmanager
+def refuse_http_redirects() -> Iterator[None]:
+    """Fail HTTP(S) reads that get a redirect, rather than following it.
+
+    Applies to filesystems created in this context. A redirect raises
+    `HTTPRedirectError` before any request goes to its target, so the bytes
+    read always come from the URL that was asked for. Chained URLs with an
+    HTTP(S) link (`simplecache::https://...`) raise `ValueError`, since their
+    inner HTTP filesystem would not get this setting.
+    """
+    token = _refuse_http_redirects.set(True)
+    try:
+        yield
+    finally:
+        _refuse_http_redirects.reset(token)
+
+
+def _is_chained_http_url(file: str) -> bool:
+    """Whether `file` is an fsspec chained URL with an inner HTTP(S) link.
+
+    fsspec splits a URL on `::` and gives the filesystem options only to the
+    first link, so an HTTP(S) link after it (`simplecache::https://...`)
+    would not get them. A direct HTTP(S) URL with `::` in its host (an IPv6
+    address) or path keeps HTTP(S) as its first link and gets the options.
+    """
+    return any(
+        (split_protocol(link)[0] or link) in ("http", "https")
+        for link in file.split("::")[1:]
+    )
+
+
+def http_redirects_refused() -> bool:
+    """Whether `refuse_http_redirects()` is active in this context."""
+    return _refuse_http_redirects.get()
+
+
+def _url_without_secrets(url: str) -> str:
+    """`url` without userinfo, query or fragment, which can carry credentials."""
+    return redact_url_credentials(url).split("#", 1)[0].split("?", 1)[0]
+
+
+async def _redirect_refusing_client(**kwargs: Any) -> "aiohttp.ClientSession":
+    """Create the aiohttp session for `HTTPFileSystem` (its `get_client` option).
+
+    aiohttp has no session-wide redirect setting, and fsspec chooses
+    `allow_redirects` per request, so a trace hook stops every redirect.
+    """
+    import aiohttp
+
+    async def on_redirect(
+        _session: aiohttp.ClientSession,
+        _ctx: Any,
+        params: aiohttp.TraceRequestRedirectParams,
+    ) -> None:
+        location = params.response.headers.get("Location")
+        params.response.close()
+        target = _url_without_secrets(location) if location else "an unknown URL"
+        raise HTTPRedirectError(
+            f"HTTP redirect from {_url_without_secrets(str(params.url))} "
+            f"to {target} was not followed."
+        )
+
+    trace_config = aiohttp.TraceConfig()
+    trace_config.on_request_redirect.append(on_redirect)
+    trace_configs = [*kwargs.pop("trace_configs", []), trace_config]
+    return aiohttp.ClientSession(trace_configs=trace_configs, **kwargs)
 
 
 def _ensure_hf_filesystem_dependencies() -> None:

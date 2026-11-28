@@ -19,6 +19,7 @@ from .extract import (
     eval_log_location,
     eval_log_scores_dict,
     eval_log_task_display_name,
+    eval_log_total_samples,
 )
 
 
@@ -96,7 +97,7 @@ EvalTask: list[Column] = [
 EvalModel: list[Column] = [
     EvalColumn("model", path="eval.model", required=True),
     EvalColumn("model_base_url", path="eval.model_base_url"),
-    EvalColumn("model_args", path="eval.model_base_url"),
+    EvalColumn("model_args", path="eval.model_args"),
     EvalColumn("model_generate_config", path="eval.model_generate_config"),
     EvalColumn("model_roles", path="eval.model_roles"),
 ]
@@ -130,7 +131,7 @@ EvalResults: list[Column] = [
     EvalColumn("status", path="status", required=True),
     EvalColumn("error_message", path="error.message"),
     EvalColumn("error_traceback", path="error.traceback"),
-    EvalColumn("total_samples", path="results.total_samples"),
+    EvalColumn("total_samples", path=eval_log_total_samples),
     EvalColumn("completed_samples", path="results.completed_samples"),
     EvalColumn("score_headline_name", path=eval_log_headline_name),
     EvalColumn("score_headline_score", path=eval_log_headline_score),

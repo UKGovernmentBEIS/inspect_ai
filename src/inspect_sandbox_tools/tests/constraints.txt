@@ -1,0 +1,3 @@
+# google-genai 3.x requires Python>=3.11; pin it there so the model-proxy
+# tests exercise the 3.x SDK on CI (Python 3.11).
+google-genai>=3.0.0 ; python_version >= '3.11'

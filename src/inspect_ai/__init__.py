@@ -15,8 +15,13 @@ from inspect_ai._eval.task import (
     TaskSource,
     task_with,
 )
-from inspect_ai._eval.task.enqueue import enqueue_task
-from inspect_ai._eval.task.sample_source import enqueue_sample
+from inspect_ai._eval.task.enqueue import (
+    SampleAbandonedError,
+    TaskEndedError,
+    TaskHandle,
+    enqueue_task,
+)
+from inspect_ai._eval.task.sample_source import enqueue_sample, samples_from_handle
 from inspect_ai._eval.task.scan import ScannerConfig, Scanners
 from inspect_ai._eval.task.tasks import Tasks
 from inspect_ai._util.constants import PKG_NAME
@@ -45,9 +50,12 @@ __all__ = [
     "Epochs",
     "Scanners",
     "ScannerConfig",
+    "SampleAbandonedError",
     "SampleSource",
     "Task",
     "Tasks",
+    "TaskEndedError",
+    "TaskHandle",
     "TaskInfo",
     "TaskSource",
     "task",
@@ -55,5 +63,6 @@ __all__ = [
     "task_with",
     "enqueue_sample",
     "enqueue_task",
+    "samples_from_handle",
     "view",
 ]

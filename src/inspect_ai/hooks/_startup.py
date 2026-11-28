@@ -2,9 +2,10 @@ import importlib
 import os
 
 from rich import print
+from rich.markup import escape
 
 from inspect_ai._util.constants import PKG_NAME
-from inspect_ai._util.entrypoints import ensure_entry_points
+from inspect_ai._util.entrypoints import ensure_entry_points, entry_point_load_errors
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import registry_info
 from inspect_ai.hooks._hooks import Hooks
@@ -52,8 +53,8 @@ def _load_registry_hooks() -> list[Hooks]:
     # Note that hooks loaded by virtue of load_file_tasks() -> load_module() (e.g.
     # if the user defines an @hook alongside their task) won't be loaded by now.
     hooks = get_all_hooks()
-    _registry_hooks_loaded = True
     _verify_all_required_hooks(hooks)
+    _registry_hooks_loaded = True
     return hooks
 
 
@@ -61,7 +62,8 @@ def _verify_all_required_hooks(installed: list[Hooks]) -> None:
     """Verify that all required hooks are installed.
 
     Required hooks are configured via the `INSPECT_REQUIRED_HOOKS` environment variable.
-    If any required hooks are missing, a `PrerequisiteError` is raised.
+    If an entry point from a required hook's package failed to load, or any
+    required hooks are missing, a `PrerequisiteError` is raised.
 
     Set the `INSPECT_REQUIRED_HOOKS` environment variable to a comma-separated list of
     required hook names e.g. `INSPECT_REQUIRED_HOOKS=package/hooks_1,package/hooks_2`.
@@ -71,6 +73,7 @@ def _verify_all_required_hooks(installed: list[Hooks]) -> None:
     required_names = set(required_hooks_env_var.split(",")) - {""}
     if not required_names:
         return
+    _raise_for_required_hook_load_errors(required_names, required_hooks_env_var)
     installed_names = {registry_info(hook).name for hook in installed}
     missing_names = required_names - installed_names
     if missing_names:
@@ -80,6 +83,40 @@ def _verify_all_required_hooks(installed: list[Hooks]) -> None:
             f"Installed hooks: {installed_names}.\n"
             "Please ensure required hooks are installed in your virtual environment."
         )
+
+
+def _raise_for_required_hook_load_errors(
+    required_names: set[str], required_hooks_env_var: str
+) -> None:
+    """Raise if an entry point from a required hook's package failed to load.
+
+    A hook's registry name is prefixed with the top-level package of the module
+    that registered it, so an entry point is matched by its name or by the
+    top-level package of its module.
+    """
+    errors: list[str] = []
+    first_exception: Exception | None = None
+    for ep, ex in entry_point_load_errors().items():
+        ep_package = ep.value.partition(":")[0].partition(".")[0]
+        hook_names = sorted(
+            name
+            for name in required_names
+            if "/" in name and name.partition("/")[0] in (ep.name, ep_package)
+        )
+        if hook_names:
+            first_exception = first_exception or ex
+            errors.append(
+                escape(
+                    f"  {', '.join(hook_names)} from entry point '{ep.value}': "
+                    f"{type(ex).__name__}: {ex}"
+                )
+            )
+    if errors:
+        raise PrerequisiteError(
+            "Entry point(s) for required hook(s) failed to load:\n"
+            + "\n".join(errors)
+            + f"\nINSPECT_REQUIRED_HOOKS is set to '{required_hooks_env_var}'."
+        ) from first_exception
 
 
 def _format_hook_for_printing(hook: Hooks) -> str:

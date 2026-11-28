@@ -44,6 +44,8 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
     ServedModelUsage,
+    sum_usage,
+    usage_input_tokens,
 )
 from .._openai import (
     OpenAIResponseError,
@@ -90,7 +92,6 @@ from ._litellm_proxy_errors import (
     with_upstream_refusals,
 )
 from ._litellm_proxy_gemini import (
-    add_usage,
     malformed_function_call,
     malformed_function_retry,
     with_json_tool_results_wrapped,
@@ -886,6 +887,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         gemini_tools = self._vendor == "google" and len(tools) > 0
         tool_calling_attempts = 0
         discarded_usage: ModelUsage | None = None
+        # the first attempt is the request built from the input
+        input_context_tokens: int | None = None
         # ends: each rejection is recorded, so the next attempt sends a value
         # not yet rejected, no effort, or no thinking; malformed function
         # calls are bounded by MAX_TOOL_CALLING_ATTEMPTS
@@ -949,11 +952,13 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                     )
                     if malformed is not None:
                         tool_calling_attempts += 1
+                        if tool_calling_attempts == 1:
+                            input_context_tokens = usage_input_tokens(output.usage)
                         if tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
                             # the retry regenerates the turn, so streamed output
                             # of this attempt is stale
                             await report_model_stream_restart()
-                            discarded_usage = add_usage(discarded_usage, output.usage)
+                            discarded_usage = sum_usage(discarded_usage, output.usage)
                             input = input + malformed_function_retry(malformed)
                             if tool_choice == "auto":
                                 tool_choice = "any"
@@ -962,7 +967,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                     if tool_calling_attempts:
                         output = output.model_copy(
                             update={
-                                "usage": add_usage(discarded_usage, output.usage),
+                                "usage": sum_usage(discarded_usage, output.usage),
+                                "input_context_tokens": input_context_tokens,
                                 "metadata": (output.metadata or {})
                                 | {
                                     "malformed_function_call_attempts": tool_calling_attempts
@@ -1051,7 +1057,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
 
         Gemini 1.5 and 2.0 take none, and thinking-only (Pro) models cannot
         turn thinking off. Gemini 3 and later (including codenames) take
-        `minimal` (where supported) to `high`. Gemini 2.5 gets a thinking
+        `minimal` (where supported) to `high`; LiteLLM rejects `xhigh` even
+        for models that accept it natively. Gemini 2.5 gets a thinking
         budget instead (see `_thinking_for`), or, if the proxy rejects that,
         the effort with `xhigh` and `max` lowered to `high`. Other Google
         models (e.g. Gemma) get `requested`.
@@ -1079,7 +1086,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                     f"Model {self.service_model_name()} does not support "
                     "minimal thinking; using low instead.",
                 )
-            return level
+            return "high" if level == "xhigh" else level
         if self._gemini_thinking_budget(requested, config) is not None:
             return None
         return clamp_reasoning_effort_to_minimal_low_medium_high(requested)

@@ -78,12 +78,7 @@ class _FakeTaskCancel(TaskCancel):
 
     def __init__(self, can_retry: bool = False) -> None:
         self.fired: list[CancelType] = []
-
-        def _fire(cancel_type: CancelType) -> None:
-            self.fired.append(cancel_type)
-            self.cancel_type = cancel_type
-
-        super().__init__(can_retry=can_retry, cancel_task=_fire)
+        super().__init__(can_retry=can_retry, apply=self.fired.append)
 
 
 class _FakeActiveSample:
@@ -188,7 +183,7 @@ def test_cancel_task_pending_retry_abandons_requested_retry() -> None:
     """
     handle = _FakeTaskCancel(can_retry=True)
     register_eval("e1", 5, task_id="t1", task_cancel=handle)
-    handle.cancel_task("retry")
+    handle.request("retry")
 
     result = cancel_task("t1")
     assert result is not None
@@ -220,7 +215,7 @@ def test_cancel_task_pending_retry_score_error_stay_noop() -> None:
     """
     handle = _FakeTaskCancel(can_retry=True)
     register_eval("e1", 5, task_id="t1", task_cancel=handle)
-    handle.cancel_task("retry")
+    handle.request("retry")
 
     result = cancel_task("t1", action="score")
     assert result is not None
@@ -239,7 +234,7 @@ def test_cancel_task_pending_retry_without_budget_is_noop() -> None:
     """
     handle = _FakeTaskCancel(can_retry=False)
     register_eval("e1", 5, task_id="t1", task_cancel=handle)
-    handle.cancel_task("retry")
+    handle.request("retry")
 
     result = cancel_task("t1")
     assert result is not None
@@ -500,29 +495,6 @@ def test_cancel_task_score_resolution_repeat_is_noop(
     assert repeat["changed"] is False
     assert repeat["reason"] == "cancel already requested (score)"
     assert handle.fired == ["score"] and running.interrupts == ["score"]
-
-
-def test_cancel_task_resolution_sweep_skips_already_interrupted(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The in-flight sweep never overwrites a sample's existing interrupt.
-
-    A sample that was per-sample cancelled is still "in flight" until its
-    (post-scoring/logging) context exit stamps `completed`; re-interrupting
-    it would flip a not-yet-handled 'cancel' to the score/error disposition
-    and re-fire on_interrupt hooks on a sample already being resolved.
-    """
-    handle = _FakeTaskCancel()
-    register_eval("e1", 5, task_id="t1", task_cancel=handle)
-    already_cancelled = _FakeActiveSample(sample_id="s1")
-    already_cancelled.interrupt("cancel")
-    running = _FakeActiveSample(sample_id="s2")
-    _patch_active_samples(monkeypatch, [already_cancelled, running])
-
-    result = cancel_task("t1", action="score")
-    assert result is not None and result["ok"] is True and result["changed"] is True
-    assert already_cancelled.interrupts == ["cancel"]  # not re-interrupted
-    assert running.interrupts == ["score"]
 
 
 def test_cancel_task_resolution_sweep_skips_fired_limit(
@@ -832,7 +804,7 @@ def test_drain_task_pending_retry_abandons_requested_retry() -> None:
     """Drain in the tearing-down window (pending "retry" stamp) sticks."""
     handle = _FakeTaskCancel(can_retry=True)
     register_eval("e1", 5, task_id="t1", task_cancel=handle)
-    handle.cancel_task("retry")
+    handle.request("retry")
 
     result = drain_task("t1")
     assert result is not None and result["ok"] is True
@@ -981,23 +953,24 @@ async def test_cancel_sample_initializing_repeat_is_noop(
     assert sample.interrupts == ["cancel"]
 
 
-async def test_cancel_sample_running_repeat_reinterrupts(
+async def test_cancel_sample_running_repeat_is_noop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The repeat no-op is scoped to initializing: a running row re-interrupts.
+    """A running sample already interrupted keeps its first resolution.
 
-    Re-firing a running sample's cancel scope is a real action (the runner
-    reads the live action when it handles the interrupt), so the running row
-    keeps today's ``changed: true`` answer.
+    Same answer as the initializing row: a later 'score' neither replaces a
+    pending 'cancel' nor reports a change.
     """
     sample = _FakeActiveSample()
     sample.interrupt_action = "cancel"
     _patch_active_samples(monkeypatch, [sample])
 
-    result = await cancel_sample("e1", "s1", 1, action="cancel")
+    result = await cancel_sample("e1", "s1", 1, action="score")
     assert result is not None
-    assert result["ok"] is True and result["changed"] is True
-    assert sample.interrupts == ["cancel"]
+    assert result["ok"] is True and result["changed"] is False
+    assert result["reason"] == "cancel already requested (cancel)"
+    assert cast(CancelSampleAlreadyRequested, result)["interrupt"] == "cancel"
+    assert sample.interrupts == []
 
 
 async def test_cancel_sample_initializing_error_gated_by_fails_on_error(
@@ -1839,11 +1812,11 @@ async def test_cancel_drain_abandoned_sample_reads_cancelled(
     record renders), so the hook no-ops for them.
     """
     _patch_active_samples(monkeypatch, [])
-    cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
+    cancel = TaskCancel(can_retry=False, apply=lambda _: None)
     handle = _register_queued_eval(task_cancel=cancel)
     run = _arrive(handle, "s2")
     handle.queue_depart(run)
-    cancel.cancel_type = "score"  # the graceful drain is in flight
+    cancel.request("score")  # the graceful drain is in flight
     # the runner's drain-abandon path fires the queue_abandon hook
     handle.queue_abandoned(run)
     assert handle.sample_view("s2", 1).cancelled == "discarded"
@@ -1875,11 +1848,11 @@ async def test_cancel_departed_task_gates_before_retry_advice(
     a readable record.
     """
     _patch_active_samples(monkeypatch, [])
-    cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
+    cancel = TaskCancel(can_retry=False, apply=lambda _: None)
     handle = _register_queued_eval(task_cancel=cancel)
     run = _arrive(handle, "s2")
     handle.queue_depart(run)
-    cancel.cancel_type = "abort"
+    cancel.request("abort")
 
     result = await cancel_sample("e1", "s2", 1, action="cancel")
     assert result is not None
@@ -1909,8 +1882,8 @@ async def test_cancel_queued_rows_task_level_gates(
 ) -> None:
     """A stamped task cancel closes the queued accept rows."""
     _patch_active_samples(monkeypatch, [])
-    cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
-    cancel.cancel_type = "abort"
+    cancel = TaskCancel(can_retry=False, apply=lambda _: None)
+    cancel.request("abort")
     handle = _register_queued_eval(task_cancel=cancel)
     _arrive(handle, "s2")
 

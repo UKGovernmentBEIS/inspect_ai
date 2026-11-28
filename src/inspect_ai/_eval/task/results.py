@@ -33,13 +33,13 @@ from inspect_ai.scorer._metric import (
     SampleScore,
     Value,
     metric_scores,
+    score_is_excluded,
 )
 from inspect_ai.scorer._metrics.accuracy import accuracy
 from inspect_ai.scorer._metrics.std import stderr
 from inspect_ai.scorer._reducer import ScoreReducer, mean_score, reducer_log_name
 from inspect_ai.scorer._scorer import (
     SCORER_METRICS,
-    ScorerSpec,
     scorer_metrics,
     unique_scorer_name,
 )
@@ -69,11 +69,12 @@ class ScorerInfo:
 
     @staticmethod
     def from_name(name: str) -> "ScorerInfo":
-        from inspect_ai._eval.loader import scorer_from_spec
+        from inspect_ai._eval.loader import scorer_from_registry
 
-        # load the scorer to gather that scorer's metrics
+        # load the scorer to gather that scorer's metrics. score keys can come
+        # from a log, so they are registry names only (never file specs)
         try:
-            scorer = scorer_from_spec(ScorerSpec(scorer=name), task_path=None)
+            scorer = scorer_from_registry(name)
         except Exception:
             scorer = None
 
@@ -525,14 +526,17 @@ def scorers_from_metric_dict(
                 continue
             if isinstance(value, dict):
                 if metric_key in value:
-                    # Convert the score into a simple scalar value to apply metrics
-                    metric_score = deepcopy(sample_score)
-                    metric_score.score.value = cast(float, value[metric_key])
-                    if isinstance(metric_score.score.value, float) and math.isnan(
-                        metric_score.score.value
-                    ):
+                    leaf = value[metric_key]
+                    # None (missing) is unscored here, like NaN: per-key
+                    # metrics have no missing-value policy, and value_to_float
+                    # would otherwise count it as 0.0. Whole-score metrics
+                    # such as aggregate() still receive the dict with None.
+                    if leaf is None or (isinstance(leaf, float) and math.isnan(leaf)):
                         unscored_samples += 1
                     else:
+                        # Convert the score into a simple scalar value to apply metrics
+                        metric_score = deepcopy(sample_score)
+                        metric_score.score.value = leaf
                         scored_samples += 1
                         key_scores.append(metric_score)
                 else:
@@ -559,7 +563,10 @@ def scorers_from_metric_dict(
             group = registry_unqualified_name(target_metric)
             if isinstance(value, Mapping):
                 for key, val in value.items():
-                    result_metrics[f"{metric_name}_{key}"] = EvalMetric(
+                    name = metrics_unique_key(
+                        f"{metric_name}_{key}", list(result_metrics.keys())
+                    )
+                    result_metrics[name] = EvalMetric(
                         name=key,
                         group=group,
                         value=cast(float, val),
@@ -567,14 +574,18 @@ def scorers_from_metric_dict(
                     )
             elif isinstance(value, Sequence) and not isinstance(value, str | bytes):
                 for idx, item in enumerate(value):
-                    result_metrics[f"{metric_name}_{idx}"] = EvalMetric(
+                    name = metrics_unique_key(
+                        f"{metric_name}_{idx}", list(result_metrics.keys())
+                    )
+                    result_metrics[name] = EvalMetric(
                         name=str(idx),
                         group=group,
                         value=cast(float, item),
                         params=metric_params,
                     )
             else:
-                result_metrics[metric_name] = EvalMetric(
+                name = metrics_unique_key(metric_name, list(result_metrics.keys()))
+                result_metrics[name] = EvalMetric(
                     name=metric_name, value=cast(float, value), params=metric_params
                 )
 
@@ -687,22 +698,30 @@ def resolve_glob_metric_keys(
                 # The key matched, so either create a new entry for it and add metrics
                 # or add metrics to the existing key
                 resolved_metrics.setdefault(score_key, [])
-                existing_metric_names = {
-                    registry_log_name(m) for m in resolved_metrics[score_key]
-                }
+                existing_metrics = [
+                    (registry_log_name(m), registry_params(m))
+                    for m in resolved_metrics[score_key]
+                ]
 
-                # Add metrics that aren't already in the list
+                # Add metrics that aren't already in the list (same name and params)
                 for metric in metric_list:
-                    metric_name = registry_log_name(metric)
-                    if metric_name not in existing_metric_names:
+                    metric_id = (registry_log_name(metric), registry_params(metric))
+                    if metric_id not in existing_metrics:
                         resolved_metrics[score_key].append(metric)
-                        existing_metric_names.add(metric_name)
+                        existing_metrics.append(metric_id)
     return resolved_metrics
 
 
 def reduce_scores(
     scores: list[SampleScore], reducer: ScoreReducer
 ) -> list[SampleScore]:
+    """Reduce each sample's epoch scores to one score.
+
+    Excluded epochs (`score_is_excluded()`) are left out, so the sample
+    reduces, sample metadata included, as if they had not run. When every
+    epoch is excluded the reducer is not called and the sample reduces to its
+    first excluded score, which counts as unscored.
+    """
     # Group the scores by sample_id
     grouped_scores: dict[str, list[SampleScore]] = defaultdict(list)
     for sample_score in scores:
@@ -712,11 +731,17 @@ def reduce_scores(
     # reduce the scores
     reduced_scores: list[SampleScore] = []
     for scores in grouped_scores.values():
-        reduced = reducer([score.score for score in scores])
+        kept = [score for score in scores if not score_is_excluded(score.score)]
+        if kept:
+            reduced = reducer([score.score for score in kept])
+            first = kept[0]
+        else:
+            first = scores[0]
+            reduced = first.score.model_copy(update={"history": []})
         reduced_scores.append(
             SampleScore(
-                sample_id=scores[0].sample_id,
-                sample_metadata=scores[0].sample_metadata,
+                sample_id=first.sample_id,
+                sample_metadata=first.sample_metadata,
                 score=reduced,
             )
         )

@@ -1,4 +1,0 @@
-services:
-  default:
-    image: aisiuk/inspect-tool-support
-    init: true

@@ -211,7 +211,7 @@ _model_gates: dict[str, PauseGate] = {}
 _dispatch_model_names: dict["Model", str] = {}
 
 # Primary model names of every task handed to the run dispatcher
-# (run_task_retry_attempts registers them via note_dispatch_models),
+# (the run queue registers them via note_dispatch_models),
 # including tasks that haven't started — which have no EvalState for the
 # model directives to validate against. Reset with the task gates.
 _dispatch_models: set[str] = set()
@@ -221,7 +221,7 @@ _dispatch_models: set[str] = set()
 # like the keep-alive intent.
 _process_gate = PauseGate()
 
-# Wake callbacks of the task dispatchers (`run_task_retry_attempts`
+# Wake callbacks of the task dispatchers (`dispatch_tasks`
 # registers its dispatch-loop wake here) so a resume re-evaluates task
 # dispatch without polling.
 _dispatch_wakers: list[Callable[[], None]] = []
@@ -636,7 +636,8 @@ async def wait_generate_dispatch(
 
     The hold and the slot reacquire after it are an open sample wait (see
     design/working-time-concurrency.md), so held time counts as waiting time
-    for ``working_limit`` and the sample's reported working time. ``time_limit``
+    for ``working_limit`` and the sample's reported working time, unless other
+    known work runs in the sample. ``time_limit``
     deadlines deliberately keep running while held — explicitly the
     operator's risk with ``pause --now``.
 
@@ -718,8 +719,8 @@ def dispatch_model_name(model: "Model") -> str:
 def note_dispatch_models(models: list[str]) -> None:
     """Record the primary model names of tasks handed to the run dispatcher.
 
-    Called by ``run_task_retry_attempts`` as tasks are enqueued (initial and
-    injected alike), so the model directives can validate a model name
+    Called by the run queue as tasks are added (the seed and added tasks
+    alike), so the model directives can validate a model name
     against tasks that haven't started — which have no ``EvalState`` to
     check. Reset with the task gates.
     """
@@ -760,7 +761,7 @@ def fire_dispatch_wakers() -> None:
 def wake_pause_waiters() -> None:
     """Wake every gate waiter so escape predicates get re-checked.
 
-    Called at the cancel-stamp choke point (the ``cancel_task`` closure in
+    Called from ``TaskCancel.apply`` (the ``apply_cancel`` closure in
     ``_eval/run.py``): a sample parked at the pause gate must observe a
     graceful (score/error) resolution and proceed to the queue-exit abandon
     check — the gate holds starts, not terminal transitions. Waking on

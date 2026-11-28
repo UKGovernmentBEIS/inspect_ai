@@ -42,6 +42,7 @@ from typing import (
 if TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
+    from inspect_ai._control.operator import OperatorGroup
     from inspect_ai.agent._acp.transport import AcpTransport
     from inspect_ai.agent._channel import ExecutionObserver
     from inspect_ai.hooks._hooks import SampleEvent
@@ -251,6 +252,9 @@ class ActiveSample:
         # The Inspect TUI reads this to decide whether to render the
         # Interrupt button and to dispatch session/cancel + session/prompt.
         self.acp_transport: "AcpTransport | None" = None
+        # Named agents the control channel can act on, by group name. Added
+        # and removed by `operator_group()` (see `inspect_ai._control.operator`).
+        self.operator_groups: dict[str, "OperatorGroup"] = {}
         # In-flight human-in-the-loop waits, appended by the ACP routing
         # shims (approval/_human/acp.py, input/acp.py) through
         # `awaiting_human` below. A list (not a single slot) because
@@ -272,10 +276,10 @@ class ActiveSample:
 
         self.execution_observer: "ExecutionObserver" = null_execution_observer()
         # Lifecycle callbacks owned by whoever bound to this sample
-        # (in practice, the live ACP session). Kept here rather than
-        # in the ACP layer so the eval primitive doesn't have to
-        # import or call into ACP — it just fires the registered hook
-        # if present. `on_complete` runs after scoring + logging
+        # (the live ACP session registers `on_interrupt`). Kept here
+        # rather than in the ACP layer so the eval primitive doesn't
+        # have to import or call into ACP — it just fires the
+        # registered hook if present. `on_complete` runs after scoring + logging
         # finish; `on_interrupt` runs inside `interrupt()` /
         # `limit_exceeded()` before the task-group cancel propagates,
         # giving the binder a chance to clean up in-flight state that
@@ -298,8 +302,12 @@ class ActiveSample:
         return len(self.error_retries)
 
     def start(self, tg: TaskGroup) -> None:
+        """Mark the sample started, firing an interrupt stamped while it initialized."""
         self.started = datetime.now(timezone.utc).timestamp()
         self.tg = tg
+        if self._interrupt_action is not None:
+            self._fire_on_interrupt("user_cancel")
+            tg.cancel_scope.cancel()
 
     def complete(self) -> None:
         self.completed = datetime.now(timezone.utc).timestamp()
@@ -414,15 +422,21 @@ class ActiveSample:
         ``"cancel"`` records it as cancelled (transcript preserved, no
         scoring, not counted as an error).
 
+        First resolution wins: once an action is set, later calls change
+        nothing. The runner reads :attr:`interrupt_action` when it handles
+        the cancel, so replacing it would change the outcome of an interrupt
+        already delivered.
+
         Before :meth:`start` (the sample is registered but still
         initializing — sandbox provisioning may be in flight) there is no
         task group to cancel, so the call only stamps the intent: the
-        sample reads :attr:`terminal`, and the task runner fires the
-        interrupt (by calling this method again) the moment the sample
-        starts, before any of its plan runs. The ``on_interrupt`` hook fires
+        sample reads :attr:`terminal`, and :meth:`start` fires the interrupt
+        before any of the sample's plan runs. The ``on_interrupt`` hook fires
         at that point too, so a binder sees the same sequence it sees for a
         running sample. See ``design/ctl/initializing-sample-cancel.md``.
         """
+        if self._interrupt_action is not None:
+            return
         self._interrupt_action = action
         self._fire_terminal()
         if self.tg is None:
@@ -555,40 +569,44 @@ async def active_sample(
         async with acp_session():
             yield active
     finally:
-        # Single "the sample is fully done" hook for whoever bound to
-        # this sample. By the time we get here scoring + logging have
-        # run and the task runner's ``emit_sample_end`` has fired, so
-        # any registered binder (in practice the live ACP session)
-        # can do its deferred teardown safely. Shielded so a
-        # cancellation during teardown doesn't skip it.
-        if active.on_complete is not None:
-            with anyio.CancelScope(shield=True):
-                try:
-                    await active.on_complete()
-                except Exception:
-                    logger.warning(
-                        "ActiveSample on_complete hook raised",
-                        exc_info=True,
-                    )
-        active.checkpointer.close()
-        active.complete()
-        # Roll this attempt's refusal / HTTP-retry counts onto the eval as the
-        # sample leaves the live list, so the control channel's "so far" total
-        # survives it. Adjacent to the `remove` and with no await between them:
-        # the endpoint reports `eval total + sum(in-flight)`, so a suspension
-        # point here would let a poll see the sample in neither term (or, the
-        # other way round, in both). Local import because `_control.eval_state`
-        # is loaded during eval bootstrap, before this package finishes
-        # initializing.
-        from inspect_ai._control.eval_state import record_sample_event_counts
+        try:
+            # Single "the sample is fully done" hook for whoever bound to
+            # this sample. By the time we get here scoring + logging have
+            # run and the task runner's ``emit_sample_end`` has fired, so
+            # any registered binder can do its deferred teardown safely.
+            # Shielded so a cancellation during teardown doesn't skip it.
+            if active.on_complete is not None:
+                with anyio.CancelScope(shield=True):
+                    try:
+                        await active.on_complete()
+                    except Exception:
+                        logger.warning(
+                            "ActiveSample on_complete hook raised",
+                            exc_info=True,
+                        )
+            active.checkpointer.close()
+            active.complete()
+            # Roll this attempt's refusal / HTTP-retry counts onto the eval as the
+            # sample leaves the live list, so the control channel's "so far" total
+            # survives it. Adjacent to the `remove` and with no await between them:
+            # the endpoint reports `eval total + sum(in-flight)`, so a suspension
+            # point here would let a poll see the sample in neither term (or, the
+            # other way round, in both). Local import because `_control.eval_state`
+            # is loaded during eval bootstrap, before this package finishes
+            # initializing.
+            from inspect_ai._control.eval_state import record_sample_event_counts
 
-        record_sample_event_counts(
-            active.eval_id,
-            refusals=active.refusals,
-            http_retries=active.http_retries,
-        )
-        _active_samples.remove(active)
-        _sample_active.set(None)
+            record_sample_event_counts(
+                active.eval_id,
+                refusals=active.refusals,
+                http_retries=active.http_retries,
+            )
+            _active_samples.remove(active)
+            _sample_active.set(None)
+        finally:
+            from inspect_ai.hooks._hooks import _close_sample_event_streams
+
+            _close_sample_event_streams(active)
 
 
 def sample_active() -> ActiveSample | None:
@@ -606,7 +624,8 @@ def awaiting_human(
     in an editor over ACP, in the Textual panel, or at the console, and a
     record that only one of the three kept would report an attended run as
     idle for as long as somebody was looking at the prompt. The wait also
-    counts as sample waiting time, so it is not charged as working time.
+    counts as sample waiting time, so it is not charged as working time
+    unless other known work runs in the sample.
 
     A no-op outside a sample (a scorer, a bare `ask_user` in a script), which
     is why callers can wrap unconditionally.

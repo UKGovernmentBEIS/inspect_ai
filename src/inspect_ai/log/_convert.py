@@ -9,9 +9,11 @@ from inspect_ai._util.file import exists, filesystem
 from inspect_ai.log import resolve_sample_attachments
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import (
+    contained_log_destination,
     log_files_from_ls,
     read_eval_log,
     read_eval_log_async,
+    resolve_local_path,
     write_eval_log,
 )
 from inspect_ai.log._recorders import create_recorder_for_location
@@ -52,13 +54,14 @@ def convert_eval_logs(
         raise PrerequisiteError(f"Error: path '{path}' does not exist.")
 
     # normalise output dir and ensure it exists
+    output_dir = resolve_local_path(output_dir)
     output_fs = filesystem(output_dir)
     if output_dir.endswith(fs.sep):
         output_dir = output_dir[:-1]
     output_fs.mkdir(output_dir, exist_ok=True)
 
     # convert a single file (input file is relative to the 'path')
-    def convert_file(input_file: str) -> None:
+    def convert_file(input_file: str, output_file: str | None = None) -> None:
         # compute input and ensure output dir exists
         input_name, _ = os.path.splitext(input_file)
         input_dir = os.path.dirname(input_name.replace("\\", "/"))
@@ -77,7 +80,8 @@ def convert_eval_logs(
         output_fs.mkdir(target_dir, exist_ok=True)
 
         # compute full output file and enforce overwrite
-        output_file = f"{output_dir}{output_fs.sep}{output_file_basename}.{to}"
+        if output_file is None:
+            output_file = f"{output_dir}{output_fs.sep}{output_file_basename}.{to}"
         if exists(output_file) and not overwrite:
             raise FileExistsError(
                 f"Output file {output_file} already exists (use --overwrite to overwrite existing files)"
@@ -103,13 +107,14 @@ def convert_eval_logs(
     else:
         root_dir = fs.info(path).name
         eval_logs = log_files_from_ls(fs.ls(path, recursive=True), None, True)
-        input_files = [
-            eval_log.name.replace(f"{root_dir}/", "", 1) for eval_log in eval_logs
+        destinations = [
+            contained_log_destination(eval_log.name, root_dir, output_dir, extension=to)
+            for eval_log in eval_logs
         ]
         display().print("Converting log files...")
-        with display().progress(total=len(input_files)) as p:
-            for input_file in input_files:
-                convert_file(input_file)
+        with display().progress(total=len(destinations)) as p:
+            for destination in destinations:
+                convert_file(destination.relative, destination.destination)
                 p.update()
 
 
@@ -153,6 +158,8 @@ async def _stream_convert_file(
     log_header = await read_eval_log_async(
         input_file, header_only=True, resolve_attachments=resolve_attachments
     )
+    # read before log_init: an in-place conversion flushes over the input
+    reductions = await input_recorder.read_log_reductions(input_file)
     await output_recorder.log_init(log_header.eval, location=output_file)
     await output_recorder.log_start(log_header.eval, log_header.plan)
 
@@ -165,9 +172,10 @@ async def _stream_convert_file(
         log_header.status,
         log_header.stats,
         log_header.results,
-        log_header.reductions,
+        reductions,
         error=log_header.error,
         invalidated=log_header.invalidated,
         log_updates=log_header.log_updates,
         config_updates=log_header.config_updates,
+        total_samples=log_header.total_samples,
     )

@@ -1,17 +1,26 @@
+from typing import Any, Iterator
 from unittest.mock import patch
 
+import anyio
 import pytest
 
+from inspect_ai._util._async import tg_collect
+from inspect_ai._util.registry import _registry
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._samples import (
     set_active_model_event_call,
     track_active_model_event,
 )
-from inspect_ai.log._transcript import Transcript, init_transcript
+from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import (
+    ChatMessage,
     GenerateConfig,
+    ModelAPI,
     ModelOutput,
     ModelRequestId,
+    active_model_event_id,
+    get_model,
+    modelapi,
     record_response_headers,
 )
 from inspect_ai.model._providers.util.hooks import HttpHooks
@@ -187,3 +196,122 @@ def test_response_to_an_untracked_request_is_not_kept():
         hooks.record_response("not-a-tracked-id", 200, {"X-Side-Request": "c"})
 
     assert headers.latest == {"x-reply": "a"}
+
+
+class _TransientError(Exception):
+    pass
+
+
+class _EventIdAPI(ModelAPI):
+    """Records `active_model_event_id()` inside each `generate()`, by input text."""
+
+    def __init__(
+        self,
+        model_name: str,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        config: GenerateConfig = GenerateConfig(),
+        **model_args: Any,
+    ) -> None:
+        super().__init__(
+            model_name=model_name,
+            base_url=base_url,
+            api_key=api_key,
+            api_key_vars=[],
+            config=config,
+        )
+        self.fail_first: bool = model_args.get("fail_first", False)
+        self.concurrent: int = model_args.get("concurrent", 1)
+        self.seen: list[tuple[str, str | None]] = []
+        self.in_child_task: list[str | None] = []
+        self._arrived = 0
+        self._all_arrived = anyio.Event()
+
+    async def generate(
+        self, input: list[ChatMessage], *args: Any, **kwargs: Any
+    ) -> ModelOutput:
+        # hold every call until all are in flight together
+        self._arrived += 1
+        if self._arrived >= self.concurrent:
+            self._all_arrived.set()
+        await self._all_arrived.wait()
+
+        self.seen.append((input[-1].text, active_model_event_id()))
+
+        async def child() -> None:
+            self.in_child_task.append(active_model_event_id())
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(child)
+
+        if self.fail_first and len(self.seen) == 1:
+            raise _TransientError()
+        return ModelOutput.from_content(self.model_name, "ok")
+
+    def should_retry(self, ex: Exception) -> bool:
+        return isinstance(ex, _TransientError)
+
+
+@pytest.fixture
+def event_id_api() -> Iterator[None]:
+    @modelapi(name="eventidstub")
+    def eventidstub() -> type[ModelAPI]:
+        return _EventIdAPI
+
+    try:
+        yield
+    finally:
+        del _registry["modelapi:eventidstub"]
+
+
+def _model_events() -> list[ModelEvent]:
+    return [e for e in transcript().events if isinstance(e, ModelEvent)]
+
+
+@pytest.mark.usefixtures("event_id_api")
+async def test_active_model_event_id_is_the_calls_event() -> None:
+    init_transcript(Transcript())
+    model = get_model("eventidstub/model", memoize=False)
+    api = model.api
+    assert isinstance(api, _EventIdAPI)
+
+    assert active_model_event_id() is None
+    await model.generate("hello")
+    assert active_model_event_id() is None
+
+    [event] = _model_events()
+    assert event.uuid is not None
+    assert api.seen == [("hello", event.uuid)]
+    # a task started inside the call sees the same id
+    assert api.in_child_task == [event.uuid]
+
+
+@pytest.mark.usefixtures("event_id_api")
+async def test_active_model_event_id_is_new_for_each_retry() -> None:
+    init_transcript(Transcript())
+    model = get_model("eventidstub/model", memoize=False, fail_first=True)
+    api = model.api
+    assert isinstance(api, _EventIdAPI)
+
+    await model.generate("hello", config=GenerateConfig(max_retries=1))
+
+    failed, succeeded = _model_events()
+    assert failed.error is not None and succeeded.error is None
+    assert failed.uuid != succeeded.uuid
+    assert [event_id for _, event_id in api.seen] == [failed.uuid, succeeded.uuid]
+
+
+@pytest.mark.usefixtures("event_id_api")
+async def test_active_model_event_id_in_concurrent_calls() -> None:
+    init_transcript(Transcript())
+    model = get_model("eventidstub/model", memoize=False, concurrent=2)
+    api = model.api
+    assert isinstance(api, _EventIdAPI)
+
+    await tg_collect(
+        [lambda: model.generate("first"), lambda: model.generate("second")]
+    )
+
+    events = {event.input[-1].text: event.uuid for event in _model_events()}
+    assert len(set(events.values())) == 2
+    assert dict(api.seen) == events

@@ -11,6 +11,7 @@ from ._cli import SANDBOX_CLI
 from .environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxTimeoutError,
     SandboxUserUnsupportedError,
 )
 from .limits import (
@@ -100,15 +101,25 @@ class LocalSandboxEnvironment(SandboxEnvironment):
                 self._SANDBOX_TOOLS_DIR_ENV: str(self._sandbox_tools_dir),
             }
 
-        result = await subprocess(
-            args=cmd,
-            input=input,
-            cwd=final_cwd,
-            env=final_env,
-            timeout=timeout,
-            output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
-            concurrency=concurrency,
-        )
+        try:
+            result = await subprocess(
+                args=cmd,
+                input=input,
+                cwd=final_cwd,
+                env=final_env,
+                timeout=timeout,
+                output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
+                concurrency=concurrency,
+            )
+        except TimeoutError as ex:
+            # a single timer, on the same machine as the command, which ends
+            # the command when it expires: nothing but the command's own
+            # running time can explain the expiry.
+            raise SandboxTimeoutError(
+                f"Command timed out after {timeout} seconds",
+                truncated_output=getattr(ex, "truncated_output", None),
+                reason="command",
+            ) from ex
         return result
 
     async def _stop_sandbox_tools(self, *, timeout: int) -> None:
@@ -130,7 +141,13 @@ class LocalSandboxEnvironment(SandboxEnvironment):
             )
 
     @override
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
+        if user is not None and not _is_current_user(user):
+            raise SandboxUserUnsupportedError(
+                f"Local sandbox cannot write files as user {user!r}."
+            )
         # resolve file and ensure the parent dir exists
         file = self._resolve_file(file)
         Path(file).parent.mkdir(parents=True, exist_ok=True)
@@ -143,13 +160,23 @@ class LocalSandboxEnvironment(SandboxEnvironment):
                 f.write(contents)
 
     @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+    async def read_file(
+        self, file: str, text: Literal[True] = True, *, user: str | None = None
+    ) -> str: ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+    async def read_file(
+        self, file: str, text: Literal[False], *, user: str | None = None
+    ) -> bytes: ...
 
     @override
-    async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
+    async def read_file(
+        self, file: str, text: bool = True, *, user: str | None = None
+    ) -> Union[str | bytes]:
+        if user is not None and not _is_current_user(user):
+            raise SandboxUserUnsupportedError(
+                f"Local sandbox cannot read files as user {user!r}."
+            )
         file = self._resolve_file(file)
         verify_read_file_size(file)
         if text:

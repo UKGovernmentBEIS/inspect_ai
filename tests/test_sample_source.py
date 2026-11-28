@@ -16,10 +16,37 @@ import pytest
 from pydantic import BaseModel
 from typing_extensions import override
 
-from inspect_ai import SampleSource, Task, enqueue_sample, eval, eval_set, task
+from inspect_ai import (
+    SampleAbandonedError,
+    SampleSource,
+    Task,
+    TaskEndedError,
+    TaskHandle,
+    enqueue_sample,
+    enqueue_task,
+    eval,
+    eval_async,
+    eval_retry,
+    eval_set,
+    samples_from_handle,
+    task,
+    task_with,
+)
+from inspect_ai._eval.task.enqueue import get_run_queue
+from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog, EvalSample, read_eval_log
+from inspect_ai.log import (
+    EvalLog,
+    EvalSample,
+    ProvenanceData,
+    TagsEdit,
+    edit_eval_log,
+    list_eval_logs,
+    read_eval_log,
+    read_eval_log_samples,
+    write_eval_log,
+)
 from inspect_ai.scorer import (
     CORRECT,
     SampleScore,
@@ -79,8 +106,190 @@ def test_sample_source_runs_generations_in_one_task() -> None:
     assert log.status == "success"
     assert _sample_inputs(log) == ["s0", "s1", "s2"]
     assert sorted(source.samples_seen) == ["s0", "s1", "s2"]
-    # injected samples continue the seed's auto-id numbering
-    assert sorted(sample.id for sample in (log.samples or [])) == [1, 2, 3]
+    # the seed keeps its position id; injected samples get unique string ids
+    ids = {str(sample.input): sample.id for sample in (log.samples or [])}
+    assert ids["s0"] == 1
+    added = [ids["s1"], ids["s2"]]
+    assert all(isinstance(id, str) for id in added) and len(set(added)) == 2
+
+
+class _GrowThenFailSource(SampleSource):
+    """Seeds 2 samples, then adds 18 more (for the error-log denominator test)."""
+
+    def __init__(self) -> None:
+        self.added = False
+
+    def initial_samples(self) -> list[Sample]:
+        return [Sample(id=f"seed{i}", input="q") for i in range(2)]
+
+    async def next_samples(self) -> list[Sample] | None:
+        if self.added:
+            return None
+        self.added = True
+        return [Sample(id=f"extra{i}", input="q") for i in range(18)]
+
+
+@solver
+def _fail_on_extra2() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.sample_id == "extra2":
+            raise ValueError("boom")
+        return state
+
+    return solve
+
+
+def test_sample_source_error_log_keeps_total_samples() -> None:
+    """An eval that errors mid-feed keeps its denominator on the log (#5814).
+
+    `results` is absent (the eval died before scoring), and the dataset spec
+    keeps describing only the seed (retry reuse depends on it), so without the
+    header's running count nothing in the log says how many sample runs the
+    attempt had accepted.
+    """
+    log = eval(
+        Task(dataset=_GrowThenFailSource(), solver=[_fail_on_extra2(), generate()]),
+        model="mockllm/model",
+        max_samples=1,
+        fail_on_error=True,
+        retry_on_error=0,
+    )[0]
+    log = read_eval_log(log.location)
+    assert log.status == "error"
+    assert log.results is None
+    assert log.eval.dataset.sample_ids == ["seed0", "seed1"]
+    assert log.total_samples == 20
+
+
+def test_sample_source_error_log_keeps_total_samples_through_rewrite() -> None:
+    """Rewriting an errored log preserves the denominator (#5814).
+
+    `write_eval_log` rebuilds the header through `log_finish`; without
+    passing the count along, a rewritten log (and the same path used by
+    `inspect log convert` and streaming `inspect score`) silently drops it
+    back to `None`.
+    """
+    log = eval(
+        Task(dataset=_GrowThenFailSource(), solver=[_fail_on_extra2(), generate()]),
+        model="mockllm/model",
+        max_samples=1,
+        fail_on_error=True,
+        retry_on_error=0,
+    )[0]
+    log = read_eval_log(log.location)
+    assert log.total_samples == 20
+
+    with tempfile.TemporaryDirectory() as tmp:
+        rewritten = Path(tmp) / "rewritten.eval"
+        write_eval_log(log, str(rewritten))
+        reread = read_eval_log(str(rewritten))
+        assert reread.status == "error"
+        assert reread.total_samples == 20
+
+        # header-only reads (used for listing/viewer) go through the
+        # streaming header reader; the count must survive it too
+        header = read_eval_log(str(rewritten), header_only=True)
+        assert header.total_samples == 20
+
+        # a persisted header edit (viewer tag/metadata) rewrites only the
+        # header, rebuilt through _eval_log_header; the count must survive it
+        edited_log = edit_eval_log(
+            read_eval_log(str(rewritten), header_only=True),
+            [TagsEdit(tags_add=["edited"])],
+            ProvenanceData(author="test"),
+        )
+        write_eval_log(edited_log, str(rewritten), header_only=True)
+        edited = read_eval_log(str(rewritten))
+        assert "edited" in edited.tags
+        assert edited.total_samples == 20
+
+        # persisted JSON input keeps the count through the JSON header
+        # reader (streaming) and a full read alike
+        json_path = Path(tmp) / "rewritten.json"
+        write_eval_log(log, str(json_path), format="json")
+        assert read_eval_log(str(json_path), header_only=True).total_samples == 20
+        assert read_eval_log(str(json_path)).total_samples == 20
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_sample_source_cancelled_before_completion_log_keeps_total_samples(
+    tmp_path: Path,
+    log_format: Literal["eval", "json"],
+) -> None:
+    """A cancelled eval keeps its accepted-run count, with nothing finished.
+
+    The seed enqueues added work while it is still running (so acceptance is
+    observable without waiting on the feed), both runs park before either
+    completes, and the interrupt lands there: the log must finalize as
+    cancelled, carry no results, and still count both accepted runs.
+    """
+    import os
+    import signal
+    import threading
+    import time
+
+    from inspect_ai import eval as inspect_eval
+
+    seen: set[str] = set()
+    both_parked = threading.Event()
+    eval_returned = threading.Event()
+
+    @solver(name="enqueue_then_park")
+    def enqueue_then_park() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if str(state.sample_id) == "seed0":
+                # enqueue added work from the still-running seed; the feed
+                # loop wakes on enqueue and accepts the run (counting it)
+                # before starting it
+                enqueue_sample(Sample(id="next0", input="q"))
+            seen.add(str(state.sample_id))
+            if len(seen) >= 2:
+                both_parked.set()
+            await anyio.sleep(30)
+            return state
+
+        return solve
+
+    def send_sigint() -> None:
+        both_parked.wait(60)
+        time.sleep(0.5)
+        while not eval_returned.is_set():
+            os.kill(os.getpid(), signal.SIGINT)
+            eval_returned.wait(3)
+
+    sigint_thread = threading.Thread(target=send_sigint, daemon=True)
+    sigint_thread.start()
+
+    class _EnqueueSeed(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id="seed0", input="q")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            await anyio.sleep(30)
+            return None
+
+    try:
+        inspect_eval(
+            Task(dataset=_EnqueueSeed(), solver=[enqueue_then_park()]),
+            model="mockllm/model",
+            max_samples=2,
+            log_dir=str(tmp_path),
+            log_format=log_format,
+        )
+    except KeyboardInterrupt:
+        pass
+    finally:
+        eval_returned.set()
+    sigint_thread.join(timeout=5)
+
+    log_files = list_eval_logs(str(tmp_path))
+    assert len(log_files) == 1
+    reread = read_eval_log(log_files[0].name)
+    assert reread.status == "cancelled"
+    # no sample completed before the interrupt, so there are no results to
+    # write — the header's count is the only denominator
+    assert reread.results is None
+    assert reread.total_samples == 2
 
 
 def test_sample_source_seed_only_when_next_is_none() -> None:
@@ -214,7 +423,8 @@ def test_sample_source_epochs_apply_to_injected_samples() -> None:
 
 
 def test_sample_source_explicit_and_auto_ids() -> None:
-    # explicit injected ids are honored; auto-ids skip ids already in use
+    # explicit injected ids are honored; a sample without an id gets a
+    # unique string id, never the next integer
     class _Ids(SampleSource):
         def __init__(self) -> None:
             self._produced = False
@@ -241,11 +451,24 @@ def test_sample_source_explicit_and_auto_ids() -> None:
     ids = {str(sample.input): sample.id for sample in (log.samples or [])}
     assert ids["seed"] == 1
     assert ids["explicit"] == 2
-    assert ids["auto"] == 3  # auto-id skipped the explicit 2
+    assert isinstance(ids["auto"], str)
 
 
-def test_sample_source_duplicate_id_errors() -> None:
-    # an injected sample whose id collides with an existing one fails the task
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.parametrize("epochs,limit", [(1, None), (2, 5)])
+def test_sample_source_duplicate_id_errors(
+    epochs: int,
+    limit: int | None,
+    log_format: Literal["eval", "json"],
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # an injected sample whose id collides with an existing one fails the
+    # task; a sample admitted earlier in the same batch still counts
+    from inspect_ai._util._async import current_async_backend
+
     class _Dup(SampleSource):
         def __init__(self) -> None:
             self._produced = False
@@ -254,18 +477,30 @@ def test_sample_source_duplicate_id_errors() -> None:
             return [Sample(id=1, input="seed", target="ok")]
 
         async def next_samples(self) -> list[Sample] | None:
+            assert current_async_backend() == backend
             if not self._produced:
                 self._produced = True
-                return [Sample(id=1, input="dup", target="ok")]
+                return [
+                    Sample(id=2, input="extra", target="ok"),
+                    Sample(id=1, input="dup", target="ok"),
+                ]
             return None
 
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     logs = eval(
         Task(dataset=_Dup(), solver=[generate()]),
         model="mockllm/model",
         display="none",
+        epochs=epochs,
+        limit=limit,
+        log_dir=str(tmp_path),
+        log_format=log_format,
     )
-    assert logs[0].status == "error"
-    assert "duplicate" in (logs[0].error.message if logs[0].error else "")
+    log = read_eval_log(logs[0].location)
+    assert log.status == "error"
+    assert "duplicate" in (log.error.message if log.error else "")
+    # the seed and the admitted extra, each for every epoch
+    assert log.total_samples == 2 * epochs
 
 
 @scorer(metrics=[accuracy()])
@@ -356,6 +591,33 @@ def test_enqueue_sample_epoch_runs_one_id_as_distinct_epochs() -> None:
     assert log.results is not None
     assert log.results.total_samples == 6
     assert log.results.scores[0].metrics["accuracy"].value == 1.0
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_read_eval_log_samples_includes_added_samples(
+    log_format: Literal["eval", "json"], tmp_path: Path
+) -> None:
+    # the header's sample_ids stay seed-sized, so samples the source added
+    # (including an explicit epoch above `epochs` and an empty id) must still
+    # be read back
+    source = _EpochAdds(
+        [("rerun", 3)],
+        seed=["seed"],
+        then={("seed", 1): [("followup", None), ("", None)]},
+    )
+    log = eval(
+        Task(dataset=source, solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+        log_dir=str(tmp_path),
+        log_format=log_format,
+    )[0]
+    assert log.status == "success"
+    assert log.eval.dataset.sample_ids == ["seed"]
+    expected = [("", 1), ("followup", 1), ("rerun", 3), ("seed", 1)]
+    assert _runs(log) == expected
+    samples = read_eval_log_samples(log.location)
+    assert sorted((str(sample.id), sample.epoch) for sample in samples) == expected
 
 
 @pytest.mark.parametrize(
@@ -922,6 +1184,13 @@ def test_enqueue_sample_rejected_outside_task() -> None:
         enqueue_sample(Sample(input="x"))
 
 
+def test_enqueue_sample_epoch_requires_an_id() -> None:
+    # a sample without an id gets a fresh id each time it is added, so its
+    # explicit epochs could never share one: refused before it is queued
+    with pytest.raises(ValueError, match="requires each sample to have an id"):
+        enqueue_sample([Sample(id="q", input="x"), Sample(input="y")], epoch=2)
+
+
 class _TrackedGenerations(_Generations):
     """`_Generations` that counts `next_samples()` calls."""
 
@@ -1027,13 +1296,16 @@ class _IdsSource(SampleSource):
         return None
 
 
-def test_sample_source_sample_id_filters_produced_samples() -> None:
+@pytest.mark.parametrize("sample_id", [[1, 3], "[13]"])
+def test_sample_source_sample_id_filters_produced_samples(
+    sample_id: list[int] | str,
+) -> None:
     # --sample-id filters samples the source produces, not just the seed
     logs = eval(
         Task(dataset=_IdsSource(), solver=[generate()]),
         model="mockllm/model",
         display="none",
-        sample_id=[1, 3],
+        sample_id=sample_id,
     )
     log = logs[0]
     assert log.status == "success"
@@ -1180,17 +1452,25 @@ class _EventsSandbox(SandboxEnvironment):
         raise NotImplementedError
 
     @override
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
         raise NotImplementedError
 
     @overload
-    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+    async def read_file(
+        self, file: str, text: Literal[True] = True, *, user: str | None = None
+    ) -> str: ...
 
     @overload
-    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+    async def read_file(
+        self, file: str, text: Literal[False], *, user: str | None = None
+    ) -> bytes: ...
 
     @override
-    async def read_file(self, file: str, text: bool = True) -> str | bytes:
+    async def read_file(
+        self, file: str, text: bool = True, *, user: str | None = None
+    ) -> str | bytes:
         raise NotImplementedError
 
 
@@ -1519,6 +1799,574 @@ def test_sample_source_task_retry_reuses_completed_followup() -> None:
     assert flaky_runs["n"] == 2
 
 
+def test_sample_source_task_retry_never_reuses_anonymous_followups() -> None:
+    # follow-ups without ids get unique ids, so a retry can never reuse one
+    # follow-up's prior record for another. Here the follow-ups are admitted
+    # in a different order in each attempt: attempt 1 admits seed b's
+    # follow-up before seed a's, and the retry's reuse sweep re-fires a
+    # first. With integer ids allocated in admission order, follow-a took
+    # follow-b's errored record (and its error history) and follow-b
+    # reused follow-a's clean record, so the log held follow-a twice.
+    runs: list[str] = []
+    events: dict[str, anyio.Event] = {}
+
+    def event(name: str) -> anyio.Event:
+        return events.setdefault(name, anyio.Event())
+
+    @solver
+    def swap_followups() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            name = state.input_text
+            runs.append(name)
+            if runs.count(name) == 1:
+                with anyio.fail_after(30):
+                    if name == "a":
+                        # admit b's follow-up first
+                        await event("follow-b started").wait()
+                    elif name == "follow-b":
+                        event("follow-b started").set()
+                        # fail the attempt once follow-a is logged
+                        await event("follow-a logged").wait()
+                        raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(input="a", target="ok"), Sample(input="b", target="ok")]
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            name = str(sample.input)
+            if name == "follow-a":
+                event("follow-a logged").set()
+            if name in ("a", "b"):
+                return [Sample(input=f"follow-{name}", target="ok")]
+            return None
+
+    @task
+    def anonymous_followups_task() -> Task:
+        return Task(
+            dataset=_Src(),
+            solver=[swap_followups()],
+            name="anonymous_followups_task",
+        )
+
+    with tempfile.TemporaryDirectory() as d:
+        log_dir = str(Path(d) / "logs")
+        Path(log_dir).mkdir()
+        ok, logs = eval_set(
+            tasks=[anonymous_followups_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_on_error=0,  # no sample-level retry -> task-level retry
+            max_samples=4,  # a and follow-b block while follow-a runs
+        )
+        assert ok, "eval-set did not succeed after task retry"
+        log = read_eval_log(logs[0].location)
+
+    samples = log.samples or []
+    assert _sample_inputs(log) == ["a", "b", "follow-a", "follow-b"]
+    assert all(sample.error is None for sample in samples)
+    # the seed keeps its position ids; follow-ups get unique string ids
+    ids = {str(sample.input): sample.id for sample in samples}
+    assert ids["a"] == 1 and ids["b"] == 2
+    assert isinstance(ids["follow-a"], str) and isinstance(ids["follow-b"], str)
+    # no record of follow-b's errored run went to follow-a
+    follow_a = next(sample for sample in samples if sample.input == "follow-a")
+    assert not follow_a.error_retries
+    # the seeds were reused; both follow-ups ran fresh in the retry
+    assert sorted(runs) == sorted(
+        ["a", "b", "follow-a", "follow-a", "follow-b", "follow-b"]
+    )
+
+
+def test_sample_source_task_retry_runs_retained_anonymous_sample_fresh() -> None:
+    # the generated id is local to the attempt: a source that keeps its
+    # anonymous Sample and returns the same object on retry adds it without
+    # an id again, so it runs fresh under a new id (and so a new checkpoint
+    # key) rather than reusing the prior attempt's record
+    runs: list[str] = []
+    followup_logged = anyio.Event()
+    retained = Sample(input="first", target="ok")
+
+    @solver
+    def fail_flaky_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            runs.append(state.input_text)
+            if state.input_text == "flaky" and runs.count("flaky") == 1:
+                with anyio.fail_after(30):
+                    await followup_logged.wait()
+                raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return [
+                Sample(id=1, input="seed", target="ok"),
+                Sample(id=2, input="flaky", target="ok"),
+            ]
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            if sample.id == 1:
+                return [retained]
+            if sample.input == "first":
+                # the source edits its own object after it was logged
+                retained.input = "second"
+                followup_logged.set()
+            return None
+
+    @task
+    def retained_sample_task() -> Task:
+        return Task(
+            dataset=_Src(),
+            solver=[fail_flaky_once()],
+            name="retained_sample_task",
+        )
+
+    with tempfile.TemporaryDirectory() as d:
+        log_dir = str(Path(d) / "logs")
+        Path(log_dir).mkdir()
+        ok, logs = eval_set(
+            tasks=[retained_sample_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_on_error=0,  # no sample-level retry -> task-level retry
+            retry_cleanup=False,
+            max_samples=3,  # flaky blocks while the follow-up runs
+        )
+        assert ok, "eval-set did not succeed after task retry"
+        final = read_eval_log(logs[0].location)
+        first = next(
+            log
+            for log in (
+                read_eval_log(str(path)) for path in Path(log_dir).glob("*.eval")
+            )
+            if log.status == "error"
+        )
+
+    assert runs.count("first") == 1 and runs.count("second") == 1
+    assert _sample_inputs(final) == ["flaky", "second", "seed"]
+    assert retained.id is None
+    first_id = next(s.id for s in (first.samples or []) if s.input == "first")
+    second_id = next(s.id for s in (final.samples or []) if s.input == "second")
+    assert isinstance(first_id, str) and isinstance(second_id, str)
+    assert first_id != second_id
+
+
+def test_sample_source_generated_ids_sort_in_admission_order() -> None:
+    # generated ids are dyn-<token>-<counter>, zero-padded so the log (and
+    # the viewer, which also compares ids as strings) lists follow-ups in the
+    # order they were added: the tenth must not sort before the second
+    added: list[str] = []
+
+    class _Src(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(input=str(n), target="ok") for n in range(1, 6)]
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            if sample.id not in range(1, 6):
+                return None
+            followups = [f"{sample.input}a", f"{sample.input}b"]
+            added.extend(followups)
+            return [Sample(input=name, target="ok") for name in followups]
+
+    logs = eval(
+        Task(dataset=_Src(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+    )
+    assert logs[0].status == "success"
+    log = read_eval_log(logs[0].location)
+    followups = [s for s in (log.samples or []) if isinstance(s.id, str)]
+    assert [str(s.input) for s in followups] == added
+    token = str(followups[0].id).split("-")[1]
+    assert [s.id for s in followups] == [f"dyn-{token}-{n:04d}" for n in range(1, 11)]
+
+
+DYNAMIC_CREATED = "2027-01-15T08:00:00+00:00"
+DYNAMIC_TOKEN = "tro8w0"  # DYNAMIC_CREATED in Unix seconds, base 36
+
+
+def _freeze_dynamic_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Start every attempt's log in the same second."""
+    from inspect_ai._eval.task import log as log_module
+
+    monkeypatch.setattr(
+        log_module, "iso_now", lambda timespec="seconds": DYNAMIC_CREATED
+    )
+
+
+def _retried_followup_task(runs: list[str], seed: list[Sample]) -> Task:
+    """A task whose seed id 1 adds one anonymous follow-up.
+
+    The seed sample with input "flaky" fails in the first attempt once the
+    follow-up is logged, so a retry must decide whether to reuse it.
+    """
+    followup_logged = anyio.Event()
+
+    @solver
+    def fail_flaky_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            runs.append(state.input_text)
+            if state.input_text == "flaky" and runs.count("flaky") == 1:
+                with anyio.fail_after(30):
+                    await followup_logged.wait()
+                raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return seed
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            if sample.id == 1:
+                return [Sample(input="follow", target="ok")]
+            if sample.input == "follow":
+                followup_logged.set()
+            return None
+
+    @task
+    def retried_followup_task() -> Task:
+        return Task(
+            dataset=_Src(),
+            solver=[fail_flaky_once()],
+            name="retried_followup_task",
+        )
+
+    return retried_followup_task()
+
+
+def _eval_set_with_one_retry(
+    runs: list[str], seed: list[Sample]
+) -> tuple[EvalLog, EvalLog]:
+    """Run the follow-up task with one task retry: (failed log, final log)."""
+    with tempfile.TemporaryDirectory() as d:
+        log_dir = str(Path(d) / "logs")
+        Path(log_dir).mkdir()
+        ok, logs = eval_set(
+            tasks=[_retried_followup_task(runs, seed)],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_on_error=0,  # no sample-level retry -> task-level retry
+            retry_cleanup=False,
+            max_samples=len(seed) + 1,  # flaky blocks while the follow-up runs
+        )
+        assert ok, "eval-set did not succeed after task retry"
+        final = read_eval_log(logs[0].location)
+        first = next(
+            log
+            for log in (
+                read_eval_log(str(path)) for path in Path(log_dir).glob("*.eval")
+            )
+            if log.status == "error"
+        )
+    return first, final
+
+
+def _followup_id(log: EvalLog, input: str = "follow") -> int | str:
+    return next(s.id for s in (log.samples or []) if s.input == input)
+
+
+def test_sample_source_task_retry_within_a_second_gets_later_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # an immediate task retry can start in the same second as the attempt it
+    # retries. Its log's created time is still later, so the follow-up runs
+    # again under a new id that sorts after the prior one, rather than
+    # reusing the prior attempt's record for that id
+    _freeze_dynamic_clock(monkeypatch)
+    runs: list[str] = []
+    first, final = _eval_set_with_one_retry(
+        runs,
+        [
+            Sample(id=1, input="seed", target="ok"),
+            Sample(id=2, input="flaky", target="ok"),
+        ],
+    )
+    assert runs.count("follow") == 2
+    assert _followup_id(first) == f"dyn-{DYNAMIC_TOKEN}-0001"
+    assert _followup_id(final) == "dyn-tro8w1-0001"
+    assert str(_followup_id(final)) > str(_followup_id(first))
+
+
+@pytest.mark.parametrize("retry", ["without_sample_logging", "into_another_log_dir"])
+def test_sample_source_eval_retry_gets_later_ids(
+    monkeypatch: pytest.MonkeyPatch, retry: str
+) -> None:
+    # eval_retry() reads the prior results whether or not it logs samples,
+    # and in whatever log dir it writes to, where no existing log moves its
+    # created time on. Its token still goes past the prior log's
+    _freeze_dynamic_clock(monkeypatch)
+    runs: list[str] = []
+    seed = [
+        Sample(id=1, input="seed", target="ok"),
+        Sample(id=2, input="flaky", target="ok"),
+    ]
+    with (
+        tempfile.TemporaryDirectory() as log_dir,
+        tempfile.TemporaryDirectory() as other_dir,
+    ):
+        first = eval(
+            _retried_followup_task(runs, seed),
+            model="mockllm/model",
+            log_dir=log_dir,
+            display="none",
+            retry_on_error=0,
+            max_samples=3,
+        )[0]
+        assert first.status == "error"
+        retried = eval_retry(
+            first,
+            log_dir=other_dir if retry == "into_another_log_dir" else log_dir,
+            log_samples=retry != "without_sample_logging",
+            display="none",
+        )[0]
+        assert retried.status == "success"
+        if retry == "into_another_log_dir":
+            retried_log = read_eval_log(retried.location)
+            assert _followup_id(retried_log) == "dyn-tro8w1-0001"
+    assert runs.count("follow") == 2
+    assert _followup_id(first) == f"dyn-{DYNAMIC_TOKEN}-0001"
+
+
+@pytest.mark.parametrize(
+    "seed_id, limit",
+    [
+        # a limited retry carries only the selected runs into its log, so the
+        # third attempt's prior log no longer holds the first follow-up
+        ("dyn-" + "z" * 12 + "-0001", 2),
+        # an explicit id one day ahead of the clock that only looks generated
+        ("dyn-trq3k0-9999", None),
+    ],
+)
+def test_sample_source_task_retries_never_repeat_a_token(
+    monkeypatch: pytest.MonkeyPatch, seed_id: str, limit: int | None
+) -> None:
+    # every attempt starts in the same second, and each follow-up has its
+    # own input: each attempt's follow-up must run, under a new id, rather
+    # than reuse an earlier attempt's record. Explicit ids that look
+    # generated play no part in choosing the token
+    _freeze_dynamic_clock(monkeypatch)
+    runs: list[str] = []
+    followups = {"n": 0}
+
+    @solver
+    def fail_followups_twice() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            runs.append(state.input_text)
+            if state.input_text in ("follow-1", "follow-2"):
+                raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=seed_id, input="seed", target="ok")]
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            if sample.input == "seed":
+                followups["n"] += 1
+                return [Sample(input=f"follow-{followups['n']}", target="ok")]
+            return None
+
+    @task
+    def repeated_retry_task() -> Task:
+        return Task(
+            dataset=_Src(), solver=[fail_followups_twice()], name="repeated_retry_task"
+        )
+
+    with tempfile.TemporaryDirectory() as d:
+        log_dir = str(Path(d) / "logs")
+        Path(log_dir).mkdir()
+        ok, _ = eval_set(
+            tasks=[repeated_retry_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            limit=limit,
+            retry_attempts=3,
+            retry_on_error=0,  # no sample-level retry -> task-level retry
+            retry_cleanup=False,
+        )
+        assert ok, "eval-set did not succeed after task retries"
+        attempts = sorted(
+            (read_eval_log(str(path)) for path in Path(log_dir).glob("*.eval")),
+            key=lambda log: log.eval.created,
+        )
+
+    assert runs == ["seed", "follow-1", "follow-2", "follow-3"]
+    assert [_followup_id(log, f"follow-{n}") for n, log in enumerate(attempts, 1)] == [
+        f"dyn-{token}-0001" for token in ("tro8w0", "tro8w1", "tro8w2")
+    ]
+
+
+def test_sample_source_generated_ids_skip_explicit_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a generated id is never one an explicit sample already holds, in any
+    # epoch: the seed's, an earlier explicit admission's, or one added only
+    # for a further epoch
+    _freeze_dynamic_clock(monkeypatch)
+
+    def dyn(n: int) -> str:
+        return f"dyn-{DYNAMIC_TOKEN}-{n:04d}"
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self._calls = 0
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=dyn(1), input="seed", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            self._calls += 1
+            if self._calls == 1:
+                return [
+                    Sample(id=dyn(2), input="explicit", target="ok"),
+                    Sample(input="anon-1", target="ok"),
+                ]
+            if self._calls == 2:
+                enqueue_sample(Sample(id=dyn(4), input="epoch-2", target="ok"), epoch=2)
+                return []
+            if self._calls == 3:
+                return [Sample(input="anon-2", target="ok")]
+            return None
+
+    logs = eval(
+        Task(dataset=_Src(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+    )
+    assert logs[0].status == "success"
+    ids = {str(s.input): s.id for s in (logs[0].samples or [])}
+    assert ids == {
+        "seed": dyn(1),
+        "explicit": dyn(2),
+        "anon-1": dyn(3),
+        "epoch-2": dyn(4),
+        "anon-2": dyn(5),
+    }
+
+
+def test_sample_source_explicit_sample_cannot_reuse_generated_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a generated id holds every epoch, so an explicit sample added under it
+    # for a further epoch is a duplicate, not a second input for that id
+    _freeze_dynamic_clock(monkeypatch)
+    generated = f"dyn-{DYNAMIC_TOKEN}-0001"
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self._calls = 0
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id="seed", input="seed", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            self._calls += 1
+            if self._calls == 1:
+                return [Sample(input="anon", target="ok")]
+            if self._calls == 2:
+                enqueue_sample(
+                    Sample(id=generated, input="other", target="ok"), epoch=2
+                )
+                return []
+            return None
+
+    logs = eval(
+        Task(dataset=_Src(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+    )
+    assert logs[0].status == "error"
+    assert logs[0].error is not None
+    assert f"duplicate id '{generated}' for epoch 2" in logs[0].error.message
+
+
+@pytest.mark.parametrize("route", ["next_samples", "sample_complete", "enqueue_sample"])
+def test_sample_source_generated_id_not_written_to_source_sample(route: str) -> None:
+    # every admission path runs an anonymous sample under a copy carrying
+    # the generated id; the source's own object keeps id=None
+    added = Sample(input="added", target="ok")
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self._produced = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id="seed", input="seed", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self._produced or route == "sample_complete":
+                return None
+            self._produced = True
+            if route == "next_samples":
+                return [added]
+            enqueue_sample(added)
+            return []
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            if route == "sample_complete" and sample.id == "seed":
+                return [added]
+            return None
+
+    logs = eval(
+        Task(dataset=_Src(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+    )
+    assert logs[0].status == "success"
+    ids = {str(sample.input): sample.id for sample in (logs[0].samples or [])}
+    assert isinstance(ids["added"], str)
+    assert added.id is None
+
+
+@pytest.mark.parametrize("route", ["next_samples", "enqueue_sample"])
+def test_sample_source_same_anonymous_sample_added_twice_gets_two_ids(
+    route: str,
+) -> None:
+    # one anonymous object added twice runs as two samples with distinct
+    # generated ids, and the caller's object keeps id=None
+    added = Sample(input="added", target="ok")
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self._calls = 0
+
+        def initial_samples(self) -> list[Sample]:
+            return []
+
+        async def next_samples(self) -> list[Sample] | None:
+            self._calls += 1
+            if self._calls > 2:
+                return None
+            if route == "next_samples":
+                return [added]
+            enqueue_sample(added)
+            return []
+
+    logs = eval(
+        Task(dataset=_Src(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+    )
+    assert logs[0].status == "success"
+    ids = [sample.id for sample in (logs[0].samples or [])]
+    assert len(ids) == 2
+    assert all(isinstance(id, str) for id in ids)
+    assert len(set(ids)) == 2
+    assert added.id is None
+
+
 def test_sample_source_task_retry_drops_prior_records_outside_the_realized_plan() -> (
     None
 ):
@@ -1677,8 +2525,8 @@ def test_sample_source_retry_filters_prior_payloads_before_publication(
     async def check_start(logger: TaskLogger, plan: EvalPlan) -> None:
         await start(logger, plan)
         assert logger.prior_seeded
-        check_snapshot(logger.location)
-        snapshots.append(logger.location)
+        check_snapshot(_initialized_location(logger))
+        snapshots.append(_initialized_location(logger))
 
     monkeypatch.setattr(TaskLogger, "log_start", check_start)
     ok, logs = eval_set(
@@ -1797,8 +2645,8 @@ def test_sample_source_retry_applies_limit_and_epochs_before_publication(
     async def check_start(logger: TaskLogger, plan: EvalPlan) -> None:
         await start(logger, plan)
         assert logger.prior_seeded
-        check_snapshot(logger.location)
-        snapshots.append(logger.location)
+        check_snapshot(_initialized_location(logger))
+        snapshots.append(_initialized_location(logger))
 
     monkeypatch.setattr(TaskLogger, "log_start", check_start)
     ok, logs = eval_set(
@@ -1825,6 +2673,97 @@ def test_sample_source_retry_applies_limit_and_epochs_before_publication(
         retried = next(s for s in final.samples or [] if s.id == 3)
         assert retried.error_retries
         assert "retry task" in retried.error_retries[-1].message
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_sample_source_retry_admission_copy_failure_keeps_total_samples(
+    log_format: Literal["eval", "json"],
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A limited retry that fails copying an admitted run's prior record still counts it.
+
+    The run is admitted (and charged to the limit) before its prior record
+    is copied, so the finished log's total must include it even when the
+    copy fails.
+    """
+    from inspect_ai._eval.task.log import TaskLogger
+    from inspect_ai._util._async import current_async_backend
+
+    failing = True
+
+    class Source(SampleSource):
+        def __init__(self) -> None:
+            self.next_id = 2
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=1, input="q", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self.next_id > 3:
+                return None
+            id = self.next_id
+            self.next_id += 1
+            return [Sample(id=id, input="q", target="ok")]
+
+    @solver
+    def fail_last_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 3 and failing:
+                raise RuntimeError("retry task")
+            return state
+
+        return solve
+
+    @task
+    def admission_copy_task() -> Task:
+        return Task(dataset=Source(), solver=fail_last_once())
+
+    log_dir = str(tmp_path / "logs")
+    ok, _ = eval_set(
+        admission_copy_task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        log_format=log_format,
+        retry_attempts=1,
+        retry_immediate=False,
+        fail_on_error=True,
+        retry_on_error=0,
+        display="none",
+    )
+    assert not ok
+    failing = False
+
+    async def fail_copy(
+        logger: TaskLogger,
+        prior: str | list[EvalSample],
+        keep: set[tuple[str | int, int]],
+    ) -> None:
+        assert current_async_backend() == backend
+        raise OSError("prior log unreadable")
+
+    monkeypatch.setattr(TaskLogger, "seed_added_samples", fail_copy)
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    ok, logs = eval_set(
+        admission_copy_task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        log_format=log_format,
+        limit=3,
+        retry_attempts=1,
+        retry_immediate=False,
+        retry_on_error=0,
+        display="none",
+    )
+    assert not ok
+    retry = read_eval_log(logs[0].location)
+    assert retry.status == "error"
+    assert retry.error is not None
+    assert "prior log unreadable" in retry.error.message
+    # the seed (1) plus the admitted run (2) whose copy failed
+    assert retry.total_samples == 2
 
 
 def test_sample_source_task_retry_reuses_explicit_epoch_runs() -> None:
@@ -2122,3 +3061,521 @@ def test_sample_source_task_retry_feed_raise_leaves_reuse_counted() -> None:
 
     # ...but the reused run was already counted completed, not cancelled
     assert observed and observed[0] == (1, 0, 0)
+
+
+def _initialized_location(logger: TaskLogger) -> str:
+    """The location of a logger whose log has been initialised."""
+    assert logger.location is not None
+    return logger.location
+
+
+# --- tasks fed through a handle (design/task-handles.md) --------------------
+
+
+@solver
+def _fed_solver() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.metadata.get("raise"):
+            raise ValueError("rollout failed")
+        return state
+
+    return solve
+
+
+def _fed_task(**kwargs: Any) -> Task:
+    kwargs.setdefault("fail_on_error", False)
+    return Task(
+        dataset=samples_from_handle(), solver=[_fed_solver()], name="fed", **kwargs
+    )
+
+
+@solver
+def _run_body(body: Any) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        await body(state)
+        return state
+
+    return solve
+
+
+def _creator(body: Any, name: str = "creator", **kwargs: Any) -> Task:
+    return Task(
+        dataset=[Sample(input="x")], solver=[_run_body(body)], name=name, **kwargs
+    )
+
+
+def _logs_named(logs: list[EvalLog], name: str) -> list[EvalLog]:
+    return [log for log in logs if log.eval.task == name]
+
+
+def test_fed_task_dataset_name_is_reserved() -> None:
+    from inspect_ai.dataset import MemoryDataset
+
+    assert _fed_task().dataset.name == "samples_from_handle"
+    reserved = MemoryDataset([Sample(input="x")], name="samples_from_handle")
+    with pytest.raises(ValueError, match="reserved"):
+        Task(dataset=reserved)
+    with pytest.raises(ValueError, match="reserved"):
+        task_with(Task(dataset=[Sample(input="x")]), dataset=reserved)
+
+
+def test_fed_task_sample_ids_and_delivery() -> None:
+    handles: list[TaskHandle] = []
+    sent: list[Sample] = []
+    returned: list[list[str]] = []
+
+    async def body(state: TaskState) -> None:
+        [first, second] = [enqueue_task(_fed_task())[0] for _ in range(2)]
+        handles.extend([first, second])
+        # sent before the task starts, and several at once, equal in value
+        samples = [Sample(input="same") for _ in range(3)]
+        sent.extend(samples)
+        runs: list[EvalSample] = []
+
+        async def send(sample: Sample) -> None:
+            runs.append(await first.enqueue_sample(sample))
+
+        async with anyio.create_task_group() as tg:
+            for sample in samples:
+                tg.start_soon(send, sample)
+        returned.append(sorted(str(run.id) for run in runs))
+        # one sent while next_samples() blocks starts at once
+        run = await first.enqueue_sample(Sample(input="later"))
+        returned.append([str(run.id)])
+        returned.append([str((await second.enqueue_sample(Sample(input="b"))).id)])
+        # the channel holds no request once each call has returned
+        queue = get_run_queue()
+        assert queue is not None
+        for handle in (first, second):
+            record = queue.find(handle.task_id)
+            assert record is not None and record.channel is not None
+            assert record.channel.requests == {}
+
+    logs = eval(_creator(body), model="mockllm/model", display="none")
+    fed = {log.eval.task_id: log for log in _logs_named(logs, "fed")}
+    first_token = handles[0].task_id[:8]
+    second_token = handles[1].task_id[:8]
+    assert first_token != second_token
+    assert returned == [
+        [f"send-{first_token}-000{n}" for n in (1, 2, 3)],
+        [f"send-{first_token}-0004"],
+        [f"send-{second_token}-0001"],
+    ]
+    # the caller's samples keep no id
+    assert all(sample.id is None for sample in sent)
+    first_log = fed[handles[0].task_id]
+    assert first_log.samples is not None
+    assert sorted(str(s.id) for s in first_log.samples) == [
+        f"send-{first_token}-000{n}" for n in (1, 2, 3, 4)
+    ]
+
+
+def test_fed_tasks_of_a_retried_creator_share_no_sample_id() -> None:
+    attempts: list[str] = []
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(_fed_task())
+        run = await handle.enqueue_sample(Sample(input="x"))
+        attempts.append(str(run.id))
+        if len(attempts) == 1:
+            raise ValueError("creator fails once")
+
+    logs = eval(
+        _creator(body),
+        model="mockllm/model",
+        display="none",
+        task_retry_attempts=1,
+    )
+    assert len(attempts) == 2 and attempts[0] != attempts[1]
+    assert len(_logs_named(logs, "fed")) == 2
+
+
+@pytest.mark.parametrize(
+    "run_args",
+    [{"sample_id": 3}, {"limit": 2}, {"epochs": 3}],
+    ids=["sample_id", "limit", "epochs"],
+)
+def test_run_selection_does_not_apply_to_a_fed_task(run_args: dict[str, Any]) -> None:
+    returned: list[int] = []
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(_fed_task())
+        for _ in range(4):
+            await handle.enqueue_sample(Sample(input="x"))
+            returned.append(1)
+        handle.close()
+
+    creator = Task(
+        dataset=[Sample(input=str(n), id=n) for n in range(1, 5)],
+        solver=[_run_body(body)],
+        name="creator",
+    )
+    logs = eval(creator, model="mockllm/model", display="none", **run_args)
+    [creator_log] = _logs_named(logs, "creator")
+    creator_runs = len(creator_log.samples or [])
+    expected_runs = {"sample_id": 1, "limit": 2, "epochs": 12}[next(iter(run_args))]
+    assert creator_runs == expected_runs
+    fed_logs = _logs_named(logs, "fed")
+    assert len(fed_logs) == creator_runs
+    assert len(returned) == 4 * creator_runs
+    for fed in fed_logs:
+        assert fed.samples is not None and len(fed.samples) == 4
+        assert fed.eval.config.limit is None
+        assert fed.eval.config.sample_id is None
+        assert fed.eval.config.epochs == 1
+
+
+@pytest.mark.parametrize("reducer", ["at_least_2", "pass_at_2", "pass_k_2"])
+def test_run_epoch_reducer_does_not_apply_to_a_fed_task(reducer: str) -> None:
+    from inspect_ai import Epochs
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(_fed_task())
+        await handle.enqueue_sample(Sample(input="x"))
+        handle.close()
+
+    logs = eval(
+        _creator(body),
+        model="mockllm/model",
+        display="none",
+        epochs=Epochs(3, reducer),
+    )
+    for fed in _logs_named(logs, "fed"):
+        assert fed.status == "success"
+        assert fed.eval.config.epochs == 1
+        assert fed.eval.config.epochs_reducer in (None, [])
+    [creator_log] = _logs_named(logs, "creator")
+    assert creator_log.eval.config.epochs == 3
+    assert creator_log.eval.config.epochs_reducer == [reducer]
+
+
+def test_fed_task_settings_resolve_before_the_runs() -> None:
+    from inspect_ai.approval import ApprovalPolicy, auto_approver
+
+    async def body(state: TaskState) -> None:
+        own = enqueue_task(
+            _fed_task(
+                time_limit=60,
+                turn_limit=100,
+                fail_on_error=False,
+                max_samples=3,
+                approval=[ApprovalPolicy(auto_approver("reject"), "*")],
+            )
+        )[0]
+        none = enqueue_task(
+            Task(dataset=samples_from_handle(), solver=[_fed_solver()], name="fed_none")
+        )[0]
+        enqueue_task(
+            Task(dataset=[Sample(input="o")], turn_limit=100, epochs=1, name="ordinary")
+        )
+        for handle in (own, none):
+            await handle.enqueue_sample(Sample(input="x"))
+            handle.close()
+
+    logs = eval(
+        _creator(body),
+        model="mockllm/model",
+        display="none",
+        time_limit=10,
+        message_limit=5,
+        turn_limit=5,
+        fail_on_error=True,
+        max_samples=2,
+        epochs=3,
+        approval=[ApprovalPolicy(auto_approver("approve"), "*")],
+    )
+    # the creator runs three epochs, each adding the three tasks
+    assert len(_logs_named(logs, "fed")) == 3
+    own = _logs_named(logs, "fed")[0]
+    none = _logs_named(logs, "fed_none")[0]
+    ordinary = _logs_named(logs, "ordinary")[0]
+    assert own.eval.config.time_limit == 60
+    assert own.eval.config.turn_limit == 100
+    assert own.eval.config.fail_on_error is False
+    assert own.eval.config.message_limit == 5
+    assert own.eval.config.max_samples == 3
+    assert none.eval.config.time_limit == 10
+    assert none.eval.config.turn_limit == 5
+    assert none.eval.config.fail_on_error is True
+    assert none.eval.config.message_limit == 5
+    assert none.eval.config.max_samples == 2
+    # the run's approval policy applies to a fed task that sets its own
+    assert own.eval.config.approval is not None
+    assert own.eval.config.approval.approvers[0].params.get("decision") == "approve"
+    # an ordinary added task takes the run's values, as before
+    assert ordinary.eval.config.turn_limit == 5
+    assert ordinary.eval.config.epochs == 3
+
+
+def test_fed_task_without_max_samples_takes_the_model_default() -> None:
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(_fed_task())
+        await handle.enqueue_sample(Sample(input="x"))
+        handle.close()
+
+    logs = eval(_creator(body), model="mockllm/model", display="none")
+    [fed] = _logs_named(logs, "fed")
+    assert fed.eval.config.max_samples is None
+
+
+def test_free_enqueue_sample_is_refused_in_a_fed_task() -> None:
+    refused: list[BaseException] = []
+
+    @solver
+    def adds_own() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            try:
+                enqueue_sample(Sample(input="extra"))
+            except RuntimeError as ex:
+                refused.append(ex)
+            return state
+
+        return solve
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(
+            Task(dataset=samples_from_handle(), solver=[adds_own()], name="fed")
+        )
+        await handle.enqueue_sample(Sample(input="x"))
+        handle.close()
+
+    @solver
+    def ordinary_adds() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.input == "seed":
+                enqueue_sample(Sample(input="added"))
+            return state
+
+        return solve
+
+    ordinary = Task(
+        dataset=SampleSource.from_samples([Sample(input="seed")]),
+        solver=[ordinary_adds()],
+        name="ordinary",
+    )
+    logs = eval([_creator(body), ordinary], model="mockllm/model", display="none")
+    assert len(refused) == 1
+    [fed] = _logs_named(logs, "fed")
+    assert fed.samples is not None and len(fed.samples) == 1
+    [ordinary_log] = _logs_named(logs, "ordinary")
+    assert _sample_inputs(ordinary_log) == ["added", "seed"]
+
+
+def test_first_errored_rollout_ends_a_fed_task_with_default_fail_on_error() -> None:
+    outcomes: list[Any] = []
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(
+            Task(dataset=samples_from_handle(), solver=[_fed_solver()], name="fed")
+        )
+        run = await handle.enqueue_sample(Sample(input="x", metadata={"raise": True}))
+        outcomes.append(run.error is not None)
+        with pytest.raises(TaskEndedError) as raised:
+            await handle.enqueue_sample(Sample(input="y"))
+        outcomes.append(raised.value.log)
+
+    logs = eval(_creator(body), model="mockllm/model", display="none")
+    [fed] = _logs_named(logs, "fed")
+    assert fed.status == "error"
+    assert outcomes[0] is True
+    assert outcomes[1] is not None and outcomes[1].eval.eval_id == fed.eval.eval_id
+
+
+@pytest.mark.parametrize("action", ["drain", "score", "error"])
+def test_graceful_cancel_of_an_idle_fed_task_ends_it(
+    action: Literal["drain", "score", "error"],
+) -> None:
+    from inspect_ai._control.cancel import cancel_task, drain_task
+
+    outcomes: list[str] = []
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(_fed_task())
+        await handle.enqueue_sample(Sample(input="x"))
+        # the task idles in next_samples(); a graceful cancel ends it
+        if action == "drain":
+            drain_task(handle.task_id)
+        else:
+            cancel_task(handle.task_id, action=action)
+        log = await handle.result()
+        outcomes.append(log.status if log is not None else "none")
+        with pytest.raises(TaskEndedError):
+            await handle.enqueue_sample(Sample(input="y"))
+
+    logs = eval(_creator(body), model="mockllm/model", display="none")
+    assert _logs_named(logs, "creator")[0].status == "success"
+    assert outcomes == ["success"]
+
+
+def test_creator_attempt_end_closes_its_channels() -> None:
+    async def body(state: TaskState) -> None:
+        [used] = enqueue_task(_fed_task())
+        enqueue_task(Task(dataset=samples_from_handle(), name="unused"))
+        await used.enqueue_sample(Sample(input="x"))
+        # neither handle is closed: the creator's attempt end closes both
+
+    logs = eval(_creator(body), model="mockllm/model", display="none")
+    assert sorted(log.eval.task for log in logs) == ["creator", "fed"]
+    assert all(log.status == "success" for log in logs)
+
+
+def test_fed_task_failure_does_not_fail_an_eval_set(tmp_path: Path) -> None:
+    async def body(state: TaskState) -> None:
+        [failing] = enqueue_task(
+            Task(dataset=samples_from_handle(), solver=[_fed_solver()], name="fed")
+        )
+        await failing.enqueue_sample(Sample(input="x", metadata={"raise": True}))
+        with pytest.raises(TaskEndedError):
+            await failing.enqueue_sample(Sample(input="y"))
+        # a fresh rollout task replaces the failed one
+        [fresh] = enqueue_task(_fed_task())
+        await fresh.enqueue_sample(Sample(input="z"))
+        # and one cancelled before it starts, and one cancelled running
+        [unstarted] = enqueue_task(_fed_task())
+        unstarted.cancel()
+        [running] = enqueue_task(_fed_task())
+        await running.enqueue_sample(Sample(input="w"))
+        running.cancel()
+
+    success, logs = eval_set(
+        _creator(body), log_dir=str(tmp_path), model="mockllm/model"
+    )
+    assert success
+    fed_logs = _logs_named(logs, "fed")
+    assert sorted(log.status for log in fed_logs) == ["error", "error", "success"]
+    on_disk = [info.name for info in list_eval_logs(str(tmp_path))]
+    assert len(on_disk) == 4
+
+    # a creator that fails makes the result failure
+    async def failing_body(state: TaskState) -> None:
+        [handle] = enqueue_task(_fed_task())
+        await handle.enqueue_sample(Sample(input="x"))
+        raise ValueError("search failed")
+
+    success, _ = eval_set(
+        _creator(failing_body, name="failing"),
+        log_dir=str(tmp_path / "failing"),
+        model="mockllm/model",
+        retry_attempts=0,
+    )
+    assert not success
+
+
+def test_eval_retry_refuses_a_fed_tasks_log(tmp_path: Path) -> None:
+    factory_calls: list[int] = []
+
+    @task
+    def registered_rollout() -> Task:
+        factory_calls.append(1)
+        return Task(dataset=SampleSource.from_samples([]), name="registered_rollout")
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(
+            task_with(registered_rollout(), dataset=samples_from_handle())
+        )
+        await handle.enqueue_sample(Sample(input="x"))
+
+    logs = eval(
+        _creator(body), model="mockllm/model", display="none", log_dir=str(tmp_path)
+    )
+    [fed] = _logs_named(logs, "registered_rollout")
+    assert fed.status == "success"
+    assert fed.eval.dataset.name == "samples_from_handle"
+    calls = len(factory_calls)
+    before = {info.name for info in list_eval_logs(str(tmp_path))}
+    with pytest.raises(PrerequisiteError, match="took its samples through"):
+        eval_retry(fed, log_dir=str(tmp_path))
+    assert len(factory_calls) == calls
+    assert {info.name for info in list_eval_logs(str(tmp_path))} == before
+
+
+@pytest.mark.parametrize("action", ["sample_cancel", "drain", "score", "error"])
+async def test_sample_abandoned_before_running_settles_its_sender(
+    tmp_path: Path, action: str
+) -> None:
+    from inspect_ai._control.cancel import cancel_sample, cancel_task, drain_task
+    from inspect_ai._control.eval_state import latest_eval_for_task
+
+    running = anyio.Event()
+    release = anyio.Event()
+    outcomes: dict[str, EvalSample | SampleAbandonedError] = {}
+    ids: list[str] = []
+    still_held: list[bool] = []
+
+    @solver
+    def hold() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            running.set()
+            await release.wait()
+            return state
+
+        return solve
+
+    async def body(state: TaskState) -> None:
+        [handle] = enqueue_task(
+            Task(
+                dataset=samples_from_handle(),
+                solver=[hold()],
+                max_samples=1,
+                fail_on_error=False,
+                name="fed",
+            )
+        )
+        queue = get_run_queue()
+        assert queue is not None
+        record = queue.find(handle.task_id)
+        assert record is not None and record.channel is not None
+        channel = record.channel
+
+        async def send(label: str) -> None:
+            try:
+                outcomes[label] = await handle.enqueue_sample(Sample(input=label))
+            except SampleAbandonedError as ex:
+                outcomes[label] = ex
+                # settled by the abandonment itself, while the task runs on
+                still_held.append(str(ex.sample.id) in channel.requests)
+                still_held.append(record.phase == "ended")
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(send, "a")
+            await running.wait()
+            # b waits for the only sample slot
+            tg.start_soon(send, "b")
+            await anyio.wait_all_tasks_blocked()
+            ids.extend(channel.requests)
+            eval_state = latest_eval_for_task(handle.task_id)
+            assert eval_state is not None
+            if action == "sample_cancel":
+                cancelled = await cancel_sample(
+                    eval_state.eval_id, ids[1], 1, action="cancel"
+                )
+                assert cancelled is not None and cancelled["ok"]
+            else:
+                stamped = (
+                    drain_task(handle.task_id)
+                    if action == "drain"
+                    else cancel_task(
+                        handle.task_id,
+                        action="score" if action == "score" else "error",
+                    )
+                )
+                assert stamped is not None and stamped["ok"]
+            release.set()
+        await handle.result()
+
+    with anyio.fail_after(30):
+        logs = await eval_async(
+            _creator(body), model="mockllm/model", log_dir=str(tmp_path)
+        )
+    assert all(log.status == "success" for log in logs)
+    abandoned = outcomes["b"]
+    assert isinstance(abandoned, SampleAbandonedError)
+    assert abandoned.sample.id == ids[1] and ids[1].startswith("send-")
+    assert still_held == [False, False]
+    # a follows the directive's own rule
+    ran = outcomes["a"]
+    assert isinstance(ran, EvalSample) and ran.id == ids[0]
+    if action in ("sample_cancel", "drain"):
+        assert ran.error is None
+    elif action == "error":
+        assert ran.error is not None

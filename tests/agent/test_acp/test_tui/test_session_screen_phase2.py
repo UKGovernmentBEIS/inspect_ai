@@ -25,7 +25,6 @@ from textual.widgets import Static
 
 from inspect_ai.agent._acp.tui.app import InspectAcpApp
 from inspect_ai.agent._acp.tui.client import SessionRow
-from inspect_ai.agent._acp.tui.session_screen import SessionScreen
 from inspect_ai.agent._acp.tui.state import SessionState, StatusState
 from inspect_ai.agent._acp.tui.widgets import (
     MessageWidget,
@@ -34,7 +33,7 @@ from inspect_ai.agent._acp.tui.widgets import (
     TranscriptWidget,
 )
 
-from .conftest import make_fake_client
+from .conftest import make_fake_client, open_session_screen
 
 pytestmark = pytest.mark.slow
 
@@ -74,17 +73,6 @@ def _usage(used: int, size: int) -> SessionNotification:
     return SessionNotification(session_id="sid", update=upd)
 
 
-async def _open_session_screen(
-    app: InspectAcpApp, pilot: Any, row: SessionRow
-) -> SessionScreen:
-    app.screen._on_select(row)  # type: ignore[attr-defined]
-    for _ in range(30):
-        await pilot.pause()
-        if isinstance(app.screen, SessionScreen):
-            return app.screen
-    raise AssertionError("SessionScreen did not mount")
-
-
 @skip_if_trio
 @pytest.mark.anyio
 async def test_app_passes_on_session_update_to_attach(
@@ -109,7 +97,7 @@ async def test_app_passes_on_session_update_to_attach(
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
         await pilot.pause()
-        await _open_session_screen(app, pilot, sample_rows[0])
+        await open_session_screen(pilot, sample_rows)
         kwargs = seen.get("kwargs", {})
         assert "on_session_update" in kwargs
         # And that callback should be the SessionState's consume — a
@@ -132,7 +120,7 @@ async def test_session_screen_in_flight_tool_reaches_transcript(
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
         await pilot.pause()
-        screen = await _open_session_screen(app, pilot, sample_rows[0])
+        screen = await open_session_screen(pilot, sample_rows)
         screen.state.consume(_tool_start())
         await pilot.pause()
         tr = screen.query_one(TranscriptWidget)
@@ -148,7 +136,7 @@ async def test_session_screen_renders_message_and_tool_call(
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
         await pilot.pause()
-        screen = await _open_session_screen(app, pilot, sample_rows[0])
+        screen = await open_session_screen(pilot, sample_rows)
         # An assistant chunk + a completed tool call should both
         # appear in the transcript in arrival order.
         screen.state.consume(_agent_chunk("hello world"))
@@ -181,7 +169,7 @@ async def test_session_screen_token_chip_updates_on_usage_notification(
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
         await pilot.pause()
-        screen = await _open_session_screen(app, pilot, sample_rows[0])
+        screen = await open_session_screen(pilot, sample_rows)
         screen.state.consume(_usage(used=2_500, size=200_000))
         await pilot.pause()
         meta = screen.query_one(SessionHeaderWidget).query_one("#meta-text", Static)

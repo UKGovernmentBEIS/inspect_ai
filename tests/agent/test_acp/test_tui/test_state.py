@@ -2283,6 +2283,47 @@ def test_bridged_tool_call_excluded_from_cancel_eligibility() -> None:
     assert state.cancel_tool_call_ids == ["tc-react"]
 
 
+def test_update_marking_a_bridged_tool_cancelable_offers_it_for_cancel() -> None:
+    """A host tool the sandbox bridge runs for a proposed call becomes cancelable.
+
+    Its card starts as a non-cancelable synthesized bridged card; the update
+    from the real pending ``ToolEvent`` carries the marker set to True.
+    """
+    from inspect_ai.agent._acp.inspect_ext import TOOL_CALL_CANCELABLE_META_KEY
+
+    state = SessionState()
+    state.consume(
+        SessionNotification(
+            session_id="sid",
+            update=ToolCallStart(
+                session_update="tool_call",
+                tool_call_id="tc-host",
+                title="read_file notes.txt",
+                status="in_progress",
+                field_meta={TOOL_CALL_CANCELABLE_META_KEY: False},
+            ),
+        )
+    )
+    assert state.cancel_tool_call_ids == []
+
+    state.consume(
+        SessionNotification(
+            session_id="sid",
+            update=ToolCallProgress(
+                session_update="tool_call_update",
+                tool_call_id="tc-host",
+                status="in_progress",
+                field_meta={TOOL_CALL_CANCELABLE_META_KEY: True},
+            ),
+        )
+    )
+    assert state.cancel_tool_call_ids == ["tc-host"]
+
+    # an update without the marker leaves it as it is
+    state.consume(_tool_progress("tc-host", status="in_progress"))
+    assert state.cancel_tool_call_ids == ["tc-host"]
+
+
 def test_default_tool_call_is_cancelable() -> None:
     """A tool start without the marker is cancelable (the react default)."""
     state = SessionState()

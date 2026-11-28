@@ -1,0 +1,254 @@
+{
+  "description": "A lone agent span becomes the timeline's root, and the solvers' own calls are unrolled into it beside the agent's: continuity runs over each conversation of the span apart, so the agent's single call, which nothing continues, keeps the existing rules' answer rather than being taken for a side call of the solvers' thread.",
+  "events": [
+    {
+      "event": "span_begin",
+      "id": "solvers",
+      "name": "solvers",
+      "type": "solvers",
+      "parent_id": null,
+      "timestamp": "2026-01-01T00:00:00Z",
+      "uuid": "sb-solvers"
+    },
+    {
+      "event": "span_begin",
+      "id": "helping",
+      "name": "helping",
+      "type": "solver",
+      "parent_id": "solvers",
+      "timestamp": "2026-01-01T00:00:01Z",
+      "uuid": "sb-helping"
+    },
+    {
+      "event": "span_begin",
+      "id": "helper",
+      "name": "helper",
+      "type": "agent",
+      "parent_id": "helping",
+      "timestamp": "2026-01-01T00:00:02Z",
+      "uuid": "sb-helper"
+    },
+    {
+      "event": "model",
+      "uuid": "h1",
+      "span_id": "helper",
+      "timestamp": "2026-01-01T00:00:03Z",
+      "completed": "2026-01-01T00:00:04Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "user",
+          "content": "Help me add."
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "h",
+                  "function": "addition",
+                  "arguments": {
+                    "x": 1,
+                    "y": 1
+                  }
+                }
+              ]
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "tool",
+      "uuid": "th",
+      "span_id": "helper",
+      "timestamp": "2026-01-01T00:00:05Z",
+      "completed": "2026-01-01T00:00:06Z",
+      "id": "h",
+      "function": "addition",
+      "arguments": {
+        "x": 1,
+        "y": 1
+      },
+      "result": "2",
+      "events": []
+    },
+    {
+      "event": "span_end",
+      "id": "helper",
+      "timestamp": "2026-01-01T00:00:07Z",
+      "uuid": "se-helper"
+    },
+    {
+      "event": "span_end",
+      "id": "helping",
+      "timestamp": "2026-01-01T00:00:08Z",
+      "uuid": "se-helping"
+    },
+    {
+      "event": "span_begin",
+      "id": "generate",
+      "name": "generate",
+      "type": "solver",
+      "parent_id": "solvers",
+      "timestamp": "2026-01-01T00:00:09Z",
+      "uuid": "sb-generate"
+    },
+    {
+      "event": "model",
+      "uuid": "m1",
+      "span_id": "generate",
+      "timestamp": "2026-01-01T00:00:10Z",
+      "completed": "2026-01-01T00:00:11Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "function": "addition",
+                  "arguments": {
+                    "x": 1,
+                    "y": 1
+                  }
+                }
+              ]
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "tool",
+      "uuid": "t1",
+      "span_id": "generate",
+      "timestamp": "2026-01-01T00:00:12Z",
+      "completed": "2026-01-01T00:00:13Z",
+      "id": "c1",
+      "function": "addition",
+      "arguments": {
+        "x": 1,
+        "y": 1
+      },
+      "result": "2",
+      "events": []
+    },
+    {
+      "event": "model",
+      "uuid": "m2",
+      "span_id": "generate",
+      "timestamp": "2026-01-01T00:00:14Z",
+      "completed": "2026-01-01T00:00:15Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "function": "addition",
+              "arguments": {
+                "x": 1,
+                "y": 1
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "content": "2",
+          "tool_call_id": "c1",
+          "function": "addition"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "auto",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "2"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "generate",
+      "timestamp": "2026-01-01T00:00:16Z",
+      "uuid": "se-generate"
+    },
+    {
+      "event": "span_end",
+      "id": "solvers",
+      "timestamp": "2026-01-01T01:00:00Z",
+      "uuid": "se-solvers"
+    }
+  ],
+  "expected": {
+    "init": null,
+    "agent": {
+      "id": "helper",
+      "name": "main",
+      "event_uuids": [
+        "sb-generate",
+        "m1",
+        "t1",
+        "m2",
+        "se-generate",
+        "h1",
+        "th"
+      ]
+    },
+    "scoring": null
+  }
+}

@@ -1,6 +1,8 @@
 import hashlib
 import uuid
-from typing import Any, cast
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Iterator, cast
 
 import shortuuid
 from pydantic import BaseModel, JsonValue
@@ -67,10 +69,44 @@ def auto_id(base: str, index: str) -> str:
     return shortuuid.encode(long_uuid)
 
 
+_message_renders: ContextVar[dict[int, tuple[ChatMessage, str]] | None] = ContextVar(
+    "_message_renders", default=None
+)
+
+
+@contextmanager
+def message_render_cache() -> Iterator[None]:
+    """Reuse `messages_as_str()` renders of the same message object within this scope.
+
+    A sample's model events share message objects across their cumulative inputs,
+    so rendering each input from scratch re-renders earlier messages for every
+    event. Entries are keyed by object identity and hold a reference to the
+    message, so messages that share an id but differ in content render separately
+    and an object id can't be reused while the scope is open. Messages must not be
+    mutated while the scope is open.
+    """
+    token = _message_renders.set({})
+    try:
+        yield
+    finally:
+        _message_renders.reset(token)
+
+
 def messages_as_str(messages: str | list[ChatMessage]) -> str:
     if isinstance(messages, str):
         messages = [ChatMessageUser(content=messages)]
-    return "\n\n".join([message_as_str(message) for message in messages])
+    renders = _message_renders.get()
+    if renders is None:
+        return "\n\n".join([message_as_str(message) for message in messages])
+
+    rendered: list[str] = []
+    for message in messages:
+        entry = renders.get(id(message))
+        if entry is None:
+            entry = (message, message_as_str(message))
+            renders[id(message)] = entry
+        rendered.append(entry[1])
+    return "\n\n".join(rendered)
 
 
 def message_as_str(message: ChatMessage) -> str:

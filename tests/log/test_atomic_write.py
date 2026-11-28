@@ -200,6 +200,17 @@ class TestAtomicWriteInvalidInputs:
 
         assert target.read_bytes() == b"data"
 
+    def test_missing_parent_directory_not_created_when_asked(
+        self, tmp_path: Path
+    ) -> None:
+        """With ``make_parents=False`` a missing parent fails the write."""
+        target = tmp_path / "a" / "c.dat"
+
+        with pytest.raises(FileNotFoundError):
+            atomic_write_bytes(str(target), b"data", make_parents=False)
+
+        assert not (tmp_path / "a").exists()
+
     def test_remote_path_rejected(self) -> None:
         """Remote paths must be rejected — use AsyncFilesystem instead."""
         with pytest.raises(ValueError, match="local"):
@@ -241,6 +252,25 @@ class TestAtomicWriteFileMode:
             f.write(b"x")
 
         assert stat.S_IMODE(target.stat().st_mode) == expected
+
+    def test_mode_applies_to_new_and_existing_files(self, tmp_path: Path) -> None:
+        """An explicit mode is used at creation, never a looser one."""
+        new = tmp_path / "new.dat"
+        existing = tmp_path / "existing.dat"
+        existing.write_bytes(b"old")
+        os.chmod(existing, 0o644)
+        umask = os.umask(0o022)
+        try:
+            # created with the mode, not loosened then tightened
+            with mock.patch("os.chmod") as chmod:
+                atomic_write_bytes(str(new), b"x", mode=0o600)
+                atomic_write_bytes(str(existing), b"y", mode=0o600)
+            chmod.assert_not_called()
+        finally:
+            os.umask(umask)
+
+        assert stat.S_IMODE(new.stat().st_mode) == 0o600
+        assert stat.S_IMODE(existing.stat().st_mode) == 0o600
 
 
 class TestAtomicWriteInterruption:

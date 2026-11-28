@@ -35,8 +35,9 @@ class LogPlan:
     """One log's identity, read from its central directory and header."""
 
     file: LogFile
-    central_directory: CentralDirectory
-    """The central directory the header was read through."""
+    central_directory: CentralDirectory | None
+    """The central directory the header was read through (``None`` for a plan
+    from the cache, which holds no central directory)."""
 
     header: EvalLog
     """``header.json`` for a finished log; for a running one, a header built
@@ -46,8 +47,12 @@ class LogPlan:
     """Whether the log has ``header.json``."""
 
     version: str | None = None
-    """The version of the log object ``central_directory`` was read from
-    (see :func:`~.consistency.read_version`); ``None`` when unknown."""
+    """The version of the log object ``header`` was read from (see
+    :func:`~.consistency.read_version`); ``None`` when unknown."""
+
+    header_crc: int | None = None
+    """CRC-32 of the member ``header`` was read from (``header.json`` or
+    ``_journal/start.json``)."""
 
     @property
     def running(self) -> bool:
@@ -213,12 +218,19 @@ class Totals(NamedTuple):
 
 
 def authoritative_total(plan: LogPlan) -> int | None:
-    """A finished log's ``results.total_samples``, which counts admitted samples.
+    """A finished log's count of admitted samples.
 
-    ``None`` for a running log and for a finished one without ``results`` (an
-    eval that failed before any sample was scored).
+    The header's ``total_samples``, which rescoring leaves unchanged; for a
+    log that lacks it (older versions, recovered logs), ``results.total_samples``.
+    ``None`` for a log without ``header.json`` and for one with neither. A
+    preview (``run_samples=False``) has ``header.json`` and a total while its
+    status stays ``started``.
     """
-    if not plan.finished or plan.header.results is None:
+    if not plan.finished:
+        return None
+    if plan.header.total_samples is not None:
+        return plan.header.total_samples
+    if plan.header.results is None:
         return None
     return plan.header.results.total_samples
 

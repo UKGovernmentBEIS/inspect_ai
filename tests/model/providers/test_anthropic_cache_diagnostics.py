@@ -176,6 +176,7 @@ async def test_request_carries_diagnostics_when_beta_on() -> None:
         pending_tool_uses: Any = None,
         pending_mcp_tool_uses: Any = None,
         span_recorder: Any = None,
+        chain: Any = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
         return {}, ModelOutput.from_content(

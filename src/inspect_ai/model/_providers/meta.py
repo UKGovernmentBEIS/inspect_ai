@@ -3,6 +3,7 @@ import re
 from logging import getLogger
 from typing import Any
 
+from openai._types import NOT_GIVEN
 from typing_extensions import override
 
 from inspect_ai._util.logger import warn_once
@@ -13,11 +14,12 @@ from .._generate_config import GenerateConfig
 from .._model_call import ModelCall
 from .._model_output import ModelOutput
 from ._first_party import FRONTIER_MODELS
-from .openai_compatible import OpenAICompatibleAPI
+from .openai_compatible import OpenAICompatibleAPI, PromptCacheParams
 from .util import (
     environment_prerequisite_error,
     forced_tool_choice_degraded_metadata,
     is_forced_tool_choice,
+    sample_cache_affinity_key,
 )
 
 logger = getLogger(__name__)
@@ -42,6 +44,17 @@ META_UNSUPPORTED_PARAM_WARNING = (
     "The {parameter} parameter is not supported by {model} and will be ignored."
 )
 
+META_CHAT_CACHE_RETENTION_WARNING = (
+    "The prompt_cache_retention parameter is only supported by the Responses "
+    "API and will be ignored (responses_api=False)."
+)
+
+# Retention requested when the caller does not set one. Retention is a
+# Responses-only hint (https://dev.meta.ai/docs/prompt-caching); the API
+# default is "in_memory", which is evicted under memory pressure.
+META_DEFAULT_CACHE_RETENTION = "24h"
+META_CACHE_RETENTION_VALUES = ("in_memory", "24h")
+
 # Chat Completions params the API rejects with a 400 (the Responses path
 # already omits these with a warning of its own).
 META_CHAT_UNSUPPORTED_PARAMS = ("stop", "logit_bias", "n")
@@ -50,11 +63,12 @@ META_CHAT_UNSUPPORTED_PARAMS = ("stop", "logit_bias", "n")
 def supports_max_reasoning_effort(model: str) -> bool:
     """Whether Meta accepts `reasoning_effort="max"` for `model`.
 
-    Meta documents `max` for standard-tier `muse-spark-1.3` only: not the
-    `-contributor` tier and not older versions (https://dev.meta.ai/docs/reasoning).
-    Later standard-tier versions are assumed to keep it, as are standard-tier
-    models outside the `muse-spark-X.Y` naming (e.g. a predeployment codename),
-    which are treated as the current frontier.
+    Meta documents `max` for `muse-wonder-1.0`, `muse-ember-1.0` and
+    standard-tier `muse-spark-1.3`: not the `-contributor` tier and not older
+    Muse Spark versions (https://dev.meta.ai/docs/reasoning,
+    https://dev.meta.ai/docs/choose-a-model). Later standard-tier versions are
+    assumed to keep it, as are standard-tier models outside the
+    `muse-spark-X.Y` naming (e.g. a predeployment codename).
     """
     name = model.lower()
     if "-contributor" in name:
@@ -90,12 +104,16 @@ def _flag_refusal_stop(output: ModelOutput) -> None:
 
 
 class MetaAPI(OpenAICompatibleAPI):
-    """Provider for Muse Spark models on the Meta Model API.
+    """Provider for Muse models on the Meta Model API.
 
     Uses the Responses API by default (Chat Completions redacts reasoning and
     cannot carry it across turns) with streaming enabled (the model reasons
     before emitting any visible output). Pass `responses_api=False` or
     `stream=False` as model args to override.
+
+    Requests within a sample carry its id as `prompt_cache_key` and, on the
+    Responses API, ask for 24 hour cache retention. Override these with the
+    `prompt_cache_key` and `prompt_cache_retention` model args.
     """
 
     def __init__(
@@ -106,9 +124,26 @@ class MetaAPI(OpenAICompatibleAPI):
         config: GenerateConfig = GenerateConfig(),
         responses_api: bool = True,
         strict_tools: bool = False,
+        prompt_cache_key: str | None = None,
+        prompt_cache_retention: str | None = None,
         **model_args: Any,
     ) -> None:
         from inspect_ai.hooks._hooks import has_api_key_override
+
+        self.prompt_cache_key = prompt_cache_key
+        if prompt_cache_retention is not None:
+            if prompt_cache_retention not in META_CACHE_RETENTION_VALUES:
+                raise ValueError(
+                    f"Invalid prompt_cache_retention {prompt_cache_retention!r} "
+                    f"(expected one of {', '.join(META_CACHE_RETENTION_VALUES)})."
+                )
+            if not responses_api:
+                warn_once(logger, META_CHAT_CACHE_RETENTION_WARNING)
+        self.prompt_cache_retention = (
+            prompt_cache_retention
+            if prompt_cache_retention is not None
+            else META_DEFAULT_CACHE_RETENTION
+        )
 
         # name the env var the key came from; with neither set, defer to the
         # base class only if an api_key hook may still supply one
@@ -222,9 +257,37 @@ class MetaAPI(OpenAICompatibleAPI):
             tool_choice = "auto"
         return tools, tool_choice, config
 
+    def resolve_prompt_cache_key(self, config: GenerateConfig) -> str | None:
+        """The `prompt_cache_key` to send, or None to leave it to the caller.
+
+        The `prompt_cache_key` model arg wins, then the running sample's id
+        (see `sample_cache_affinity_key()`). A key already in
+        `config.extra_body` (e.g. from a bridged agent) is left in place.
+        """
+        if config.extra_body and "prompt_cache_key" in config.extra_body:
+            return None
+        return self.prompt_cache_key or sample_cache_affinity_key()
+
+    @override
+    def prompt_cache_params(self, config: GenerateConfig) -> PromptCacheParams:
+        key = self.resolve_prompt_cache_key(config)
+        retention_in_extra_body = (
+            config.extra_body is not None
+            and "prompt_cache_retention" in config.extra_body
+        )
+        return PromptCacheParams(
+            key=key if key is not None else NOT_GIVEN,
+            retention=NOT_GIVEN
+            if retention_in_extra_body
+            else self.prompt_cache_retention,
+        )
+
     @override
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = super().completion_params(config, tools)
+        prompt_cache_key = self.resolve_prompt_cache_key(config)
+        if prompt_cache_key is not None:
+            params["prompt_cache_key"] = prompt_cache_key
         # the API documents max_completion_tokens (not the legacy max_tokens)
         if "max_tokens" in params:
             params["max_completion_tokens"] = params.pop("max_tokens")

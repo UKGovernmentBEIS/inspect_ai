@@ -10,7 +10,17 @@ from typing import Any
 
 import pytest
 
-from inspect_ai import Task, TaskSource, eval_set, task
+from inspect_ai import (
+    Task,
+    TaskEndedError,
+    TaskSource,
+    enqueue_task,
+    eval,
+    eval_set,
+    samples_from_handle,
+    task,
+    task_with,
+)
 from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._eval.eval_set_manifest import (
     INSPECT_EVAL_SET_CAPTURE,
@@ -20,6 +30,7 @@ from inspect_ai._eval.eval_set_overrides import (
     INSPECT_EVAL_SET_OVERRIDES,
     EvalSetOverrides,
 )
+from inspect_ai._eval.eval_set_pruning import is_placeholder, reset_pruning
 from inspect_ai._eval.eval_set_selection import (
     EVAL_SET_SELECTION_VERSION,
     INSPECT_EVAL_SET_SELECTION,
@@ -30,9 +41,16 @@ from inspect_ai._eval.eval_set_selection import (
 from inspect_ai._eval.evalset import task_identifier
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog, list_eval_logs, read_eval_log
+from inspect_ai.log import (
+    EvalLog,
+    ProvenanceData,
+    list_eval_logs,
+    read_eval_log,
+    zero_samples,
+)
+from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.scorer import Score, Scorer, Target, exact, scorer
+from inspect_ai.scorer import Score, Scorer, Target, exact, includes, scorer
 from inspect_ai.scorer._metrics import accuracy
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util._checkpoint import CheckpointConfig
@@ -60,7 +78,11 @@ def selection_task_two() -> Task:
 
 
 def enumerate_eval_set(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **kwargs: Any
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    tasks: list[Task] | None = None,
+    **kwargs: Any,
 ) -> EvalSetCapture:
     """Enumerate the eval set under capture mode (how a runner learns identifiers)."""
     manifest_path = tmp_path / "manifest.json"
@@ -68,7 +90,9 @@ def enumerate_eval_set(
     try:
         with pytest.raises(SystemExit):
             eval_set(
-                tasks=[selection_task_one(), selection_task_two()],
+                tasks=[selection_task_one(), selection_task_two()]
+                if tasks is None
+                else tasks,
                 model=MODELS,
                 log_dir=str(tmp_path / "capture-logs"),
                 display="plain",
@@ -139,6 +163,209 @@ def test_eval_set_selection_runs_only_selected_task(
     assert logs[0].eval.model == "mockllm/model2"
     # the eval set has four tasks; the worker ran exactly one
     assert len(list_eval_logs(str(log_dir))) == 1
+
+
+@task
+def selection_zero_task() -> Task:
+    return Task(
+        dataset=[
+            Sample(id="a", input="hi", target="Default output from mockllm/model"),
+            Sample(id="b", input="hi", target="Default output from mockllm/model"),
+        ],
+        solver=[generate()],
+        scorer=includes(),
+    )
+
+
+def test_eval_set_selection_empty_attempt_log_can_zero_samples(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A worker runs the selected task with `empty_attempt()`, and `zero_samples()` accepts its log."""
+    capture = enumerate_eval_set(monkeypatch, tmp_path, tasks=[selection_zero_task()])
+    identifier = next(t.identifier for t in capture.tasks if t.model == "mockllm/model")
+
+    def run(selection: EvalSetSelection, name: str) -> EvalLog:
+        success, logs = run_selection(
+            monkeypatch,
+            tmp_path,
+            selection,
+            tmp_path / name,
+            tasks=[selection_zero_task()],
+            name=name,
+        )
+        assert success
+        assert len(logs) == 1
+        return read_eval_log(logs[0].location)
+
+    log = run(selection_for(identifier), "logs")
+    empty = run(
+        EvalSetSelection(
+            version=EVAL_SET_SELECTION_VERSION,
+            eval_set_id="worker-test",
+            tasks=[EvalSetSelectionTask(identifier=identifier)],
+            empty_attempt=True,
+        ),
+        "empty",
+    )
+
+    assert log.eval.solver is None
+    assert empty.eval.solver == "inspect_ai/empty_attempt"
+    assert empty.eval.task == log.eval.task
+
+    zero_samples(log, empty, ["a"], ProvenanceData(author="runner", reason="zeroed"))
+
+    scores = {s.id: (s.scores or {})["includes"].value for s in log.samples or []}
+    assert scores == {"a": "I", "b": "C"}
+
+
+def test_selection_empty_attempt_cannot_resume(tmp_path: Path) -> None:
+    """An empty attempt's log never matches the task's identifier, so resuming one is refused when the selection is read."""
+    path = tmp_path / "selection.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": EVAL_SET_SELECTION_VERSION,
+                "eval_set_id": "probe",
+                "tasks": [{"identifier": "a", "resume": "logs/a.eval"}],
+                "empty_attempt": True,
+            }
+        )
+    )
+    with pytest.raises(PrerequisiteError, match="cannot resume"):
+        read_eval_set_selection(str(path))
+
+
+@solver
+def enqueue_selection_child() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        enqueue_task(selection_task_two())
+        return state
+
+    return solve
+
+
+@task
+def selection_enqueuing_task() -> Task:
+    return Task(
+        dataset=[Sample(input="hello", target="hello")],
+        solver=[enqueue_selection_child()],
+        scorer=exact(),
+    )
+
+
+def faceted_selection(capture: EvalSetCapture, model: str) -> EvalSetSelection:
+    """A selection of the captured task on `model`, with its pruning facets."""
+    selected = next(t for t in capture.tasks if t.model == model)
+    assert selected.registry_name is not None and selected.args_hash is not None
+    return EvalSetSelection(
+        version=EVAL_SET_SELECTION_VERSION,
+        eval_set_id="worker-test",
+        tasks=[
+            EvalSetSelectionTask(
+                identifier=selected.identifier,
+                registry_name=selected.registry_name,
+                args_hash=selected.args_hash,
+            )
+        ],
+    )
+
+
+def test_eval_set_selection_enqueued_task_uses_creator_model(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A task added by a selected task (without a model) runs on its model.
+
+    The selection carries the capture's pruning facets, as runners send them,
+    so the `@task` call the solver makes must build the real child rather than
+    a pruned placeholder.
+    """
+    reset_pruning()
+    capture = enumerate_eval_set(
+        monkeypatch, tmp_path, tasks=[selection_enqueuing_task()]
+    )
+    selection = faceted_selection(capture, "mockllm/model2")
+
+    try:
+        success, logs = run_selection(
+            monkeypatch,
+            tmp_path,
+            selection,
+            tmp_path / "logs",
+            tasks=[selection_enqueuing_task()],
+        )
+    finally:
+        reset_pruning()
+
+    added = [log for log in logs if log.eval.task == "selection_task_two"]
+    assert [log.eval.model for log in added] == ["mockllm/model2"]
+    assert success
+    added_log = read_eval_log(added[0].location)
+    assert added_log.samples is not None
+    sample = added_log.samples[0]
+    assert sample.error is None
+    # the child's own sample and scorer ran, not a placeholder's
+    assert sample.input == "hello"
+    assert sample.scores is not None and list(sample.scores) == ["exact"]
+    # generate() returned model output (the none model raises instead)
+    assert sample.output.completion == "Default output from mockllm/model"
+
+
+PREBUILT: dict[str, Task] = {}
+"""A task built before the selection was resolved, for the solver below to add."""
+
+
+@solver
+def enqueue_prebuilt_child() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        enqueue_task(PREBUILT["child"])
+        return state
+
+    return solve
+
+
+@task
+def selection_prebuilt_enqueuing_task() -> Task:
+    return Task(
+        dataset=[Sample(input="hello", target="hello")],
+        solver=[enqueue_prebuilt_child()],
+    )
+
+
+def test_eval_set_selection_refuses_enqueued_placeholder(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A child pruned before the selection was resolved fails the enqueue call."""
+    reset_pruning()
+    capture = enumerate_eval_set(
+        monkeypatch, tmp_path, tasks=[selection_prebuilt_enqueuing_task()]
+    )
+    selection = faceted_selection(capture, "mockllm/model2")
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(selection.model_dump_json())
+
+    try:
+        # built while the worker's selection is set, outside any task
+        monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection_path))
+        PREBUILT["child"] = selection_task_two()
+        monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
+        assert is_placeholder(PREBUILT["child"])
+
+        _, logs = run_selection(
+            monkeypatch,
+            tmp_path,
+            selection,
+            tmp_path / "logs",
+            tasks=[selection_prebuilt_enqueuing_task()],
+        )
+    finally:
+        PREBUILT.clear()
+        reset_pruning()
+
+    assert [log.eval.task for log in logs] == ["selection_prebuilt_enqueuing_task"]
+    parent_log = read_eval_log(logs[0].location)
+    assert parent_log.samples is not None
+    error = parent_log.samples[0].error
+    assert error is not None and "selection pruning" in error.message
 
 
 def test_eval_set_selection_stamps_eval_set_id(
@@ -765,6 +992,42 @@ def test_eval_set_selection_run_wide_overrides_reach_a_worker(
     assert success
     assert logs[0].eval.config.max_samples == 3
     assert logs[0].eval.config.max_sandboxes == 5
+
+
+@pytest.mark.parametrize("from_worker", [False, True], ids=["run-wide", "worker"])
+def test_eval_set_selection_cache_override_that_never_expires(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, from_worker: bool
+) -> None:
+    """A cache override with a null `expiry` reaches the run as never expiring.
+
+    `CachePolicy` defaults `expiry` to "1W", so the explicit null is the whole
+    instruction; dropping it as an empty value turns it into the default.
+    """
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    capture = enumerate_eval_set(monkeypatch, tmp_path)
+    selected = capture.tasks[0]
+
+    never_expires = {"cache": {"expiry": None}}
+    run_wide: dict[str, Any] = {"timeout": 60}
+    if not from_worker:
+        run_wide |= never_expires
+    overrides_path = tmp_path / "overrides.json"
+    overrides_path.write_text(
+        json.dumps({"generate_config": run_wide}), encoding="utf-8"
+    )
+    monkeypatch.setenv(INSPECT_EVAL_SET_OVERRIDES, str(overrides_path))
+
+    selection = selection_for(selected.identifier)
+    if from_worker:
+        selection.overrides = EvalSetOverrides.model_validate(
+            {"generate_config": never_expires}
+        )
+
+    success, logs = run_selection(monkeypatch, tmp_path, selection, tmp_path / "logs")
+
+    assert success
+    assert logs[0].plan.config.cache == CachePolicy(expiry=None)
+    assert logs[0].plan.config.timeout == 60
 
 
 def test_eval_set_selection_limit_override(
@@ -1423,6 +1686,16 @@ _EXPECTED_SELECTION_FIELDS[7] = {
     "overrides": _EXPECTED_SELECTION_FIELDS[6]["overrides"],
 }
 
+# v8 added `empty_attempt`: run the selected tasks with the `empty_attempt()`
+# solver, for the log `zero_samples()` copies verdicts from. A selection field
+# rather than an override because the solver is part of task identity: tasks
+# are matched with the definition's solver and only the run uses this one.
+_EXPECTED_SELECTION_FIELDS[8] = {
+    "selection": _EXPECTED_SELECTION_FIELDS[7]["selection"] | {"empty_attempt"},
+    "task": _EXPECTED_SELECTION_FIELDS[7]["task"],
+    "overrides": _EXPECTED_SELECTION_FIELDS[7]["overrides"],
+}
+
 
 def test_eval_set_selection_schema_stability() -> None:
     assert EVAL_SET_SELECTION_VERSION in _EXPECTED_SELECTION_FIELDS
@@ -1534,6 +1807,33 @@ def test_selection_scanners_are_gated_at_version_7(
             read_eval_set_selection(str(path))
 
 
+@pytest.mark.parametrize(
+    ("version", "accepted"),
+    [(7, False), (8, True)],
+    ids=["empty_attempt under version 7", "empty_attempt under version 8"],
+)
+def test_selection_empty_attempt_is_gated_at_version_8(
+    version: int, accepted: bool, tmp_path: Path
+) -> None:
+    path = tmp_path / "selection.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": version,
+                "eval_set_id": "probe",
+                "tasks": [{"identifier": "a"}],
+                "empty_attempt": True,
+            }
+        )
+    )
+
+    if accepted:
+        assert read_eval_set_selection(str(path)).empty_attempt is True
+    else:
+        with pytest.raises(PrerequisiteError, match="schema version"):
+            read_eval_set_selection(str(path))
+
+
 def test_selection_with_empty_scanners_mapping_is_refused(tmp_path: Path) -> None:
     """An empty mapping says "inject scanners" and names none — a runner bug, reported rather than read as no injection."""
     path = tmp_path / "selection.json"
@@ -1579,3 +1879,152 @@ def test_a_whole_selection_survives_being_written_and_read_back(
     assert back == selection
     assert back.overrides is not None and selection.overrides is not None
     assert back.overrides.checkpoint == selection.overrides.checkpoint
+
+
+@solver
+def selection_rollout_solver() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.metadata.get("raise"):
+            raise ValueError("rollout failed")
+        return state
+
+    return solve
+
+
+@task
+def selection_rollout() -> Task:
+    CONSTRUCTED_ROLLOUTS.append(1)
+    # its own fail_on_error wins over the worker's forced False
+    return Task(
+        dataset=samples_from_handle(),
+        solver=[selection_rollout_solver()],
+        fail_on_error=True,
+    )
+
+
+CONSTRUCTED_ROLLOUTS: list[int] = []
+
+
+@solver
+def feed_selection_rollout() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # the first rollout task fails on its first sample; the creator
+        # replaces it
+        [failing] = enqueue_task(selection_rollout())
+        run = await failing.enqueue_sample(Sample(input="x", metadata={"raise": True}))
+        assert run.error is not None
+        try:
+            await failing.enqueue_sample(Sample(input="y"))
+        except TaskEndedError:
+            pass
+        [fresh] = enqueue_task(selection_rollout())
+        async with fresh:
+            run = await fresh.enqueue_sample(Sample(input="z"))
+        state.metadata["fed_run"] = str(run.id)
+        return state
+
+    return solve
+
+
+@task
+def selection_feeding_task() -> Task:
+    return Task(dataset=[Sample(input="hello")], solver=[feed_selection_rollout()])
+
+
+def test_eval_set_selection_creator_feeds_a_rollout_task(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A selected creator builds, adds and feeds a task the worker did not select."""
+    reset_pruning()
+    CONSTRUCTED_ROLLOUTS.clear()
+    tasks = [selection_feeding_task(), selection_task_two()]
+    capture = enumerate_eval_set(monkeypatch, tmp_path, tasks=tasks)
+    selection = faceted_selection(
+        EvalSetCapture(
+            **(
+                capture.model_dump()
+                | {
+                    "tasks": [
+                        t
+                        for t in capture.tasks
+                        if t.registry_name is not None
+                        and t.registry_name.endswith("selection_feeding_task")
+                    ]
+                }
+            )
+        ),
+        "mockllm/model",
+    )
+    CONSTRUCTED_ROLLOUTS.clear()
+    try:
+        success, logs = run_selection(
+            monkeypatch,
+            tmp_path,
+            selection,
+            tmp_path / "logs",
+            tasks=[selection_feeding_task(), selection_task_two()],
+        )
+    finally:
+        reset_pruning()
+
+    # the factory body ran for both rollout tasks: they were not pruned
+    assert len(CONSTRUCTED_ROLLOUTS) == 2
+    rollouts = [log for log in logs if log.eval.task == "selection_rollout"]
+    assert sorted(log.status for log in rollouts) == ["error", "success"]
+    assert all(log.eval.model == "mockllm/model" for log in rollouts)
+    creator = [log for log in logs if log.eval.task == "selection_feeding_task"]
+    assert [log.status for log in creator] == ["success"]
+    # the worker's own task list was still pruned at resolution
+    assert not any(log.eval.task == "selection_task_two" for log in logs)
+    # the failed rollout does not decide the worker's result
+    assert success
+
+
+@solver
+def feed_selection_task_one() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        [handle] = enqueue_task(
+            task_with(selection_task_one(), dataset=samples_from_handle())
+        )
+        async with handle:
+            await handle.enqueue_sample(Sample(input="1+1", target="2"))
+        return state
+
+    return solve
+
+
+def test_eval_set_selection_refuses_a_fed_log_as_resume(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A fed task's log is another task's log, even for its factory's identifier."""
+    capture = enumerate_eval_set(monkeypatch, tmp_path)
+    identifier = next(
+        t.identifier
+        for t in capture.tasks
+        if t.name == "selection_task_one" and t.model == MODELS[0]
+    )
+
+    # run A adds selection_task_one fed through its handle
+    logs = eval(
+        Task(dataset=[Sample(input="x")], solver=[feed_selection_task_one()]),
+        model=MODELS[0],
+        log_dir=str(tmp_path / "run-a"),
+        display="none",
+    )
+    [fed] = [log for log in logs if log.eval.task == "selection_task_one"]
+    assert fed.eval.dataset.name == "samples_from_handle" and fed.location
+
+    with pytest.raises(PrerequisiteError, match="belongs to a different task"):
+        run_selection(
+            monkeypatch,
+            tmp_path,
+            EvalSetSelection(
+                version=EVAL_SET_SELECTION_VERSION,
+                eval_set_id="worker-test",
+                tasks=[
+                    EvalSetSelectionTask(identifier=identifier, resume=fed.location)
+                ],
+            ),
+            tmp_path / "logs",
+            name="fed-resume",
+        )

@@ -2,6 +2,7 @@ import base64
 import json
 from contextlib import nullcontext
 from pathlib import Path
+from typing import Any, cast
 
 import httpx2
 import openai
@@ -11,17 +12,31 @@ from test_helpers.output_cache import check_output_cache_round_trip
 from test_helpers.utils import skip_if_no_openai, skip_if_no_openai_model
 
 from inspect_ai import Task, eval
+from inspect_ai._util.content import (
+    ContentData,
+    ContentDocument,
+    ContentImage,
+    ContentText,
+)
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
     Model,
     get_model,
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
-from inspect_ai.model._internal import parse_content_with_internal
+from inspect_ai.model._internal import (
+    CONTENT_INTERNAL_TAG,
+    content_internal_tag,
+    parse_content_with_internal,
+    parse_content_with_internal_blocks,
+)
 from inspect_ai.model._openai import openai_completion_params
-from inspect_ai.tool import tool
+from inspect_ai.model._openai_responses import openai_responses_inputs
+from inspect_ai.tool import ToolFunction, computer, tool
 
 
 def _openai_model_with_status_response(status_code: int, path: str) -> Model:
@@ -75,6 +90,88 @@ async def test_openai_compact_reports_unavailable_endpoint(
             await model.compact([ChatMessageUser(content="hello")], [])
 
 
+async def test_openai_compact_preserves_user_media() -> None:
+    """Images and files in user messages survive compaction and replay as input items."""
+    file_data = "data:application/pdf;base64,JVBERi0x"
+    image_url = "data:image/png;base64,iVBORw0KGgo"
+    # the compact endpoint echoes user messages with their original input items
+    body = {
+        "id": "resp_1",
+        "object": "response.compaction",
+        "created_at": 0,
+        "output": [
+            {
+                "id": "msg_1",
+                "type": "message",
+                "role": "user",
+                "status": "completed",
+                "content": [
+                    {"type": "input_text", "text": "see attached"},
+                    {
+                        "type": "input_file",
+                        "detail": "auto",
+                        "file_data": file_data,
+                        "filename": "r.pdf",
+                    },
+                    {"type": "input_image", "detail": "auto", "image_url": image_url},
+                ],
+            },
+            {"id": "cmp_1", "type": "compaction", "encrypted_content": "enc"},
+        ],
+        "usage": {
+            "input_tokens": 10,
+            "output_tokens": 1,
+            "total_tokens": 11,
+            "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
+            "output_tokens_details": {"reasoning_tokens": 0},
+        },
+    }
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        assert request.url.path == "/v1/responses/compact"
+        return httpx2.Response(200, json=body, request=request)
+
+    http_client = DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler))
+    async with get_model(
+        "openai/test",
+        api_key="test",
+        base_url="http://test/v1",
+        http_client=http_client,
+        responses_api=True,
+        memoize=False,
+    ) as model:
+        messages: list[ChatMessage] = [
+            ChatMessageUser(
+                content=[
+                    ContentText(text="see attached"),
+                    ContentDocument(document=file_data, filename="r.pdf"),
+                    ContentImage(image=image_url),
+                ]
+            )
+        ]
+        compacted, _ = await model.compact(messages, [])
+
+    user, compaction = compacted
+    assert isinstance(user, ChatMessageUser)
+    assert user.content == messages[0].content
+    assert isinstance(compaction.content, list)
+    assert isinstance(compaction.content[0], ContentData)
+
+    # the compacted history is replayed to the model on the next request
+    items = cast(list[dict[str, Any]], await openai_responses_inputs(compacted))
+    content = items[0]["content"]
+    assert [part["type"] for part in content] == [
+        "input_text",
+        "input_file",
+        "input_image",
+    ]
+    assert content[1]["file_data"] == file_data
+    assert content[1]["filename"] == "r.pdf"
+    assert content[2]["image_url"] == image_url
+    assert items[1]["type"] == "compaction"
+    assert items[1]["encrypted_content"] == "enc"
+
+
 async def test_openai_compact_propagates_other_endpoint_errors() -> None:
     async with _openai_model_with_status_response(
         403, "/v1/responses/compact"
@@ -87,7 +184,7 @@ async def test_openai_compact_propagates_other_endpoint_errors() -> None:
 @skip_if_no_openai
 async def test_openai_api() -> None:
     model = get_model(
-        "openai/gpt-3.5-turbo",
+        "openai/gpt-4o-mini",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,
@@ -162,7 +259,7 @@ async def test_openai_o_series_developer_messages() -> None:
             ]
         )
 
-    await check_developer_messages("openai/o3-mini")
+    await check_developer_messages("openai/o3")
 
 
 @skip_if_no_openai
@@ -176,7 +273,7 @@ async def test_openai_o_series_reasoning_effort() -> None:
         response = await model.generate(input=[message])
         assert len(response.completion) >= 1
 
-    await check_reasoning_effort("openai/o3-mini")
+    await check_reasoning_effort("openai/o3")
     await check_reasoning_effort("openai/gpt-5-mini", "minimal")
 
 
@@ -191,14 +288,14 @@ async def test_openai_o_series_max_tokens() -> None:
         response = await model.generate(input=[message])
         assert len(response.completion) >= 1
 
-    await check_max_tokens("openai/o3-mini")
+    await check_max_tokens("openai/o3")
 
 
 @skip_if_no_openai
 def test_openai_flex_requests():
     log = eval(
         Task(),
-        model="openai/o4-mini",
+        model="openai/gpt-5-mini",
         model_args=dict(service_tier="flex", client_timeout=1200),
     )[0]
     assert log.status == "success"
@@ -253,25 +350,176 @@ def test_parse_content_with_internal_valid(s, exp_content, exp_internal):
     assert internal == exp_internal
 
 
+def test_parse_content_with_internal_blocks_preserves_every_payload() -> None:
+    content = "\n".join(
+        [
+            "first",
+            content_internal_tag({"a": 1}),
+            "second",
+            content_internal_tag({"b": 2}),
+            "trailing text",
+        ]
+    )
+
+    blocks = parse_content_with_internal_blocks(content, CONTENT_INTERNAL_TAG)
+
+    assert [(block.text, block.internal) for block in blocks] == [
+        ("first", {"a": 1}),
+        ("second", {"b": 2}),
+        ("trailing text", None),
+    ]
+    with pytest.raises(ValueError, match="multiple.*content-internal"):
+        parse_content_with_internal(content, CONTENT_INTERNAL_TAG)
+
+
+def test_parse_content_with_internal_blocks_preserves_plain_trailing_block() -> None:
+    content = "\n".join(
+        [
+            "first",
+            content_internal_tag({"a": 1}),
+            "second",
+        ]
+    )
+
+    blocks = parse_content_with_internal_blocks(content, CONTENT_INTERNAL_TAG)
+
+    assert [(block.text, block.internal) for block in blocks] == [
+        ("first", {"a": 1}),
+        ("second", None),
+    ]
+    assert parse_content_with_internal(content, CONTENT_INTERNAL_TAG) == (
+        "first\n\nsecond",
+        {"a": 1},
+    )
+
+
+def test_parse_content_with_internal_blocks_preserves_payload_without_text() -> None:
+    blocks = parse_content_with_internal_blocks(
+        content_internal_tag({"a": 1}), CONTENT_INTERNAL_TAG
+    )
+
+    assert blocks == [("", {"a": 1})]
+
+
+@pytest.mark.parametrize(
+    "content",
+    ["", "\n", "\n\n", "text", "\ntext\n", "\n\ntext\n\n", "  indented\n  text  "],
+)
+def test_parse_content_with_internal_blocks_without_marker_is_unchanged(
+    content: str,
+) -> None:
+    assert parse_content_with_internal_blocks(content, CONTENT_INTERNAL_TAG) == [
+        (content, None)
+    ]
+
+
+def test_parse_content_with_internal_blocks_keeps_invalid_later_payload() -> None:
+    invalid_json = base64.b64encode(b"invalid json").decode("utf-8")
+    content = "\n".join(
+        [
+            "first",
+            content_internal_tag({"valid": True}),
+            "second",
+            f"<{CONTENT_INTERNAL_TAG}>{invalid_json}</{CONTENT_INTERNAL_TAG}>",
+        ]
+    )
+
+    assert parse_content_with_internal_blocks(content, CONTENT_INTERNAL_TAG) == [
+        ("first", {"valid": True}),
+        (
+            f"second\n<{CONTENT_INTERNAL_TAG}>{invalid_json}</{CONTENT_INTERNAL_TAG}>",
+            None,
+        ),
+    ]
+
+
 invalid_utf8_bytes = b"\xff\xfe\xfd"
 invalid_utf8_b64 = base64.b64encode(invalid_utf8_bytes).decode("utf-8")
 
 
 @pytest.mark.parametrize(
-    "s,expected_exception",
+    "s",
     [
         # Valid base64 that decodes to invalid UTF-8 (e.g., bytes that are not valid UTF-8)
-        ("<internal>" + invalid_utf8_b64 + "</internal>content", UnicodeDecodeError),
+        "<internal>" + invalid_utf8_b64 + "</internal>content",
         # Invalid JSON after base64 decoding
-        (
-            f"<internal>{base64.b64encode(b'invalid json').decode('utf-8')}</internal>content",
-            json.JSONDecodeError,
-        ),
+        f"<internal>{base64.b64encode(b'invalid json').decode('utf-8')}</internal>content",
+        # Not base64 (a quoted example of the marker)
+        "The marker is <internal>example</internal>.",
     ],
 )
-def test_parse_content_with_internal_invalid_encoding(s, expected_exception):
-    with pytest.raises(expected_exception):
-        parse_content_with_internal(s, "internal")
+def test_parse_content_with_internal_undecodable_is_literal(s):
+    assert parse_content_with_internal(s, "internal") == (s, None)
+    assert parse_content_with_internal_blocks(s, "internal") == [(s, None)]
+
+
+def test_parse_content_with_internal_deeply_nested_body_is_literal():
+    s = f"<internal>{base64.b64encode(b'[' * 200_000).decode('utf-8')}</internal>"
+    assert parse_content_with_internal(s, "internal") == (s, None)
+    assert parse_content_with_internal_blocks(s, "internal") == [(s, None)]
+
+
+@pytest.mark.parametrize("depth", [101, 250, 300])
+def test_parse_content_with_internal_body_that_cannot_be_content_is_literal(depth):
+    """A body that decodes but nests deeper than `internal` may stays text."""
+    deep = base64.b64encode(("[" * depth + "]" * depth).encode()).decode("utf-8")
+    s = f"see <internal>{deep}</internal>\n<internal>{encode_internal({'a': 1})}</internal>"
+    assert parse_content_with_internal(s, "internal") == (
+        f"see <internal>{deep}</internal>",
+        {"a": 1},
+    )
+
+
+@pytest.mark.parametrize(
+    "literal",
+    [
+        "<internal>example</internal>",
+        "Use the <internal> marker.",
+        f"<internal>{base64.b64encode(b'[' * 200_000).decode()}</internal>",
+        f"<internal>{base64.b64encode(('[' * 101 + ']' * 101).encode()).decode()}</internal>",
+    ],
+    ids=["quoted", "opening-only", "malformed-deep", "too-deep"],
+)
+def test_parse_content_with_internal_blocks_keeps_literal_between_payloads(
+    literal: str,
+) -> None:
+    content = (
+        f"first<internal>{encode_internal({'a': 1})}</internal>"
+        f"{literal}\nsecond<internal>{encode_internal({'b': 2})}</internal>"
+    )
+    assert parse_content_with_internal_blocks(content, "internal") == [
+        ("first", {"a": 1}),
+        (f"{literal}\nsecond", {"b": 2}),
+    ]
+
+
+def test_parse_content_with_internal_body_at_the_depth_limit_is_internal():
+    value = json.loads("[" * 100 + "]" * 100)
+    assert parse_content_with_internal(
+        f"text <internal>{encode_internal(value)}</internal>", "internal"
+    ) == ("text", value)
+
+
+def test_parse_content_with_internal_quoted_opening_marker_keeps_encoded():
+    s = f"Use the <internal> marker.\n<internal>{encode_internal({'a': 1})}</internal>"
+    assert parse_content_with_internal(s, "internal") == (
+        "Use the <internal> marker.",
+        {"a": 1},
+    )
+
+
+def test_parse_content_with_internal_body_wrapped_across_lines():
+    encoded = encode_internal({"a": 1})
+    s = f"text\n<internal>{encoded[:4]}\n{encoded[4:]}</internal>"
+    assert parse_content_with_internal(s, "internal") == ("text", {"a": 1})
+
+
+def test_parse_content_with_internal_keeps_literal_beside_encoded():
+    s = f"see <internal>example</internal>\n<internal>{encode_internal({'a': 1})}</internal>\n"
+    assert parse_content_with_internal(s, "internal") == (
+        "see <internal>example</internal>",
+        {"a": 1},
+    )
 
 
 async def test_chat_completions_forwards_config_extra_headers():
@@ -836,6 +1084,17 @@ async def _gpt_6_none_effort_with_temperature(model_name: str) -> None:
     assert (output.usage.reasoning_tokens or 0) == 0
 
 
+async def _gpt_6_low_effort_with_temperature(model_name: str) -> None:
+    # for models that always reason, temperature is dropped (with a warning)
+    # even with an explicit effort
+    model = get_model(
+        f"openai/{model_name}",
+        config=GenerateConfig(temperature=0.5, reasoning_effort="low"),
+    )
+    output = await model.generate([ChatMessageUser(content="Say hello.")])
+    assert output.completion
+
+
 async def _gpt_6_max_effort(model_name: str) -> None:
     model = get_model(
         f"openai/{model_name}", config=GenerateConfig(reasoning_effort="max")
@@ -895,19 +1154,123 @@ async def test_openai_gpt_6_1_sol_generate() -> None:
 @skip_if_no_openai
 @skip_if_no_openai_model("gpt-6.1-sol")
 async def test_openai_gpt_6_1_sol_low_effort_with_temperature() -> None:
-    # temperature is dropped (with a warning) even with an explicit effort
-    model = get_model(
-        "openai/gpt-6.1-sol",
-        config=GenerateConfig(temperature=0.5, reasoning_effort="low"),
-    )
-    output = await model.generate([ChatMessageUser(content="Say hello.")])
-    assert output.completion
+    await _gpt_6_low_effort_with_temperature("gpt-6.1-sol")
 
 
 @skip_if_no_openai
 @skip_if_no_openai_model("gpt-6.1-sol")
 async def test_openai_gpt_6_1_sol_max_reasoning_effort() -> None:
     await _gpt_6_max_effort("gpt-6.1-sol")
+
+
+# -- GPT-6.1 Terra (live) --
+#
+# Unlike GPT-6.1 Sol, Terra accepts `none` like GPT-6 Sol and Luna.
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-terra")
+async def test_openai_gpt_6_1_terra_generate() -> None:
+    await _gpt_6_generate("gpt-6.1-terra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-terra")
+async def test_openai_gpt_6_1_terra_none_effort_with_temperature() -> None:
+    await _gpt_6_none_effort_with_temperature("gpt-6.1-terra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-terra")
+async def test_openai_gpt_6_1_terra_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6.1-terra")
+
+
+# -- GPT-6.2 Astra / Sol (live) --
+#
+# Both always reason like GPT-6 Astra and GPT-6.1 Sol: `none` is rejected and
+# sampling params are dropped regardless of effort.
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-astra")
+async def test_openai_gpt_6_2_astra_generate() -> None:
+    await _gpt_6_generate("gpt-6.2-astra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-astra")
+async def test_openai_gpt_6_2_astra_low_effort_with_temperature() -> None:
+    await _gpt_6_low_effort_with_temperature("gpt-6.2-astra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-astra")
+async def test_openai_gpt_6_2_astra_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6.2-astra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-sol")
+async def test_openai_gpt_6_2_sol_generate() -> None:
+    await _gpt_6_generate("gpt-6.2-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-sol")
+async def test_openai_gpt_6_2_sol_low_effort_with_temperature() -> None:
+    await _gpt_6_low_effort_with_temperature("gpt-6.2-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-sol")
+async def test_openai_gpt_6_2_sol_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6.2-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-astra")
+async def test_openai_gpt_6_2_astra_reasoning_removed_warns() -> None:
+    await _gpt_6_2_reasoning_removed_warns("gpt-6.2-astra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-sol")
+async def test_openai_gpt_6_2_sol_reasoning_removed_warns() -> None:
+    await _gpt_6_2_reasoning_removed_warns("gpt-6.2-sol")
+
+
+async def _gpt_6_2_reasoning_removed_warns(model_name: str) -> None:
+    """Editing a message before replayed reasoning makes the API remove it, and we warn.
+
+    Turn 1 produces a reasoning item; turn 2 replays it after an edited user
+    message, which GPT-6.2 reports as a prefix_mismatch removal.
+    """
+    from unittest.mock import patch
+
+    model = get_model(
+        f"openai/{model_name}", config=GenerateConfig(reasoning_effort="medium")
+    )
+    prompt = "Find all real solutions of 3*x^3 - 5*x = 1 to 3 decimal places."
+    first = await model.generate(input=[ChatMessageUser(content=prompt)])
+    content = first.choices[0].message.content
+    assert isinstance(content, list)
+    assert any(c.type == "reasoning" for c in content), "turn 1 produced no reasoning"
+
+    with patch("inspect_ai.model._providers.openai_responses.warn_once") as mock_warn:
+        second = await model.generate(
+            input=[
+                ChatMessageUser(content=prompt + " Show your working."),
+                first.choices[0].message,
+                ChatMessageUser(content="Now add 9 to the largest solution."),
+            ]
+        )
+    assert len(second.completion) >= 1
+    messages = [call.args[1] for call in mock_warn.call_args_list]
+    assert any(
+        "removed replayed reasoning" in m and "(reason: prefix_mismatch)" in m
+        for m in messages
+    )
 
 
 # -- skip_if_no_openai_model gate (no network) --
@@ -1026,3 +1389,30 @@ async def test_skip_if_no_openai_model_propagates_other_errors(
         with pytest.raises(type(error)):
             await gated()
     assert [c.closed for c in clients] == [True, True]
+
+
+@skip_if_no_openai
+async def test_openai_computer_tool_result_without_screenshot() -> None:
+    """A computer tool result with no image (e.g. a tool error) must not 400.
+
+    OpenAI's computer_call_output can only carry a screenshot, so a placeholder
+    is sent in its place. A corrupt placeholder was rejected with "The image
+    data you provided does not represent a valid image."
+    """
+    model = get_model("openai/gpt-5.4")
+    tools = [computer()]
+    user = ChatMessageUser(content="Take a screenshot of the desktop.")
+
+    output = await model.generate(
+        [user], tools=tools, tool_choice=ToolFunction(name="computer")
+    )
+    assert output.message.tool_calls
+    tool_call = output.message.tool_calls[0]
+
+    error = ChatMessageTool(
+        content="Error: the display is not available",
+        tool_call_id=tool_call.id,
+        function=tool_call.function,
+    )
+    output = await model.generate([user, output.message, error], tools=tools)
+    assert output.error is None

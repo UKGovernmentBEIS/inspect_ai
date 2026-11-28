@@ -1,3 +1,4 @@
+import dataclasses
 import types
 import typing
 from copy import deepcopy
@@ -9,6 +10,7 @@ from typing import (
     Dict,
     List,
     Literal,
+    NamedTuple,
     Optional,
     Set,
     Tuple,
@@ -96,9 +98,11 @@ def json_schema_dump(
 ) -> dict[str, Any]:
     """Dump a JSON Schema model to a dict, excluding None values.
 
-    Centralises the `model_dump(exclude_none=True)` pattern used by every model
-    provider when forwarding tool parameter or response schemas to an API, and
-    adds an optional *exclude* set for provider-specific field filtering.
+    Centralises the `model_dump(mode="json", exclude_none=True)` pattern used
+    wherever a tool parameter or response schema is sent as JSON, and adds an
+    optional *exclude* set for provider-specific field filtering. JSON mode
+    converts Python values a schema can hold, such as an `Enum` or `date`
+    default, to their JSON form.
 
     The *exclude* set is applied recursively to all nested dicts (e.g. inside
     ``properties``, ``items``, ``anyOf``), not just the top-level schema.
@@ -111,7 +115,7 @@ def json_schema_dump(
     Returns:
         Dict representation of the schema with None values removed.
     """
-    result = schema.model_dump(exclude_none=True)
+    result = schema.model_dump(mode="json", exclude_none=True)
     if exclude:
         _strip_keys_recursive(result, exclude)
     return result
@@ -163,6 +167,12 @@ def json_schema(t: Type[Any]) -> JSONSchema:
     Returns:
         JSON Schema for type.
     """
+    return _json_schema(t, frozenset())
+
+
+def _json_schema(t: Type[Any], expanding: frozenset[Any]) -> JSONSchema:
+    # `expanding` holds the classes whose schema is being built further up the
+    # stack, so a recursive dataclass or TypedDict does not recurse forever
     origin = get_origin(t)
     args = get_args(t)
 
@@ -190,7 +200,9 @@ def json_schema(t: Type[Any]) -> JSONSchema:
             or is_typeddict(t)
             or (isinstance(t, type) and issubclass(t, BaseModel))
         ):
-            return cls_json_schema(t)
+            if t in expanding:
+                return JSONSchema()
+            return cls_json_schema(t, expanding)
         elif isinstance(t, EnumMeta):
             enum_values = [item.value for item in t]
             # Determine the type from the enum values
@@ -221,20 +233,22 @@ def json_schema(t: Type[Any]) -> JSONSchema:
         or origin is Set
     ):
         return JSONSchema(
-            type="array", items=json_schema(args[0]) if args else JSONSchema()
+            type="array",
+            items=_json_schema(args[0], expanding) if args else JSONSchema(),
         )
     elif origin is dict or origin is Dict:
         return JSONSchema(
             type="object",
-            additionalProperties=json_schema(args[1])
+            additionalProperties=_json_schema(args[1], expanding)
             if len(args) > 1
             else JSONSchema(),
         )
     elif origin is Union or origin is types.UnionType:
-        return JSONSchema(anyOf=[json_schema(arg) for arg in args])
+        return JSONSchema(anyOf=[_json_schema(arg, expanding) for arg in args])
     elif origin is Optional:
         return JSONSchema(
-            anyOf=[json_schema(arg) for arg in args] + [JSONSchema(type="null")]
+            anyOf=[_json_schema(arg, expanding) for arg in args]
+            + [JSONSchema(type="null")]
         )
     elif origin is typing.Literal:
         # Determine the type from the literal values
@@ -258,14 +272,18 @@ def json_schema(t: Type[Any]) -> JSONSchema:
     return JSONSchema()  # Default case if we can't determine the type
 
 
-def cls_json_schema(cls: Type[Any]) -> JSONSchema:
+def cls_json_schema(
+    cls: Type[Any], expanding: frozenset[Any] = frozenset()
+) -> JSONSchema:
     properties: Dict[str, JSONSchema] = {}
     required: List[str] = []
+    expanding = expanding | {cls}
 
     if is_dataclass(cls):
-        fields = cls.__dataclass_fields__  # type: ignore
-        for name, field in fields.items():
-            properties[name] = json_schema(field.type)  # type: ignore
+        for name, (field, field_type) in dataclass_fields(cls).items():
+            if not field.init:
+                continue
+            properties[name] = _json_schema(field_type, expanding)
             if field.default is MISSING and field.default_factory is MISSING:
                 required.append(name)
     elif isinstance(cls, type) and issubclass(cls, BaseModel):
@@ -277,7 +295,7 @@ def cls_json_schema(cls: Type[Any]) -> JSONSchema:
     elif is_typeddict(cls):
         annotations = get_type_hints(cls)
         for name, type_hint in annotations.items():
-            properties[name] = json_schema(type_hint)
+            properties[name] = _json_schema(type_hint, expanding)
             if name in cls.__required_keys__:
                 required.append(name)
 
@@ -287,6 +305,32 @@ def cls_json_schema(cls: Type[Any]) -> JSONSchema:
         required=required if required else None,
         additionalProperties=False,
     )
+
+
+class DataclassField(NamedTuple):
+    field: dataclasses.Field[Any]
+    type: Any
+    """The field's annotation, resolved where possible (see `dataclass_fields`)."""
+
+
+def dataclass_fields(cls: Type[Any]) -> dict[str, DataclassField]:
+    """Every entry in ``cls.__dataclass_fields__`` with its resolved annotation.
+
+    ``field.type`` is the unevaluated string under PEP 563 (``from __future__
+    import annotations``), so annotations are resolved with ``get_type_hints``
+    as the TypedDict code paths already do. If they cannot be resolved (e.g. a
+    forward reference to a name only imported under ``TYPE_CHECKING``) the raw
+    ``field.type`` values are used so the dataclass is handled as before.
+    """
+    fields: dict[str, dataclasses.Field[Any]] = cls.__dataclass_fields__  # type: ignore
+    try:
+        type_hints = get_type_hints(cls)
+    except (NameError, TypeError):
+        type_hints = {}
+    return {
+        name: DataclassField(field, type_hints.get(name, field.type))
+        for name, field in fields.items()
+    }
 
 
 def python_type_to_json_type(python_type: str | None) -> JSONType:

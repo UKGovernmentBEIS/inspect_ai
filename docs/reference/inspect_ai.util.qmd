@@ -11,6 +11,9 @@ description: Miscellaneous utility functions.
 ### StoreModel
 ### store_from_events
 ### store_from_events_as
+### tool_state_scope
+### tool_state_instance
+### private_tool_instance
 
 ## Limits
 
@@ -27,7 +30,9 @@ description: Miscellaneous utility functions.
 ### Limit
 ### LimitExceededError
 ### suspend_token_limit
+### suspend_cost_limit
 ### suspend_working_limit
+### suspend_limits
 
 ## Concurrency
 
@@ -65,6 +70,8 @@ description: Miscellaneous utility functions.
 ### sandbox_default
 ### SandboxEnvironment
 ### SandboxConnection
+### SandboxTimeoutError
+### SandboxTimeoutReason
 ### SandboxUnavailableError
 ### SandboxUserUnsupportedError
 ### sandboxenv

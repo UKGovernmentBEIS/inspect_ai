@@ -21,14 +21,11 @@ pilot so we know the reactive chain actually fires.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import pytest
 from acp.schema import (
     ContentToolCallContent,
-    FileEditToolCallContent,
     SessionNotification,
-    TerminalToolCallContent,
     TextContentBlock,
     ToolCallProgress,
     ToolCallStart,
@@ -43,7 +40,7 @@ from inspect_ai.agent._acp.tui.session_screen import SessionScreen
 from inspect_ai.agent._acp.tui.widgets._collapsible import CollapsibleContent
 from inspect_ai.agent._acp.tui.widgets.tool_call import ToolCallWidget
 
-from .conftest import make_fake_client
+from .conftest import make_fake_client, open_session_screen
 
 
 def _row() -> SessionRow:
@@ -60,19 +57,6 @@ def _row() -> SessionRow:
     )
 
 
-async def _open_session_screen(pilot: Any, rows: list[SessionRow]) -> SessionScreen:
-    app = pilot.app
-    await pilot.pause()
-    if not isinstance(app.screen, SessionScreen):
-        app.screen._on_select(rows[0])
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
-    assert isinstance(app.screen, SessionScreen)
-    return app.screen
-
-
 def _push_tool_start(
     screen: SessionScreen,
     tool_call_id: str,
@@ -85,26 +69,22 @@ def _push_tool_start(
     content block — mirroring what a tool with a registered viewer
     (e.g. the bash command preview) emits the moment the call lands.
     """
-    content: (
-        list[ContentToolCallContent | FileEditToolCallContent | TerminalToolCallContent]
-        | None
-    ) = (
-        [
-            ContentToolCallContent(
-                type="content",
-                content=TextContentBlock(type="text", text=call_view_text),
-            )
-        ]
-        if call_view_text is not None
-        else None
-    )
     start = ToolCallStart(
         session_update="tool_call",
         tool_call_id=tool_call_id,
         title=f"bash {tool_call_id}",
         status="in_progress",
         raw_input={"command": f"echo {tool_call_id}"},
-        content=content,
+        content=(
+            [
+                ContentToolCallContent(
+                    type="content",
+                    content=TextContentBlock(type="text", text=call_view_text),
+                )
+            ]
+            if call_view_text is not None
+            else None
+        ),
     )
     screen._state.consume(SessionNotification(session_id="sid-x", update=start))
 
@@ -166,7 +146,7 @@ async def test_completed_tool_body_held_while_sibling_in_flight() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         _push_tool_start(screen, "tc-A")
         _push_tool_start(screen, "tc-B")
         await pilot.pause()
@@ -199,7 +179,7 @@ async def test_last_sibling_completion_reveals_all_held_bodies() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         _push_tool_start(screen, "tc-A")
         _push_tool_start(screen, "tc-B")
         await pilot.pause()
@@ -240,7 +220,7 @@ async def test_solo_completion_does_not_defer_body() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         _push_tool_start(screen, "tc-only")
         await pilot.pause()
         _push_tool_complete_with_content(screen, "tc-only", "only-result-payload")
@@ -267,7 +247,7 @@ async def test_in_flight_call_view_held_while_sibling_running() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         # A is a plain in-flight tool (header only).
         _push_tool_start(screen, "tc-A")
         # B starts with a call-view body block — the input preview a
@@ -302,7 +282,7 @@ async def test_last_in_flight_tool_does_not_reveal_call_view_early() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         _push_tool_start(screen, "tc-A")
         _push_tool_start(screen, "tc-B")
         _push_tool_start(screen, "tc-C", call_view_text="lookup ACME")
@@ -372,7 +352,7 @@ async def test_solo_tool_after_completed_batch_shows_immediately() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         # Two parallel tools — start, then both complete.
         _push_tool_start(screen, "tc-A")
         _push_tool_start(screen, "tc-B")
@@ -419,7 +399,7 @@ async def test_new_parallel_batch_does_not_re_defer_settled_earlier_batch() -> N
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
 
         # Batch 1: A and B run in parallel, then both complete.
         _push_tool_start(screen, "tc-A")
@@ -491,7 +471,7 @@ async def test_tool_joining_active_batch_inherits_existing_batch_id() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
         # A and B start first — fresh batch id allocated.
         _push_tool_start(screen, "tc-A")
         _push_tool_start(screen, "tc-B")
@@ -527,7 +507,7 @@ async def test_defer_body_flip_after_mount_clears_stale_body() -> None:
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
-        screen = await _open_session_screen(pilot, rows)
+        screen = await open_session_screen(pilot, rows)
 
         # tc-A starts solo with a visible call-view body.
         _push_tool_start(screen, "tc-A", call_view_text="A-call-view")

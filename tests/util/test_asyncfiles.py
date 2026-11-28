@@ -5,30 +5,51 @@ import os
 import tempfile
 import threading
 import time
+import tracemalloc
+import uuid
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, Awaitable, Callable, Coroutine, Iterator, cast
 from unittest.mock import AsyncMock, Mock
 
 import aiohttp
 import anyio
+import anyio.lowlevel
+import boto3
+import fsspec.asyn  # type: ignore[import-untyped]  # fsspec ships no type stubs
 import pytest
+from aiobotocore.awsrequest import AioAWSResponse
 from anyio import EndOfStream
+from anyio.abc import ByteReceiveStream
 from boto3.s3.transfer import TransferConfig
-from botocore.exceptions import ClientError, ResponseStreamingError
+from botocore.awsrequest import AWSPreparedRequest, AWSResponse, HTTPHeaders
+from botocore.exceptions import (
+    ClientError,
+    ConnectionClosedError,
+    ResponseStreamingError,
+)
+from botocore.httpsession import URLLib3Session
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util import asyncfiles
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
+    S3_COMPOSE_MIN_PREFIX,
     AsyncFilesystem,
+    ComposeSource,
+    ComposeSourceChangedError,
+    ObjectChangedError,
     _current_async_fs,
     _RetiredClient,
+    _s3_compose_async,
+    _s3_copy_ranges,
     _s3_download_file_async,
     _s3_upload_fileobj_async,
     get_async_filesystem,
     s3_bucket_and_key,
     s3_write_file_streaming,
 )
+from inspect_ai._util.error import WriteConflictError
+from inspect_ai._util.file import filesystem, to_uri
 
 S3_BUCKET = "s3://test-bucket"
 
@@ -44,9 +65,28 @@ async def test_read_file_into_local_file(tmp_path: Path) -> None:
 
     with tempfile.TemporaryFile() as dest:
         async with AsyncFilesystem() as fs:
-            await fs.read_file_into(str(source), dest, chunk_size=1024)
+            etag = await fs.read_file_into(str(source), dest, chunk_size=1024)
         dest.seek(0)
         assert dest.read() == payload
+    assert etag is None
+
+
+async def test_read_file_into_s3_returns_the_response_etag(mock_s3: None) -> None:
+    # the seed's compose prefix pins the prior log to the version it copied,
+    # so the ETag must come from the same response as the bytes
+    payload = os.urandom(3 * 1024)
+    s3_path = f"{S3_BUCKET}/read_file_into/etag.bin"
+    with tempfile.TemporaryFile() as dest:
+        async with AsyncFilesystem() as fs:
+            await fs.write_file(s3_path, payload)
+            etag = await fs.read_file_into(s3_path, dest, chunk_size=1024)
+            info = await fs.info(s3_path)
+        dest.seek(0)
+        assert dest.read() == payload
+    if current_async_backend() == "asyncio":
+        assert etag == info.etag
+    else:
+        assert etag is None
 
 
 @pytest.mark.parametrize("as_uri", [False, True])
@@ -718,6 +758,41 @@ async def test_read_file_info_s3_returns_the_response_etag_and_last_modified(
     assert content.mtime == head["LastModified"].timestamp() * 1000
 
 
+async def test_read_file_bytes_s3_pinned_to_an_etag_fails_once_the_object_changes(
+    mock_s3: None,
+) -> None:
+    import boto3
+
+    s3 = boto3.client("s3")
+    s3.put_object(Bucket="test-bucket", Key="if_match/a.bin", Body=b"0123456789")
+    etag = s3.head_object(Bucket="test-bucket", Key="if_match/a.bin")["ETag"]
+    url = f"{S3_BUCKET}/if_match/a.bin"
+    sent: list[str | None] = []
+
+    def record(request: Any, **kwargs: Any) -> None:
+        sent.append(request.headers.get("If-Match"))
+
+    async with AsyncFilesystem() as fs:
+        client = (
+            await fs.s3_client_async()
+            if current_async_backend() == "asyncio"
+            else fs.s3_client()
+        )
+        client.meta.events.register("before-send.s3.GetObject", record)
+        pinned = await fs.read_file_bytes_fully(url, 2, 5, if_match=etag.strip('"'))
+        s3.put_object(Bucket="test-bucket", Key="if_match/a.bin", Body=b"abcdefghij")
+        with pytest.raises(ObjectChangedError):
+            await fs.read_file_bytes_fully(url, 2, 5, if_match=etag.strip('"'))
+        unpinned = await fs.read_file_bytes_fully(url, 2, 5)
+    assert (pinned, unpinned) == (b"234", b"cde")
+    # an HTTP entity tag, quoted
+    assert [h.decode() if isinstance(h, bytes) else h for h in sent] == [
+        etag,
+        etag,
+        None,
+    ]
+
+
 async def test_write_file_local():
     """Test AsyncFilesystem.write_file with local files."""
     test_data = b"Test write data"
@@ -802,6 +877,28 @@ async def test_list_dir_s3_returns_files_and_prefixes_from_one_listing(
     assert listing.files[0].size == 2 and listing.files[0].etag
     assert listing.dirs == [f"{S3_BUCKET}/list_dir/sub"]
     assert empty.files == [] and empty.dirs == []
+
+
+async def test_list_s3_keys_lists_every_object_with_directory_markers(
+    mock_s3: None,
+) -> None:
+    import boto3
+
+    s3 = boto3.client("s3")
+    for key in ("keys/", "keys/a.eval", "keys/sub/", "keys/sub/b", "keys-x/c"):
+        s3.put_object(Bucket="test-bucket", Key=key, Body=b"")
+
+    async with AsyncFilesystem() as fs:
+        keys = await fs.list_s3_keys(f"{S3_BUCKET}/keys")
+        with pytest.raises(ValueError, match="Not an S3 URL"):
+            await fs.list_s3_keys("/tmp/keys")
+
+    assert sorted(keys) == [
+        f"{S3_BUCKET}/keys/",
+        f"{S3_BUCKET}/keys/a.eval",
+        f"{S3_BUCKET}/keys/sub/",
+        f"{S3_BUCKET}/keys/sub/b",
+    ]
 
 
 # =============================================================================
@@ -1361,6 +1458,496 @@ async def test_s3_upload_async_multipart_aborts_on_cancel() -> None:
 
     assert client.completed is None
     assert client.aborted == ["upload-1"]
+
+
+# =============================================================================
+# Tests for compose_file(): server-side prefix copy plus an uploaded tail
+# =============================================================================
+
+_MIB = 1024 * 1024
+
+
+def _assert_contiguous_equal_ranges(ranges: list[tuple[int, int]], length: int) -> None:
+    assert ranges[0][0] == 0 and ranges[-1][1] == length
+    assert all(a[1] == b[0] for a, b in zip(ranges, ranges[1:]))
+    sizes = [end - start for start, end in ranges]
+    # equal slices: no small remainder that would break the 5 MiB part minimum
+    assert max(sizes) - min(sizes) <= 1
+    assert min(sizes) >= 5 * _MIB
+
+
+def test_s3_copy_ranges_split_into_parallel_parts() -> None:
+    part = asyncfiles._S3_COPY_PART_SIZE
+    assert _s3_copy_ranges(S3_COMPOSE_MIN_PREFIX + 1) == [
+        (0, S3_COMPOSE_MIN_PREFIX + 1)
+    ]
+    assert _s3_copy_ranges(part) == [(0, part)]
+    assert _s3_copy_ranges(3 * part) == [
+        (0, part),
+        (part, 2 * part),
+        (2 * part, 3 * part),
+    ]
+    for length in [part + 1, 3 * part - 1, 7 * part + 12345]:
+        ranges = _s3_copy_ranges(length)
+        assert len(ranges) == -(-length // part)
+        assert max(end - start for start, end in ranges) <= part
+        _assert_contiguous_equal_ranges(ranges, length)
+
+
+def test_s3_copy_ranges_stay_within_the_part_count_limit() -> None:
+    max_parts = asyncfiles._S3_MAX_COPY_PARTS
+    length = max_parts * asyncfiles._S3_COPY_PART_SIZE + 1
+    ranges = _s3_copy_ranges(length)
+    assert len(ranges) == max_parts
+    _assert_contiguous_equal_ranges(ranges, length)
+
+
+async def test_can_compose_only_s3_under_asyncio() -> None:
+    async with AsyncFilesystem() as fs:
+        assert fs.can_compose("s3://bucket/key.eval") == (
+            current_async_backend() == "asyncio"
+        )
+        assert not fs.can_compose("/tmp/key.eval")
+        assert not fs.can_compose("gs://bucket/key.eval")
+
+
+@skip_if_trio
+@pytest.mark.parametrize("own_key", [False, True])
+async def test_compose_file_s3_copies_prefix_and_uploads_tail(
+    mock_s3: None, own_key: bool
+) -> None:
+    source_bytes = os.urandom(12 * _MIB)
+    prefix_length = 10 * _MIB
+    tail_bytes = os.urandom(_MIB)
+    source_path = f"{S3_BUCKET}/compose/source-{own_key}.eval"
+    dest_path = source_path if own_key else f"{S3_BUCKET}/compose/dest.eval"
+
+    # the tail is read from its current position, not from 0
+    tail = io.BytesIO(b"skipped" + tail_bytes)
+    tail.seek(len(b"skipped"))
+    async with AsyncFilesystem() as fs:
+        source_etag = await fs.write_file(source_path, source_bytes)
+        assert source_etag is not None
+        etag = await fs.compose_file(
+            dest_path, ComposeSource(source_path, source_etag, prefix_length), tail
+        )
+        assert (
+            await fs.read_file(dest_path) == source_bytes[:prefix_length] + tail_bytes
+        )
+        assert etag == (await fs.info(dest_path)).etag
+        if not own_key:
+            assert await fs.read_file(source_path) == source_bytes
+        client = await fs.s3_client_async()
+        uploads = await client.list_multipart_uploads(Bucket="test-bucket")
+        assert not uploads.get("Uploads")
+    assert not tail.closed
+
+
+@skip_if_trio
+async def test_compose_file_s3_copies_prefix_in_several_parts(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(asyncfiles, "_S3_COPY_PART_SIZE", 6 * _MIB)
+    source_bytes = os.urandom(24 * _MIB)
+    prefix_length = 20 * _MIB + 3
+    tail_bytes = os.urandom(_MIB)
+    source_path = f"{S3_BUCKET}/compose/several-source.eval"
+    dest_path = f"{S3_BUCKET}/compose/several-dest.eval"
+
+    async with AsyncFilesystem() as fs:
+        source_etag = await fs.write_file(source_path, source_bytes)
+        assert source_etag is not None
+        etag = await fs.compose_file(
+            dest_path,
+            ComposeSource(source_path, source_etag, prefix_length),
+            io.BytesIO(tail_bytes),
+        )
+        assert (
+            await fs.read_file(dest_path) == source_bytes[:prefix_length] + tail_bytes
+        )
+        # four copied parts and one uploaded tail part
+        assert etag.endswith("-5")
+        assert etag == (await fs.info(dest_path)).etag
+
+
+class _ComposeClient(_MultipartClient):
+    """Fake aiobotocore S3 client recording a compose."""
+
+    def __init__(
+        self,
+        *,
+        etag: str = "source-etag",
+        size: int = 2 * S3_COMPOSE_MIN_PREFIX,
+        head_error: str | None = None,
+        copy_error: str | None = None,
+        fail_part: int | None = None,
+    ) -> None:
+        super().__init__(fail_part=fail_part)
+        self.etag = etag
+        self.size = size
+        self.head_error = head_error
+        self.copy_error = copy_error
+        self.copies: list[dict[str, Any]] = []
+        self.complete_error: str | None = None
+        self.completed_parts: list[list[tuple[int, bytes]]] = []
+
+    async def head_object(self, **kwargs: Any) -> dict[str, Any]:
+        if self.head_error is not None:
+            raise ClientError(
+                cast(Any, {"Error": {"Code": self.head_error, "Message": "head"}}),
+                "HeadObject",
+            )
+        return {"ETag": f'"{self.etag}"', "ContentLength": self.size}
+
+    async def upload_part_copy(self, **kwargs: Any) -> dict[str, Any]:
+        assert kwargs["UploadId"] == "upload-1"
+        if self.copy_error is not None:
+            raise ClientError(
+                cast(Any, {"Error": {"Code": self.copy_error, "Message": "copy"}}),
+                "UploadPartCopy",
+            )
+        self.copies.append(kwargs)
+        return {"CopyPartResult": {"ETag": f'"copy-{kwargs["PartNumber"]}"'}}
+
+    async def complete_multipart_upload(
+        self, MultipartUpload: dict[str, Any], **kwargs: Any
+    ) -> dict[str, Any]:
+        self.completed_parts.append(sorted(self.parts))
+        self.parts = []
+        if self.complete_error is not None:
+            code, self.complete_error = self.complete_error, None
+            raise ClientError(
+                cast(Any, {"Error": {"Code": code, "Message": "complete"}}),
+                "CompleteMultipartUpload",
+            )
+        return await super().complete_multipart_upload(MultipartUpload, **kwargs)
+
+
+_COMPOSE_PREFIX = ComposeSource(
+    "s3://bucket/prior.eval", "source-etag", S3_COMPOSE_MIN_PREFIX
+)
+
+
+async def test_s3_compose_async_copies_prefix_then_numbers_tail_parts() -> None:
+    client = _ComposeClient()
+
+    etag = await _s3_compose_async(
+        client,
+        "bucket",
+        "dest.eval",
+        _COMPOSE_PREFIX,
+        io.BytesIO(b"aaaabb"),
+        _SMALL_PARTS(),
+    )
+
+    assert etag == "final-etag-3"
+    assert [
+        (c["PartNumber"], c["CopySource"], c["CopySourceRange"], c["CopySourceIfMatch"])
+        for c in client.copies
+    ] == [
+        (
+            1,
+            {"Bucket": "bucket", "Key": "prior.eval"},
+            f"bytes=0-{S3_COMPOSE_MIN_PREFIX - 1}",
+            '"source-etag"',
+        )
+    ]
+    assert client.completed_parts == [[(2, b"aaaa"), (3, b"bb")]]
+    assert client.completed == [
+        {"ETag": '"copy-1"', "PartNumber": 1},
+        {"ETag": '"etag-2"', "PartNumber": 2},
+        {"ETag": '"etag-3"', "PartNumber": 3},
+    ]
+    assert client.aborted == []
+
+
+async def test_s3_compose_async_copies_every_part_conditionally(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(asyncfiles, "_S3_COPY_PART_SIZE", S3_COMPOSE_MIN_PREFIX // 2)
+    client = _ComposeClient()
+    half = S3_COMPOSE_MIN_PREFIX // 2
+
+    await _s3_compose_async(
+        client,
+        "bucket",
+        "dest.eval",
+        _COMPOSE_PREFIX,
+        io.BytesIO(b"aaaabb"),
+        _SMALL_PARTS(),
+    )
+
+    assert sorted(
+        (c["PartNumber"], c["CopySourceRange"], c["CopySourceIfMatch"])
+        for c in client.copies
+    ) == [
+        (1, f"bytes=0-{half - 1}", '"source-etag"'),
+        (2, f"bytes={half}-{S3_COMPOSE_MIN_PREFIX - 1}", '"source-etag"'),
+    ]
+    assert client.completed_parts == [[(3, b"aaaa"), (4, b"bb")]]
+    assert client.completed == [
+        {"ETag": '"copy-1"', "PartNumber": 1},
+        {"ETag": '"copy-2"', "PartNumber": 2},
+        {"ETag": '"etag-3"', "PartNumber": 3},
+        {"ETag": '"etag-4"', "PartNumber": 4},
+    ]
+
+
+class _ConcurrencyComposeClient(_ComposeClient):
+    """Fake client recording peak concurrent copies and part uploads.
+
+    Part uploads wait until ten are in flight. With ``hold_copies``, copies never finish: ``copy_full`` is set once
+    ``_S3_MAX_COPY_CONCURRENCY`` are in flight, and with ``fail_copy`` that
+    last one raises instead.
+    """
+
+    def __init__(self, *, hold_copies: bool = False, fail_copy: bool = False):
+        super().__init__()
+        self.hold_copies = hold_copies
+        self.fail_copy = fail_copy
+        self.copy_full = anyio.Event()
+        self.uploads_full = anyio.Event()
+        self.copying = 0
+        self.uploading = 0
+        self.peak_copies = 0
+        self.peak_uploads = 0
+
+    async def upload_part_copy(self, **kwargs: Any) -> dict[str, Any]:
+        self.copying += 1
+        self.peak_copies = max(self.peak_copies, self.copying)
+        try:
+            if self.copying == asyncfiles._S3_MAX_COPY_CONCURRENCY:
+                self.copy_full.set()
+                if self.fail_copy:
+                    raise ClientError(
+                        cast(Any, {"Error": {"Code": "InternalError"}}),
+                        "UploadPartCopy",
+                    )
+            if self.hold_copies:
+                await anyio.sleep_forever()
+            for _ in range(5):
+                await anyio.sleep(0)
+            return await super().upload_part_copy(**kwargs)
+        finally:
+            self.copying -= 1
+
+    async def upload_part(
+        self, PartNumber: int, Body: bytes, UploadId: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        self.uploading += 1
+        self.peak_uploads = max(self.peak_uploads, self.uploading)
+        try:
+            # parts are read off the loop one at a time; hold them until ten
+            # are in flight (a lower bound times out)
+            if self.uploading == 10:
+                self.uploads_full.set()
+            with anyio.fail_after(10):
+                await self.uploads_full.wait()
+            return await super().upload_part(PartNumber, Body, UploadId, **kwargs)
+        finally:
+            self.uploading -= 1
+
+
+# more copy parts than the copy limit runs at once
+_MANY_COPY_PARTS = S3_COMPOSE_MIN_PREFIX // 40
+
+
+async def test_s3_compose_async_bounds_copies_apart_from_uploads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(asyncfiles, "_S3_COPY_PART_SIZE", _MANY_COPY_PARTS)
+    client = _ConcurrencyComposeClient()
+
+    await _s3_compose_async(
+        client,
+        "bucket",
+        "dest.eval",
+        _COMPOSE_PREFIX,
+        io.BytesIO(b"x" * 4 * 30),
+        TransferConfig(multipart_chunksize=4, max_concurrency=10),
+    )
+
+    assert len(client.copies) > asyncfiles._S3_MAX_COPY_CONCURRENCY
+    assert client.peak_copies == asyncfiles._S3_MAX_COPY_CONCURRENCY == 32
+    assert client.peak_uploads == 10
+    assert client.aborted == []
+
+
+@pytest.mark.parametrize("stop", ["fail", "cancel"])
+async def test_s3_compose_async_aborts_with_every_copy_in_flight(
+    monkeypatch: pytest.MonkeyPatch, stop: str
+) -> None:
+    monkeypatch.setattr(asyncfiles, "_S3_COPY_PART_SIZE", _MANY_COPY_PARTS)
+    client = _ConcurrencyComposeClient(hold_copies=True, fail_copy=stop == "fail")
+
+    async def compose() -> None:
+        await _s3_compose_async(
+            client,
+            "bucket",
+            "dest.eval",
+            _COMPOSE_PREFIX,
+            io.BytesIO(b"t"),
+            _SMALL_PARTS(),
+        )
+
+    # a lower copy limit never fills: time out rather than hang
+    if stop == "fail":
+        with anyio.fail_after(10), pytest.raises(ClientError) as exc_info:
+            await compose()
+        assert exc_info.value.response["Error"]["Code"] == "InternalError"
+    else:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(compose)
+            with anyio.fail_after(10):
+                await client.copy_full.wait()
+            tg.cancel_scope.cancel()
+
+    assert client.copy_full.is_set()
+    assert client.copying == 0
+    assert client.aborted == ["upload-1"]
+    assert client.completed is None
+
+
+@skip_if_trio
+async def test_s3_client_pool_fits_the_copy_limit() -> None:
+    client = await AsyncFilesystem._create_s3_client_async(region_name="us-east-1")
+    try:
+        assert (
+            client.meta.config.max_pool_connections
+            >= asyncfiles._S3_MAX_COPY_CONCURRENCY
+        )
+    finally:
+        await client.__aexit__(None, None, None)
+
+
+@pytest.mark.parametrize(
+    "head",
+    [
+        {"etag": "other-etag"},
+        {"size": S3_COMPOSE_MIN_PREFIX - 1},
+        {"head_error": "404"},
+        {"head_error": "NoSuchKey"},
+    ],
+    ids=["etag", "size", "404", "no-such-key"],
+)
+async def test_s3_compose_async_changed_source_starts_no_upload(
+    head: dict[str, Any],
+) -> None:
+    client = _ComposeClient(**head)
+    with pytest.raises(ComposeSourceChangedError):
+        await _s3_compose_async(
+            client,
+            "bucket",
+            "dest.eval",
+            _COMPOSE_PREFIX,
+            io.BytesIO(b"t"),
+            _SMALL_PARTS(),
+        )
+    assert client.created is None
+    assert client.copies == []
+
+
+async def test_s3_compose_async_precondition_failure_aborts_then_reports_change() -> (
+    None
+):
+    client = _ComposeClient(copy_error="PreconditionFailed")
+
+    with pytest.raises(ComposeSourceChangedError):
+        await _s3_compose_async(
+            client,
+            "bucket",
+            "dest.eval",
+            _COMPOSE_PREFIX,
+            io.BytesIO(b"t"),
+            _SMALL_PARTS(),
+        )
+    assert client.aborted == ["upload-1"]
+    assert client.completed is None
+
+
+async def test_s3_compose_async_tail_failure_aborts() -> None:
+    client = _ComposeClient(fail_part=3)
+
+    with pytest.raises(ClientError) as exc_info:
+        await _s3_compose_async(
+            client,
+            "bucket",
+            "dest.eval",
+            _COMPOSE_PREFIX,
+            io.BytesIO(b"aaaabbbbcc"),
+            _SMALL_PARTS(),
+        )
+    assert exc_info.value.response["Error"]["Code"] == "InternalError"
+    assert client.aborted == ["upload-1"]
+    assert client.completed is None
+
+
+async def test_s3_compose_async_cancel_during_tail_aborts() -> None:
+    client = _ComposeClient()
+    client.block_part = 3
+
+    async def compose() -> None:
+        await _s3_compose_async(
+            client,
+            "bucket",
+            "dest.eval",
+            _COMPOSE_PREFIX,
+            io.BytesIO(b"aaaabbbbcc"),
+            _SMALL_PARTS(),
+        )
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(compose)
+        await client.blocked.wait()
+        tg.cancel_scope.cancel()
+
+    assert client.aborted == ["upload-1"]
+    assert client.completed is None
+
+
+async def test_compose_file_retries_stale_signature_from_tail_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if current_async_backend() != "asyncio":
+        pytest.skip("compose runs under asyncio only")
+    client = _ComposeClient()
+    client.complete_error = "RequestTimeTooSkewed"
+
+    async def s3_client_async(self: AsyncFilesystem) -> Any:
+        return client
+
+    async def no_sleep(seconds: float) -> None:
+        pass
+
+    monkeypatch.setattr(AsyncFilesystem, "s3_client_async", s3_client_async)
+    monkeypatch.setattr("inspect_ai._util.asyncfiles.anyio.sleep", no_sleep)
+
+    tail = io.BytesIO(b"prefix-bytes|the tail")
+    tail.seek(len(b"prefix-bytes|"))
+    async with AsyncFilesystem() as fs:
+        etag = await fs.compose_file("s3://bucket/dest.eval", _COMPOSE_PREFIX, tail)
+
+    assert etag == "final-etag-3"
+    assert client.aborted == ["upload-1"]
+    assert client.completed_parts == [[(2, b"the tail")], [(2, b"the tail")]]
+
+
+async def test_compose_file_rejects_what_it_cannot_compose() -> None:
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(ValueError):
+            await fs.compose_file("/tmp/dest.eval", _COMPOSE_PREFIX, io.BytesIO())
+        with pytest.raises(ValueError):
+            await fs.compose_file(
+                "s3://bucket/dest.eval",
+                _COMPOSE_PREFIX._replace(filename="/tmp/prior.eval"),
+                io.BytesIO(),
+            )
+        with pytest.raises(ValueError):
+            await fs.compose_file(
+                "s3://bucket/dest.eval",
+                _COMPOSE_PREFIX._replace(length=S3_COMPOSE_MIN_PREFIX - 1),
+                io.BytesIO(),
+            )
 
 
 class _RangedGetClient:
@@ -2392,3 +2979,1641 @@ async def test_copy_file_s3_to_s3(mock_s3: None) -> None:
         await fs.write_file("s3://test-bucket/copy/src", b"payload")
         await fs.copy_file("s3://test-bucket/copy/src", "s3://test-bucket/copy/dst")
         assert await fs.read_file("s3://test-bucket/copy/dst") == b"payload"
+
+
+# =============================================================================
+# Tests for write_file_conditional() and get_file_if_match()
+# =============================================================================
+
+# S3 (and moto) refuse multipart parts below 5 MiB, except the last.
+_PART = 5 * 1024 * 1024
+_ROUTE_SIZES = {"put": 1024, "multipart": 2 * _PART + 1024}  # multipart: 3 parts
+
+
+@pytest.fixture
+def small_transfer_config(monkeypatch: pytest.MonkeyPatch) -> TransferConfig:
+    import inspect_ai._util.asyncfiles as asyncfiles
+
+    config = TransferConfig(
+        multipart_threshold=_PART, multipart_chunksize=_PART, max_concurrency=2
+    )
+    monkeypatch.setattr(asyncfiles, "_s3_transfer_config", lambda: config)
+    return config
+
+
+def _conditional_key(name: str) -> tuple[str, str]:
+    key = f"conditional/{name}-{uuid.uuid4().hex}"
+    return key, f"{S3_BUCKET}/{key}"
+
+
+def _in_progress_uploads(key: str) -> list[dict[str, Any]]:
+    uploads = boto3.client("s3").list_multipart_uploads(
+        Bucket="test-bucket", Prefix=key
+    )
+    return cast(list[dict[str, Any]], uploads.get("Uploads", []))
+
+
+async def _s3_clients(fs: AsyncFilesystem) -> list[Any]:
+    """The retrying client and the final-call client for the current backend."""
+    if current_async_backend() == "asyncio":
+        return [await fs.s3_client_async(), await fs._s3_final_client_async()]
+    return [fs.s3_client(), fs._s3_final_client()]
+
+
+class _RawBody:
+    """Raw body of an injected response, for both botocore and aiobotocore."""
+
+    def __init__(self, data: bytes) -> None:
+        self.data = data
+
+    async def read(self) -> bytes:
+        return self.data
+
+    def stream(self, **kwargs: Any) -> Iterator[bytes]:
+        yield self.data
+
+
+def _error_response(
+    request: AWSPreparedRequest,
+    is_async: bool,
+    status: int = 500,
+    code: str = "InternalError",
+) -> AWSResponse:
+    body = _RawBody(f"<Error><Code>{code}</Code><Message>x</Message></Error>".encode())
+    response_type = AioAWSResponse if is_async else AWSResponse
+    return response_type(request.url, status, HTTPHeaders(), body)
+
+
+@pytest.mark.parametrize("route", ["put", "multipart"])
+async def test_write_file_conditional_if_none_match(
+    mock_s3: None, small_transfer_config: TransferConfig, route: str
+) -> None:
+    key, url = _conditional_key(route)
+    data = os.urandom(_ROUTE_SIZES[route])
+    async with AsyncFilesystem() as fs:
+        etag = await fs.write_file_conditional(
+            url, io.BytesIO(data), if_none_match=True
+        )
+        assert etag == (await fs.info(url)).etag
+        assert await fs.read_file(url) == data
+
+        with pytest.raises(WriteConflictError, match="already exists"):
+            await fs.write_file_conditional(
+                url, io.BytesIO(b"other" * len(data)), if_none_match=True
+            )
+        assert await fs.read_file(url) == data
+    assert _in_progress_uploads(key) == []
+
+
+@pytest.mark.parametrize("route", ["put", "multipart"])
+async def test_write_file_conditional_if_match(
+    mock_s3: None, small_transfer_config: TransferConfig, route: str
+) -> None:
+    key, url = _conditional_key(route)
+    first = os.urandom(_ROUTE_SIZES[route])
+    second = os.urandom(_ROUTE_SIZES[route])
+    async with AsyncFilesystem() as fs:
+        etag = await fs.write_file_conditional(
+            url, io.BytesIO(first), if_none_match=True
+        )
+        new_etag = await fs.write_file_conditional(
+            url, io.BytesIO(second), if_match=etag
+        )
+        assert new_etag != etag
+        assert new_etag == (await fs.info(url)).etag
+        assert await fs.read_file(url) == second
+
+        # the stale ETag is refused by the check
+        with pytest.raises(WriteConflictError, match=etag):
+            await fs.write_file_conditional(url, io.BytesIO(first), if_match=etag)
+        assert await fs.read_file(url) == second
+
+        # a missing object is a conflict too
+        await fs.delete_file(url)
+        with pytest.raises(WriteConflictError, match="no object"):
+            await fs.write_file_conditional(url, io.BytesIO(first), if_match=new_etag)
+        assert not await fs.exists(url)
+    assert _in_progress_uploads(key) == []
+
+
+@pytest.mark.parametrize(
+    ("route", "condition"),
+    [("put", "if_none_match"), ("multipart", "if_none_match"), ("put", "if_match")],
+)
+async def test_write_file_conditional_refused_by_s3_after_check(
+    mock_s3: None, small_transfer_config: TransferConfig, route: str, condition: str
+) -> None:
+    """A write landing between the check and the final call is refused by S3.
+
+    moto ignores ``IfMatch`` on ``complete_multipart_upload``, so that case is
+    covered only by the check (``test_write_file_conditional_if_match``).
+    """
+    key, url = _conditional_key(route)
+    data = os.urandom(_ROUTE_SIZES[route])
+    final_op = "PutObject" if route == "put" else "CompleteMultipartUpload"
+    racer = boto3.client("s3")
+
+    def race(**kwargs: Any) -> None:
+        racer.put_object(Bucket="test-bucket", Key=key, Body=b"racer")
+
+    async with AsyncFilesystem() as fs:
+        kwargs: dict[str, Any] = {"if_none_match": True}
+        if condition == "if_match":
+            kwargs = {
+                "if_match": await fs.write_file_conditional(
+                    url, io.BytesIO(b"seed"), if_none_match=True
+                )
+            }
+        for client in await _s3_clients(fs):
+            client.meta.events.register(f"before-send.s3.{final_op}", race)
+
+        with pytest.raises(WriteConflictError) as exc_info:
+            await fs.write_file_conditional(url, io.BytesIO(data), **kwargs)
+        assert isinstance(exc_info.value.__cause__, ClientError)
+        assert await fs.read_file(url) == b"racer"
+    assert _in_progress_uploads(key) == []
+
+
+@pytest.mark.parametrize("route", ["put", "multipart"])
+async def test_write_file_conditional_sends_final_call_once(
+    mock_s3: None, small_transfer_config: TransferConfig, route: str
+) -> None:
+    key, url = _conditional_key(route)
+    final_op = "PutObject" if route == "put" else "CompleteMultipartUpload"
+    is_async = current_async_backend() == "asyncio"
+    dispatched = {"final": 0, "parts": 0}
+
+    def fail_final(request: AWSPreparedRequest, **kwargs: Any) -> AWSResponse:
+        dispatched["final"] += 1
+        return _error_response(request, is_async)
+
+    def fail_first_part(
+        request: AWSPreparedRequest, **kwargs: Any
+    ) -> AWSResponse | None:
+        dispatched["parts"] += 1
+        return _error_response(request, is_async) if dispatched["parts"] == 1 else None
+
+    async with AsyncFilesystem() as fs:
+        for client in await _s3_clients(fs):
+            client.meta.events.register(f"before-send.s3.{final_op}", fail_final)
+            client.meta.events.register("before-send.s3.UploadPart", fail_first_part)
+
+        with pytest.raises(ClientError) as exc_info:
+            await fs.write_file_conditional(
+                url, io.BytesIO(os.urandom(_ROUTE_SIZES[route])), if_none_match=True
+            )
+        assert exc_info.value.response["Error"]["Code"] == "InternalError"
+        assert not await fs.exists(url)
+
+    assert dispatched["final"] == 1
+    # the failed part was retried: three parts, four dispatches
+    assert dispatched["parts"] == (4 if route == "multipart" else 0)
+    assert _in_progress_uploads(key) == []
+
+
+@pytest.mark.parametrize("route", ["put", "multipart"])
+async def test_write_file_conditional_ambiguous_outcome_propagates(
+    mock_s3: None, small_transfer_config: TransferConfig, route: str
+) -> None:
+    """A final call that lands but loses its response is not reported as a conflict."""
+    key, url = _conditional_key(route)
+    data = os.urandom(_ROUTE_SIZES[route])
+    final_op = "PutObject" if route == "put" else "CompleteMultipartUpload"
+
+    def deliver_then_drop(request: AWSPreparedRequest, **kwargs: Any) -> None:
+        response = URLLib3Session().send(request)
+        assert response.status_code == 200
+        raise ConnectionClosedError(endpoint_url=request.url)
+
+    async with AsyncFilesystem() as fs:
+        for client in await _s3_clients(fs):
+            client.meta.events.register(f"before-send.s3.{final_op}", deliver_then_drop)
+
+        with pytest.raises(ConnectionClosedError):
+            await fs.write_file_conditional(url, io.BytesIO(data), if_none_match=True)
+        assert await fs.read_file(url) == data
+
+
+@pytest.mark.parametrize("route", ["put", "multipart"])
+@pytest.mark.parametrize(
+    ("code", "conflict"),
+    [("ConditionalRequestConflict", True), ("OperationAborted", False)],
+)
+async def test_write_file_conditional_409(
+    mock_s3: None,
+    small_transfer_config: TransferConfig,
+    route: str,
+    code: str,
+    conflict: bool,
+) -> None:
+    """S3's 409 for concurrent conditional writes of one key is a conflict.
+
+    The mapping matches the error code, so a 409 with another code is not
+    treated as a failed condition and propagates unchanged.
+    """
+    key, url = _conditional_key(f"409-{route}")
+    final_op = "PutObject" if route == "put" else "CompleteMultipartUpload"
+    is_async = current_async_backend() == "asyncio"
+
+    def respond_409(request: AWSPreparedRequest, **kwargs: Any) -> AWSResponse:
+        return _error_response(request, is_async, status=409, code=code)
+
+    async with AsyncFilesystem() as fs:
+        for client in await _s3_clients(fs):
+            client.meta.events.register(f"before-send.s3.{final_op}", respond_409)
+
+        with pytest.raises(WriteConflictError if conflict else ClientError) as exc_info:
+            await fs.write_file_conditional(
+                url, io.BytesIO(os.urandom(_ROUTE_SIZES[route])), if_none_match=True
+            )
+        error = exc_info.value.__cause__ if conflict else exc_info.value
+        assert isinstance(error, ClientError)
+        assert error.response["Error"]["Code"] == code
+        assert not await fs.exists(url)
+    assert _in_progress_uploads(key) == []
+
+
+def _record_closed_clients(
+    monkeypatch: pytest.MonkeyPatch, fs: AsyncFilesystem
+) -> list[Any]:
+    """Record each async S3 client `fs` creates when it is closed."""
+    closed: list[Any] = []
+    create = fs._create_s3_client_async
+
+    async def create_recorded(**kwargs: Any) -> Any:
+        client = await create(**kwargs)
+        aexit = client.__aexit__
+
+        async def record_close(*exc_info: Any) -> None:
+            closed.append(client)
+            await aexit(*exc_info)
+
+        client.__aexit__ = record_close
+        return client
+
+    monkeypatch.setattr(fs, "_create_s3_client_async", create_recorded)
+    return closed
+
+
+def _age_s3_clients(fs: AsyncFilesystem) -> None:
+    """Age the current and retired async S3 clients past `client_ttl`."""
+    assert fs._client_ttl is not None
+    aged = time.monotonic() - fs._client_ttl - 1
+    fs._s3_client_async_created = aged
+    fs._s3_clients_retired = [
+        _RetiredClient(retired.client, aged) for retired in fs._s3_clients_retired
+    ]
+
+
+@skip_if_trio  # client_ttl applies to the async clients only
+async def test_write_file_conditional_final_client_rotated_and_closed(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    key, url = _conditional_key("rotate")
+    fs = AsyncFilesystem(client_ttl=60)
+    closed = _record_closed_clients(monkeypatch, fs)
+    try:
+        etag = await fs.write_file_conditional(
+            url, io.BytesIO(b"first"), if_none_match=True
+        )
+        first_final = fs._s3_client_final_async
+        assert first_final is not None
+        first_final_sends = 0
+
+        def count_send(**kwargs: Any) -> None:
+            nonlocal first_final_sends
+            first_final_sends += 1
+
+        first_final.meta.events.register("before-send.s3.PutObject", count_send)
+
+        _age_s3_clients(fs)
+        await fs.write_file_conditional(url, io.BytesIO(b"second"), if_match=etag)
+
+        second_final = fs._s3_client_final_async
+        assert second_final is not None and second_final is not first_final
+        assert first_final_sends == 0
+        assert first_final in [retired.client for retired in fs._s3_clients_retired]
+        assert first_final not in closed
+    finally:
+        await fs.close()
+    assert first_final in closed
+    assert second_final in closed
+    body = boto3.client("s3").get_object(Bucket="test-bucket", Key=key)["Body"]
+    assert body.read() == b"second"
+
+
+@skip_if_trio  # client_ttl applies to the async clients only
+@pytest.mark.parametrize("operation", ["upload", "download"])
+async def test_guards_keep_their_clients_through_rotations(
+    mock_s3: None,
+    small_transfer_config: TransferConfig,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    """Two client_ttl rotations during a transfer do not close its clients.
+
+    The second rotation closes clients retired a full TTL earlier; the guards
+    hold theirs until the transfer ends, and a later rotation closes them.
+    """
+    key, url = _conditional_key(f"rotate-mid-{operation}")
+    data = os.urandom(_ROUTE_SIZES["multipart"])  # three parts or ranges
+    local = tmp_path / "out.bin"
+    etag = None
+    if operation == "download":
+        etag = boto3.client("s3").put_object(Bucket="test-bucket", Key=key, Body=data)[
+            "ETag"
+        ]
+    fs = AsyncFilesystem(client_ttl=60)
+    closed = _record_closed_clients(monkeypatch, fs)
+    blocked = anyio.Event()
+    resume = anyio.Event()
+    requests = 0
+    used: list[Any] = []
+
+    async def hold_second_request(**kwargs: Any) -> None:
+        nonlocal requests
+        requests += 1
+        if requests == 2:
+            blocked.set()
+            await resume.wait()
+
+    async def rotate_twice() -> None:
+        await blocked.wait()
+        used.extend(
+            client
+            for client in (fs._s3_client_async, fs._s3_client_final_async)
+            if client is not None
+        )
+        for _ in range(2):
+            _age_s3_clients(fs)
+            await fs.s3_client_async()
+        resume.set()
+
+    try:
+        client = await fs.s3_client_async()
+        op = "UploadPart" if operation == "upload" else "GetObject"
+        client.meta.events.register(f"before-send.s3.{op}", hold_second_request)
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(rotate_twice)
+            if operation == "upload":
+                await fs.write_file_conditional(
+                    url, io.BytesIO(data), if_none_match=True
+                )
+            else:
+                assert etag is not None
+                await fs.get_file_if_match(url, str(local), etag)
+
+        assert len(used) == (2 if operation == "upload" else 1)
+        assert all(c in [r.client for r in fs._s3_clients_retired] for c in used)
+        assert not any(c in closed for c in used)
+
+        # released once the transfer ends: the next rotation closes them
+        _age_s3_clients(fs)
+        await fs.s3_client_async()
+        assert all(c in closed for c in used)
+    finally:
+        await fs.close()
+
+    if operation == "upload":
+        assert (
+            boto3.client("s3").get_object(Bucket="test-bucket", Key=key)["Body"].read()
+            == data
+        )
+        assert _in_progress_uploads(key) == []
+    else:
+        assert local.read_bytes() == data
+
+
+class _Clock:
+    """A monotonic clock that moves only when a test advances it."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+@skip_if_trio  # client_ttl applies to the async clients only
+@pytest.mark.parametrize("outcome", ["ok", "error", "cancelled"])
+async def test_write_file_conditional_holds_clients_while_acquiring_them(
+    mock_s3: None,
+    small_transfer_config: TransferConfig,
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: str,
+) -> None:
+    """Rotations while a write acquires its clients do not close them.
+
+    Each client creation and close outlasts `client_ttl`, so every
+    acquisition rotates and reaps: the main client the write has already
+    taken is retired and due by the time it acquires its final client.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(asyncfiles, "time", clock)
+    key, url = _conditional_key(f"rotate-acquire-{outcome}")
+    data = os.urandom(_ROUTE_SIZES["multipart"])
+    fs = AsyncFilesystem(client_ttl=60)
+    closed = _record_closed_clients(monkeypatch, fs)
+    record = fs._create_s3_client_async
+    created: list[Any] = []
+    after_close: list[str] = []
+    blocked = anyio.Event()
+
+    async def create_slowly(**kwargs: Any) -> Any:
+        client = await record(**kwargs)
+        created.append(client)
+        aexit = client.__aexit__
+
+        async def close_slowly(*exc_info: Any) -> None:
+            await aexit(*exc_info)
+            clock.now += 61
+
+        def check_open(event_name: str, **kwargs: Any) -> None:
+            if client in closed:
+                after_close.append(event_name)
+                raise AssertionError(f"{event_name} on a closed client")
+
+        client.__aexit__ = close_slowly
+        client.meta.events.register("before-send.s3", check_open)
+        if kwargs.get("max_attempts") == 0 and outcome == "error":
+            client.meta.events.register(
+                "before-send.s3.CompleteMultipartUpload",
+                lambda request, **kwargs: _error_response(request, True),
+            )
+        if kwargs.get("max_attempts") == 0 and outcome == "cancelled":
+            client.meta.events.register(
+                "before-send.s3.CompleteMultipartUpload",
+                _blocking_hook(blocked, threading.Event()),
+            )
+        clock.now += 61
+        return client
+
+    monkeypatch.setattr(fs, "_create_s3_client_async", create_slowly)
+    try:
+        await fs.s3_client_async()
+        clock.now += 61
+        write = fs.write_file_conditional(url, io.BytesIO(data), if_none_match=True)
+        if outcome == "ok":
+            await write
+        elif outcome == "error":
+            with pytest.raises(ClientError, match="InternalError"):
+                await write
+        else:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(lambda: write)
+                await blocked.wait()
+                tg.cancel_scope.cancel()
+
+        assert after_close == []
+        assert fs._s3_clients_held == []
+        # released: the next rotation closes every client but the new one
+        await fs.s3_client_async()
+        current = fs._s3_client_async
+        assert all(client in closed for client in created if client is not current)
+    finally:
+        await fs.close()
+
+    stored = boto3.client("s3").list_objects_v2(Bucket="test-bucket", Prefix=key)
+    assert stored.get("KeyCount", 0) == (1 if outcome == "ok" else 0)
+    assert _in_progress_uploads(key) == []
+
+
+@skip_if_trio  # client_ttl applies to the async clients only
+@pytest.mark.parametrize("condition", ["if_none_match", "if_match"])
+@pytest.mark.parametrize("outcome", ["ok", "conflict", "cancelled"])
+async def test_write_file_conditional_holds_client_through_check(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch, condition: str, outcome: str
+) -> None:
+    """Two client_ttl rotations during the check's HEAD do not close its client."""
+    key, url = _conditional_key(f"rotate-check-{condition}-{outcome}")
+    s3 = boto3.client("s3")
+    kwargs: dict[str, Any] = {"if_none_match": True}
+    if condition == "if_match":
+        etag = s3.put_object(Bucket="test-bucket", Key=key, Body=b"seed")["ETag"]
+        kwargs = {"if_match": '"' + "0" * 32 + '"' if outcome == "conflict" else etag}
+    elif outcome == "conflict":
+        s3.put_object(Bucket="test-bucket", Key=key, Body=b"seed")
+    fs = AsyncFilesystem(client_ttl=60)
+    closed = _record_closed_clients(monkeypatch, fs)
+    blocked = anyio.Event()
+    resume = anyio.Event()
+    heads = 0
+
+    try:
+        client = await fs.s3_client_async()
+
+        async def hold_first_head(**kwargs: Any) -> None:
+            nonlocal heads
+            heads += 1
+            if heads == 1:
+                blocked.set()
+                await resume.wait()
+                if client in closed:
+                    raise AssertionError("HEAD resumed on a closed client")
+
+        client.meta.events.register("before-send.s3.HeadObject", hold_first_head)
+        write = fs.write_file_conditional(url, io.BytesIO(b"new"), **kwargs)
+
+        async def run_write() -> None:
+            if outcome == "conflict":
+                with pytest.raises(WriteConflictError):
+                    await write
+            else:
+                await write
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(run_write)
+            await blocked.wait()
+            if outcome == "cancelled":
+                tg.cancel_scope.cancel()
+            else:
+                for _ in range(2):
+                    _age_s3_clients(fs)
+                    await fs.s3_client_async()
+                resume.set()
+
+        assert fs._s3_clients_held == []
+        if outcome != "cancelled":
+            assert client not in closed
+        # released: retired, then closed by a rotation a client_ttl later
+        for _ in range(2):
+            _age_s3_clients(fs)
+            await fs.s3_client_async()
+        assert client in closed
+    finally:
+        await fs.close()
+
+    stored = s3.list_objects_v2(Bucket="test-bucket", Prefix=key).get("Contents", [])
+    if outcome == "ok":
+        assert s3.get_object(Bucket="test-bucket", Key=key)["Body"].read() == b"new"
+    elif condition == "if_match" or outcome == "conflict":
+        assert s3.get_object(Bucket="test-bucket", Key=key)["Body"].read() == b"seed"
+    else:
+        assert stored == []
+
+
+async def test_write_file_conditional_cancelled_part_upload_aborts(
+    mock_s3: None, small_transfer_config: TransferConfig
+) -> None:
+    key, url = _conditional_key("cancel")
+    is_async = current_async_backend() == "asyncio"
+    blocked = anyio.Event()
+    release = threading.Event()
+    parts = 0
+    finished = False
+
+    async def block_second_part_async(**kwargs: Any) -> None:
+        nonlocal parts
+        parts += 1
+        if parts == 2:
+            blocked.set()
+            await anyio.sleep_forever()
+
+    def block_second_part_sync(**kwargs: Any) -> None:
+        # Trio: the upload runs in a worker thread, which does not see the
+        # cancellation until it returns to its next check
+        nonlocal parts
+        parts += 1
+        if parts == 2:
+            anyio.from_thread.run_sync(blocked.set)
+            assert release.wait(timeout=10)
+
+    async with AsyncFilesystem() as fs:
+        for client in await _s3_clients(fs):
+            client.meta.events.register(
+                "before-send.s3.UploadPart",
+                block_second_part_async if is_async else block_second_part_sync,
+            )
+
+        async def write() -> None:
+            nonlocal finished
+            await fs.write_file_conditional(
+                url,
+                io.BytesIO(os.urandom(_ROUTE_SIZES["multipart"])),
+                if_none_match=True,
+            )
+            finished = True
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(write)
+            await blocked.wait()
+            tg.cancel_scope.cancel()
+            release.set()
+
+        assert not finished
+        assert not await fs.exists(url)
+    assert _in_progress_uploads(key) == []
+
+
+def _blocking_hook(
+    blocked: anyio.Event,
+    release: threading.Event,
+    when: Callable[[AWSPreparedRequest], bool] = lambda request: True,
+) -> Callable[..., Any]:
+    """A ``before-send`` hook that blocks the matching request until cancelled.
+
+    On asyncio it waits on the event loop, where cancellation reaches it. On
+    Trio the request runs in a worker thread that cancellation does not
+    interrupt: it waits for `release`, then lets the request through.
+    """
+    if current_async_backend() == "asyncio":
+
+        async def block_async(request: AWSPreparedRequest, **kwargs: Any) -> None:
+            if when(request):
+                blocked.set()
+                await anyio.sleep_forever()
+
+        return block_async
+
+    def block_sync(request: AWSPreparedRequest, **kwargs: Any) -> None:
+        if when(request):
+            anyio.from_thread.run_sync(blocked.set)
+            assert release.wait(timeout=10)
+
+    return block_sync
+
+
+@pytest.mark.parametrize("route", ["put", "multipart"])
+async def test_write_file_conditional_cancelled_during_final_call_propagates(
+    mock_s3: None, small_transfer_config: TransferConfig, route: str
+) -> None:
+    """Cancellation arriving while the final call is in flight is not swallowed.
+
+    On Trio the call completes in its worker thread, so the object may exist
+    (the ambiguous outcome); the caller must still see the cancellation.
+    """
+    key, url = _conditional_key(f"cancel-final-{route}")
+    final_op = "PutObject" if route == "put" else "CompleteMultipartUpload"
+    blocked = anyio.Event()
+    release = threading.Event()
+    finished = False
+
+    async with AsyncFilesystem() as fs:
+        for client in await _s3_clients(fs):
+            client.meta.events.register(
+                f"before-send.s3.{final_op}", _blocking_hook(blocked, release)
+            )
+
+        async def write() -> None:
+            nonlocal finished
+            await fs.write_file_conditional(
+                url, io.BytesIO(os.urandom(_ROUTE_SIZES[route])), if_none_match=True
+            )
+            finished = True
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(write)
+            await blocked.wait()
+            tg.cancel_scope.cancel()
+            release.set()
+
+    assert not finished
+    assert _in_progress_uploads(key) == []
+
+
+async def test_get_file_if_match_cancelled_during_last_range_keeps_destination(
+    mock_s3: None, small_transfer_config: TransferConfig, tmp_path: Path
+) -> None:
+    key, url = _conditional_key("get-cancel")
+    local = tmp_path / "out.bin"
+    local.write_bytes(b"old")
+    blocked = anyio.Event()
+    release = threading.Event()
+    finished = False
+
+    def last_range(request: AWSPreparedRequest) -> bool:
+        return f"bytes={2 * _PART}-" in str(request.headers.get("Range", ""))
+
+    async with AsyncFilesystem() as fs:
+        etag = await fs.write_file_conditional(
+            url, io.BytesIO(os.urandom(_ROUTE_SIZES["multipart"])), if_none_match=True
+        )
+        for client in await _s3_clients(fs):
+            client.meta.events.register(
+                "before-send.s3.GetObject", _blocking_hook(blocked, release, last_range)
+            )
+
+        async def download() -> None:
+            nonlocal finished
+            await fs.get_file_if_match(url, str(local), etag)
+            finished = True
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(download)
+            await blocked.wait()
+            tg.cancel_scope.cancel()
+            release.set()
+
+    assert not finished
+    assert local.read_bytes() == b"old"
+    assert not list(tmp_path.glob("*.part"))
+
+
+@pytest.mark.parametrize("as_uri", [False, True])
+async def test_get_file_if_match_local_destination_forms(
+    mock_s3: None, tmp_path: Path, as_uri: bool
+) -> None:
+    key, url = _conditional_key("get-uri")
+    directory = tmp_path / "a dir%20x"
+    directory.mkdir()
+    local = directory / "out file.bin"
+    destination = to_uri(str(local)) if as_uri else str(local)
+    async with AsyncFilesystem() as fs:
+        etag = await fs.write_file_conditional(
+            url, io.BytesIO(b"payload"), if_none_match=True
+        )
+        await fs.get_file_if_match(url, destination, etag)
+    assert local.read_bytes() == b"payload"
+    assert [p.name for p in directory.iterdir()] == ["out file.bin"]
+
+
+async def test_write_file_conditional_rejects_bad_arguments(tmp_path: Path) -> None:
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(ValueError, match="S3 URLs only"):
+            await fs.write_file_conditional(
+                str(tmp_path / "x"), io.BytesIO(b""), if_none_match=True
+            )
+        with pytest.raises(ValueError, match="exactly one"):
+            await fs.write_file_conditional(f"{S3_BUCKET}/x", io.BytesIO(b""))
+        with pytest.raises(ValueError, match="exactly one"):
+            await fs.write_file_conditional(
+                f"{S3_BUCKET}/x", io.BytesIO(b""), if_match="e", if_none_match=True
+            )
+        with pytest.raises(ValueError, match="S3 URLs only"):
+            await fs.get_file_if_match(str(tmp_path / "x"), str(tmp_path / "y"), "e")
+
+
+async def test_get_file_if_match_downloads_the_expected_version(
+    mock_s3: None, small_transfer_config: TransferConfig, tmp_path: Path
+) -> None:
+    key, url = _conditional_key("get")
+    data = os.urandom(_ROUTE_SIZES["multipart"])
+    local = tmp_path / "out.bin"
+    local.write_bytes(b"old")
+    async with AsyncFilesystem() as fs:
+        etag = await fs.write_file_conditional(
+            url, io.BytesIO(data), if_none_match=True
+        )
+        await fs.get_file_if_match(url, str(local), etag)
+    assert local.read_bytes() == data
+    assert not list(tmp_path.glob("*.part"))
+
+
+async def test_get_file_if_match_refuses_a_stale_or_missing_object(
+    mock_s3: None, small_transfer_config: TransferConfig, tmp_path: Path
+) -> None:
+    key, url = _conditional_key("get-stale")
+    local = tmp_path / "out.bin"
+    async with AsyncFilesystem() as fs:
+        etag = await fs.write_file_conditional(
+            url, io.BytesIO(b"first"), if_none_match=True
+        )
+        await fs.write_file_conditional(url, io.BytesIO(b"second"), if_match=etag)
+        with pytest.raises(WriteConflictError, match=etag):
+            await fs.get_file_if_match(url, str(local), etag)
+
+        await fs.delete_file(url)
+        with pytest.raises(WriteConflictError):
+            await fs.get_file_if_match(url, str(local), etag)
+    assert not local.exists()
+    assert not list(tmp_path.glob("*.part"))
+
+
+async def test_get_file_if_match_refuses_object_replaced_during_download(
+    mock_s3: None, small_transfer_config: TransferConfig, tmp_path: Path
+) -> None:
+    key, url = _conditional_key("get-replaced")
+    local = tmp_path / "out.bin"
+    racer = boto3.client("s3")
+    replaced = False
+
+    def replace(**kwargs: Any) -> None:
+        nonlocal replaced
+        if not replaced:
+            replaced = True
+            racer.put_object(Bucket="test-bucket", Key=key, Body=b"racer")
+
+    async with AsyncFilesystem() as fs:
+        etag = await fs.write_file_conditional(
+            url, io.BytesIO(os.urandom(_ROUTE_SIZES["multipart"])), if_none_match=True
+        )
+        for client in await _s3_clients(fs):
+            client.meta.events.register("before-send.s3.GetObject", replace)
+        with pytest.raises(WriteConflictError):
+            await fs.get_file_if_match(url, str(local), etag)
+    assert replaced
+    assert not local.exists()
+    assert not list(tmp_path.glob("*.part"))
+
+
+class _GeneratedObject:
+    """A fake S3 object whose ranges are generated on request.
+
+    moto reads a whole object to serve each range, so peak memory over
+    ``mock_s3`` measures moto rather than the download.
+    """
+
+    def __init__(self, size: int) -> None:
+        self.size = size
+        self.etag = '"generated"'
+        self.in_flight = 0
+        self.max_in_flight = 0
+        self.after_range: Callable[[], None] = lambda: None
+
+    def head(self, IfMatch: str, **kwargs: Any) -> dict[str, Any]:
+        assert IfMatch == self.etag
+        return {"ContentLength": self.size, "ETag": self.etag}
+
+    def range(self, Range: str, IfMatch: str) -> bytes:
+        assert IfMatch == self.etag
+        start, end = (int(v) for v in Range.removeprefix("bytes=").split("-"))
+        data = b"\x01" * (end + 1 - start)
+        self.after_range()
+        return data
+
+
+class _GeneratedSyncClient:
+    def __init__(self, obj: _GeneratedObject) -> None:
+        self.obj = obj
+
+    def head_object(self, **kwargs: Any) -> dict[str, Any]:
+        return self.obj.head(**kwargs)
+
+    def get_object(self, Range: str, IfMatch: str, **kwargs: Any) -> dict[str, Any]:
+        return {"Body": io.BytesIO(self.obj.range(Range, IfMatch))}
+
+
+class _GeneratedAsyncClient:
+    def __init__(self, obj: _GeneratedObject) -> None:
+        self.obj = obj
+
+    async def head_object(self, **kwargs: Any) -> dict[str, Any]:
+        return self.obj.head(**kwargs)
+
+    async def get_object(
+        self, Range: str, IfMatch: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        return {"Body": _GeneratedAsyncBody(self.obj, Range, IfMatch)}
+
+
+class _GeneratedAsyncBody:
+    def __init__(self, obj: _GeneratedObject, range: str, if_match: str) -> None:
+        self.obj = obj
+        self.range = range
+        self.if_match = if_match
+
+    async def read(self) -> bytes:
+        self.obj.in_flight += 1
+        self.obj.max_in_flight = max(self.obj.max_in_flight, self.obj.in_flight)
+        try:
+            await anyio.sleep(0.001)
+            return self.obj.range(self.range, self.if_match)
+        finally:
+            self.obj.in_flight -= 1
+
+    def close(self) -> None:
+        pass
+
+
+def _traced_bytes_under(filename: str) -> int:
+    """Bytes tracemalloc holds for allocations with `filename` on their stack."""
+    snapshot = tracemalloc.take_snapshot().filter_traces(
+        [tracemalloc.Filter(True, filename, all_frames=True)]
+    )
+    return sum(trace.size for trace in snapshot.traces)
+
+
+@pytest.mark.parametrize("interference", [False, True])
+async def test_get_file_if_match_memory_is_bounded_by_ranges(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, interference: bool
+) -> None:
+    """Memory held by the download stays bounded by its concurrent ranges.
+
+    tracemalloc's peak counts every thread in the process, including threads
+    that earlier tests left running, so the download's memory is sampled
+    after each range is generated, from snapshots filtered to allocations
+    made under `asyncfiles`. `interference` holds an allocation as large as
+    the object on another thread, and on asyncio delays each AnyIO worker
+    after it reports its result, as a busy machine can.
+    """
+    import inspect_ai._util.asyncfiles as asyncfiles
+
+    chunk = 256 * 1024
+    concurrency = 4
+    config = TransferConfig(multipart_chunksize=chunk, max_concurrency=concurrency)
+    monkeypatch.setattr(asyncfiles, "_s3_transfer_config", lambda: config)
+    obj = _GeneratedObject(64 * chunk + 100)
+    local = tmp_path / "out.bin"
+    peak = 0
+
+    def sample() -> None:
+        nonlocal peak
+        peak = max(peak, _traced_bytes_under(asyncfiles.__file__))
+
+    obj.after_range = sample
+
+    allocated = threading.Event()
+    release = threading.Event()
+
+    def hold_allocation() -> None:
+        held = bytearray(obj.size)
+        allocated.set()
+        release.wait(timeout=60)
+        del held
+
+    holder = threading.Thread(target=hold_allocation)
+    if interference and current_async_backend() == "asyncio":
+        loop = asyncio.get_running_loop()
+        loop_thread = threading.current_thread()
+        call_soon_threadsafe = loop.call_soon_threadsafe
+
+        def delayed_call_soon_threadsafe(*args: Any, **kwargs: Any) -> Any:
+            handle = call_soon_threadsafe(*args, **kwargs)
+            if threading.current_thread() is not loop_thread:
+                time.sleep(0.1)
+            return handle
+
+        monkeypatch.setattr(loop, "call_soon_threadsafe", delayed_call_soon_threadsafe)
+
+    async with AsyncFilesystem() as fs:
+        monkeypatch.setattr(
+            fs, "s3_client_async", AsyncMock(return_value=_GeneratedAsyncClient(obj))
+        )
+        monkeypatch.setattr(fs, "s3_client", lambda: _GeneratedSyncClient(obj))
+        tracemalloc.start(10)
+        try:
+            if interference:
+                holder.start()
+                assert allocated.wait(timeout=10)
+            await fs.get_file_if_match(
+                f"{S3_BUCKET}/generated", str(local), "generated"
+            )
+        finally:
+            release.set()
+            if holder.is_alive():
+                holder.join(timeout=10)
+            tracemalloc.stop()
+
+    assert local.stat().st_size == obj.size
+    assert peak < 2 * chunk * concurrency
+    if current_async_backend() == "asyncio":
+        assert obj.max_in_flight == concurrency
+
+
+# =============================================================================
+# Tests for reads from async fsspec filesystems (gs://, az://, ...): they run on
+# fsspec's own event loop without blocking the caller's
+# =============================================================================
+
+_GATE_TIMEOUT = 5.0
+_GATED_URL = "gatedtest://bucket/dir/a.bin"
+_PAYLOAD = bytes(range(256)) * 4
+
+
+class _GatedFS(fsspec.asyn.AsyncFileSystem):
+    """An async fsspec filesystem whose calls finish only once released.
+
+    A task on the caller's event loop releases each call (`released`) or all of
+    them (`release`), so a call that blocks that loop never finishes: it times
+    out instead. Like adlfs, it defines `_walk` as an unrelated synchronous
+    helper and implements `_find` itself.
+    """
+
+    protocol = "gatedtest"
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.files = {"bucket/dir/a.bin": _PAYLOAD, "bucket/dir/sub/b.bin": b"b"}
+        self.release = threading.Event()
+        self.released = 0
+        self.entries = 0
+        self.cat_ranges: list[tuple[int | None, int | None]] = []
+        self.cat_returned = threading.Event()
+        self.children_pending = 0
+        self.late_writes = 0
+        self.backend_cancelled = False
+
+    async def _gate(self) -> None:
+        assert asyncio.get_running_loop() is self.loop
+        self.entries += 1
+        entry = self.entries
+        deadline = time.monotonic() + _GATE_TIMEOUT
+        while not (self.release.is_set() or self.released >= entry):
+            if time.monotonic() > deadline:
+                raise TimeoutError("caller's event loop never released the gate")
+            await asyncio.sleep(0.001)
+
+    def _walk(self, path: str, dirs: Any, files: Any) -> None:
+        raise AssertionError("adlfs's `_walk` is not fsspec's async walk")
+
+    async def _find(
+        self, path: str, withdirs: bool = False, detail: bool = False, **kwargs: Any
+    ) -> Any:
+        path = self._strip_protocol(path)
+        await self._gate()
+        found = {
+            key: {"name": key, "size": len(data), "type": "file"}
+            for key, data in sorted(self.files.items())
+            if key.startswith(f"{path}/")
+        }
+        return found if detail else list(found)
+
+    async def _info(self, path: str, **kwargs: Any) -> dict[str, Any]:
+        path = self._strip_protocol(path)
+        await self._gate()
+        if path in self.files:
+            return {"name": path, "size": len(self.files[path]), "type": "file"}
+        if any(key.startswith(f"{path}/") for key in self.files):
+            return {"name": path, "size": 0, "type": "directory"}
+        raise FileNotFoundError(path)
+
+    async def _ls(self, path: str, detail: bool = True, **kwargs: Any) -> list[Any]:
+        path = self._strip_protocol(path)
+        await self._gate()
+        entries: dict[str, dict[str, Any]] = {}
+        for key, data in self.files.items():
+            if key.startswith(f"{path}/"):
+                child, _, rest = key[len(path) + 1 :].partition("/")
+                name = f"{path}/{child}"
+                entries[name] = {
+                    "name": name,
+                    "size": 0 if rest else len(data),
+                    "type": "directory" if rest else "file",
+                }
+        if not entries:
+            raise FileNotFoundError(path)
+        return list(entries.values()) if detail else list(entries)
+
+    async def _cat_file(
+        self, path: str, start: int | None = None, end: int | None = None, **kwargs: Any
+    ) -> bytes:
+        self.cat_ranges.append((start, end))
+        path = self._strip_protocol(path)
+        try:
+            await self._gate()
+            if path.endswith("timeout.bin"):
+                raise TimeoutError(path)
+            if path not in self.files:
+                raise FileNotFoundError(path)
+            if start is not None and 0 < len(self.files[path]) <= start:
+                # as gcsfs and adlfs do (HTTP 416)
+                raise OSError(f"range starting at {start} is past the end of {path}")
+            return self.files[path][start:end]
+        except asyncio.CancelledError:
+            self.backend_cancelled = True
+            raise
+        finally:
+            self.cat_returned.set()
+
+    async def _get_file(self, rpath: str, lpath: str, **kwargs: Any) -> None:
+        path = self._strip_protocol(rpath)
+        if path not in self.files:
+            raise FileNotFoundError(path)
+        if path.endswith("chunked.bin"):
+            await self._get_file_in_chunks(self.files[path], lpath)
+            return
+        await self._gate()
+        with open(lpath, "wb") as f:
+            f.write(self.files[path])
+
+    async def _get_file_in_chunks(self, data: bytes, lpath: str) -> None:
+        """Like the Azure SDK: chunk tasks that cancelling the download leaves running."""
+        with open(lpath, "wb") as f:
+
+            async def write_chunk(offset: int) -> None:
+                try:
+                    await self._gate()
+                    # no await between seek and write: chunks share this loop
+                    f.seek(offset)
+                    f.write(data[offset : offset + 256])
+                except Exception:
+                    self.late_writes += 1
+                finally:
+                    self.children_pending -= 1
+
+            children = []
+            for offset in range(0, len(data), 256):
+                self.children_pending += 1
+                children.append(asyncio.ensure_future(write_chunk(offset)))
+            try:
+                await asyncio.wait(children)
+            except asyncio.CancelledError:
+                self.backend_cancelled = True
+                raise
+
+
+@pytest.fixture
+def gated_fs() -> Iterator[_GatedFS]:
+    fsspec.register_implementation("gatedtest", _GatedFS, clobber=True)
+    _GatedFS.clear_instance_cache()
+    fs = filesystem("gatedtest://bucket").fs
+    assert isinstance(fs, _GatedFS)
+    yield fs
+    _GatedFS.clear_instance_cache()
+
+
+class _Changed(OSError):
+    """`_PinnedFS`'s error for a file replaced after a reader was bound to it."""
+
+
+class _PinnedFS(_GatedFS):
+    """A gated filesystem that binds its own readers to one version of a file."""
+
+    protocol = "pinnedtest"
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.versions: dict[str, int] = {}
+
+    def replace(self, path: str, data: bytes) -> None:
+        self.files[path] = data
+        self.versions[path] = self.versions.get(path, 1) + 1
+
+    async def _pinned_range_reader(
+        self, path: str
+    ) -> tuple[int, Callable[[int, int], Coroutine[Any, Any, bytes]]]:
+        path = self._strip_protocol(path)
+        await self._gate()
+        if path not in self.files:
+            raise FileNotFoundError(path)
+        version = self.versions.get(path, 1)
+
+        async def read(start: int, end: int) -> bytes:
+            data = await self._cat_file(path, start, end)
+            # checked once the bytes are in hand, with no await in between
+            if self.versions.get(path, 1) != version:
+                raise _Changed(path)
+            return data
+
+        return len(self.files[path]), read
+
+
+@pytest.fixture
+def pinned_fs() -> Iterator[_PinnedFS]:
+    fsspec.register_implementation("pinnedtest", _PinnedFS, clobber=True)
+    _PinnedFS.clear_instance_cache()
+    fs = filesystem("pinnedtest://bucket").fs
+    assert isinstance(fs, _PinnedFS)
+    yield fs
+    _PinnedFS.clear_instance_cache()
+
+
+async def _release_when_entered(fs: _GatedFS, entries: int = 1) -> None:
+    while fs.entries < entries:
+        await anyio.sleep(0.001)
+    fs.release.set()
+
+
+async def _keep_releasing(fs: _GatedFS) -> None:
+    """Release each gated call once the caller's loop has run since it started."""
+    while True:
+        fs.released = fs.entries
+        await anyio.sleep(0.001)
+
+
+async def _flush_fsspec_loop(fs: _GatedFS) -> None:
+    """Return once fsspec's loop has run every callback queued before this one."""
+    flushed = threading.Event()
+    fs.loop.call_soon_threadsafe(flushed.set)
+    while not flushed.is_set():
+        await anyio.sleep(0.001)
+
+
+async def _settle(fs: _GatedFS) -> None:
+    """Let the caller handle its cancellation and fsspec's loop act on it."""
+    for _ in range(5):
+        await anyio.lowlevel.checkpoint()
+    # a cancelled task's next step is queued behind the cancel itself
+    await _flush_fsspec_loop(fs)
+    await _flush_fsspec_loop(fs)
+
+
+async def _cancel_then_release(
+    fs: _GatedFS, scope: anyio.CancelScope, entries: int = 1
+) -> None:
+    """Cancel once a backend call is in flight; release it once that has settled."""
+    while fs.entries < entries:
+        await anyio.sleep(0.001)
+    scope.cancel()
+    with anyio.CancelScope(shield=True):
+        await _settle(fs)
+        fs.release.set()
+
+
+async def _get_file_and_read(afs: AsyncFilesystem, tmp: Path) -> bytes:
+    local = tmp / "out.bin"
+    await afs.get_file(_GATED_URL, str(local))
+    return local.read_bytes()
+
+
+def _basename(path: str) -> str:
+    return path.rstrip("/").rsplit("/", 1)[-1]
+
+
+async def _info_fields(afs: AsyncFilesystem, tmp: Path) -> tuple[str, int, str]:
+    info = await afs.info(_GATED_URL)
+    return info.name, info.size, info.type
+
+
+async def _iter_file_names(afs: AsyncFilesystem, recursive: bool) -> set[str]:
+    base = "gatedtest://bucket/dir"
+    return {_basename(f) async for f in afs.iter_files(base, recursive=recursive)}
+
+
+async def _iter_file_info_names(afs: AsyncFilesystem, tmp: Path) -> set[str]:
+    files = afs.iter_files("gatedtest://bucket/dir", recursive=True, detail=True)
+    return {_basename(f.name) async for f in files}
+
+
+async def _iter_dir_names(afs: AsyncFilesystem, recursive: bool) -> set[str]:
+    base = "gatedtest://bucket/dir"
+    return {d async for d in afs.iter_dirs(base, recursive=recursive)}
+
+
+async def _list_dir_names(afs: AsyncFilesystem, tmp: Path) -> tuple[set[str], set[str]]:
+    listing = await afs.list_dir("gatedtest://bucket/dir")
+    return {_basename(f.name) for f in listing.files}, {
+        _basename(d) for d in listing.dirs
+    }
+
+
+async def _read_file_info_data(afs: AsyncFilesystem, tmp: Path) -> bytes:
+    return (await afs.read_file_info(_GATED_URL)).data
+
+
+async def _read_file_suffix_fields(
+    afs: AsyncFilesystem, tmp: Path
+) -> tuple[bytes, int]:
+    suffix = await afs.read_file_suffix(_GATED_URL, 100)
+    return suffix.data, suffix.file_size
+
+
+async def _read_file_bytes_drained(afs: AsyncFilesystem, tmp: Path) -> bytes:
+    stream = await afs.read_file_bytes(_GATED_URL, 2, 5)
+    async with stream:
+        return b"".join([chunk async for chunk in stream])
+
+
+async def _read_file_into_bytes(afs: AsyncFilesystem, tmp: Path) -> bytes:
+    with tempfile.TemporaryFile() as dest:
+        await afs.read_file_into(_GATED_URL, dest, chunk_size=100)
+        dest.seek(0)
+        return dest.read()
+
+
+_NonBlockingCall = Callable[[AsyncFilesystem, Path], Awaitable[Any]]
+
+_NON_BLOCKING_CASES = [
+    pytest.param(lambda afs, tmp: afs.read_file(_GATED_URL), _PAYLOAD, id="read_file"),
+    pytest.param(_get_file_and_read, _PAYLOAD, id="get_file"),
+    pytest.param(
+        _info_fields, ("gatedtest://bucket/dir/a.bin", 1024, "file"), id="info"
+    ),
+    pytest.param(lambda afs, tmp: afs.exists(_GATED_URL), True, id="exists"),
+    pytest.param(
+        lambda afs, tmp: _iter_file_names(afs, recursive=False),
+        {"a.bin"},
+        id="iter_files",
+    ),
+    pytest.param(
+        lambda afs, tmp: _iter_file_names(afs, recursive=True),
+        {"a.bin", "b.bin"},
+        id="iter_files_recursive",
+    ),
+    pytest.param(
+        _iter_file_info_names, {"a.bin", "b.bin"}, id="iter_files_recursive_detail"
+    ),
+    pytest.param(
+        lambda afs, tmp: _iter_dir_names(afs, recursive=False),
+        {"bucket/dir/sub/"},
+        id="iter_dirs",
+    ),
+    pytest.param(
+        lambda afs, tmp: _iter_dir_names(afs, recursive=True),
+        {"bucket/dir/sub/"},
+        id="iter_dirs_recursive",
+    ),
+    pytest.param(_list_dir_names, ({"a.bin"}, {"sub"}), id="list_dir"),
+    pytest.param(_read_file_info_data, _PAYLOAD, id="read_file_info"),
+    pytest.param(_read_file_bytes_drained, _PAYLOAD[2:5], id="read_file_bytes"),
+    pytest.param(
+        lambda afs, tmp: afs.read_file_bytes_fully(_GATED_URL, 2, 5),
+        _PAYLOAD[2:5],
+        id="read_file_bytes_fully",
+    ),
+    pytest.param(
+        _read_file_suffix_fields, (_PAYLOAD[-100:], 1024), id="read_file_suffix"
+    ),
+    pytest.param(_read_file_into_bytes, _PAYLOAD, id="read_file_into"),
+]
+
+
+@pytest.mark.parametrize("call,expected", _NON_BLOCKING_CASES)
+async def test_async_fsspec_reads_do_not_block_the_loop(
+    gated_fs: _GatedFS, tmp_path: Path, call: _NonBlockingCall, expected: Any
+) -> None:
+    async with AsyncFilesystem() as afs:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(_keep_releasing, gated_fs)
+            result = await call(afs, tmp_path)
+            tg.cancel_scope.cancel()
+    assert result == expected
+
+
+@skip_if_trio
+@pytest.mark.timeout(30, method="thread")
+async def test_repeated_native_cancel_still_waits_for_the_backend(
+    gated_fs: _GatedFS, tmp_path: Path
+) -> None:
+    gated_fs.files["bucket/dir/chunked.bin"] = _PAYLOAD
+    local = tmp_path / "out.bin"
+    async with AsyncFilesystem() as afs:
+        task = asyncio.create_task(
+            afs.get_file("gatedtest://bucket/dir/chunked.bin", str(local))
+        )
+        while gated_fs.entries < 1:
+            await anyio.sleep(0.001)
+        task.cancel()
+        await _settle(gated_fs)
+        # a native cancel reaches through anyio's shield
+        task.cancel()
+        await _settle(gated_fs)
+        assert not task.done()
+        assert not gated_fs.backend_cancelled
+        gated_fs.release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    assert gated_fs.children_pending == 0
+    assert local.read_bytes() == _PAYLOAD
+
+
+async def test_async_fsspec_reads_overlap(gated_fs: _GatedFS) -> None:
+    # released only once both reads are inside the filesystem at the same time
+    async with AsyncFilesystem() as afs:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(_release_when_entered, gated_fs, 2)
+            results = await tg_collect([lambda: afs.read_file(_GATED_URL)] * 2)
+    assert results == [_PAYLOAD, _PAYLOAD]
+
+
+@pytest.mark.timeout(30, method="thread")
+async def test_cancelled_get_file_waits_for_backend_child_tasks(
+    gated_fs: _GatedFS, tmp_path: Path
+) -> None:
+    gated_fs.files["bucket/dir/chunked.bin"] = _PAYLOAD
+    local = tmp_path / "out.bin"
+    with anyio.CancelScope() as scope:
+        async with AsyncFilesystem() as afs, anyio.create_task_group() as tg:
+            tg.start_soon(_cancel_then_release, gated_fs, scope)
+            await afs.get_file("gatedtest://bucket/dir/chunked.bin", str(local))
+    assert scope.cancelled_caught
+    assert not gated_fs.backend_cancelled
+    assert (gated_fs.children_pending, gated_fs.late_writes) == (0, 0)
+    assert local.read_bytes() == _PAYLOAD
+
+
+@pytest.mark.timeout(30, method="thread")
+async def test_async_fsspec_read_completes_while_loop_makes_sync_call(
+    gated_fs: _GatedFS,
+) -> None:
+    async def wait_for_read_task() -> None:
+        # runs on fsspec's loop: returns once the read's `_cat_file` has
+        # returned and its task's done callback has had a loop iteration to run
+        while not gated_fs.cat_returned.is_set():
+            await asyncio.sleep(0.001)
+        await asyncio.sleep(0.001)
+
+    async def release_then_block() -> None:
+        await _release_when_entered(gated_fs)
+        # blocks this loop until the read task's done callback has run on
+        # fsspec's loop; deadlocks if that callback waits for this loop
+        fsspec.asyn.sync(gated_fs.loop, wait_for_read_task)
+
+    async with AsyncFilesystem() as afs, anyio.create_task_group() as tg:
+        tg.start_soon(release_then_block)
+        assert await afs.read_file(_GATED_URL) == _PAYLOAD
+
+
+async def test_async_fsspec_errors_pass_through(
+    gated_fs: _GatedFS, pinned_fs: _PinnedFS
+) -> None:
+    gated_fs.release.set()
+    pinned_fs.release.set()
+    async with AsyncFilesystem() as afs:
+        with pytest.raises(FileNotFoundError):
+            await afs.read_file("gatedtest://bucket/missing.bin")
+        with pytest.raises(fsspec.FSTimeoutError):
+            await afs.read_file("gatedtest://bucket/timeout.bin")
+        with pytest.raises(FileNotFoundError):
+            await afs.read_file_bytes("pinnedtest://bucket/missing.bin", 0, 10)
+
+
+async def test_async_fsspec_read_range_edges(gated_fs: _GatedFS) -> None:
+    gated_fs.release.set()
+    async with AsyncFilesystem() as afs:
+        assert await afs.read_file_bytes_fully(_GATED_URL, 10, 10) == b""
+        with pytest.raises(FileNotFoundError):
+            await afs.read_file_bytes_fully("gatedtest://bucket/missing.bin", 0, 0)
+        with pytest.raises(ValueError):
+            await afs.read_file_bytes_fully(_GATED_URL, -1, None)
+    # older gcsfs releases' `_cat_file` sends an unsatisfiable range for an empty one
+    assert gated_fs.cat_ranges == []
+
+
+_RANGE = 1024
+_RANGED_URL = "pinnedtest://bucket/dir/big.bin"
+
+
+@pytest.fixture
+def ranged_file(pinned_fs: _PinnedFS, monkeypatch: pytest.MonkeyPatch) -> bytes:
+    """A 3.5-range file on the released pinned filesystem, with `_RANGE` ranges."""
+    monkeypatch.setattr(asyncfiles, "_REMOTE_RANGE_SIZE", _RANGE)
+    pinned_fs.release.set()
+    payload = os.urandom(3 * _RANGE + _RANGE // 2)
+    pinned_fs.files["bucket/dir/big.bin"] = payload
+    return payload
+
+
+def _ranges(start: int, end: int) -> list[tuple[int, int]]:
+    """Contiguous ranges of at most `_RANGE` bytes covering [start, end)."""
+    return [(s, min(s + _RANGE, end)) for s in range(start, end, _RANGE)]
+
+
+async def _drain(stream: ByteReceiveStream) -> bytes:
+    async with stream:
+        return b"".join([chunk async for chunk in stream])
+
+
+async def test_async_remote_read_file_bytes_streams_in_ranges(
+    pinned_fs: _PinnedFS, ranged_file: bytes
+) -> None:
+    # each backend call is released from this loop, so none of them blocks it
+    pinned_fs.release.clear()
+    start, end = 100, len(ranged_file)
+    async with AsyncFilesystem() as afs, anyio.create_task_group() as tg:
+        tg.start_soon(_keep_releasing, pinned_fs)
+        data = await _drain(await afs.read_file_bytes(_RANGED_URL, start, end))
+        tg.cancel_scope.cancel()
+    assert data == ranged_file[start:end]
+    assert pinned_fs.cat_ranges == _ranges(start, end)
+
+
+async def test_async_remote_read_file_bytes_stops_fetching_when_closed(
+    pinned_fs: _PinnedFS, ranged_file: bytes
+) -> None:
+    async with AsyncFilesystem() as afs:
+        stream = await afs.read_file_bytes(_RANGED_URL, 0, len(ranged_file))
+        assert await stream.receive(10) == ranged_file[:10]
+        await stream.aclose()
+        with pytest.raises(EndOfStream):
+            await stream.receive(10)
+    assert pinned_fs.cat_ranges == [(0, _RANGE)]
+
+
+async def test_async_remote_read_file_bytes_fully_is_one_request(
+    pinned_fs: _PinnedFS, ranged_file: bytes
+) -> None:
+    end = len(ranged_file)
+    async with AsyncFilesystem() as afs:
+        whole = await afs.read_file_bytes_fully(_RANGED_URL, 0, end)
+        to_eof = await afs.read_file_bytes_fully(_RANGED_URL, 100, None)
+    assert (whole, to_eof) == (ranged_file, ranged_file[100:])
+    assert pinned_fs.cat_ranges == [(0, end), (100, None)]
+
+
+@pytest.mark.timeout(30, method="thread")
+async def test_async_remote_read_file_bytes_cancelled_receive_keeps_offset(
+    pinned_fs: _PinnedFS, ranged_file: bytes
+) -> None:
+    start = 100
+    async with AsyncFilesystem() as afs:
+        stream = await afs.read_file_bytes(_RANGED_URL, start, len(ranged_file))
+        pinned_fs.release.clear()
+        with anyio.CancelScope() as scope:
+            async with anyio.create_task_group() as tg:
+                # wait for the range request, not the calls made so far
+                tg.start_soon(
+                    _cancel_then_release, pinned_fs, scope, pinned_fs.entries + 1
+                )
+                await stream.receive(10)
+        assert scope.cancelled_caught
+        # the cancelled receive's `_cat_file` ran to completion first
+        assert pinned_fs.cat_returned.is_set()
+        assert not pinned_fs.backend_cancelled
+        assert await stream.receive(10) == ranged_file[start : start + 10]
+    assert pinned_fs.cat_ranges == [(start, start + _RANGE)] * 2
+
+
+@pytest.mark.parametrize("extra", [-48, 1], ids=["short", "long"])
+async def test_pinned_read_of_the_wrong_length_raises(
+    pinned_fs: _PinnedFS,
+    ranged_file: bytes,
+    monkeypatch: pytest.MonkeyPatch,
+    extra: int,
+) -> None:
+    cat_file = pinned_fs._cat_file
+
+    async def wrong_length(path: str, start: int, end: int) -> bytes:
+        data = await cat_file(path, start, end)
+        return data[:extra] if extra < 0 else data + b"!" * extra
+
+    monkeypatch.setattr(pinned_fs, "_cat_file", wrong_length)
+    async with AsyncFilesystem() as afs:
+        stream = await afs.read_file_bytes(_RANGED_URL, 0, None)
+        with pytest.raises(OSError, match="bytes"):
+            await stream.receive(_RANGE)
+
+
+@pytest.mark.parametrize("pieces_read", [0, 1], ids=["first_piece", "later_piece"])
+async def test_streamed_read_stays_on_one_version(
+    pinned_fs: _PinnedFS, ranged_file: bytes, pieces_read: int
+) -> None:
+    async with AsyncFilesystem() as afs:
+        stream = await afs.read_file_bytes(_RANGED_URL, 0, None)
+        if pieces_read:
+            assert await stream.receive(_RANGE) == ranged_file[:_RANGE]
+        pinned_fs.replace("bucket/dir/big.bin", b"x" * len(ranged_file))
+        with pytest.raises(_Changed):
+            await stream.receive(_RANGE)
+
+
+async def test_filesystem_without_a_pinned_reader_reads_a_range_in_one_call(
+    gated_fs: _GatedFS, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(asyncfiles, "_REMOTE_RANGE_SIZE", _RANGE)
+    gated_fs.release.set()
+    payload = os.urandom(3 * _RANGE + _RANGE // 2)
+    gated_fs.files["bucket/dir/big.bin"] = payload
+    url, size = "gatedtest://bucket/dir/big.bin", len(payload)
+    async with AsyncFilesystem() as afs:
+        assert await _drain(await afs.read_file_bytes(url, 100, size)) == payload[100:]
+        assert await _drain(await afs.read_file_bytes(url, 100, None)) == payload[100:]
+    assert gated_fs.cat_ranges == [(100, size), (100, None)]
+
+
+async def test_unpinned_read_starting_past_the_end_raises_the_backends_error(
+    gated_fs: _GatedFS,
+) -> None:
+    gated_fs.release.set()
+    async with AsyncFilesystem() as afs:
+        with pytest.raises(OSError, match="past the end"):
+            await afs.read_file_bytes(_GATED_URL, len(_PAYLOAD), None)
+
+
+async def test_read_file_into_copies_through_a_pinned_reader(
+    pinned_fs: _PinnedFS,
+) -> None:
+    pinned_fs.release.set()
+    dest = io.BytesIO()
+    async with AsyncFilesystem() as afs:
+        await afs.read_file_into("pinnedtest://bucket/dir/a.bin", dest, chunk_size=100)
+    assert dest.getvalue() == _PAYLOAD
+    assert pinned_fs.cat_ranges == [
+        (start, min(start + 100, len(_PAYLOAD)))
+        for start in range(0, len(_PAYLOAD), 100)
+    ]
+
+
+async def test_read_file_into_stays_on_one_version(pinned_fs: _PinnedFS) -> None:
+    class ReplacingDest(io.BytesIO):
+        def write(self, data: Any) -> int:
+            if not self.getvalue():
+                pinned_fs.replace("bucket/dir/a.bin", b"x" * len(_PAYLOAD))
+            return super().write(data)
+
+    dest = ReplacingDest()
+    url = "pinnedtest://bucket/dir/a.bin"
+    # each backend call is released from this loop, so none of them blocks it
+    async with AsyncFilesystem() as afs, anyio.create_task_group() as tg:
+        tg.start_soon(_keep_releasing, pinned_fs)
+        with pytest.raises(_Changed):
+            await afs.read_file_into(url, dest, chunk_size=256)
+        tg.cancel_scope.cancel()
+    assert dest.getvalue() == _PAYLOAD[:256]
+
+
+def test_http_keeps_the_synchronous_path() -> None:
+    assert not asyncfiles._is_async_remote(filesystem("https://example.com/x.eval"))
+
+
+async def test_reference_keeps_the_synchronous_path(
+    gated_fs: _GatedFS, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gated_fs.release.set()
+    reference = {"fo": {"foo": [_GATED_URL]}, "fs": gated_fs}
+    monkeypatch.setitem(fsspec.config.conf, "reference", reference)
+    dest = io.BytesIO()
+    async with AsyncFilesystem() as afs:
+        await afs.read_file_into("reference://foo", dest)
+    assert dest.getvalue() == _PAYLOAD
+
+
+async def test_dir_over_a_sync_filesystem_keeps_the_synchronous_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    (tmp_path / "a.bin").write_bytes(_PAYLOAD)
+    dir_options = {"path": str(tmp_path), "target_protocol": "file"}
+    monkeypatch.setitem(fsspec.config.conf, "dir", dir_options)
+    async with AsyncFilesystem() as afs:
+        assert await afs.read_file("dir://a.bin") == _PAYLOAD

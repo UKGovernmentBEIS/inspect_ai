@@ -23,8 +23,16 @@ from inspect_ai.log._log import (
     EvalSpec,
     EvalStats,
 )
+from inspect_ai.log._recorders import eval as eval_recorder
 from inspect_ai.log._recorders.eval import EvalRecorder
 from inspect_ai.log._recorders.json import JSONRecorder
+from inspect_ai.log._recorders.recorder import SampleRecordKey
+from inspect_ai.log._sentinel_stats import (
+    SentinelHumanReviewCounts,
+    SentinelRemoteStats,
+    SentinelStats,
+    SentinelStepCounts,
+)
 from inspect_ai.log._util import thin_input, thin_text
 from inspect_ai.model import (
     ChatMessage,
@@ -115,6 +123,27 @@ def test_sample_summary_does_not_mutate_sample_input() -> None:
     assert isinstance(summary.input, list)
     assert isinstance(summary.input[0].content, list)
     assert summary.input[0].content[0] == ContentText(text="(Reasoning)")
+
+
+def test_sample_summary_has_the_samples_sentinel_stats() -> None:
+    stats = SentinelStats(
+        steps={
+            "tool_call": SentinelStepCounts(total=3, judged=2, unjudged={"error": 1})
+        },
+        actions={"proceed": 1, "reject": 1},
+        human_reviews=SentinelHumanReviewCounts(total=1, answered=1),
+        complete=False,
+        incomplete_reason="cancelled before scoring",
+        remote=SentinelRemoteStats(
+            proxy_url="http://proxy.test", version=1, release="whole", model_calls=2
+        ),
+    )
+    sample = EvalSample(id=1, epoch=1, input="x", target="y")
+    assert sample.summary().sentinel_stats is None
+
+    sample.sentinel_stats = {"threshold": stats}
+    summary = EvalSampleSummary.model_validate_json(sample.summary().model_dump_json())
+    assert summary.sentinel_stats == {"threshold": stats}
 
 
 def test_logged_sample_input_preserves_content() -> None:
@@ -480,3 +509,41 @@ async def test_summaries_json_reader_dedupes_duplicate_rows() -> None:
 
         summaries = read_eval_log_sample_summaries(path)
         assert [(s.id, s.epoch, s.target) for s in summaries] == [(1, 1, "fresh")]
+
+
+@skip_if_trio
+async def test_eval_recorder_sample_keys_skip_summaries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sample keys come from the member names, without reading the summaries."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        spec = _make_spec()
+        recorder = EvalRecorder(temp_dir)
+        path = await recorder.log_init(spec)
+        await recorder.log_start(spec, EvalPlan())
+
+        await recorder.log_sample(spec, _make_sample(1))
+        await recorder.log_sample(
+            spec, EvalSample(id="x_epoch_2", epoch=3, input="x", target="x")
+        )
+        await recorder.log_sample(
+            spec, EvalSample(id="line\nbreak", epoch=1, input="y", target="y")
+        )
+        await recorder.log_sample(
+            spec, EvalSample(id="", epoch=1, input="z", target="z")
+        )
+        await recorder.flush(spec)
+        # a re-logged sample repeats its member name
+        await recorder.log_sample(spec, _make_sample(1))
+        await recorder.flush(spec)
+
+        async def no_summaries(*args: object, **kwargs: object) -> None:
+            raise AssertionError("read the summaries")
+
+        monkeypatch.setattr(eval_recorder, "_read_all_summaries_async", no_summaries)
+        assert await EvalRecorder.read_log_sample_keys(path) == [
+            SampleRecordKey("1", 1),
+            SampleRecordKey("x_epoch_2", 3),
+            SampleRecordKey("line\nbreak", 1),
+            SampleRecordKey("", 1),
+        ]

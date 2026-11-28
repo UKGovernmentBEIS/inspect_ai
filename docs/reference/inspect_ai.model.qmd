@@ -20,6 +20,7 @@ description: Model interface and providers.
 ### ModelCall
 ### ModelRequestId
 ### ModelConversation
+### model_origin
 ### ModelUsage
 ### StopReason
 ### ChatCompletionChoice
@@ -79,6 +80,7 @@ description: Model interface and providers.
 ### compaction
 ### Compact
 ### CompactionStrategy
+### CompactionResult
 ### CompactionAuto
 ### CompactionNative
 ### CompactionEdit
@@ -128,3 +130,4 @@ description: Model interface and providers.
 ### modelapi
 ### ModelAPI
 ### record_response_headers
+### active_model_event_id

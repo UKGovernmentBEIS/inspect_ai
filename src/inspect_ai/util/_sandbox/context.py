@@ -10,6 +10,7 @@ from shortuuid import uuid
 from inspect_ai._util.constants import SANDBOX_SETUP_TIMEOUT
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 
+from ._framework_operation import framework_sandbox_operation
 from ._privileged import (
     IMAGE_PATH_VARIABLE,
     image_path_lookup,
@@ -84,6 +85,8 @@ async def sandbox_with(
     Args:
       file (str): Path to file to check for if on_path is False. If on_path is
         True, file should be a filename that exists on the system path.
+        Inside a `sandbox_identity()` scope with a `cwd`, a relative path is
+        checked against that `cwd` in the scope's sandbox.
       on_path (bool): If True, file is a filename to be verified using "which".
         If False, file is a path to be checked within the sandbox environments.
       name (str | None): Optional sandbox environment name.
@@ -101,23 +104,33 @@ async def sandbox_with(
     if environments_with is None:
         raise_no_sandbox()
 
+    from .identity import sandbox_operation_file
+
+    candidates = (
+        list(environments.values())
+        if name is None
+        else [named_env]
+        if (named_env := environments.get(name, None))
+        else []
+    )
+    # a relative file follows a sandbox_identity() scope's cwd, as file
+    # operations do, so the cache key holds the path each sandbox is probed with
+    paths = [
+        file if on_path else sandbox_operation_file(environment, file)
+        for environment in candidates
+    ]
+
     # if we've already discovered the sandbox for this file then return it
-    environment_with_key = f"{name or ''}:{file}:{on_path}"
+    probed = "\0".join(paths)
+    environment_with_key = f"{name or ''}:{probed}:{on_path}"
     environment = environments_with.get(environment_with_key, None)
     if environment is not None:
         return environment
 
     # look in each (or the named) sandbox
-    detector = sandbox_file_detector(file, on_path)
-    for environment in (
-        environments.values()
-        if name is None
-        else [named_env]
-        if (named_env := environments.get(name, None))
-        else []
-    ):
+    for environment, path in zip(candidates, paths):
         # can we find the file on the path?
-        if await detector(environment):
+        if await sandbox_file_detector(path, on_path)(environment):
             # if so this is our environment, cache and return it
             environments_with[environment_with_key] = environment
             return environment
@@ -139,7 +152,8 @@ async def _is_file_readable(environment: SandboxEnvironment, file: str) -> bool:
 
     # Fallback: read the file. Cross-platform but transfers full contents.
     try:
-        await environment.read_file(file, False)
+        with framework_sandbox_operation():
+            await environment.read_file(file, False)
         return True
     # allow exception types known to be raised from read_file
     except (
@@ -192,6 +206,9 @@ async def sandbox_with_injection(
             Each injectable is a (detector, injector) tuple.
         name: Optional sandbox environment name.
         target: Optional sandbox instance to inject into directly.
+            Without `name` or `target`, the sandbox of an active
+            `sandbox_identity()` scope, else the sandbox needing the fewest
+            injections.
 
     Returns:
         SandboxEnvironment instance that satisfies all injection requirements.
@@ -200,15 +217,22 @@ async def sandbox_with_injection(
         ProcessLookupError: If there are no sandboxes available.
         ValueError: If an invalid sandbox name is specified.
         RuntimeError: If injection fails.
+        SandboxIdentityError: If, without `name` or `target`, the current
+            sandbox context no longer lists the scope's sandbox.
     """
     if isinstance(injectables, tuple):
         injectables = [injectables]
+
+    from .identity import sandbox_identity_environment
 
     if target is not None:
         target_sandbox = target
     elif name:
         # Named sandbox: inject directly into the specified sandbox
         target_sandbox = sandbox(name)
+    elif (identity_sandbox := sandbox_identity_environment()) is not None:
+        # model-facing tools inside a sandbox_identity() scope use its sandbox
+        target_sandbox = identity_sandbox
     else:
         # Unnamed sandbox: find best candidate (fewest injections needed)
         target_sandbox, _ = await _get_injection_target(injectables)

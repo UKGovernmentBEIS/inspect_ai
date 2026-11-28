@@ -43,7 +43,11 @@ from inspect_ai.model._generate_config import (
     GenerateConfig,
     ResponseSchema,
 )
-from inspect_ai.model._internal import CONTENT_INTERNAL_TAG, parse_content_with_internal
+from inspect_ai.model._internal import (
+    CONTENT_INTERNAL_TAG,
+    parse_content_with_internal_blocks,
+)
+from inspect_ai.model._message_ids import shown_text
 from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
@@ -205,9 +209,6 @@ async def inspect_anthropic_api_request_impl(
 
     debug_log("INSPECT OUTPUT", output.message)
 
-    # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
-
     # return message (use beta message type if request came from beta endpoint)
     message_class = BetaMessage if beta else Message
     message = message_class.model_construct(
@@ -220,6 +221,24 @@ async def inspect_anthropic_api_request_impl(
         usage=anthropic_usage(output.usage or ModelUsage(), beta=beta),
     )
     debug_log("SCAFFOLD RESPONSE", message)
+    transported = await messages_from_anthropic_input(
+        [
+            cast(
+                MessageParam,
+                {
+                    "role": "assistant",
+                    "content": [
+                        block.model_dump(mode="json", exclude_none=True)
+                        for block in message.content
+                    ],
+                },
+            )
+        ],
+        tools,
+    )
+
+    # update state if we have more messages than the last generation
+    await bridge._track_state(messages, output, [transported])
 
     return message
 
@@ -577,8 +596,9 @@ async def messages_from_anthropic_input(
                         messages.append(
                             ChatMessageUser(
                                 content=[
-                                    content_block_to_content(b)
+                                    content
                                     for b in pending_user_content  # noqa: B023
+                                    for content in content_block_to_contents(b)
                                 ]
                             )
                         )
@@ -597,21 +617,20 @@ async def messages_from_anthropic_input(
                             content = content_value
                         else:
                             content = [
-                                content_block_to_content(b) for b in content_value
+                                content
+                                for b in content_value
+                                for content in content_block_to_contents(b)
                             ]
-                        messages.append(
-                            ChatMessageTool(
-                                tool_call_id=c["tool_use_id"],
-                                function=tool_names.get(c["tool_use_id"], None),
-                                content=content,
-                                error=ToolCallError(
-                                    type="unknown",
-                                    message=str(content_value) if content_value else "",
-                                )
-                                if c.get("is_error", False) is True
-                                else None,
-                            )
+                        tool_message = ChatMessageTool(
+                            tool_call_id=c["tool_use_id"],
+                            function=tool_names.get(c["tool_use_id"], None),
+                            content=content,
                         )
+                        if c.get("is_error", False) is True:
+                            tool_message.error = ToolCallError(
+                                type="unknown", message=shown_text(content)
+                            )
+                        messages.append(tool_message)
                     elif (
                         c["type"] == "text"
                         or c["type"] == "image"
@@ -635,37 +654,43 @@ async def messages_from_anthropic_input(
     return messages
 
 
-def content_block_to_content(
+def content_block_to_contents(
     block: TextBlockParam
     | ImageBlockParam
     | DocumentBlockParam
     | SearchResultBlockParam
     | ToolReferenceBlockParam
     | BrowserStateBlockParam,
-) -> Content:
+) -> list[Content]:
     if block["type"] == "text":
-        text = block["text"]
-        text, content_internal = parse_content_with_internal(text, CONTENT_INTERNAL_TAG)
-        return ContentText(
-            text=text,
-            internal=content_internal,
-            citations=[
-                to_inspect_citation(cite) for cite in block.get("citations", []) or []
-            ]
-            if block.get("citations", None) is not None
-            else None,
-        )
+        return [
+            ContentText(
+                text=parsed.text,
+                internal=parsed.internal,
+                citations=[
+                    to_inspect_citation(cite)
+                    for cite in block.get("citations", []) or []
+                ]
+                if block.get("citations", None) is not None
+                else None,
+            )
+            for parsed in parse_content_with_internal_blocks(
+                block["text"], CONTENT_INTERNAL_TAG
+            )
+        ]
     elif block["type"] == "image":
         if block["source"]["type"] == "base64":
             data = base_64_data(block["source"]["data"])
-            return ContentImage(
-                image=as_data_uri(
-                    mime_type=block["source"]["media_type"],
-                    data=data,
+            return [
+                ContentImage(
+                    image=as_data_uri(
+                        mime_type=block["source"]["media_type"],
+                        data=data,
+                    )
                 )
-            )
+            ]
         elif block["source"]["type"] == "url":
-            return ContentImage(image=block["source"]["url"])
+            return [ContentImage(image=block["source"]["url"])]
         else:
             raise RuntimeError(
                 f"Unsupported image source type: {block['source']['type']}"
@@ -674,24 +699,28 @@ def content_block_to_content(
         source = block["source"]
         if source["type"] == "text":
             data = base64.b64encode(source["data"].encode("utf-8")).decode("ascii")
-            return ContentDocument(
-                document=as_data_uri(source["media_type"], data),
-                mime_type=source["media_type"],
-            )
+            return [
+                ContentDocument(
+                    document=as_data_uri(source["media_type"], data),
+                    mime_type=source["media_type"],
+                )
+            ]
         elif source["type"] == "url":
-            return ContentDocument(document=source["url"])
+            return [ContentDocument(document=source["url"])]
         elif source["type"] == "base64":
             data = base_64_data(source["data"])
-            return ContentDocument(
-                document=as_data_uri(source["media_type"], data),
-                mime_type=source["media_type"],
-            )
+            return [
+                ContentDocument(
+                    document=as_data_uri(source["media_type"], data),
+                    mime_type=source["media_type"],
+                )
+            ]
         elif source["type"] == "content":
             c = source["content"]
             if isinstance(c, str):
-                return ContentText(text=c)
+                return [ContentText(text=c)]
             else:
-                return content_block_to_content(list(c)[0])
+                return content_block_to_contents(list(c)[0])
         else:
             raise RuntimeError(f"Unsupported document source type: {source['type']}")
     else:

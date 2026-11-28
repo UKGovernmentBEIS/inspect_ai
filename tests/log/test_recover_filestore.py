@@ -16,11 +16,13 @@ from test_helpers.buffer import simulate_crashed_buffer_db
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+from inspect_ai._util.json import JsonChange
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
-from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
+from inspect_ai.event._store import StoreEvent
+from inspect_ai.log._condense import ATTACHMENT_PROTOCOL, CONTENT_PROTOCOL
 from inspect_ai.log._file import read_eval_log_async, write_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
@@ -681,18 +683,29 @@ async def _cleanup_filestores_scenario() -> None:
         )
         await write_eval_log_async(log, path)
 
+    # Backslashes are ordinary filename characters on POSIX.
+    running_name = r"team\trial" if os.name == "posix" else "running"
+    directory_suffix = "\\" if os.name == "posix" else ""
     async with AsyncFilesystem():
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory(suffix=directory_suffix) as temp_dir:
             await write_log(os.path.join(temp_dir, "finished.eval"), "success")
-            SampleBufferFilestore(os.path.join(temp_dir, "finished.eval"), create=True)
-            await write_log(os.path.join(temp_dir, "running.eval"), "started")
-            SampleBufferFilestore(os.path.join(temp_dir, "running.eval"), create=True)
+            SampleBufferFilestore(
+                os.path.join(temp_dir, "finished.eval")
+            ).write_manifest(Manifest())
+            running_log = os.path.join(temp_dir, f"{running_name}.eval")
+            await write_log(running_log, "started")
+            SampleBufferFilestore(running_log).write_manifest(Manifest())
 
             await cleanup_sample_buffer_filestores(temp_dir)
 
             # finished eval's buffer removed, running eval's buffer kept
             assert not os.path.exists(os.path.join(temp_dir, ".buffer", "finished"))
-            assert os.path.exists(os.path.join(temp_dir, ".buffer", "running"))
+            assert (
+                Path(temp_dir) / ".buffer" / running_name / "manifest.json"
+            ).is_file()
+            assert SampleBufferFilestore.running_tasks(temp_dir) == [
+                f"{running_name}.eval"
+            ]
 
 
 async def test_cleanup_sample_buffer_filestores() -> None:
@@ -1132,7 +1145,7 @@ async def test_streaming_recovery_falls_back_on_unavailable_metadata_sidecar(
             metadata_hash = manifest.samples[0].metadata_hash
             assert metadata_hash is not None
             metadata_path = Path(
-                filestore._sample_metadata_file("sample1", 1, metadata_hash)
+                filestore._sample_sidecar_file("metadata", "sample1", 1, metadata_hash)
             )
             if sidecar_failure == "missing":
                 metadata_path.unlink()
@@ -1155,6 +1168,86 @@ async def test_streaming_recovery_falls_back_on_unavailable_metadata_sidecar(
                 "Unable to read sample metadata for id=sample1 epoch=1" in warning
                 for warning in warnings
             )
+
+
+@pytest.mark.parametrize("sidecar", ["ok", "empty", "missing", "hash_mismatch"])
+async def test_streaming_recovery_store_sidecar(
+    monkeypatch: pytest.MonkeyPatch,
+    sidecar: str,
+) -> None:
+    warnings: list[str] = []
+
+    def capture_warning(msg: object, *args: object, **_kwargs: object) -> None:
+        warnings.append(str(msg) % args if args else str(msg))
+
+    monkeypatch.setattr(filestore_module.logger, "warning", capture_warning)
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = Path(temp_dir) / "db"
+            db_dir.mkdir()
+            db = SampleBufferDatabase(location=eval_path, create=True, db_dir=db_dir)
+            filestore = SampleBufferFilestore(eval_path, create=True)
+            sample = Sample(id="sample1", input="input", target="target")
+            started = EvalSampleSummary(
+                id="sample1", epoch=1, input=sample.input, target=sample.target
+            )
+            completed = started.model_copy(
+                update={"completed_at": datetime.now(timezone.utc).isoformat()}
+            )
+            final_store: dict[str, Any] = {} if sidecar == "empty" else {"final": 1}
+
+            db.start_sample(started)
+            db.log_events(
+                [
+                    SampleEvent(
+                        id="sample1",
+                        epoch=1,
+                        event=SampleInitEvent(sample=sample, state={}),
+                    ),
+                    SampleEvent(
+                        id="sample1",
+                        epoch=1,
+                        event=StoreEvent(
+                            changes=[JsonChange(op="add", path="/replayed", value=1)]
+                        ),
+                    ),
+                ]
+            )
+            db.complete_sample(
+                completed, sample_metadata=None, sample_store=final_store
+            )
+            sync_to_filestore(db, filestore)
+
+            store_files = list(Path(filestore._dir).glob("store.*.json"))
+            assert len(store_files) == (0 if sidecar == "empty" else 1)
+            if sidecar == "missing":
+                store_files[0].unlink()
+            elif sidecar == "hash_mismatch":
+                store_files[0].write_bytes(b"{}")
+
+            _write_crashed_eval(eval_path)
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+            await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=os.path.join(temp_dir, "empty_db_dir"),
+            )
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            store_warned = any(
+                "Unable to read sample store for id=sample1 epoch=1" in warning
+                for warning in warnings
+            )
+            if sidecar in ("ok", "empty"):
+                assert recovered.samples[0].store == final_store
+                assert not store_warned
+            else:
+                # the replayed StoreEvents are the fallback
+                assert recovered.samples[0].store == {"replayed": 1}
+                assert store_warned
 
 
 async def test_streaming_recovery_sample_with_no_events() -> None:
@@ -1347,7 +1440,17 @@ async def test_streaming_recovery_sample_id_with_unsafe_chars() -> None:
             assert not os.path.exists(os.path.join(temp_dir, "etc", "passwd"))
 
 
-async def test_streaming_recovery_merges_segment_attachment_pool() -> None:
+@pytest.mark.parametrize(
+    ("protocol", "hash_"),
+    [
+        (ATTACHMENT_PROTOCOL, "deadbeefcafe0000deadbeefcafe0000"),
+        (ATTACHMENT_PROTOCOL, "album/café"),
+        (CONTENT_PROTOCOL, "album/photo"),
+    ],
+)
+async def test_streaming_recovery_merges_segment_attachment_pool(
+    protocol: str, hash_: str
+) -> None:
     """Segment attachment pool must be merged into recovered ZIP.
 
     The live buffer writer condenses events into `attachment://<hash>` refs
@@ -1363,13 +1466,12 @@ async def test_streaming_recovery_merges_segment_attachment_pool() -> None:
 
             # Large content (would be condensed at write time by the live writer)
             payload = "x" * 5_000
-            hash_ = "deadbeefcafe0000deadbeefcafe0000"
 
-            # Build a model event with a pre-condensed `attachment://<hash>` ref
-            # (mimicking what the live buffer writer stores after _condense_event)
+            # Buffer events can contain current or legacy attachment references.
+            reference = f"{protocol}{hash_}"
             event = ModelEvent(
                 model="mockllm/model",
-                input=[ChatMessageUser(content=f"{ATTACHMENT_PROTOCOL}{hash_}")],
+                input=[ChatMessageUser(content=reference)],
                 tools=[],
                 tool_choice="auto",
                 config=GenerateConfig(),
@@ -1428,6 +1530,8 @@ async def test_streaming_recovery_merges_segment_attachment_pool() -> None:
                 f"Expected attachment {hash_} to be merged from segment pool, "
                 f"got keys={list(raw['attachments'].keys())}"
             )
+            expected_content = payload if protocol == ATTACHMENT_PROTOCOL else reference
+            assert raw["messages"][0]["content"] == expected_content
 
             # End-to-end resolution must work
             read_log = await read_eval_log_async(
@@ -1439,7 +1543,7 @@ async def test_streaming_recovery_merges_segment_attachment_pool() -> None:
                 e for e in read_sample.events if isinstance(e, ModelEvent)
             )
             # After resolve, the ref should have expanded to payload
-            assert payload in first_model_event.input[0].text
+            assert first_model_event.input[0].text == payload
 
 
 def _write_sample_init_event_dict(
@@ -1540,13 +1644,7 @@ async def test_streaming_recovery_marks_summary_completed(
 
 
 async def test_streaming_recovery_carries_sample_init_fields() -> None:
-    """Per-sample files/setup propagate from SampleInitEvent.
-
-    Note: sandbox propagation from SampleInitEvent through JSON round-trip
-    is broken by a pre-existing ``Sample.__init__`` issue (dict form of
-    sandbox resolves to None). Recovery still populates ``sandbox`` from
-    the eval-level spec -- see ``test_streaming_recovery_inherits_eval_sandbox``.
-    """
+    """Per-sample sandbox/files/setup propagate from SampleInitEvent."""
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory() as temp_dir:
             eval_path = os.path.join(temp_dir, "test.eval")
@@ -1557,6 +1655,7 @@ async def test_streaming_recovery_carries_sample_init_fields() -> None:
                 Sample(
                     input="hello",
                     target="hi",
+                    sandbox=("docker", "compose.yaml"),
                     files={"a.txt": "contents"},
                     setup="echo hi",
                 )
@@ -1575,7 +1674,7 @@ async def test_streaming_recovery_carries_sample_init_fields() -> None:
             with open(os.path.join(buffer_dir, ".keep"), "w") as f:
                 pass
 
-            _write_crashed_eval(eval_path)
+            _write_crashed_eval(eval_path, sandbox=SandboxEnvironmentSpec("local"))
             db_dir = os.path.join(temp_dir, "empty_db_dir")
             output_path = os.path.join(temp_dir, "test-recovered.eval")
 
@@ -1591,6 +1690,7 @@ async def test_streaming_recovery_carries_sample_init_fields() -> None:
                 ]
                 raw = json.loads(zf.read(sample_names[0]))
 
+            assert raw["sandbox"] == {"type": "docker", "config": "compose.yaml"}
             assert raw["files"] == ["a.txt"]
             assert raw["setup"] == "echo hi"
 

@@ -27,8 +27,8 @@ sends an object as Gemini's function response itself rather than under
 `content`. Vertex reads `$ref` keys in that object (an OpenAPI document, say)
 as references to multimodal response parts and rejects the request with a
 400. Tool results that are JSON objects are therefore wrapped as
-`{"content": text}` before they reach the proxy, which is how the native
-Google provider sends every tool result.
+`{"content": text}` before they reach the proxy, which is how LiteLLM sends
+a plain-text tool result.
 """
 
 import json
@@ -47,7 +47,7 @@ from .._chat_message import (
     ChatMessageAssistant,
     ChatMessageUser,
 )
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
+from .._model_output import ChatCompletionChoice, ModelOutput
 from ._gemini_function_calling import (
     DEFAULT_MALFORMED_FUNCTION_MESSAGE,
     MALFORMED_FUNCTION_RETRY_PROMPT,
@@ -195,10 +195,3 @@ def with_malformed_function_apology(output: ModelOutput, message: str) -> ModelO
         update={"message": assistant.model_copy(update={"content": content})}
     )
     return output.model_copy(update={"choices": [choice, *output.choices[1:]]})
-
-
-def add_usage(total: ModelUsage | None, usage: ModelUsage | None) -> ModelUsage | None:
-    """Token usage of all attempts, so discarded attempts are still counted."""
-    if total is None or usage is None:
-        return usage if total is None else total
-    return total + usage

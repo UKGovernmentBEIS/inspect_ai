@@ -3,6 +3,7 @@ from __future__ import annotations
 from logging import getLogger
 from typing import Any, Iterator, Mapping, Type
 
+import jsonpath_ng
 import jsonref  # type: ignore
 from jsonpath_ng import Fields, Index, JSONPath, Slice, Where  # type: ignore
 from jsonpath_ng.ext.filter import Filter  # type: ignore
@@ -140,11 +141,15 @@ def _expand_union(sch: Schema) -> list[Schema]:
     return [sch]
 
 
+# "[*]" is not validated. Before jsonpath-ng 1.16.0 it parses to Slice(); from
+# 1.16.0 it and "*" parse to Wildcard(), which older versions do not define.
+_wildcard = getattr(jsonpath_ng, "Wildcard", None)
+
 UNSUPPORTED: tuple[type[JSONPath], ...] = (
     Filter,  # [?foo > 0]
     Where,  # .foo[(@.bar < 42)]
-    Slice,  # [1:5]  (wildcard "[*]" is Index/None, not Slice)
-)
+    Slice,  # [1:5], and "[*]" before jsonpath-ng 1.16.0
+) + (() if _wildcard is None else (_wildcard,))
 
 
 def find_unsupported(node: JSONPath) -> list[type[JSONPath]]:

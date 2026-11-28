@@ -6,7 +6,7 @@ This is a prototype of an Inspect agent running in a Linux sandbox with human in
 
 ## Usage Modes
 
-Three modes are supported: `shell` mode equips the model with bash and python tools, and `computer` mode provides it with a full desktop computer, and `multi-tool` provides stateful `bash_session`, `web_browser`, and `text_editor` tools. To run in the (default) shell mode, use this (note we also specify `--display=conversation` to print all of the user and assistant messages to the terminal):
+Three modes are supported: `shell` mode equips the model with bash and python tools, and `computer` mode provides it with a full desktop computer, and `multi-tool` provides `bash_session`, `text_editor`, and `web_search` tools. To run in the (default) shell mode, use this (note we also specify `--display=conversation` to print all of the user and assistant messages to the terminal):
 
 
 ``` bash
@@ -35,11 +35,12 @@ For `shell` mode, this will result in each and every bash or python call requiri
 ```{.yaml filename="approval.yaml"}
 approvers:
   - name: human
-    tools:
-      - computer(action='key'
-      - computer(action='left_click'
-      - computer(action='middle_click'
-      - computer(action='double_click'
+    tools: computer
+    arguments: {action: key}
+
+  - name: human
+    tools: computer
+    arguments: {action: "*_click"}
 
   - name: auto
     tools: "*"

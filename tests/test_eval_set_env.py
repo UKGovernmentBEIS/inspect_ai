@@ -35,6 +35,7 @@ from inspect_ai._eval.eval_set_overrides import EvalSetOverrides
 from inspect_ai._eval.evalset import GENERATE_CONFIG_FIELDS_TO_EXCLUDE
 from inspect_ai._eval.task import Epochs
 from inspect_ai._eval.task.task import resolve_epochs
+from inspect_ai._sentinel._config import SentinelConfig
 from inspect_ai._util.error import PrerequisiteError
 
 TASK = "tests/test_eval_config.py@eval_config_task"
@@ -300,6 +301,70 @@ def test_epochs_carry_their_reducers() -> None:
     assert bare is not None and bare.epochs == 4
 
 
+def test_a_sentinel_carries_its_args() -> None:
+    """`sentinel` is two variables assembled into one value, as the CLI assembles it."""
+    env = {
+        "INSPECT_EVAL_SENTINEL": "rule",
+        "INSPECT_EVAL_SENTINEL_ARGS": "reason=env labels=a,b reason=last",
+    }
+    resolved = resolve_eval_env(env)
+    assert resolved is not None
+    assert isinstance(resolved.sentinel, SentinelConfig)
+    assert resolved.sentinel.model_dump() == {
+        "name": "rule",
+        "params": {"reason": "last", "labels": ["a", "b"]},
+    }
+    assert resolved.sentinel == _cli_kwargs(env)["sentinel"]
+
+    bare = resolve_eval_env({"INSPECT_EVAL_SENTINEL": "rule"})
+    assert bare is not None and bare.sentinel == "rule"
+
+
+@pytest.mark.parametrize(
+    ("sentinel", "args", "match"),
+    [
+        (
+            None,
+            "reason=env",
+            "INSPECT_EVAL_SENTINEL_ARGS requires INSPECT_EVAL_SENTINEL",
+        ),
+        ("rule", "reason", "takes key=value"),
+        ("FILE", "reason=env", "cannot be used with the sentinel config file"),
+        (
+            "rule",
+            "ok=1 reason=[",
+            r"INSPECT_EVAL_SENTINEL_ARGS 'reason=\[' does not have a valid YAML value",
+        ),
+    ],
+    ids=["without a sentinel", "not key=value", "with a config file", "invalid YAML"],
+)
+def test_sentinel_args_the_cli_refuses_are_refused_here(
+    sentinel: str | None, args: str, match: str, tmp_path: Path
+) -> None:
+    if sentinel == "FILE":
+        config = tmp_path / "sentinel.yaml"
+        config.write_text("sentinel:\n  name: rule\n")
+        sentinel = str(config)
+    env = {"INSPECT_EVAL_SENTINEL_ARGS": args}
+    if sentinel is not None:
+        env["INSPECT_EVAL_SENTINEL"] = sentinel
+
+    with pytest.raises(PrerequisiteError, match=match):
+        resolve_eval_env(env)
+
+    with patch.object(cli_eval, "eval_set", lambda *args, **kwargs: []):
+        result = CliRunner().invoke(
+            cli_eval.eval_set_command,
+            [TASK, "--model", "mockllm/model"],
+            env={**env, "INSPECT_LOG_DIR": str(tmp_path / "logs")},
+        )
+    assert isinstance(result.exception, PrerequisiteError), result.output
+    cli_match = match.replace("INSPECT_EVAL_SENTINEL_ARGS", "--sentinel-arg").replace(
+        "INSPECT_EVAL_SENTINEL", "--sentinel"
+    )
+    assert re.search(cli_match, str(result.exception.message))
+
+
 # --- the resolver's own rules -----------------------------------------------
 
 
@@ -453,10 +518,14 @@ GENERATE_CONFIG_FIELD = {
 # asserts that rather than the value.
 NO_KWARG = {"INSPECT_DISPLAY": "display"}
 
-# The reducer variables adjust `epochs` rather than carrying a field of their
-# own, so they have no row of their own either; `test_the_reducer_flag...`
-# covers them.
-ADJUSTS_ANOTHER = {"INSPECT_EVAL_EPOCHS_REDUCER", "INSPECT_EVAL_NO_EPOCHS_REDUCER"}
+# The reducer variables adjust `epochs`, and the sentinel args `sentinel`,
+# rather than carrying a field of their own, so they have no row of their own
+# either; `test_the_reducer_flag...` and `test_a_sentinel_carries...` cover them.
+ADJUSTS_ANOTHER = {
+    "INSPECT_EVAL_EPOCHS_REDUCER",
+    "INSPECT_EVAL_NO_EPOCHS_REDUCER",
+    "INSPECT_EVAL_SENTINEL_ARGS",
+}
 
 
 def test_the_matrix_covers_every_variable_that_is_read() -> None:

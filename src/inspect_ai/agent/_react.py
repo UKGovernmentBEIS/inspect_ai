@@ -9,7 +9,7 @@ from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai.approval._apply import approval as approval_context
 from inspect_ai.approval._policy import ApprovalPolicy
-from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._call_tools import execute_tools, watch_handoffs
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -24,6 +24,7 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
+from inspect_ai.model._message_ids import edited_message
 from inspect_ai.model._model import Model, ModelRefusalError, get_model
 from inspect_ai.model._trim import partition_messages, trim_messages
 from inspect_ai.review._policy import ReviewPolicy
@@ -39,6 +40,7 @@ from ._channel import (
     AgentInterrupted,
     agent_channel,
 )
+from ._channel.gate import after_answer, mark_turn_loop
 from ._filter import MessageFilter
 from ._handoff import has_handoff
 from ._types import (
@@ -260,7 +262,14 @@ def react(
                 # or if a message or token limit is hit
                 while True:
                     # drain any operator-supplied messages for this turn
-                    state.messages.extend(await ch.before_turn(state.messages))
+                    state.messages.extend(
+                        await ch.before_turn(state.messages, state=state)
+                    )
+                    if ch._take_rewritten():
+                        await _reset_compaction(compact, state.messages)
+                        # the reduced input this flag describes is gone, so
+                        # the next overflow may force compaction again
+                        overflow_compacted = False
 
                     # checkpoint at turn boundary (no-op when policy says so)
                     await cp.tick()
@@ -268,9 +277,10 @@ def react(
                     try:
                         with ch.turn_scope():
                             # generate output and append assistant message
-                            state = await _agent_generate(
+                            generated = await _agent_generate(
                                 model, state, tools, retry_refusals, compact, approval
                             )
+                            _absorb(state, generated)
 
                             # check for context window overflow
                             if state.output.stop_reason == "model_length":
@@ -298,12 +308,16 @@ def react(
                             # resolve tool calls (if any)
                             if state.output.message.tool_calls:
                                 # call tool functions
-                                messages, output = await execute_tools(
-                                    state.messages,
-                                    tools,
-                                    approval=approval,
-                                    review=review,
-                                )
+                                with watch_handoffs() as handoffs:
+                                    messages, output = await execute_tools(
+                                        state.messages,
+                                        tools,
+                                        approval=approval,
+                                        review=review,
+                                    )
+                                # a turn that handed off is not asked about its
+                                # submission, which may not be its own
+                                handed_off = handoffs.called
                                 state.messages.extend(messages)
                                 if output:
                                     state.output = output
@@ -323,16 +337,40 @@ def react(
                                         and len(state.output.choices) > 0
                                     ):
                                         message = state.output.choices[0].message
-                                        if isinstance(message.content, str):
-                                            message.content = f"{message.content}{submit.answer_delimiter}{answer}".strip()
-                                        else:
-                                            message.content.append(
-                                                ContentText(text=answer)
-                                            )
+                                        answered = edited_message(
+                                            message,
+                                            content=f"{message.content}{submit.answer_delimiter}{answer}".strip()
+                                            if isinstance(message.content, str)
+                                            else [
+                                                *message.content,
+                                                ContentText(text=answer),
+                                            ],
+                                        )
+                                        # a copy: the recorded model event shares the choice
+                                        state.output = state.output.model_copy(
+                                            update={
+                                                "choices": [
+                                                    state.output.choices[0].model_copy(
+                                                        update={"message": answered}
+                                                    ),
+                                                    *state.output.choices[1:],
+                                                ]
+                                            }
+                                        )
+                                        state.messages = [
+                                            answered if m is message else m
+                                            for m in state.messages
+                                        ]
 
-                                    # exit if we are at max_attempts
+                                    # exit if we are at max_attempts (or continue
+                                    # with fresh attempts if the gate says so)
                                     attempt_count += 1
                                     if attempt_count >= attempts.attempts:
+                                        if not handed_off and await after_answer(
+                                            ch, state
+                                        ):
+                                            attempt_count = 0
+                                            continue
                                         break
 
                                     # exit if the submission is successful
@@ -341,6 +379,11 @@ def react(
                                         attempts.score_value(answer_scores[0].value)
                                         == 1.0
                                     ):
+                                        if not handed_off and await after_answer(
+                                            ch, state
+                                        ):
+                                            attempt_count = 0
+                                            continue
                                         break
 
                                     # otherwise notify the model that it was incorrect and continue
@@ -424,6 +467,7 @@ def react(
                     )
                 return state
 
+    mark_turn_loop(execute)
     return _resolve_agent(execute, name, description)
 
 
@@ -500,7 +544,14 @@ def react_no_submit(
                 # main loop
                 while True:
                     # drain any operator-supplied messages for this turn
-                    state.messages.extend(await ch.before_turn(state.messages))
+                    state.messages.extend(
+                        await ch.before_turn(state.messages, state=state)
+                    )
+                    if ch._take_rewritten():
+                        await _reset_compaction(compact, state.messages)
+                        # the reduced input this flag describes is gone, so
+                        # the next overflow may force compaction again
+                        overflow_compacted = False
 
                     # checkpoint at turn boundary (no-op when policy says so)
                     await cp.tick()
@@ -508,9 +559,13 @@ def react_no_submit(
                     try:
                         with ch.turn_scope():
                             # generate output and append assistant message
-                            state = await _agent_generate(
+                            generated = await _agent_generate(
                                 model, state, tools, retry_refusals, compact, approval
                             )
+                            _absorb(state, generated)
+                            # a handoff can replace the output with the child's,
+                            # so whether the turn replied is read before tools run
+                            replied = not state.output.message.tool_calls
 
                             # check for context window overflow
                             if state.output.stop_reason == "model_length":
@@ -567,12 +622,17 @@ def react_no_submit(
                             state.messages = do_continue.messages
                             state.output = do_continue.output
                         else:
+                            if replied and await after_answer(ch, state):
+                                continue
                             break
                     elif not state.output.message.tool_calls:
+                        if replied and await after_answer(ch, state):
+                            continue
                         break
 
                 return state
 
+    mark_turn_loop(execute)
     return _resolve_agent(execute, name, description)
 
 
@@ -696,21 +756,48 @@ def _agent_compact(
 ) -> Compact | None:
     # create compact function
     if compaction is not None:
-        # derive the always-preserve prefix (system messages + sample input)
-        # rather than using `messages` wholesale: on a checkpoint resume
-        # `messages` is the full restored conversation, and treating it all
-        # as prefix would make every subsequent compaction re-prepend the
-        # entire pre-crash history to its output.
-        partitioned = partition_messages(messages)
         return create_compaction(
             strategy=compaction,
-            prefix=partitioned.system + partitioned.input,
+            prefix=_compaction_prefix(messages),
             tools=tools,
             model=model if isinstance(model, str | Model | None) else None,
             checkpointer=checkpointer,
         )
     else:
         return None
+
+
+def _compaction_prefix(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """The always-preserve prefix: system messages and sample input.
+
+    Not `messages` wholesale: on a checkpoint resume `messages` is the full
+    restored conversation, and treating it all as prefix would make every
+    subsequent compaction re-prepend the entire pre-crash history to its
+    output.
+    """
+    partitioned = partition_messages(messages)
+    return partitioned.system + partitioned.input
+
+
+async def _reset_compaction(
+    compact: Compact | None, messages: list[ChatMessage]
+) -> None:
+    """Rebuild the handler's view of a conversation the turn gate rewrote.
+
+    The handler adds only messages whose ids it has not seen, so without a
+    reset a changed or removed message would stay in the model input as it
+    was.
+    """
+    if compact is not None:
+        await compact.reset(_compaction_prefix(messages))
+
+
+def _absorb(state: AgentState, generated: AgentState) -> None:
+    # keep react's own object when its model agent returns another, since a
+    # sentinel's stages read the object react was called with
+    if generated is not state:
+        state._messages = generated._messages
+        state._output = generated._output
 
 
 async def _agent_generate(
@@ -850,11 +937,8 @@ def _remove_submit_tool(
                         new_content.pop(indices[-1])
 
                 # update w/ new tool calls and new content
-                message = message.model_copy(
-                    update=dict(
-                        tool_calls=new_tools_calls,
-                        content=new_content,
-                    ),
+                message = edited_message(
+                    message, tool_calls=new_tools_calls, content=new_content
                 )
 
         # always append message

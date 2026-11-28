@@ -28,6 +28,7 @@ from ._group import (
     _model_option,
     _NounGroup,
     _now_option,
+    _shards_option,
     _terse_line,
     _terse_option,
     _use_terse,
@@ -82,8 +83,9 @@ task_group.hint = lambda token: (
 
 @task_group.command("list")
 @_log_dir_option()
+@_shards_option()
 @_json_option("an `{as_of, tasks}` envelope")
-def task_list_command(as_json: bool) -> None:
+def task_list_command(as_json: bool, shards: bool) -> None:
     """List running tasks across all live Inspect processes.
 
     Each `--json` row carries the selectors other commands take (`task_id`,
@@ -94,7 +96,7 @@ def task_list_command(as_json: bool) -> None:
 
     Example: inspect ctl task list --json
     """
-    _run_task_list(as_json)
+    _run_task_list(as_json, shards=shards)
 
 
 _mirror_list_options(task_group, task_list_command)
@@ -374,7 +376,7 @@ def task_resume_command(
 
 
 @_envelope_failures
-def _run_task_list(as_json: bool) -> None:
+def _run_task_list(as_json: bool, *, shards: bool = False) -> None:
     # Stamp as_of BEFORE the reads: anything that changes during them has a
     # timestamp >= as_of and is caught by the next poll rather than missed.
     as_of = time.time()
@@ -382,7 +384,7 @@ def _run_task_list(as_json: bool) -> None:
     # --log-dir adds `incomplete` / `unreadable` (the logs the rows omit)
     extra: dict[str, Any] = {}
     if log_dir:
-        read = _log_dir._task_rows()
+        read = _log_dir._task_rows(shards=shards)
         summaries = read.rows
         extra = {"incomplete": bool(read.unreadable), "unreadable": read.unreadable}
     else:
@@ -401,7 +403,11 @@ def _run_task_list(as_json: bool) -> None:
     _print_human_table(summaries)
     if log_dir:
         _log_dir._print_quiet_footer(summaries)
-        _print_errored_samples_footer(summaries, _log_dir._errors_command())
+        _log_dir._print_sharded_totals_note(summaries)
+        # --shards rows overlap (a merged log holds its shards' samples), so a
+        # sum over them would count an errored sample more than once
+        if not shards:
+            _print_errored_samples_footer(summaries, _log_dir._errors_hint())
     else:
         _print_keep_alive_footer(summaries)
         _print_errored_samples_footer(summaries)
@@ -529,6 +535,12 @@ def _run_task_stop_directive(
         _echo()
     if result.get("changed") and result.get("retry_abandoned"):
         _echo_retry_abandoned(verb, target_label, dry_run=dry_run, terse=terse_mode)
+    elif result.get("changed") and result.get("task_queued"):
+        _echo_task_queued(verb, target_label, dry_run=dry_run, terse=terse_mode)
+    elif result.get("changed") and result.get("abort_deferred"):
+        _echo_task_queued(
+            verb, target_label, dry_run=dry_run, terse=terse_mode, starting=True
+        )
     elif result.get("changed"):
         render_changed(result, target_label, terse_mode)
     else:
@@ -619,6 +631,34 @@ def _echo_retry_abandoned(
         f"pending retry {'would be' if dry_run else 'is'} abandoned — the task "
         f"{'would end' if dry_run else 'ends'} with its last attempt's error log"
     )
+    if terse:
+        status = "dry-run" if dry_run else "requested"
+        _echo(_terse_line(verb, target_label, f"{status} — {body}"))
+    elif dry_run:
+        _echo(f"Would {verb} — {body}.")
+    else:
+        _echo(f"{verb.capitalize()} requested — {body}.")
+
+
+def _echo_task_queued(
+    verb: str, target_label: str, *, dry_run: bool, terse: bool, starting: bool = False
+) -> None:
+    """The outcome of a cancel or drain of a task that has not started.
+
+    Both verbs end such a task before it runs any samples. A task still
+    waiting for a slot ends at once; one whose attempt is ``starting`` is
+    aborted when it starts, with an error log.
+    """
+    if starting:
+        body = (
+            f"the task is starting, so it {'would abort' if dry_run else 'will abort'} "
+            "when it starts, before running any samples"
+        )
+    else:
+        body = (
+            f"the task has not started, so it {'would end' if dry_run else 'ends'} "
+            "without running any samples"
+        )
     if terse:
         status = "dry-run" if dry_run else "requested"
         _echo(_terse_line(verb, target_label, f"{status} — {body}"))

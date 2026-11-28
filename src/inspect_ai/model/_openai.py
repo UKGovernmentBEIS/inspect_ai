@@ -71,7 +71,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
-    parse_content_with_internal,
+    parse_content_with_internal_blocks,
 )
 from inspect_ai.model._model_output import (
     ChatCompletionChoice,
@@ -83,8 +83,10 @@ from inspect_ai.model._openrouter_reasoning import (
     openrouter_reasoning_details_to_reasoning,
 )
 from inspect_ai.model._reasoning import (
+    ReasoningCapsule,
     parse_content_with_reasoning,
     reasoning_to_think_tag,
+    split_content_with_reasoning,
 )
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util._json import json_schema_dump
@@ -169,8 +171,9 @@ def always_reasons_model(model_name: str) -> bool:
 
     The API rejects `none` and, since reasoning is always on, rejects sampling
     params (`temperature`, `top_p`, logprobs) outright: o-series, gpt-5.0,
-    GPT-6 Astra, and GPT-6.1 Sol. GPT-6 Sol and Luna accept `none` like gpt-5.1+
-    (see https://developers.openai.com/api/docs/guides/latest-model). The GPT-6
+    GPT-6 Astra, GPT-6.1 Sol, GPT-6.2 Astra, and GPT-6.2 Sol. GPT-6 Sol, GPT-6
+    Luna, and GPT-6.1 Terra accept `none` like gpt-5.1+ (see
+    https://developers.openai.com/api/docs/guides/latest-model). The GPT-6
     checks are substring matches so hosting prefixes and Azure deployment names
     resolve. Codenames don't match, so they keep the gpt-5.x sampling-param
     behavior.
@@ -181,6 +184,8 @@ def always_reasons_model(model_name: str) -> bool:
         or (is_gpt_5_model(model_name) and not is_gpt_5_plus_model(model_name))
         or "gpt-6-astra" in name
         or "gpt-6.1-sol" in name
+        or "gpt-6.2-astra" in name
+        or "gpt-6.2-sol" in name
     )
 
 
@@ -844,31 +849,28 @@ async def messages_from_openai(
         elif message["role"] == "assistant":
             # resolve content
             refusal: Literal[True] | None = None
-            smuggled_reasoning = None
+            smuggled_content = None
             parsed_reasoning_content = False
             asst_content = message.get("content", None)
             if isinstance(asst_content, str):
-                asst_content, smuggled_reasoning = parse_content_with_reasoning(
-                    asst_content
-                )
-                asst_content, content_internal = parse_content_with_internal(
-                    asst_content, CONTENT_INTERNAL_TAG
-                )
-                if smuggled_reasoning:
-                    content = [
-                        ContentReasoning(
-                            reasoning=smuggled_reasoning.reasoning,
-                            signature=smuggled_reasoning.signature,
-                            redacted=smuggled_reasoning.redacted,
-                            summary=smuggled_reasoning.summary,
-                        ),
-                    ]
-                    if asst_content:
-                        content.append(
-                            ContentText(text=asst_content, internal=content_internal)
-                        )
+                smuggled_content = content_from_smuggled_reasoning(asst_content)
+                if smuggled_content is not None:
+                    content = smuggled_content
                 else:
-                    content = asst_content
+                    internal_blocks = parse_content_with_internal_blocks(
+                        asst_content, CONTENT_INTERNAL_TAG
+                    )
+                    text_content: list[Content] = [
+                        ContentText(text=block.text, internal=block.internal)
+                        for block in internal_blocks
+                        if block.text or block.internal is not None
+                    ]
+                    block = internal_blocks[0]
+                    content = (
+                        block.text
+                        if len(internal_blocks) == 1 and block.internal is None
+                        else text_content
+                    )
             elif asst_content is None:
                 content = message.get("refusal", None) or ""
                 if content:
@@ -885,7 +887,11 @@ async def messages_from_openai(
                     content = [
                         c
                         for c in content
-                        if not (isinstance(c, ContentText) and c.text == "")
+                        if not (
+                            isinstance(c, ContentText)
+                            and c.text == ""
+                            and c.internal is None
+                        )
                     ]
 
             # resolve reasoning (OpenAI doesn't suport this however OpenAI-compatible
@@ -894,7 +900,7 @@ async def messages_from_openai(
             # other sources
             parse_result = parse_reasoning_content(
                 message,
-                parse_think=smuggled_reasoning is None and not parsed_reasoning_content,
+                parse_think=smuggled_content is None and not parsed_reasoning_content,
             )
             if parse_result is not None:
                 reasoning: ContentReasoning | None = (
@@ -1002,6 +1008,45 @@ def tool_call_from_openai(tool_call: ChatCompletionMessageToolCallParam) -> Tool
     )
 
 
+def content_from_smuggled_reasoning(text: str) -> list[Content] | None:
+    """Rebuild assistant content from text with smuggled `<think>` blocks.
+
+    `openai_assistant_content` serializes each reasoning block of a message as a
+    `<think>` tag between its text. This restores every block as a
+    `ContentReasoning`, including its `internal` (the Google provider reads the
+    `gemini_function_call_id` there to replay thought signatures), and the text
+    around the blocks as `ContentText` with its smuggled `internal`, in their
+    original order.
+
+    Returns None when the text has no `<think>` block.
+    """
+    segments = split_content_with_reasoning(text)
+    if not any(isinstance(segment, ReasoningCapsule) for segment in segments):
+        return None
+
+    content: list[Content] = []
+    for segment in segments:
+        if isinstance(segment, ReasoningCapsule):
+            content.append(
+                ContentReasoning(
+                    reasoning=segment.reasoning,
+                    signature=segment.signature,
+                    redacted=segment.redacted,
+                    summary=segment.summary,
+                    internal=segment.internal,
+                )
+            )
+        else:
+            for block in parse_content_with_internal_blocks(
+                segment, CONTENT_INTERNAL_TAG
+            ):
+                if block.text or block.internal is not None:
+                    content.append(
+                        ContentText(text=block.text, internal=block.internal)
+                    )
+    return content
+
+
 def content_from_openai(
     content: ChatCompletionContentPartParam | ChatCompletionContentPartRefusalParam,
     parse_reasoning: bool = False,
@@ -1011,24 +1056,14 @@ def content_from_openai(
         content["type"] = list(content.keys())[0]  # type: ignore[arg-type]
     if content["type"] == "text":
         text = content["text"]
-        text, content_internal = parse_content_with_internal(text, CONTENT_INTERNAL_TAG)
         if parse_reasoning:
-            content_text, reasoning = parse_content_with_reasoning(text)
-            if reasoning:
-                return [
-                    ContentReasoning(
-                        internal=reasoning.internal,
-                        reasoning=reasoning.reasoning,
-                        summary=reasoning.summary,
-                        signature=reasoning.signature,
-                        redacted=reasoning.redacted,
-                    ),
-                    ContentText(text=content_text, internal=content_internal),
-                ]
-            else:
-                return [ContentText(text=text, internal=content_internal)]
-        else:
-            return [ContentText(text=text, internal=content_internal)]
+            smuggled_content = content_from_smuggled_reasoning(text)
+            if smuggled_content is not None:
+                return smuggled_content
+        return [
+            ContentText(text=block.text, internal=block.internal)
+            for block in parse_content_with_internal_blocks(text, CONTENT_INTERNAL_TAG)
+        ]
     elif content["type"] == "reasoning":  # type: ignore[comparison-overlap]
         return [ContentReasoning(reasoning=content["reasoning"])]
     elif content["type"] == "image_url":

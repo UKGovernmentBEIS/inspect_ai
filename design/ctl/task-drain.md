@@ -231,6 +231,10 @@ score/error resolution" — generalizes to an ordering by invasiveness:
 drain  <  score / error  <  cancel (abort)
 ```
 
+`TaskCancel.request` enforces the ladder for every caller, including the
+task display's cancel dialog, whose retry ranks between score/error and
+abort: a retry chosen after an operator's cancel does not re-run the task.
+
 A request strictly *stronger* than the pending resolution applies (the stamp
 is overwritten and, for score/error, the interrupt sweep runs — already-
 interrupted samples keep their resolution, per the first-resolution-wins
@@ -552,14 +556,16 @@ by awaits.
 
 - **Process/eval-set-scoped drain** ("drain every task and end the run").
   Draining every *running* task composes today as `process pause` (stop the
-  world) plus per-task drains; the "end the run" half does not — undispatched
-  eval-set tasks stay held by the pause rather than cancelled (next bullet),
-  so the run quiesces without ending until a `resume` dispatches them. A
-  first-class spelling belongs to the eval-set noun group (`ctl eval-set …`,
-  a later phase) alongside `eval-set cancel`.
-- **Not-yet-started eval-set tasks** are unaffected by a task-scoped drain
-  (they have no `EvalState` to address) — holding them is `process pause`'s
-  job; cancelling them outright is eval-set cancel's.
+  world) plus per-task drains; ending the run also needs a drain or cancel of
+  each task that has not started (next bullet). A first-class spelling
+  belongs to the eval-set noun group (`ctl eval-set …`, a later phase)
+  alongside `eval-set cancel`.
+- **Not-yet-started tasks** are not drained in the sense above: they have
+  no samples to finish. A task-scoped drain of one aborts it before it
+  starts, exactly as a plain cancel does, and it ends with the "Task
+  cancelled by user (abort)" error log
+  ([task-dispatch.md](../task-dispatch.md#control-channel)). Holding them
+  without ending them is `process pause`'s job.
 - **A drain deadline** (`--for DURATION`, auto-escalate to `--action score`
   after N minutes). An agent can compose this with two commands and a poll
   of `resolving`; build only on demonstrated demand.
@@ -646,9 +652,9 @@ Implementation review surfaced three gaps the sketch missed; all are closed:
   `started` log would win the end-of-run retry-cleanup sweep by mtime,
   deleting the errored attempt's log the abandon promised would stand.
   `task_run` consults the registry once more before `log_start` — and
-  before `display().task()` opens a task row, since an abandoned row with no
-  result would become the last row for its task id and make the rich
-  header's task count read the task as incomplete for the rest of the run,
+  before `display().task()` opens a task row, so an attempt abandoned
+  there opens no row (one abandoned at the pre-register check completes its
+  row as cancelled, so the displays still count the task as finished),
   and before the dataset is paged to disk, since an abandon raised past the
   end of `task_run` would otherwise leave the paged store's temp file behind
   (best-effort; the pre-register check stays the race-free backstop, and the

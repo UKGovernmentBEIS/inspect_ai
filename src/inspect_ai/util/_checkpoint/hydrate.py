@@ -124,7 +124,8 @@ logger = getLogger(__name__)
 # bound covers every node restic lists: the context dir's ancestor
 # directories (a dozen or so for a deep staging path) plus the flat JSON
 # files `host_context` describes, the transcript-store sqlite file with its
-# journal side files, and at most a few `.tmp` leftovers from an interrupted
+# journal side files (in lineages started by earlier versions, which kept it
+# in `context/`), and at most a few `.tmp` leftovers from an interrupted
 # atomic write — a few dozen nodes. It is set well above that because
 # earlier versions restored into a non-empty `context/` on in-run requeue
 # and left restic's mirrored source-path chain nested inside it, so each

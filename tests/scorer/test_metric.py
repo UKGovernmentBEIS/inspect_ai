@@ -1,24 +1,32 @@
 import math
-from typing import Any, Callable, cast
+from typing import Any, Callable, Literal, cast
 
 import pytest
 from pydantic import BaseModel
 
-from inspect_ai import Task, eval, score
+from inspect_ai import Epochs, Task, eval, score
+from inspect_ai._eval.task.results import eval_results
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
+from inspect_ai.log import EvalScore
 from inspect_ai.scorer import (
     Metric,
     Score,
     Scorer,
+    ScoreReducer,
     Value,
     accuracy,
+    at_least,
     includes,
+    majority_score,
     match,
+    max_score,
     mean,
+    mean_score,
     metric,
+    mode_score,
     scorer,
     std,
     value_to_float,
@@ -219,6 +227,17 @@ def test_score_non_finite_value_round_trip(value: Value, leaf: Any) -> None:
             assert math.isnan(roundtripped)
         else:
             assert roundtripped == original
+
+
+def test_score_none_and_nan_dict_leaves_round_trip() -> None:
+    """A dictionary score keeps None (missing) and NaN (unscored) distinct when persisted."""
+    score = Score(value={"missing": None, "unscored": float("nan"), "scored": 1.0})
+    for wire in (score.model_dump_json(exclude_none=True), to_json_str_safe(score)):
+        restored = Score.model_validate_json(wire).as_dict()
+        assert restored["missing"] is None
+        assert isinstance(restored["unscored"], float)
+        assert math.isnan(restored["unscored"])
+        assert restored["scored"] == 1.0
 
 
 def test_score_edit_non_finite_value_round_trip() -> None:
@@ -898,6 +917,58 @@ def test_dict_metric_all_samples_unscored():
         assert r.scored_samples == 0
         assert r.unscored_samples == 3
         assert math.isnan(r.metrics["mean"].value)
+
+
+def test_dict_metric_same_metric_with_other_params():
+    # Variants of a metric with other params are all computed; a metric with
+    # the same name and params (from "*" or repeated in a list) is computed once.
+    from inspect_ai._eval.task.results import scorers_from_metric_dict
+
+    sample_scores = [
+        SampleScore(
+            score=Score(value={"one": 1}), sample_id=1, sample_metadata={"group": "a"}
+        ),
+        SampleScore(
+            score=Score(value={"one": 0}), sample_id=2, sample_metadata={"group": "b"}
+        ),
+    ]
+
+    results = scorers_from_metric_dict(
+        scorer_name="test_scorer",
+        scorer_info=_scorer_info_for_dict_metrics(),
+        sample_scores=sample_scores,
+        metrics={
+            "*": [stderr(), grouped(mean(), "group")],
+            "one": [
+                stderr(),
+                stderr(cluster="group"),
+                stderr(cluster="group"),
+                grouped(mean(), "group"),
+                grouped(stderr(), "group"),
+                nested_list_metric(),
+                nested_list_metric(correct="I"),
+            ],
+        },
+    )
+
+    metrics = results[0].metrics
+    assert list(metrics) == [
+        "stderr",
+        "grouped_a",
+        "grouped_b",
+        "grouped_all",
+        "stderr2",
+        "grouped_a2",
+        "grouped_b2",
+        "grouped_all2",
+        "nested_list_metric_0",
+        "nested_list_metric_1",
+        "nested_list_metric_02",
+        "nested_list_metric_12",
+    ]
+    assert metrics["stderr2"].params == {"cluster": "group"}
+    assert metrics["grouped_a2"].params["metric"]["name"] == "stderr"
+    assert metrics["nested_list_metric_12"].params == {"correct": "I"}
 
 
 def test_aggregate_mean():
@@ -1711,3 +1782,237 @@ def test_grouped_empty_scores_returns_degenerate_shape() -> None:
 def test_grouped_empty_scores_with_all_false_returns_empty_dict() -> None:
     result = cast(dict[str, float], grouped(mean(), group_key="group", all=False)([]))
     assert result == {}
+
+
+def _pass_fail_task(to_float: Callable[[Value], float], epochs: Epochs) -> Task:
+    verdicts: dict[int | str, str] = {1: "pass", 2: "pass", 3: "pass", 4: "fail"}
+
+    @scorer(metrics=[accuracy(to_float=to_float)])
+    def pass_fail():
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=verdicts[state.sample_id])
+
+        return score
+
+    return Task(
+        dataset=[Sample(input="q", id=sample_id) for sample_id in (1, 2, 3, 4)],
+        scorer=pass_fail(),
+        epochs=epochs,
+    )
+
+
+def _dict_score_task(on_missing: Literal["error", "skip"], epochs: int) -> Task:
+    values: dict[int | str, dict[str, float | None]] = {
+        1: {"x": 1.0},
+        2: {"x": 1.0},
+        3: {"x": None},
+        4: {"x": 0.5},
+    }
+
+    @scorer(metrics=[aggregate("x", agg=mean(), on_missing=on_missing)])
+    def dict_score():
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=values[state.sample_id])
+
+        return score
+
+    return Task(
+        dataset=[Sample(input="q", id=sample_id) for sample_id in (1, 2, 3, 4)],
+        scorer=dict_score(),
+        epochs=epochs,
+    )
+
+
+@pytest.mark.parametrize("epochs", [1, 2])
+def test_pass_fail_converter_on_reducer_scores_at_any_epoch_count(epochs: int) -> None:
+    """Epochs(n, mean_score(value_to_float=...)) scores pass/fail the same at 1 and 2 epochs."""
+    to_float = value_to_float(correct="pass", incorrect="fail")
+    log = eval(
+        _pass_fail_task(to_float, Epochs(epochs, mean_score(value_to_float=to_float))),
+        model="mockllm/model",
+        display="none",
+    )[0]
+
+    assert log.status == "success", log.error
+    assert log.results is not None
+    assert log.results.scores[0].metrics["accuracy"].value == pytest.approx(0.75)
+    assert log.reductions is not None
+    reduced_values = [sample.value for sample in log.reductions[0].samples]
+    assert reduced_values.count(1.0) == 3
+    assert reduced_values.count(0.0) == 1
+
+
+@pytest.mark.parametrize("epochs", [1, 2])
+def test_aggregate_skip_ignores_none_at_any_epoch_count(epochs: int) -> None:
+    """None stays missing, so skip averages the three present values at 1 and 2 epochs."""
+    log = eval(_dict_score_task("skip", epochs), model="mockllm/model", display="none")[
+        0
+    ]
+
+    assert log.status == "success", log.error
+    assert log.results is not None
+    assert log.results.scores[0].metrics["aggregate"].value == pytest.approx(2.5 / 3)
+
+
+@pytest.mark.parametrize("epochs", [1, 2])
+def test_aggregate_error_raises_on_none_at_any_epoch_count(epochs: int) -> None:
+    """The default on_missing='error' raises for an all-None key at 1 and 2 epochs."""
+    with pytest.raises(ValueError, match="is None"):
+        eval(
+            _dict_score_task("error", epochs),
+            model="mockllm/model",
+            display="none",
+            debug_errors=True,
+        )
+
+
+def test_two_epoch_mean_skips_missing_epoch() -> None:
+    """A None epoch is left out of the mean, not converted to 0.0."""
+
+    @scorer(metrics=[aggregate("x", agg=mean())])
+    def dict_score():
+        async def score(state: TaskState, target: Target) -> Score:
+            value = 1.0 if state.epoch == 1 else None
+            return Score(value={"x": value})
+
+        return score
+
+    log = eval(
+        Task(dataset=[Sample(input="q", id=1)], scorer=dict_score(), epochs=2),
+        model="mockllm/model",
+        display="none",
+    )[0]
+
+    assert log.status == "success", log.error
+    assert log.results is not None
+    assert log.results.scores[0].metrics["aggregate"].value == pytest.approx(1.0)
+    assert log.reductions is not None
+    assert log.reductions[0].samples[0].value == {"x": 1.0}
+
+
+def _key_results(
+    values_per_sample: list[list[dict[str, Any]]],
+    metrics: list[Metric | dict[str, list[Metric]]],
+    reducers: ScoreReducer | list[ScoreReducer] | None,
+) -> dict[str, EvalScore]:
+    """EvalScores from eval_results(), by score name."""
+
+    @scorer(metrics=metrics)
+    def dict_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            raise NotImplementedError
+
+        return score
+
+    scores = [
+        {
+            "dict_scorer": SampleScore(
+                score=Score(value=value),
+                sample_id=sample_id,
+                scorer="dict_scorer",
+            )
+        }
+        for sample_id, epochs in enumerate(values_per_sample, start=1)
+        for value in epochs
+    ]
+    results, _ = eval_results(
+        samples=len(values_per_sample),
+        scores=scores,
+        reducers=reducers,
+        scorers=[dict_scorer()],
+        metrics=None,
+        scorer_names=["dict_scorer"],
+    )
+    return {eval_score.name: eval_score for eval_score in results.scores}
+
+
+def _metric_values(eval_score: EvalScore) -> dict[str, Any]:
+    return {name: metric.value for name, metric in eval_score.metrics.items()}
+
+
+_ONE_KEY_VALUES: list[list[dict[str, Any]]] = [
+    [{"k": 1}],
+    [{"k": 0}],
+    [{"k": None}],
+    [{"k": float("nan")}],
+]
+
+
+def test_per_key_metrics_treat_none_as_unscored() -> None:
+    """A None under a key is left out of per-key metrics and counted as unscored, like NaN."""
+    results = _key_results(
+        _ONE_KEY_VALUES, [{"k": [mean(), accuracy(), stderr()]}], reducers=[]
+    )
+    k = results["k"]
+    assert _metric_values(k) == {
+        "mean": pytest.approx(0.5),
+        "accuracy": pytest.approx(0.5),
+        "stderr": pytest.approx(0.5),
+    }
+    assert k.scored_samples == 2
+    assert k.unscored_samples == 2
+
+
+@pytest.mark.parametrize(
+    "on_missing,expected",
+    [("skip", 0.5), ("zero", 1 / 3)],
+)
+def test_aggregate_still_applies_on_missing_to_none(
+    on_missing: Literal["skip", "zero"], expected: float
+) -> None:
+    """aggregate() still sees None as missing, alongside per-key metrics on the same key."""
+    results = _key_results(
+        _ONE_KEY_VALUES,
+        [{"k": [mean()]}, aggregate("k", mean(), on_missing=on_missing)],
+        reducers=[],
+    )
+    whole = results["dict_scorer"]
+    assert whole.metrics["aggregate"].value == pytest.approx(expected)
+    # aggregate is a whole-score metric: its counts come from root values
+    assert whole.scored_samples == 4
+    assert whole.unscored_samples == 0
+    assert results["k"].metrics["mean"].value == pytest.approx(0.5)
+
+
+def test_aggregate_error_on_none_unchanged() -> None:
+    with pytest.raises(ValueError, match="is None"):
+        _key_results(_ONE_KEY_VALUES, [aggregate("k", mean())], reducers=[])
+
+
+@pytest.mark.parametrize(
+    "reducers,expected",
+    [(None, (0.5, 2, 0)), ([], (1 / 3, 3, 1))],
+    ids=["mean_reducer", "no_reducer"],
+)
+def test_per_key_none_handling_matches_with_and_without_reducer(
+    reducers: list[ScoreReducer] | None, expected: tuple[float, int, int]
+) -> None:
+    """None is dropped from the mean whether or not epochs are reduced first."""
+    results = _key_results(
+        [[{"k": True}, {"k": None}], [{"k": False}, {"k": False}]],
+        [{"k": [mean()]}],
+        reducers=reducers,
+    )
+    k = results["k"]
+    assert k.metrics["mean"].value == pytest.approx(expected[0])
+    assert k.scored_samples == expected[1]
+    assert k.unscored_samples == expected[2]
+
+
+@pytest.mark.parametrize(
+    "reducer",
+    [at_least(1), mode_score(), majority_score(), max_score()],
+    ids=["at_least", "mode", "majority", "max"],
+)
+def test_all_none_key_reaches_aggregate_as_missing(reducer: ScoreReducer) -> None:
+    """Every reducer keeps an all-None key as None, so aggregate(on_missing=...) applies."""
+    values: list[list[dict[str, Any]]] = [
+        [{"k": None}, {"k": None}],
+        [{"k": 1}, {"k": 1}],
+    ]
+    zero = _key_results(
+        values, [aggregate("k", mean(), on_missing="zero")], reducers=reducer
+    )
+    assert zero["dict_scorer"].metrics["aggregate"].value == pytest.approx(0.5)
+    with pytest.raises(ValueError, match="is None"):
+        _key_results(values, [aggregate("k", mean())], reducers=reducer)

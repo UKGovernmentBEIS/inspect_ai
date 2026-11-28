@@ -1,6 +1,7 @@
 import inspect
 from typing import Any
 
+import pytest
 from test_helpers.tasks import minimal_task
 
 from inspect_ai import task_with
@@ -31,6 +32,12 @@ def test_task_with_edit_options():
         metadata={"foo": "bar"},
     )
     assert task.metadata == {"foo": "bar"}
+
+
+def test_task_with_invalid_sandbox_raises() -> None:
+    sandbox: Any = 1
+    with pytest.raises(ValueError, match="Invalid sandbox specification"):
+        task_with(minimal_task(), sandbox=sandbox)
 
 
 def test_task_with_name_option():
@@ -126,3 +133,12 @@ def test_task_with_description() -> None:
     # unspecified leaves the description in place
     task = task_with(Task(description="Kept."), time_limit=30)
     assert task.description == "Kept."
+
+
+def test_task_with_max_samples() -> None:
+    task = task_with(minimal_task(), max_samples=3)
+    assert task.max_samples == 3
+    task = task_with(task, max_samples=None)
+    assert task.max_samples is None
+    with pytest.raises(ValueError, match="max_samples must be a positive integer"):
+        task_with(task, max_samples=0)
