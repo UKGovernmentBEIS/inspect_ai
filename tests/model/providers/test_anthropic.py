@@ -68,7 +68,9 @@ async def test_anthropic_output_cache(
 def test_anthropic_effort() -> None:
     log = eval(
         Task(dataset=[Sample(input="Please tell a story about toys.")]),
-        model="anthropic/claude-opus-4-5",
+        # effort without a thinking config; Opus 5.5 always adds adaptive
+        # thinking (see test_anthropic_opus_5_5_generate_live)
+        model="anthropic/claude-opus-4-8",
         effort="low",
     )[0]
     assert log.status == "success"

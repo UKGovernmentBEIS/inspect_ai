@@ -1,6 +1,9 @@
 anthropic:
   display_name: Anthropic
   models:
+    # Deprecated: retires from the Claude API on 2027-01-22 (Bedrock and
+    # Vertex set their own dates). Anthropic recommends claude-opus-5-5.
+    # https://platform.claude.com/docs/en/about-claude/model-deprecations
     claude-opus-4-5:
       display_name: Claude Opus 4.5
       release_date: 2025-11-24
