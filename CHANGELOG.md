@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.3.293](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.292...0.3.293) (2026-11-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* a `None` value under a dictionary score key is no longer counted as `0` by per-key metrics (`metrics={"key": [...]}`) or by the `max`, `mode`, `majority` and `at_least` reducers. It is left out and counted in `unscored_samples`. To keep counting a missing value as `0`, use `aggregate("key", mean(), on_missing="zero")`, or return `0` from the scorer.
+
+### Features
+
+* inspect ctl lists, cancels and drains tasks that have not started ([#6731](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6731)) ([c4cd4cf](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c4cd4cf216675f89430dfe0ab7c151f1872f00ca))
+* model cache entries use a JSON format; entries from earlier versions are not reused (`inspect cache prune` removes them) ([#6732](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6732)) ([83561de](https://github.com/UKGovernmentBEIS/inspect_ai/commit/83561dec9facc2074dbc051ced0ac0865e8b73a4))
+* opt-in explicit prompt caching when a base URL is configured ([#6416](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6416)) ([d62f43f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/d62f43f913aed9ac78e7539c6a2a86d80fede078))
+* **sentinel:** typed log fields for what a sentinel did, and eval retries keep sentinel_proxy ([#6741](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6741)) ([bb7f80c](https://github.com/UKGovernmentBEIS/inspect_ai/commit/bb7f80c83b39f7af6705477e553514f2af56f55e))
+
+
+### Bug Fixes
+
+* `inspect ctl --log-dir` treats only digit-named directories in a shards companion as shards and no longer lists logs below them ([#6739](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6739)) ([ef3e957](https://github.com/UKGovernmentBEIS/inspect_ai/commit/ef3e9577fac161823df0c63987a51924320f6071))
+* a `<name>-recovered.eval` beside a shards directory is an ordinary log, not its merged log ([#6751](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6751)) ([a0694fa](https://github.com/UKGovernmentBEIS/inspect_ai/commit/a0694fadca4e1b5dd5944bd79c1aa79ca1beeefb))
+* a None score value under a dictionary key is left out of reducers and per-key metrics instead of counted as 0 ([#6771](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6771)) ([201f804](https://github.com/UKGovernmentBEIS/inspect_ai/commit/201f804a4a7ab5b08efd18a4fbf03e4ce3f28309))
+* a second sample cancel no longer changes how a running sample ends ([#6735](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6735)) ([1febfc6](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1febfc6362e490f891e0b06739a4b98d63eec3c4))
+* a shard merge that writes rebuilds from every shard, so it refuses any overlap and matches a fresh merge ([#6740](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6740)) ([75d47f3](https://github.com/UKGovernmentBEIS/inspect_ai/commit/75d47f3fa5b328b778f6f68e8cbc6afe8a00d7ad))
+* **anthropic:** compaction no longer fails with a 400 when a server tool result arrives the turn after its call ([#6514](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6514)) ([3d1dc93](https://github.com/UKGovernmentBEIS/inspect_ai/commit/3d1dc9344f081f507013b43ca446c9d04f7cc6b4))
+* bridged sentinel no longer checks a tool result again after 1000 tool calls ([#6747](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6747)) ([8e5a177](https://github.com/UKGovernmentBEIS/inspect_ai/commit/8e5a177b37cc5e802bf5fffe2febbcbd7eb9a344))
+* checkpoint resume no longer keeps file modes and extended attributes recorded in the host snapshot ([#6785](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6785)) ([9cca758](https://github.com/UKGovernmentBEIS/inspect_ai/commit/9cca7581ce1698b073275a2eff01dae498e20274))
+* Docker service using image inspect-computer-tool no longer fails at startup with a build error ([#6743](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6743)) ([dc2f204](https://github.com/UKGovernmentBEIS/inspect_ai/commit/dc2f2044dc1c6b31bb0d4c02a842be68caa10e9f))
+* eval_set() no longer leaves the run's active model, generate config and model roles in the caller's context ([#6769](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6769)) ([c8d346f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c8d346f2a53665808ddaf510e40de853ee7653c6))
+* in-loop scorers' exec_remote() calls run as the sandbox default user, as exec() does ([#6722](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6722)) ([3028970](https://github.com/UKGovernmentBEIS/inspect_ai/commit/302897062b17a1537882002f37446c003d248e54))
+* inspect ctl --log-dir no longer reports a rescored log's reduced sample count as its final total ([#6790](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6790)) ([1434d6b](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1434d6b1df1fd814e580d52eaa66ae5a2f63d186))
+* inspect ctl no longer suggests a command built from an argument that holds non-printable characters ([#6759](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6759)) ([01b89cc](https://github.com/UKGovernmentBEIS/inspect_ai/commit/01b89ccf0d00287997246a31b9ee03e35d5e43e3))
+* JSON eval log read from a byte stream returns an empty location ([#6760](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6760)) ([f5b851f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/f5b851faa6476fba93f4a18c5e75ce63da6d4f7d))
+* keep shared live log writes inside the run buffer ([#6718](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6718)) ([cab2b87](https://github.com/UKGovernmentBEIS/inspect_ai/commit/cab2b874f5ac05937afc1e80b7316cb5873fad98))
+* mypy errors with agent-client-protocol 1.1.0 tool-call content ([#6795](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6795)) ([a1175d9](https://github.com/UKGovernmentBEIS/inspect_ai/commit/a1175d932c8ddd95f5c59ba52f69edd6c079c354))
+* preserve internal state across multiple assistant text blocks ([#5553](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5553)) ([62e3088](https://github.com/UKGovernmentBEIS/inspect_ai/commit/62e30883cc3c4379d226e4438bed295cf0610c5f))
+* reading a Responses conversation no longer fails on a computer call without pending_safety_checks ([#6716](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6716)) ([5db659c](https://github.com/UKGovernmentBEIS/inspect_ai/commit/5db659ca23c33e5daceb014cbdf10fa75884c591))
+* S3 writes no longer check that the bucket exists first ([#6756](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6756)) ([4950318](https://github.com/UKGovernmentBEIS/inspect_ai/commit/4950318d7eedf91a8bdb8429cb2a36833015b316))
+* **scorer:** preserve explicitly cleared score edit fields ([#6310](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6310)) ([ba79e97](https://github.com/UKGovernmentBEIS/inspect_ai/commit/ba79e97280aca125ee6ae1409ab988ed34480a64))
+* secrets in a sentinel proxy's base URL query or fragment no longer reach sidecar errors ([#6793](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6793)) ([311744d](https://github.com/UKGovernmentBEIS/inspect_ai/commit/311744da09749d47efdea151787b9118b9e0448f))
+* **sentinel:** a sample no longer waits on an approval prompt after its sidecar question has closed ([#6734](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6734)) ([c2aab5c](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c2aab5cc62f90460f0f48b0ed04bf9e21b2e6f19))
+
 ## [0.3.292](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.291...0.3.292) (2026-11-23)
 
 
