@@ -455,6 +455,8 @@ def init_concurrency(
     _sandbox_limiters.clear()
     _subprocess_limiter = None
     _task_sample_semaphores.clear()
+    _static_pool_created_limits.clear()
+    _static_pool_limit_warned.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -556,6 +558,64 @@ def register_task_sample_semaphore(
 ) -> None:
     """Track a task's sample semaphore for reuse by later retry attempts."""
     _task_sample_semaphores[task_id] = semaphore
+
+
+# ---------------------------------------------------------------------------
+# Requested limits for static connection pools
+# ---------------------------------------------------------------------------
+
+# The limit each static model connection pool was created with in the current
+# run, and the pools whose limit mismatch has been warned about. Keyed by
+# registry key; reset per run by `init_concurrency`.
+_static_pool_created_limits: dict[str, int] = {}
+_static_pool_limit_warned: set[str] = set()
+
+
+def request_static_limit(
+    key: str,
+    semaphore: ConcurrencySemaphore,
+    requested: int | None,
+    in_run: bool,
+) -> None:
+    """Apply a call's explicit connection limit to a static connection pool.
+
+    Outside a run (notebooks, test suites, direct model calls), a call that
+    asks for a different limit than the pool has resizes the pool, if it
+    supports resizing. Lowering the limit never preempts in-flight holders.
+
+    Inside a run the pool keeps the limit it was created with (only
+    `inspect ctl config` retunes it), and the first call that asks for a
+    limit other than its creation limit and its current limit logs a warning.
+
+    Args:
+       key: Registry key of the pool.
+       semaphore: The pool.
+       requested: The call's explicit limit, or None if it set none.
+       in_run: Whether an eval run is in progress.
+    """
+    if not in_run:
+        if (
+            requested is not None
+            and isinstance(semaphore, ResizableSemaphore)
+            and semaphore.concurrency != requested
+        ):
+            semaphore.concurrency = requested
+        return
+
+    created_limit = _static_pool_created_limits.setdefault(key, semaphore.concurrency)
+    if (
+        requested is not None
+        and requested != created_limit
+        and requested != semaphore.concurrency
+        and key not in _static_pool_limit_warned
+    ):
+        _static_pool_limit_warned.add(key)
+        logger.warning(
+            f"Connection pool '{semaphore.name}' keeps its limit of "
+            f"{semaphore.concurrency} for this run, but a call asked for "
+            f"max_connections={requested}. To change it, run "
+            f"`inspect ctl config --key {semaphore.name} <limit>`."
+        )
 
 
 class _AnyIOSemaphoreRegistry:
