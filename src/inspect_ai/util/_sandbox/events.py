@@ -9,7 +9,11 @@ from pydantic import JsonValue
 from pydantic_core import to_jsonable_python
 from typing_extensions import override
 
-from inspect_ai._util.text import truncate_lines, truncate_string_to_bytes
+from inspect_ai._util.text import (
+    TruncatedOutput,
+    truncate_lines,
+    truncate_string_to_bytes,
+)
 from inspect_ai._util.working import sandbox_exec_work, untracked_sandbox_execs
 from inspect_ai.util._subprocess import ExecResult
 
@@ -122,8 +126,8 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             OutputLimitExceededError: If an output stream exceeds the limit.
         """
         limit = SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE
-        stdout_truncated = truncate_string_to_bytes(exec_result.stdout, limit)
-        stderr_truncated = truncate_string_to_bytes(exec_result.stderr, limit)
+        stdout_truncated = _truncate_over_limit(exec_result.stdout, limit)
+        stderr_truncated = _truncate_over_limit(exec_result.stderr, limit)
         if not stdout_truncated and not stderr_truncated:
             return
         stdout = stdout_truncated.output if stdout_truncated else exec_result.stdout
@@ -303,3 +307,20 @@ def pretty_size(size: int) -> str:
         return f"{size / 1024:.2f} KB"
 
     return f"{size / (1024 * 1024):.2f} MB"
+
+
+def _truncate_over_limit(output: str, limit: int) -> TruncatedOutput | None:
+    """`output` truncated to `limit` bytes, or None when it is within the limit.
+
+    Providers apply the output limit to the bytes a command wrote and decode
+    them with `errors="replace"`, so each invalid UTF-8 sequence becomes
+    U+FFFD, which is 3 bytes in UTF-8. Each U+FFFD is counted as 1 byte, so
+    output under the limit does not read as over it. A replaced sequence of up
+    to 3 bytes, or a U+FFFD the command wrote itself, is undercounted by up to
+    2 bytes.
+    """
+    truncated = truncate_string_to_bytes(output, limit)
+    if truncated is None:
+        return None
+    size = len(output.encode("utf-8", errors="replace")) - 2 * output.count("\ufffd")
+    return truncated if size > limit else None
