@@ -370,6 +370,97 @@ class TestBatchCountingSumsPerMessage:
         assert batch_count < 1000
 
 
+# valid 1x1 transparent PNG
+_SCREENSHOT = (
+    "data:image/png;base64,"
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgAAIAAAUAAXpeqz8A"
+    "AAAASUVORK5CYII="
+)
+
+
+def _computer_call_messages():
+    """An assistant computer call and its screenshot, as recorded at generate time."""
+    from inspect_ai._util.content import ContentImage
+    from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
+    from inspect_ai.model._openai_responses import (
+        assistant_internal,
+        init_sample_openai_assistant_internal,
+    )
+    from inspect_ai.tool import ToolCall
+
+    init_sample_openai_assistant_internal()
+    assistant_internal().tool_calls["call_computer"] = {
+        "type": "computer_call",
+        "id": "cu_1",
+        "call_id": "call_computer",
+        "status": "completed",
+        "actions": [{"type": "screenshot"}],
+        "pending_safety_checks": [],
+    }
+    return [
+        ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(
+                    id="call_computer",
+                    function="computer",
+                    arguments={"actions": [{"action": "screenshot"}]},
+                )
+            ],
+        ),
+        ChatMessageTool(
+            content=[ContentImage(image=_SCREENSHOT)],
+            tool_call_id="call_computer",
+            function="computer",
+        ),
+    ]
+
+
+class TestComputerCallTokenCounting:
+    """Token counting for conversations that use the native computer tool."""
+
+    async def test_computer_tool_is_declared(self, monkeypatch):
+        """The count request declares the computer tool only when the input uses it."""
+        from types import SimpleNamespace
+
+        from openai import omit
+
+        from inspect_ai.model._chat_message import ChatMessageUser
+        from inspect_ai.model._providers.openai import OpenAIAPI
+
+        api = OpenAIAPI(model_name="gpt-5.4", api_key="test-key")
+        captured = []
+
+        async def fake_count(**kwargs):
+            captured.append(kwargs)
+            return SimpleNamespace(input_tokens=123)
+
+        monkeypatch.setattr(api.client.responses.input_tokens, "count", fake_count)
+
+        assert await api.count_tokens(_computer_call_messages()) == 123
+        assert [item["type"] for item in captured[0]["input"]] == [
+            "computer_call",
+            "computer_call_output",
+        ]
+        assert captured[0]["tools"] == [{"type": "computer"}]
+
+        assert await api.count_tokens([ChatMessageUser(content="Hi")]) == 123
+        assert captured[1].get("tools", omit) is omit
+
+    @requires_openai_api_key
+    @pytest.mark.slow
+    async def test_computer_call_counts(self):
+        """count_tokens must not 400 on a computer call and its screenshot.
+
+        Without the computer tool declared, the API rejects the request with
+        'You provided computer_output, but the "computer" tool is not enabled.'
+        """
+        from inspect_ai.model import get_model
+
+        model = get_model("openai/gpt-5.4")
+        assert await model.count_tokens(_computer_call_messages()) > 0
+
+
 @requires_openai_api_key
 @pytest.mark.slow
 class TestNativeTokenCountingFallback:
