@@ -1,3 +1,4 @@
+import json
 from http import HTTPStatus
 from unittest.mock import patch
 
@@ -148,3 +149,62 @@ class TestTavilyQueryTooLong:
 
                 with pytest.raises(ToolError, match="Query is too long"):
                     await search("a" * 401)
+
+
+def create_recording_transport(requests: list[httpx.Request]):
+    """Create a mock transport that records each request and returns our test response."""
+
+    async def mock_response(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(status_code=HTTPStatus.OK, json=EXAMPLE_RESPONSE)
+
+    return httpx.MockTransport(mock_response)
+
+
+async def _search_and_record(options: dict[str, object] | None) -> httpx.Request:
+    requests: list[httpx.Request] = []
+    mock_client = httpx.AsyncClient(transport=create_recording_transport(requests))
+    with patch.dict("os.environ", {"TAVILY_API_KEY": "dummy-key"}):
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_cls.return_value = mock_client
+            search = tavily_search_provider(options)
+            await search("test query")
+    assert len(requests) == 1
+    return requests[0]
+
+
+class TestTavilyEndpoint:
+    """Test the base_url and extra_headers options."""
+
+    async def test_default_endpoint_and_headers(self):
+        request = await _search_and_record(None)
+        assert str(request.url) == "https://api.tavily.com/search"
+        assert request.headers["Authorization"] == "Bearer dummy-key"
+
+    async def test_base_url_and_extra_headers(self):
+        request = await _search_and_record(
+            {
+                "base_url": "https://proxy.example.com/tavily/",
+                "extra_headers": {"X-Snapshot-Id": "20261024"},
+                "max_results": 3,
+            }
+        )
+        assert str(request.url) == "https://proxy.example.com/tavily/search"
+        assert request.headers["Authorization"] == "Bearer dummy-key"
+        assert request.headers["X-Snapshot-Id"] == "20261024"
+        body = json.loads(request.content)
+        assert body["max_results"] == 3
+        assert "base_url" not in body
+        assert "extra_headers" not in body
+
+    @pytest.mark.parametrize("name", ["Authorization", "authorization"])
+    async def test_extra_headers_override_authorization(self, name: str):
+        request = await _search_and_record(
+            {"extra_headers": {name: "Token proxy-token"}}
+        )
+        assert request.headers.get_list("Authorization") == ["Token proxy-token"]
+
+    @pytest.mark.parametrize("depth", ["fast", "ultra-fast"])
+    async def test_fast_search_depths_accepted(self, depth: str):
+        request = await _search_and_record({"search_depth": depth})
+        assert json.loads(request.content)["search_depth"] == depth
