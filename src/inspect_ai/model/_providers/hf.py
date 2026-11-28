@@ -338,6 +338,7 @@ class HuggingFaceAPI(ModelAPI):
                 generator=generator,
                 decoder=decoder,
                 batch_size=config.max_connections or self.max_connections(),
+                seed=config.seed,
             )
         )
 
@@ -720,6 +721,7 @@ class GenerateInput:
     generator: Generator
     decoder: Decoder
     batch_size: int
+    seed: int | None = None
 
 
 @dataclass
@@ -813,6 +815,7 @@ def _batch_key(input: GenerateInput) -> Hashable:
     return (
         input.device,
         input.batch_size,
+        input.seed,
         _callable_key(input.tokenizer),
         _callable_key(input.generator),
         _callable_key(input.decoder),
@@ -858,6 +861,10 @@ def _generate_batch(batch: list[_QueueItem]) -> None:
         tokenizer = first_input.tokenizer
         generator = first_input.generator
         decoder = first_input.decoder
+
+        # reseed per batch: a model may be reused by evals with other seeds
+        if first_input.seed is not None:
+            set_random_seeds(first_input.seed)
 
         # tokenize and move to device
         tokenized_inputs = tokenizer([item.input.input for item in batch])

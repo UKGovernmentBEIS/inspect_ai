@@ -734,6 +734,53 @@ async def test_hf_batches_same_model_and_config_together(
     assert [sorted(prompts) for prompts, _ in model.calls] == [[1, 2, 3]]
 
 
+class _SeedRecordingModel(_FakeModel):
+    def __init__(self, token: int, events: list[tuple[str, Any]]) -> None:
+        super().__init__(token)
+        self.events = events
+
+    def generate(
+        self, input_ids: _FakeTensor, attention_mask: _FakeTensor, **kwargs: Any
+    ) -> SimpleNamespace:
+        self.events.append(("generate", sorted(row[0] for row in input_ids.rows)))
+        return super().generate(input_ids, attention_mask, **kwargs)
+
+
+async def test_hf_seeds_each_batch_from_its_request_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the model is built without a seed (e.g. get_model() passed to eval(), or
+    # reused from a previous eval), so the seed must come from each request
+    monkeypatch.setenv("PYTHONHASHSEED", "0")
+    events: list[tuple[str, Any]] = []
+    with _hf_provider_with_fake_deps(monkeypatch) as provider:
+        monkeypatch.setattr(
+            provider, "set_seed", lambda seed: events.append(("seed", seed))
+        )
+        api = _fake_hf_api(provider, "a", _SeedRecordingModel(101, events))
+        await _generate_drained_together(
+            provider,
+            [
+                (api, GenerateConfig(seed=7), "1"),
+                (api, GenerateConfig(seed=8), "2"),
+                (api, GenerateConfig(seed=7), "3"),
+            ],
+        )
+        # the same seed again, as in a second eval reusing the model
+        await _generate_drained_together(provider, [(api, GenerateConfig(seed=7), "4")])
+        await _generate_drained_together(provider, [(api, GenerateConfig(), "5")])
+
+    assert events == [
+        ("seed", 7),
+        ("generate", [1, 3]),
+        ("seed", 8),
+        ("generate", [2]),
+        ("seed", 7),
+        ("generate", [4]),
+        ("generate", [5]),
+    ]
+
+
 async def test_hf_batches_respect_batch_size(monkeypatch: pytest.MonkeyPatch) -> None:
     with _hf_provider_with_fake_deps(monkeypatch) as provider:
         model = _FakeModel(101)
