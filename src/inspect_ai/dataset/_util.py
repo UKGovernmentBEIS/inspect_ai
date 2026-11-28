@@ -94,6 +94,9 @@ def record_to_sample_fn(
                     )
 
             sample_id = record.get(sample_fields.id, None)
+            # empty CSV cells read as "" (no id)
+            if sample_id == "":
+                sample_id = None
             try:
                 choices = read_choices(record.get(sample_fields.choices))
             except ValueError as ex:
