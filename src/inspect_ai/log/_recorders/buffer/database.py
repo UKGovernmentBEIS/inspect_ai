@@ -86,12 +86,18 @@ from .filestore import (
 )
 from .types import (
     AttachmentData,
+    BufferAttachmentRow,
+    BufferEventRow,
+    BufferPoolRow,
+    BufferRowMarks,
+    BufferRows,
     CallPoolData,
     EventData,
     JsonData,
     MessagePoolData,
     SampleBuffer,
     SampleData,
+    SampleRowsAfter,
     Samples,
     parse_sample_metadata,
 )
@@ -461,6 +467,76 @@ class SampleBufferDatabase(SampleBuffer):
 
                 # Insert all rows
                 conn.execute(sql, values)
+
+    def sample_row_marks(self, id: str | int, epoch: int) -> BufferRowMarks:
+        """The highest row id per table that ``id``/``epoch`` has now."""
+        with self._get_connection() as conn:
+            return BufferRowMarks(
+                *(
+                    conn.execute(
+                        f"SELECT COALESCE(MAX(id), 0) FROM {table} "
+                        "WHERE sample_id = ? AND sample_epoch = ?",
+                        (str(id), epoch),
+                    ).fetchone()[0]
+                    for table in _ROW_TABLES
+                )
+            )
+
+    def sample_rows_after(
+        self, id: str | int, epoch: int, marks: BufferRowMarks
+    ) -> SampleRowsAfter:
+        """The rows ``id``/``epoch`` inserted after ``marks``, in insertion order.
+
+        The tables are only inserted into while a sample runs, so the rows
+        after a mark are exactly what the sample recorded since that mark.
+        """
+        with self._get_connection() as conn:
+            conn.execute("BEGIN")
+            selected = [
+                conn.execute(
+                    f"SELECT id, {', '.join(columns)} FROM {table} "
+                    "WHERE sample_id = ? AND sample_epoch = ? AND id > ? ORDER BY id",
+                    (str(id), epoch, mark),
+                ).fetchall()
+                for (table, columns), mark in zip(_ROW_COLUMNS.items(), marks)
+            ]
+            conn.commit()
+        events, attachments, message_pool, call_pool = selected
+        rows = BufferRows(
+            events=[BufferEventRow(event_id=r[1], data=r[2]) for r in events],
+            attachments=[
+                BufferAttachmentRow(hash=r[1], content=r[2]) for r in attachments
+            ],
+            message_pool=[BufferPoolRow(key=r[1], data=r[2]) for r in message_pool],
+            call_pool=[BufferPoolRow(key=r[1], data=r[2]) for r in call_pool],
+        )
+        return SampleRowsAfter(
+            rows,
+            BufferRowMarks(
+                *(
+                    table_rows[-1][0] if table_rows else mark
+                    for table_rows, mark in zip(selected, marks)
+                )
+            ),
+        )
+
+    def insert_sample_rows(self, id: str | int, epoch: int, rows: BufferRows) -> None:
+        """Append rows read by ``sample_rows_after`` (to rebuild a sample)."""
+        with self._get_connection(write=True) as conn:
+            for (table, (key, content)), values in zip(
+                _ROW_COLUMNS.items(),
+                (
+                    [(r.event_id, r.data) for r in rows.events],
+                    [(r.hash, r.content) for r in rows.attachments],
+                    [(r.key, r.data) for r in rows.message_pool],
+                    [(r.key, r.data) for r in rows.call_pool],
+                ),
+            ):
+                conn.executemany(
+                    f"INSERT INTO {table} (sample_id, sample_epoch, {key}, {content}) "
+                    "VALUES (?, ?, ?, ?)",
+                    [(str(id), epoch, *value) for value in values],
+                )
 
     @contextmanager
     def _staged_attachment_marks(self) -> Iterator[None]:
@@ -2365,6 +2441,16 @@ def maximum_ids(
 
 # stay safely under SQLite's historical 999 bound-parameter limit
 _SQLITE_MAX_VARIABLES = 500
+
+# the tables a sample only inserts into while it runs, with the columns that
+# hold a row's content (in BufferRowMarks order)
+_ROW_COLUMNS = {
+    "events": ("event_id", "data"),
+    "attachments": ("hash", "content"),
+    "message_pool": ("msg_id", "data"),
+    "call_pool": ("hash", "data"),
+}
+_ROW_TABLES = tuple(_ROW_COLUMNS)
 
 _T = TypeVar("_T")
 

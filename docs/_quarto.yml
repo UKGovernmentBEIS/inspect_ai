@@ -130,6 +130,7 @@ inspect-docs:
       href: analysis.qmd
       contents:
         - href: eval-logs.qmd
+        - href: tamper-evident-logs.qmd
         - text: Dataframes
           href: dataframe.qmd
         - href: scanners.qmd

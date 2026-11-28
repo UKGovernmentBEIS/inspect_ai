@@ -268,6 +268,7 @@ async def _execute_tools_impl(
     message = messages[-1]
     if isinstance(message, ChatMessageAssistant) and message.tool_calls:
         from inspect_ai.event._tool import ToolEvent
+        from inspect_ai.log._addonly import store_boundary
         from inspect_ai.log._transcript import transcript
 
         tool_calls = message.tool_calls
@@ -703,6 +704,10 @@ async def _execute_tools_impl(
                     transcript().info(
                         f"Tool call '{call.function}' was cancelled by operator."
                     )
+
+            # a tool can compromise the process, so store the response that
+            # requested this stage (and every earlier stage's output) first
+            await store_boundary()
 
             stage_exception: Exception | None = None
             try:

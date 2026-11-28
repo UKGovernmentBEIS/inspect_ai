@@ -34,6 +34,7 @@ from inspect_ai.log._skeleton import (
 
 _TESTS_DIR = Path(__file__).resolve().parent.parent
 _FIXTURES_DIR = Path(__file__).resolve().parent / "test_skeleton"
+_ADDONLY_STORE_V1_DIR = Path(__file__).resolve().parent / "test_addonly_store_v1"
 
 _COLLAPSE_STATES: tuple[CollapseState, ...] = ("default", "expanded", "collapsed")
 
@@ -62,7 +63,12 @@ def _assert_parity(
 
 
 def _log_paths() -> list[Path]:
-    return sorted(_TESTS_DIR.rglob("*.eval"))
+    """Real .eval logs in the test corpus, minus the tamper-evident store fixture."""
+    return sorted(
+        p
+        for p in _TESTS_DIR.rglob("*.eval")
+        if not p.is_relative_to(_ADDONLY_STORE_V1_DIR)
+    )
 
 
 def _sweep_log_events() -> list[Event]:

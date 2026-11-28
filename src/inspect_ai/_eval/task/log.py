@@ -45,6 +45,11 @@ from inspect_ai.log import (
     EvalStatus,
     HeadlineMetric,
 )
+from inspect_ai.log._addonly import (
+    AddOnlyStoreError,
+    EvalRecordWriter,
+    StoreLocation,
+)
 from inspect_ai.log._condense import resolved_sample_summary
 from inspect_ai.log._log import (
     EvalLog,
@@ -228,6 +233,7 @@ class TaskLogger:
         header_only: bool,
         dynamic_dataset: bool = False,
         prior_created: str | None = None,
+        tamper_evident_store: str | None = None,
     ) -> None:
         packages = {
             PKG_NAME: importlib_metadata.version(PKG_NAME),
@@ -333,6 +339,9 @@ class TaskLogger:
         self._location: str | None = None
         # the prior log's `eval.created`, which this attempt's must follow
         self._prior_created = prior_created
+        self._tamper_evident_store = (
+            StoreLocation.parse(tamper_evident_store) if tamper_evident_store else None
+        )
         self.header_only = header_only
 
         # number of samples logged without error / distinct samples logged
@@ -375,6 +384,9 @@ class TaskLogger:
 
         # sample buffer db
         self._buffer_db: SampleBufferDatabase | None = None
+
+        # add-only store writer (tamper-evident logs)
+        self.addonly: EvalRecordWriter | None = None
 
         # how many of the run's process-scoped ctl config updates this log
         # has recorded (see record_inherited_config_updates)
@@ -721,7 +733,14 @@ class TaskLogger:
         """
         self._record_sample_outcome(sample)
 
-    async def log_start(self, plan: EvalPlan) -> None:
+    async def log_start(self, plan: EvalPlan, prior_eval_id: str | None = None) -> None:
+        """Start the log.
+
+        Args:
+           plan: The eval plan.
+           prior_eval_id: The eval a retry reuses samples from.
+        """
+        await self._start_addonly(prior_eval_id)
         await self.recorder.log_start(self.eval, plan)
         # the first destination write: for a seeded retry attempt it already
         # carries the complete prior sample set
@@ -736,6 +755,19 @@ class TaskLogger:
                 return False
             db.log_written()
         return True
+
+    async def _start_addonly(self, prior_eval_id: str | None) -> None:
+        """Start the eval's add-only store records, when a store is configured."""
+        location = self._tamper_evident_store
+        if location is None:
+            return
+        if self._buffer_db is None:
+            raise AddOnlyStoreError(
+                "Writing to an add-only store requires log_realtime (the sample buffer)."
+            )
+        self.addonly = await EvalRecordWriter.start(
+            location, self.eval.eval_id, prior_eval_id
+        )
 
     async def start_sample(self, sample: EvalSampleSummary) -> None:
         if self._buffer_db is not None:
@@ -1310,6 +1342,14 @@ class TaskLogger:
             async with self._flush_lock:
                 if prune_unplanned and status == "success" and self._seeded_pending:
                     await self.recorder.log_prune(self.eval, set(self._seeded_pending))
+                logged = (
+                    [
+                        (s.id, s.epoch)
+                        for s in await self.recorder.sample_summaries(self.eval) or []
+                    ]
+                    if self.addonly is not None
+                    else []
+                )
 
                 # finish and get log
                 log = await self.recorder.log_finish(
@@ -1345,6 +1385,10 @@ class TaskLogger:
             # not while holding _flush_lock, since the stop awaits any in-flight
             # timer flush, which takes that lock.
             await self._stop_stale_flush_timer()
+
+        # after the .eval copy is finished, so a store outage still leaves it
+        if self.addonly is not None:
+            await self.addonly.close(status, stats, results, logged)
 
         # return log
         return log

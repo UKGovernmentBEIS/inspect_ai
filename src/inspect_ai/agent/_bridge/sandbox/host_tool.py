@@ -17,6 +17,7 @@ from inspect_ai._util.working import (
 )
 from inspect_ai.agent._channel.observer import null_execution_observer
 from inspect_ai.event._tool import ToolEvent
+from inspect_ai.log._addonly import store_boundary
 from inspect_ai.log._samples import sample_active
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._call_tools import (
@@ -375,6 +376,9 @@ async def _execute_granted(
     observer = (
         sample.execution_observer if sample is not None else null_execution_observer()
     )
+    # a tool can compromise the process, so store the response that
+    # requested it first, as execute_tools does for each stage
+    await store_boundary()
     call_start = sample_clock()
     recorded = False
     scope = anyio.CancelScope()

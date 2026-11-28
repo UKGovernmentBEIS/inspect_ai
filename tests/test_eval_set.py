@@ -4372,9 +4372,11 @@ def test_retry_abandoned_during_seed_never_starts_the_log(
     started: list[str] = []
     original_start = TaskLogger.log_start
 
-    async def recording_start(self: TaskLogger, plan: EvalPlan) -> None:
+    async def recording_start(
+        self: TaskLogger, plan: EvalPlan, prior_eval_id: str | None = None
+    ) -> None:
         started.append(self.eval.eval_id)
-        await original_start(self, plan)
+        await original_start(self, plan, prior_eval_id)
 
     monkeypatch.setattr(TaskLogger, "log_start", recording_start)
 

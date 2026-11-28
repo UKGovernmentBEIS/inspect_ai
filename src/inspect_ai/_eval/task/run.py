@@ -109,6 +109,7 @@ from inspect_ai.log import (
     EvalStats,
     HeadlineMetric,
 )
+from inspect_ai.log._addonly import AddOnlyStoreError, init_sample_record_writer
 from inspect_ai.log._condense import (
     SampleSerializationError,
     condense_event_calls,
@@ -347,12 +348,15 @@ class EvalSampleSource(NamedTuple):
     `prior_created` is the prior log's `eval.created` (None with no prior
     log): the attempt's own `created` is made later than it, which keeps
     generated sample ids from repeating (see `dynamic_id_token`).
+    `prior_eval_id` is the prior log's eval id: the eval a reused sample
+    comes from (the add-only store's start record holds it).
     """
 
     lookup: SampleLookup
     seed: SeedSource | None = None
     prior_checkpoints_dir: str | None = None
     prior_created: str | None = None
+    prior_eval_id: str | None = None
 
 
 # Bound on concurrent checkpoint-dir probes/deletes in `run_sample` (a retry
@@ -1449,7 +1453,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         # that the log is initialized)
         eval_plan = plan_to_eval_plan(plan, generate_config)
         try:
-            await logger.log_start(eval_plan)
+            await logger.log_start(
+                eval_plan, sample_source.prior_eval_id if sample_source else None
+            )
         except BaseException as ex:
             # the dispatcher reports the task's own abort/retry here as an
             # errored attempt and moves on, so show the task as finished
@@ -2971,6 +2977,14 @@ async def _task_run_sample_attempt(
         if sample_id is None:
             raise ValueError("sample must have id to run")
 
+        sample_record_writer = (
+            logger.addonly.sample_writer(
+                logger.buffer_db, sample_id, state.epoch, attempt.number
+            )
+            if logger and logger.addonly and logger.buffer_db
+            else None
+        )
+
         def on_sample_event_buffered(
             event: Event, call_attachments: Mapping[str, str]
         ) -> None:
@@ -3002,6 +3016,7 @@ async def _task_run_sample_attempt(
         init_subtask_store(state.store)
         sample_transcript._subscribe_store(on_sample_event_buffered)
         sample_transcript._subscribe(on_sample_event)
+        init_sample_record_writer(sample_record_writer)
         if scorers:
             init_scoring_context(scorers, Target(sample.target))
         init_sample_assistant_internal()
@@ -3052,6 +3067,11 @@ async def _task_run_sample_attempt(
             inner = inner_exception(ex) if isinstance(ex, Exception) else ex
             if isinstance(inner, SentinelFailure):
                 ex = decisive_sentinel_exception(inner.error)
+
+            # a failed add-only store write stops the eval: no retry, no score
+            if isinstance(inner, AddOnlyStoreError):
+                attempt = replace(attempt, retry_limit=len(attempt.errors))
+                score_on_error = False
 
             # a refused sample would be refused again, and never ran
             if isinstance(inner, SampleRefusedError):
@@ -3762,11 +3782,21 @@ async def _task_run_sample_attempt(
             # TaskSource) once the completion block below has exited (see there)
             source_sample: EvalSample | None = None
 
-            # complete the sample if there is no error or if there is no retry_on_error in play
+            # drain sample events for both completion and retry paths (before
+            # the add-only store's shield below, so the store adds no shield
+            # to on_sample_event hooks; an attempt already ended by a cancel
+            # shields them, as without the store)
             with anyio.CancelScope(shield=isinstance(failure, _AttemptCancel)):
-                # drain sample events for both completion and retry paths
                 await drain_sample_events()
 
+            # complete the sample if there is no error or if there is no retry_on_error in play
+            # (with the add-only store on, also when the eval is cancelled,
+            # until the sample is logged: a sample stopped after its closing
+            # record and before it is logged fails a retry's validation)
+            with anyio.CancelScope(
+                shield=isinstance(failure, _AttemptCancel)
+                or sample_record_writer is not None
+            ) as completion_scope:
                 outcome: _AttemptOutcome = _attempt_outcome(
                     failure=failure,
                     handled_interrupt=handled_interrupt,
@@ -3775,6 +3805,9 @@ async def _task_run_sample_attempt(
 
                 if not isinstance(outcome, _AttemptRetry):
                     reporter.progress()
+
+                    if sample_record_writer is not None:
+                        await sample_record_writer.close(results)
 
                     # a sample saved without being scored keeps its monitor
                     # state too, as in process, for `inspect score` to read
@@ -3859,6 +3892,10 @@ async def _task_run_sample_attempt(
                             results = scores_as_logged(results, eval_sample)
                         else:
                             eval_sample = make_eval_sample()
+                        # a boundary in a scanner or hook below would add a
+                        # record after the closing record
+                        init_sample_record_writer(None)
+                        completion_scope.shield = isinstance(failure, _AttemptCancel)
                         await scan_eval_sample(
                             eval_sample,
                             scanner,
@@ -4400,6 +4437,7 @@ def eval_log_sample_source(
             ),
             prior_checkpoints_dir=eval_checkpoints_dir,
             prior_created=eval_log.eval.created,
+            prior_eval_id=eval_log.eval.eval_id,
         )
     else:
 
@@ -4423,6 +4461,7 @@ def eval_log_sample_source(
             ),
             prior_checkpoints_dir=eval_checkpoints_dir,
             prior_created=eval_log.eval.created,
+            prior_eval_id=eval_log.eval.eval_id,
         )
 
 

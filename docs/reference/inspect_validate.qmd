@@ -1,0 +1,4 @@
+---
+reference: inspect validate
+description: Check .eval files against the add-only store (tamper-evident logs).
+---

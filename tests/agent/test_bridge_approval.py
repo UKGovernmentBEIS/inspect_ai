@@ -10,6 +10,7 @@ import inspect
 import json
 import logging
 import re
+import sys
 from collections import deque
 from contextlib import AsyncExitStack, contextmanager, nullcontext
 from copy import deepcopy
@@ -34,6 +35,7 @@ import anyio
 import pytest
 from acp.schema import SessionNotification, ToolCallProgress, ToolCallStart
 from pydantic import JsonValue
+from test_helpers.addonly_moto import moto_addonly_store
 from test_helpers.checkpoint import RecordingCheckpointer
 from test_helpers.container_work import container_work
 from test_helpers.limits import priced_models, with_usage
@@ -9872,6 +9874,7 @@ def _run_host_scaffold(
     dialect: HostDialect,
     tmp_path: Path,
     outputs: list[ModelOutput] | None = None,
+    tamper_evident_store: str | None = None,
 ) -> EvalSample:
     log = eval(
         Task(
@@ -9880,6 +9883,7 @@ def _run_host_scaffold(
         ),
         model=get_model("mockllm/model", custom_outputs=outputs or _host_outputs()),
         log_dir=str(tmp_path),
+        tamper_evident_store=tamper_evident_store,
     )[0]
     assert log.status == "success", log.error
     read = read_eval_log(log.location)
@@ -9887,6 +9891,56 @@ def _run_host_scaffold(
     sample = resolve_sample_attachments(read.samples[0], "full")
     assert_message_ids(sample)
     return sample
+
+
+async def test_host_tool_stores_before_it_runs() -> None:
+    """A bridged host tool gets the add-only store's tool boundary before it runs."""
+    order: list[str] = []
+
+    def run_tool(**_: Any) -> str:
+        order.append("tool")
+        return "contents"
+
+    tool = AsyncMock(side_effect=run_tool)
+    boundary = AsyncMock(side_effect=lambda: order.append("boundary"))
+    bridge = sandbox_bridge_with_tool(tool, None, require_proposal=False)
+
+    with patch("inspect_ai.agent._bridge.sandbox.host_tool.store_boundary", boundary):
+        await call_host_tool(bridge)("host", "read_file", {"path": "x"})
+
+    assert order == ["boundary", "tool"]
+
+
+async def _one_at_a_time(funcs: list[Callable[[], Awaitable[Any]]]) -> list[Any]:
+    return [await func() for func in funcs]
+
+
+@pytest.mark.parametrize("serial", [False, True], ids=["parallel", "serial"])
+def test_host_tools_against_addonly_store(
+    serial: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bridged host tools with the add-only store on.
+
+    The bridge sets `message_id` on a finished host tool event when the
+    scaffold's next request arrives. Parallel calls finish before that
+    request's boundary, so the update is in the same record as the
+    completion. Called one at a time, the second call's boundary stores the
+    first call complete, and the later update is flagged as a late version
+    (an open question in the plan).
+    """
+    if serial:
+        monkeypatch.setattr(sys.modules[__name__], "tg_collect", _one_at_a_time)
+    with moto_addonly_store() as store:
+        for key, value in store.env(store.evalhost).items():
+            monkeypatch.setenv(key, value)
+        _run_host_scaffold(
+            "plain", "completions", tmp_path, tamper_evident_store=store.url
+        )
+        report = store.validate(tmp_path)
+    assert report.samples_compared == 1
+    assert [f.kind for f in report.findings] == (
+        ["late_event_version"] * 2 if serial else []
+    )
 
 
 @pytest.mark.parametrize("mode", ["plain", "filter", "approval"])

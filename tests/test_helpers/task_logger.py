@@ -9,6 +9,8 @@ from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 class TaskLoggerShim(TaskLogger):
     def __init__(self, buffer_db: Any) -> None:
         self._buffer_db = cast(SampleBufferDatabase, buffer_db)
+        self.addonly = None
+        self._tamper_evident_store = None
         # an initialised logger, holding a recorder entry
         self._location: str | None = "test.eval"
         self._samples_completed = 0

@@ -115,6 +115,12 @@ from .common import CommonOptions, common_options, process_common_options
     help="Stream the samples through the scoring process instead of reading the entire log into memory. Useful for large logs. Set to an integer to limit the number of concurrent samples being scored.",
     envvar="INSPECT_SCORE_STREAM",
 )
+@click.option(
+    "--tamper-evident-store",
+    type=str,
+    default=None,
+    help="s3://bucket/prefix of the add-only store of a tamper-evident log. The rescore writes its new scores and events there, so the rescored log validates. Requires the eval's nonce in the INSPECT_TAMPER_EVIDENT_NONCE environment variable (from `inspect validate --nonce`). Experimental.",
+)
 @common_options
 def score_command(
     log_file: str,
@@ -129,6 +135,7 @@ def score_command(
     metric: tuple[str, ...] | None,
     action: ScoreAction | None,
     stream: int | bool = False,
+    tamper_evident_store: str | None = None,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Score a previous evaluation run.
@@ -156,6 +163,7 @@ def score_command(
             action=action,
             log_level=common["log_level"],
             stream=stream,
+            tamper_evident_store=tamper_evident_store,
         )
 
     anyio.run(run_score, backend=configured_async_backend())
@@ -176,6 +184,7 @@ async def score(
     m: tuple[str, ...] | None = None,
     model_role: tuple[str, ...] | None = None,
     stream: int | bool = False,
+    tamper_evident_store: str | None = None,
 ) -> None:
     platform_init()
 
@@ -268,6 +277,7 @@ async def score(
         action=action,
         copy=False,
         samples=read_sample,
+        tamper_evident_store=tamper_evident_store,
         _log_scorers=scorer is None,
     )
 

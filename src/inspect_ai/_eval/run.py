@@ -143,6 +143,7 @@ async def eval_run(
     review: list[ReviewPolicy] | None = None,
     sentinel: Sentinels | None = None,
     sentinel_proxy: SentinelProxy | None = None,
+    tamper_evident_store: str | None = None,
     solver: Solver | SolverSpec | None = None,
     scanner: "Scanners | None" = None,
     scan_id: str | None = None,
@@ -422,6 +423,7 @@ async def eval_run(
                     recorder=recorder,
                     header_only=header_only,
                     dynamic_dataset=task.sample_source is not None,
+                    tamper_evident_store=tamper_evident_store,
                     prior_created=resolved_task.sample_source.prior_created
                     if resolved_task.sample_source is not None
                     else None,

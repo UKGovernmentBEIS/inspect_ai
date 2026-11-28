@@ -18,6 +18,7 @@ from inspect_ai import (
     eval,
     eval_async,
     eval_retry,
+    eval_retry_async,
     eval_set,
     task,
     task_with,
@@ -840,14 +841,26 @@ def test_cli_sentinel_args_without_sentinel_fail(tmp_path: Path) -> None:
     assert not (tmp_path / "logs").exists()
 
 
-@pytest.mark.parametrize("fn", [Task.__init__, eval, eval_async, eval_set])
-def test_sentinel_is_the_last_positional_parameter(fn: Callable[..., Any]) -> None:
-    # added after the other parameters, so it must not shift their positions
+@pytest.mark.parametrize(
+    "fn,expected",
+    [
+        (Task.__init__, ["sentinel"]),
+        (eval, ["sentinel", "sentinel_proxy", "tamper_evident_store"]),
+        (eval_async, ["sentinel", "sentinel_proxy", "tamper_evident_store"]),
+        (eval_set, ["sentinel", "sentinel_proxy", "tamper_evident_store"]),
+        (eval_retry, ["sentinel_proxy", "tamper_evident_store"]),
+        (eval_retry_async, ["sentinel_proxy", "tamper_evident_store"]),
+    ],
+)
+def test_newest_parameters_are_last(
+    fn: Callable[..., Any], expected: list[str]
+) -> None:
+    # the newest parameters stay last, in the order they were added, so they
+    # do not shift the positions of the others: the sentinel, the sidecar
+    # client's setting, then the tamper-evident store
     names = [
         p.name
         for p in inspect.signature(fn).parameters.values()
         if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
     ]
-    # the sidecar client's setting follows it, for the same reason
-    expected = ["sentinel"] if fn is Task.__init__ else ["sentinel", "sentinel_proxy"]
     assert names[-len(expected) :] == expected

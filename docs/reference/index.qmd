@@ -37,5 +37,6 @@ title: Reference
 | [inspect sandbox](inspect_sandbox.qmd) | Manage sandbox environments. |
 | [inspect score](inspect_score.qmd) | Score a previous evaluation run. |
 | [inspect trace](inspect_trace.qmd) | List and read execution traces. |
+| [inspect validate](inspect_validate.qmd) | Check .eval files against the add-only store (tamper-evident logs). |
 | [inspect view](inspect_view.qmd) | Inspect log viewer. |
 : {.borderless tbl-colwidths=[35,65]}

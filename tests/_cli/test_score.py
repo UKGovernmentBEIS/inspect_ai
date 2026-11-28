@@ -165,9 +165,11 @@ async def test_score_stream_preserves_log_updates(
         action,
         copy,
         samples,
+        tamper_evident_store,
         _log_scorers,
     ):
         assert samples is not None
+        assert tamper_evident_store is None
         return log
 
     monkeypatch.setattr(score_cli, "score_async", fake_score_async)
@@ -281,9 +283,11 @@ async def test_score_stream_flushes_periodically(
         action,
         copy,
         samples,
+        tamper_evident_store,
         _log_scorers,
     ):
         assert samples is not None
+        assert tamper_evident_store is None
         for idx in range(10):
             async with samples(idx):
                 pass
