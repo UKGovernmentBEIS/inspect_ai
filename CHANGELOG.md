@@ -3,7 +3,7 @@
 ## [0.3.293](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.292...0.3.293) (2026-11-28)
 
 
-### ⚠ BREAKING CHANGES
+### Breaking Changes
 
 * a `None` value under a dictionary score key is no longer counted as `0` by per-key metrics (`metrics={"key": [...]}`) or by the `max`, `mode`, `majority` and `at_least` reducers. It is left out and counted in `unscored_samples`. To keep counting a missing value as `0`, use `aggregate("key", mean(), on_missing="zero")`, or return `0` from the scorer.
 
