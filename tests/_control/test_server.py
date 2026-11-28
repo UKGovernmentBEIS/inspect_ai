@@ -1535,10 +1535,20 @@ def test_uvicorn_shutdown_mirror_is_current() -> None:
     assert not isinstance(
         inspect.getattr_static(uvicorn.server.Server, "should_exit", None), property
     )
-    assert {name: digest(name) for name in ("shutdown", "main_loop")} == {
-        "shutdown": "248c7bf71a637115",
-        "main_loop": "c50e6ef76aa27676",
-    }, "uvicorn changed a method PromptExitServer mirrors — re-check it"
+    accepted = {
+        # uvicorn 0.54.0, 0.55.0 (asyncio.timeout in place of wait_for)
+        "shutdown": {"248c7bf71a637115", "2ce3eb89b04d05a7"},
+        "main_loop": {"c50e6ef76aa27676"},
+    }
+    changed = {
+        name: digest(name)
+        for name, digests in accepted.items()
+        if digest(name) not in digests
+    }
+    assert not changed, (
+        f"uvicorn {uvicorn.__version__} changed {changed}, which PromptExitServer"
+        " mirrors. Re-check it, then add the new digest."
+    )
 
 
 def test_stop_drains_an_open_connection(short_data_dir: Path) -> None:
