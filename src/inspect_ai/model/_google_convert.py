@@ -2,6 +2,7 @@
 
 import base64
 import json
+from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal, Sequence, Union
 
 from pydantic_core import to_jsonable_python
@@ -32,6 +33,8 @@ from inspect_ai.tool import ToolCall, ToolCallError
 
 if TYPE_CHECKING:
     from google.genai.types import Content, ContentDict, GenerateContentResponse, Part
+
+logger = getLogger(__name__)
 
 
 async def messages_from_google(
@@ -243,17 +246,54 @@ async def content_from_google_parts(
                     )
                 )
 
-        # Handle inline data (images)
-        elif part.inline_data and part.inline_data.mime_type and part.inline_data.data:
-            content.append(
-                ContentImage(
-                    image=as_data_uri(
-                        part.inline_data.mime_type,
-                        part.inline_data.data.decode("utf-8"),
+        # Handle inline data (images and audio)
+        elif part.inline_data and part.inline_data.data:
+            inline_mime_type = part.inline_data.mime_type or ""
+            if inline_mime_type.startswith("image/"):
+                content.append(
+                    ContentImage(
+                        image=as_data_uri(
+                            inline_mime_type,
+                            base64.b64encode(part.inline_data.data).decode(),
+                        )
                     )
                 )
-            )
-            working_reasoning_block = None
+                working_reasoning_block = None
+            elif inline_mime_type.startswith("audio/"):
+                # Mirror the streaming converter in _providers/google.py, which
+                # only has a format to represent wav and mp3 inline audio.
+                inline_audio_format: Literal["mp3", "wav"] | None = None
+                if "wav" in inline_mime_type:
+                    inline_audio_format = "wav"
+                elif "mp3" in inline_mime_type or "mpeg" in inline_mime_type:
+                    inline_audio_format = "mp3"
+                if inline_audio_format is None:
+                    logger.warning(
+                        f"Unsupported audio MIME type '{inline_mime_type}', "
+                        f"skipping audio content."
+                    )
+                else:
+                    content.append(
+                        ContentAudio(
+                            audio=as_data_uri(
+                                inline_mime_type,
+                                base64.b64encode(part.inline_data.data).decode(),
+                            ),
+                            format=inline_audio_format,
+                        )
+                    )
+                    working_reasoning_block = None
+            elif inline_mime_type:
+                logger.warning(
+                    f"Unsupported inline_data MIME type '{inline_mime_type}', "
+                    f"skipping inline content."
+                )
+            else:
+                # Bytes without a MIME type stay skipped rather than being
+                # assumed to be PNG.
+                logger.warning(
+                    "inline_data without a MIME type, skipping inline content."
+                )
 
         # Handle file data (audio, video, documents)
         elif part.file_data is not None:
