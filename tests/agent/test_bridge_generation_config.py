@@ -860,6 +860,29 @@ def test_google_response_json_schema_used_directly():
     assert config.response_schema.json_schema.properties is not None
 
 
+@pytest.mark.parametrize("field", ["response_json_schema", "response_schema"])
+def test_google_snake_case_response_schema_is_read(field: str):
+    # litellm sends Gemini `generationConfig` fields in snake_case
+    config = generate_config_from_google(
+        {
+            "response_mime_type": "application/json",
+            field: {
+                "type": "object",
+                "properties": {"answer": {"type": "string"}},
+                "required": ["answer"],
+            },
+        }
+    )
+    assert config.response_schema is not None
+    assert config.response_schema.json_schema.type == "object"
+    assert config.response_schema.json_schema.required == ["answer"]
+
+
+def test_google_snake_case_max_output_tokens_is_read():
+    config = generate_config_from_google({"max_output_tokens": 123})
+    assert config.max_tokens == 123
+
+
 def test_google_no_schema_leaves_response_schema_unset():
     config = generate_config_from_google({"temperature": 0.5})
     assert config.response_schema is None
