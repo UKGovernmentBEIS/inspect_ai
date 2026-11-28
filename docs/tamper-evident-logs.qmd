@@ -392,3 +392,5 @@ Tamper-evident logs currently have the following known limits:
 -   **Validation cost.** The validator reads every record of every eval under the prefix, using one S3 request for each record.
 
 -   **Events that skip the sample buffer.** A warning logged from a worker thread during a sample can cause an event to skip the local sample buffer, in which case it never reaches the store. An event that the sample buffer cannot insert (for example, because the disk is full) also never reaches the store. The validator will then report an `event_mismatch` for a run that was not changed.
+
+-   **Stopping can wait for a failing write.** With the store on, a cancelled or stopped eval waits for each store write already started, including the S3 client's retries of a failing write. If S3 fails, one write can take up to about 17 minutes (see [Errors and Cancellation](#errors-and-cancellation)).
