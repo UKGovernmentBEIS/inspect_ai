@@ -71,8 +71,8 @@ class OpenRouterError(Exception):
         return f"Error {self.response['code']} - {self.response['message']}"
 
     def __str__(self) -> str:
-        return (
-            self.message + ("\n" + json.dumps(self.response["metadata"], indent=2))
+        return self.message + (
+            "\n" + json.dumps(self.response["metadata"], indent=2)
             if "metadata" in self.response
             else ""
         )
@@ -279,7 +279,10 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         """
         # check if open-router yielded an error (raise explicit
         # OpenAIResponseError for cases where we should retry)
+        choices: list[dict[str, Any]] | None = response.get("choices", None)
         error: ErrorResponse | None = response.get("error", None)
+        if error is None:
+            error = _choice_error(choices or [])
         if error is not None:
             if error["code"] == 429:
                 raise OpenAIResponseError("rate_limit_exceeded", error["message"])
@@ -291,7 +294,7 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         # check for an empty response (which they document can occur on
         # startup). for this we'll return a "server_error" which will
         # trigger a retry w/ exponential backoff
-        elif response.get("choices", None) is None:
+        elif choices is None:
             raise OpenAIResponseError(
                 "server_error",
                 "Model is warming up, please retry again after waiting for warmup.",
@@ -419,6 +422,25 @@ class OpenRouterAPI(OpenAICompatibleAPI):
                 params[EXTRA_BODY]["reasoning"] = reasoning
 
         return params
+
+
+def _choice_error(choices: list[dict[str, Any]]) -> ErrorResponse | None:
+    """The first well-formed error on a choice, if any.
+
+    OpenRouter returns a failure mid-generation as HTTP 200 with the error on
+    the choice, next to the partial content. An `error` that lacks an int
+    `code` and a str `message` is ignored, leaving the choice to be returned as
+    a completion.
+    """
+    for choice in choices:
+        error = choice.get("error")
+        if (
+            isinstance(error, dict)
+            and type(error.get("code")) is int
+            and isinstance(error.get("message"), str)
+        ):
+            return cast(ErrorResponse, error)
+    return None
 
 
 def _requires_reasoning_content(model_name: str) -> bool:
