@@ -763,12 +763,14 @@ async def test_operator_cancel_finalises_when_cancel_hits_not_stage_end():
     )
 
     # And target's working_time should reflect when the cancel hit, not
-    # the survivor's elapsed time.
+    # the survivor's elapsed time. Compare the difference, not a ratio: both
+    # include the time before the calls start, which grows on a loaded runner.
     assert target_ev.working_time is not None
     assert survivor_ev.working_time is not None
-    assert target_ev.working_time < survivor_ev.working_time / 2, (
-        f"target working_time {target_ev.working_time:.3f}s should be far "
-        f"less than survivor {survivor_ev.working_time:.3f}s"
+    working_gap = survivor_ev.working_time - target_ev.working_time
+    assert working_gap > 0.1, (
+        f"target working_time {target_ev.working_time:.3f}s should stop at the "
+        f"cancel, well before survivor {survivor_ev.working_time:.3f}s"
     )
 
 
