@@ -110,6 +110,7 @@ from inspect_ai.util._display import (
     DisplayType,
     display_type,
     display_type_initialized,
+    display_type_scope,
     init_display_type,
 )
 from inspect_ai.util._limit import TokenLimit, token_limit_fields
@@ -136,6 +137,7 @@ from .task.tasks import Tasks
 log = logging.getLogger(__name__)
 
 
+@display_type_scope()
 def eval(
     tasks: Tasks,
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
@@ -724,15 +726,16 @@ async def eval_async(
         finally:
             tg.cancel_scope.cancel()
 
-    try:
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(run, tg)
-    except Exception as ex:
-        raise_unwrapped(ex, inner_exception(ex))
-    except anyio.get_cancelled_exc_class():
-        # Cancelled exceptions are expected and handled by _eval_async_inner
-        if result is None:
-            raise
+    with display_type_scope():
+        try:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(run, tg)
+        except Exception as ex:
+            raise_unwrapped(ex, inner_exception(ex))
+        except anyio.get_cancelled_exc_class():
+            # Cancelled exceptions are expected and handled by _eval_async_inner
+            if result is None:
+                raise
 
     assert result is not None, "Eval async did not return a result."
 
@@ -1304,6 +1307,7 @@ def _resolve_enqueued_tasks(
     return resolved
 
 
+@display_type_scope()
 def eval_retry(
     tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,

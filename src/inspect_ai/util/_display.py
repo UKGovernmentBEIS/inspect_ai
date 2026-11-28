@@ -1,6 +1,7 @@
 import os
+from contextlib import contextmanager
 from logging import getLogger
-from typing import Literal
+from typing import Iterator, Literal
 
 from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.constants import DEFAULT_DISPLAY
@@ -76,6 +77,23 @@ def init_display_type(display: str | None = None) -> DisplayType:
 
     _display_type = new_display_type
     return _display_type
+
+
+@contextmanager
+def display_type_scope() -> Iterator[None]:
+    """Restore the display type (or its absence) when an eval call returns.
+
+    The display type that eval(), eval_async(), eval_retry() or eval_set()
+    sets from `display`, `trace` or (eval_async()) "plain" then applies only
+    to that call, not to later calls in the process. The display built for
+    the call's type is replaced when a display is next needed.
+    """
+    global _display_type
+    previous = _display_type
+    try:
+        yield
+    finally:
+        _display_type = previous
 
 
 def display_type() -> DisplayType:
