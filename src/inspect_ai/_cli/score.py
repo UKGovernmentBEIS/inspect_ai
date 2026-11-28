@@ -229,6 +229,7 @@ async def score(
     write_recorder = create_recorder_for_location(output_file, log_dir)
 
     read_sample = None
+    sample_map: list[tuple[str | int, int]] = []
     if stream:
         # an existing output (often the input, which later samples are read
         # from) is only replaced by log_finish
@@ -268,6 +269,7 @@ async def score(
         action=action,
         copy=False,
         samples=read_sample,
+        sample_count=len(sample_map) if read_sample is not None else None,
         _log_scorers=scorer is None,
     )
 
