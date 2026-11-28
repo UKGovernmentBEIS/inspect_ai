@@ -314,6 +314,7 @@ class TaskLogger:
                 samples=len(dataset),
                 sample_ids=sample_ids,
                 shuffled=dataset.shuffled,
+                revision=dataset.revision,
             ),
             scorers=eval_scorers,
             metrics=eval_metrics,

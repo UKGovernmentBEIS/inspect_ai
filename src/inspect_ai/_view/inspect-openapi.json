@@ -3287,6 +3287,17 @@
             ],
             "title": "Name"
           },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
           "sample_ids": {
             "anyOf": [
               {
