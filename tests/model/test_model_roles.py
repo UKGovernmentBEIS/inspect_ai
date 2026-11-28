@@ -1,6 +1,7 @@
 import tempfile
 
 import pytest
+from pydantic import ValidationError
 from test_helpers.utils import failing_solver, skip_if_no_google, skip_if_no_openai
 
 from inspect_ai import Task, eval, eval_retry, task
@@ -9,14 +10,54 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.model import GenerateConfig, Model, ModelConfig, ModelRole, get_model
 from inspect_ai.model._model import model_concurrency_key
+from inspect_ai.model._model_role import as_model_role
 from inspect_ai.model._util import resolve_model_roles
 from inspect_ai.solver import solver
 
 RED_TEAM = "red_team"
 RED_TEAM_DEFAULT = "openai/gpt-4o"
 GEMINI_FLASH_3_PREVIEW = "google/gemini-3-flash-preview"
+
+
+@pytest.mark.parametrize(
+    "default", ["mockllm/model", ModelConfig(model="mockllm/model")]
+)
+def test_required_model_role_rejects_default(default: str | ModelConfig) -> None:
+    with pytest.raises(
+        ValidationError, match="required model role cannot have a default"
+    ):
+        ModelRole("grader", required=True, default=default)
+
+    with pytest.raises(
+        ValidationError, match="required model role cannot have a default"
+    ):
+        as_model_role({"name": "grader", "required": True, "default": default})
+
+
+def test_model_role_default_serialization_filters_credentials() -> None:
+    config = ModelConfig(
+        model="mockllm/default",
+        config=GenerateConfig(temperature=0),
+        base_url="https://example.test/v1",
+        args={
+            "api_key": "test-secret",
+            "aws_session_token": "test-token",
+            "region": "test",
+        },
+    )
+    role = ModelRole("grader", default=config)
+    restored = ModelRole.model_validate_json(role.model_dump_json())
+    assert isinstance(restored.default, ModelConfig)
+    assert restored.default.args == {"region": "test"}
+    assert restored.default.config == config.config
+    assert restored.default.base_url == config.base_url
+    assert config.args["api_key"] == "test-secret"
+    assert ModelRole("grader", True).model_dump() == {
+        "name": "grader",
+        "required": True,
+    }
 
 
 @solver
