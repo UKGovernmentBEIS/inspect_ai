@@ -4383,6 +4383,9 @@ def test_is_unchanged_ignores_only_metadata(edit: str, unchanged: bool) -> None:
 
 async def test_sandbox_text_edit_of_a_regeneration_keeps_its_tool_arguments() -> None:
     """A regeneration's arguments the filter leaves alone are not its edit, though it edits the text."""
+    # Start from an empty record: this call's id is also recorded by tests
+    # that run before it, and a recorded position would move the tool_use.
+    init_sample_anthropic_assistant_internal()
     events_tool = ToolInfo(
         name="get_events",
         description="List events on a date.",
