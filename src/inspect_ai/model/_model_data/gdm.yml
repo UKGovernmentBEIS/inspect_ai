@@ -175,6 +175,9 @@ google:
       versions:
         gemini-3-pro-image-preview:
           snapshot: "preview"
+    # Deprecated: shuts down on the Gemini API on 2026-12-01, after which Google
+    # sends requests to gemini-3.8-flash.
+    # https://aistudio.google.com/docs/deprecations
     gemini-2.5-pro:
       display_name: "Gemini 2.5 Pro"
       release_date: 2025-03-25
@@ -189,6 +192,9 @@ google:
           snapshot: "2025-05-06"
         gemini-2.5-pro-preview-06-05:
           snapshot: "2025-06-05"
+    # Deprecated: shuts down on the Gemini API on 2026-12-01, after which Google
+    # sends requests to gemini-3.5-flash-lite.
+    # https://aistudio.google.com/docs/deprecations
     gemini-2.5-flash:
       display_name: "Gemini 2.5 Flash"
       release_date: 2025-06-17

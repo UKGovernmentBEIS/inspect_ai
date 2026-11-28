@@ -164,11 +164,11 @@ async def check_thinking_compaction(
 @skip_if_no_openai
 @pytest.mark.slow
 async def test_thinking_compaction_openai() -> None:
-    # medium (not low) effort: at low, gpt-5-mini sometimes performs no
-    # reasoning at all on this prompt, leaving nothing to compact
+    # max effort: gpt-6-luna treats effort as a ceiling and skips reasoning on
+    # this prompt at high, leaving nothing to compact
     await check_thinking_compaction(
-        "openai/gpt-5-mini",
-        GenerateConfig(reasoning_effort="medium"),
+        "openai/gpt-6-luna",
+        GenerateConfig(reasoning_effort="max"),
     )
 
 

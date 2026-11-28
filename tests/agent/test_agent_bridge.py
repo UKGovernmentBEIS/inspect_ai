@@ -128,7 +128,7 @@ def raw_response_completions_agent() -> Agent:
 
 
 def check_openai_responses_log_json(log_json: str, tools: bool):
-    assert r'"model": "gpt-5"' in log_json
+    assert r'"model": "gpt-6-luna"' in log_json
     assert r'"You are a dope model."' in log_json
     assert r'"max_output_tokens": 2048' in log_json
     assert r'"parallel_tool_calls": true' in log_json
@@ -1082,19 +1082,21 @@ def test_bridged_agent_completions_tools():
 
 @skip_if_no_openai
 def test_bridged_agent_responses():
-    log_json = eval_bridged_task("openai/gpt-5", agent=responses_agent(False))
+    log_json = eval_bridged_task("openai/gpt-6-luna", agent=responses_agent(False))
     check_openai_responses_log_json(log_json, tools=False)
 
 
 @skip_if_no_openai
 def test_bridged_agent_responses_tools():
-    log_json = eval_bridged_task("openai/gpt-5", agent=responses_agent(True))
+    log_json = eval_bridged_task("openai/gpt-6-luna", agent=responses_agent(True))
     check_openai_responses_log_json(log_json, tools=True)
 
 
 @skip_if_no_openai
 def test_bridged_web_search_tool_openai():
-    log = eval(web_search_task(responses_web_search_agent()), model="openai/gpt-5")[0]
+    log = eval(
+        web_search_task(responses_web_search_agent()), model="openai/gpt-6-luna"
+    )[0]
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     assert '"search_context_size": "low"' in log_json
     check_server_tool_use(log, "web_search")
@@ -1111,7 +1113,7 @@ def test_bridged_tool_search_openai():
 def test_bridged_code_execution_tool_openai():
     log = eval(
         code_execution_task(responses_code_interpreter_agent()),
-        model="openai/gpt-5-mini",
+        model="openai/gpt-6-luna",
     )[0]
     check_server_tool_use(log, "code_execution")
 
@@ -1285,7 +1287,7 @@ def test_bridged_web_search_tool_openai_to_anthropic():
 def test_bridged_web_search_tool_anthropic_to_openai():
     log = eval(
         web_search_task(anthropic_web_search_agent()),
-        model="openai/gpt-5",
+        model="openai/gpt-6-luna",
     )[0]
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     assert '"max_uses": 5' in log_json
@@ -1307,7 +1309,7 @@ def test_bridged_code_execution_tool_openai_to_anthropic():
 def test_bridged_code_execution_tool_anthropic_to_openai():
     log = eval(
         code_execution_task(anthropic_code_execution_agent()),
-        model="openai/gpt-5-mini",
+        model="openai/gpt-6-luna",
     )[0]
     check_server_tool_use(log, "code_execution")
 

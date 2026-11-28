@@ -155,7 +155,7 @@ async def test_native_compaction_with_supported_model() -> None:
 @skip_if_no_openai
 async def test_native_compaction_dynamically_supported() -> None:
     strategy = CompactionNative()
-    model = get_model("openai/gpt-5")
+    model = get_model("openai/gpt-6-luna")
     messages = _sample_messages()
 
     result, summary = await strategy.compact(model, messages, [])

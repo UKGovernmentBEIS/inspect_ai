@@ -20,7 +20,7 @@ def test_document_openai() -> None:
 
 @skip_if_no_openai
 def test_document_openai_responses() -> None:
-    check_document("openai/gpt-5-mini")
+    check_document("openai/gpt-6-luna")
 
 
 @skip_if_no_anthropic
@@ -30,7 +30,7 @@ def test_document_anthropic() -> None:
 
 @skip_if_no_google
 def test_document_google() -> None:
-    check_document("google/gemini-2.5-flash")
+    check_document("google/gemini-3.5-flash-lite")
 
 
 @skip_if_no_mistral

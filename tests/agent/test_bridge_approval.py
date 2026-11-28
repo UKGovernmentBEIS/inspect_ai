@@ -14085,7 +14085,7 @@ LiveHostShape = Literal["sequential", "parallel", "reordered", "compacted"]
 
 LIVE_HOST_MODELS: dict[HostDialect, str] = {
     "completions": "openai/gpt-4o-mini",
-    "responses": "openai/gpt-5-mini",
+    "responses": "openai/gpt-6-luna",
     "anthropic": "anthropic/claude-haiku-4-5",
     "google": "google/gemini-3.1-flash-lite",
 }

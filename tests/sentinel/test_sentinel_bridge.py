@@ -13544,7 +13544,7 @@ async def test_live_anthropic_cached_retries_with_interleaved_thinking_continue(
 
 LIVE_RESPONSES_CALLS: dict[str, tuple[str, Any, Any, dict[str, Any]]] = {
     "custom": (
-        "openai/gpt-5",
+        "openai/gpt-6-luna",
         {
             "type": "custom",
             "name": "apply_patch",

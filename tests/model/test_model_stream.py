@@ -993,8 +993,8 @@ async def test_openai_on_stream_tool_call_live() -> None:
 @skip_if_no_openai
 async def test_openai_responses_on_stream_live() -> None:
     collector = Collector()
-    # gpt-5 family defaults to the Responses API
-    model = get_model("openai/gpt-5-mini")
+    # gpt-5 and later default to the Responses API
+    model = get_model("openai/gpt-6-luna")
     output = await model.generate(
         "Reply with one short sentence about the sea.", on_stream=collector
     )

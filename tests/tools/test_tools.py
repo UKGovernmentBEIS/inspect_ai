@@ -237,7 +237,7 @@ def test_mistral_tools():
 
 @skip_if_no_google
 def test_google_tools():
-    check_tools("google/gemini-2.5-pro")
+    check_tools("google/gemini-3.5-flash-lite")
 
 
 @skip_if_no_moonshot

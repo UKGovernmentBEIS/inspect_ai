@@ -185,7 +185,7 @@ async def test_anthropic_count_tokens_consecutive_tool_messages():
 @skip_if_no_google
 async def test_google_count_tokens():
     """Test Google token counting using native Gemini API."""
-    model = get_model("google/gemini-2.5-flash")
+    model = get_model("google/gemini-3.5-flash-lite")
 
     token_count = await model.count_tokens(TEST_MESSAGE)
 

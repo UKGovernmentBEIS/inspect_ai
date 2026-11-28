@@ -129,7 +129,7 @@ def test_google_safety_settings():
             dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
             scorer=includes(),
         ),
-        model="google/gemini-2.5-flash",
+        model="google/gemini-3.5-flash-lite",
         model_args=dict(safety_settings=safety_settings),
     )
 
@@ -3434,7 +3434,7 @@ def test_google_batch_with_thinking_model():
                 dataset=[Sample(input="What is 2+2?", target="4")],
                 scorer=includes(),
             ),
-            model="google/gemini-2.5-flash",
+            model="google/gemini-3.5-flash-lite",
             batch=BatchConfig(size=1, send_delay=0, tick=0.1),
             fail_on_error=True,
         )

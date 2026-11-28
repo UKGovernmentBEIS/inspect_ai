@@ -3883,7 +3883,7 @@ def test_live_response_filter_completions(tmp_path: Path, mode: LiveFilterMode) 
 @skip_if_no_openai
 @pytest.mark.parametrize("mode", get_args(LiveFilterMode))
 def test_live_response_filter_responses(tmp_path: Path, mode: LiveFilterMode) -> None:
-    _run_live_response_filter("openai/gpt-5-mini", "responses", mode, tmp_path)
+    _run_live_response_filter("openai/gpt-6-luna", "responses", mode, tmp_path)
 
 
 @skip_if_no_anthropic

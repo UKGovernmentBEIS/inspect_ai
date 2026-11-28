@@ -15,7 +15,7 @@ def test_google_reasoning_tokens():
     task = Task(dataset=[Sample(input="Solve 3*x^3-5*x=1")])
     log = eval(
         task,
-        model="google/gemini-2.5-flash",
+        model="google/gemini-3.5-flash-lite",
         reasoning_tokens=1024,
     )[0]
     assert log.status == "success"
