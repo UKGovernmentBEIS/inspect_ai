@@ -35,6 +35,12 @@ class HFInferenceProvidersAPI(OpenAICompatibleAPI):
             **model_args,
         )
 
+    @property
+    @override
+    def requires_strict_tools(self) -> bool:
+        # requires strict=True on every tool (#3043)
+        return True
+
     @override
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup.
