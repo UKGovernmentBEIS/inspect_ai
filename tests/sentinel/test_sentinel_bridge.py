@@ -25,6 +25,7 @@ from test_helpers.container_work import container_work
 from test_helpers.limits import priced_models, with_usage
 from test_helpers.utils import (
     skip_if_no_anthropic,
+    skip_if_no_docker,
     skip_if_no_google,
     skip_if_no_openai,
 )
@@ -42,7 +43,13 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
+from inspect_ai.agent import (
+    Agent,
+    AgentState,
+    agent,
+    agent_bridge,
+    sandbox_agent_bridge,
+)
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._bridge._errors import PROVIDER_ERROR_KEY
 from inspect_ai.agent._bridge._sentinel import _SavedHandouts
@@ -66,6 +73,7 @@ from inspect_ai.approval._apply import apply_tool_approval, approval
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
     ApprovalEvent,
+    ErrorEvent,
     ModelEvent,
     SentinelEvent,
     SpanBeginEvent,
@@ -105,6 +113,7 @@ from inspect_ai.tool import (
 from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_call import ToolCallError, default_tool_call_viewer
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
+from inspect_ai.util import sandbox
 from inspect_ai.util._checkpoint import Manual
 from inspect_ai.util._checkpoint._layout.host_context import read as read_host_context
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
@@ -336,6 +345,9 @@ async def generate(
         requested_model=None,
     )
     return output
+
+
+generate_with = generate
 
 
 def in_process_bridge(input: list[ChatMessage]) -> AgentBridge:
@@ -1314,6 +1326,137 @@ async def test_sentinel_errors_fail_the_sample(after: bool) -> None:
 
     assert isinstance(bridge._failure, SentinelFailure)
     assert isinstance(bridge._failure.error, PermissionError)
+
+
+@solver
+def bridged_scaffold_carries_on(
+    sandbox: bool, model: Scripted, caught: list[Exception]
+) -> Solver:
+    """A bridged scaffold whose first turn's call fails its check, which it would catch before generating again."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        bridge = sandbox_bridge() if sandbox else in_process_bridge([])
+        for prompt in [TASK, "Go on."]:
+            try:
+                await generate_with(bridge, model, [ChatMessageUser(content=prompt)])
+            except Exception as ex:
+                caught.append(ex)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+def test_a_bridged_scaffold_that_catches_a_sentinel_failure_is_stopped(
+    sandbox: bool,
+) -> None:
+    model = Scripted(calls_output(READ), calls_output())
+    caught: list[Exception] = []
+    task = Task(
+        dataset=[Sample(input=TASK)],
+        solver=bridged_scaffold_carries_on(sandbox, model, caught),
+        sentinel=[bridge_raising()],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "error"
+    assert log.samples
+    [sample] = log.samples
+    assert sample.error is not None
+    assert sample.error.message == "PermissionError('sentinel denied')"
+    assert [
+        e.error
+        for e in sample.events
+        if isinstance(e, SentinelEvent) and e.status == "error"
+    ] == ["PermissionError: sentinel denied"]
+    assert len([e for e in sample.events if isinstance(e, ErrorEvent)]) == 1
+    # the turn was cancelled before the scaffold could catch its failure, and
+    # nothing reached the model after it
+    assert caught == []
+    assert len(model.inputs) == 1
+
+
+@protocol
+def bridge_fails_the_first_turn(turns: list[int]) -> Protocol:
+    async def check(
+        context: Context, step: BeforeGenerate, escalations: Escalations
+    ) -> Decision | None:
+        turns.append(len(turns) + 1)
+        if len(turns) == 1:
+            raise PermissionError("sentinel denied")
+        return None
+
+    return check
+
+
+_RETRYING_SCAFFOLD = (
+    "import json\n"
+    "import os\n"
+    "import time\n"
+    "import urllib.error\n"
+    "import urllib.request\n"
+    "\n"
+    "def complete():\n"
+    "    request = urllib.request.Request(\n"
+    "        os.environ['OPENAI_BASE_URL'] + '/chat/completions',\n"
+    "        data=json.dumps({'model': 'inspect', 'messages': [{'role': 'user', 'content': 'Hi.'}]}).encode(),\n"
+    "        headers={'Content-Type': 'application/json'},\n"
+    "    )\n"
+    "    return urllib.request.urlopen(request).read().decode()\n"
+    "\n"
+    "for turn in range(2):\n"
+    "    for attempt in range(30):\n"
+    "        try:\n"
+    "            print(complete(), flush=True)\n"
+    "            break\n"
+    "        except urllib.error.HTTPError as ex:\n"
+    "            print('error', ex.code, flush=True)\n"
+    "            break\n"
+    "        except urllib.error.URLError:\n"
+    "            time.sleep(0.5)\n"
+)
+"""Scaffold run in the container: two chat completions through the model proxy, the second sent even if the first gets an error reply."""
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_a_sandbox_bridged_scaffold_s_failed_turn_fails_the_sample(
+    tmp_path: Path,
+) -> None:
+    turns: list[int] = []
+    model = Scripted(calls_output())
+    ran: list[str] = []
+
+    @agent
+    def scaffold() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with sandbox_agent_bridge(state) as bridge:
+                result = await sandbox().exec(
+                    cmd=["python3", "-c", _RETRYING_SCAFFOLD],
+                    env={"OPENAI_BASE_URL": "http://localhost:13131/v1"},
+                    timeout=60,
+                )
+                ran.append(result.stdout)
+                return bridge.state
+
+        return execute
+
+    task = Task(
+        dataset=[Sample(input=TASK)],
+        solver=scaffold(),
+        sandbox="docker",
+        sentinel=[bridge_fails_the_first_turn(turns)],
+    )
+    log = eval(task, model=model.model, log_dir=str(tmp_path), display="plain")[0]
+    assert log.status == "error"
+    assert log.samples
+    [sample] = log.samples
+    assert sample.error is not None
+    assert sample.error.message == "PermissionError('sentinel denied')"
+    # the scaffold's run was cancelled at the failed turn: its second turn was
+    # never checked or sent to the model
+    assert turns == [1]
+    assert model.inputs == []
+    assert ran == []
 
 
 @protocol

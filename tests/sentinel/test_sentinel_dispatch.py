@@ -15,6 +15,7 @@ import anyio
 import pytest
 import tenacity
 from pydantic import BaseModel, PrivateAttr, field_validator
+from tenacity.wait import WaitBaseT
 from test_helpers.transcript import FakeTranscriptHistoryProvider
 from test_helpers.utils import collide_murmur3, skip_if_no_mcp_package
 from typing_extensions import assert_type
@@ -25,7 +26,7 @@ from inspect_ai._sentinel._config import (
     resolve_sentinel_root,
     resolve_sentinel_spec,
 )
-from inspect_ai._sentinel._context import init_sentinel
+from inspect_ai._sentinel._context import SentinelFailure, init_sentinel
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import (
     Agent,
@@ -44,6 +45,7 @@ from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
     ApprovalEvent,
+    ErrorEvent,
     Event,
     ModelEvent,
     SentinelAction,
@@ -54,6 +56,7 @@ from inspect_ai.event import (
 )
 from inspect_ai.log import EvalLog, read_eval_log
 from inspect_ai.log._condense import resolve_sample_attachments
+from inspect_ai.log._samples import sample_active
 from inspect_ai.log._transcript import (
     Transcript,
     TranscriptHistoryProvider,
@@ -81,8 +84,16 @@ from inspect_ai.model import (
     modelapi,
 )
 from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
 from inspect_ai.model._providers.mockllm import MockLLM
+from inspect_ai.model._providers.util.batch import (
+    Batch,
+    BatchCheckResult,
+    Batcher,
+    BatchRequest,
+)
+from inspect_ai.model._retry import model_retry_config
 from inspect_ai.review import Review, Reviewer, ReviewPolicy, reviewer
 from inspect_ai.scorer import Reference, Score, Scorer, Target, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
@@ -91,6 +102,7 @@ from inspect_ai.tool import (
     ToolCall,
     ToolCallContent,
     ToolCallView,
+    ToolChoice,
     ToolDef,
     ToolError,
     ToolFunction,
@@ -98,7 +110,7 @@ from inspect_ai.tool import (
     ToolResult,
     tool,
 )
-from inspect_ai.util import StoreModel, span
+from inspect_ai.util import StoreModel, background, span
 from inspect_ai.util._limit import LimitExceededError
 
 # mypy checks the tests against inspect_sentinel's API; they run on the fake
@@ -1909,6 +1921,1207 @@ def test_sentinel_errors_in_a_background_sub_agent_fail_the_sample() -> None:
     sample_error = log.samples[0].error
     assert sample_error is not None
     assert sample_error.message == "PermissionError('sentinel denied')"
+
+
+@protocol
+def d3_fails_once(checks: list[str]) -> Protocol:
+    # fails the eval's first check of a counted_addition call only, so a step
+    # after it would be passed by the sentinel
+    async def check(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        checks.append(step.call.function)
+        if checks.count("counted_addition") == 1 and checks[-1] == "counted_addition":
+            raise PermissionError("sentinel denied")
+        return None
+
+    return check
+
+
+@tool
+def counted_addition(executed: list[str]) -> Tool:
+    async def execute(x: int, y: int) -> str:
+        """Add two numbers.
+
+        Args:
+            x: First number to add.
+            y: Second number to add.
+        """
+        executed.append(f"{x}+{y}")
+        return str(x + y)
+
+    return execute
+
+
+def counted_model(calls: list[list[ChatMessage]], *outputs: ModelOutput) -> Model:
+    """A model that returns `outputs` in turn, and records each call's input in `calls`."""
+
+    def respond(
+        input: list[ChatMessage], tools: Any, tool_choice: Any, config: Any
+    ) -> ModelOutput:
+        calls.append(list(input))
+        return outputs[min(len(calls), len(outputs)) - 1]
+
+    return get_model("mockllm/model", custom_outputs=respond, memoize=False)
+
+
+def calls_counted_addition() -> ModelOutput:
+    return ModelOutput.for_tool_call(
+        "mockllm/model", tool_name="counted_addition", tool_arguments={"x": 2, "y": 3}
+    )
+
+
+def counted_call(id: str, x: int, y: int) -> ChatMessageAssistant:
+    return ChatMessageAssistant(
+        content="",
+        tool_calls=[
+            ToolCall(id=id, function="counted_addition", arguments={"x": x, "y": y})
+        ],
+    )
+
+
+def counted_helper(executed: list[str], kind: str) -> Agent:
+    tools = [counted_addition(executed)]
+    if kind == "react":
+        return react(
+            name="helper",
+            description="A helper agent.",
+            tools=tools,
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    calls_counted_addition(),
+                    ModelOutput.from_content("mockllm/model", content="helper done"),
+                ],
+                memoize=False,
+            ),
+            submit=False,
+        )
+    # a deepagent whose background subagent's call fails
+    helper = subagent(
+        name="helper",
+        description="A helper agent.",
+        prompt="You are a helper.",
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                calls_counted_addition(),
+                ModelOutput.from_content("mockllm/model", content="helper done"),
+            ],
+            memoize=False,
+        ),
+        extra_tools=tools,
+    )
+    return deepagent(
+        subagents=[helper],
+        background=True,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={"prompt": "add 2 and 3", "background": True},
+                ),
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="agent_wait",
+                    tool_arguments={"agent_ids": ["AGENT-1"]},
+                ),
+                ModelOutput.from_content("mockllm/model", content="done"),
+            ],
+            memoize=False,
+        ),
+    )
+
+
+def failed_with(log: EvalLog, message: str) -> None:
+    """Assert that `log`'s one sample failed with the sentinel's `message`, recorded once."""
+    assert log.status == "error"
+    assert log.samples
+    [sample] = log.samples
+    assert sample.error is not None
+    assert sample.error.message == message
+    failed = [
+        e for e in sample.events if isinstance(e, SentinelEvent) and e.status == "error"
+    ]
+    assert len(failed) == 1
+    assert len([e for e in sample.events if isinstance(e, ErrorEvent)]) == 1
+
+
+def tool_event_ids(log: EvalLog) -> list[str]:
+    assert log.samples
+    return [e.id for e in log.samples[0].events if isinstance(e, ToolEvent)]
+
+
+@solver
+def d3_catches_the_sub_agent(
+    sub: Agent, executed: list[str], then: str, caught: list[BaseException]
+) -> Solver:
+    """A scaffold that runs `sub` and catches what it raises.
+
+    It catches an `Exception`, then `continues` (a generate and a tool call,
+    each of whose errors it also catches) or `returns`. Or it catches anything,
+    the sample's cancellation included, then `raises` an error of its own,
+    `swallows` it and returns, or `carries on` as `continues` does, catching
+    anything.
+    """
+
+    async def carry_on(state: TaskState, catch: type[BaseException]) -> None:
+        tools = [counted_addition(executed)]
+        try:
+            await get_model().generate(state.messages, tools=tools)
+        except catch as ex:
+            caught.append(ex)
+        try:
+            await execute_tools(
+                [*state.messages, counted_call("scaffold_call", 4, 5)], tools
+            )
+        except catch as ex:
+            caught.append(ex)
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        catch = Exception if then in ("continues", "returns") else BaseException
+        try:
+            await run_agent(sub, "add 2 and 3")
+        except catch as ex:
+            caught.append(ex)
+            if then == "raises":
+                raise RuntimeError("the helper failed") from ex
+        if then == "continues":
+            await carry_on(state, Exception)
+        elif then == "carries on":
+            await carry_on(state, BaseException)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize(
+    "then", ["continues", "returns", "raises", "swallows", "carries on"]
+)
+@pytest.mark.parametrize("kind", ["react", "deepagent"])
+def test_a_sentinel_failure_a_scaffold_catches_still_fails_the_sample(
+    kind: str, then: str
+) -> None:
+    checks: list[str] = []
+    executed: list[str] = []
+    caught: list[BaseException] = []
+    agent_calls: list[list[ChatMessage]] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_catches_the_sub_agent(
+            counted_helper(executed, kind), executed, then, caught
+        ),
+        sentinel=[d3_fails_once(checks)],
+        message_limit=30,
+    )
+    log = eval(
+        task,
+        model=counted_model(
+            agent_calls, ModelOutput.from_content("mockllm/model", content="done")
+        ),
+    )[0]
+    failed_with(log, "PermissionError('sentinel denied')")
+    # the sentinel failed the helper's call, and nothing ran after it: no
+    # generate, no tool call and no other check
+    assert checks == (["agent"] if kind == "deepagent" else []) + ["counted_addition"]
+    assert agent_calls == []
+    assert executed == []
+    assert "scaffold_call" not in tool_event_ids(log)
+    if then == "carries on":
+        # each step the scaffold tried was cancelled (asyncio's or trio's
+        # cancellation, which no `except Exception` catches)
+        assert len(caught) == 3
+        assert not any(isinstance(ex, Exception) for ex in caught[1:])
+
+
+@tool
+def delegate(sub: Agent) -> Tool:
+    async def execute(task: str) -> str:
+        """Hand a task to a helper agent.
+
+        Args:
+            task: The task.
+        """
+        try:
+            state = await run_agent(sub, task)
+        except Exception as ex:
+            return f"The helper failed: {ex}"
+        return state.output.completion
+
+    return execute
+
+
+def test_a_sentinel_failure_a_tool_catches_still_fails_the_sample() -> None:
+    checks: list[str] = []
+    executed: list[str] = []
+    agent_calls: list[list[ChatMessage]] = []
+    model = counted_model(
+        agent_calls,
+        ModelOutput.for_tool_call(
+            "mockllm/model", tool_name="delegate", tool_arguments={"task": "add"}
+        ),
+        calls_counted_addition(),
+        ModelOutput.from_content("mockllm/model", content="done"),
+    )
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=react(
+            tools=[
+                delegate(counted_helper(executed, "react")),
+                counted_addition(executed),
+            ],
+            submit=False,
+        ),
+        sentinel=[d3_fails_once(checks)],
+        message_limit=30,
+    )
+    log = eval(task, model=model)[0]
+    failed_with(log, "PermissionError('sentinel denied')")
+    # the agent's turn that handed out the task ran; the next didn't
+    assert len(agent_calls) == 1
+    assert executed == []
+    assert checks == ["delegate", "counted_addition"]
+
+
+@solver
+def d3_swallows_and_answers(executed: list[str], attempts: list[int]) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        attempts.append(state.epoch)
+        try:
+            await execute_tools(
+                [counted_call("first", 1, 2)], [counted_addition(executed)]
+            )
+        except Exception:
+            pass
+        return await generate(state)
+
+    return solve
+
+
+def test_a_sentinel_failure_does_not_reach_the_next_attempt_or_epoch() -> None:
+    checks: list[str] = []
+    executed: list[str] = []
+    attempts: list[int] = []
+    agent_calls: list[list[ChatMessage]] = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=d3_swallows_and_answers(executed, attempts),
+        sentinel=[d3_fails_once(checks)],
+    )
+    log = eval(
+        task,
+        model=counted_model(
+            agent_calls, ModelOutput.from_content("mockllm/model", content="2")
+        ),
+        retry_on_error=1,
+        epochs=2,
+        max_samples=1,
+    )[0]
+    # whichever epoch's attempt ran first failed; its retry and the other
+    # epoch ran as usual
+    assert log.status == "success", log.error
+    assert log.samples and [s.error for s in log.samples] == [None, None]
+    # attempts run one at a time (max_samples=1), so the first one failed
+    failed_epoch = attempts[0]
+    assert len(attempts) == 3
+    assert attempts.count(failed_epoch) == 2
+    assert {s.epoch: len(s.error_retries or []) for s in log.samples} == {
+        failed_epoch: 1,
+        3 - failed_epoch: 0,
+    }
+    assert len(checks) == 3
+    assert executed == ["1+2", "1+2"]
+    assert len(agent_calls) == 2
+
+
+@scorer(metrics=[])
+def d3_asks_a_model(calls: list[list[ChatMessage]]) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        output = await counted_model(
+            calls, ModelOutput.from_content("mockllm/model", content="C")
+        ).generate("Grade it.")
+        return Score(value=output.completion)
+
+    return score
+
+
+def test_a_sample_failed_by_a_caught_sentinel_failure_is_still_scored() -> None:
+    checks: list[str] = []
+    grader_calls: list[list[ChatMessage]] = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=d3_catches_the_sub_agent(
+            counted_helper([], "react"), [], "continues", []
+        ),
+        scorer=d3_asks_a_model(grader_calls),
+        sentinel=[d3_fails_once(checks)],
+    )
+    log = eval(task, model="mockllm/model", score_on_error=True)[0]
+    assert log.samples
+    [sample] = log.samples
+    assert sample.error is not None
+    assert sample.error.message == "PermissionError('sentinel denied')"
+    # scoring runs after the attempt, outside its cancellation
+    assert len(grader_calls) == 1
+    assert sample.scores and sample.scores["d3_asks_a_model"].value == "C"
+
+
+def test_a_scaffold_that_catches_nothing_from_the_sentinel_is_unaffected() -> None:
+    executed: list[str] = []
+    agent_calls: list[list[ChatMessage]] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_catches_the_sub_agent(
+            counted_helper(executed, "react"), executed, "continues", []
+        ),
+        sentinel=[d3_continue()],
+    )
+    log = eval(
+        task,
+        model=counted_model(
+            agent_calls, ModelOutput.from_content("mockllm/model", content="done")
+        ),
+    )[0]
+    assert log.status == "success", log.error
+    assert executed == ["2+3", "4+5"]
+    assert len(agent_calls) == 1
+
+
+class Gate:
+    """Events that order a check against a concurrent task, made in the eval's loop."""
+
+    def __init__(self) -> None:
+        self.started = anyio.Event()
+        self.release = anyio.Event()
+
+
+@protocol
+def d3_waits_then_fails(gates: list[Gate]) -> Protocol:
+    # a check that is still running when the solvers return
+    async def check(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        gates[0].started.set()
+        await gates[0].release.wait()
+        raise PermissionError("late sentinel denied")
+
+    return check
+
+
+@solver
+def d3_returns_while_a_background_check_runs(
+    gates: list[Gate], executed: list[str], caught: list[Exception]
+) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        gate = Gate()
+        gates.append(gate)
+
+        async def worker() -> None:
+            # a step the worker finishes even when the sample's task group is
+            # cancelled, as cleanup does
+            with anyio.CancelScope(shield=True):
+                try:
+                    await execute_tools(
+                        [counted_call("worker_call", 1, 2)],
+                        [counted_addition(executed)],
+                    )
+                except Exception as ex:
+                    caught.append(ex)
+
+        background(worker)
+        await gate.started.wait()
+        gate.release.set()
+        return state
+
+    return solve
+
+
+def test_a_sentinel_failure_a_background_task_catches_after_the_solvers_return_fails_the_sample() -> (
+    None
+):
+    gates: list[Gate] = []
+    executed: list[str] = []
+    caught: list[Exception] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_returns_while_a_background_check_runs(gates, executed, caught),
+        sentinel=[d3_waits_then_fails(gates)],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    failed_with(log, "PermissionError('late sentinel denied')")
+    # the check failed after the solvers returned, and the worker caught it
+    assert [type(ex) for ex in caught] == [SentinelFailure]
+    assert executed == []
+
+
+@solver
+def d3_carries_on_in_a_model_origin(
+    sub: Agent,
+    executed: list[str],
+    origin: Literal["environment", "helper"],
+    step: str,
+) -> Solver:
+    """A scaffold that catches its helper's failure, then takes `step` inside `model_origin(origin)`."""
+
+    async def carry_on(messages: list[ChatMessage]) -> None:
+        tools = [counted_addition(executed)]
+        try:
+            await get_model().generate(messages, tools=tools)
+        except Exception:
+            pass
+        try:
+            await execute_tools([*messages, counted_call("scaffold_call", 4, 5)], tools)
+        except Exception:
+            pass
+
+    @agent
+    def nested() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            await carry_on(state.messages)
+            return state
+
+        return execute
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        try:
+            await run_agent(sub, "add 2 and 3")
+        except Exception:
+            pass
+        with model_origin(origin):
+            if step == "nested agent":
+                try:
+                    await run_agent(nested(), "add 4 and 5")
+                except Exception:
+                    pass
+            else:
+                await carry_on(state.messages)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("step", ["scaffold", "nested agent"])
+@pytest.mark.parametrize("origin", ["helper", "environment"])
+def test_a_scaffold_can_t_carry_on_after_a_sentinel_failure_in_a_model_origin(
+    origin: Literal["environment", "helper"], step: str
+) -> None:
+    checks: list[str] = []
+    executed: list[str] = []
+    agent_calls: list[list[ChatMessage]] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_carries_on_in_a_model_origin(
+            counted_helper(executed, "react"), executed, origin, step
+        ),
+        sentinel=[d3_fails_once(checks)],
+        message_limit=30,
+    )
+    log = eval(
+        task,
+        model=counted_model(
+            agent_calls, ModelOutput.from_content("mockllm/model", content="done")
+        ),
+    )[0]
+    failed_with(log, "PermissionError('sentinel denied')")
+    # no generate reached the model and no tool ran, although no sentinel
+    # checks a step in a model_origin() region
+    assert checks == ["counted_addition"]
+    assert agent_calls == []
+    assert executed == []
+    assert "scaffold_call" not in tool_event_ids(log)
+
+
+@protocol
+def d3_fails_a_turn() -> Protocol:
+    async def check(
+        context: Context, step: BeforeGenerate, escalations: Escalations
+    ) -> Decision | None:
+        raise PermissionError("sentinel denied")
+
+    return check
+
+
+@solver
+def d3_calls_an_unchecked_tool_after_a_failed_turn(
+    executed: list[str], caught: list[Exception]
+) -> Solver:
+    """A scaffold that catches its failed turn, then at once calls a tool no sentinel checks, whose body never awaits."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        try:
+            await get_model().generate(state.messages)
+        except Exception as ex:
+            caught.append(ex)
+        with model_origin("helper"):
+            try:
+                await execute_tools(
+                    [*state.messages, counted_call("unchecked_call", 4, 5)],
+                    [counted_addition(executed)],
+                )
+            except Exception as ex:
+                caught.append(ex)
+        return state
+
+    return solve
+
+
+def test_a_scaffold_that_catches_a_failed_turn_can_t_start_another_step() -> None:
+    executed: list[str] = []
+    caught: list[Exception] = []
+    agent_calls: list[list[ChatMessage]] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_calls_an_unchecked_tool_after_a_failed_turn(executed, caught),
+        sentinel=[d3_fails_a_turn()],
+    )
+    log = eval(
+        task,
+        model=counted_model(
+            agent_calls, ModelOutput.from_content("mockllm/model", content="done")
+        ),
+    )[0]
+    failed_with(log, "PermissionError('sentinel denied')")
+    # the failed turn was cancelled before the scaffold could catch it
+    assert caught == []
+    assert agent_calls == []
+    assert executed == []
+
+
+@protocol
+def d3_holds_a_turn_until_a_call_fails(gates: list[Gate]) -> ProtocolGroup:
+    async def before_generate(
+        context: Context, step: BeforeGenerate, escalations: Escalations
+    ) -> Decision | None:
+        gates[0].started.set()
+        await gates[0].release.wait()
+        return None
+
+    async def before_tool_call(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        raise PermissionError("sentinel denied")
+
+    return ProtocolGroup(before_generate, before_tool_call)
+
+
+@protocol
+def d3_holds_a_call_until_another_fails(gates: list[Gate]) -> Protocol:
+    async def check(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.arguments["x"] == 1:
+            gates[0].started.set()
+            await gates[0].release.wait()
+            return None
+        raise PermissionError("sentinel denied")
+
+    return check
+
+
+class _HeldMockLLM(MockLLM):
+    """A provider whose request is in flight until `release`, and fails retryably if it gets there."""
+
+    sends = 0
+    gate: "Gate | None" = None
+
+    def should_retry(self, ex: Exception) -> bool:
+        return isinstance(ex, ConnectionError)
+
+    def retry_wait(self) -> WaitBaseT | None:
+        return tenacity.wait_none()
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> Any:
+        _HeldMockLLM.sends += 1
+        assert _HeldMockLLM.gate is not None
+        _HeldMockLLM.gate.started.set()
+        await _HeldMockLLM.gate.release.wait()
+        raise ConnectionError("try again")
+
+
+@modelapi(name="d3_held")
+def d3_held() -> type[ModelAPI]:
+    return _HeldMockLLM
+
+
+@solver
+def d3_races(
+    held: str,
+    gates: list[Gate],
+    executed: list[str],
+    caught: list[BaseException],
+    shielded: bool = False,
+) -> Solver:
+    """Two concurrent subagents: one's `held` step waits (in its check, or in flight) while the other's tool call fails, and each catches its error.
+
+    Each subagent's work is shielded from cancellation if `shielded`.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        gate = Gate()
+        gates.append(gate)
+        _HeldMockLLM.gate = gate
+        tools = [counted_addition(executed)]
+
+        async def held_step() -> None:
+            with anyio.CancelScope(shield=shielded):
+                try:
+                    if held == "tool call":
+                        await execute_tools([counted_call("held_call", 1, 2)], tools)
+                    else:
+                        await get_model().generate(state.messages)
+                except Exception as ex:
+                    caught.append(ex)
+
+        async def failing_call() -> None:
+            await gate.started.wait()
+            with anyio.CancelScope(shield=shielded):
+                try:
+                    await execute_tools([counted_call("failing_call", 2, 3)], tools)
+                except Exception as ex:
+                    caught.append(ex)
+            gate.release.set()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(held_step)
+            tg.start_soon(failing_call)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("held", ["generate", "tool call", "provider request"])
+def test_a_concurrent_step_does_not_run_once_the_sample_has_failed(held: str) -> None:
+    gates: list[Gate] = []
+    executed: list[str] = []
+    caught: list[BaseException] = []
+    agent_calls: list[list[ChatMessage]] = []
+    _HeldMockLLM.sends = 0
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_races(held, gates, executed, caught),
+        sentinel=[
+            d3_holds_a_turn_until_a_call_fails(gates)
+            if held == "generate"
+            else d3_holds_a_call_until_another_fails(gates)
+        ],
+    )
+    log = eval(
+        task,
+        model=get_model("d3_held/model", memoize=False)
+        if held == "provider request"
+        else counted_model(
+            agent_calls, ModelOutput.from_content("mockllm/model", content="done")
+        ),
+    )[0]
+    failed_with(log, "PermissionError('sentinel denied')")
+    # each task was cancelled, and caught no error: the held step where it
+    # waited, so its check never returned and nothing was sent or run, and an
+    # in-flight request was not retried
+    assert caught == []
+    assert agent_calls == []
+    assert executed == []
+    assert _HeldMockLLM.sends == (1 if held == "provider request" else 0)
+    # a check that was running is recorded as cancelled, not as failed
+    if held != "provider request":
+        assert log.samples
+        assert any(
+            isinstance(e, SentinelEvent) and e.status == "cancelled"
+            for e in log.samples[0].events
+        )
+
+
+@pytest.mark.parametrize("held", ["generate", "tool call"])
+def test_a_shielded_check_that_passes_after_a_concurrent_failure_does_not_authorise_its_step(
+    held: str,
+) -> None:
+    gates: list[Gate] = []
+    executed: list[str] = []
+    caught: list[BaseException] = []
+    agent_calls: list[list[ChatMessage]] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_races(held, gates, executed, caught, shielded=True),
+        sentinel=[
+            d3_holds_a_turn_until_a_call_fails(gates)
+            if held == "generate"
+            else d3_holds_a_call_until_another_fails(gates)
+        ],
+    )
+    log = eval(
+        task,
+        model=counted_model(
+            agent_calls, ModelOutput.from_content("mockllm/model", content="done")
+        ),
+    )[0]
+    failed_with(log, "PermissionError('sentinel denied')")
+    # shielded, both steps got the failure: the failing call's, and the held
+    # step's once its check returned, which then neither sent nor ran anything
+    assert [type(ex) for ex in caught] == [SentinelFailure, SentinelFailure]
+    assert agent_calls == []
+    assert executed == []
+
+
+@protocol
+def d3_fails_the_first_turn(turns: list[int]) -> Protocol:
+    async def check(
+        context: Context, step: BeforeGenerate, escalations: Escalations
+    ) -> Decision | None:
+        turns.append(len(turns) + 1)
+        if len(turns) == 1:
+            raise PermissionError("sentinel denied")
+        return None
+
+    return check
+
+
+@solver
+def d3_shielded_scaffold_tries_twice(
+    step: str, executed: list[str], caught: list[Exception]
+) -> Solver:
+    """A scaffold whose work is shielded from cancellation: it catches its step's failure, then takes the same step again."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        tools = [counted_addition(executed)]
+        with anyio.CancelScope(shield=True):
+            for id in ["first_call", "second_call"]:
+                try:
+                    if step == "generate":
+                        await get_model().generate(state.messages)
+                    else:
+                        await execute_tools(
+                            [*state.messages, counted_call(id, 2, 3)], tools
+                        )
+                except Exception as ex:
+                    caught.append(ex)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("step", ["generate", "tool call"])
+def test_a_shielded_scaffold_that_catches_a_sentinel_failure_can_t_take_another_checked_step(
+    step: str,
+) -> None:
+    checks: list[str] = []
+    turns: list[int] = []
+    executed: list[str] = []
+    caught: list[Exception] = []
+    agent_calls: list[list[ChatMessage]] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_shielded_scaffold_tries_twice(step, executed, caught),
+        sentinel=[
+            d3_fails_the_first_turn(turns)
+            if step == "generate"
+            else d3_fails_once(checks)
+        ],
+    )
+    log = eval(
+        task,
+        model=counted_model(
+            agent_calls, ModelOutput.from_content("mockllm/model", content="done")
+        ),
+    )[0]
+    failed_with(log, "PermissionError('sentinel denied')")
+    # the second step was refused without its check running (which would
+    # have passed it): no generate reached the model and no tool ran
+    assert [type(ex) for ex in caught] == [SentinelFailure, SentinelFailure]
+    assert turns == ([1] if step == "generate" else [])
+    assert checks == ([] if step == "generate" else ["counted_addition"])
+    assert agent_calls == []
+    assert executed == []
+    if step == "tool call":
+        # the refused call is recorded as failed, as a call whose check failed
+        assert log.samples
+        [refused] = [
+            e
+            for e in log.samples[0].events
+            if isinstance(e, ToolEvent) and e.id == "second_call"
+        ]
+        assert refused.failed is True
+        assert refused.result == ""
+
+
+@solver
+def d3_ends_a_failed_sample_by(then: str, executed: list[str]) -> Solver:
+    """A solver whose call fails its check, and whose sample is then interrupted by the operator or exceeds its working limit while the failure unwinds."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        try:
+            await execute_tools(
+                [counted_call("failing_call", 2, 3)], [counted_addition(executed)]
+            )
+        except BaseException:
+            active = sample_active()
+            assert active is not None
+            if then == "working limit":
+                active.limit_exceeded(
+                    LimitExceededError(
+                        "working", value=2, limit=1, message="Working limit exceeded."
+                    )
+                )
+            else:
+                active.interrupt("score" if then == "interrupt (score)" else "error")
+            raise
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize(
+    "then", ["interrupt (score)", "interrupt (error)", "working limit"]
+)
+def test_an_interrupt_or_working_limit_handled_after_a_sentinel_failure_keeps_its_precedence(
+    then: str,
+) -> None:
+    checks: list[str] = []
+    executed: list[str] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_ends_a_failed_sample_by(then, executed),
+        sentinel=[d3_fails_once(checks)],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    [sample] = log.samples
+    assert executed == []
+    # the check's failure is recorded, but the sample ends as the interrupt or
+    # limit decides, as without a sentinel failure
+    assert [
+        e.error
+        for e in sample.events
+        if isinstance(e, SentinelEvent) and e.status == "error"
+    ] == ["PermissionError: sentinel denied"]
+    if then == "interrupt (error)":
+        assert sample.error is not None
+        assert sample.error.message == (
+            "RuntimeError('Sample errored: interrupted by operator')"
+        )
+    else:
+        assert sample.error is None
+        assert sample.limit is not None
+        assert sample.limit.type == (
+            "operator" if then == "interrupt (score)" else "working"
+        )
+
+
+@agent(description="Receives a handoff.")
+def d3_receiver(entered: list[str]) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        entered.append("receiver")
+        return state
+
+    return execute
+
+
+@solver
+def d3_hands_off(
+    during_filter: str,
+    gates: list[Gate],
+    executed: list[str],
+    entered: list[str],
+    caught: list[Exception],
+) -> Solver:
+    """A handoff whose input filter catches a nested sentinel failure, or waits while a concurrent call fails."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        gate = Gate()
+        gates.append(gate)
+        tools = [counted_addition(executed)]
+
+        async def input_filter(messages: list[ChatMessage]) -> list[ChatMessage]:
+            if during_filter == "catches a failure":
+                try:
+                    await execute_tools([counted_call("filter_call", 2, 3)], tools)
+                except Exception as ex:
+                    caught.append(ex)
+            else:
+                gate.started.set()
+                await gate.release.wait()
+            return messages
+
+        receiver = handoff(
+            d3_receiver(entered),
+            input_filter=input_filter,
+            tool_name="transfer_to_receiver",
+        )
+        call = ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(
+                    id="handoff_call", function="transfer_to_receiver", arguments={}
+                )
+            ],
+        )
+
+        async def hand_off() -> None:
+            try:
+                await execute_tools([*state.messages, call], [receiver])
+            except Exception as ex:
+                caught.append(ex)
+
+        async def failing_call() -> None:
+            await gate.started.wait()
+            try:
+                await execute_tools([counted_call("failing_call", 2, 3)], tools)
+            except Exception as ex:
+                caught.append(ex)
+            gate.release.set()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(hand_off)
+            if during_filter == "waits":
+                tg.start_soon(failing_call)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("during_filter", ["catches a failure", "waits"])
+def test_a_handoff_does_not_enter_its_agent_if_the_sample_fails_during_its_input_filter(
+    during_filter: str,
+) -> None:
+    gates: list[Gate] = []
+    executed: list[str] = []
+    entered: list[str] = []
+    caught: list[Exception] = []
+    checks: list[str] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_hands_off(during_filter, gates, executed, entered, caught),
+        sentinel=[d3_fails_once(checks)],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    failed_with(log, "PermissionError('sentinel denied')")
+    # the handoff's check passed before the failure; its agent never started
+    assert checks == ["transfer_to_receiver", "counted_addition"]
+    assert entered == []
+    assert executed == []
+    # each task was cancelled, and caught no error
+    assert caught == []
+
+
+@protocol
+def d3_spawns_a_worker(
+    worker: Callable[[], Awaitable[None]], checks: list[int]
+) -> Protocol:
+    # passes the first call, starting a task that outlives the check, and
+    # fails the next
+    async def check(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        checks.append(step.call.arguments["x"])
+        if len(checks) == 1:
+            background(worker)
+            return None
+        raise PermissionError("sentinel denied")
+
+    return check
+
+
+@solver
+def d3_releases_a_monitor_s_worker_after_a_failure(
+    gates: list[Gate], executed: list[str], caught: list[Exception]
+) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        gates.append(Gate())
+        tools = [counted_addition(executed)]
+        await execute_tools([counted_call("spawning_call", 1, 2)], tools)
+        try:
+            await execute_tools([counted_call("failing_call", 2, 3)], tools)
+        except Exception as ex:
+            caught.append(ex)
+        gates[0].release.set()
+        await gates[0].started.wait()
+        return state
+
+    return solve
+
+
+def test_work_a_monitor_started_does_not_run_after_a_failure() -> None:
+    gates: list[Gate] = []
+    executed: list[str] = []
+    caught: list[Exception] = []
+    worker_caught: list[BaseException] = []
+    checks: list[int] = []
+    agent_calls: list[list[ChatMessage]] = []
+
+    async def worker() -> None:
+        # started by the monitor and released by the solver after a later
+        # call fails
+        await gates[0].release.wait()
+        try:
+            await get_model().generate("Hello")
+        except BaseException as ex:
+            worker_caught.append(ex)
+            raise
+        gates[0].started.set()
+
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_releases_a_monitor_s_worker_after_a_failure(gates, executed, caught),
+        sentinel=[d3_spawns_a_worker(worker, checks)],
+    )
+    log = eval(
+        task,
+        model=counted_model(
+            agent_calls, ModelOutput.from_content("mockllm/model", content="done")
+        ),
+    )[0]
+    failed_with(log, "PermissionError('sentinel denied')")
+    assert checks == [1, 2]
+    assert caught == []
+    # the worker, started in the monitor's run, was cancelled with the sample
+    assert worker_caught == []
+    assert agent_calls == []
+    assert executed == ["1+2"]
+
+
+class _QueuedBatcher(Batcher[ModelOutput, bool]):
+    """A batcher whose worker waits on the gate before it takes a queued request, and records each batch submission's size."""
+
+    def __init__(self, gate: Gate, submissions: list[int]) -> None:
+        super().__init__(
+            BatchConfig(size=1, send_delay=0.001, tick=0.001),
+            model_retry_config(
+                "test",
+                3,
+                None,
+                lambda ex: False,
+                lambda ex: None,
+                lambda model, state: None,
+                wait=tenacity.wait_none(),
+            ),
+            max_batch_request_count=10,
+            max_batch_size_mb=1,
+        )
+        self._gate = gate
+        self._submissions = submissions
+
+    async def _process_intake_queue(self) -> bool:
+        if self._intake_queue and not self._gate.release.is_set():
+            self._gate.started.set()
+            await self._gate.release.wait()
+        return await super()._process_intake_queue()
+
+    async def _create_batch(self, batch: list[BatchRequest[ModelOutput]]) -> str:
+        self._submissions.append(len(batch))
+        return f"batch-{len(self._submissions)}"
+
+    async def _check_batch(self, batch: Batch[ModelOutput]) -> BatchCheckResult[bool]:
+        return BatchCheckResult(
+            completed_count=len(batch.requests),
+            failed_count=0,
+            created_at=batch.created_at,
+            completion_info=True,
+        )
+
+    async def _handle_batch_result(
+        self, batch: Batch[ModelOutput], completion_info: bool
+    ) -> dict[str, ModelOutput | Exception]:
+        return {
+            id: ModelOutput.from_content("mockllm/model", content="batched")
+            for id in batch.requests
+        }
+
+
+class _BatchedMockLLM(MockLLM):
+    """A provider that sends each generate through `batcher`."""
+
+    batcher: _QueuedBatcher | None = None
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> Any:
+        assert _BatchedMockLLM.batcher is not None
+        return await _BatchedMockLLM.batcher.generate_for_request(
+            {"messages": len(input)}
+        )
+
+
+@modelapi(name="d3_batched")
+def d3_batched() -> type[ModelAPI]:
+    return _BatchedMockLLM
+
+
+@solver
+def d3_queues_a_batched_generate(
+    gates: list[Gate],
+    submissions: list[int],
+    executed: list[str],
+    outputs: list[ModelOutput],
+    caught: list[Exception],
+) -> Solver:
+    """A generate queued for a batch, whose worker is held while a concurrent tool call fails and is caught."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        gate = Gate()
+        gates.append(gate)
+        _BatchedMockLLM.batcher = _QueuedBatcher(gate, submissions)
+
+        async def queued_generate() -> None:
+            try:
+                outputs.append(await get_model().generate(state.messages))
+            except Exception as ex:
+                caught.append(ex)
+
+        async def failing_call() -> None:
+            await gate.started.wait()
+            try:
+                await execute_tools(
+                    [counted_call("failing_call", 2, 3)], [counted_addition(executed)]
+                )
+            except Exception as ex:
+                caught.append(ex)
+            gate.release.set()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(queued_generate)
+            tg.start_soon(failing_call)
+        return state
+
+    return solve
+
+
+def test_a_generate_queued_for_a_batch_does_not_reach_the_agent_once_the_sample_has_failed() -> (
+    None
+):
+    gates: list[Gate] = []
+    submissions: list[int] = []
+    executed: list[str] = []
+    outputs: list[ModelOutput] = []
+    caught: list[Exception] = []
+    checks: list[str] = []
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=d3_queues_a_batched_generate(
+            gates, submissions, executed, outputs, caught
+        ),
+        sentinel=[d3_fails_once(checks)],
+    )
+    try:
+        log = eval(task, model=get_model("d3_batched/model", memoize=False))[0]
+    finally:
+        _BatchedMockLLM.batcher = None
+    failed_with(log, "PermissionError('sentinel denied')")
+    # the queued generate was cancelled while it waited for its batch. The
+    # request itself stays in the shared batcher's queue (as for any cancelled
+    # sample), so whether it is submitted is not asserted here.
+    assert outputs == []
+    assert caught == []
+    assert executed == []
 
 
 async def run_addition(grouped: bool) -> None:

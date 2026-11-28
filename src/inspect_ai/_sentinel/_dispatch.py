@@ -1,12 +1,14 @@
-from collections.abc import Iterator, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from copy import copy
 from dataclasses import fields
+from functools import wraps
 from logging import getLogger
-from typing import Any, Literal, cast
+from typing import Any, Literal, ParamSpec, TypeVar, cast
 from weakref import WeakKeyDictionary
 
+from anyio.lowlevel import checkpoint
 from inspect_sentinel import (
     AfterGenerate,
     AfterToolCall,
@@ -88,6 +90,7 @@ from ._context import (
     active_sentinel,
     active_task_description,
     active_task_metadata,
+    fail_sample,
 )
 from ._conversation import current_conversation
 from ._person import (
@@ -118,7 +121,65 @@ _UPGRADE = f"inspect_ai requires inspect_sentinel {SENTINEL_MIN_VERSION} or late
 
 _Kind = Literal["observation", "decision"]
 
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
 
+
+def _fails_the_sample(
+    *, tool_stage: bool
+) -> Callable[[Callable[_P, Awaitable[_T]]], Callable[_P, Awaitable[_T]]]:
+    """Make a `SentinelFailure` leaving a stage's dispatch fail the sample (`fail_sample`).
+
+    Once the sample has failed, a stage is refused (`_refuse_once_failed`),
+    before its monitors run and again after they return, so a check that was
+    running when another step failed the sample doesn't authorise its step.
+
+    A failure raised straight to the agent's code (from a generate stage
+    through `Model.generate()`, or from a tool stage through a bridge,
+    `bridge=True`) is raised only after a cancellation checkpoint, so
+    unshielded code that catches it can't start another step first. Any other
+    tool stage's failure is raised as it is: `execute_tools()` records it, and
+    its own awaits deliver the cancellation.
+
+    Args:
+        tool_stage: The stage is a tool stage, which takes `bridge`.
+    """
+
+    def decorate(stage: Callable[_P, Awaitable[_T]]) -> Callable[_P, Awaitable[_T]]:
+        @wraps(stage)
+        async def dispatch(*args: _P.args, **kwargs: _P.kwargs) -> _T:
+            await _refuse_once_failed()
+            try:
+                result = await stage(*args, **kwargs)
+            except SentinelFailure as ex:
+                fail_sample(ex)
+                if not tool_stage or kwargs.get("bridge", False):
+                    await checkpoint()
+                raise
+            await _refuse_once_failed()
+            return result
+
+        return dispatch
+
+    return decorate
+
+
+async def _refuse_once_failed() -> None:
+    """Refuse a stage once the sample has failed (`fail_sample`).
+
+    The sample's cancellation is let through first. Where it can't be, in a
+    shielded scope, the stage is refused with the sample's failure, without
+    running monitors or recording another failure. Nothing is awaited until a
+    failure is kept.
+    """
+    active = sample_active()
+    failure = active.sentinel_failure if active is not None else None
+    if isinstance(failure, SentinelFailure):
+        await checkpoint()
+        raise SentinelFailure(failure.error) from failure.error
+
+
+@_fails_the_sample(tool_stage=True)
 async def sentinel_before_tool_call(
     message: str,
     message_id: str | None,
@@ -168,13 +229,16 @@ def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCa
         )
     elif decision.action == "modify":
         if decision.modified is None:
-            raise SentinelFailure(
+            failure = SentinelFailure(
                 RuntimeError("A sentinel modify decision has no modified call.")
             )
+            fail_sample(failure)
+            raise failure
         return decision.modified
     return call
 
 
+@_fails_the_sample(tool_stage=True)
 async def sentinel_after_tool_call(
     message: str,
     message_id: str | None,
@@ -230,6 +294,7 @@ async def sentinel_after_tool_call(
         )
 
 
+@_fails_the_sample(tool_stage=False)
 async def sentinel_before_generate(
     *,
     generate_id: str,
@@ -274,6 +339,7 @@ async def sentinel_before_generate(
     return step
 
 
+@_fails_the_sample(tool_stage=False)
 async def sentinel_after_generate(
     before: BeforeGenerate, output: ModelOutput, generate_id: str
 ) -> None:

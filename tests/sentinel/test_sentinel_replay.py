@@ -1481,6 +1481,17 @@ def r7_fails_after_the_person(stage: str) -> ProtocolGroup:
     return ProtocolGroup(stages[stage])
 
 
+def as_before_failures_ended_the_sample(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run evals as inspect_ai did before a sentinel failure ended the sample.
+
+    A scaffold that caught the failure then carried on, so its later steps
+    were checked; replay still reads logs written that way.
+    """
+    monkeypatch.setattr(
+        "inspect_ai._sentinel._dispatch.fail_sample", lambda failure: None
+    )
+
+
 @solver
 def r7_carries_on_after_a_failed_turn() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -1569,6 +1580,7 @@ def test_a_person_s_answer_at_a_step_whose_root_status_is_not_a_finished_one_is_
 def test_a_person_s_answer_before_a_sentinel_failure_the_scaffold_caught_is_not_published(
     stage: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    as_before_failures_ended_the_sample(monkeypatch)
     Panel("approve").install(monkeypatch)
     seen: dict[str, Step] = {}
     log = run_logged(
@@ -7032,8 +7044,12 @@ def r7_generates_again_after_a_failure() -> Solver:
     ids=["later-check-recorded", "later-check-abstains"],
 )
 def test_a_model_input_step_without_its_model_call_is_not_replayed_after_a_later_turn(
-    monitor_fails: Callable[[], Any], recorded: int, caplog: pytest.LogCaptureFixture
+    monitor_fails: Callable[[], Any],
+    recorded: int,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    as_before_failures_ended_the_sample(monkeypatch)
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=r7_generates_again_after_a_failure(),
