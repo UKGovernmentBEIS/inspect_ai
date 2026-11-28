@@ -1540,11 +1540,14 @@ def test_uvicorn_shutdown_mirror_is_current() -> None:
         "shutdown": {"248c7bf71a637115", "2ce3eb89b04d05a7"},
         "main_loop": {"c50e6ef76aa27676"},
     }
-    changed = [
-        name for name, digests in accepted.items() if digest(name) not in digests
-    ]
+    changed = {
+        name: digest(name)
+        for name, digests in accepted.items()
+        if digest(name) not in digests
+    }
     assert not changed, (
-        f"uvicorn changed {changed}, which PromptExitServer mirrors — re-check it"
+        f"uvicorn {uvicorn.__version__} changed {changed}, which PromptExitServer"
+        " mirrors. Re-check it, then add the new digest."
     )
 
 
